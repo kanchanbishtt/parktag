@@ -20,6 +20,9 @@
     "mongodb": "^6.18.0",
     "qrcode": "^1.5.4"
   },
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "devDependencies": {
     "nodemon": "^3.1.14"
   }

@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>WaveTag Verification</title>
+    <link rel="stylesheet" href="/styles/styles.css" />
+  </head>
+  <body class="verify-body">
+    <main class="shell verify-shell">
+      <section class="hero">
+        <p class="eyebrow">WaveTag Verification</p>
+        <h1>Verification dashboard</h1>
+        <p class="lede">
+          Use this page to seed demo data, check the runtime, and verify the
+          main WaveTag flows from one place.
+        </p>
+        <div class="mobile-journey compact">
+          <div class="journey-step">
+            <strong>1</strong>
+            <span>Check runtime and credentials.</span>
+          </div>
+          <div class="journey-step">
+            <strong>2</strong>
+            <span>Seed demo data for the current environment.</span>
+          </div>
+          <div class="journey-step">
+            <strong>3</strong>
+            <span>Open the owner or admin surfaces to continue verification.</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="grid">
+        <article class="card">
+          <h2>Health</h2>
+          <pre id="health-output">Loading...</pre>
+        </article>
+
+        <article class="card">
+          <h2>Runtime Status</h2>
+          <pre id="status-output">Loading...</pre>
+        </article>
+      </section>
+
+      <section class="grid">
+        <article class="card">
+          <h2>Demo Seed</h2>
+          <p class="meta-copy">
+            Create one admin, one owner, one active tag, and one claimable tag
+            for the current environment.
+          </p>
+          <button id="seed-button" class="action">Seed demo data</button>
+          <pre id="seed-output">Not run yet.</pre>
+        </article>
+
+        <article class="card">
+          <h2>Demo Credentials</h2>
+          <pre id="credentials-output">Loading...</pre>
+        </article>
+      </section>
+
+      <section class="grid">
+        <article class="card">
+          <h2>Public Tag Resolve</h2>
+          <label class="field">
+            <span>Tag token</span>
+            <input id="tag-token" placeholder="Paste token from seeded demo" />
+          </label>
+          <button id="resolve-tag-button" class="action">Resolve tag</button>
+          <pre id="tag-output">No request yet.</pre>
+        </article>
+
+        <article class="card">
+          <h2>Create Contact Request</h2>
+          <label class="field">
+            <span>Tag token</span>
+            <input id="request-token" placeholder="Paste token from seeded demo" />
+          </label>
+          <label class="field">
+            <span>Scanner phone</span>
+            <input id="request-phone" placeholder="+919999999999" />
+          </label>
+          <button id="create-request-button" class="action">Create request</button>
+          <pre id="request-output">No request yet.</pre>
+        </article>
+      </section>
+
+      <section class="grid">
+        <article class="card">
+          <h2>Portal Links</h2>
+          <p class="meta-copy">
+            Use the dedicated owner and admin pages for authenticated surfaces.
+          </p>
+          <div class="actions">
+            <a class="action link-action" href="/owner">Owner Page</a>
+            <a class="action subtle link-action" href="/admin">Admin Page</a>
+            <a class="action subtle link-action" href="/register-owner">Owner Registration</a>
+          </div>
+        </article>
+      </section>
+    </main>
+
+    <script type="module" src="/scripts/verify.js"></script>
+  </body>
+</html>

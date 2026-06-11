@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>WaveTag Owner Login</title>
+    <link rel="stylesheet" href="/styles/styles.css" />
+  </head>
+  <body class="owner-body">
+    <main class="shell portal-shell mobile-portal-shell">
+      <section class="hero portal-hero">
+        <p class="eyebrow">WaveTag Owner</p>
+        <h1>Manage your vehicle and responses</h1>
+        <p class="lede">
+          Sign in to see your active WaveTag, recent contact requests, and your
+          current availability.
+        </p>
+      </section>
+
+      <section class="grid portal-grid">
+        <article class="card portal-card">
+          <h2>Owner Login</h2>
+          <label class="field">
+            <span>Email</span>
+            <input id="owner-email" value="owner@wavetag.local" />
+          </label>
+          <label class="field">
+            <span>Password</span>
+            <input id="owner-password" type="password" value="demo1234" />
+          </label>
+          <div class="actions">
+            <button id="owner-login-button" class="action">Sign in</button>
+          </div>
+          <p id="owner-auth-status" class="request-status" data-tone="info">
+            Sign in to access your dashboard.
+          </p>
+          <p class="meta-note">
+            Don't have an account? <a href="/register-owner">Register here</a>.
+          </p>
+        </article>
+      </section>
+    </main>
+
+    <script type="module" src="/scripts/owner.js"></script>
+  </body>
+</html>

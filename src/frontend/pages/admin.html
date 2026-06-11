@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>WaveTag Admin</title>
+    <link rel="stylesheet" href="/styles/styles.css" />
+  </head>
+  <body class="admin-body">
+    <main class="shell dashboard-shell">
+      <section class="dashboard-login admin-login-page">
+        <article class="card login-card dashboard-login-card">
+          <p class="eyebrow">WaveTag Admin</p>
+          <h1>Admin access</h1>
+          <p class="lede">
+            Sign in to open the operator dashboard and move into overview,
+            issuance, print queue, owner monitoring, and activity pages.
+          </p>
+          <div class="mobile-journey compact">
+            <div class="journey-step">
+              <strong>1</strong>
+              <span>Sign in with the admin account.</span>
+            </div>
+            <div class="journey-step">
+              <strong>2</strong>
+              <span>Open the overview or issuance routes.</span>
+            </div>
+            <div class="journey-step">
+              <strong>3</strong>
+              <span>Verify print queue, owners, and activity.</span>
+            </div>
+          </div>
+
+          <div class="form-grid">
+            <label class="field">
+              <span>Email</span>
+              <input id="admin-email" value="admin@wavetag.local" />
+            </label>
+            <label class="field">
+              <span>Password</span>
+              <input id="admin-password" type="password" value="demo1234" />
+            </label>
+          </div>
+
+          <div class="actions">
+            <button id="admin-login-button" class="action dashboard-action">
+              Open dashboard
+            </button>
+            <button id="admin-seed-button" class="action subtle">
+              Seed demo setup
+            </button>
+          </div>
+
+          <p id="admin-auth-status" class="request-status" data-tone="info">
+            Sign in to continue.
+          </p>
+          <p class="meta-note">
+            If local login fails, seed the current environment first. Demo
+            credentials stay `admin@wavetag.local` / `demo1234`.
+          </p>
+        </article>
+      </section>
+    </main>
+
+    <script type="module" src="/scripts/admin.js"></script>
+  </body>
+</html>

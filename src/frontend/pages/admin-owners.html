@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>WaveTag Admin Owners</title>
+    <link rel="stylesheet" href="/styles/styles.css" />
+  </head>
+  <body class="admin-body">
+    <main class="shell dashboard-shell admin-app-shell" data-admin-page="owners">
+      <section class="admin-shell">
+        <aside class="admin-sidebar">
+          <div class="admin-brand">
+            <p class="eyebrow">WaveTag</p>
+            <h2>Admin Control</h2>
+            <p class="meta-copy">
+              Issue stickers, review owners, and monitor live request activity.
+            </p>
+          </div>
+
+          <nav class="admin-nav">
+            <a class="admin-nav-item" href="/admin/overview">Overview</a>
+            <a class="admin-nav-item" href="/admin/issuance">Batch Issuance</a>
+            <a class="admin-nav-item" href="/admin/print-queue">Print Queue</a>
+            <a class="admin-nav-item is-active" href="/admin/owners">Owner Monitoring</a>
+            <a class="admin-nav-item" href="/admin/activity">Activity Feed</a>
+            <a class="admin-nav-item" href="/admin/admins">Admin Management</a>
+          </nav>
+
+          <div class="admin-sidebar-actions">
+            <button id="admin-refresh-button" class="action subtle">Refresh</button>
+            <button id="admin-logout-button" class="action">Sign out</button>
+          </div>
+        </aside>
+
+        <section class="admin-main">
+          <header class="dashboard-header admin-main-header">
+            <div>
+              <p class="eyebrow">Owner Monitoring</p>
+              <h1>Owner credits and activity</h1>
+              <p class="lede">
+                Review owners, tag counts, active tags, and current credits from one operator page.
+              </p>
+            </div>
+          </header>
+
+          <article class="card dashboard-card">
+            <div id="owner-monitor-list" class="monitor-list">
+              <p class="empty-copy">No owner data loaded yet.</p>
+            </div>
+          </article>
+        </section>
+      </section>
+    </main>
+
+    <script type="module" src="/scripts/admin.js"></script>
+  </body>
+</html>

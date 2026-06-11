@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>WaveTag Owner Registration</title>
+    <link rel="stylesheet" href="/styles/styles.css" />
+  </head>
+  <body class="owner-body">
+    <main class="shell portal-shell mobile-portal-shell">
+      <section class="hero portal-hero">
+        <p class="eyebrow">WaveTag Owner Registration</p>
+        <h1>Register your vehicle and get your QR</h1>
+        <p class="lede">
+          Create your owner account, generate your WaveTag QR, and request a
+          sticker if you want the company to print one for you.
+        </p>
+        <div class="mobile-journey compact">
+          <div class="journey-step">
+            <strong>1</strong>
+            <span>Register your details and vehicle.</span>
+          </div>
+          <div class="journey-step">
+            <strong>2</strong>
+            <span>Generate your WaveTag QR.</span>
+          </div>
+          <div class="journey-step">
+            <strong>3</strong>
+            <span>Use it immediately or request a printed sticker.</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="grid portal-grid">
+        <article class="card portal-card">
+          <h2>Owner details</h2>
+          <p class="meta-copy">
+            Only a few details are needed to create your owner profile and QR.
+          </p>
+
+          <div class="form-grid">
+            <label class="field">
+              <span>Name</span>
+              <input id="reg-name" placeholder="Your name" />
+            </label>
+            <label class="field">
+              <span>Phone</span>
+              <input id="reg-phone" type="tel" placeholder="+919999999999" />
+            </label>
+          </div>
+
+          <label class="field">
+            <span>Email</span>
+            <input id="reg-email" type="email" placeholder="name@example.com" />
+          </label>
+
+          <label class="field">
+            <span>Password</span>
+            <input id="reg-password" type="password" placeholder="Create a password" />
+          </label>
+
+          <div class="form-grid">
+            <label class="field">
+              <span>Vehicle name</span>
+              <input id="reg-vehicle-label" placeholder="My car" />
+            </label>
+            <label class="field">
+              <span>Vehicle number</span>
+              <input id="reg-plate-number" placeholder="UP16BM8251" />
+            </label>
+          </div>
+
+          <label class="field checkbox-field">
+            <input id="reg-sticker-requested" type="checkbox" />
+            <span>Request a physical sticker from the company</span>
+          </label>
+
+          <div class="actions">
+            <button id="register-owner-button" class="action dashboard-action">
+              Generate my QR
+            </button>
+          </div>
+
+          <p id="register-owner-status" class="request-status" data-tone="info">
+            Complete the form to generate your owner QR.
+          </p>
+        </article>
+
+        <article class="card portal-card">
+          <h2>Your QR result</h2>
+          <p class="meta-copy">
+            Use this QR right away on your phone, or request a printed sticker
+            from the company.
+          </p>
+
+          <div id="register-owner-qr-wrap" class="qr-card-grid" hidden>
+            <article class="qr-card">
+              <img id="register-owner-qr" alt="Generated QR code" class="qr-preview" />
+              <div class="qr-card-body" id="register-owner-summary"></div>
+            </article>
+          </div>
+
+          <div id="register-owner-output" class="journey-result">
+            <p class="empty-copy">No QR generated yet.</p>
+          </div>
+        </article>
+      </section>
+    </main>
+
+    <script type="module" src="/scripts/register-owner.js"></script>
+  </body>
+</html>

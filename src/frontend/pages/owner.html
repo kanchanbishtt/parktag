@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>WaveTag Owner</title>
+    <link rel="stylesheet" href="/styles/styles.css" />
+  </head>
+  <body class="owner-body">
+    <main class="shell portal-shell mobile-portal-shell">
+      <section class="hero portal-hero">
+        <p class="eyebrow">WaveTag Owner</p>
+        <h1>Manage your vehicle and responses</h1>
+        <p class="lede">
+          Sign in to see your active WaveTag, recent contact requests, and your
+          current availability.
+        </p>
+        <div class="mobile-journey compact">
+          <div class="journey-step">
+            <strong>1</strong>
+            <span>Sign in to your owner portal.</span>
+          </div>
+          <div class="journey-step">
+            <strong>2</strong>
+            <span>Choose your active vehicle tag.</span>
+          </div>
+          <div class="journey-step">
+            <strong>3</strong>
+            <span>Review contact requests and update availability.</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="grid portal-grid">
+        <article class="card portal-card">
+          <h2>Owner Dashboard</h2>
+          <p class="meta-copy">
+            This page only shows owner-specific data for the authenticated user.
+          </p>
+          <div id="owner-profile" class="summary-list"></div>
+          <div id="owner-tag-actions">
+            <label class="field">
+              <span>Select your tag</span>
+              <select id="owner-tag-select"></select>
+            </label>
+            <div class="actions">
+              <button id="owner-set-active" class="action">Set Active</button>
+              <button id="owner-set-inactive" class="action subtle">
+                Set Inactive
+              </button>
+              <button id="owner-logout-button" class="action">Sign out</button>
+            </div>
+          </div>
+          <h3 class="subsection-title">Your tags</h3>
+          <div id="owner-tags-list" class="queue-list">
+            <p class="empty-copy">Loading your tags...</p>
+          </div>
+          <h3 class="subsection-title">Your QR codes</h3>
+          <p class="meta-copy">Download your QR code to print at home, or request an official sticker from WaveTag.</p>
+          <div id="owner-qr-list" class="qr-grid">
+            <p class="empty-copy">Loading QR codes...</p>
+          </div>
+          <h3 class="subsection-title">Recent contact requests</h3>
+          <div id="owner-requests-list" class="queue-list">
+            <p class="empty-copy">Loading recent requests...</p>
+          </div>
+        </article>
+      </section>
+    </main>
+
+    <script type="module" src="/scripts/owner.js"></script>
+  </body>
+</html>

@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>WaveTag Admin Issuance</title>
+    <link rel="stylesheet" href="/styles/styles.css" />
+  </head>
+  <body class="admin-body">
+    <main class="shell dashboard-shell admin-app-shell" data-admin-page="issuance">
+      <section class="admin-shell">
+        <aside class="admin-sidebar">
+          <div class="admin-brand">
+            <p class="eyebrow">WaveTag</p>
+            <h2>Admin Control</h2>
+            <p class="meta-copy">
+              Issue stickers, review owners, and monitor live request activity.
+            </p>
+          </div>
+
+          <nav class="admin-nav">
+            <a class="admin-nav-item" href="/admin/overview">Overview</a>
+            <a class="admin-nav-item is-active" href="/admin/issuance">Batch Issuance</a>
+            <a class="admin-nav-item" href="/admin/print-queue">Print Queue</a>
+            <a class="admin-nav-item" href="/admin/owners">Owner Monitoring</a>
+            <a class="admin-nav-item" href="/admin/activity">Activity Feed</a>
+            <a class="admin-nav-item" href="/admin/admins">Admin Management</a>
+          </nav>
+
+          <div class="admin-sidebar-actions">
+            <button id="admin-refresh-button" class="action subtle">Refresh</button>
+            <button id="admin-logout-button" class="action">Sign out</button>
+          </div>
+        </aside>
+
+        <section class="admin-main">
+          <header class="dashboard-header admin-main-header">
+            <div>
+              <p class="eyebrow">Batch Issuance</p>
+              <h1>Generate unclaimed QR tags</h1>
+              <p class="lede">
+                Create sticker-ready unclaimed tags for printing and later owner claim.
+              </p>
+            </div>
+          </header>
+
+          <article class="card dashboard-card">
+            <p class="meta-copy">
+              Create a batch of unclaimed tags that the company can send for
+              physical sticker printing. Owner details are not collected here.
+            </p>
+
+            <div class="form-grid">
+              <label class="field">
+                <span>Batch number</span>
+                <input id="issue-batch-number" placeholder="BATCH-001" />
+              </label>
+              <label class="field">
+                <span>Quantity</span>
+                <input id="issue-quantity" type="number" min="1" value="1" />
+              </label>
+            </div>
+
+            <label class="field">
+              <span>Batch label</span>
+              <input id="issue-batch-label" placeholder="WaveTag sticker batch" />
+            </label>
+
+            <label class="field checkbox-field">
+              <input id="issue-sticker-requested" type="checkbox" />
+              <span>Physical sticker requested</span>
+            </label>
+
+            <div class="actions">
+              <button id="issue-tag-button" class="action dashboard-action">
+                Generate QR batch
+              </button>
+            </div>
+
+            <p id="issue-status" class="request-status" data-tone="info">
+              Issue a new unclaimed QR batch.
+            </p>
+
+            <div id="issue-output" class="qr-card-grid">
+              <p class="empty-copy">No tag batch issued yet.</p>
+            </div>
+          </article>
+        </section>
+      </section>
+    </main>
+
+    <script type="module" src="/scripts/admin.js"></script>
+  </body>
+</html>

@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>WaveTag Admin Management</title>
+    <link rel="stylesheet" href="/styles/styles.css" />
+  </head>
+  <body class="admin-body">
+    <main class="shell dashboard-shell admin-app-shell" data-admin-page="admins">
+      <section class="admin-shell">
+        <aside class="admin-sidebar">
+          <div class="admin-brand">
+            <p class="eyebrow">WaveTag</p>
+            <h2>Admin Control</h2>
+            <p class="meta-copy">
+              Manage platform administrators.
+            </p>
+          </div>
+
+          <nav class="admin-nav">
+            <a class="admin-nav-item" href="/admin/overview">Overview</a>
+            <a class="admin-nav-item" href="/admin/issuance">Batch Issuance</a>
+            <a class="admin-nav-item" href="/admin/print-queue">Print Queue</a>
+            <a class="admin-nav-item" href="/admin/owners">Owner Monitoring</a>
+            <a class="admin-nav-item" href="/admin/activity">Activity Feed</a>
+            <a class="admin-nav-item is-active" href="/admin/admins">Admin Management</a>
+          </nav>
+
+          <div class="admin-sidebar-actions">
+            <button id="admin-refresh-button" class="action subtle">Refresh</button>
+            <button id="admin-logout-button" class="action">Sign out</button>
+          </div>
+        </aside>
+
+        <section class="admin-main">
+          <header class="dashboard-header admin-main-header">
+            <div>
+              <p class="eyebrow">Management</p>
+              <h1>Admin accounts</h1>
+              <p class="lede">
+                Add new administrators to the WaveTag platform.
+              </p>
+            </div>
+          </header>
+
+          <section class="card dashboard-card">
+            <h2>Current Admins</h2>
+            <div id="admin-list" class="monitor-list">
+              <p class="empty-copy">Loading admins...</p>
+            </div>
+          </section>
+
+          <section class="card dashboard-card">
+            <h2>Add New Admin</h2>
+            <div class="form-grid">
+              <label class="field">
+                <span>Display Name</span>
+                <input id="new-admin-name" placeholder="Admin Name" />
+              </label>
+              <label class="field">
+                <span>Email</span>
+                <input id="new-admin-email" placeholder="admin@example.com" />
+              </label>
+              <label class="field">
+                <span>Password</span>
+                <input id="new-admin-password" type="password" placeholder="Password" />
+              </label>
+            </div>
+            <div class="actions">
+              <button id="add-admin-button" class="action">Create Admin Account</button>
+            </div>
+            <p id="admin-mgmt-status" class="request-status" data-tone="info">
+              Enter details to create a new admin account.
+            </p>
+          </section>
+        </section>
+      </section>
+    </main>
+
+    <script type="module" src="/scripts/admin.js"></script>
+  </body>
+</html>

@@ -2,284 +2,226 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1, viewport-fit=cover"
-    />
-    <title>WaveTag Contact</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>ParkTag — Contact Vehicle Owner</title>
     <link rel="stylesheet" href="/styles/styles.css?v=__SCANNER_ASSET_VERSION__" />
   </head>
   <body class="scanner-body">
-    <main class="scanner-shell scanner-shell-lux">
-      <section class="scanner-premium-hero">
-        <div class="scanner-badge" id="tag-chip">Checking tag</div>
-        <h1>Reach the vehicle owner through WaveTag.</h1>
-        <p class="scanner-lede" id="scanner-load-status">
-          Loading the WaveTag linked to this QR code.
+
+    <header class="pt-header">
+      <div class="pt-logo">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+          <rect width="28" height="28" rx="8" fill="#F5A623"/>
+          <path d="M8 8h7.5a4.5 4.5 0 0 1 0 9H11v5H8V8Z" fill="#fff"/>
+          <circle cx="15" cy="12.5" r="1.5" fill="#F5A623"/>
+        </svg>
+        <span>ParkTag</span>
+      </div>
+      <div class="pt-header-badge" id="tag-chip">Checking…</div>
+    </header>
+
+    <main class="pt-main">
+
+      <!-- Verification shell -->
+      <article class="pt-card" id="scanner-verification-shell" hidden>
+        <div class="pt-card-icon pt-icon-lock">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+            <rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" stroke-width="2"/>
+            <path d="M8 11V7a4 4 0 0 1 8 0v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <h1 class="pt-card-title">Verify the vehicle</h1>
+        <p class="pt-card-sub">Enter the last 4 digits of the plate number to unlock contact options.</p>
+
+        <div class="pt-plate-preview" id="plate-mask-preview">••••</div>
+
+        <form id="plate-verify-form" class="pt-form">
+          <input id="request-token" type="hidden" />
+          <label class="pt-field">
+            <span>Last 4 digits on the plate</span>
+            <input id="plate-last-four-input" maxlength="4" inputmode="numeric" autocomplete="off" placeholder="e.g. 1234" class="pt-input pt-input-lg" />
+          </label>
+          <button class="pt-btn pt-btn-primary pt-btn-full" type="submit">Verify &amp; Continue</button>
+        </form>
+
+        <p id="plate-verify-status" class="pt-status" data-tone="info">Enter the last 4 digits shown on the vehicle plate.</p>
+      </article>
+
+      <!-- Registration shell -->
+      <article class="pt-card" id="registration-shell" hidden>
+        <div class="pt-card-icon pt-icon-tag">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+            <path d="M3 7a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l7.414 7.414a2 2 0 0 1 0 2.828l-4.172 4.172a2 2 0 0 1-2.828 0L4.293 12.293A1 1 0 0 1 4 11.586V7Z" stroke="currentColor" stroke-width="2"/>
+            <circle cx="8" cy="9" r="1.5" fill="currentColor"/>
+          </svg>
+        </div>
+        <h1 class="pt-card-title" id="registration-title">Activate your ParkTag</h1>
+        <p class="pt-card-sub" id="registration-copy">Link this tag to your vehicle so people can reach you privately.</p>
+
+        <form id="claim-form" class="pt-form">
+          <label class="pt-field">
+            <span>Owner name</span>
+            <input id="claim-display-name" placeholder="Full name" class="pt-input" />
+          </label>
+          <label class="pt-field">
+            <span>Email address</span>
+            <input id="claim-email" type="email" placeholder="name@example.com" class="pt-input" />
+          </label>
+          <label class="pt-field">
+            <span>Phone number</span>
+            <input id="claim-phone" type="tel" autocomplete="tel" inputmode="tel" placeholder="+91 99999 99999" class="pt-input" />
+          </label>
+          <label class="pt-field">
+            <span>Password</span>
+            <input id="claim-password" type="password" placeholder="Create a password" class="pt-input" />
+          </label>
+          <label class="pt-field">
+            <span>Vehicle nickname</span>
+            <input id="claim-vehicle-label" placeholder="e.g. My Honda City" class="pt-input" />
+          </label>
+          <label class="pt-field">
+            <span>Number plate</span>
+            <input id="claim-plate-number" placeholder="MH01AB1234" autocomplete="off" class="pt-input pt-input-plate" />
+          </label>
+          <button class="pt-btn pt-btn-primary pt-btn-full" type="submit">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2a10 10 0 1 1 0 20A10 10 0 0 1 12 2Z" stroke="currentColor" stroke-width="2"/><path d="m9 12 2 2 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Activate Tag
+          </button>
+        </form>
+
+        <p class="pt-trust-note">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+          Your information is only used for contact and safety.
         </p>
-      </section>
+        <p id="claim-status" class="pt-status" data-tone="info"></p>
+      </article>
 
-      <section class="scanner-premium-layout">
-        <article class="scanner-card scanner-shell-card scanner-verification-shell" id="scanner-verification-shell" hidden>
-          <div class="shell-header">
-            <p class="eyebrow">Plate verification</p>
-            <h2>Enter the last 4 digits from the car plate</h2>
-            <p class="meta-copy">
-              Verify the vehicle before WaveTag opens the contact options.
-            </p>
+      <!-- Action shell -->
+      <article class="pt-card pt-action-card" id="scanner-action-shell" hidden>
+
+        <!-- Vehicle identity block -->
+        <div class="pt-vehicle-block" id="pt-vehicle-block">
+          <div class="pt-verified-badge">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="m9 12 2 2 4-4" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/></svg>
+            Verified
           </div>
+          <div class="pt-plate-display" id="pt-plate-display">••••</div>
+          <p class="pt-vehicle-label" id="pt-vehicle-label">Vehicle</p>
+        </div>
 
-          <div class="plate-guide-card">
-            <span class="confirm-label">Visible plate reference</span>
-            <p class="plate-guide-copy">
-              The current car plate is shown in masked form below. Enter only the last
-              4 visible digits.
-            </p>
-            <div class="plate-visual" id="plate-mask-preview">Loading...</div>
-            <p class="plate-visual-note">
-              The hidden part is shown as <strong>#</strong>. Only the ending digits are
-              meant to be matched.
-            </p>
+        <h2 class="pt-section-title">Why are you contacting?</h2>
+
+        <div class="pt-reason-chips" id="pt-reason-chips">
+          <button class="pt-chip" data-msg="Lights left on. Please check your vehicle." type="button">
+            <span class="pt-chip-icon">💡</span> Lights left on
+          </button>
+          <button class="pt-chip" data-msg="Your vehicle is blocking my way. Please move it." type="button">
+            <span class="pt-chip-icon">🚗</span> Getting towed
+          </button>
+          <button class="pt-chip" data-msg="Your vehicle is parked in a way that's causing difficulty." type="button">
+            <span class="pt-chip-icon">🅿️</span> Parked badly
+          </button>
+          <button class="pt-chip" data-msg="Your vehicle window appears to be open or unlocked." type="button">
+            <span class="pt-chip-icon">🪟</span> Window open
+          </button>
+          <button class="pt-chip pt-chip-alert" data-msg="There is a suspicious situation near your vehicle. Please check immediately." type="button">
+            <span class="pt-chip-icon">⚠️</span> Suspicious issue
+          </button>
+        </div>
+
+        <div class="pt-contact-actions">
+          <button id="send-whatsapp-button" class="pt-btn pt-btn-whatsapp pt-btn-full" type="button">
+            <svg width="20" height="20" viewBox="0 0 32 32" fill="currentColor">
+              <path d="M27 15.6c0 6.1-5 11.1-11.1 11.1-1.9 0-3.7-.5-5.3-1.4L5 27l1.8-5.2a11 11 0 0 1-2-6.2C4.8 9.5 9.8 4.5 15.9 4.5S27 9.5 27 15.6Z"/>
+              <path d="M12.7 10.8c-.2-.5-.4-.5-.6-.5h-.6c-.2 0-.6.1-.9.5-.3.3-1.1 1.1-1.1 2.7s1.1 3.1 1.2 3.3c.2.2 2.2 3.6 5.4 4.9 2.6 1 3.1.8 3.7.8.6-.1 1.8-.7 2-1.4.3-.7.3-1.4.2-1.5-.1-.1-.4-.2-.9-.5s-1.8-.9-2-.9c-.3-.1-.5-.1-.7.2-.2.3-.8.9-1 .9-.2 0-.4 0-.8-.2-.4-.2-1.5-.6-2.8-2-.8-.9-1.4-2-1.5-2.3-.2-.3 0-.4.1-.6.2-.2.3-.4.5-.6.2-.2.2-.3.3-.5.1-.2 0-.4 0-.6-.1-.1-.7-1.7-1-2.3Z" fill="#fff"/>
+            </svg>
+            Message WhatsApp
+            <span class="pt-btn-sub">Private · Recommended</span>
+          </button>
+
+          <button id="call-owner-button" class="pt-btn pt-btn-outline pt-btn-full" type="button">
+            <svg width="18" height="18" viewBox="0 0 32 32" fill="currentColor">
+              <path d="M10.6 5.7c-.7-.8-1.8-1-2.6-.5-1.4.8-2.5 2.7-2.4 4.5.1 2.9 1.4 6.2 4 8.8 2.6 2.6 5.9 3.9 8.8 4 1.8.1 3.7-1 4.5-2.4.5-.9.3-1.9-.5-2.6l-2.8-2.5c-.7-.6-1.7-.7-2.5-.2l-1.8 1.1c-.4.3-1 .2-1.4-.2l-2.8-2.8c-.4-.4-.5-1-.2-1.4l1.1-1.8c.5-.8.4-1.8-.2-2.5l-2.5-2.8Z"/>
+            </svg>
+            Private Call
+            <span class="pt-btn-sub">Call the owner privately</span>
+          </button>
+        </div>
+
+        <!-- Phone number input for call -->
+        <div id="contact-number-panel" class="pt-panel" hidden>
+          <p class="pt-panel-label">Your phone number</p>
+          <p class="pt-panel-sub" id="contact-number-copy">We'll connect you anonymously — your number stays private.</p>
+          <label class="pt-field">
+            <input id="contact-phone" type="tel" autocomplete="tel" inputmode="tel" placeholder="+91 99999 99999" class="pt-input" />
+          </label>
+          <button id="contact-number-submit" class="pt-btn pt-btn-primary pt-btn-full" type="button">Continue to call</button>
+        </div>
+
+        <!-- Call popup -->
+        <div id="call-popup" class="pt-success-panel" hidden>
+          <div class="pt-success-icon">📞</div>
+          <h3>You'll receive a call shortly</h3>
+          <p>Keep your phone nearby. Your number stays hidden throughout the call.</p>
+        </div>
+
+        <!-- Dial panel -->
+        <div id="dial-panel" class="pt-panel" hidden>
+          <div id="dial-number-block" hidden>
+            <p class="pt-panel-label">WaveTag virtual number</p>
+            <p class="pt-dial-number" id="dial-virtual-number"></p>
           </div>
+          <p class="pt-panel-sub">Tap call below to start the private call request.</p>
+          <button id="final-call-button" class="pt-btn pt-btn-primary pt-btn-full" type="button">Call Now</button>
+        </div>
 
-          <form id="plate-verify-form" class="scanner-form scanner-landing-form">
-            <input id="request-token" type="hidden" />
+        <!-- WhatsApp message panel -->
+        <div id="message-panel" class="pt-panel" hidden>
+          <p class="pt-panel-label">Select a message</p>
+          <select id="message-template-select" class="pt-input pt-select">
+            <option value="">Choose a message</option>
+            <option value="blocking">Your vehicle is blocking my way. Please move it when possible.</option>
+            <option value="lights">Your vehicle lights appear to be on. Please check your car.</option>
+            <option value="safety">There may be an issue with your parked vehicle. Please check it soon.</option>
+            <option value="custom">Write a custom message</option>
+          </select>
 
-            <label class="field">
-              <span>Last 4 digits</span>
-              <input
-                id="plate-last-four-input"
-                maxlength="4"
-                inputmode="numeric"
-                autocomplete="off"
-                placeholder="1234"
-              />
+          <div id="message-editor-shell" hidden>
+            <label class="pt-field" style="margin-top:10px">
+              <span>Edit message</span>
+              <textarea id="message-text" rows="3" class="pt-input pt-textarea"></textarea>
             </label>
-
-            <button class="action scanner-action scanner-primary-submit" type="submit">
-              Verify plate
-            </button>
-          </form>
-
-          <p id="plate-verify-status" class="request-status" data-tone="info">
-            Enter the last 4 digits shown on the vehicle plate to continue.
-          </p>
-        </article>
-
-        <article
-          class="scanner-card scanner-shell-card scanner-registration-shell"
-          id="registration-shell"
-          hidden
-        >
-          <div class="shell-header">
-            <p class="eyebrow">Registration shell</p>
-            <h2 id="registration-title">Register this WaveTag</h2>
-            <p class="meta-copy" id="registration-copy">
-              Complete the owner details below to activate this tag on WaveTag.
-            </p>
-          </div>
-
-          <form id="claim-form" class="scanner-form">
-            <label class="field">
-              <span>Your name</span>
-              <input id="claim-display-name" placeholder="Owner name" />
-            </label>
-
-            <label class="field">
-              <span>Your email</span>
-              <input id="claim-email" type="email" placeholder="name@example.com" />
-            </label>
-
-            <label class="field">
-              <span>Your phone number</span>
-              <input
-                id="claim-phone"
-                type="tel"
-                autocomplete="tel"
-                inputmode="tel"
-                placeholder="+919999999999"
-              />
-            </label>
-
-            <label class="field">
-              <span>Password</span>
-              <input id="claim-password" type="password" placeholder="Create a password" />
-            </label>
-
-            <label class="field">
-              <span>Vehicle label</span>
-              <input id="claim-vehicle-label" placeholder="My car" />
-            </label>
-
-            <label class="field">
-              <span>Vehicle number</span>
-              <input
-                id="claim-plate-number"
-                placeholder="UP16BM8251"
-                autocomplete="off"
-              />
-            </label>
-
-            <button class="action scanner-action" type="submit">
-              Activate this WaveTag
-            </button>
-          </form>
-
-          <p id="claim-status" class="request-status" data-tone="info">
-            Complete the registration details to activate this tag.
-          </p>
-        </article>
-
-        <article
-          class="scanner-card scanner-shell-card scanner-actions-shell"
-          id="scanner-action-shell"
-          hidden
-        >
-          <div class="shell-header">
-            <p class="eyebrow">Action shell</p>
-            <h2>Choose how you want to contact the owner</h2>
-          </div>
-
-          <div class="scanner-action-grid scanner-lux-actions">
-            <button
-              id="call-owner-button"
-              class="scanner-choice scanner-choice-primary"
-              type="button"
-            >
-              <span class="choice-topline">
-                <span class="call-icon" aria-hidden="true">
-                  <svg viewBox="0 0 32 32" focusable="false">
-                    <path
-                      d="M10.6 5.7c-.7-.8-1.8-1-2.6-.5-1.4.8-2.5 2.7-2.4 4.5.1 2.9 1.4 6.2 4 8.8 2.6 2.6 5.9 3.9 8.8 4 1.8.1 3.7-1 4.5-2.4.5-.9.3-1.9-.5-2.6l-2.8-2.5c-.7-.6-1.7-.7-2.5-.2l-1.8 1.1c-.4.3-1 .2-1.4-.2l-2.8-2.8c-.4-.4-.5-1-.2-1.4l1.1-1.8c.5-.8.4-1.8-.2-2.5l-2.5-2.8Z"
-                      fill="currentColor"
-                    />
-                  </svg>
-                </span>
-                <span class="choice-title">Call Owner</span>
-              </span>
-              <span class="choice-copy">
-                Tap to request a WaveTag call connection with the owner.
-              </span>
-            </button>
-
-            <button
-              id="send-whatsapp-button"
-              class="scanner-choice scanner-choice-whatsapp"
-              type="button"
-            >
-              <span class="choice-topline">
-                <span class="whatsapp-icon" aria-hidden="true">
-                  <svg viewBox="0 0 32 32" focusable="false">
-                    <path
-                      d="M27 15.6c0 6.1-5 11.1-11.1 11.1-1.9 0-3.7-.5-5.3-1.4L5 27l1.8-5.2a11 11 0 0 1-2-6.2C4.8 9.5 9.8 4.5 15.9 4.5S27 9.5 27 15.6Z"
-                      fill="currentColor"
-                    />
-                    <path
-                      d="M12.7 10.8c-.2-.5-.4-.5-.6-.5h-.6c-.2 0-.6.1-.9.5-.3.3-1.1 1.1-1.1 2.7s1.1 3.1 1.2 3.3c.2.2 2.2 3.6 5.4 4.9 2.6 1 3.1.8 3.7.8.6-.1 1.8-.7 2-1.4.3-.7.3-1.4.2-1.5-.1-.1-.4-.2-.9-.5s-1.8-.9-2-.9c-.3-.1-.5-.1-.7.2-.2.3-.8.9-1 .9-.2 0-.4 0-.8-.2-.4-.2-1.5-.6-2.8-2-.8-.9-1.4-2-1.5-2.3-.2-.3 0-.4.1-.6.2-.2.3-.4.5-.6.2-.2.2-.3.3-.5.1-.2 0-.4 0-.6-.1-.1-.7-1.7-1-2.3Z"
-                      fill="#fffdf8"
-                    />
-                  </svg>
-                </span>
-                <span class="choice-title">Leave WhatsApp message</span>
-              </span>
-              <span class="choice-copy">
-                Choose a template or write a custom message for the owner.
-              </span>
+            <button id="submit-message-button" class="pt-btn pt-btn-whatsapp pt-btn-full" type="button">
+              <svg width="18" height="18" viewBox="0 0 32 32" fill="currentColor"><path d="M27 15.6c0 6.1-5 11.1-11.1 11.1-1.9 0-3.7-.5-5.3-1.4L5 27l1.8-5.2a11 11 0 0 1-2-6.2C4.8 9.5 9.8 4.5 15.9 4.5S27 9.5 27 15.6Z"/><path d="M12.7 10.8c-.2-.5-.4-.5-.6-.5h-.6c-.2 0-.6.1-.9.5-.3.3-1.1 1.1-1.1 2.7s1.1 3.1 1.2 3.3c.2.2 2.2 3.6 5.4 4.9 2.6 1 3.1.8 3.7.8.6-.1 1.8-.7 2-1.4.3-.7.3-1.4.2-1.5-.1-.1-.4-.2-.9-.5s-1.8-.9-2-.9c-.3-.1-.5-.1-.7.2-.2.3-.8.9-1 .9-.2 0-.4 0-.8-.2-.4-.2-1.5-.6-2.8-2-.8-.9-1.4-2-1.5-2.3-.2-.3 0-.4.1-.6.2-.2.3-.4.5-.6.2-.2.2-.3.3-.5.1-.2 0-.4 0-.6-.1-.1-.7-1.7-1-2.3Z" fill="#fff"/></svg>
+              Send to owner
             </button>
           </div>
+        </div>
 
-          <div id="contact-number-panel" class="message-panel" hidden>
-            <p class="eyebrow">Call popup</p>
-            <p class="meta-copy" id="contact-number-copy">
-              Enter your phone number to continue to the call setup.
-            </p>
-            <label class="field">
-              <span>Your phone number</span>
-              <input
-                id="contact-phone"
-                type="tel"
-                autocomplete="tel"
-                inputmode="tel"
-                placeholder="+919999999999"
-              />
-            </label>
-            <button id="contact-number-submit" class="action scanner-action" type="button">
-              Continue
-            </button>
-          </div>
+        <!-- Confirmation -->
+        <div id="request-confirmation" class="pt-success-panel" hidden>
+          <div class="pt-success-icon">✅</div>
+          <h3 id="confirmation-title">Owner alerted successfully</h3>
+          <p id="confirmation-copy">Your message has been delivered to the vehicle owner.</p>
+        </div>
 
-          <div id="call-popup" class="scanner-call-popup" hidden>
-            <div class="call-popup-card">
-              <h3>You will be receiving a call sooner</h3>
-              <p>
-                WaveTag has recorded your call request. Keep your phone nearby while
-                the contact request is processed.
-              </p>
-            </div>
-          </div>
+        <p id="request-status" class="pt-status" data-tone="info"></p>
 
-          <div id="dial-panel" class="dial-panel" hidden>
-            <p class="eyebrow">Dial panel</p>
-            <div id="dial-number-block" hidden>
-              <h3>WaveTag virtual number</h3>
-              <p class="dial-number" id="dial-virtual-number"></p>
-            </div>
-            <p class="meta-copy">
-              Tap call below to start the Exotel call request from your phone to the owner.
-            </p>
-            <button id="final-call-button" class="action scanner-action scanner-primary-submit" type="button">
-              Call Now
-            </button>
-          </div>
+        <p class="pt-privacy-note">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M12 2l7 4v5c0 5-3.5 9.7-7 11-3.5-1.3-7-6-7-11V6l7-4Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+          Your privacy is protected. No personal details shared.
+        </p>
+      </article>
 
-          <div id="message-panel" class="message-panel" hidden>
-            <label class="field">
-              <span>Select a WhatsApp message</span>
-              <select id="message-template-select">
-                <option value="">Choose a message</option>
-                <option value="blocking">
-                  Your vehicle is blocking my way. Please move it when possible.
-                </option>
-                <option value="lights">
-                  Your vehicle lights appear to be on. Please check your car.
-                </option>
-                <option value="safety">
-                  There may be an issue with your parked vehicle. Please check it soon.
-                </option>
-                <option value="custom">Write a custom message</option>
-              </select>
-            </label>
+      <!-- Error card -->
+      <article class="pt-card pt-error-card" id="error-card" hidden>
+        <div class="pt-card-icon pt-icon-error">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M12 8v4M12 16h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <h1 class="pt-card-title">Tag not found</h1>
+        <p class="pt-card-sub" id="error-message">This QR code could not be linked to an active vehicle. Please check and try again.</p>
+      </article>
 
-            <div id="message-editor-shell" hidden>
-              <label class="field">
-                <span>Edit message</span>
-                <textarea id="message-text" rows="4"></textarea>
-              </label>
-              <button id="submit-message-button" class="action scanner-action" type="button">
-                Send to owner
-              </button>
-            </div>
-          </div>
-
-          <p id="request-status" class="request-status" data-tone="info">
-            Continue from the landing shell to unlock the contact options.
-          </p>
-          <div id="request-confirmation" class="request-confirmation" hidden>
-            <h3 id="confirmation-title">Request sent</h3>
-            <p id="confirmation-copy">
-              The owner can now be reached through the WaveTag system.
-            </p>
-          </div>
-        </article>
-
-        <article class="scanner-card scanner-card-error" id="error-card" hidden>
-          <p class="eyebrow">WaveTag</p>
-          <h2>We could not open this vehicle tag</h2>
-          <p class="meta-copy" id="error-message">
-            Please check the QR code and try again.
-          </p>
-        </article>
-      </section>
     </main>
 
     <script type="module" src="/scripts/app.js?v=__SCANNER_ASSET_VERSION__"></script>

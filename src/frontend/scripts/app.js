@@ -121,22 +121,17 @@ function resetActionState() {
 function setSummaryForTag(tag) {
   const isRegistrationState = ["unclaimed", "inactive"].includes(tag.status);
 
-  setText(
-    "tag-chip",
-    isRegistrationState ? "Registration required" : "Active Tag"
-  );
-  setText(
-    "vehicle-plate",
-    isRegistrationState
-      ? "WaveTag registration required"
-      : tag.maskedPlateNumber || tag.vehicleLabel || "Registered vehicle"
-  );
-  setText(
-    "vehicle-shell-copy",
-    isRegistrationState
-      ? "This tag is not active for owner contact. Complete the owner registration details to activate it on WaveTag."
-      : "Use this page to contact the owner without exposing your phone number."
-  );
+  setText("tag-chip", isRegistrationState ? "Registration required" : "✓ Active");
+
+  // Populate action shell vehicle display
+  const plateDisplay = byId("pt-plate-display");
+  if (plateDisplay) {
+    plateDisplay.textContent = tag.maskedPlateNumber || tag.vehicleLabel || "••••";
+  }
+  const vehicleLabel = byId("pt-vehicle-label");
+  if (vehicleLabel) {
+    vehicleLabel.textContent = tag.vehicleLabel || "Registered vehicle";
+  }
 }
 
 async function createRequest(payload) {
@@ -491,3 +486,18 @@ byId("final-call-button")?.addEventListener("click", handleFinalCallAction);
 byId("message-template-select")?.addEventListener("change", handleTemplateSelection);
 byId("submit-message-button")?.addEventListener("click", handleWhatsAppAction);
 byId("claim-form")?.addEventListener("submit", handleClaim);
+
+// Reason chips — pre-select a message template and open the contact flow
+document.querySelectorAll(".pt-chip").forEach(chip => {
+  chip.addEventListener("click", () => {
+    const msg = chip.dataset.msg;
+    if (!msg) return;
+    // highlight selected chip
+    document.querySelectorAll(".pt-chip").forEach(c => c.classList.remove("pt-chip-selected"));
+    chip.classList.add("pt-chip-selected");
+    // pre-fill custom message and open WhatsApp panel
+    setValue("message-text", msg);
+    setValue("message-template-select", "custom");
+    requestContactNumber("message");
+  });
+});

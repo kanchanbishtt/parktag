@@ -33,7 +33,7 @@ const adminAdminsPage = path.join(pagesRoot, "admin-admins.html");
 const registerOwnerPage = path.join(pagesRoot, "register-owner.html");
 const ownerLoginPage = path.join(pagesRoot, "owner-login.html");
 const hubPage = path.join(pagesRoot, "hub.html");
-const scannerAssetVersion = "scanner-shell-20";
+const scannerAssetVersion = "parktag-ui-1";
 const hubAssetVersion = "hub-shell-1";
 
 function setScannerNoCache(reply) {

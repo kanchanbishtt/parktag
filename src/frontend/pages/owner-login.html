@@ -2,46 +2,48 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1, viewport-fit=cover"
-    />
-    <title>WaveTag Owner Login</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>ParkTag — Owner Sign In</title>
     <link rel="stylesheet" href="/styles/styles.css" />
   </head>
-  <body class="owner-body">
-    <main class="shell portal-shell mobile-portal-shell">
-      <section class="hero portal-hero">
-        <p class="eyebrow">WaveTag Owner</p>
-        <h1>Manage your vehicle and responses</h1>
-        <p class="lede">
-          Sign in to see your active WaveTag, recent contact requests, and your
-          current availability.
-        </p>
-      </section>
+  <body class="pt-hub-body">
 
-      <section class="grid portal-grid">
-        <article class="card portal-card">
-          <h2>Owner Login</h2>
-          <label class="field">
-            <span>Email</span>
-            <input id="owner-email" value="owner@wavetag.local" />
+    <header class="pt-header">
+      <div class="pt-logo">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+          <rect width="28" height="28" rx="8" fill="#F5A623"/>
+          <path d="M8 8h7.5a4.5 4.5 0 0 1 0 9H11v5H8V8Z" fill="#fff"/>
+          <circle cx="15" cy="12.5" r="1.5" fill="#F5A623"/>
+        </svg>
+        <span>ParkTag</span>
+      </div>
+    </header>
+
+    <main class="pt-auth-main">
+      <div class="pt-auth-card">
+        <div class="pt-card-icon pt-icon-tag" style="margin-bottom:12px">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="2"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <h1 class="pt-card-title">Owner Sign In</h1>
+        <p class="pt-card-sub" style="margin-bottom:20px">Access your dashboard to manage tags and contact requests.</p>
+
+        <div class="pt-form">
+          <label class="pt-field">
+            <span>Email address</span>
+            <input id="owner-email" type="email" class="pt-input" placeholder="name@example.com" />
           </label>
-          <label class="field">
+          <label class="pt-field">
             <span>Password</span>
-            <input id="owner-password" type="password" value="demo1234" />
+            <input id="owner-password" type="password" class="pt-input" placeholder="Your password" />
           </label>
-          <div class="actions">
-            <button id="owner-login-button" class="action">Sign in</button>
-          </div>
-          <p id="owner-auth-status" class="request-status" data-tone="info">
-            Sign in to access your dashboard.
-          </p>
-          <p class="meta-note">
-            Don't have an account? <a href="/register-owner">Register here</a>.
-          </p>
-        </article>
-      </section>
+          <button id="owner-login-button" class="pt-btn pt-btn-primary pt-btn-full" style="margin-top:4px">Sign in</button>
+        </div>
+
+        <p id="owner-auth-status" class="pt-status" data-tone="info" style="padding:12px 0 0;text-align:center">Sign in to access your dashboard.</p>
+        <p style="text-align:center;font-size:0.85rem;color:#6B7280;margin-top:12px">
+          Don't have an account? <a href="/register-owner" style="color:#F5A623;font-weight:700">Register here</a>.
+        </p>
+      </div>
     </main>
 
     <script type="module" src="/scripts/owner.js"></script>

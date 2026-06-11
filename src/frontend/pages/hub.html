@@ -2,46 +2,66 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1, viewport-fit=cover"
-    />
-    <title>WaveTag Hub</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>ParkTag — Vehicle Contact Platform</title>
     <link rel="stylesheet" href="/styles/styles.css?v=__HUB_ASSET_VERSION__" />
   </head>
-  <body>
-    <main class="shell verify-shell">
-      <section class="hero">
-        <p class="eyebrow">WaveTag</p>
-        <h1>Secure, anonymous vehicle contact.</h1>
-        <p class="lede">
-          WaveTag protects your privacy while allowing people to reach you if there is an issue with your vehicle. Scan a tag to get started or manage your account below.
-        </p>
+  <body class="pt-hub-body">
+
+    <header class="pt-header">
+      <div class="pt-logo">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+          <rect width="28" height="28" rx="8" fill="#F5A623"/>
+          <path d="M8 8h7.5a4.5 4.5 0 0 1 0 9H11v5H8V8Z" fill="#fff"/>
+          <circle cx="15" cy="12.5" r="1.5" fill="#F5A623"/>
+        </svg>
+        <span>ParkTag</span>
+      </div>
+    </header>
+
+    <main class="pt-hub-main">
+
+      <section class="pt-hub-hero">
+        <div class="pt-hub-hero-icon">🚗</div>
+        <h1 class="pt-hub-title">Vehicle contact,<br>done privately.</h1>
+        <p class="pt-hub-sub">ParkTag lets people reach your vehicle owner anonymously — no numbers shared, no hassle.</p>
       </section>
 
-      <section class="grid">
-        <article class="card dashboard-card">
-          <p class="eyebrow">Owner</p>
-          <h2>Owner Portal</h2>
-          <p class="meta-copy">
-            Sign in to manage your tags, toggle availability, and view incoming contact requests.
-          </p>
-          <div class="actions">
-            <a class="action link-action" href="/owner">Go to Dashboard</a>
+      <section class="pt-hub-cards">
+        <a class="pt-hub-card" href="/owner">
+          <div class="pt-hub-card-icon" style="background:#EEF2FF;color:#4F46E5">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="2"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
           </div>
-        </article>
+          <div class="pt-hub-card-body">
+            <p class="pt-hub-card-label">Owner</p>
+            <h2 class="pt-hub-card-title">Owner Dashboard</h2>
+            <p class="pt-hub-card-sub">Manage your tags, view contact requests, and control availability.</p>
+          </div>
+          <div class="pt-hub-card-arrow">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+        </a>
 
-        <article class="card dashboard-card">
-          <p class="eyebrow">New Tag</p>
-          <h2>Register a WaveTag</h2>
-          <p class="meta-copy">
-            Got a new sticker? Register it here to link it to your vehicle and start receiving alerts.
-          </p>
-          <div class="actions">
-            <a class="action link-action" href="/register-owner">Register Tag</a>
+        <a class="pt-hub-card" href="/register-owner">
+          <div class="pt-hub-card-icon" style="background:#ECFDF5;color:#059669">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
           </div>
-        </article>
+          <div class="pt-hub-card-body">
+            <p class="pt-hub-card-label">New Tag</p>
+            <h2 class="pt-hub-card-title">Register a Tag</h2>
+            <p class="pt-hub-card-sub">Got a new sticker? Link it to your vehicle to start receiving contact alerts.</p>
+          </div>
+          <div class="pt-hub-card-arrow">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+        </a>
       </section>
+
+      <div class="pt-hub-scan-hint">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="14" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="3" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><path d="M14 14h2v2h-2zM18 14h3M14 18v3M18 18h3v3h-3z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        Scan a ParkTag QR sticker on a vehicle to contact its owner
+      </div>
+
     </main>
 
     <script type="module" src="/scripts/hub.js?v=__HUB_ASSET_VERSION__"></script>

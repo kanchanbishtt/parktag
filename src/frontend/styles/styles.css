@@ -1834,3 +1834,290 @@ pre {
 .pt-btn-full {
   width: 100%;
 }
+
+/* ═══════════════════════════════════════════
+   HEADER BADGE
+   ═══════════════════════════════════════════ */
+
+.pt-header-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #DC2626;
+  background: #FEE2E2;
+  padding: 4px 10px;
+  border-radius: 20px;
+  margin-left: auto;
+}
+
+/* ═══════════════════════════════════════════
+   REGISTRATION PAGE
+   ═══════════════════════════════════════════ */
+
+.pt-sticker-preview {
+  display: flex;
+  justify-content: center;
+  padding: 28px 0 20px;
+}
+
+.pt-sticker-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: #fff;
+  border-radius: 16px;
+  padding: 20px 28px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.1), 0 1px 4px rgba(0,0,0,0.06);
+  border: 1px solid var(--pt-border);
+}
+
+.pt-sticker-brand {
+  font-size: 1rem;
+  font-weight: 900;
+  color: var(--pt-ink);
+  letter-spacing: 0.01em;
+}
+
+.pt-sticker-id {
+  font-size: 0.72rem;
+  color: var(--pt-sub);
+  letter-spacing: 0.04em;
+}
+
+.pt-reg-title {
+  font-size: 1.7rem;
+  font-weight: 900;
+  color: var(--pt-ink);
+  margin: 0 0 8px;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.pt-reg-sub {
+  font-size: 0.9rem;
+  color: var(--pt-sub);
+  margin: 0;
+  line-height: 1.6;
+  text-align: center;
+}
+
+.pt-input-icon-wrap {
+  position: relative;
+}
+
+.pt-input-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--pt-sub);
+  pointer-events: none;
+}
+
+.pt-input-with-icon {
+  padding-left: 36px !important;
+}
+
+.pt-input-phone-wrap {
+  display: flex;
+  gap: 0;
+  border: 1.5px solid var(--pt-border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--pt-bg);
+  transition: border-color 0.15s;
+}
+
+.pt-input-phone-wrap:focus-within {
+  border-color: var(--pt-amber);
+  background: #fff;
+}
+
+.pt-phone-prefix {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--pt-ink);
+  background: #F3F4F6;
+  border-right: 1.5px solid var(--pt-border);
+  white-space: nowrap;
+}
+
+.pt-input-phone {
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  flex: 1;
+  padding-left: 12px !important;
+}
+
+.pt-input-phone:focus {
+  outline: none;
+  border: none !important;
+}
+
+.pt-reg-divider {
+  border: none;
+  border-top: 1.5px solid var(--pt-border);
+  margin: 4px 0;
+}
+
+.pt-checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.88rem;
+  color: var(--pt-ink);
+  cursor: pointer;
+}
+
+.pt-checkbox {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--pt-amber);
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.pt-btn-activate {
+  background: #1C1917;
+  color: #fff;
+  border: none;
+  border-radius: 14px;
+  padding: 15px 24px;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: background 0.15s, transform 0.1s;
+  font-family: inherit;
+}
+
+.pt-btn-activate:hover {
+  background: #292524;
+  transform: translateY(-1px);
+}
+
+.pt-btn-activate:active {
+  transform: translateY(0);
+}
+
+.pt-reg-privacy {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: var(--pt-sub);
+  text-align: center;
+  margin: 12px 0 4px;
+}
+
+/* Success screen */
+.pt-success-hero {
+  text-align: center;
+  padding: 32px 0 24px;
+}
+
+.pt-success-check {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: #22C55E;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+  box-shadow: 0 4px 16px rgba(34,197,94,0.3);
+}
+
+.pt-qr-result-card {
+  background: var(--pt-white);
+  border-radius: 16px;
+  border: 1.5px solid var(--pt-border);
+  padding: 24px;
+  text-align: center;
+  margin-bottom: 12px;
+  box-shadow: var(--pt-shadow);
+}
+
+.pt-qr-image {
+  width: 180px;
+  height: 180px;
+  border-radius: 8px;
+  display: block;
+  margin: 0 auto 8px;
+}
+
+.pt-qr-scan-hint {
+  font-size: 0.8rem;
+  color: var(--pt-sub);
+  margin: 0;
+}
+
+.pt-vehicle-details-card,
+.pt-whats-next-card {
+  background: var(--pt-white);
+  border-radius: 16px;
+  border: 1.5px solid var(--pt-border);
+  padding: 20px;
+  margin-bottom: 12px;
+  box-shadow: var(--pt-shadow);
+}
+
+.pt-section-label {
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--pt-sub);
+  margin: 0 0 14px;
+}
+
+.pt-vehicle-details-list {
+  display: grid;
+  gap: 10px;
+  font-size: 0.9rem;
+  color: var(--pt-ink);
+}
+
+.pt-next-items {
+  display: grid;
+  gap: 14px;
+}
+
+.pt-next-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.pt-next-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.pt-next-title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--pt-ink);
+  margin: 0 0 2px;
+}
+
+.pt-next-sub {
+  font-size: 0.8rem;
+  color: var(--pt-sub);
+  margin: 0;
+  line-height: 1.5;
+}

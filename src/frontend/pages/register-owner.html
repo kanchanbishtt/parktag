@@ -2,112 +2,170 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1, viewport-fit=cover"
-    />
-    <title>WaveTag Owner Registration</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>ParkTag — Activate Your Tag</title>
     <link rel="stylesheet" href="/styles/styles.css" />
   </head>
-  <body class="owner-body">
-    <main class="shell portal-shell mobile-portal-shell">
-      <section class="hero portal-hero">
-        <p class="eyebrow">WaveTag Owner Registration</p>
-        <h1>Register your vehicle and get your QR</h1>
-        <p class="lede">
-          Create your owner account, generate your WaveTag QR, and request a
-          sticker if you want the company to print one for you.
-        </p>
-        <div class="mobile-journey compact">
-          <div class="journey-step">
-            <strong>1</strong>
-            <span>Register your details and vehicle.</span>
+  <body class="pt-hub-body">
+
+    <header class="pt-header">
+      <div class="pt-logo">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+          <rect width="28" height="28" rx="8" fill="#F5A623"/>
+          <path d="M8 8h7.5a4.5 4.5 0 0 1 0 9H11v5H8V8Z" fill="#fff"/>
+          <circle cx="15" cy="12.5" r="1.5" fill="#F5A623"/>
+        </svg>
+        <span>ParkTag</span>
+      </div>
+      <span class="pt-header-badge">Activation required</span>
+    </header>
+
+    <!-- Registration form (shown first) -->
+    <main id="reg-form-shell" class="pt-hub-main" style="max-width:420px">
+
+      <!-- Sticker preview -->
+      <div class="pt-sticker-preview">
+        <div class="pt-sticker-card">
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+            <rect width="28" height="28" rx="8" fill="#F5A623"/>
+            <path d="M8 8h7.5a4.5 4.5 0 0 1 0 9H11v5H8V8Z" fill="#fff"/>
+            <circle cx="15" cy="12.5" r="1.5" fill="#F5A623"/>
+          </svg>
+          <span class="pt-sticker-brand">ParkTag</span>
+          <span class="pt-sticker-id">pt-xxxx-xxxx</span>
+        </div>
+      </div>
+
+      <h1 class="pt-reg-title">Activate your ParkTag</h1>
+      <p class="pt-reg-sub">Link your ParkTag sticker to your profile so we can contact you if needed and help keep your vehicle safe.</p>
+
+      <div class="pt-form" style="margin-top:24px">
+        <label class="pt-field">
+          <span>Owner name</span>
+          <div class="pt-input-icon-wrap">
+            <svg class="pt-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="2"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            <input id="reg-name" type="text" class="pt-input pt-input-with-icon" placeholder="Enter full name" />
           </div>
-          <div class="journey-step">
-            <strong>2</strong>
-            <span>Generate your WaveTag QR.</span>
+        </label>
+
+        <label class="pt-field">
+          <span>Phone number</span>
+          <div class="pt-input-phone-wrap">
+            <span class="pt-phone-prefix">
+              <svg width="14" height="10" viewBox="0 0 14 10" fill="none"><rect width="14" height="10" rx="1" fill="#FF9933"/><rect y="3.33" width="14" height="3.34" fill="#fff"/><rect y="6.67" width="14" height="3.33" fill="#138808"/></svg>
+              +91
+            </span>
+            <input id="reg-phone" type="tel" class="pt-input pt-input-phone" placeholder="Enter phone number" />
           </div>
-          <div class="journey-step">
-            <strong>3</strong>
-            <span>Use it immediately or request a printed sticker.</span>
+        </label>
+
+        <label class="pt-field">
+          <span>Car number</span>
+          <div class="pt-input-icon-wrap">
+            <svg class="pt-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="2" y="8" width="20" height="10" rx="2" stroke="currentColor" stroke-width="2"/><path d="M5 8l2-4h10l2 4" stroke="currentColor" stroke-width="2"/><circle cx="7" cy="18" r="1.5" fill="currentColor"/><circle cx="17" cy="18" r="1.5" fill="currentColor"/></svg>
+            <input id="reg-plate-number" type="text" class="pt-input pt-input-with-icon" placeholder="e.g., MH01AB5234" style="text-transform:uppercase" />
+          </div>
+        </label>
+
+        <label class="pt-field" id="vehicle-label-field">
+          <span>Vehicle nickname <span style="color:var(--pt-sub);font-weight:400">(optional)</span></span>
+          <input id="reg-vehicle-label" type="text" class="pt-input" placeholder="e.g., My Swift" />
+        </label>
+
+        <div class="pt-reg-divider"></div>
+
+        <label class="pt-field">
+          <span>Email address</span>
+          <input id="reg-email" type="email" class="pt-input" placeholder="name@example.com" />
+        </label>
+
+        <label class="pt-field">
+          <span>Password</span>
+          <input id="reg-password" type="password" class="pt-input" placeholder="Create a password" />
+        </label>
+
+        <label class="pt-checkbox-field">
+          <input id="reg-sticker-requested" type="checkbox" class="pt-checkbox" />
+          <span>Request a printed sticker from ParkTag</span>
+        </label>
+
+        <button id="register-owner-button" class="pt-btn pt-btn-activate pt-btn-full" style="margin-top:4px">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/></svg>
+          Activate Tag
+        </button>
+      </div>
+
+      <p id="register-owner-status" class="pt-status" data-tone="info" style="text-align:center;padding-top:12px"></p>
+
+      <p class="pt-reg-privacy">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 2L4 6v6c0 5.25 3.5 9.74 8 11 4.5-1.26 8-5.75 8-11V6l-8-4Z" stroke="currentColor" stroke-width="2"/></svg>
+        Your information is used only for contact and safety.
+      </p>
+
+      <p style="text-align:center;font-size:0.85rem;color:#6B7280;margin-top:8px">
+        Already have an account? <a href="/owner" style="color:#F5A623;font-weight:700">Sign in</a>.
+      </p>
+    </main>
+
+    <!-- Success screen (hidden until registration completes) -->
+    <main id="reg-success-shell" class="pt-hub-main" style="max-width:420px" hidden>
+
+      <div class="pt-success-hero">
+        <div class="pt-success-check">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none"><path d="M5 12l4 4L19 7" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <h1 class="pt-reg-title" style="margin-top:16px">Tag Activated</h1>
+        <p class="pt-reg-sub">Your ParkTag is now active and ready to help keep you connected and safe.</p>
+      </div>
+
+      <div class="pt-qr-result-card">
+        <div id="register-owner-qr-wrap" hidden>
+          <img id="register-owner-qr" alt="Your ParkTag QR code" class="pt-qr-image" />
+        </div>
+        <p class="pt-qr-scan-hint">Scan to contact owner</p>
+      </div>
+
+      <div class="pt-vehicle-details-card">
+        <h3 class="pt-section-label">Your Vehicle Details</h3>
+        <div id="register-owner-summary" class="pt-vehicle-details-list"></div>
+      </div>
+
+      <div class="pt-whats-next-card">
+        <h3 class="pt-section-label">What's Next?</h3>
+        <div class="pt-next-items">
+          <div class="pt-next-item">
+            <div class="pt-next-icon" style="background:#EEF2FF;color:#4F46E5">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div>
+              <p class="pt-next-title">Share the QR with trusted contacts</p>
+              <p class="pt-next-sub">Help others contact you in an emergency.</p>
+            </div>
+          </div>
+          <div class="pt-next-item">
+            <div class="pt-next-icon" style="background:#ECFDF5;color:#059669">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 2L4 6v6c0 5.25 3.5 9.74 8 11 4.5-1.26 8-5.75 8-11V6l-8-4Z" stroke="currentColor" stroke-width="2"/></svg>
+            </div>
+            <div>
+              <p class="pt-next-title">Keep your vehicle details updated</p>
+              <p class="pt-next-sub">Ensure others can identify your vehicle.</p>
+            </div>
+          </div>
+          <div class="pt-next-item">
+            <div class="pt-next-icon" style="background:#FEF3C7;color:#D97706">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="2"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </div>
+            <div>
+              <p class="pt-next-title">View your emergency profile</p>
+              <p class="pt-next-sub">See what others see when they scan your tag.</p>
+            </div>
           </div>
         </div>
-      </section>
+      </div>
 
-      <section class="grid portal-grid">
-        <article class="card portal-card">
-          <h2>Owner details</h2>
-          <p class="meta-copy">
-            Only a few details are needed to create your owner profile and QR.
-          </p>
-
-          <div class="form-grid">
-            <label class="field">
-              <span>Name</span>
-              <input id="reg-name" placeholder="Your name" />
-            </label>
-            <label class="field">
-              <span>Phone</span>
-              <input id="reg-phone" type="tel" placeholder="+919999999999" />
-            </label>
-          </div>
-
-          <label class="field">
-            <span>Email</span>
-            <input id="reg-email" type="email" placeholder="name@example.com" />
-          </label>
-
-          <label class="field">
-            <span>Password</span>
-            <input id="reg-password" type="password" placeholder="Create a password" />
-          </label>
-
-          <div class="form-grid">
-            <label class="field">
-              <span>Vehicle name</span>
-              <input id="reg-vehicle-label" placeholder="My car" />
-            </label>
-            <label class="field">
-              <span>Vehicle number</span>
-              <input id="reg-plate-number" placeholder="UP16BM8251" />
-            </label>
-          </div>
-
-          <label class="field checkbox-field">
-            <input id="reg-sticker-requested" type="checkbox" />
-            <span>Request a physical sticker from the company</span>
-          </label>
-
-          <div class="actions">
-            <button id="register-owner-button" class="action dashboard-action">
-              Generate my QR
-            </button>
-          </div>
-
-          <p id="register-owner-status" class="request-status" data-tone="info">
-            Complete the form to generate your owner QR.
-          </p>
-        </article>
-
-        <article class="card portal-card">
-          <h2>Your QR result</h2>
-          <p class="meta-copy">
-            Use this QR right away on your phone, or request a printed sticker
-            from the company.
-          </p>
-
-          <div id="register-owner-qr-wrap" class="qr-card-grid" hidden>
-            <article class="qr-card">
-              <img id="register-owner-qr" alt="Generated QR code" class="qr-preview" />
-              <div class="qr-card-body" id="register-owner-summary"></div>
-            </article>
-          </div>
-
-          <div id="register-owner-output" class="journey-result">
-            <p class="empty-copy">No QR generated yet.</p>
-          </div>
-        </article>
-      </section>
+      <a href="/owner" class="pt-btn pt-btn-activate pt-btn-full" style="display:flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;margin-top:8px">
+        Go to Dashboard
+      </a>
     </main>
 
     <script type="module" src="/scripts/register-owner.js"></script>

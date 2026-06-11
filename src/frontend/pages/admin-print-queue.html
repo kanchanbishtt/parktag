@@ -52,20 +52,43 @@
               <div>
                 <h2>Current queue</h2>
               </div>
-              <button id="load-print-queue-button" class="action subtle">
-                Refresh queue
-              </button>
+              <div style="display:flex;gap:8px">
+                <button id="export-qr-button" class="action">Export QRs for printing</button>
+                <button id="load-print-queue-button" class="action subtle">Refresh</button>
+              </div>
             </div>
 
             <p class="meta-copy">
-              Share this queue with the printing company. It contains unclaimed
-              and unprinted sticker-ready tags.
+              Unclaimed tags ready for the printing vendor. Use "Export QRs" to get a printable sheet of all QR codes.
             </p>
 
             <div id="print-queue-output" class="queue-list">
               <p class="empty-copy">No print queue loaded yet.</p>
             </div>
           </article>
+
+          <!-- Print export overlay -->
+          <div id="qr-export-overlay" style="display:none;position:fixed;inset:0;background:#fff;z-index:9999;overflow:auto;padding:32px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;max-width:1200px;margin-left:auto;margin-right:auto">
+              <div>
+                <h2 style="margin:0 0 4px">QR Export — Print Sheet</h2>
+                <p style="margin:0;color:#6B7280;font-size:0.9rem" id="export-count-label"></p>
+              </div>
+              <div style="display:flex;gap:10px">
+                <button onclick="window.print()" style="padding:10px 20px;background:#1C1917;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:0.95rem">Print / Save PDF</button>
+                <button id="close-export-button" style="padding:10px 20px;background:#F3F4F6;color:#1C1917;border:1px solid #E5E7EB;border-radius:8px;font-weight:700;cursor:pointer;font-size:0.95rem">Close</button>
+              </div>
+            </div>
+            <div id="qr-export-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:20px;max-width:1200px;margin:0 auto"></div>
+          </div>
+
+          <style>
+            @media print {
+              body > * { display: none !important; }
+              #qr-export-overlay { display: block !important; position: static !important; }
+              #qr-export-overlay > div:first-child { display: none !important; }
+            }
+          </style>
         </section>
       </section>
     </main>

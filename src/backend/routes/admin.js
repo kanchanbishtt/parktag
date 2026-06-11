@@ -142,6 +142,21 @@ export function registerAdminRoutes(app, env) {
     };
   });
 
+  app.get("/api/admin/print-queue/export", async (request, reply) => {
+    const blocked = await requireSession(app, "admin")(request, reply);
+    if (blocked) return blocked;
+
+    const collections = await getCollections(env);
+    const tags = await collections.tags
+      .find({ status: "unclaimed" })
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    const output = await Promise.all(tags.map((tag) => buildIssuedTagOutput(request, tag)));
+
+    return { ok: true, tags: output };
+  });
+
   app.post("/api/admin/print-queue/:tagId/mark-printed", async (request, reply) => {
     const blocked = await requireSession(app, "admin")(request, reply);
     if (blocked) return blocked;

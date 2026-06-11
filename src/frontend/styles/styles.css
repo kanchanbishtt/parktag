@@ -2295,3 +2295,311 @@ pre {
   text-align: center;
   padding: 8px 0;
 }
+
+/* Premium owner activation redesign */
+.pt-activate-shell {
+  min-height: 100vh;
+  padding: 18px 14px 42px;
+  background:
+    radial-gradient(circle at top, rgba(245, 166, 35, 0.2), transparent 24%),
+    linear-gradient(180deg, #fff8ef 0%, #f5ecdf 52%, #f1e6d7 100%);
+}
+
+.pt-header-activate {
+  width: min(460px, 100%);
+  margin: 0 auto 20px;
+}
+
+.pt-activate-main {
+  width: min(460px, 100%);
+  margin: 0 auto;
+  display: grid;
+  gap: 16px;
+}
+
+.pt-activate-main-success {
+  gap: 14px;
+}
+
+.pt-activate-hero {
+  display: grid;
+  gap: 14px;
+}
+
+.pt-activate-hero-copy {
+  display: grid;
+  gap: 10px;
+}
+
+.pt-activate-eyebrow {
+  margin: 0;
+  color: #b85a22;
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.pt-reg-title-premium {
+  font-size: clamp(2.1rem, 8vw, 3.4rem);
+  line-height: 0.94;
+  letter-spacing: -0.06em;
+  text-align: left;
+}
+
+.pt-reg-sub-premium {
+  color: #58524a;
+  font-size: 1rem;
+  line-height: 1.7;
+  max-width: 34ch;
+  text-align: left;
+}
+
+.pt-sticker-preview-premium {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.pt-sticker-card-premium {
+  min-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px;
+  border-radius: 24px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(255,249,241,0.98));
+  border: 1px solid rgba(184, 90, 34, 0.14);
+  box-shadow: 0 18px 42px rgba(74, 48, 24, 0.12);
+}
+
+.pt-sticker-brand-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pt-sticker-meta {
+  display: grid;
+  gap: 6px;
+}
+
+.pt-sticker-meta-label {
+  color: #7a7369;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.pt-step-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.pt-step-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(184, 90, 34, 0.08);
+  color: #6f685f;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.pt-step-item.is-active {
+  background: rgba(245, 166, 35, 0.14);
+  border-color: rgba(245, 166, 35, 0.3);
+  color: #8b3b10;
+}
+
+.pt-step-number {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(184, 90, 34, 0.12);
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.pt-activate-card,
+.pt-qr-result-card-premium,
+.pt-vehicle-details-card-premium,
+.pt-whats-next-card-premium {
+  padding: 22px 18px;
+  border-radius: 26px;
+  background: rgba(255, 252, 247, 0.98);
+  border: 1px solid rgba(184, 90, 34, 0.12);
+  box-shadow: 0 18px 42px rgba(74, 48, 24, 0.1);
+}
+
+.pt-card-head {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.pt-card-title {
+  margin: 0;
+  font-size: 1.4rem;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+}
+
+.pt-card-sub {
+  margin: 0;
+  color: #615b53;
+  line-height: 1.6;
+}
+
+.pt-form-activate {
+  display: grid;
+  gap: 20px;
+}
+
+.pt-form-section {
+  display: grid;
+  gap: 14px;
+}
+
+.pt-form-section-label {
+  margin: 0;
+  color: #8b3b10;
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.pt-optional-copy {
+  color: #8b867f;
+  font-weight: 500;
+}
+
+.pt-checkbox-field-premium {
+  margin-top: 4px;
+  padding: 14px 14px 14px 12px;
+  border-radius: 18px;
+  background: rgba(245, 166, 35, 0.08);
+  border: 1px solid rgba(245, 166, 35, 0.16);
+}
+
+.pt-activate-note {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 14px 15px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(111, 104, 95, 0.12);
+  color: #5f584f;
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.pt-btn-activate-premium {
+  min-height: 54px;
+  border-radius: 18px;
+  font-size: 1rem;
+  font-weight: 800;
+  box-shadow: 0 14px 30px rgba(141, 56, 15, 0.18);
+}
+
+.pt-status-activate {
+  margin-top: 14px;
+  text-align: center;
+}
+
+.pt-login-link {
+  margin: 14px 0 0;
+  text-align: center;
+  font-size: 0.88rem;
+  color: #6a635b;
+}
+
+.pt-login-link a {
+  color: #b85a22;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.pt-success-hero-premium {
+  padding: 26px 24px 10px;
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at top, rgba(245, 166, 35, 0.18), transparent 34%),
+    linear-gradient(180deg, rgba(255,255,255,0.94), rgba(255,248,239,0.98));
+  border: 1px solid rgba(184, 90, 34, 0.12);
+  box-shadow: 0 18px 42px rgba(74, 48, 24, 0.1);
+}
+
+.pt-qr-result-card-premium {
+  display: grid;
+  gap: 14px;
+  justify-items: center;
+  text-align: center;
+}
+
+.pt-qr-card-head {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+}
+
+.pt-vehicle-details-card-premium,
+.pt-whats-next-card-premium {
+  display: grid;
+  gap: 14px;
+}
+
+.pt-detail-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(111, 104, 95, 0.14);
+}
+
+.pt-detail-row:last-child {
+  border-bottom: none;
+}
+
+.pt-detail-row-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #60584e;
+  font-weight: 600;
+}
+
+.pt-detail-row-value {
+  margin-left: auto;
+  font-weight: 700;
+  color: #1f1d1a;
+  text-align: right;
+}
+
+.pt-detail-row-value-strong {
+  letter-spacing: 0.08em;
+}
+
+.pt-detail-row-value-mono {
+  font-size: 0.84rem;
+}
+
+.pt-success-cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-decoration: none;
+}

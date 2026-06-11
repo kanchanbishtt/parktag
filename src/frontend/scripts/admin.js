@@ -234,7 +234,7 @@ function renderPrintQueue(data) {
   }
 
   if (!tags.length) {
-    target.innerHTML = `<p class="empty-copy">No print queue loaded yet.</p>`;
+    target.innerHTML = `<p class="empty-copy">Queue is empty — all tags have been printed or none have been issued yet.</p>`;
     return;
   }
 
@@ -243,14 +243,54 @@ function renderPrintQueue(data) {
       (tag) => `
         <article class="queue-row">
           <strong>${tag.token}</strong>
-          <span>Batch: ${tag.batchNumber || "-"}</span>
-          <span>Label: ${tag.batchLabel || "-"}</span>
-          <span>Status: ${tag.printStatus}</span>
-          <a href="${tag.claimUrl}" target="_blank" rel="noreferrer">Claim URL</a>
+          <span>Batch: ${tag.batchNumber || "-"} ${tag.batchLabel ? `(${tag.batchLabel})` : ""}</span>
+          <span>Print status: <strong>${tag.printStatus}</strong></span>
+          <a href="${tag.claimUrl}" target="_blank" rel="noreferrer" style="word-break:break-all;font-size:0.82rem">${tag.claimUrl}</a>
+          ${tag.printStatus !== "printed" ? `<button class="action small" onclick="markPrinted('${tag.id}')">Mark as printed</button>` : `<span style="color:#059669;font-weight:700">✓ Printed</span>`}
         </article>
       `
     )
     .join("");
+}
+
+async function exportQrsForPrint() {
+  const overlay = byId("qr-export-overlay");
+  const grid = byId("qr-export-grid");
+  const countLabel = byId("export-count-label");
+  if (!overlay || !grid) return;
+
+  grid.innerHTML = `<p style="color:#6B7280">Loading QR codes...</p>`;
+  overlay.style.display = "block";
+
+  try {
+    const data = await fetchJson("/api/admin/print-queue/export");
+    const tags = data.tags || [];
+    if (countLabel) countLabel.textContent = `${tags.length} tag${tags.length !== 1 ? "s" : ""} ready to print`;
+
+    if (!tags.length) {
+      grid.innerHTML = `<p style="color:#6B7280">No unclaimed tags to export.</p>`;
+      return;
+    }
+
+    grid.innerHTML = tags.map(tag => `
+      <div style="text-align:center;padding:12px;border:1px solid #E5E7EB;border-radius:8px;background:#fff">
+        <img src="${tag.qrDataUrl}" alt="QR ${tag.token}" style="width:140px;height:140px;display:block;margin:0 auto 8px" />
+        <p style="font-size:0.72rem;font-weight:700;font-family:monospace;color:#374151;margin:0 0 2px;word-break:break-all">${tag.token}</p>
+        ${tag.batchLabel ? `<p style="font-size:0.68rem;color:#9CA3AF;margin:0">${tag.batchLabel}</p>` : ""}
+      </div>
+    `).join("");
+  } catch (err) {
+    grid.innerHTML = `<p style="color:#DC2626">Failed to load: ${err.message}</p>`;
+  }
+}
+
+async function markPrinted(tagId) {
+  try {
+    await fetchJson(`/api/admin/print-queue/${tagId}/mark-printed`, { method: "POST" });
+    await loadPrintQueue();
+  } catch (err) {
+    alert(`Failed to mark as printed: ${err.message}`);
+  }
 }
 
 async function loadAdminOverview() {
@@ -538,6 +578,19 @@ function bindEvents() {
   if (hasEl("load-print-queue-button")) {
     byId("load-print-queue-button").addEventListener("click", loadPrintQueue);
   }
+
+  if (hasEl("export-qr-button")) {
+    byId("export-qr-button").addEventListener("click", exportQrsForPrint);
+  }
+
+  if (hasEl("close-export-button")) {
+    byId("close-export-button").addEventListener("click", () => {
+      const overlay = byId("qr-export-overlay");
+      if (overlay) overlay.style.display = "none";
+    });
+  }
+
+  window.markPrinted = markPrinted;
 
   if (hasEl("add-admin-button")) {
     byId("add-admin-button").addEventListener("click", createNewAdmin);

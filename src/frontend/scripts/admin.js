@@ -321,9 +321,12 @@ async function seedAdminDemo() {
       "Demo setup created for the current environment. You can now sign in with admin@wavetag.local / demo1234.",
       "success"
     );
-    setIssueMessage(
-      `Seeded active token ${data.tag.token} and claimable token ${data.claimableTag.token}.`
-    );
+    const seeded = data.data || data;
+    if (seeded?.tag?.token) {
+      setIssueMessage(
+        `Seeded active token ${seeded.tag.token} and claimable token ${seeded.claimableTag?.token || "—"}.`
+      );
+    }
     setQueueMessage("Demo setup ready. Sign in and load the print queue.");
   } catch (error) {
     setStatus(

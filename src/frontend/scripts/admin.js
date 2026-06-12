@@ -399,6 +399,7 @@ async function loginAdmin() {
 
     goToOverview();
   } catch (error) {
+    window.ptProgress?.finish();
     const message =
       error instanceof Error ? error.message : "Admin login failed";
     setStatus(
@@ -444,6 +445,7 @@ async function issueTag() {
     setIssueMessage(`Issue failed: ${message}`);
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = "Generate QR batch"; }
+    window.ptProgress?.finish();
   }
 }
 
@@ -457,6 +459,8 @@ async function loadPrintQueue() {
       error instanceof Error ? error.message : "Failed to load print queue";
     setQueueMessage(`Print queue failed: ${message}`);
     setStatus(message, "error");
+  } finally {
+    window.ptProgress?.finish();
   }
 }
 

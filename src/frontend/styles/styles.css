@@ -2603,3 +2603,72 @@ pre {
   gap: 8px;
   text-decoration: none;
 }
+
+/* ═══════════════════════════════════════════
+   GLOBAL UX FEEDBACK SYSTEM
+   Top progress bar + button active/hover states
+   ═══════════════════════════════════════════ */
+
+/* Top progress bar */
+#pt-progress-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 3px;
+  width: 0%;
+  background: linear-gradient(90deg, #F5A623, #FBBF24);
+  z-index: 9999;
+  transition: width 0.25s ease, opacity 0.4s ease;
+  border-radius: 0 2px 2px 0;
+  box-shadow: 0 0 8px rgba(245,166,35,0.6);
+  pointer-events: none;
+}
+
+#pt-progress-bar.pt-bar-done {
+  width: 100% !important;
+  opacity: 0;
+}
+
+/* Active/press states for all buttons */
+.pt-btn:active:not(:disabled),
+.action:active:not(:disabled) {
+  transform: scale(0.97) translateY(1px) !important;
+}
+
+.pt-btn:hover:not(:disabled),
+.action:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+/* Loading spinner inside button */
+.pt-btn-loading,
+.action.btn-loading {
+  position: relative;
+  color: transparent !important;
+  pointer-events: none;
+}
+
+.pt-btn-loading::after,
+.action.btn-loading::after {
+  content: "";
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  top: 50%;
+  left: 50%;
+  margin: -8px 0 0 -8px;
+  border: 2px solid rgba(255,255,255,0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: pt-spin 0.65s linear infinite;
+}
+
+.pt-btn-activate.pt-btn-loading::after,
+.pt-btn-activate.btn-loading::after {
+  border-color: rgba(255,255,255,0.3);
+  border-top-color: #fff;
+}
+
+@keyframes pt-spin {
+  to { transform: rotate(360deg); }
+}

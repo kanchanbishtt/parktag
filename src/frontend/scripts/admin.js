@@ -229,6 +229,11 @@ function renderPrintQueue(data) {
   const target = byId("print-queue-output");
   const tags = data.tags || [];
 
+  const countEl = byId("print-queue-count");
+  if (countEl) {
+    countEl.textContent = `${tags.length} tag${tags.length !== 1 ? "s" : ""} in queue`;
+  }
+
   if (!target) {
     return;
   }

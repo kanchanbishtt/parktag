@@ -243,19 +243,36 @@ function renderPrintQueue(data) {
     return;
   }
 
-  target.innerHTML = tags
-    .map(
-      (tag) => `
-        <article class="queue-row">
-          <strong>${tag.token}</strong>
-          <span>Batch: ${tag.batchNumber || "-"} ${tag.batchLabel ? `(${tag.batchLabel})` : ""}</span>
-          <span>Print status: <strong>${tag.printStatus}</strong></span>
-          <a href="${tag.claimUrl}" target="_blank" rel="noreferrer" style="word-break:break-all;font-size:0.82rem">${tag.claimUrl}</a>
-          ${tag.printStatus !== "printed" ? `<button class="action small" onclick="markPrinted('${tag.id}')">Mark as printed</button>` : `<span style="color:#059669;font-weight:700">✓ Printed</span>`}
-        </article>
-      `
-    )
-    .join("");
+  // Group by batchNumber
+  const batches = {};
+  for (const tag of tags) {
+    const key = tag.batchNumber || "__no_batch__";
+    if (!batches[key]) batches[key] = { batchNumber: tag.batchNumber, batchLabel: tag.batchLabel, tags: [] };
+    batches[key].tags.push(tag);
+  }
+
+  target.innerHTML = Object.values(batches).map(batch => {
+    const batchKey = batch.batchNumber || "__no_batch__";
+    const batchTitle = batch.batchNumber
+      ? `Batch ${batch.batchNumber}${batch.batchLabel ? ` — ${batch.batchLabel}` : ""}`
+      : "No batch assigned";
+    return `
+      <div style="margin-bottom:20px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding:8px 12px;background:#F9FAFB;border-radius:8px;border:1px solid #E5E7EB">
+          <span style="font-weight:700;font-size:0.9rem">${batchTitle} <span style="font-weight:400;color:#6B7280">(${batch.tags.length} tags)</span></span>
+          ${batch.batchNumber ? `<button class="action small" style="color:#DC2626;background:#FEF2F2;border-color:#FECACA" onclick="deleteBatch('${batch.batchNumber}')">Delete batch</button>` : ""}
+        </div>
+        ${batch.tags.map(tag => `
+          <article class="queue-row">
+            <strong>${tag.token}</strong>
+            <span>Print status: <strong>${tag.printStatus}</strong></span>
+            <a href="${tag.claimUrl}" target="_blank" rel="noreferrer" style="word-break:break-all;font-size:0.82rem">${tag.claimUrl}</a>
+            ${tag.printStatus !== "printed" ? `<button class="action small" onclick="markPrinted('${tag.id}')">Mark as printed</button>` : `<span style="color:#059669;font-weight:700">✓ Printed</span>`}
+          </article>
+        `).join("")}
+      </div>
+    `;
+  }).join("");
 }
 
 async function exportQrsForPrint() {
@@ -295,6 +312,28 @@ async function markPrinted(tagId) {
     await loadPrintQueue();
   } catch (err) {
     alert(`Failed to mark as printed: ${err.message}`);
+  }
+}
+
+async function deleteBatch(batchNumber) {
+  if (!confirm(`Delete all unclaimed tags in batch "${batchNumber}"? This cannot be undone.`)) return;
+  try {
+    const data = await fetchJson(`/api/admin/tags/batch/${encodeURIComponent(batchNumber)}`, { method: "DELETE" });
+    setStatus(`Deleted ${data.deleted} tags from batch ${batchNumber}.`, "success");
+    await loadPrintQueue();
+  } catch (err) {
+    alert(`Failed to delete batch: ${err.message}`);
+  }
+}
+
+async function clearAllUnprinted() {
+  if (!confirm("Delete ALL unclaimed unprinted tags? This cannot be undone.")) return;
+  try {
+    const data = await fetchJson("/api/admin/tags/unclaimed/all", { method: "DELETE" });
+    setStatus(`Cleared ${data.deleted} unclaimed tags.`, "success");
+    await loadPrintQueue();
+  } catch (err) {
+    alert(`Failed to clear queue: ${err.message}`);
   }
 }
 
@@ -605,6 +644,11 @@ function bindEvents() {
   }
 
   window.markPrinted = markPrinted;
+  window.deleteBatch = deleteBatch;
+
+  if (hasEl("clear-all-button")) {
+    byId("clear-all-button").addEventListener("click", clearAllUnprinted);
+  }
 
   if (hasEl("add-admin-button")) {
     byId("add-admin-button").addEventListener("click", createNewAdmin);

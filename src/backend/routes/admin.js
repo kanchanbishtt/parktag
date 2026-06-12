@@ -157,6 +157,29 @@ export function registerAdminRoutes(app, env) {
     return { ok: true, tags: output };
   });
 
+  app.delete("/api/admin/tags/batch/:batchNumber", async (request, reply) => {
+    const blocked = await requireSession(app, "admin")(request, reply);
+    if (blocked) return blocked;
+
+    const collections = await getCollections(env);
+    const result = await collections.tags.deleteMany({
+      status: "unclaimed",
+      batchNumber: request.params.batchNumber
+    });
+
+    return { ok: true, deleted: result.deletedCount };
+  });
+
+  app.delete("/api/admin/tags/unclaimed/all", async (request, reply) => {
+    const blocked = await requireSession(app, "admin")(request, reply);
+    if (blocked) return blocked;
+
+    const collections = await getCollections(env);
+    const result = await collections.tags.deleteMany({ status: "unclaimed" });
+
+    return { ok: true, deleted: result.deletedCount };
+  });
+
   app.post("/api/admin/print-queue/:tagId/mark-printed", async (request, reply) => {
     const blocked = await requireSession(app, "admin")(request, reply);
     if (blocked) return blocked;

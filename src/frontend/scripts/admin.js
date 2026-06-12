@@ -373,6 +373,10 @@ async function logoutAdmin() {
 }
 
 async function issueTag() {
+  const btn = byId("issue-tag-button");
+  if (btn) { btn.disabled = true; btn.textContent = "Generating…"; }
+  setIssueMessage("Generating QR batch, please wait…");
+
   try {
     const data = await fetchJson("/api/admin/tags/issue", {
       method: "POST",
@@ -394,6 +398,8 @@ async function issueTag() {
       error instanceof Error ? error.message : "Failed to issue tag batch";
     setStatus(message, "error");
     setIssueMessage(`Issue failed: ${message}`);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "Generate QR batch"; }
   }
 }
 

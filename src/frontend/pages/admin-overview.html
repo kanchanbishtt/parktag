@@ -2,83 +2,67 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1, viewport-fit=cover"
-    />
-    <title>WaveTag Admin Overview</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>ParkTag Admin — Overview</title>
     <link rel="stylesheet" href="/styles/styles.css" />
   </head>
-  <body class="admin-body">
-    <main class="shell dashboard-shell admin-app-shell" data-admin-page="overview">
-      <section class="admin-shell">
-        <aside class="admin-sidebar">
-          <div class="admin-brand">
-            <p class="eyebrow">WaveTag</p>
-            <h2>Admin Control</h2>
-            <p class="meta-copy">
-              Issue stickers, review owners, and monitor live request activity.
-            </p>
-          </div>
+  <body class="pt-admin-body">
+    <div class="pt-admin-shell" data-admin-page="overview">
 
-          <nav class="admin-nav">
-            <a class="admin-nav-item is-active" href="/admin/overview">Overview</a>
-            <a class="admin-nav-item" href="/admin/issuance">Batch Issuance</a>
-            <a class="admin-nav-item" href="/admin/print-queue">Print Queue</a>
-            <a class="admin-nav-item" href="/admin/owners">Owner Monitoring</a>
-            <a class="admin-nav-item" href="/admin/activity">Activity Feed</a>
-            <a class="admin-nav-item" href="/admin/admins">Admin Management</a>
-          </nav>
+      <aside class="pt-admin-sidebar">
+        <div class="pt-admin-brand">
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><rect width="28" height="28" rx="8" fill="#F5A623"/><path d="M8 8h7.5a4.5 4.5 0 0 1 0 9H11v5H8V8Z" fill="#fff"/><circle cx="15" cy="12.5" r="1.5" fill="#F5A623"/></svg>
+          <p class="pt-admin-brand-name">ParkTag</p>
+          <span class="pt-admin-brand-role">Admin</span>
+        </div>
+        <nav class="pt-admin-nav">
+          <span class="pt-admin-nav-section">Management</span>
+          <a class="pt-admin-nav-item is-active" href="/admin/overview"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="14" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="3" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="14" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/></svg> Overview</a>
+          <a class="pt-admin-nav-item" href="/admin/issuance"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="14" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="3" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><path d="M14 14h2v2h-2zM18 14h3M14 18v3M18 18h3v3h-3z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Batch Issuance</a>
+          <a class="pt-admin-nav-item" href="/admin/print-queue"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v8H6z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Print Queue</a>
+          <span class="pt-admin-nav-section">Monitoring</span>
+          <a class="pt-admin-nav-item" href="/admin/owners"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="2"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Owners</a>
+          <a class="pt-admin-nav-item" href="/admin/activity"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M22 12h-4l-3 9L9 3l-3 9H2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Activity Feed</a>
+          <a class="pt-admin-nav-item" href="/admin/admins"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 2L4 6v6c0 5.25 3.5 9.74 8 11 4.5-1.26 8-5.75 8-11V6l-8-4Z" stroke="currentColor" stroke-width="2"/></svg> Admin Management</a>
+        </nav>
+        <div class="pt-admin-sidebar-footer">
+          <button id="admin-refresh-button" class="pt-admin-sidebar-btn pt-admin-btn-ghost">Refresh</button>
+          <button id="admin-logout-button" class="pt-admin-sidebar-btn pt-admin-btn-danger">Sign out</button>
+        </div>
+      </aside>
 
-          <div class="admin-sidebar-actions">
-            <button id="admin-refresh-button" class="action subtle">Refresh</button>
-            <button id="admin-logout-button" class="action">Sign out</button>
-          </div>
-        </aside>
+      <main class="pt-admin-main">
+        <div class="pt-admin-page-header">
+          <p class="pt-admin-eyebrow">Overview</p>
+          <h1 class="pt-admin-page-title">Platform snapshot</h1>
+          <p class="pt-admin-page-sub">Owners, tags, requests, and print queue at a glance.</p>
+        </div>
 
-        <section class="admin-main">
-          <header class="dashboard-header admin-main-header">
+        <div class="pt-admin-stats" id="admin-counts"></div>
+
+        <div class="pt-admin-card">
+          <div class="pt-admin-card-header">
             <div>
-              <p class="eyebrow">Overview</p>
-              <h1>Platform snapshot</h1>
-              <p class="lede">
-                Review current owners, tags, request volume, and local demo readiness.
-              </p>
+              <h2 class="pt-admin-card-title">Recent Registrations</h2>
+              <p class="pt-admin-card-sub">Newest owners and their tags.</p>
             </div>
-          </header>
+          </div>
+          <div id="registration-feed"><p class="pt-admin-empty">No recent registrations yet.</p></div>
+        </div>
 
-          <section class="card dashboard-card">
-            <p class="meta-copy">
-              This page is the fastest way to confirm that the admin environment
-              is healthy before moving into issuance, print queue, owners, or activity.
-            </p>
-          </section>
-
-          <section class="dashboard-stats" id="admin-counts"></section>
-
-          <section class="card dashboard-card" id="admin-ready-card" hidden>
-            <h2>Local Demo Readiness</h2>
-            <p class="meta-copy" id="admin-ready-copy">
-              The current environment is ready for admin issuance and monitoring.
-            </p>
-          </section>
-
-          <section class="card dashboard-card">
-            <div class="section-head">
-              <div>
-                <p class="eyebrow">Recent Registrations</p>
-                <h2>Newest owners and tags</h2>
-              </div>
+        <div class="pt-admin-card">
+          <div class="pt-admin-card-header">
+            <div>
+              <h2 class="pt-admin-card-title">Recent Contact Requests</h2>
             </div>
-            <div id="registration-feed" class="queue-list">
-              <p class="empty-copy">No recent owner registrations yet.</p>
-            </div>
-          </section>
-        </section>
-      </section>
-    </main>
+          </div>
+          <div id="admin-requests-list"><p class="pt-admin-empty">No recent requests yet.</p></div>
+        </div>
 
+        <p id="admin-auth-status" class="pt-admin-status" data-tone="info"></p>
+      </main>
+    </div>
     <script type="module" src="/scripts/admin.js"></script>
     <script src="/scripts/ux-feedback.js"></script>
-</body>
+  </body>
 </html>

@@ -2,100 +2,90 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1, viewport-fit=cover"
-    />
-    <title>WaveTag Admin Print Queue</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>ParkTag Admin — Print Queue</title>
     <link rel="stylesheet" href="/styles/styles.css" />
   </head>
-  <body class="admin-body">
-    <main class="shell dashboard-shell admin-app-shell" data-admin-page="print-queue">
-      <section class="admin-shell">
-        <aside class="admin-sidebar">
-          <div class="admin-brand">
-            <p class="eyebrow">WaveTag</p>
-            <h2>Admin Control</h2>
-            <p class="meta-copy">
-              Issue stickers, review owners, and monitor live request activity.
-            </p>
-          </div>
+  <body class="pt-admin-body">
+    <div class="pt-admin-shell" data-admin-page="print-queue">
+      <aside class="pt-admin-sidebar">
+        <div class="pt-admin-brand">
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><rect width="28" height="28" rx="8" fill="#F5A623"/><path d="M8 8h7.5a4.5 4.5 0 0 1 0 9H11v5H8V8Z" fill="#fff"/><circle cx="15" cy="12.5" r="1.5" fill="#F5A623"/></svg>
+          <p class="pt-admin-brand-name">ParkTag</p>
+          <span class="pt-admin-brand-role">Admin</span>
+        </div>
+        <nav class="pt-admin-nav">
+          <span class="pt-admin-nav-section">Management</span>
+          <a class="pt-admin-nav-item" href="/admin/overview"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="14" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="3" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="14" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/></svg> Overview</a>
+          <a class="pt-admin-nav-item" href="/admin/issuance"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="14" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="3" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><path d="M14 14h2v2h-2zM18 14h3M14 18v3M18 18h3v3h-3z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Batch Issuance</a>
+          <a class="pt-admin-nav-item is-active" href="/admin/print-queue"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v8H6z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Print Queue</a>
+          <span class="pt-admin-nav-section">Monitoring</span>
+          <a class="pt-admin-nav-item" href="/admin/owners"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="2"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Owners</a>
+          <a class="pt-admin-nav-item" href="/admin/activity"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M22 12h-4l-3 9L9 3l-3 9H2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Activity Feed</a>
+          <a class="pt-admin-nav-item" href="/admin/admins"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 2L4 6v6c0 5.25 3.5 9.74 8 11 4.5-1.26 8-5.75 8-11V6l-8-4Z" stroke="currentColor" stroke-width="2"/></svg> Admin Management</a>
+        </nav>
+        <div class="pt-admin-sidebar-footer">
+          <button id="admin-refresh-button" class="pt-admin-sidebar-btn pt-admin-btn-ghost">Refresh</button>
+          <button id="admin-logout-button" class="pt-admin-sidebar-btn pt-admin-btn-danger">Sign out</button>
+        </div>
+      </aside>
 
-          <nav class="admin-nav">
-            <a class="admin-nav-item" href="/admin/overview">Overview</a>
-            <a class="admin-nav-item" href="/admin/issuance">Batch Issuance</a>
-            <a class="admin-nav-item is-active" href="/admin/print-queue">Print Queue</a>
-            <a class="admin-nav-item" href="/admin/owners">Owner Monitoring</a>
-            <a class="admin-nav-item" href="/admin/activity">Activity Feed</a>
-            <a class="admin-nav-item" href="/admin/admins">Admin Management</a>
-          </nav>
+      <main class="pt-admin-main">
+        <div class="pt-admin-page-header">
+          <p class="pt-admin-eyebrow">Print Queue</p>
+          <h1 class="pt-admin-page-title">Unprinted tags</h1>
+          <p class="pt-admin-page-sub">Review sticker-ready unclaimed tags and prepare them for the printing company.</p>
+        </div>
 
-          <div class="admin-sidebar-actions">
-            <button id="admin-refresh-button" class="action subtle">Refresh</button>
-            <button id="admin-logout-button" class="action">Sign out</button>
-          </div>
-        </aside>
-
-        <section class="admin-main">
-          <header class="dashboard-header admin-main-header">
+        <div class="pt-admin-card">
+          <div class="pt-admin-card-header">
             <div>
-              <p class="eyebrow">Print Queue</p>
-              <h1>Unprinted tags</h1>
-              <p class="lede">
-                Review sticker-ready unclaimed tags and prepare them for the printing company.
-              </p>
+              <h2 class="pt-admin-card-title" style="display:flex;align-items:center;gap:10px">
+                Current queue
+                <span id="print-queue-count" class="pt-admin-badge"></span>
+              </h2>
+              <p class="pt-admin-card-sub">Unclaimed tags ready for the printing vendor.</p>
             </div>
-          </header>
-
-          <article class="card dashboard-card">
-            <div class="section-head">
-              <div style="display:flex;align-items:center;gap:10px">
-                <h2>Current queue</h2>
-                <span id="print-queue-count" style="font-size:0.8rem;font-weight:700;background:#F3F4F6;color:#374151;padding:3px 10px;border-radius:20px"></span>
-              </div>
-              <div style="display:flex;gap:8px;flex-wrap:wrap">
-                <button id="export-qr-button" class="action">Export QRs for printing</button>
-                <button id="clear-all-button" class="action subtle" style="color:#DC2626">Clear all unprinted</button>
-                <button id="load-print-queue-button" class="action subtle">Refresh</button>
-              </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button id="export-qr-button" class="pt-admin-btn pt-admin-btn-primary" style="display:flex;align-items:center;gap:6px">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                Export QRs
+              </button>
+              <button id="clear-all-button" class="pt-admin-btn" style="background:#FEF2F2;color:#DC2626;border:1.5px solid #FECACA">Clear all unprinted</button>
+              <button id="load-print-queue-button" class="pt-admin-btn pt-admin-btn-ghost">Refresh</button>
             </div>
-
-            <p class="meta-copy">
-              Unclaimed tags ready for the printing vendor. Use "Export QRs" to get a printable sheet of all QR codes.
-            </p>
-
-            <div id="print-queue-output" class="queue-list">
-              <p class="empty-copy">No print queue loaded yet.</p>
-            </div>
-          </article>
-
-          <!-- Print export overlay -->
-          <div id="qr-export-overlay" style="display:none;position:fixed;inset:0;background:#fff;z-index:9999;overflow:auto;padding:32px">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;max-width:1200px;margin-left:auto;margin-right:auto">
-              <div>
-                <h2 style="margin:0 0 4px">QR Export — Print Sheet</h2>
-                <p style="margin:0;color:#6B7280;font-size:0.9rem" id="export-count-label"></p>
-              </div>
-              <div style="display:flex;gap:10px">
-                <button onclick="window.print()" style="padding:10px 20px;background:#1C1917;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:0.95rem">Print / Save PDF</button>
-                <button id="close-export-button" style="padding:10px 20px;background:#F3F4F6;color:#1C1917;border:1px solid #E5E7EB;border-radius:8px;font-weight:700;cursor:pointer;font-size:0.95rem">Close</button>
-              </div>
-            </div>
-            <div id="qr-export-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:20px;max-width:1200px;margin:0 auto"></div>
           </div>
 
-          <style>
-            @media print {
-              body > * { display: none !important; }
-              #qr-export-overlay { display: block !important; position: static !important; }
-              #qr-export-overlay > div:first-child { display: none !important; }
-            }
-          </style>
-        </section>
-      </section>
-    </main>
+          <div id="print-queue-output"><p class="pt-admin-empty">No print queue loaded yet.</p></div>
+        </div>
 
+        <!-- QR export overlay -->
+        <div id="qr-export-overlay" style="display:none;position:fixed;inset:0;background:#fff;z-index:9999;overflow:auto;padding:32px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;max-width:1200px;margin-left:auto;margin-right:auto">
+            <div>
+              <h2 style="margin:0 0 4px;font-size:1.25rem;font-weight:700;color:#1C1917">QR Export — Print Sheet</h2>
+              <p style="margin:0;color:#6B7280;font-size:0.9rem" id="export-count-label"></p>
+            </div>
+            <div style="display:flex;gap:10px">
+              <button onclick="window.print()" style="padding:10px 20px;background:#1C1917;color:#fff;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:0.95rem;font-family:inherit">Print / Save PDF</button>
+              <button id="close-export-button" style="padding:10px 20px;background:#F3F4F6;color:#1C1917;border:1px solid #E5E7EB;border-radius:10px;font-weight:700;cursor:pointer;font-size:0.95rem;font-family:inherit">Close</button>
+            </div>
+          </div>
+          <div id="qr-export-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:20px;max-width:1200px;margin:0 auto"></div>
+        </div>
+
+        <style>
+          @media print {
+            body > * { display: none !important; }
+            #qr-export-overlay { display: block !important; position: static !important; }
+            #qr-export-overlay > div:first-child { display: none !important; }
+          }
+        </style>
+
+        <p id="admin-auth-status" class="pt-admin-status" data-tone="info"></p>
+      </main>
+    </div>
     <script type="module" src="/scripts/admin.js"></script>
     <script src="/scripts/ux-feedback.js"></script>
-</body>
+  </body>
 </html>

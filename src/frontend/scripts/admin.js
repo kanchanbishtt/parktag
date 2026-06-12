@@ -528,11 +528,12 @@ async function loadAdmins() {
       return;
     }
     target.innerHTML = data.admins.map((a) => `
-      <article class="monitor-card">
-        <strong>${a.displayName}</strong>
-        <span>${a.email}</span>
-        <span>Added: ${new Date(a.createdAt).toLocaleString()}</span>
-      </article>`).join("");
+      <div class="pt-admin-row">
+        <div>
+          <p class="pt-admin-row-title">${a.displayName}</p>
+          <p class="pt-admin-row-meta">${a.email} &middot; Added ${new Date(a.createdAt).toLocaleString()}</p>
+        </div>
+      </div>`).join("");
   } catch (error) {
     if (target) target.innerHTML = `<p class="empty-copy">Failed to load admins.</p>`;
   }

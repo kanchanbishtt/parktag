@@ -81,9 +81,7 @@ export async function buildApp() {
   });
 
   app.get("/", async (request, reply) => {
-    const html = await fs.readFile(hubPage, "utf8");
-    reply.type("text/html");
-    return html.replaceAll("__HUB_ASSET_VERSION__", hubAssetVersion);
+    reply.redirect("/owner");
   });
 
   app.get("/hub", async (_request, reply) => {

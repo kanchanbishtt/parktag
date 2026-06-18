@@ -25,27 +25,52 @@
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="2"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
         </div>
         <h1 class="pt-card-title">Owner Sign In</h1>
-        <p class="pt-card-sub" style="margin-bottom:20px">Access your dashboard to manage tags and contact requests.</p>
+        <p class="pt-card-sub" style="margin-bottom:20px">Enter your email or mobile number and we'll send you a verification code.</p>
 
         <div class="pt-form">
           <label class="pt-field">
-            <span>Email address</span>
-            <input id="owner-email" type="email" class="pt-input" placeholder="name@example.com" />
+            <span id="identifier-label">Email or mobile number</span>
+            <div style="position:relative">
+              <input id="owner-identifier" type="text" class="pt-input"
+                placeholder="Enter email or mobile number"
+                autocomplete="username"
+                inputmode="email" />
+              <span id="identifier-badge" style="
+                position:absolute;right:10px;top:50%;transform:translateY(-50%);
+                font-size:0.7rem;font-weight:700;letter-spacing:0.04em;
+                background:#F3F4F6;color:#6B7280;border:1px solid #E5E7EB;
+                border-radius:20px;padding:2px 8px;pointer-events:none;
+                display:none
+              "></span>
+            </div>
           </label>
-          <label class="pt-field">
-            <span>Password</span>
-            <input id="owner-password" type="password" class="pt-input" placeholder="Your password" />
-          </label>
-          <button id="owner-login-button" class="pt-btn pt-btn-primary pt-btn-full" style="margin-top:4px">Sign in</button>
+          <button id="owner-login-button" class="pt-btn pt-btn-primary pt-btn-full" style="margin-top:4px">Continue</button>
         </div>
 
-        <p id="owner-auth-status" class="pt-status" data-tone="info" style="padding:12px 0 0;text-align:center">Sign in to access your dashboard.</p>
-        <p style="text-align:center;font-size:0.85rem;color:#6B7280;margin-top:10px">
-          <a href="/forgot-password" style="color:#F5A623;font-weight:700">Forgot your password?</a>
-        </p>
-        <p style="text-align:center;font-size:0.85rem;color:#6B7280;margin-top:8px">
-          Don't have an account? <a href="/register-owner" style="color:#F5A623;font-weight:700">Register here</a>.
-        </p>
+        <p id="owner-auth-status" class="pt-status" data-tone="info" style="padding:12px 0 0;text-align:center"></p>
+
+        <div style="display:flex;align-items:center;gap:12px;margin-top:20px">
+          <div style="flex:1;height:1px;background:#E5E7EB"></div>
+          <span style="font-size:0.78rem;color:#9CA3AF;font-weight:600;letter-spacing:0.05em">OR</span>
+          <div style="flex:1;height:1px;background:#E5E7EB"></div>
+        </div>
+
+        <a id="google-login-btn" href="/api/auth/google"
+          style="display:flex;align-items:center;justify-content:center;gap:10px;margin-top:14px;
+                 width:100%;padding:11px 16px;border-radius:12px;border:1.5px solid #E5E7EB;
+                 background:#fff;color:#1F2937;font-size:0.92rem;font-weight:600;
+                 text-decoration:none;cursor:pointer;transition:box-shadow 0.15s,border-color 0.15s;
+                 box-shadow:0 1px 3px rgba(0,0,0,0.06)"
+          onmouseover="this.style.borderColor='#D1D5DB';this.style.boxShadow='0 2px 8px rgba(0,0,0,0.10)'"
+          onmouseout="this.style.borderColor='#E5E7EB';this.style.boxShadow='0 1px 3px rgba(0,0,0,0.06)'">
+          <svg width="20" height="20" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M47.532 24.552c0-1.636-.134-3.218-.389-4.742H24.48v8.978h12.985c-.56 3.016-2.255 5.574-4.806 7.288v6.056h7.779c4.548-4.19 7.094-10.36 7.094-17.58z" fill="#4285F4"/>
+            <path d="M24.48 48c6.516 0 11.982-2.162 15.977-5.868l-7.779-6.056c-2.157 1.446-4.914 2.298-8.198 2.298-6.304 0-11.642-4.258-13.55-9.982H2.906v6.248C6.882 42.918 15.116 48 24.48 48z" fill="#34A853"/>
+            <path d="M10.93 28.392A14.464 14.464 0 0 1 9.9 24c0-1.524.261-3.004.73-4.392v-6.248H2.906A23.988 23.988 0 0 0 .48 24c0 3.878.928 7.546 2.426 10.64l8.024-6.248z" fill="#FBBC05"/>
+            <path d="M24.48 9.626c3.552 0 6.74 1.222 9.248 3.622l6.942-6.942C36.456 2.392 30.992 0 24.48 0 15.116 0 6.882 5.082 2.906 13.36l8.024 6.248c1.908-5.724 7.246-9.982 13.55-9.982z" fill="#EA4335"/>
+          </svg>
+          Continue with Google
+        </a>
       </div>
     </main>
 

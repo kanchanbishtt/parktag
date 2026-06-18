@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>ParkTag — Welcome</title>
+    <link rel="stylesheet" href="/styles/styles.css" />
+  </head>
+  <body class="pt-hub-body">
+
+    <header class="pt-header">
+      <div class="pt-logo">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+          <rect width="28" height="28" rx="8" fill="#F5A623"/>
+          <path d="M8 8h7.5a4.5 4.5 0 0 1 0 9H11v5H8V8Z" fill="#fff"/>
+          <circle cx="15" cy="12.5" r="1.5" fill="#F5A623"/>
+        </svg>
+        <span>ParkTag</span>
+      </div>
+    </header>
+
+    <main class="pt-auth-main">
+      <div class="pt-auth-card">
+        <div class="pt-card-icon pt-icon-tag" style="margin-bottom:12px">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/></svg>
+        </div>
+        <h1 class="pt-card-title" id="welcome-title">You're in!</h1>
+        <p class="pt-card-sub" id="welcome-sub" style="margin-bottom:24px">What would you like to do?</p>
+
+        <div style="display:flex;flex-direction:column;gap:12px" id="welcome-actions">
+          <a id="btn-dashboard" href="/owner" class="pt-btn pt-btn-primary pt-btn-full" style="text-align:center;text-decoration:none;display:none">
+            Owner Dashboard
+          </a>
+          <a href="/register-owner" class="pt-btn pt-btn-full" style="text-align:center;text-decoration:none;background:#F3F4F6;color:#1F2937;border:1.5px solid #E5E7EB">
+            Activate a tag
+          </a>
+        </div>
+      </div>
+    </main>
+
+    <script type="module" src="/scripts/owner-welcome.js"></script>
+  </body>
+</html>

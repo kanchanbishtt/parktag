@@ -131,9 +131,12 @@ async function loadOwnerDashboard() {
 function detectIdentifierType(value) {
   const stripped = value.replace(/[\s\-()]/g, "");
   if (value.includes("@")) {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value.trim()) ? "email" : null;
+    // Must be user@domain.tld with real-looking domain
+    return /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(value.trim()) ? "email" : null;
   }
-  if (/^\+?\d{7,15}$/.test(stripped)) return "mobile";
+  // Indian mobile: 10 digits starting with 6-9, optionally prefixed with +91 or 0
+  const digits = stripped.replace(/^\+91|^0/, "");
+  if (/^[6-9]\d{9}$/.test(digits)) return "mobile";
   return null;
 }
 
@@ -168,9 +171,9 @@ async function loginOwner() {
   const type = detectIdentifierType(raw);
   if (!type) {
     if (raw.includes("@")) {
-      setStatus("Please enter a valid email address (e.g. name@example.com).", "error");
+      setStatus("Invalid email address. Please check and try again.", "error");
     } else {
-      setStatus("Please enter a valid email address or mobile number.", "error");
+      setStatus("Invalid phone number. Enter a 10-digit Indian mobile number.", "error");
     }
     return;
   }

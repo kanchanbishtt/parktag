@@ -1,5 +1,6 @@
 import { sendOtp, verifyOtp, isMobileIdentifier, normalizeIdentifier } from "../lib/otp.js";
 import { createSession, writeSessionCookie } from "../lib/session.js";
+import { getCollections } from "../lib/repositories.js";
 
 export function registerOtpAuthRoutes(app, env) {
   app.post("/api/auth/send-otp", async (request, reply) => {
@@ -11,6 +12,25 @@ export function registerOtpAuthRoutes(app, env) {
     }
 
     try {
+      const collections = await getCollections(env);
+      if (collections) {
+        const normalized = normalizeIdentifier(identifier);
+        const isMobile = isMobileIdentifier(identifier);
+        const owner = isMobile
+          ? await collections.owners.findOne({ mobile: normalized })
+          : await collections.owners.findOne({ email: normalized });
+
+        if (!owner) {
+          reply.code(404);
+          return {
+            ok: false,
+            error: isMobile
+              ? "Invalid phone number."
+              : "Invalid email address."
+          };
+        }
+      }
+
       await sendOtp(env, identifier);
       return { ok: true };
     } catch (error) {

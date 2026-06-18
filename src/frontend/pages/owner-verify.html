@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>ParkTag — Verify Email</title>
+    <link rel="stylesheet" href="/styles/styles.css" />
+  </head>
+  <body class="pt-hub-body">
+
+    <header class="pt-header">
+      <div class="pt-logo">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+          <rect width="28" height="28" rx="8" fill="#F5A623"/>
+          <path d="M8 8h7.5a4.5 4.5 0 0 1 0 9H11v5H8V8Z" fill="#fff"/>
+          <circle cx="15" cy="12.5" r="1.5" fill="#F5A623"/>
+        </svg>
+        <span>ParkTag</span>
+      </div>
+    </header>
+
+    <main class="pt-auth-main">
+      <div class="pt-auth-card">
+        <div class="pt-card-icon pt-icon-tag" style="margin-bottom:12px">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="2" y="4" width="20" height="16" rx="2" stroke="currentColor" stroke-width="2"/><path d="M7 9h10M7 13h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <h1 class="pt-card-title" id="verify-title">Check your email</h1>
+        <p class="pt-card-sub" id="verify-sub" style="margin-bottom:20px">We sent a 6-digit code to your email.</p>
+
+        <div class="pt-form">
+          <label class="pt-field">
+            <span>Verification code</span>
+            <input id="verify-code" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6"
+              class="pt-input" placeholder="000000" autocomplete="one-time-code"
+              style="letter-spacing:0.25em;font-size:1.5rem;text-align:center;font-weight:800" />
+          </label>
+          <button id="verify-button" class="pt-btn pt-btn-primary pt-btn-full" style="margin-top:4px">Verify</button>
+        </div>
+
+        <p id="verify-status" class="pt-status" data-tone="info" style="padding:12px 0 0;text-align:center"></p>
+        <p style="text-align:center;font-size:0.85rem;color:#6B7280;margin-top:12px">
+          Didn't receive a code? <button id="resend-button" class="pt-btn" style="display:inline;background:none;border:none;color:#F5A623;font-weight:700;font-size:0.85rem;cursor:pointer;padding:0;font-family:inherit">Resend</button>
+        </p>
+        <p style="text-align:center;font-size:0.85rem;margin-top:8px">
+          <a href="/owner" style="color:#F5A623;font-weight:600">← Back to sign in</a>
+        </p>
+      </div>
+    </main>
+
+    <script type="module" src="/scripts/owner-verify.js"></script>
+  </body>
+</html>

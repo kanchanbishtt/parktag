@@ -14,6 +14,8 @@ import { registerOwnerRoutes } from "./routes/owner.js";
 import { registerProviderRoutes } from "./routes/provider.js";
 import { registerPublicRoutes } from "./routes/public.js";
 import { registerRegistrationRoutes } from "./routes/registration.js";
+import { registerOtpAuthRoutes } from "./routes/otp-auth.js";
+import { registerGoogleAuthRoutes } from "./routes/google-auth.js";
 import { registerPasswordResetRoutes } from "./routes/password-reset.js";
 import { registerRuntimeRoutes } from "./routes/runtime.js";
 
@@ -36,6 +38,8 @@ const ownerLoginPage = path.join(pagesRoot, "owner-login.html");
 const hubPage = path.join(pagesRoot, "hub.html");
 const forgotPasswordPage = path.join(pagesRoot, "forgot-password.html");
 const resetPasswordPage = path.join(pagesRoot, "reset-password.html");
+const ownerVerifyPage = path.join(pagesRoot, "owner-verify.html");
+const ownerWelcomePage = path.join(pagesRoot, "owner-welcome.html");
 const scannerAssetVersion = "parktag-ui-1";
 const hubAssetVersion = "hub-shell-1";
 
@@ -70,7 +74,10 @@ export async function buildApp() {
 
   await app.register(fastifyStatic, {
     root: frontendRoot,
-    prefix: "/"
+    prefix: "/",
+    maxAge: 0,
+    etag: false,
+    lastModified: false
   });
 
   app.get("/", async (request, reply) => {
@@ -107,6 +114,18 @@ export async function buildApp() {
 
   app.get("/register-owner", async (_request, reply) => {
     const html = await fs.readFile(registerOwnerPage, "utf8");
+    reply.type("text/html");
+    return html;
+  });
+
+  app.get("/owner-verify", async (_request, reply) => {
+    const html = await fs.readFile(ownerVerifyPage, "utf8");
+    reply.type("text/html");
+    return html;
+  });
+
+  app.get("/owner-welcome", async (_request, reply) => {
+    const html = await fs.readFile(ownerWelcomePage, "utf8");
     reply.type("text/html");
     return html;
   });
@@ -186,6 +205,8 @@ export async function buildApp() {
   registerProviderRoutes(app, env);
   registerRegistrationRoutes(app, env);
   registerAuthRoutes(app, env);
+  registerOtpAuthRoutes(app, env);
+  registerGoogleAuthRoutes(app, env);
   registerPasswordResetRoutes(app, env);
   registerOwnerRoutes(app, env);
   registerAdminRoutes(app, env);

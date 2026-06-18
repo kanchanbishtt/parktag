@@ -23,9 +23,7 @@
 
 body {
   margin: 0;
-  background:
-    radial-gradient(circle at top left, rgba(180, 67, 31, 0.12), transparent 32%),
-    linear-gradient(180deg, #fbf7f1 0%, var(--bg) 100%);
+  background: #F9FAFB;
   color: var(--ink);
 }
 
@@ -1622,11 +1620,17 @@ pre {
    HUB PAGE
    ═══════════════════════════════════════════ */
 
+html:has(body.pt-hub-body) {
+  background: var(--pt-bg);
+  overflow-x: hidden;
+}
+
 .pt-hub-body {
   background: var(--pt-bg);
   font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
   min-height: 100vh;
   margin: 0;
+  overflow-x: hidden;
 }
 
 .pt-hub-main {
@@ -1768,6 +1772,33 @@ pre {
   border: 1px solid var(--pt-border);
   width: 100%;
   max-width: 400px;
+}
+
+/* ── Auth page responsiveness ── */
+@media (max-width: 400px) {
+  .pt-auth-main {
+    padding: 16px 12px;
+    align-items: flex-start;
+    padding-top: 24px;
+  }
+  .pt-auth-card {
+    padding: 24px 18px;
+    border-radius: 16px;
+  }
+}
+
+@media (max-width: 340px) {
+  .pt-auth-main {
+    padding: 12px 8px;
+    padding-top: 20px;
+  }
+  .pt-auth-card {
+    padding: 20px 14px;
+    border-radius: 14px;
+  }
+  .pt-card-title {
+    font-size: 1.25rem;
+  }
 }
 
 .pt-card-icon {

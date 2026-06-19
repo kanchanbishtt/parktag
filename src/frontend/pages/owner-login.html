@@ -49,6 +49,22 @@
 
         <p id="owner-auth-status" class="pt-status" data-tone="info" style="padding:12px 0 0;text-align:center"></p>
 
+        <div id="phone-step2" style="display:none;margin-top:4px">
+          <p style="font-size:0.88rem;color:#4B5563;margin:0 0 16px;text-align:center">
+            We sent a 6-digit code to <strong id="phone-sent-to" style="color:#1F2937"></strong>
+          </p>
+          <label class="pt-field">
+            <span>Verification code</span>
+            <input id="phone-otp-inp" type="text" class="pt-input"
+              placeholder="000000" maxlength="6" inputmode="numeric"
+              style="text-align:center;font-size:1.4rem;letter-spacing:0.25em;font-weight:700"/>
+          </label>
+          <button id="phone-verify-btn" class="pt-btn pt-btn-primary pt-btn-full" style="margin-top:8px">Verify</button>
+          <p style="text-align:center;margin-top:12px;margin-bottom:0">
+            <a href="#" id="phone-back-btn" style="font-size:0.85rem;color:#F5A623;font-weight:600;text-decoration:none">← Back to sign in</a>
+          </p>
+        </div>
+
         <div id="google-section">
         <div style="display:flex;align-items:center;gap:12px;margin-top:20px">
           <div style="flex:1;height:1px;background:#E5E7EB"></div>

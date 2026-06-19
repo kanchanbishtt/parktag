@@ -27,7 +27,7 @@
         <h1 class="pt-card-title">Owner Sign In</h1>
         <p class="pt-card-sub" style="margin-bottom:20px">Enter your email or mobile number and we'll send you a verification code.</p>
 
-        <div class="pt-form">
+        <div class="pt-form" id="owner-form-step1">
           <label class="pt-field">
             <span id="identifier-label">Email or mobile number</span>
             <div style="position:relative">
@@ -49,6 +49,24 @@
 
         <p id="owner-auth-status" class="pt-status" data-tone="info" style="padding:12px 0 0;text-align:center"></p>
 
+        <!-- Phone OTP step 2 (shown after Firebase sends SMS) -->
+        <div id="phone-step2" style="display:none;margin-top:4px">
+          <p style="font-size:0.88rem;color:#4B5563;margin:0 0 16px;text-align:center">
+            We sent a 6-digit code to <strong id="phone-sent-to" style="color:#1F2937"></strong>
+          </p>
+          <label class="pt-field">
+            <span>Verification code</span>
+            <input id="phone-otp-inp" type="text" class="pt-input"
+              placeholder="000000" maxlength="6" inputmode="numeric"
+              style="text-align:center;font-size:1.4rem;letter-spacing:0.25em;font-weight:700"/>
+          </label>
+          <button id="phone-verify-btn" class="pt-btn pt-btn-primary pt-btn-full" style="margin-top:8px">Verify</button>
+          <p style="text-align:center;margin-top:12px;margin-bottom:0">
+            <a href="#" id="phone-back-btn" style="font-size:0.85rem;color:#F5A623;font-weight:600;text-decoration:none">← Back to sign in</a>
+          </p>
+        </div>
+
+        <div id="google-section">
         <div style="display:flex;align-items:center;gap:12px;margin-top:20px">
           <div style="flex:1;height:1px;background:#E5E7EB"></div>
           <span style="font-size:0.78rem;color:#9CA3AF;font-weight:600;letter-spacing:0.05em">OR</span>
@@ -71,9 +89,18 @@
           </svg>
           Continue with Google
         </a>
+        </div><!-- /google-section -->
+
+        <div id="recaptcha-container"></div>
+        <p style="font-size:0.68rem;color:#9CA3AF;text-align:center;margin:16px 0 0">
+          Protected by reCAPTCHA —
+          <a href="https://policies.google.com/privacy" target="_blank" style="color:#9CA3AF">Privacy</a> ·
+          <a href="https://policies.google.com/terms" target="_blank" style="color:#9CA3AF">Terms</a>
+        </p>
       </div>
     </main>
 
+    <style>.grecaptcha-badge { visibility: hidden !important; }</style>
     <script type="module" src="/scripts/owner.js"></script>
     <script src="/scripts/ux-feedback.js"></script>
 </body>

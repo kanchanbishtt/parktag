@@ -56,6 +56,8 @@ export function getEnv() {
     appBaseUrl: process.env.APP_BASE_URL || "http://localhost:4000",
     googleClientId: process.env.GOOGLE_CLIENT_ID || "",
     googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
-    googleCallbackUrl: process.env.GOOGLE_CALLBACK_URL || "http://127.0.0.1:4000/api/auth/google/callback"
+    googleCallbackUrl: process.env.GOOGLE_CALLBACK_URL || "http://127.0.0.1:4000/api/auth/google/callback",
+    firebaseApiKey: process.env.FIREBASE_API_KEY || "",
+    firebaseProjectId: process.env.FIREBASE_PROJECT_ID || ""
   };
 }

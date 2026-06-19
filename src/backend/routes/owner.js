@@ -21,14 +21,26 @@ export function registerOwnerRoutes(app, env) {
       .limit(10)
       .toArray();
 
+    const LABELS = { car:"Car", bike:"Bike", scooter:"Scooter", auto_rickshaw:"Auto Rickshaw", truck:"Truck", bus:"Bus", bicycle:"Bicycle", e_scooter:"E-Scooter" };
+    const localVehicles = (owner.localVehicles || []).map((v, i) => ({
+      id: `local_${i}`,
+      vehicleType: v.type,
+      vehicleLabel: LABELS[v.type] || v.type,
+      plateNumber: v.number,
+      status: "active",
+      isLocal: true
+    }));
+
     return {
       ok: true,
       owner: {
-        email: owner.email,
+        _id: String(owner._id),
+        email: owner.email || null,
+        mobile: owner.mobile || null,
         displayName: owner.displayName,
         credits: owner.credits || 0
       },
-      tags: await Promise.all(tags.map(async (tag) => {
+      tags: [...localVehicles, ...(await Promise.all(tags.map(async (tag) => {
         const scanUrl = `${request.protocol}://${request.hostname}${request.port ? `:${request.port}` : ""}/vehicle/${tag.token}`;
         const qrDataUrl = await createQrDataUrl(scanUrl);
         return {
@@ -42,7 +54,7 @@ export function registerOwnerRoutes(app, env) {
           scanUrl,
           qrDataUrl
         };
-      })),
+      })))],
       requests: requests.map((item) => ({
         id: String(item._id),
         token: item.token,
@@ -58,6 +70,27 @@ export function registerOwnerRoutes(app, env) {
         createdAt: item.createdAt
       }))
     };
+  });
+
+  app.post("/api/owner/local-vehicle", async (request, reply) => {
+    const blocked = await requireSession(app, "owner")(request, reply);
+    if (blocked) return blocked;
+
+    const { type, number } = request.body || {};
+    if (!type || !number) {
+      reply.code(400);
+      return { ok: false, error: "Vehicle type and number required." };
+    }
+
+    const collections = await getCollections(env);
+    if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
+
+    const ownerId = toObjectId(request.session.userId);
+    await collections.owners.updateOne(
+      { _id: ownerId },
+      { $addToSet: { localVehicles: { type, number: number.trim().toUpperCase(), addedAt: new Date().toISOString() } } }
+    );
+    return { ok: true };
   });
 
   app.post("/api/owner/tags/:tagId/request-sticker", async (request, reply) => {

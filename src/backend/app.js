@@ -16,6 +16,7 @@ import { registerPublicRoutes } from "./routes/public.js";
 import { registerRegistrationRoutes } from "./routes/registration.js";
 import { registerOtpAuthRoutes } from "./routes/otp-auth.js";
 import { registerGoogleAuthRoutes } from "./routes/google-auth.js";
+import { registerFirebasePhoneAuthRoute } from "./routes/firebase-phone-auth.js";
 import { registerPasswordResetRoutes } from "./routes/password-reset.js";
 import { registerRuntimeRoutes } from "./routes/runtime.js";
 
@@ -40,6 +41,7 @@ const forgotPasswordPage = path.join(pagesRoot, "forgot-password.html");
 const resetPasswordPage = path.join(pagesRoot, "reset-password.html");
 const ownerVerifyPage = path.join(pagesRoot, "owner-verify.html");
 const ownerWelcomePage = path.join(pagesRoot, "owner-welcome.html");
+const ownerVehicleDetailPage = path.join(pagesRoot, "owner-vehicle-detail.html");
 const scannerAssetVersion = "parktag-ui-1";
 const hubAssetVersion = "hub-shell-1";
 
@@ -128,6 +130,12 @@ export async function buildApp() {
     return html;
   });
 
+  app.get("/owner-vehicle-detail", async (_request, reply) => {
+    const html = await fs.readFile(ownerVehicleDetailPage, "utf8");
+    reply.type("text/html");
+    return html;
+  });
+
   app.get("/forgot-password", async (_request, reply) => {
     const html = await fs.readFile(forgotPasswordPage, "utf8");
     reply.type("text/html");
@@ -205,6 +213,7 @@ export async function buildApp() {
   registerAuthRoutes(app, env);
   registerOtpAuthRoutes(app, env);
   registerGoogleAuthRoutes(app, env);
+  registerFirebasePhoneAuthRoute(app, env);
   registerPasswordResetRoutes(app, env);
   registerOwnerRoutes(app, env);
   registerAdminRoutes(app, env);

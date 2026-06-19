@@ -1,0 +1,675 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <title>ParkTag — Vehicle Detail</title>
+  <link rel="stylesheet" href="/styles/styles.css"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --amber: #F5A623;
+      --amber-dark: #E59A1A;
+      --ink: #111827;
+      --ink-2: #374151;
+      --ink-3: #6B7280;
+      --ink-4: #9CA3AF;
+      --surface: #F4F5F7;
+      --card: #ffffff;
+      --border: #E5E7EB;
+      --radius-card: 20px;
+      --radius-btn: 14px;
+      --radius-icon: 14px;
+      font-size: 16px;
+    }
+
+    html { -webkit-text-size-adjust: 100%; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: var(--surface);
+      color: var(--ink);
+      min-height: 100dvh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Header ─────────────────────────────────────────── */
+    .vd-header {
+      position: sticky; top: 0; z-index: 50;
+      display: grid; grid-template-columns: 56px 1fr 56px;
+      align-items: center;
+      padding: 0 16px;
+      height: max(60px, calc(52px + env(safe-area-inset-top)));
+      padding-top: env(safe-area-inset-top);
+      background: rgba(255,255,255,0.92);
+      border-bottom: 1px solid rgba(0,0,0,.06);
+      backdrop-filter: saturate(180%) blur(20px);
+      -webkit-backdrop-filter: saturate(180%) blur(20px);
+    }
+
+    /* Back button — pill with subtle tint, no visible border */
+    .vd-back {
+      width: 38px; height: 38px; border-radius: 50%;
+      border: none; background: var(--surface);
+      display: flex; align-items: center; justify-content: center;
+      text-decoration: none; color: var(--ink-2);
+      transition: background .18s, transform .12s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    @media (hover: hover) { .vd-back:hover { background: #EAEBEE; } }
+    .vd-back:active { transform: scale(.88); background: #DDDEE2; }
+
+    /* Centered logo */
+    .vd-logo {
+      display: flex; align-items: center; justify-content: center; gap: 9px;
+    }
+    .vd-logo-box {
+      width: 34px; height: 34px;
+      border-radius: 10px;
+      background: var(--amber);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      box-shadow: 0 2px 8px rgba(245,166,35,.40);
+    }
+    .vd-logo-text {
+      font-size: 1.15rem; font-weight: 800;
+      color: var(--ink); letter-spacing: -.04em;
+    }
+
+    /* Right icon buttons — borderless, just icon on tinted circle */
+    .vd-header-right { display: flex; gap: 4px; justify-content: flex-end; }
+    .vd-icon-btn {
+      width: 38px; height: 38px; border-radius: 50%;
+      border: none; background: transparent;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--ink-3);
+      transition: background .18s, color .18s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    @media (hover: hover) { .vd-icon-btn:hover { background: var(--surface); color: var(--ink-2); } }
+    .vd-icon-btn:active { background: #EAEBEE; }
+
+    /* ── Scroll container ────────────────────────────────── */
+    .vd-scroll {
+      overflow-y: auto;
+      height: calc(100dvh - 60px - env(safe-area-inset-top));
+      overscroll-behavior: contain;
+    }
+
+    /* ── Content wrapper ─────────────────────────────────── */
+    .vd-body {
+      width: 100%;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 16px 16px calc(32px + env(safe-area-inset-bottom));
+    }
+
+    @media (min-width: 640px) {
+      .vd-body { padding: 24px 24px 48px; }
+      .vd-header { padding-left: 24px; padding-right: 24px; }
+    }
+    @media (min-width: 900px) {
+      .vd-body { padding: 32px 32px 64px; }
+      .vd-header { padding-left: 32px; padding-right: 32px; }
+    }
+
+    /* ── Skeleton ────────────────────────────────────────── */
+    @keyframes shimmer {
+      0%   { background-position: -600px 0; }
+      100% { background-position: 600px 0; }
+    }
+    .sk-line {
+      border-radius: 8px;
+      background: linear-gradient(90deg, #E9EAEC 25%, #F4F5F7 50%, #E9EAEC 75%);
+      background-size: 1200px 100%;
+      animation: shimmer 1.5s infinite linear;
+    }
+    .sk-block {
+      background: var(--card); border-radius: var(--radius-card);
+      padding: 20px; margin-bottom: 12px;
+    }
+
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    #skeleton { animation: fadeIn .15s ease; }
+    #vd-content { display: none; }
+    #vd-content.visible { display: block; animation: fadeIn .3s ease; }
+
+    /* ── Top card ────────────────────────────────────────── */
+    .vd-top-card {
+      background: var(--card); border-radius: var(--radius-card);
+      padding: 20px; margin-bottom: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.04);
+    }
+    .vd-plate {
+      font-size: clamp(1.35rem, 5vw, 1.7rem);
+      font-weight: 900; color: var(--ink);
+      letter-spacing: .03em; line-height: 1.1; margin-bottom: 6px;
+    }
+    .vd-tagid {
+      font-size: 0.78rem; color: var(--ink-4);
+      font-family: "SF Mono", "Fira Code", monospace; letter-spacing: .04em;
+    }
+
+    /* ── Demo banner ─────────────────────────────────────── */
+    .vd-demo-banner {
+      background: #FFFBEB; border: 1px solid #FDE68A;
+      border-radius: 14px; padding: 12px 16px;
+      display: flex; align-items: center; gap: 10px;
+      font-size: 0.875rem; font-weight: 600; color: #92400E;
+      margin-bottom: 12px;
+    }
+    .vd-demo-banner svg { flex-shrink: 0; }
+
+    /* ── Tabs ────────────────────────────────────────────── */
+    .vd-tabs {
+      display: flex; gap: 4px;
+      background: var(--card); border-radius: 16px;
+      padding: 5px; margin-bottom: 14px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.06);
+    }
+    .vd-tab {
+      flex: 1; height: 42px; border: none; border-radius: 12px;
+      font-size: 0.875rem; font-weight: 700; cursor: pointer;
+      font-family: inherit; letter-spacing: .01em;
+      transition: background .18s, color .18s, box-shadow .18s;
+      background: transparent; color: var(--ink-4);
+      -webkit-tap-highlight-color: transparent;
+    }
+    .vd-tab.active {
+      background: var(--amber); color: var(--ink);
+      box-shadow: 0 2px 8px rgba(245,166,35,.35);
+    }
+
+    /* ── Tab panels ──────────────────────────────────────── */
+    .vd-panel { display: none; }
+    .vd-panel.active { display: block; animation: fadeIn .2s ease; }
+
+    /* ── Menu card ───────────────────────────────────────── */
+    .vd-menu-item {
+      background: var(--card); border-radius: var(--radius-card);
+      margin-bottom: 10px; overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,.05), 0 2px 8px rgba(0,0,0,.03);
+      transition: box-shadow .15s;
+    }
+    .vd-menu-item.open {
+      box-shadow: 0 2px 8px rgba(0,0,0,.08), 0 4px 20px rgba(0,0,0,.05);
+    }
+
+    .vd-menu-row {
+      display: flex; align-items: center; gap: 14px;
+      padding: 16px 18px; cursor: pointer; user-select: none;
+      min-height: 72px;
+      -webkit-tap-highlight-color: transparent;
+      transition: background .12s;
+    }
+    @media (hover: hover) { .vd-menu-row:hover { background: #FAFAFA; } }
+    .vd-menu-row:active { background: var(--surface); }
+
+    .vd-menu-icon {
+      width: 44px; height: 44px; border-radius: var(--radius-icon);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .vd-menu-label {
+      flex: 1; font-size: 0.95rem; font-weight: 600; color: var(--ink-2);
+      letter-spacing: -.01em;
+    }
+    .vd-menu-arrow { color: var(--ink-4); transition: transform .25s cubic-bezier(.4,0,.2,1); display: flex; }
+    .vd-menu-item.open .vd-menu-arrow { transform: rotate(90deg); }
+
+    /* ── Sub-panel (accordion) ───────────────────────────── */
+    .vd-sub-panel {
+      max-height: 0; overflow: hidden;
+      transition: max-height .35s cubic-bezier(.4,0,.2,1);
+      border-top: 1px solid transparent;
+    }
+    .vd-menu-item.open .vd-sub-panel {
+      max-height: 500px;
+      border-top-color: var(--border);
+    }
+    .vd-sub-inner { padding: 16px 18px 18px; }
+
+    /* ── Info rows ───────────────────────────────────────── */
+    .vd-info-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 0; border-bottom: 1px solid var(--border);
+    }
+    .vd-info-row:last-child { border-bottom: none; }
+    .vd-info-key { font-size: 0.8rem; color: var(--ink-4); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+    .vd-info-val { font-size: 0.875rem; color: var(--ink); font-weight: 700; text-align: right; max-width: 58%; word-break: break-all; }
+
+    /* ── Toggle row ──────────────────────────────────────── */
+    .vd-toggle-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 0;
+    }
+    .vd-toggle-row + .vd-toggle-row { border-top: 1px solid var(--border); }
+    .vd-toggle-label { font-size: 0.9rem; font-weight: 600; color: var(--ink-2); }
+    .vd-toggle-sub   { font-size: 0.75rem; color: var(--ink-4); margin-top: 3px; line-height: 1.4; }
+
+    /* iOS-style switch */
+    .vd-switch { position: relative; width: 50px; height: 28px; flex-shrink: 0; }
+    .vd-switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+    .vd-switch-track {
+      position: absolute; inset: 0; border-radius: 28px; cursor: pointer;
+      background: #D1D5DB; transition: background .22s;
+    }
+    .vd-switch-track::after {
+      content: ""; position: absolute; left: 3px; top: 3px;
+      width: 22px; height: 22px; border-radius: 50%; background: #fff;
+      transition: transform .22s cubic-bezier(.4,0,.2,1);
+      box-shadow: 0 2px 4px rgba(0,0,0,.2);
+    }
+    .vd-switch input:checked + .vd-switch-track { background: var(--amber); }
+    .vd-switch input:checked + .vd-switch-track::after { transform: translateX(22px); }
+
+    /* ── Sub-panel helper elements ───────────────────────── */
+    .vd-sub-note { font-size: 0.825rem; color: var(--ink-3); line-height: 1.6; margin-bottom: 14px; }
+
+    .vd-action-link {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      height: 48px; border-radius: var(--radius-btn);
+      background: #EFF6FF; color: #2563EB;
+      font-weight: 700; font-size: 0.9rem; text-decoration: none;
+      transition: background .15s; -webkit-tap-highlight-color: transparent;
+    }
+    .vd-action-link:active { background: #DBEAFE; }
+
+    .vd-field {
+      width: 100%; height: 48px; border: 1.5px solid var(--border);
+      border-radius: var(--radius-btn); padding: 0 16px;
+      font-size: 0.925rem; font-family: inherit; color: var(--ink);
+      background: var(--surface); outline: none; margin-bottom: 10px;
+      transition: border-color .15s, background .15s;
+    }
+    .vd-field:focus { border-color: var(--amber); background: #fff; }
+
+    .vd-btn-primary {
+      width: 100%; height: 48px; border-radius: var(--radius-btn); border: none;
+      background: var(--amber); color: var(--ink);
+      font-size: 0.925rem; font-weight: 700; font-family: inherit; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      transition: background .15s, transform .1s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .vd-btn-primary:active { background: var(--amber-dark); transform: scale(.98); }
+
+    .vd-btn-danger {
+      width: 100%; height: 46px; border-radius: var(--radius-btn); border: none;
+      background: #FEE2E2; color: #DC2626;
+      font-size: 0.9rem; font-weight: 700; font-family: inherit; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      margin-top: 8px; transition: background .15s;
+    }
+    .vd-btn-danger:active { background: #FECACA; }
+
+    .vd-btn-outline {
+      width: 100%; height: 46px; border-radius: var(--radius-btn);
+      border: 1.5px solid var(--amber); background: #fff; color: var(--ink);
+      font-size: 0.9rem; font-weight: 700; font-family: inherit; cursor: pointer;
+      transition: background .15s;
+    }
+    .vd-btn-outline:active { background: #FFFBF0; }
+
+    .vd-dl-note { font-size: 0.75rem; color: var(--ink-4); text-align: center; margin-top: 8px; line-height: 1.5; }
+
+    /* ── Print template ──────────────────────────────────── */
+    #etag-print { display: none; }
+    @media print {
+      body > *:not(#etag-print) { display: none !important; }
+      #etag-print { display: block !important; font-family: Arial, sans-serif; }
+      @page { margin: 1.5cm; size: A4; }
+    }
+    .print-instructions { font-size: 11px; color: #000; margin-bottom: 20px; line-height: 1.7; }
+    .print-tag { border: 1.5px dashed #555; display: flex; width: 100%; page-break-inside: avoid; }
+    .print-tag-left { width: 58%; border-right: 1.5px dashed #555; padding: 14px; display: flex; flex-direction: column; justify-content: space-between; }
+    .print-tag-right { width: 42%; padding: 12px; display: flex; flex-direction: column; align-items: center; justify-content: space-between; }
+    .print-logo-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+    .print-logo-box { width: 28px; height: 28px; background: #F5A623; border-radius: 7px; display: flex; align-items: center; justify-content: center; }
+    .print-logo-name { font-size: 13px; font-weight: 900; color: #1a1200; }
+    .print-logo-sub  { font-size: 7px; color: #6B7280; line-height: 1.4; }
+    .print-headline  { font-size: 20px; font-weight: 900; color: #1a1200; line-height: 1.3; margin: 0; }
+    .print-headline u { text-decoration: underline; }
+    .print-no-net    { font-size: 7.5px; color: #555; margin: 0; }
+    .print-qr        { width: 140px; height: 140px; display: block; }
+    .print-pt-label  { font-size: 11px; font-weight: 900; color: #F5A623; letter-spacing: .08em; text-align: center; margin: 4px 0; }
+    .print-icons     { display: flex; justify-content: space-around; width: 100%; border-top: 1px solid #E5E7EB; padding-top: 5px; }
+    .print-icon-lbl  { font-size: 6.5px; color: #555; text-align: center; }
+    .print-bottom-note { font-size: 7px; color: #6B7280; text-align: center; margin-top: 3px; }
+  </style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="vd-header">
+  <a href="/owner-welcome" class="vd-back" aria-label="Back">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+      <path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  </a>
+  <div class="vd-logo">
+    <div class="vd-logo-box">
+      <svg width="19" height="19" viewBox="0 0 28 28" fill="none">
+        <path d="M6 6h9a5 5 0 0 1 0 10H10v6H6V6Z" fill="#ffffff"/>
+      </svg>
+    </div>
+    <span class="vd-logo-text">ParkTag</span>
+  </div>
+  <div class="vd-header-right">
+    <button class="vd-icon-btn" aria-label="Notifications">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.73 21a2 2 0 0 1-3.46 0" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+    </button>
+    <button class="vd-icon-btn" aria-label="Profile">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.9"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+    </button>
+  </div>
+</div>
+
+<!-- Scrollable area -->
+<div class="vd-scroll">
+<div class="vd-body">
+
+  <!-- Skeleton (shown first) -->
+  <div id="skeleton">
+    <div class="sk-block">
+      <div class="sk-line" style="height:28px;width:60%;margin-bottom:10px;border-radius:8px"></div>
+      <div class="sk-line" style="height:14px;width:45%;border-radius:6px"></div>
+    </div>
+    <div class="sk-line" style="height:48px;border-radius:14px;margin-bottom:12px"></div>
+    <div class="sk-line" style="height:52px;border-radius:16px;margin-bottom:14px"></div>
+    <div class="sk-block" style="height:72px;margin-bottom:10px;padding:0"></div>
+    <div class="sk-block" style="height:72px;margin-bottom:10px;padding:0"></div>
+    <div class="sk-block" style="height:72px;margin-bottom:10px;padding:0"></div>
+    <div class="sk-block" style="height:72px;margin-bottom:10px;padding:0"></div>
+    <div class="sk-block" style="height:72px;margin-bottom:10px;padding:0"></div>
+  </div>
+
+  <!-- Real content -->
+  <div id="vd-content">
+
+    <!-- Top card -->
+    <div class="vd-top-card">
+      <p class="vd-plate" id="vd-plate">—</p>
+      <p class="vd-tagid" id="vd-tagid">Tag id: —</p>
+    </div>
+
+    <!-- Demo banner -->
+    <div class="vd-demo-banner">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="#92400E" stroke-width="1.8"/><path d="M12 8v4M12 16h.01" stroke="#92400E" stroke-width="2" stroke-linecap="round"/></svg>
+      Demo tag — for testing only
+    </div>
+
+    <!-- Tabs -->
+    <div class="vd-tabs">
+      <button class="vd-tab active" data-tab="manage">Manage tag</button>
+      <button class="vd-tab" data-tab="more">MORE</button>
+    </div>
+
+    <!-- ── MANAGE TAB ── -->
+    <div class="vd-panel active" id="panel-manage">
+
+      <!-- 1. User Info -->
+      <div class="vd-menu-item" data-item="user-info">
+        <div class="vd-menu-row">
+          <div class="vd-menu-icon" style="background:#EEF2FF;color:#4F46E5">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.8"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          </div>
+          <span class="vd-menu-label">User Info</span>
+          <span class="vd-menu-arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+        </div>
+        <div class="vd-sub-panel">
+          <div class="vd-sub-inner">
+            <div class="vd-info-row"><span class="vd-info-key">Vehicle Number</span><span class="vd-info-val" id="info-plate">—</span></div>
+            <div class="vd-info-row"><span class="vd-info-key">Vehicle Type</span><span class="vd-info-val" id="info-type">—</span></div>
+            <div class="vd-info-row"><span class="vd-info-key">Owner Name</span><span class="vd-info-val" id="info-name">—</span></div>
+            <div class="vd-info-row"><span class="vd-info-key">Tag ID</span><span class="vd-info-val" id="info-tagid">DEMO-TAG</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. View Contact Page -->
+      <div class="vd-menu-item" data-item="contact-page">
+        <div class="vd-menu-row">
+          <div class="vd-menu-icon" style="background:#EFF6FF;color:#2563EB">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <span class="vd-menu-label">View Contact Page</span>
+          <span class="vd-menu-arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+        </div>
+        <div class="vd-sub-panel">
+          <div class="vd-sub-inner">
+            <p class="vd-sub-note">This is what people see when they scan your tag.</p>
+            <a id="contact-page-link" href="#" target="_blank" class="vd-action-link">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Open Contact Page
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Notifications -->
+      <div class="vd-menu-item" data-item="notifications">
+        <div class="vd-menu-row">
+          <div class="vd-menu-icon" style="background:#FEF3C7;color:#D97706">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          </div>
+          <span class="vd-menu-label">Notifications</span>
+          <span class="vd-menu-arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+        </div>
+        <div class="vd-sub-panel">
+          <div class="vd-sub-inner">
+            <div class="vd-toggle-row">
+              <div><div class="vd-toggle-label">Push Notifications</div><div class="vd-toggle-sub">Alert when someone scans your tag</div></div>
+              <label class="vd-switch"><input type="checkbox" id="toggle-push" checked><span class="vd-switch-track"></span></label>
+            </div>
+            <div class="vd-toggle-row">
+              <div><div class="vd-toggle-label">Email Alerts</div><div class="vd-toggle-sub">Receive scan reports by email</div></div>
+              <label class="vd-switch"><input type="checkbox" id="toggle-email" checked><span class="vd-switch-track"></span></label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. Location Access -->
+      <div class="vd-menu-item" data-item="location">
+        <div class="vd-menu-row">
+          <div class="vd-menu-icon" style="background:#FEE2E2;color:#DC2626">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="9" r="2.5" stroke="currentColor" stroke-width="1.8"/></svg>
+          </div>
+          <span class="vd-menu-label">Location Access</span>
+          <span class="vd-menu-arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+        </div>
+        <div class="vd-sub-panel">
+          <div class="vd-sub-inner">
+            <div class="vd-toggle-row">
+              <div><div class="vd-toggle-label">Check Scan Locations</div><div class="vd-toggle-sub">See where your tag was scanned</div></div>
+              <label class="vd-switch"><input type="checkbox" id="toggle-location" checked><span class="vd-switch-track"></span></label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5. Tags & Calls -->
+      <div class="vd-menu-item" data-item="tags-calls">
+        <div class="vd-menu-row">
+          <div class="vd-menu-icon" style="background:#F0FDF4;color:#16A34A">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.62 3.38 2 2 0 0 1 3.6 1.17h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.86a16 16 0 0 0 6 6l.91-.91a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" stroke="currentColor" stroke-width="1.8"/></svg>
+          </div>
+          <span class="vd-menu-label">Tags &amp; Calls</span>
+          <span class="vd-menu-arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+        </div>
+        <div class="vd-sub-panel">
+          <div class="vd-sub-inner">
+            <div class="vd-toggle-row">
+              <div><div class="vd-toggle-label">Tag Active</div><div class="vd-toggle-sub">Enable your ParkTag sticker</div></div>
+              <label class="vd-switch"><input type="checkbox" id="toggle-tag" checked><span class="vd-switch-track"></span></label>
+            </div>
+            <div class="vd-toggle-row">
+              <div><div class="vd-toggle-label">Calls Active</div><div class="vd-toggle-sub">Allow callers to reach you via tag</div></div>
+              <label class="vd-switch"><input type="checkbox" id="toggle-calls" checked><span class="vd-switch-track"></span></label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 6. Emergency / SOS -->
+      <div class="vd-menu-item" data-item="sos">
+        <div class="vd-menu-row">
+          <div class="vd-menu-icon" style="background:#FFF1F2;color:#E11D48">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" stroke="currentColor" stroke-width="1.8"/><path d="M12 9v4M12 17h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </div>
+          <span class="vd-menu-label">Emergency / SOS</span>
+          <span class="vd-menu-arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+        </div>
+        <div class="vd-sub-panel">
+          <div class="vd-sub-inner">
+            <p class="vd-sub-note">Set an emergency contact number. In case of accident, scanners can call this number directly.</p>
+            <input class="vd-field" id="sos-number" type="tel" placeholder="Emergency contact number" inputmode="tel"/>
+            <button class="vd-btn-primary" id="sos-save-btn">Save Emergency Contact</button>
+            <button class="vd-btn-danger" id="sos-test-btn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" stroke="currentColor" stroke-width="1.8"/></svg>
+              Test SOS Alert
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 7. Download E-Tag -->
+      <div class="vd-menu-item" data-item="download-etag">
+        <div class="vd-menu-row">
+          <div class="vd-menu-icon" style="background:#FEF3C7;color:#B45309">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <span class="vd-menu-label">Download E-Tag</span>
+          <span class="vd-menu-arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+        </div>
+        <div class="vd-sub-panel">
+          <div class="vd-sub-inner">
+            <p class="vd-sub-note">Print an offline E-Tag for your vehicle and place it on your dashboard.</p>
+            <button class="vd-btn-primary" id="download-etag-btn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Download E-Tag PDF
+            </button>
+            <p class="vd-dl-note">One-time use demo tag. QR will be activated after linking a sticker code.</p>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /panel-manage -->
+
+    <!-- ── MORE TAB ── -->
+    <div class="vd-panel" id="panel-more">
+
+      <!-- 1. WhatsApp Notification -->
+      <div class="vd-menu-item" data-item="whatsapp">
+        <div class="vd-menu-row">
+          <div class="vd-menu-icon" style="background:#DCFCE7;color:#16A34A">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <span class="vd-menu-label">WhatsApp Notification</span>
+          <span class="vd-menu-arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+        </div>
+        <div class="vd-sub-panel">
+          <div class="vd-sub-inner">
+            <div class="vd-toggle-row">
+              <div><div class="vd-toggle-label">WhatsApp Alerts</div><div class="vd-toggle-sub">Get notified via WhatsApp when your tag is scanned</div></div>
+              <label class="vd-switch"><input type="checkbox" id="toggle-whatsapp"><span class="vd-switch-track"></span></label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. Disable Call Masking -->
+      <div class="vd-menu-item" data-item="call-masking">
+        <div class="vd-menu-row">
+          <div class="vd-menu-icon" style="background:#F3F4F6;color:#6B7280">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><line x1="1" y1="1" x2="23" y2="23" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55M5 5a10.94 10.94 0 0 0-1.956 2.428M10.71 6.29a6 6 0 0 1 8 8M6.35 6.35A6 6 0 0 0 8 17.66M12 20v2m0-6a2 2 0 0 1 0-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          </div>
+          <span class="vd-menu-label">Disable Call Masking</span>
+          <span class="vd-menu-arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+        </div>
+        <div class="vd-sub-panel">
+          <div class="vd-sub-inner">
+            <p class="vd-sub-note">Call masking hides your real number from callers. Disabling it will reveal your actual phone number.</p>
+            <div class="vd-toggle-row">
+              <div><div class="vd-toggle-label">Call Masking</div><div class="vd-toggle-sub">Keep your number private</div></div>
+              <label class="vd-switch"><input type="checkbox" id="toggle-masking" checked><span class="vd-switch-track"></span></label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Get a Tag Replacement -->
+      <div class="vd-menu-item" data-item="replacement">
+        <div class="vd-menu-row">
+          <div class="vd-menu-icon" style="background:#FEF3C7;color:#B45309">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M23 4v6h-6M1 20v-6h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <span class="vd-menu-label">Get a Tag Replacement</span>
+          <span class="vd-menu-arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+        </div>
+        <div class="vd-sub-panel">
+          <div class="vd-sub-inner">
+            <p class="vd-sub-note">If your ParkTag sticker is lost, damaged, or stolen, you can request a replacement. Your vehicle and settings will transfer automatically.</p>
+            <button class="vd-btn-outline">Request Replacement Tag</button>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /panel-more -->
+
+  </div><!-- /vd-content -->
+
+</div><!-- /vd-body -->
+</div><!-- /vd-scroll -->
+
+<!-- Print template (only visible during print) -->
+<div id="etag-print">
+  <div class="print-instructions">
+    <p style="margin:0 0 2px">Thank you for generating the Offline eTag at ParkTag.</p>
+    <strong>How to fix an etag to Your Windscreen</strong>
+    <ol style="margin:6px 0 8px;padding-left:18px">
+      <li>Print this page on a photo sheet or regular paper.</li>
+      <li>Cut the tag from the printed sheet.</li>
+      <li>Attach the Tag:<br>&nbsp;&nbsp;- Apply glue (e.g., Feviglue) or transparent double-sided tape.<br>&nbsp;&nbsp;- Place the tag on your dashboard.</li>
+    </ol>
+    <p style="margin:0">The tags are pre-activated on vehicle number <strong id="print-vehicle-num">—</strong>.</p>
+  </div>
+  <div class="print-tag">
+    <div class="print-tag-left">
+      <div>
+        <div class="print-logo-row">
+          <div class="print-logo-box">
+            <svg width="14" height="14" viewBox="0 0 28 28" fill="none"><path d="M6 6h9a5 5 0 0 1 0 10H10v6H6V6Z" fill="#fff"/></svg>
+          </div>
+          <div>
+            <div class="print-logo-name">ParkTag</div>
+            <div class="print-logo-sub">ParkTag Car tag by ParkTag.<br>Contact vehicle owner, help in emergency, or wrong parking.</div>
+          </div>
+        </div>
+        <p class="print-headline">Scan the code<br>to <u>contact the<br>vehicle owner.</u></p>
+      </div>
+      <p class="print-no-net">No internet needed.<br>This tag will not need internet to function,<br>simply scan using QR reader / ParkTag APP.</p>
+    </div>
+    <div class="print-tag-right">
+      <img class="print-qr"
+        src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://parktag.me/demo&color=000000&bgcolor=ffffff"
+        alt="Demo QR"/>
+      <div style="width:100%">
+        <p class="print-pt-label">ParkTag</p>
+        <div class="print-icons">
+          <div><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="2" stroke="#555" stroke-width="1.8"/><path d="M9 9h6M9 12h6M9 15h4" stroke="#555" stroke-width="1.8" stroke-linecap="round"/></svg><div class="print-icon-lbl">Wrong<br>Parking</div></div>
+          <div><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke="#555" stroke-width="1.8" stroke-linejoin="round"/></svg><div class="print-icon-lbl">Emergency<br>Contact</div></div>
+          <div><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" stroke="#555" stroke-width="1.8"/></svg><div class="print-icon-lbl">Alert</div></div>
+          <div><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.62 3.38 2 2 0 0 1 3.6 1.17h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.86a16 16 0 0 0 6 6l.91-.91a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" stroke="#555" stroke-width="1.8"/></svg><div class="print-icon-lbl">Contact</div></div>
+        </div>
+        <p class="print-bottom-note">Wrong Parking, Emergency Contact,<br>any issue with the vehicle. Scan the QR.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="/scripts/owner-vehicle-detail.js"></script>
+</body>
+</html>

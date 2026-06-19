@@ -1,3 +1,84 @@
+import { initializeApp }                              from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+import { getAuth, RecaptchaVerifier, signInWithPhoneNumber } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyCMdhHkz9Ly4MFIeUdqOJe1bwqNB2FppU0",
+  authDomain: "parktag1.firebaseapp.com",
+  projectId: "parktag1",
+  storageBucket: "parktag1.firebasestorage.app",
+  messagingSenderId: "118197410323",
+  appId: "1:118197410323:web:a801a297019c91fa523de6"
+};
+
+let _fbAuth, _recaptchaVerifier, _confirmationResult;
+
+function getFirebaseAuth() {
+  if (!_fbAuth) {
+    const fbApp = initializeApp(FIREBASE_CONFIG);
+    _fbAuth = getAuth(fbApp);
+    // reCAPTCHA does not work on localhost — bypass it during local dev.
+    // In production (real domain), this flag is false and reCAPTCHA runs normally.
+    const h = window.location.hostname;
+    if (h === "localhost" || h === "127.0.0.1") {
+      _fbAuth.settings.appVerificationDisabledForTesting = true;
+    }
+  }
+  return _fbAuth;
+}
+
+function normalizePhoneE164(raw) {
+  const digits = raw.replace(/[^\d+]/g, "");
+  if (digits.startsWith("+")) return digits;
+  if (digits.length === 10) return `+91${digits}`;
+  if (digits.length === 12 && digits.startsWith("91")) return `+${digits}`;
+  return digits;
+}
+
+function ensureRecaptcha() {
+  if (_recaptchaVerifier) return _recaptchaVerifier;
+  const auth = getFirebaseAuth();
+  _recaptchaVerifier = new RecaptchaVerifier(auth, "recaptcha-container", {
+    size: "invisible",
+    callback: () => {},
+    "expired-callback": () => { _recaptchaVerifier = null; }
+  });
+  return _recaptchaVerifier;
+}
+
+async function sendFirebasePhoneOtp(raw) {
+  const phone = normalizePhoneE164(raw);
+  const verifier = ensureRecaptcha();
+
+  _confirmationResult = await signInWithPhoneNumber(getFirebaseAuth(), phone, verifier);
+
+  byId("phone-sent-to").textContent = phone;
+  byId("phone-step2").style.display = "";
+  byId("owner-form-step1").style.display = "none";
+  byId("google-section").style.display = "none";
+}
+
+async function verifyFirebasePhoneOtp() {
+  const code = byId("phone-otp-inp")?.value?.trim();
+  if (!code || code.length !== 6) { setStatus("Enter the 6-digit code.", "error"); return; }
+
+  const btn = byId("phone-verify-btn");
+  if (btn) { btn.disabled = true; btn.textContent = "Verifying..."; }
+
+  try {
+    const result = await _confirmationResult.confirm(code);
+    const idToken = await result.user.getIdToken();
+    const data = await fetchJson("/api/auth/firebase-phone-verify", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ idToken })
+    });
+    window.location.href = data.isNew ? "/owner-welcome?new=1" : "/owner-welcome";
+  } catch (error) {
+    if (btn) { btn.disabled = false; btn.textContent = "Verify"; }
+    setStatus(error instanceof Error ? error.message : "Verification failed.", "error");
+  }
+}
+
 async function fetchJson(url, options) {
   const response = await fetch(url, options);
   const data = await response.json();
@@ -179,6 +260,17 @@ async function loginOwner() {
   }
   const btn = byId("owner-login-button");
   if (btn) { btn.disabled = true; btn.textContent = "Sending code..."; }
+
+  if (type === "mobile") {
+    try {
+      await sendFirebasePhoneOtp(raw);
+    } catch (error) {
+      if (btn) { btn.disabled = false; btn.textContent = "Continue"; }
+      setStatus(error instanceof Error ? error.message : "Failed to send code.", "error");
+    }
+    return;
+  }
+
   try {
     await fetchJson("/api/auth/send-otp", {
       method: "POST",
@@ -277,6 +369,19 @@ if (hasEl("owner-identifier")) {
   byId("owner-identifier").addEventListener("keydown", (e) => { if (e.key === "Enter") loginOwner(); });
 }
 if (hasEl("owner-login-button")) byId("owner-login-button").addEventListener("click", loginOwner);
+if (hasEl("phone-verify-btn")) byId("phone-verify-btn").addEventListener("click", verifyFirebasePhoneOtp);
+if (hasEl("phone-otp-inp")) byId("phone-otp-inp").addEventListener("keydown", e => { if (e.key === "Enter") verifyFirebasePhoneOtp(); });
+if (hasEl("phone-back-btn")) {
+  byId("phone-back-btn").addEventListener("click", e => {
+    e.preventDefault();
+    byId("phone-step2").style.display = "none";
+    byId("owner-form-step1").style.display = "";
+    byId("google-section").style.display = "";
+    setStatus("", "info");
+    const btn = byId("owner-login-button");
+    if (btn) { btn.disabled = false; btn.textContent = "Continue"; }
+  });
+}
 if (hasEl("owner-logout-button")) byId("owner-logout-button").addEventListener("click", logoutOwner);
 if (hasEl("owner-set-active")) byId("owner-set-active").addEventListener("click", () => updateTagStatus("active"));
 if (hasEl("owner-set-inactive")) byId("owner-set-inactive").addEventListener("click", () => updateTagStatus("inactive"));

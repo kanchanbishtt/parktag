@@ -1,3 +1,4 @@
+import { ObjectId } from "mongodb";
 import { sendOtp, verifyOtp, isMobileIdentifier, normalizeIdentifier } from "../lib/otp.js";
 import { createSession, writeSessionCookie } from "../lib/session.js";
 import { getCollections } from "../lib/repositories.js";
@@ -12,25 +13,6 @@ export function registerOtpAuthRoutes(app, env) {
     }
 
     try {
-      const collections = await getCollections(env);
-      if (collections) {
-        const normalized = normalizeIdentifier(identifier);
-        const isMobile = isMobileIdentifier(identifier);
-        const owner = isMobile
-          ? await collections.owners.findOne({ mobile: normalized })
-          : await collections.owners.findOne({ email: normalized });
-
-        if (!owner) {
-          reply.code(404);
-          return {
-            ok: false,
-            error: isMobile
-              ? "Invalid phone number."
-              : "Invalid email address."
-          };
-        }
-      }
-
       await sendOtp(env, identifier);
       return { ok: true };
     } catch (error) {
@@ -53,17 +35,38 @@ export function registerOtpAuthRoutes(app, env) {
     try {
       const result = await verifyOtp(env, identifier, code);
 
-      if (!result.isNewUser && result.owner) {
-        const sessionId = await createSession(app, {
-          id: String(result.owner._id),
+      let owner = result.owner;
+      const isNewUser = result.isNewUser;
+
+      if (isNewUser) {
+        const collections = await getCollections(env);
+        const normalized = normalizeIdentifier(identifier);
+        const isMobile = isMobileIdentifier(identifier);
+        const ownerId = new ObjectId();
+        owner = {
+          _id: ownerId,
+          displayName: normalized,
+          credits: 0,
           role: "owner",
-          email: result.owner.email || result.owner.mobile || identifier,
-          displayName: result.owner.displayName
-        });
-        writeSessionCookie(reply, sessionId);
+          createdAt: new Date().toISOString()
+        };
+        if (isMobile) {
+          owner.mobile = normalized;
+        } else {
+          owner.email = normalized;
+        }
+        await collections.owners.insertOne(owner);
       }
 
-      return { ok: true, isNewUser: result.isNewUser };
+      const sessionId = await createSession(app, {
+        id: String(owner._id),
+        role: "owner",
+        email: owner.email || owner.mobile || identifier,
+        displayName: owner.displayName
+      });
+      writeSessionCookie(reply, sessionId);
+
+      return { ok: true, isNewUser };
     } catch (error) {
       reply.code(400);
       return {

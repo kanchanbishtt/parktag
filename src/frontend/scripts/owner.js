@@ -1,6 +1,11 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
 import { getAuth, RecaptchaVerifier, signInWithPhoneNumber } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 
+// reCAPTCHA only works on 'localhost', not raw IP — redirect transparently
+if (window.location.hostname === "127.0.0.1") {
+  window.location.replace(window.location.href.replace("127.0.0.1", "localhost"));
+}
+
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyCMdhHkz9Ly4MFIeUdqOJe1bwqNB2FppU0",
   authDomain: "parktag1.firebaseapp.com",
@@ -16,12 +21,6 @@ function getFirebaseAuth() {
   if (!_fbAuth) {
     const fbApp = initializeApp(FIREBASE_CONFIG);
     _fbAuth = getAuth(fbApp);
-    // Bypass reCAPTCHA on localhost. Firebase still sends real SMS to any number
-    // that is NOT in the Firebase Console test-numbers list.
-    const h = window.location.hostname;
-    if (h === "localhost" || h === "127.0.0.1") {
-      _fbAuth.settings.appVerificationDisabledForTesting = true;
-    }
   }
   return _fbAuth;
 }

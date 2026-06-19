@@ -98,18 +98,18 @@ export async function buildApp() {
     return html;
   });
 
-  app.get("/owner", async (request, reply) => {
-    const session = readSession(app, request);
-
-    if (!session || session.role !== "owner") {
-      const html = await fs.readFile(ownerLoginPage, "utf8");
-      reply.type("text/html");
-      return html;
-    }
-
-    const html = await fs.readFile(ownerPage, "utf8");
+  app.get("/owner-login", async (_request, reply) => {
+    const html = await fs.readFile(ownerLoginPage, "utf8");
     reply.type("text/html");
     return html;
+  });
+
+  app.get("/owner", async (request, reply) => {
+    const session = readSession(app, request);
+    if (!session || session.role !== "owner") {
+      return reply.redirect("/owner-login");
+    }
+    return reply.redirect("/owner-welcome");
   });
 
   app.get("/register-owner", async (_request, reply) => {

@@ -24,8 +24,8 @@
         <div class="pt-card-icon pt-icon-tag" style="margin-bottom:12px">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="2"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
         </div>
-        <h1 class="pt-card-title">Owner Sign In</h1>
-        <p class="pt-card-sub" style="margin-bottom:20px">Enter your email or mobile number and we'll send you a verification code.</p>
+        <h1 class="pt-card-title" id="card-title">Owner Sign In</h1>
+        <p class="pt-card-sub" id="card-sub" style="margin-bottom:20px">Enter your email or mobile number and we'll send you a verification code.</p>
 
         <div class="pt-form" id="owner-form-step1">
           <label class="pt-field">
@@ -50,9 +50,7 @@
         <p id="owner-auth-status" class="pt-status" data-tone="info" style="padding:12px 0 0;text-align:center"></p>
 
         <div id="phone-step2" style="display:none;margin-top:4px">
-          <p style="font-size:0.88rem;color:#4B5563;margin:0 0 16px;text-align:center">
-            We sent a 6-digit code to <strong id="phone-sent-to" style="color:#1F2937"></strong>
-          </p>
+          <span id="phone-sent-to" style="display:none"></span>
           <label class="pt-field">
             <span>Verification code</span>
             <input id="phone-otp-inp" type="text" class="pt-input"
@@ -60,7 +58,11 @@
               style="text-align:center;font-size:1.4rem;letter-spacing:0.25em;font-weight:700"/>
           </label>
           <button id="phone-verify-btn" class="pt-btn pt-btn-primary pt-btn-full" style="margin-top:8px">Verify</button>
-          <p style="text-align:center;margin-top:12px;margin-bottom:0">
+          <p style="text-align:center;margin-top:12px;margin-bottom:0;font-size:0.85rem;color:#6B7280">
+            Didn't receive the code?
+            <button id="phone-resend-btn" style="background:none;border:none;color:#F5A623;font-weight:700;font-size:0.85rem;cursor:pointer;padding:0;font-family:inherit">Resend</button>
+          </p>
+          <p style="text-align:center;margin-top:8px;margin-bottom:0">
             <a href="#" id="phone-back-btn" style="font-size:0.85rem;color:#F5A623;font-weight:600;text-decoration:none">← Back to sign in</a>
           </p>
         </div>
@@ -92,6 +94,9 @@
 
       </div>
     </main>
+
+    <!-- Invisible reCAPTCHA for Firebase phone auth — no user interaction -->
+    <div id="rc-container" style="display:none"></div>
 
     <script type="module" src="/scripts/owner.js"></script>
     <script src="/scripts/ux-feedback.js"></script>

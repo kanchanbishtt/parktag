@@ -21,13 +21,20 @@ async function sendFirebasePhoneOtp(raw) {
   byId("phone-step2").style.display = "";
   byId("owner-form-step1").style.display = "none";
   byId("google-section").style.display = "none";
+  const sub = byId("card-sub");
+  if (sub) {
+    const last4 = phone.replace(/\D/g, "").slice(-4);
+    const masked = phone.slice(0, -4).replace(/\d/g, "X") + last4;
+    sub.innerHTML = `Enter the 6-digit code sent to your mobile number <strong style="color:#1F2937;font-weight:800">${masked}</strong>.`;
+    sub.style.marginBottom = "0";
+  }
 }
 
 async function verifyFirebasePhoneOtp() {
   const code = byId("phone-otp-inp")?.value?.trim();
   if (!code || code.length !== 6) { setStatus("Enter the 6-digit code.", "error"); return; }
   const btn = byId("phone-verify-btn");
-  if (btn) { btn.disabled = true; btn.textContent = "Verifying..."; }
+  if (btn) { btn.disabled = true; btn.classList.add("pt-btn-loading"); }
   try {
     const data = await fetchJson("/api/auth/firebase-phone/verify", {
       method: "POST",
@@ -36,7 +43,7 @@ async function verifyFirebasePhoneOtp() {
     });
     window.location.href = data.isNew ? "/owner-welcome?new=1" : "/owner-welcome";
   } catch (error) {
-    if (btn) { btn.disabled = false; btn.textContent = "Verify"; }
+    if (btn) { btn.disabled = false; btn.classList.remove("pt-btn-loading"); }
     setStatus(error instanceof Error ? error.message : "Verification failed.", "error");
   }
 }
@@ -221,13 +228,13 @@ async function loginOwner() {
     return;
   }
   const btn = byId("owner-login-button");
-  if (btn) { btn.disabled = true; btn.textContent = "Sending code..."; }
+  if (btn) { btn.disabled = true; btn.classList.add("pt-btn-loading"); }
 
   if (type === "mobile") {
     try {
       await sendFirebasePhoneOtp(raw);
     } catch (error) {
-      if (btn) { btn.disabled = false; btn.textContent = "Continue"; }
+      if (btn) { btn.disabled = false; btn.classList.remove("pt-btn-loading"); }
       setStatus(error instanceof Error ? error.message : "Failed to send code.", "error");
     }
     return;
@@ -242,8 +249,23 @@ async function loginOwner() {
     sessionStorage.setItem("pt_otp_identifier", raw);
     window.location.href = "/owner-verify";
   } catch (error) {
-    if (btn) { btn.disabled = false; btn.textContent = "Continue"; }
+    if (btn) { btn.disabled = false; btn.classList.remove("pt-btn-loading"); }
     setStatus(error instanceof Error ? error.message : "Failed to send code", "error");
+  }
+}
+
+async function resendFirebasePhoneOtp() {
+  const raw = byId("phone-sent-to")?.textContent?.trim();
+  if (!raw) return;
+  const btn = byId("phone-resend-btn");
+  if (btn) { btn.disabled = true; btn.classList.add("pt-btn-loading"); }
+  try {
+    await sendFirebasePhoneOtp(raw);
+    setStatus("A new code has been sent.", "success");
+  } catch (error) {
+    setStatus(error instanceof Error ? error.message : "Failed to resend code.", "error");
+  } finally {
+    if (btn) { btn.disabled = false; btn.classList.remove("pt-btn-loading"); }
   }
 }
 
@@ -254,13 +276,13 @@ async function logoutOwner() {
 
 async function requestSticker(tagId, token) {
   const btn = byId(`sticker-btn-${tagId}`);
-  if (btn) { btn.disabled = true; btn.textContent = "Placing order..."; }
+  if (btn) { btn.disabled = true; btn.classList.add("pt-btn-loading"); }
   try {
     await fetchJson(`/api/owner/tags/${tagId}/request-sticker`, { method: "POST" });
     setStatus(`Sticker order placed for ${token}.`, "success");
     await loadOwnerDashboard();
   } catch (error) {
-    if (btn) { btn.disabled = false; btn.textContent = "Request printed sticker"; }
+    if (btn) { btn.disabled = false; btn.classList.remove("pt-btn-loading"); }
     setStatus(error instanceof Error ? error.message : "Failed to place order", "error");
   }
 }
@@ -333,6 +355,7 @@ if (hasEl("owner-identifier")) {
 if (hasEl("owner-login-button")) byId("owner-login-button").addEventListener("click", loginOwner);
 if (hasEl("phone-verify-btn")) byId("phone-verify-btn").addEventListener("click", verifyFirebasePhoneOtp);
 if (hasEl("phone-otp-inp")) byId("phone-otp-inp").addEventListener("keydown", e => { if (e.key === "Enter") verifyFirebasePhoneOtp(); });
+if (hasEl("phone-resend-btn")) byId("phone-resend-btn").addEventListener("click", resendFirebasePhoneOtp);
 if (hasEl("phone-back-btn")) {
   byId("phone-back-btn").addEventListener("click", e => {
     e.preventDefault();
@@ -341,7 +364,9 @@ if (hasEl("phone-back-btn")) {
     byId("google-section").style.display = "";
     setStatus("", "info");
     const btn = byId("owner-login-button");
-    if (btn) { btn.disabled = false; btn.textContent = "Continue"; }
+    if (btn) { btn.disabled = false; btn.classList.remove("pt-btn-loading"); }
+    const sub = byId("card-sub");
+    if (sub) { sub.innerHTML = "Enter your email or mobile number and we'll send you a verification code."; sub.style.marginBottom = "20px"; }
   });
 }
 if (hasEl("owner-logout-button")) byId("owner-logout-button").addEventListener("click", logoutOwner);

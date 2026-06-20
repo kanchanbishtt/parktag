@@ -3066,3 +3066,43 @@ html:has(body.pt-hub-body) {
 .pt-admin-badge-amber { background: #FEF3C7; color: #D97706; }
 .pt-admin-badge-red { background: #FEE2E2; color: #DC2626; }
 .pt-admin-badge-gray { background: #F3F4F6; color: #374151; }
+
+/* ── Skeleton shimmer ──────────────────────────────────────── */
+@keyframes pt-shimmer {
+  0%   { background-position: -600px 0; }
+  100% { background-position:  600px 0; }
+}
+.sk {
+  background: linear-gradient(90deg, #EEEEEE 25%, #E2E2E2 37%, #EEEEEE 63%);
+  background-size: 600px 100%;
+  animation: pt-shimmer 1.4s ease infinite;
+  border-radius: 8px;
+}
+
+/* ── Button loading spinner ────────────────────────────────── */
+@keyframes pt-spin {
+  to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+.pt-btn-loading {
+  position: relative !important;
+  color: transparent !important;
+  pointer-events: none !important;
+  opacity: 0.85;
+}
+.pt-btn-loading::after {
+  content: "";
+  position: absolute;
+  width: 18px; height: 18px;
+  border: 2.5px solid rgba(0,0,0,0.15);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: pt-spin 0.65s linear infinite;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  color: inherit;
+}
+/* Spinner color for amber buttons */
+.pt-btn-primary.pt-btn-loading::after,
+.pt-buy-btn.pt-btn-loading::after { border-top-color: #1a1200; }
+/* Spinner color for dark buttons */
+.pt-btn-dark.pt-btn-loading::after { border-top-color: #fff; }

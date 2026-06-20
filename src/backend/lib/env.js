@@ -58,6 +58,8 @@ export function getEnv() {
     googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
     googleCallbackUrl: process.env.GOOGLE_CALLBACK_URL || "http://127.0.0.1:4000/api/auth/google/callback",
     firebaseApiKey: process.env.FIREBASE_API_KEY || "",
-    firebaseProjectId: process.env.FIREBASE_PROJECT_ID || ""
+    firebaseProjectId: process.env.FIREBASE_PROJECT_ID || "",
+    razorpayKeyId: process.env.RAZORPAY_KEY_ID || "",
+    razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET || ""
   };
 }

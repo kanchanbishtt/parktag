@@ -19,6 +19,7 @@ import { registerGoogleAuthRoutes } from "./routes/google-auth.js";
 import { registerFirebasePhoneAuthRoute } from "./routes/firebase-phone-auth.js";
 import { registerPasswordResetRoutes } from "./routes/password-reset.js";
 import { registerRuntimeRoutes } from "./routes/runtime.js";
+import { registerShopRoutes } from "./routes/shop.js";
 
 const currentFile = fileURLToPath(import.meta.url);
 const currentDir = path.dirname(currentFile);
@@ -215,6 +216,7 @@ export async function buildApp() {
   registerGoogleAuthRoutes(app, env);
   registerFirebasePhoneAuthRoute(app, env);
   registerPasswordResetRoutes(app, env);
+  registerShopRoutes(app, env);
   registerOwnerRoutes(app, env);
   registerAdminRoutes(app, env);
 

@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { ObjectId } from "mongodb";
 
 import { createSession, writeSessionCookie } from "../lib/session.js";
 import { getCollections } from "../lib/repositories.js";
@@ -37,13 +38,13 @@ export function registerGoogleAuthRoutes(app, env) {
     const { code, state, error } = request.query;
 
     if (error || !code) {
-      reply.redirect("/owner?error=google_cancelled");
+      reply.redirect("/owner-login?error=google_cancelled");
       return;
     }
 
     const storedState = request.cookies?.pt_oauth_state;
     if (!storedState || storedState !== state) {
-      reply.redirect("/owner?error=invalid_state");
+      reply.redirect("/owner-login?error=invalid_state");
       return;
     }
 
@@ -63,7 +64,7 @@ export function registerGoogleAuthRoutes(app, env) {
       });
 
       if (!tokenRes.ok) {
-        reply.redirect("/owner?error=token_exchange_failed");
+        reply.redirect("/owner-login?error=token_exchange_failed");
         return;
       }
 
@@ -74,7 +75,7 @@ export function registerGoogleAuthRoutes(app, env) {
       });
 
       if (!userRes.ok) {
-        reply.redirect("/owner?error=userinfo_failed");
+        reply.redirect("/owner-login?error=userinfo_failed");
         return;
       }
 
@@ -89,27 +90,40 @@ export function registerGoogleAuthRoutes(app, env) {
 
       const collections = await getCollections(env);
       if (!collections) {
-        reply.redirect("/owner?error=db_unavailable");
+        reply.redirect("/owner-login?error=db_unavailable");
         return;
       }
 
       const owner = await collections.owners.findOne({ email });
 
-      if (owner) {
-        const sessionId = await createSession(app, {
-          id: String(owner._id),
+      let resolvedOwner = owner;
+      const isNew = !owner;
+
+      if (isNew) {
+        const ownerId = new ObjectId();
+        resolvedOwner = {
+          _id: ownerId,
+          email,
+          displayName,
+          googleId: userInfo.sub,
+          credits: 0,
           role: "owner",
-          email: owner.email,
-          displayName: owner.displayName || displayName
-        });
-        writeSessionCookie(reply, sessionId);
-        reply.redirect("/owner-welcome?new=0");
-      } else {
-        reply.redirect("/owner-welcome?new=1");
+          createdAt: new Date().toISOString()
+        };
+        await collections.owners.insertOne(resolvedOwner);
       }
+
+      const sessionId = await createSession(app, {
+        id: String(resolvedOwner._id),
+        role: "owner",
+        email: resolvedOwner.email,
+        displayName: resolvedOwner.displayName || displayName
+      });
+      writeSessionCookie(reply, sessionId);
+      reply.redirect(isNew ? "/owner-welcome?new=1" : "/owner-welcome");
     } catch (err) {
       app.log.error(err, "Google auth callback error");
-      reply.redirect("/owner?error=auth_failed");
+      reply.redirect("/owner-login?error=auth_failed");
     }
   });
 }

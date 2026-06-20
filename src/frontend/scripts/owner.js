@@ -341,8 +341,12 @@ if (urlError && hasEl("owner-auth-status")) {
     google_cancelled: "Google sign-in was cancelled.",
     auth_failed: "Google sign-in failed. Please try again.",
     no_email: "Google account has no email address.",
+    invalid_state: "Security check failed (state mismatch). Please try again.",
+    token_exchange_failed: "Failed to exchange token with Google. Please try again.",
+    userinfo_failed: "Failed to get user info from Google. Please try again.",
+    db_unavailable: "Database unavailable. Please try again later.",
   };
-  setStatus(messages[urlError] || "Something went wrong. Please try again.", "error");
+  setStatus(messages[urlError] || `Error: ${urlError}. Please try again.`, "error");
 }
 
 if (hasEl("owner-identifier")) {

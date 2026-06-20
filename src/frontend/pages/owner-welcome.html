@@ -487,6 +487,7 @@
   </button>
 </nav>
 
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 <script type="module" src="/scripts/owner-welcome.js"></script>
 <script>
 // ── Shop products ─────────────────────────────────────────────
@@ -532,6 +533,19 @@ const PRODUCTS = [
     variants: ["Car", "Bike", "Scooter"],
   },
 ];
+
+// ── Skeleton helpers ──────────────────────────────────────────
+function skeletonShopCards(count) {
+  return Array.from({ length: count }, () => `
+    <div class="pt-shop-card" style="pointer-events:none">
+      <div class="pt-shop-img sk" style="border-radius:0;aspect-ratio:1"></div>
+      <div class="pt-shop-body">
+        <div class="sk" style="height:13px;border-radius:6px;margin-bottom:7px;width:88%"></div>
+        <div class="sk" style="height:10px;border-radius:6px;margin-bottom:10px;width:65%"></div>
+        <div class="sk" style="height:15px;border-radius:6px;width:42%"></div>
+      </div>
+    </div>`).join("");
+}
 
 // ── Tag placeholder SVG for shop cards ────────────────────────
 function tagPlaceholder(size) {
@@ -645,12 +659,89 @@ function renderSheet() {
       ${p.features.map(f => `<li>${f}</li>`).join("")}
     </ul>
     <button class="pt-buy-btn" onclick="handleBuyNow()">BUY NOW</button>
-    <p class="pt-buy-cs">Payment gateway coming soon</p>
+    <p class="pt-buy-cs">Secured by Razorpay &nbsp;|&nbsp; UPI, Cards, Net Banking</p>
   `;
 }
 
-function handleBuyNow() {
-  alert("Payment gateway coming soon! We'll notify you when ordering is live.");
+async function handleBuyNow() {
+  const p = PRODUCTS[_activeProduct];
+  const variant = p.variants[_activeVariant];
+  const btn = document.querySelector(".pt-buy-btn");
+  if (btn) { btn.disabled = true; btn.classList.add("pt-btn-loading"); }
+
+  try {
+    // 1. Create order on backend
+    const orderRes = await fetch("/api/shop/create-order", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ amount: p.price, productId: p.id, productName: `${p.name} (${variant})` })
+    });
+    const orderData = await orderRes.json();
+    if (!orderRes.ok || !orderData.orderId) throw new Error(orderData.error || "Order creation failed.");
+
+    // 2. Fetch key ID
+    const keyRes = await fetch("/api/shop/razorpay-key");
+    const { keyId } = await keyRes.json();
+
+    if (btn) { btn.disabled = false; btn.classList.remove("pt-btn-loading"); }
+
+    // 3. Open Razorpay checkout
+    const rzp = new Razorpay({
+      key: keyId,
+      amount: orderData.amount,
+      currency: orderData.currency,
+      order_id: orderData.orderId,
+      name: "ParkTag",
+      description: `${p.name} (${variant})`,
+      image: "/icons/icon-192.png",
+      theme: { color: "#F5A623" },
+      handler: async function (response) {
+        // 4. Verify on backend
+        const verifyRes = await fetch("/api/shop/verify-payment", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            razorpay_order_id: response.razorpay_order_id,
+            razorpay_payment_id: response.razorpay_payment_id,
+            razorpay_signature: response.razorpay_signature
+          })
+        });
+        const verifyData = await verifyRes.json();
+        closeProduct();
+        if (verifyData.ok) {
+          showToast("Payment successful! We'll process your order shortly.", "success");
+        } else {
+          showToast("Payment verification failed. Contact support.", "error");
+        }
+      },
+      modal: {
+        ondismiss: function () {
+          if (btn) { btn.disabled = false; btn.classList.remove("pt-btn-loading"); }
+        }
+      }
+    });
+    rzp.open();
+  } catch (err) {
+    if (btn) { btn.disabled = false; btn.classList.remove("pt-btn-loading"); }
+    showToast(err.message || "Something went wrong. Please try again.", "error");
+  }
+}
+
+function showToast(message, tone) {
+  const existing = document.getElementById("pt-toast");
+  if (existing) existing.remove();
+  const toast = document.createElement("div");
+  toast.id = "pt-toast";
+  toast.textContent = message;
+  Object.assign(toast.style, {
+    position: "fixed", bottom: "90px", left: "50%", transform: "translateX(-50%)",
+    background: tone === "success" ? "#059669" : "#EF4444",
+    color: "#fff", padding: "12px 22px", borderRadius: "12px",
+    fontWeight: "700", fontSize: "0.88rem", zIndex: "999",
+    boxShadow: "0 4px 16px rgba(0,0,0,0.18)", maxWidth: "88vw", textAlign: "center"
+  });
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 4000);
 }
 
 // ── Tab switching ─────────────────────────────────────────────
@@ -660,7 +751,11 @@ function switchTab(tab) {
   document.getElementById("view-shop").style.display = isShop ? "" : "none";
   document.getElementById("navTags").classList.toggle("active", !isShop);
   document.getElementById("navShop").classList.toggle("active", isShop);
-  if (isShop) renderShop();
+  if (isShop) {
+    const grid = document.getElementById("shopGrid");
+    grid.innerHTML = skeletonShopCards(4);
+    requestAnimationFrame(() => setTimeout(renderShop, 280));
+  }
 }
 
 // Close sheet on backdrop click

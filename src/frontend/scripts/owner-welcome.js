@@ -140,6 +140,16 @@ function vehicleCard(tag, idx) {
 </a>`;
 }
 
+function skeletonGrid(count = 3) {
+  const cards = Array.from({ length: count }, () => `
+    <div class="pt-vc" style="pointer-events:none;gap:8px">
+      <div class="sk" style="width:60px;height:60px;border-radius:50%"></div>
+      <div class="sk" style="width:65%;height:13px;margin-top:2px"></div>
+      <div class="sk" style="width:45%;height:10px"></div>
+    </div>`).join("");
+  return cards + ADD_CARD;
+}
+
 function renderGrid(tags) {
   grid.innerHTML = tags.map((t, i) => vehicleCard(t, i)).join("") + ADD_CARD;
 }
@@ -183,6 +193,7 @@ function mergePendingVehicles(userId) {
 
 // ── Load data ─────────────────────────────────────────────────────
 async function load() {
+  grid.innerHTML = skeletonGrid(3);
   try {
     const res = await fetch("/api/owner/dashboard");
     if (!res.ok) {

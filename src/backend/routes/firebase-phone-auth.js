@@ -61,9 +61,23 @@ async function findOrCreateOwner(collections, phoneE164) {
 }
 
 export function registerFirebasePhoneAuthRoute(app, env) {
-  // Step 1 — send OTP via Firebase REST API (server-side, no reCAPTCHA)
+  // Fetch Firebase's reCAPTCHA site key (used by client to generate invisible token)
+  app.get("/api/auth/firebase-phone/recaptcha-key", async (request, reply) => {
+    const apiKey = env.firebaseApiKey;
+    if (!apiKey) { reply.code(500); return { error: "Firebase not configured." }; }
+    try {
+      const res = await fetch(`https://identitytoolkit.googleapis.com/v1/recaptchaParams?key=${apiKey}`);
+      const data = await res.json();
+      return { siteKey: data.recaptchaSiteKey };
+    } catch (err) {
+      reply.code(500);
+      return { error: "Could not fetch reCAPTCHA params." };
+    }
+  });
+
+  // Step 1 — send OTP via Firebase REST API (invisible reCAPTCHA token from client)
   app.post("/api/auth/firebase-phone/send", async (request, reply) => {
-    const { phone } = request.body || {};
+    const { phone, recaptchaToken } = request.body || {};
     if (!phone) {
       reply.code(400);
       return { ok: false, error: "Phone number required." };
@@ -79,7 +93,8 @@ export function registerFirebasePhoneAuthRoute(app, env) {
 
     try {
       const data = await firebasePost("sendVerificationCode", apiKey, {
-        phoneNumber: phoneE164
+        phoneNumber: phoneE164,
+        ...(recaptchaToken ? { recaptchaToken } : {})
       });
       return { ok: true, sessionInfo: data.sessionInfo };
     } catch (err) {

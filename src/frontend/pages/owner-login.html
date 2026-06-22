@@ -1,21 +1,29 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>ParkTag — Owner Sign In</title>
     <link rel="stylesheet" href="/styles/styles.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   </head>
   <body class="pt-hub-body">
 
     <header class="pt-header">
       <div class="pt-logo">
-        <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-          <rect width="28" height="28" rx="8" fill="#F5A623"/>
-          <path d="M8 8h7.5a4.5 4.5 0 0 1 0 9H11v5H8V8Z" fill="#fff"/>
-          <circle cx="15" cy="12.5" r="1.5" fill="#F5A623"/>
+        <svg width="40" height="40" viewBox="0 0 100 100" fill="none">
+          <rect width="100" height="100" rx="16" fill="white"/>
+          <rect x="14" y="14" width="16" height="72" rx="2" fill="#001935"/>
+          <circle cx="44" cy="38" r="24" fill="#001935"/>
+          <circle cx="46" cy="38" r="12" fill="white"/>
+          <path d="M40 38 L44 42 L53 29" stroke="#1A9D20" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
-        <span>ParkTag</span>
+        <div class="pt-logo-brand">
+          <span class="pt-logo-name">Park<span style="color:#1A9D20">Tag</span></span>
+          <span class="pt-logo-tag">SCAN TO CONNECT</span>
+        </div>
       </div>
     </header>
 
@@ -60,10 +68,10 @@
           <button id="phone-verify-btn" class="pt-btn pt-btn-primary pt-btn-full" style="margin-top:8px">Verify</button>
           <p style="text-align:center;margin-top:12px;margin-bottom:0;font-size:0.85rem;color:#6B7280">
             Didn't receive the code?
-            <button id="phone-resend-btn" style="background:none;border:none;color:#F5A623;font-weight:700;font-size:0.85rem;cursor:pointer;padding:0;font-family:inherit">Resend</button>
+            <button id="phone-resend-btn" style="background:none;border:none;color:#1A9D20;font-weight:700;font-size:0.85rem;cursor:pointer;padding:0;font-family:inherit">Resend</button>
           </p>
           <p style="text-align:center;margin-top:8px;margin-bottom:0">
-            <a href="#" id="phone-back-btn" style="font-size:0.85rem;color:#F5A623;font-weight:600;text-decoration:none">← Back to sign in</a>
+            <a href="#" id="phone-back-btn" style="font-size:0.85rem;color:#1A9D20;font-weight:600;text-decoration:none">← Back to sign in</a>
           </p>
         </div>
 
@@ -79,9 +87,11 @@
                  width:100%;padding:11px 16px;border-radius:12px;border:1.5px solid #E5E7EB;
                  background:#fff;color:#1F2937;font-size:0.92rem;font-weight:600;
                  text-decoration:none;cursor:pointer;transition:box-shadow 0.15s,border-color 0.15s;
-                 box-shadow:0 1px 3px rgba(0,0,0,0.06)"
+                 box-shadow:0 1px 3px rgba(0,0,0,0.06);outline:none"
           onmouseover="this.style.borderColor='#D1D5DB';this.style.boxShadow='0 2px 8px rgba(0,0,0,0.10)'"
-          onmouseout="this.style.borderColor='#E5E7EB';this.style.boxShadow='0 1px 3px rgba(0,0,0,0.06)'">
+          onmouseout="this.style.borderColor='#E5E7EB';this.style.boxShadow='0 1px 3px rgba(0,0,0,0.06)'"
+          onfocus="this.style.outline='2px solid #1A9D20';this.style.outlineOffset='2px'"
+          onblur="this.style.outline='none'">
           <svg width="20" height="20" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M47.532 24.552c0-1.636-.134-3.218-.389-4.742H24.48v8.978h12.985c-.56 3.016-2.255 5.574-4.806 7.288v6.056h7.779c4.548-4.19 7.094-10.36 7.094-17.58z" fill="#4285F4"/>
             <path d="M24.48 48c6.516 0 11.982-2.162 15.977-5.868l-7.779-6.056c-2.157 1.446-4.914 2.298-8.198 2.298-6.304 0-11.642-4.258-13.55-9.982H2.906v6.248C6.882 42.918 15.116 48 24.48 48z" fill="#34A853"/>
@@ -94,9 +104,6 @@
 
       </div>
     </main>
-
-    <!-- Invisible reCAPTCHA for Firebase phone auth — no user interaction -->
-    <div id="rc-container" style="display:none"></div>
 
     <script type="module" src="/scripts/owner.js"></script>
     <script src="/scripts/ux-feedback.js"></script>

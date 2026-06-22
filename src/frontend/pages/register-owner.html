@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8"/>
@@ -19,20 +19,20 @@
       width: 36px; height: 36px; border-radius: 10px;
       border: 1.5px solid #E5E7EB; background: #fff;
       display: flex; align-items: center; justify-content: center;
-      cursor: pointer; text-decoration: none; color: #1a1200;
+      cursor: pointer; text-decoration: none; color: #001935;
       transition: background .15s;
     }
     .av-back:hover { background: #F9FAFB; }
     .av-logo { display: flex; align-items: center; gap: 8px; }
     .av-logo-box {
-      width: 32px; height: 32px; border-radius: 9px; background: #F5A623;
+      width: 32px; height: 32px; border-radius: 9px; background: #001935;
       display: flex; align-items: center; justify-content: center;
     }
-    .av-logo-text { font-size: 1.2rem; font-weight: 900; color: #1a1200; letter-spacing: -0.02em; }
+    .av-logo-text { font-size: 1.2rem; font-weight: 900; color: #001935; letter-spacing: -0.02em; }
 
     /* ── Page body ── */
     .av-body { max-width: 480px; margin: 0 auto; padding: 28px 20px 120px; }
-    .av-heading { font-size: 2rem; font-weight: 900; color: #1a1200; margin: 0 0 6px; line-height: 1.15; }
+    .av-heading { font-size: 2rem; font-weight: 900; color: #001935; margin: 0 0 6px; line-height: 1.15; }
     .av-sub { font-size: 0.92rem; color: #6B7280; margin: 0 0 28px; line-height: 1.5; }
 
     /* ── Form fields ── */
@@ -50,18 +50,18 @@
       background-image: url("data:image/svg+xml,%3Csvg width='16' height='16' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M6 9l6 6 6-6' stroke='%236B7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
       background-repeat: no-repeat; background-position: right 14px center; padding-right: 42px;
     }
-    .av-select:focus, .av-input:focus { border-color: #F5A623; background: #fff; }
+    .av-select:focus, .av-input:focus { border-color:#1A9D20; background: #fff; }
 
     /* ── Add vehicle button ── */
     .av-add-btn {
       width: 100%; height: 52px; border-radius: 14px;
-      border: 2px solid #F5A623; background: #fff;
-      color: #1a1200; font-size: 0.95rem; font-weight: 700;
+      border: 2px solid #1A9D20; background: #fff;
+      color: #001935; font-size: 0.95rem; font-weight: 700;
       font-family: inherit; cursor: pointer;
       display: flex; align-items: center; justify-content: center; gap: 8px;
       transition: background .15s; margin-top: 8px;
     }
-    .av-add-btn:hover { background: #FFFBF0; }
+    .av-add-btn:hover { background: #EBF7EC; }
 
     /* ── Vehicle list ── */
     .av-list { margin-top: 20px; display: flex; flex-direction: column; gap: 10px; }
@@ -99,11 +99,11 @@
     .av-submit-btn {
       display: block; width: 100%; max-width: 480px; margin: 0 auto;
       height: 54px; border-radius: 16px; border: none;
-      background: #F5A623; color: #1a1200;
+      background:#1A9D20; color: #001935;
       font-size: 1rem; font-weight: 800; font-family: inherit;
       cursor: pointer; transition: background .15s;
     }
-    .av-submit-btn:hover { background: #E59A1A; }
+    .av-submit-btn:hover { background: #157A18; }
 
     .av-status { font-size: 0.85rem; text-align: center; margin-top: 10px; min-height: 20px; }
     .av-status[data-tone="error"]   { color: #DC2626; }
@@ -125,23 +125,23 @@
     }
     @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
     .etag-card-icon {
-      width: 56px; height: 56px; border-radius: 16px; background: #FEF3C7;
+      width: 56px; height: 56px; border-radius: 16px; background: #E8F5E9;
       display: flex; align-items: center; justify-content: center; margin-bottom: 16px;
     }
-    .etag-card-title { font-size: 1.2rem; font-weight: 900; color: #1a1200; margin: 0 0 6px; }
+    .etag-card-title { font-size: 1.2rem; font-weight: 900; color: #001935; margin: 0 0 6px; }
     .etag-card-sub   { font-size: 0.85rem; color: #6B7280; margin: 0 0 20px; line-height: 1.5; }
     .etag-badge {
-      display: inline-block; background: #FEF3C7; color: #92400E;
+      display: inline-block; background: #E8F5E9; color: #145E17;
       font-size: 0.72rem; font-weight: 700; letter-spacing: .05em;
       padding: 3px 10px; border-radius: 20px; margin-bottom: 16px;
     }
     .etag-download-btn {
       width: 100%; height: 50px; border-radius: 14px; border: none;
-      background: #F5A623; color: #1a1200; font-size: 0.95rem; font-weight: 800;
+      background:#1A9D20; color: #001935; font-size: 0.95rem; font-weight: 800;
       font-family: inherit; cursor: pointer; display: flex; align-items: center;
       justify-content: center; gap: 8px; margin-bottom: 10px; transition: background .15s;
     }
-    .etag-download-btn:hover { background: #E59A1A; }
+    .etag-download-btn:hover { background: #157A18; }
     .etag-skip-btn {
       width: 100%; height: 44px; border-radius: 14px; border: 1.5px solid #E5E7EB;
       background: #fff; color: #6B7280; font-size: 0.88rem; font-weight: 600;
@@ -173,39 +173,45 @@
     }
     .print-logo-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
     .print-logo-box {
-      width: 28px; height: 28px; background: #F5A623; border-radius: 7px;
+      width: 28px; height: 28px; background:#1A9D20; border-radius: 7px;
       display: flex; align-items: center; justify-content: center;
     }
-    .print-logo-name { font-size: 13px; font-weight: 900; color: #1a1200; }
+    .print-logo-name { font-size: 13px; font-weight: 900; color: #001935; }
     .print-logo-sub  { font-size: 7px; color: #6B7280; line-height: 1.4; }
-    .print-headline  { font-size: 20px; font-weight: 900; color: #1a1200; line-height: 1.3; margin: 0; }
+    .print-headline  { font-size: 20px; font-weight: 900; color: #001935; line-height: 1.3; margin: 0; }
     .print-headline u { text-decoration: underline; }
     .print-no-net    { font-size: 7.5px; color: #555; margin: 0; }
     .print-qr        { width: 140px; height: 140px; display: block; }
-    .print-pt-label  { font-size: 11px; font-weight: 900; color: #F5A623; letter-spacing: .08em; text-align: center; margin: 4px 0; }
+    .print-pt-label  { font-size: 11px; font-weight: 900; color:#1A9D20; letter-spacing: .08em; text-align: center; margin: 4px 0; }
     .print-icons     { display: flex; justify-content: space-around; width: 100%; border-top: 1px solid #E5E7EB; padding-top: 5px; }
     .print-icon-wrap { text-align: center; }
     .print-icon-lbl  { font-size: 6.5px; color: #555; }
     .print-bottom-note { font-size: 7px; color: #6B7280; text-align: center; margin-top: 3px; }
   </style>
-</head>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  </head>
 <body>
 
   <!-- Top bar -->
   <div class="av-topbar">
     <a href="/owner-welcome" class="av-back" aria-label="Back">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-        <path d="M15 18l-6-6 6-6" stroke="#1a1200" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M15 18l-6-6 6-6" stroke="#001935" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
     </a>
     <div class="av-logo">
       <div class="av-logo-box">
-        <svg width="18" height="18" viewBox="0 0 28 28" fill="none">
-          <path d="M6 6h9a5 5 0 0 1 0 10H10v6H6V6Z" fill="#ffffff"/>
-          <circle cx="15" cy="11" r="2" fill="#F5A623"/>
+        <svg width="18" height="18" viewBox="0 0 100 100" fill="none">
+          <rect width="100" height="100" rx="16" fill="white"/>
+          <rect x="14" y="14" width="16" height="72" rx="2" fill="#001935"/>
+          <circle cx="44" cy="38" r="24" fill="#001935"/>
+          <circle cx="46" cy="38" r="12" fill="white"/>
+          <path d="M40 38 L44 42 L53 29" stroke="#1A9D20" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
       </div>
-      <span class="av-logo-text">ParkTag</span>
+      <span class="av-logo-text">Park<span style="color:#1A9D20">Tag</span></span>
     </div>
   </div>
 
@@ -239,8 +245,8 @@
 
     <button class="av-add-btn" id="add-vehicle-btn">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-        <circle cx="12" cy="12" r="10" stroke="#F5A623" stroke-width="2"/>
-        <path d="M12 8v8M8 12h8" stroke="#F5A623" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="12" cy="12" r="10" stroke="#1A9D20" stroke-width="2"/>
+        <path d="M12 8v8M8 12h8" stroke="#1A9D20" stroke-width="2" stroke-linecap="round"/>
       </svg>
       Add Vehicle
     </button>
@@ -274,7 +280,7 @@
     <div class="etag-card">
       <div class="etag-card-icon">
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="#F5A623" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="#1A9D20" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
       </div>
       <span class="etag-badge">ONE TIME USE ONLY</span>
@@ -282,7 +288,7 @@
       <p class="etag-card-sub">No sticker code entered. Download a temporary offline E-Tag for your vehicle. Print and place it on your dashboard.</p>
       <button class="etag-download-btn" id="etag-download-btn">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="#1a1200" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="#001935" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
         Download E-Tag PDF
       </button>
@@ -320,7 +326,7 @@
               </svg>
             </div>
             <div>
-              <div class="print-logo-name">ParkTag</div>
+              <div class="print-logo-name">Park<span style="color:#1A9D20">Tag</span></div>
               <div class="print-logo-sub">ParkTag Car tag by ParkTag.<br>Contact vehicle owner, help in emergency, or wrong parking.</div>
             </div>
           </div>
@@ -335,7 +341,7 @@
           src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://parktag.me/demo&color=000000&bgcolor=ffffff"
           alt="Demo QR Code"/>
         <div style="width:100%">
-          <p class="print-pt-label">ParkTag</p>
+          <p class="print-pt-label">Park<span style="color:#1A9D20">Tag</span></p>
           <div class="print-icons">
             <div class="print-icon-wrap">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="2" stroke="#555" stroke-width="1.8"/><path d="M9 9h6M9 12h6M9 15h4" stroke="#555" stroke-width="1.8" stroke-linecap="round"/></svg>

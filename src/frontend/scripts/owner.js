@@ -1,5 +1,6 @@
 
-let _phoneSessionInfo = null;
+let _confirmationResult = null;
+let _recaptchaVerifier = null;
 
 function normalizePhoneE164(raw) {
   const digits = raw.replace(/[^\d+]/g, "");
@@ -9,14 +10,28 @@ function normalizePhoneE164(raw) {
   return digits;
 }
 
+async function initFirebaseAuth() {
+  if (typeof firebase === "undefined") throw new Error("Firebase SDK not loaded. Please refresh and try again.");
+  if (!firebase.apps.length) {
+    const cfg = await fetchJson("/api/auth/firebase-config");
+    firebase.initializeApp({ apiKey: cfg.apiKey, authDomain: cfg.authDomain, projectId: cfg.projectId });
+  }
+  return firebase.auth();
+}
+
 async function sendFirebasePhoneOtp(raw) {
   const phone = normalizePhoneE164(raw);
-  const data = await fetchJson("/api/auth/firebase-phone/send", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ phone })
-  });
-  _phoneSessionInfo = data.sessionInfo;
+  const auth = await initFirebaseAuth();
+
+  if (!_recaptchaVerifier) {
+    _recaptchaVerifier = new firebase.auth.RecaptchaVerifier("recaptcha-container", {
+      size: "invisible",
+      callback: () => {}
+    });
+  }
+
+  _confirmationResult = await auth.signInWithPhoneNumber(phone, _recaptchaVerifier);
+
   byId("phone-sent-to").textContent = phone;
   byId("phone-step2").style.display = "";
   byId("owner-form-step1").style.display = "none";
@@ -31,20 +46,28 @@ async function sendFirebasePhoneOtp(raw) {
 }
 
 async function verifyFirebasePhoneOtp() {
-  const code = byId("phone-otp-inp")?.value?.trim();
-  if (!code || code.length !== 6) { setStatus("Enter the 6-digit code.", "error"); return; }
+  const otp = byId("phone-otp-inp")?.value?.trim();
+  if (!otp || otp.length !== 6) { setStatus("Enter the 6-digit code.", "error"); return; }
   const btn = byId("phone-verify-btn");
   if (btn) { btn.disabled = true; btn.classList.add("pt-btn-loading"); }
   try {
-    const data = await fetchJson("/api/auth/firebase-phone/verify", {
+    const result = await _confirmationResult.confirm(otp);
+    const idToken = await result.user.getIdToken();
+    const data = await fetchJson("/api/auth/firebase-phone/verify-token", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ sessionInfo: _phoneSessionInfo, code })
+      body: JSON.stringify({ idToken })
     });
     window.location.href = data.isNew ? "/owner-welcome?new=1" : "/owner-welcome";
   } catch (error) {
     if (btn) { btn.disabled = false; btn.classList.remove("pt-btn-loading"); }
-    setStatus(error instanceof Error ? error.message : "Verification failed.", "error");
+    if (_recaptchaVerifier) { try { _recaptchaVerifier.clear(); } catch (_) {} _recaptchaVerifier = null; }
+    const errorCode = error?.code;
+    const msg = errorCode === "auth/invalid-verification-code" ? "Incorrect code. Please try again."
+      : errorCode === "auth/code-expired" ? "Code expired. Please request a new one."
+      : errorCode === "auth/too-many-requests" ? "Too many attempts. Please wait and try again."
+      : error instanceof Error ? error.message : "Verification failed.";
+    setStatus(msg, "error");
   }
 }
 
@@ -259,6 +282,7 @@ async function resendFirebasePhoneOtp() {
   if (!raw) return;
   const btn = byId("phone-resend-btn");
   if (btn) { btn.disabled = true; btn.classList.add("pt-btn-loading"); }
+  if (_recaptchaVerifier) { try { _recaptchaVerifier.clear(); } catch (_) {} _recaptchaVerifier = null; }
   try {
     await sendFirebasePhoneOtp(raw);
     setStatus("A new code has been sent.", "success");

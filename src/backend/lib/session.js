@@ -12,6 +12,7 @@ export async function createSession(app, user) {
     userId: user.id,
     role: user.role,
     email: user.email,
+    displayName: user.displayName || null,
     createdAt: new Date().toISOString()
   });
 

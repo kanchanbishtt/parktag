@@ -15,7 +15,7 @@ document.getElementById("carPrev").addEventListener("click", () => goTo(cur - 1)
 document.getElementById("carNext").addEventListener("click", () => goTo(cur + 1));
 dots.forEach(d => d.addEventListener("click", () => goTo(Number(d.dataset.idx))));
 
-function startAuto() { autoTimer = setInterval(() => goTo(cur + 1), 4500); }
+function startAuto() { autoTimer = setInterval(() => goTo(cur + 1), 3000); }
 function stopAuto()  { clearInterval(autoTimer); }
 viewport.addEventListener("mouseenter", stopAuto);
 viewport.addEventListener("mouseleave", startAuto);
@@ -42,6 +42,18 @@ const greetId   = document.getElementById("greetId");
 const grid      = document.getElementById("vehicleGrid");
 const searchInp = document.getElementById("vehicleSearch");
 let allTags     = [];
+
+
+// ── UI strings (externalised for i18n) ───────────────────────────
+const UI = {
+  greetPrefix:    "Hi,",
+  greetFallback:  "there",
+  noVehicles:     "No vehicles yet",
+  noVehiclesSub:  "Add your first vehicle below",
+  loadError:      "Couldn't load your vehicles.",
+  retry:          "Retry",
+  refreshing:     "Refreshing…",
+};
 
 // ── Type labels ───────────────────────────────────────────────────
 const VEHICLE_LABELS = {
@@ -102,7 +114,7 @@ const VEHICLE_SVGS = {
     <circle cx="19" cy="17" r="2.5" stroke="currentColor" stroke-width="1.8"/>
     <path d="M5 17h2l2-5h6l1 3h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
     <path d="M11 12V9l3-2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-    <path d="M14 5h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+    <path d="M17 3l-1.5 2.5H17L15.5 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
   </svg>`,
 };
 
@@ -129,14 +141,17 @@ function vehicleCard(tag, idx) {
   const plate  = tag.plateNumber  || tag.number || tag.token || "—";
   const type   = tag.vehicleType  || tag.type   || "car";
   const params = new URLSearchParams({ number: plate, type, label }).toString();
+  const svg    = iconFor(tag).replace("<svg ", '<svg aria-hidden="true" focusable="false" ');
   return `
-<a href="/owner-vehicle-detail?${params}" class="pt-vc" style="text-decoration:none;color:inherit;cursor:pointer">
+<a href="/owner-vehicle-detail?${params}" class="pt-vc"
+   style="text-decoration:none;color:inherit"
+   aria-label="${label}, plate ${plate}">
   <div class="pt-vc-icon">
-    ${iconFor(tag)}
-    <span class="pt-vc-badge">${idx + 1}</span>
+    ${svg}
+    <span class="pt-vc-badge" aria-hidden="true">${idx + 1}</span>
   </div>
-  <p class="pt-vc-name">${label}</p>
-  <p class="pt-vc-plate">${plate}</p>
+  <p class="pt-vc-name" aria-hidden="true">${label}</p>
+  <p class="pt-vc-plate" aria-hidden="true">${plate}</p>
 </a>`;
 }
 
@@ -150,8 +165,26 @@ function skeletonGrid(count = 3) {
   return cards + ADD_CARD;
 }
 
-function renderGrid(tags) {
-  grid.innerHTML = tags.map((t, i) => vehicleCard(t, i)).join("") + ADD_CARD;
+const EMPTY_STATE = `
+  <div role="status" style="grid-column:1/-1;display:flex;flex-direction:column;align-items:center;padding:28px 16px 12px;text-align:center">
+    <div aria-hidden="true" style="width:60px;height:60px;border-radius:50%;background:#F3F4F6;display:flex;align-items:center;justify-content:center;margin-bottom:12px">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" stroke="#9CA3AF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="7" cy="7" r="1.5" fill="#9CA3AF"/>
+      </svg>
+    </div>
+    <p style="font-size:.92rem;font-weight:800;color:#1F2937;margin:0 0 4px">${UI.noVehicles}</p>
+    <p style="font-size:.8rem;color:#6B7280;margin:0">${UI.noVehiclesSub}</p>
+  </div>`;
+
+function renderGrid(tags, animate = false) {
+  const empty = tags.length === 0 ? EMPTY_STATE : "";
+  grid.innerHTML = empty + tags.map((t, i) => vehicleCard(t, i)).join("") + ADD_CARD;
+  if (animate) {
+    grid.classList.remove("pt-reveal-grid");
+    void grid.offsetWidth;
+    grid.classList.add("pt-reveal-grid");
+  }
 }
 
 // ── Search filter ─────────────────────────────────────────────────
@@ -209,10 +242,34 @@ async function load() {
       : null;
 
     if (data.owner) {
-      const name = data.owner.displayName || data.owner.email || "";
-      const id   = data.owner.email || data.owner.mobile || "";
-      greetName.textContent = `Hi, ${name.split(" ")[0] || "there"}!`;
-      if (id) greetId.textContent = id;
+      const rawName = data.owner.displayName || "";
+      const isEmail = rawName.includes("@");
+      let firstName;
+      if (!isEmail && rawName) {
+        firstName = rawName.split(" ")[0];
+      } else {
+        // Derive a friendly name from the email address
+        const email = data.owner.email || "";
+        if (email.includes("@")) {
+          const local = email.split("@")[0].replace(/[0-9]/g, "");
+          const parts = local.split(/[._\-+]/).filter(Boolean);
+          const part = parts[0] || local;
+          firstName = part ? part.charAt(0).toUpperCase() + part.slice(1).toLowerCase() : UI.greetFallback;
+        } else {
+          firstName = UI.greetFallback;
+        }
+      }
+      const id = data.owner.email || data.owner.mobile || "";
+      greetName.textContent = `${UI.greetPrefix} ${firstName}!`;
+      greetName.classList.remove("pt-reveal");
+      void greetName.offsetWidth; // force reflow to re-trigger animation
+      greetName.classList.add("pt-reveal");
+      if (id) {
+        greetId.textContent = id;
+        greetId.classList.remove("pt-reveal");
+        void greetId.offsetWidth;
+        greetId.classList.add("pt-reveal");
+      }
     }
 
     // One-time migration: move the old unscoped key into pending so it gets claimed below
@@ -237,14 +294,66 @@ async function load() {
     // Read only THIS user's saved vehicles
     const saved   = userId ? readSavedVehicles(userId) : [];
     const apiTags = data.tags || [];
-    const apiNums = new Set(apiTags.map(t => (t.plateNumber || "").toUpperCase()));
-    const localOnly = saved.filter(v => !apiNums.has((v.number || "").toUpperCase()));
+    // Dedup by _id first, fall back to plate number
+    const apiIds  = new Set(apiTags.map(t => String(t._id || "")).filter(Boolean));
+    const apiNums = new Set(apiTags.map(t => (t.plateNumber || "").toUpperCase()).filter(Boolean));
+    const localOnly = saved.filter(v =>
+      !(v._id && apiIds.has(String(v._id))) &&
+      !apiNums.has((v.number || "").toUpperCase())
+    );
 
-    allTags = [...localOnly, ...apiTags];
-    renderGrid(allTags);
+    // Dedup apiTags themselves by plate number (handles stale DB duplicates)
+    const seenPlates = new Set();
+    const dedupedApi = apiTags.filter(t => {
+      const plate = (t.plateNumber || t.number || "").toUpperCase();
+      if (!plate || seenPlates.has(plate)) return false;
+      seenPlates.add(plate);
+      return true;
+    });
+
+    allTags = [...localOnly, ...dedupedApi];
+    renderGrid(allTags, true);
   } catch {
-    grid.innerHTML = ADD_CARD;
+    grid.innerHTML = `
+      <div role="alert" style="grid-column:1/-1;text-align:center;padding:28px 16px 12px">
+        <p style="font-size:.9rem;font-weight:700;color:#374151;margin:0 0 10px">${UI.loadError}</p>
+        <button onclick="load()"
+          style="background:#1A9D20;color:#fff;border:none;border-radius:10px;
+                 padding:9px 22px;font-size:.85rem;font-weight:700;cursor:pointer;font-family:inherit">
+          ${UI.retry}
+        </button>
+      </div>` + ADD_CARD;
   }
 }
 
+// Show skeleton immediately so layout is stable before API responds
+if (grid) grid.innerHTML = skeletonGrid(3);
 load();
+
+// ── Pull-to-refresh ───────────────────────────────────────────────
+const PTR_THRESHOLD = 72;
+let ptrStartY = 0;
+let ptrTriggered = false;
+const ptrEl = document.getElementById("ptrIndicator");
+
+document.addEventListener("touchstart", e => {
+  ptrStartY = e.touches[0].clientY;
+  ptrTriggered = false;
+}, { passive: true });
+
+document.addEventListener("touchmove", e => {
+  const scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
+  if (scrollTop > 0 || !ptrEl) return;
+  const dy = e.touches[0].clientY - ptrStartY;
+  if (dy > 10) {
+    ptrEl.classList.add("visible");
+    if (dy >= PTR_THRESHOLD) ptrTriggered = true;
+  }
+}, { passive: true });
+
+document.addEventListener("touchend", () => {
+  if (!ptrEl) return;
+  ptrEl.classList.remove("visible");
+  if (ptrTriggered) { ptrTriggered = false; load(); }
+  ptrStartY = 0;
+});

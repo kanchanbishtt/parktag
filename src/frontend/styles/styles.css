@@ -16,6 +16,11 @@
 * {
   box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
+  scrollbar-width: none;
+}
+
+*::-webkit-scrollbar {
+  display: none;
 }
 
 a, button, input, select, textarea, [role="button"] {
@@ -1669,7 +1674,8 @@ a:focus-visible { outline: 2px solid #1A9D20; outline-offset: 2px; }
 
 html:has(body.pt-hub-body) {
   background: var(--pt-bg);
-  overflow-x: hidden;
+  overflow: hidden;
+  height: 100%;
 }
 
 .pt-hub-body {
@@ -1807,7 +1813,7 @@ html:has(body.pt-hub-body) {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: calc(100vh - 60px);
+  min-height: calc(100vh - 72px);
   padding: 20px 16px;
 }
 

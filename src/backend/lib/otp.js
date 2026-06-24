@@ -59,17 +59,20 @@ export async function sendOtp(env, identifier) {
 
   if (isMobile) {
     if (isExotelSmsConfigured(env)) {
-      await sendExotelSms(env, {
+      // Fire-and-forget — OTP is already saved; don't block the response on SMS delivery
+      sendExotelSms(env, {
         to: normalized,
         body: `${code} is your ParkTag verification code. Valid for 10 minutes. Do not share this with anyone.`
-      });
+      }).catch(err => console.error("[OTP] SMS send failed:", err));
     } else if (env.runtimeMode !== "production") {
       console.log(`\n[ParkTag] OTP for ${normalized}: ${code}\n`);
     } else {
       throw new Error("SMS is not configured on this server.");
     }
   } else {
-    await sendOtpEmail(env, { to: normalized, code });
+    // Fire-and-forget — OTP is already saved; don't block the response on email delivery
+    sendOtpEmail(env, { to: normalized, code })
+      .catch(err => console.error("[OTP] Email send failed:", err));
   }
 
   return { ok: true };

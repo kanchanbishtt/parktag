@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8"/>
@@ -8,12 +8,15 @@
   <style>
     * { box-sizing: border-box; }
     body { margin: 0; background: #fff; font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif; }
+    /* Hide scrollbars everywhere, keep scroll working */
+    * { scrollbar-width: none; -ms-overflow-style: none; }
+    *::-webkit-scrollbar { display: none; }
 
-    .pt-wp { width: 100%; min-height: 100vh; background: #fff; }
+    .pt-wp { width: 100%; min-height: 100vh; background: #fff; padding-bottom: 72px; }
 
     /* ── Amber header ──────────────────────────────── */
     .pt-wh {
-      background: linear-gradient(155deg, #F5A623 0%, #FFD580 55%, #fff9ed 100%);
+      background: linear-gradient(155deg, #001935 0%, #0D2545 55%, #1A3A6E 100%);
       padding: 14px 18px 24px;
     }
     .pt-wh-inner { max-width: 880px; margin: 0 auto; }
@@ -22,31 +25,23 @@
     }
     .pt-wh-logo { display: flex; align-items: center; gap: 9px; }
     .pt-wh-logo-box {
-      width: 36px; height: 36px; border-radius: 10px; background: #F5A623;
+      width: 36px; height: 36px; border-radius: 10px; background: #001935;
       display: flex; align-items: center; justify-content: center;
-      box-shadow: 0 2px 6px rgba(245,166,35,0.35);
+      box-shadow: 0 2px 6px rgba(0,25,53,0.35);
     }
-    .pt-wh-logo-text { font-size: 1.35rem; font-weight: 900; color: #1a1200; letter-spacing: -0.02em; }
+    .pt-wh-logo-text { font-size: 1.35rem; font-weight: 900; color: #FFFFFF; letter-spacing: -0.02em; }
     .pt-wh-btns { display: flex; gap: 8px; }
     .pt-wh-btn {
       width: 40px; height: 40px; border-radius: 12px;
-      background: rgba(255,255,255,0.6); border: none; cursor: pointer;
+      background: rgba(255,255,255,0.15); border: none; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
       transition: background .15s;
     }
-    .pt-wh-btn:hover { background: rgba(255,255,255,0.85); }
+    .pt-wh-btn:hover { background: rgba(255,255,255,0.25); }
 
     .pt-wh-bottom { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
-    .pt-wh-hi   { font-size: 1.6rem; font-weight: 900; color: #1a1200; margin: 0 0 3px; }
-    .pt-wh-id   { font-size: 0.83rem; color: #4a3000; margin: 0; opacity: .85; }
-    .pt-manage-profile {
-      display: flex; align-items: center; gap: 7px;
-      background: rgba(255,255,255,0.6); border-radius: 22px; padding: 8px 16px;
-      font-size: 0.83rem; font-weight: 600; color: #1a1200;
-      text-decoration: none; white-space: nowrap; flex-shrink: 0;
-      backdrop-filter: blur(4px); transition: background .15s;
-    }
-    .pt-manage-profile:hover { background: rgba(255,255,255,0.85); }
+    .pt-wh-hi   { font-size: 1.6rem; font-weight: 900; color: #FFFFFF; margin: 0 0 3px; }
+    .pt-wh-id   { font-size: 0.83rem; color: #495B7B; margin: 0; opacity: .85; }
 
     /* ── Content ───────────────────────────────────── */
     .pt-wc {
@@ -56,15 +51,26 @@
     }
 
     /* ── Responsive breakpoints ────────────────────── */
+    @media (min-width: 480px) {
+      .pt-shop-grid { grid-template-columns: repeat(2, 1fr); gap: 14px; }
+      .pt-shop-name { font-size: .88rem; }
+      .pt-shop-price { font-size: 1rem; }
+    }
     @media (min-width: 640px) {
       .pt-wh { padding: 16px 28px 28px; }
       .pt-wc { padding: 0 28px 56px; }
       .pt-vgrid { grid-template-columns: repeat(3, 1fr); }
+      .pt-shop-grid { grid-template-columns: repeat(3, 1fr); gap: 16px; }
+      .pt-shop-body { padding: 12px 14px 16px; }
+      .pt-shop-name { font-size: .92rem; }
+      .pt-shop-feat { font-size: .75rem; }
     }
     @media (min-width: 1024px) {
       .pt-wh { padding: 20px 48px 32px; }
       .pt-wc { padding: 0 40px 64px; }
       .pt-vgrid { grid-template-columns: repeat(3, 1fr); }
+      .pt-shop-grid { grid-template-columns: repeat(3, 1fr); gap: 20px; }
+      .pt-shop-name { font-size: 1rem; }
     }
 
     /* ── Carousel ──────────────────────────────────── */
@@ -76,12 +82,10 @@
     .pt-car-track { display: flex; transition: transform .38s cubic-bezier(.25,.46,.45,.94); }
     .pt-car-slide { min-width: 100%; }
 
-    /* Slide image container */
     .pt-slide-img {
       width: 100%; aspect-ratio: 16/7; background: #F3F4F6;
       display: flex; align-items: center; justify-content: center; overflow: hidden;
     }
-    /* Placeholder */
     .pt-slide-ph {
       width: 100%; height: 100%;
       display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -91,7 +95,6 @@
       font-size: 0.72rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
       color: #9CA3AF; border: 1.5px dashed #D1D5DB; border-radius: 8px; padding: 5px 14px;
     }
-    /* Mobile placeholder visible < 600px; desktop >= 600px */
     .pt-ph-mob  { display: flex; }
     .pt-ph-desk { display: none; }
     @media (min-width: 600px) {
@@ -99,7 +102,6 @@
       .pt-ph-desk { display: flex; }
     }
 
-    /* Blank slides 2 & 3 */
     .pt-slide-blank {
       width: 100%; aspect-ratio: 16/7; background: #F9FAFB;
       border: 2px dashed #E5E7EB;
@@ -107,15 +109,13 @@
     }
     .pt-slide-blank-lbl { font-size: 0.78rem; font-weight: 600; color: #D1D5DB; margin: 0; }
 
-    /* Dots */
     .pt-car-dots { display: flex; justify-content: center; gap: 7px; margin-top: 10px; }
     .pt-dot-btn {
       height: 7px; width: 7px; border-radius: 4px; background: #D1D5DB;
       border: none; cursor: pointer; padding: 0; transition: all .2s;
     }
-    .pt-dot-btn[aria-selected="true"] { width: 22px; background: #F5A623; }
+    .pt-dot-btn[aria-selected="true"] { width: 22px; background:#1A9D20; }
 
-    /* Arrow buttons */
     .pt-car-arr {
       position: absolute; top: 50%; transform: translateY(-50%);
       background: rgba(255,255,255,.88); border: 1.5px solid #E5E7EB;
@@ -135,31 +135,32 @@
       padding: 0 18px; font-size: 0.88rem; color: #1F2937;
       outline: none; font-family: inherit; transition: border-color .15s;
     }
-    .pt-wsearch-inp:focus { border-color: #F5A623; background: #fff; }
+    .pt-wsearch-inp:focus { border-color:#1A9D20; background: #fff; }
     .pt-wsearch-btn {
       width: 48px; height: 48px; border-radius: 50%; flex-shrink: 0;
-      background: #F5A623; border: none; cursor: pointer;
+      background:#1A9D20; border: none; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
       transition: background .15s;
     }
-    .pt-wsearch-btn:hover { background: #E59A1A; }
+    .pt-wsearch-btn:hover { background: #157A18; }
 
     /* ── Tags heading ──────────────────────────────── */
     .pt-tags-hd { padding: 22px 0 0; }
-    .pt-tags-title { font-size: 1.3rem; font-weight: 900; color: #1a1200; margin: 0 0 5px; }
-    .pt-tags-bar   { width: 34px; height: 3px; background: #F5A623; border-radius: 2px; margin-bottom: 7px; }
+    .pt-tags-title { font-size: 1.3rem; font-weight: 900; color: #001935; margin: 0 0 5px; }
+    .pt-tags-bar   { width: 34px; height: 3px; background:#1A9D20; border-radius: 2px; margin-bottom: 7px; }
     .pt-tags-sub   { font-size: 0.88rem; color: #6B7280; margin: 0 0 16px; }
 
     /* ── Vehicle grid ──────────────────────────────── */
     .pt-vgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
-    /* Vehicle card */
     .pt-vc {
       background: #fff; border-radius: 18px; border: 1.5px solid #E5E7EB;
       padding: 18px 12px 14px; display: flex; flex-direction: column;
       align-items: center; text-align: center; gap: 5px;
       box-shadow: 0 1px 4px rgba(0,0,0,.04);
+      transition: transform .15s, box-shadow .15s;
     }
+    .pt-vc:hover { transform: translateY(-2px); box-shadow: 0 4px 14px rgba(0,0,0,.09); border-color:#1A9D20; }
     .pt-vc-icon {
       width: 60px; height: 60px; border-radius: 50%; background: #EEF2FF;
       display: flex; align-items: center; justify-content: center;
@@ -168,7 +169,7 @@
     .pt-vc-badge {
       position: absolute; top: -3px; right: -3px;
       width: 20px; height: 20px; border-radius: 50%;
-      background: #F5A623; color: #fff; border: 2px solid #fff;
+      background:#1A9D20; color: #fff; border: 2px solid #fff;
       font-size: .62rem; font-weight: 800;
       display: flex; align-items: center; justify-content: center;
     }
@@ -177,24 +178,142 @@
     .pt-vc-plate { font-size: .73rem; color: #6B7280; font-weight: 600;
                    font-family: monospace; letter-spacing: .04em; margin: 0; }
 
-    /* Add vehicle card */
     .pt-vadd {
-      background: #FFFBF0; border-radius: 18px; border: 2px dashed #F5A623;
+      background: #EBF7EC; border-radius: 18px; border: 2px dashed #1A9D20;
       padding: 18px 12px 14px; display: flex; flex-direction: column;
       align-items: center; text-align: center; gap: 5px;
       text-decoration: none; cursor: pointer; transition: background .15s;
     }
-    .pt-vadd:hover { background: #FFF3DC; }
+    .pt-vadd:hover { background: #D4EED5; }
     .pt-vadd-icon {
-      width: 60px; height: 60px; border-radius: 50%; background: #FFF3DC;
-      border: 2px solid #1a1200;
+      width: 60px; height: 60px; border-radius: 50%; background: #D4EED5;
+      border: 2px solid #1A9D20;
       display: flex; align-items: center; justify-content: center;
-      color: #1a1200; margin-bottom: 2px;
+      color: #1A9D20; margin-bottom: 2px;
     }
     .pt-vadd-title { font-weight: 800; font-size: .92rem; color: #1F2937; margin: 0; }
     .pt-vadd-sub   { font-size: .73rem; color: #6B7280; margin: 0; line-height: 1.5; }
+
+    /* ── Bottom nav ────────────────────────────────── */
+    .pt-bottom-nav {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: #fff; border-top: 1.5px solid #E5E7EB;
+      display: flex; z-index: 100;
+      padding-bottom: env(safe-area-inset-bottom, 0);
+      box-shadow: 0 -2px 12px rgba(0,0,0,.07);
+    }
+    .pt-nav-tab {
+      flex: 1; display: flex; flex-direction: column; align-items: center;
+      padding: 10px 0 12px; gap: 3px; border: none; background: none; cursor: pointer;
+      color: #9CA3AF; font-size: 0.72rem; font-weight: 700; font-family: inherit;
+      transition: color .15s; letter-spacing: .02em;
+    }
+    .pt-nav-tab.active { color:#1A9D20; }
+
+    /* ── Shop grid ─────────────────────────────────── */
+    .pt-shop-hd { padding: 22px 0 0; }
+    .pt-shop-title { font-size: 1.3rem; font-weight: 900; color: #001935; margin: 0 0 5px; }
+    .pt-shop-bar   { width: 34px; height: 3px; background:#1A9D20; border-radius: 2px; margin-bottom: 7px; }
+    .pt-shop-sub   { font-size: 0.88rem; color: #6B7280; margin: 0; }
+    .pt-shop-grid  { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 14px 0 0; }
+
+    .pt-shop-card {
+      background: #fff; border-radius: 16px; border: 1.5px solid #E5E7EB;
+      overflow: hidden; cursor: pointer; text-align: left;
+      box-shadow: 0 1px 4px rgba(0,0,0,.05);
+      transition: transform .15s, box-shadow .15s, border-color .15s;
+    }
+    .pt-shop-card:hover { transform: translateY(-2px); box-shadow: 0 4px 14px rgba(0,0,0,.1); border-color:#1A9D20; }
+    .pt-shop-img {
+      position: relative; background: #F3F4F6; aspect-ratio: 1;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .pt-shop-badge {
+      position: absolute; top: 8px; left: 8px;
+      background: #EF4444; color: #fff;
+      font-size: .63rem; font-weight: 800; padding: 3px 7px; border-radius: 4px;
+      letter-spacing: .03em;
+    }
+    .pt-shop-body  { padding: 10px 10px 13px; }
+    .pt-shop-name  {
+      font-size: .82rem; font-weight: 700; color: #1F2937; margin: 0 0 3px;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+      line-height: 1.35;
+    }
+    .pt-shop-feat  { font-size: .68rem; color: #6B7280; margin: 0 0 8px; line-height: 1.4; }
+    .pt-shop-prow  { display: flex; align-items: baseline; gap: 5px; flex-wrap: wrap; }
+    .pt-shop-price { font-size: .95rem; font-weight: 900; color: #1F2937; }
+    .pt-shop-orig  { font-size: .73rem; color: #9CA3AF; text-decoration: line-through; }
+
+    /* ── Product detail sheet ──────────────────────── */
+    .pt-backdrop {
+      position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 200;
+      opacity: 0; pointer-events: none; transition: opacity .3s;
+    }
+    .pt-backdrop.open { opacity: 1; pointer-events: auto; }
+    .pt-sheet {
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 201;
+      background: #fff; border-radius: 22px 22px 0 0;
+      max-height: 90vh; overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+      transform: translateY(100%);
+      transition: transform .35s cubic-bezier(.25,.46,.45,.94);
+      padding-bottom: max(env(safe-area-inset-bottom, 0px), 16px);
+    }
+    .pt-sheet.open { transform: translateY(0); }
+    .pt-sheet-handle {
+      width: 40px; height: 4px; background: #E5E7EB; border-radius: 2px;
+      margin: 12px auto 0;
+    }
+    .pt-sheet-body { padding: 16px 20px 24px; }
+    .pt-sheet-img {
+      background: #F3F4F6; border-radius: 16px; aspect-ratio: 16/9;
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 18px;
+    }
+    .pt-sheet-name { font-size: 1.05rem; font-weight: 900; color: #001935; margin: 0 0 14px; line-height: 1.35; }
+    .pt-sheet-prow { display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px; flex-wrap: wrap; }
+    .pt-sheet-price { font-size: 1.5rem; font-weight: 900; color: #001935; }
+    .pt-sheet-orig  { font-size: .88rem; color: #9CA3AF; text-decoration: line-through; }
+    .pt-sheet-disc  { font-size: .82rem; font-weight: 700; color: #22C55E; }
+    .pt-sheet-var-lbl { font-size: .88rem; font-weight: 700; color: #374151; margin: 16px 0 8px; }
+    .pt-sheet-vars  { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+    .pt-sheet-var {
+      padding: 7px 16px; border-radius: 20px; border: 1.5px solid #E5E7EB;
+      font-size: .83rem; font-weight: 600; color: #374151; cursor: pointer;
+      transition: all .15s; background: #fff;
+    }
+    .pt-sheet-var.active { background:#1A9D20; border-color:#1A9D20; color: #FFFFFF; }
+    .pt-sheet-offers-lbl {
+      font-size: .88rem; font-weight: 700; color: #374151;
+      margin: 0 0 10px; display: flex; align-items: center; gap: 7px;
+    }
+    .pt-sheet-offers { list-style: none; padding: 0; margin: 0 0 22px; }
+    .pt-sheet-offers li {
+      font-size: .83rem; color: #374151; padding: 4px 0;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .pt-sheet-offers li::before {
+      content: ""; width: 7px; height: 7px; border-radius: 50%;
+      background:#1A9D20; flex-shrink: 0;
+    }
+    .pt-buy-btn {
+      width: 100%; padding: 16px; border-radius: 16px; border: none;
+      background:#1A9D20; color: #FFFFFF; font-size: 1rem; font-weight: 800;
+      cursor: pointer; font-family: inherit; letter-spacing: .03em;
+      transition: background .15s;
+    }
+    .pt-buy-btn:hover { background: #157A18; }
+    .pt-buy-cs {
+      text-align: center; font-size: .75rem; color: #9CA3AF;
+      margin: 10px 0 0; font-weight: 600;
+    }
   </style>
-</head>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  </head>
 <body>
 <div class="pt-wp">
 
@@ -204,21 +323,24 @@
     <div class="pt-wh-top">
       <div class="pt-wh-logo">
         <div class="pt-wh-logo-box">
-          <svg width="20" height="20" viewBox="0 0 28 28" fill="none">
-            <path d="M6 6h9a5 5 0 0 1 0 10H10v6H6V6Z" fill="#ffffff"/>
-            <circle cx="15" cy="11" r="2" fill="#F5A623"/>
+          <svg width="20" height="20" viewBox="0 0 100 100" fill="none">
+            <rect width="100" height="100" rx="16" fill="white"/>
+            <rect x="14" y="14" width="16" height="72" rx="2" fill="#001935"/>
+            <circle cx="44" cy="38" r="24" fill="#001935"/>
+            <circle cx="46" cy="38" r="12" fill="white"/>
+            <path d="M40 38 L44 42 L53 29" stroke="#1A9D20" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </div>
-        <span class="pt-wh-logo-text">ParkTag</span>
+        <span class="pt-wh-logo-text">Park<span style="color:#1A9D20">Tag</span></span>
       </div>
       <div class="pt-wh-btns">
         <button class="pt-wh-btn" aria-label="Notifications">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" stroke="#1a1200" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M13.73 21a2 2 0 0 1-3.46 0" stroke="#1a1200" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" stroke="rgba(255,255,255,0.9)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0" stroke="rgba(255,255,255,0.9)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </button>
-        <button class="pt-wh-btn" onclick="window.location.href='/owner'" aria-label="Profile">
+        <button class="pt-wh-btn" aria-label="Profile">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
             <circle cx="12" cy="8" r="4" stroke="#1a1200" stroke-width="2"/>
             <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="#1a1200" stroke-width="2" stroke-linecap="round"/>
@@ -231,114 +353,427 @@
         <p class="pt-wh-hi" id="greetName">Hi, there!</p>
         <p class="pt-wh-id" id="greetId"></p>
       </div>
-      <a href="/owner" class="pt-manage-profile">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-        Manage Profile
-      </a>
     </div>
   </div><!-- /pt-wh-inner -->
   </div><!-- /pt-wh -->
 
-  <!-- ── White content ───────────────────── -->
-  <div class="pt-wc">
+  <!-- ── Tags view ──────────────────────── -->
+  <div id="view-tags">
+    <div class="pt-wc">
 
-    <!-- Carousel -->
-    <div class="pt-car-wrap">
-      <div class="pt-car-vp" id="carVp">
-        <div class="pt-car-track" id="carTrack">
+      <!-- Carousel -->
+      <div class="pt-car-wrap">
+        <div class="pt-car-vp" id="carVp">
+          <div class="pt-car-track" id="carTrack">
 
-          <!-- Slide 1 — image placeholders (mobile + desktop) -->
-          <div class="pt-car-slide">
-            <div class="pt-slide-img">
-              <!-- Mobile image (< 600px) -->
-              <div class="pt-slide-ph pt-ph-mob">
-                <svg width="36" height="36" viewBox="0 0 24 24" fill="none">
+            <!-- Slide 1 -->
+            <div class="pt-car-slide">
+              <div class="pt-slide-img">
+                <div class="pt-slide-ph pt-ph-mob">
+                  <svg width="36" height="36" viewBox="0 0 24 24" fill="none">
+                    <rect x="3" y="3" width="18" height="18" rx="2" stroke="#D1D5DB" stroke-width="1.5"/>
+                    <circle cx="8.5" cy="8.5" r="1.5" fill="#D1D5DB"/>
+                    <path d="M21 15l-5-5L5 21" stroke="#D1D5DB" stroke-width="1.5" stroke-linecap="round"/>
+                  </svg>
+                  <span class="pt-slide-ph-tag">Mobile Image — Slide 1</span>
+                </div>
+                <div class="pt-slide-ph pt-ph-desk">
+                  <svg width="36" height="36" viewBox="0 0 24 24" fill="none">
+                    <rect x="3" y="3" width="18" height="18" rx="2" stroke="#D1D5DB" stroke-width="1.5"/>
+                    <circle cx="8.5" cy="8.5" r="1.5" fill="#D1D5DB"/>
+                    <path d="M21 15l-5-5L5 21" stroke="#D1D5DB" stroke-width="1.5" stroke-linecap="round"/>
+                  </svg>
+                  <span class="pt-slide-ph-tag">Desktop Image — Slide 1</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Slide 2 -->
+            <div class="pt-car-slide">
+              <div class="pt-slide-blank">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
                   <rect x="3" y="3" width="18" height="18" rx="2" stroke="#D1D5DB" stroke-width="1.5"/>
                   <circle cx="8.5" cy="8.5" r="1.5" fill="#D1D5DB"/>
                   <path d="M21 15l-5-5L5 21" stroke="#D1D5DB" stroke-width="1.5" stroke-linecap="round"/>
                 </svg>
-                <span class="pt-slide-ph-tag">Mobile Image — Slide 1</span>
+                <p class="pt-slide-blank-lbl">Slide 2 — Coming Soon</p>
               </div>
-              <!-- Desktop image (≥ 600px) -->
-              <div class="pt-slide-ph pt-ph-desk">
-                <svg width="36" height="36" viewBox="0 0 24 24" fill="none">
+            </div>
+
+            <!-- Slide 3 -->
+            <div class="pt-car-slide">
+              <div class="pt-slide-blank">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
                   <rect x="3" y="3" width="18" height="18" rx="2" stroke="#D1D5DB" stroke-width="1.5"/>
                   <circle cx="8.5" cy="8.5" r="1.5" fill="#D1D5DB"/>
                   <path d="M21 15l-5-5L5 21" stroke="#D1D5DB" stroke-width="1.5" stroke-linecap="round"/>
                 </svg>
-                <span class="pt-slide-ph-tag">Desktop Image — Slide 1</span>
+                <p class="pt-slide-blank-lbl">Slide 3 — Coming Soon</p>
               </div>
             </div>
+
           </div>
 
-          <!-- Slide 2 — blank -->
-          <div class="pt-car-slide">
-            <div class="pt-slide-blank">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
-                <rect x="3" y="3" width="18" height="18" rx="2" stroke="#D1D5DB" stroke-width="1.5"/>
-                <circle cx="8.5" cy="8.5" r="1.5" fill="#D1D5DB"/>
-                <path d="M21 15l-5-5L5 21" stroke="#D1D5DB" stroke-width="1.5" stroke-linecap="round"/>
-              </svg>
-              <p class="pt-slide-blank-lbl">Slide 2 — Coming Soon</p>
-            </div>
-          </div>
-
-          <!-- Slide 3 — blank -->
-          <div class="pt-car-slide">
-            <div class="pt-slide-blank">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
-                <rect x="3" y="3" width="18" height="18" rx="2" stroke="#D1D5DB" stroke-width="1.5"/>
-                <circle cx="8.5" cy="8.5" r="1.5" fill="#D1D5DB"/>
-                <path d="M21 15l-5-5L5 21" stroke="#D1D5DB" stroke-width="1.5" stroke-linecap="round"/>
-              </svg>
-              <p class="pt-slide-blank-lbl">Slide 3 — Coming Soon</p>
-            </div>
-          </div>
-
+          <button class="pt-car-arr pt-car-prev" id="carPrev" aria-label="Previous">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M15 18l-6-6 6-6" stroke="#374151" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <button class="pt-car-arr pt-car-next" id="carNext" aria-label="Next">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="#374151" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
         </div>
 
-        <button class="pt-car-arr pt-car-prev" id="carPrev" aria-label="Previous">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M15 18l-6-6 6-6" stroke="#374151" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </button>
-        <button class="pt-car-arr pt-car-next" id="carNext" aria-label="Next">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="#374151" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <div class="pt-car-dots">
+          <button class="pt-dot-btn" aria-selected="true"  data-idx="0" aria-label="Slide 1"></button>
+          <button class="pt-dot-btn" aria-selected="false" data-idx="1" aria-label="Slide 2"></button>
+          <button class="pt-dot-btn" aria-selected="false" data-idx="2" aria-label="Slide 3"></button>
+        </div>
+      </div>
+
+      <!-- Search -->
+      <div class="pt-wsearch">
+        <input class="pt-wsearch-inp" type="search" id="vehicleSearch" placeholder="Search ParkTag vehicle" autocomplete="off"/>
+        <button class="pt-wsearch-btn" aria-label="Search">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+            <circle cx="11" cy="11" r="8" stroke="#fff" stroke-width="2.2"/>
+            <path d="M21 21l-4.35-4.35" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/>
+          </svg>
         </button>
       </div>
 
-      <div class="pt-car-dots">
-        <button class="pt-dot-btn" aria-selected="true"  data-idx="0" aria-label="Slide 1"></button>
-        <button class="pt-dot-btn" aria-selected="false" data-idx="1" aria-label="Slide 2"></button>
-        <button class="pt-dot-btn" aria-selected="false" data-idx="2" aria-label="Slide 3"></button>
+      <!-- Tags heading -->
+      <div class="pt-tags-hd">
+        <h2 class="pt-tags-title">Tags</h2>
+        <div class="pt-tags-bar"></div>
+        <p class="pt-tags-sub">Manage your ParkTag tags in one place.</p>
       </div>
+
+      <!-- Vehicle grid -->
+      <div class="pt-vgrid" id="vehicleGrid"></div>
+
     </div>
+  </div><!-- /view-tags -->
 
-    <!-- Search -->
-    <div class="pt-wsearch">
-      <input class="pt-wsearch-inp" type="search" id="vehicleSearch" placeholder="Search ParkTag vehicle" autocomplete="off"/>
-      <button class="pt-wsearch-btn" aria-label="Search">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-          <circle cx="11" cy="11" r="8" stroke="#fff" stroke-width="2.2"/>
-          <path d="M21 21l-4.35-4.35" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/>
-        </svg>
-      </button>
+  <!-- ── Shop view ───────────────────────── -->
+  <div id="view-shop" style="display:none">
+    <div class="pt-wc">
+      <div class="pt-shop-hd">
+        <h2 class="pt-shop-title">Shop</h2>
+        <div class="pt-shop-bar"></div>
+        <p class="pt-shop-sub">Get your ParkTag physical tag delivered to you.</p>
+      </div>
+      <div class="pt-shop-grid" id="shopGrid"></div>
     </div>
+  </div><!-- /view-shop -->
 
-    <!-- Tags heading -->
-    <div class="pt-tags-hd">
-      <h2 class="pt-tags-title">Tags</h2>
-      <div class="pt-tags-bar"></div>
-      <p class="pt-tags-sub">Manage your ParkTag tags in one place.</p>
-    </div>
+</div><!-- /pt-wp -->
 
-    <!-- Vehicle grid -->
-    <div class="pt-vgrid" id="vehicleGrid"></div>
-
-  </div>
+<!-- ── Product detail sheet ───────────────── -->
+<div class="pt-backdrop" id="ptBackdrop"></div>
+<div class="pt-sheet" id="ptSheet">
+  <div class="pt-sheet-handle"></div>
+  <div class="pt-sheet-body" id="ptSheetBody"></div>
 </div>
 
+<!-- ── Bottom nav ──────────────────────────── -->
+<nav class="pt-bottom-nav">
+  <button class="pt-nav-tab active" id="navTags" onclick="switchTab('tags')">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+      <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="7" cy="7" r="1.5" fill="currentColor"/>
+    </svg>
+    Tags
+  </button>
+  <button class="pt-nav-tab" id="navShop" onclick="switchTab('shop')">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+      <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <line x1="3" y1="6" x2="21" y2="6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <path d="M16 10a4 4 0 0 1-8 0" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    Shop
+  </button>
+</nav>
+
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 <script type="module" src="/scripts/owner-welcome.js"></script>
+<script>
+// ── Shop products ─────────────────────────────────────────────
+const PRODUCTS = [
+  {
+    id: "pt-car-1",
+    name: "ParkTag Car Tag (Pack of 1)",
+    desc: "Allow people to contact you in case of urgency with parked vehicle.",
+    features: ["Masked Calls", "WhatsApp", "Emergency Contact", "One time buy"],
+    price: 399,
+    orig: 499,
+    discount: 20,
+    variants: ["Car", "Auto"],
+  },
+  {
+    id: "pt-car-2",
+    name: "ParkTag Car Tag (Pack of 2)",
+    desc: "Best value — tag two cars and never miss an emergency call.",
+    features: ["Masked Calls", "WhatsApp", "Emergency Contact", "One time buy"],
+    price: 699,
+    orig: 799,
+    discount: 13,
+    variants: ["Car", "Auto"],
+  },
+  {
+    id: "pt-bike-1",
+    name: "ParkTag Bike Tag",
+    desc: "For Bike & Helmet — weatherproof sticker with QR contact.",
+    features: ["Masked Calls", "WhatsApp", "Emergency Contact", "One time buy"],
+    price: 349,
+    orig: 399,
+    discount: 13,
+    variants: ["Bike", "Scooter", "Helmet"],
+  },
+  {
+    id: "pt-combo",
+    name: "ParkTag Combo Pack",
+    desc: "Car + Bike tags — the complete bundle for your entire fleet.",
+    features: ["Masked Calls", "WhatsApp", "Emergency Contact", "One time buy"],
+    price: 699,
+    orig: 899,
+    discount: 22,
+    variants: ["Car", "Bike", "Scooter"],
+  },
+];
+
+// ── Skeleton helpers ──────────────────────────────────────────
+function skeletonShopCards(count) {
+  return Array.from({ length: count }, () => `
+    <div class="pt-shop-card" style="pointer-events:none">
+      <div class="pt-shop-img sk" style="border-radius:0;aspect-ratio:1"></div>
+      <div class="pt-shop-body">
+        <div class="sk" style="height:13px;border-radius:6px;margin-bottom:7px;width:88%"></div>
+        <div class="sk" style="height:10px;border-radius:6px;margin-bottom:10px;width:65%"></div>
+        <div class="sk" style="height:15px;border-radius:6px;width:42%"></div>
+      </div>
+    </div>`).join("");
+}
+
+// ── Tag placeholder SVG for shop cards ────────────────────────
+function tagPlaceholder(size) {
+  const s = size || 72;
+  return `<svg width="${s}" height="${s}" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect width="72" height="72" rx="14" fill="#F3F4F6"/>
+    <rect x="12" y="12" width="22" height="22" rx="4" fill="#001935"/>
+    <rect x="16" y="16" width="14" height="14" rx="2" fill="#FFFFFF"/>
+    <rect x="18" y="18" width="4" height="4" fill="#001935"/>
+    <rect x="24" y="18" width="4" height="4" fill="#001935"/>
+    <rect x="18" y="24" width="4" height="4" fill="#001935"/>
+    <rect x="38" y="12" width="22" height="22" rx="4" fill="#001935"/>
+    <rect x="42" y="16" width="14" height="14" rx="2" fill="#FFFFFF"/>
+    <rect x="44" y="18" width="4" height="4" fill="#001935"/>
+    <rect x="50" y="18" width="4" height="4" fill="#001935"/>
+    <rect x="44" y="24" width="10" height="4" fill="#001935"/>
+    <rect x="12" y="38" width="22" height="22" rx="4" fill="#001935"/>
+    <rect x="16" y="42" width="14" height="14" rx="2" fill="#FFFFFF"/>
+    <rect x="18" y="44" width="10" height="4" fill="#001935"/>
+    <rect x="18" y="50" width="4" height="4" fill="#001935"/>
+    <rect x="24" y="50" width="4" height="4" fill="#001935"/>
+    <rect x="38" y="38" width="4" height="4" fill="#1A9D20"/>
+    <rect x="44" y="38" width="4" height="4" fill="#1A9D20"/>
+    <rect x="50" y="38" width="4" height="4" fill="#1A9D20"/>
+    <rect x="56" y="38" width="4" height="4" fill="#001935"/>
+    <rect x="38" y="44" width="4" height="4" fill="#1A9D20"/>
+    <rect x="44" y="44" width="16" height="4" fill="#001935"/>
+    <rect x="38" y="50" width="10" height="4" fill="#001935"/>
+    <rect x="50" y="50" width="4" height="4" fill="#1A9D20"/>
+    <rect x="56" y="50" width="4" height="4" fill="#001935"/>
+    <rect x="38" y="56" width="4" height="4" fill="#001935"/>
+    <rect x="44" y="56" width="4" height="4" fill="#1A9D20"/>
+    <rect x="50" y="56" width="10" height="4" fill="#001935"/>
+  </svg>`;
+}
+
+// ── Render shop grid ──────────────────────────────────────────
+function renderShop() {
+  const grid = document.getElementById("shopGrid");
+  grid.innerHTML = PRODUCTS.map((p, i) => `
+    <div class="pt-shop-card" onclick="openProduct(${i})">
+      <div class="pt-shop-img">
+        <span class="pt-shop-badge">${p.discount}% OFF</span>
+        ${tagPlaceholder(68)}
+      </div>
+      <div class="pt-shop-body">
+        <p class="pt-shop-name">${p.name}</p>
+        <p class="pt-shop-feat">${p.features.join(" | ")}</p>
+        <div class="pt-shop-prow">
+          <span class="pt-shop-price">₹${p.price}</span>
+          <span class="pt-shop-orig">₹${p.orig}</span>
+        </div>
+      </div>
+    </div>
+  `).join("");
+}
+
+// ── Open product detail ───────────────────────────────────────
+let _activeProduct = null;
+let _activeVariant = 0;
+
+function openProduct(idx) {
+  _activeProduct = idx;
+  _activeVariant = 0;
+  renderSheet();
+  document.getElementById("ptBackdrop").classList.add("open");
+  document.getElementById("ptSheet").classList.add("open");
+  document.body.style.overflow = "hidden";
+}
+
+function closeProduct() {
+  document.getElementById("ptBackdrop").classList.remove("open");
+  document.getElementById("ptSheet").classList.remove("open");
+  document.body.style.overflow = "";
+}
+
+function selectVariant(i) {
+  _activeVariant = i;
+  document.querySelectorAll(".pt-sheet-var").forEach((el, j) => {
+    el.classList.toggle("active", j === i);
+  });
+}
+
+function renderSheet() {
+  const p = PRODUCTS[_activeProduct];
+  const body = document.getElementById("ptSheetBody");
+  body.innerHTML = `
+    <div class="pt-sheet-img">
+      ${tagPlaceholder(100)}
+    </div>
+    <p class="pt-sheet-name">${p.name}. ${p.desc}</p>
+    <div class="pt-sheet-prow">
+      <span class="pt-sheet-price">₹${p.price}</span>
+      <span class="pt-sheet-orig">₹${p.orig}</span>
+      <span class="pt-sheet-disc">${p.discount}% off</span>
+    </div>
+    <p class="pt-sheet-var-lbl">Select Variant</p>
+    <div class="pt-sheet-vars">
+      ${p.variants.map((v, i) => `
+        <button class="pt-sheet-var${i === 0 ? " active" : ""}" onclick="selectVariant(${i})">${v}</button>
+      `).join("")}
+    </div>
+    <p class="pt-sheet-offers-lbl">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+        <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" stroke="#1A9D20" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="7" cy="7" r="1.5" fill="#1A9D20"/>
+      </svg>
+      Available Offers
+    </p>
+    <ul class="pt-sheet-offers">
+      ${p.features.map(f => `<li>${f}</li>`).join("")}
+    </ul>
+    <button class="pt-buy-btn" onclick="handleBuyNow()">BUY NOW</button>
+    <p class="pt-buy-cs">Secured by Razorpay &nbsp;|&nbsp; UPI, Cards, Net Banking</p>
+  `;
+}
+
+async function handleBuyNow() {
+  const p = PRODUCTS[_activeProduct];
+  const variant = p.variants[_activeVariant];
+  const btn = document.querySelector(".pt-buy-btn");
+  if (btn) { btn.disabled = true; btn.classList.add("pt-btn-loading"); }
+
+  try {
+    // 1. Create order on backend
+    const orderRes = await fetch("/api/shop/create-order", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ amount: p.price, productId: p.id, productName: `${p.name} (${variant})` })
+    });
+    const orderData = await orderRes.json();
+    if (!orderRes.ok || !orderData.orderId) throw new Error(orderData.error || "Order creation failed.");
+
+    // 2. Fetch key ID
+    const keyRes = await fetch("/api/shop/razorpay-key");
+    const { keyId } = await keyRes.json();
+
+    if (btn) { btn.disabled = false; btn.classList.remove("pt-btn-loading"); }
+
+    // 3. Open Razorpay checkout
+    const rzp = new Razorpay({
+      key: keyId,
+      amount: orderData.amount,
+      currency: orderData.currency,
+      order_id: orderData.orderId,
+      name: "ParkTag",
+      description: `${p.name} (${variant})`,
+      image: "/icons/icon-192.png",
+      theme: { color: "#1A9D20" },
+      handler: async function (response) {
+        // 4. Verify on backend
+        const verifyRes = await fetch("/api/shop/verify-payment", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            razorpay_order_id: response.razorpay_order_id,
+            razorpay_payment_id: response.razorpay_payment_id,
+            razorpay_signature: response.razorpay_signature
+          })
+        });
+        const verifyData = await verifyRes.json();
+        closeProduct();
+        if (verifyData.ok) {
+          showToast("Payment successful! We'll process your order shortly.", "success");
+        } else {
+          showToast("Payment verification failed. Contact support.", "error");
+        }
+      },
+      modal: {
+        ondismiss: function () {
+          if (btn) { btn.disabled = false; btn.classList.remove("pt-btn-loading"); }
+        }
+      }
+    });
+    rzp.open();
+  } catch (err) {
+    if (btn) { btn.disabled = false; btn.classList.remove("pt-btn-loading"); }
+    showToast(err.message || "Something went wrong. Please try again.", "error");
+  }
+}
+
+function showToast(message, tone) {
+  const existing = document.getElementById("pt-toast");
+  if (existing) existing.remove();
+  const toast = document.createElement("div");
+  toast.id = "pt-toast";
+  toast.textContent = message;
+  Object.assign(toast.style, {
+    position: "fixed", bottom: "90px", left: "50%", transform: "translateX(-50%)",
+    background: tone === "success" ? "#059669" : "#EF4444",
+    color: "#fff", padding: "12px 22px", borderRadius: "12px",
+    fontWeight: "700", fontSize: "0.88rem", zIndex: "999",
+    boxShadow: "0 4px 16px rgba(0,0,0,0.18)", maxWidth: "88vw", textAlign: "center"
+  });
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 4000);
+}
+
+// ── Tab switching ─────────────────────────────────────────────
+function switchTab(tab) {
+  const isShop = tab === "shop";
+  document.getElementById("view-tags").style.display = isShop ? "none" : "";
+  document.getElementById("view-shop").style.display = isShop ? "" : "none";
+  document.getElementById("navTags").classList.toggle("active", !isShop);
+  document.getElementById("navShop").classList.toggle("active", isShop);
+  if (isShop) {
+    const grid = document.getElementById("shopGrid");
+    grid.innerHTML = skeletonShopCards(4);
+    requestAnimationFrame(() => setTimeout(renderShop, 280));
+  }
+}
+
+// Close sheet on backdrop click
+document.getElementById("ptBackdrop").addEventListener("click", closeProduct);
+
+// Swipe-down to close sheet
+let _sheetTouchY = 0;
+const sheet = document.getElementById("ptSheet");
+sheet.addEventListener("touchstart", e => { _sheetTouchY = e.touches[0].clientY; }, { passive: true });
+sheet.addEventListener("touchend", e => {
+  if (e.changedTouches[0].clientY - _sheetTouchY > 60) closeProduct();
+});
+</script>
 </body>
 </html>

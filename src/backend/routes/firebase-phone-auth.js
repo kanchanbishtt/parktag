@@ -61,6 +61,62 @@ async function findOrCreateOwner(collections, phoneE164) {
 }
 
 export function registerFirebasePhoneAuthRoute(app, env) {
+  // Public Firebase config for the client SDK
+  app.get("/api/auth/firebase-config", async (request, reply) => {
+    const { firebaseApiKey, firebaseProjectId } = env;
+    if (!firebaseApiKey || !firebaseProjectId) {
+      reply.code(503);
+      return { error: "Firebase not configured." };
+    }
+    return {
+      apiKey: firebaseApiKey,
+      authDomain: `${firebaseProjectId}.firebaseapp.com`,
+      projectId: firebaseProjectId
+    };
+  });
+
+  // Verify a Firebase ID token (from client SDK) and create a session
+  app.post("/api/auth/firebase-phone/verify-token", async (request, reply) => {
+    const { idToken } = request.body || {};
+    if (!idToken) { reply.code(400); return { ok: false, error: "ID token required." }; }
+
+    const apiKey = env.firebaseApiKey;
+    if (!apiKey) { reply.code(500); return { ok: false, error: "Firebase not configured." }; }
+
+    try {
+      const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ idToken })
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.users?.[0]) {
+        reply.code(401);
+        return { ok: false, error: "Invalid or expired token." };
+      }
+
+      const phoneE164 = data.users[0].phoneNumber;
+      if (!phoneE164) { reply.code(401); return { ok: false, error: "No phone number in token." }; }
+
+      const collections = await getCollections(env);
+      if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
+
+      const { owner, isNew } = await findOrCreateOwner(collections, phoneE164);
+      const sessionId = await createSession(app, {
+        id: String(owner._id),
+        role: "owner",
+        email: owner.email || owner.mobile || phoneE164,
+        displayName: owner.displayName
+      });
+      writeSessionCookie(reply, sessionId);
+      return { ok: true, isNew };
+    } catch (err) {
+      reply.code(400);
+      return { ok: false, error: err.message };
+    }
+  });
+
   // Fetch Firebase's reCAPTCHA site key (used by client to generate invisible token)
   app.get("/api/auth/firebase-phone/recaptcha-key", async (request, reply) => {
     const apiKey = env.firebaseApiKey;

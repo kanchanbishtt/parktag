@@ -109,6 +109,23 @@
     .av-status[data-tone="error"]   { color: #DC2626; }
     .av-status[data-tone="success"] { color: #059669; }
 
+    /* ── Skeleton ── */
+    .sk-block {
+      background: linear-gradient(90deg, #F3F4F6 25%, #E9EAEC 50%, #F3F4F6 75%);
+      background-size: 200% 100%;
+      animation: sk-shimmer 1.4s infinite;
+    }
+    @keyframes sk-shimmer {
+      0%   { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+    #page-content {
+      opacity: 0;
+      transition: opacity 0.18s ease;
+    }
+    #page-content.sk-visible { opacity: 1; }
+    .av-submit-bar { display: none; }
+
     /* ── E-Tag Popup ── */
     .etag-overlay {
       display: none; position: fixed; inset: 0; z-index: 200;
@@ -202,21 +219,33 @@
       </svg>
     </a>
     <div class="av-logo">
-      <div class="av-logo-box">
-        <svg width="18" height="18" viewBox="0 0 100 100" fill="none">
-          <rect width="100" height="100" rx="16" fill="white"/>
-          <rect x="14" y="14" width="16" height="72" rx="2" fill="#001935"/>
-          <circle cx="44" cy="38" r="24" fill="#001935"/>
-          <circle cx="46" cy="38" r="12" fill="white"/>
-          <path d="M40 38 L44 42 L53 29" stroke="#1A9D20" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </div>
-      <span class="av-logo-text">Park<span style="color:#1A9D20">Tag</span></span>
+      <img src="/images/light-logo.png" alt="ParkTag" style="height:38px;width:auto;">
     </div>
   </div>
 
   <!-- Body -->
   <div class="av-body">
+
+    <!-- Skeleton -->
+    <div id="page-skeleton">
+      <div class="sk-block" style="width:62%;height:36px;border-radius:10px;margin-bottom:10px"></div>
+      <div class="sk-block" style="width:80%;height:15px;border-radius:6px;margin-bottom:32px"></div>
+      <div class="sk-block" style="width:32%;height:13px;border-radius:5px;margin-bottom:9px"></div>
+      <div class="sk-block" style="width:100%;height:52px;border-radius:14px;margin-bottom:20px"></div>
+      <div class="sk-block" style="width:38%;height:13px;border-radius:5px;margin-bottom:9px"></div>
+      <div class="sk-block" style="width:100%;height:52px;border-radius:14px;margin-bottom:20px"></div>
+      <div class="sk-block" style="width:100%;height:52px;border-radius:14px;margin-bottom:32px"></div>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+        <div class="sk-block" style="flex:1;height:1px;border-radius:2px"></div>
+        <div class="sk-block" style="width:38%;height:11px;border-radius:4px"></div>
+        <div class="sk-block" style="flex:1;height:1px;border-radius:2px"></div>
+      </div>
+      <div class="sk-block" style="width:28%;height:13px;border-radius:5px;margin-bottom:9px"></div>
+      <div class="sk-block" style="width:100%;height:52px;border-radius:14px"></div>
+    </div>
+
+    <!-- Real content -->
+    <div id="page-content">
     <h1 class="av-heading">Add Your Vehicles</h1>
     <p class="av-sub">Add vehicles to track and manage your tags</p>
 
@@ -241,6 +270,7 @@
         placeholder="e.g. DL 01 AB 1234"
         autocomplete="off" spellcheck="false"
         style="text-transform:uppercase;letter-spacing:0.05em"/>
+      <span id="plate-error" style="display:none;font-size:0.78rem;color:#DC2626;font-weight:600;margin-top:5px"></span>
     </div>
 
     <button class="av-add-btn" id="add-vehicle-btn">
@@ -268,6 +298,7 @@
     </div>
 
     <p class="av-status" id="av-status"></p>
+    </div><!-- /#page-content -->
   </div>
 
   <!-- Submit bar -->
@@ -366,6 +397,18 @@
     </div>
   </div>
 
+  <script>
+    setTimeout(function () {
+      var sk = document.getElementById('page-skeleton');
+      var content = document.getElementById('page-content');
+      var bar = document.querySelector('.av-submit-bar');
+      sk.style.display = 'none';
+      bar.style.display = 'block';
+      requestAnimationFrame(function () {
+        content.classList.add('sk-visible');
+      });
+    }, 250);
+  </script>
   <script type="module" src="/scripts/register-owner.js"></script>
 </body>
 </html>

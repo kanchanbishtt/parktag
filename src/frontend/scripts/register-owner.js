@@ -62,6 +62,36 @@ const VEHICLE_SVGS = {
 
 let vehicles = [];
 
+// Indian vehicle number: 2 letters + 1-2 digits + 1-3 letters + 1-4 digits (spaces optional)
+const PLATE_RE = /^[A-Z]{2}\s?[0-9]{1,2}\s?[A-Z]{1,3}\s?[0-9]{1,4}$/;
+
+function validatePlate(raw, type) {
+  if (!raw) return "Please enter the vehicle number.";
+  if (type === "bicycle") {
+    return raw.replace(/\s/g, "").length >= 3
+      ? null
+      : "Enter a valid frame number or ID (min. 3 characters).";
+  }
+  return PLATE_RE.test(raw)
+    ? null
+    : "Invalid format. Use Indian format — e.g. DL 01 AB 1234.";
+}
+
+function setPlateError(msg) {
+  const err = document.getElementById("plate-error");
+  const inp = document.getElementById("vehicle-number");
+  if (!err || !inp) return;
+  if (msg) {
+    err.textContent = msg;
+    err.style.display = "block";
+    inp.style.borderColor = "#DC2626";
+  } else {
+    err.textContent = "";
+    err.style.display = "none";
+    inp.style.borderColor = "";
+  }
+}
+
 function setStatus(msg, tone = "info") {
   const el = document.getElementById("av-status");
   if (!el) return;
@@ -105,8 +135,23 @@ function addVehicle() {
   const raw  = (document.getElementById("vehicle-number")?.value || "").trim().toUpperCase().replace(/\s+/g, " ");
 
   if (!type) { setStatus("Please select a vehicle type.", "error"); return; }
-  if (!raw)  { setStatus("Please enter the vehicle number.", "error"); return; }
 
+  const plateErr = validatePlate(raw, type);
+  if (plateErr) { setPlateError(plateErr); document.getElementById("vehicle-number")?.focus(); return; }
+
+  const isDup = vehicles.some(v => v.number === raw);
+  if (isDup) { setPlateError("Vehicle already added."); return; }
+
+  // Check against saved vehicles in localStorage
+  try {
+    const uid = sessionStorage.getItem("pt_uid");
+    const key = uid ? "pt_vehicles_" + uid.replace(/[^a-z0-9]/gi, "_").toLowerCase() : "pt_pending_vehicles";
+    const saved = JSON.parse(localStorage.getItem(key) || "[]");
+    const existsInSaved = saved.some(v => (v.number || "").toUpperCase() === raw);
+    if (existsInSaved) { setPlateError("Vehicle already added."); return; }
+  } catch (_) {}
+
+  setPlateError("");
   vehicles.push({ type, number: raw });
   renderList();
   setStatus("", "info");
@@ -170,6 +215,7 @@ function savePendingVehicles() {
 }
 
 async function saveVehicles() {
+  const alreadyAdded = [];
   for (const v of vehicles) {
     try {
       const res = await fetch("/api/owner/local-vehicle", {
@@ -177,11 +223,16 @@ async function saveVehicles() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ type: v.type, number: v.number })
       });
+      if (res.status === 409) { alreadyAdded.push(v.number); continue; }
       if (!res.ok) throw new Error("api-failed");
     } catch {
       savePendingVehicles();
       return;
     }
+  }
+  if (alreadyAdded.length) {
+    setStatus(`Already added: ${alreadyAdded.join(", ")}. Redirecting…`, "info");
+    await new Promise(r => setTimeout(r, 1500));
   }
 }
 
@@ -198,8 +249,11 @@ function submit() {
   const formType = document.getElementById("vehicle-type")?.value;
   const formNum  = (document.getElementById("vehicle-number")?.value || "").trim().toUpperCase().replace(/\s+/g, " ");
   if (formType && formNum) {
+    const plateErr = validatePlate(formNum, formType);
+    if (plateErr) { setPlateError(plateErr); document.getElementById("vehicle-number")?.focus(); return; }
     vehicles.push({ type: formType, number: formNum });
     renderList();
+    setPlateError("");
     document.getElementById("vehicle-type").value = "";
     document.getElementById("vehicle-number").value = "";
   }
@@ -228,6 +282,21 @@ function submit() {
 
 // ── Wire up events ───────────────────────────────────────────
 document.getElementById("add-vehicle-btn")?.addEventListener("click", addVehicle);
+
+document.getElementById("vehicle-number")?.addEventListener("input", e => {
+  // Strip anything that isn't A-Z, 0-9, or space; auto-uppercase
+  const cur = e.target.value;
+  const clean = cur.replace(/[^A-Za-z0-9 ]/g, "").toUpperCase();
+  if (cur !== clean) e.target.value = clean;
+  // Clear error while user is actively editing
+  setPlateError("");
+});
+
+document.getElementById("vehicle-number")?.addEventListener("blur", e => {
+  const raw = e.target.value.trim().toUpperCase().replace(/\s+/g, " ");
+  const type = document.getElementById("vehicle-type")?.value;
+  if (raw) setPlateError(validatePlate(raw, type) || "");
+});
 
 document.getElementById("vehicle-number")?.addEventListener("keydown", e => {
   if (e.key === "Enter") addVehicle();

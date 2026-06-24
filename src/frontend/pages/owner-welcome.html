@@ -17,19 +17,14 @@
     /* ── Amber header ──────────────────────────────── */
     .pt-wh {
       background: linear-gradient(155deg, #001935 0%, #0D2545 55%, #1A3A6E 100%);
-      padding: 14px 18px 24px;
+      padding: 14px 18px 28px;
+      box-shadow: 0 4px 16px rgba(0,25,53,0.18);
     }
     .pt-wh-inner { max-width: 880px; margin: 0 auto; }
     .pt-wh-top {
       display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;
     }
     .pt-wh-logo { display: flex; align-items: center; gap: 9px; }
-    .pt-wh-logo-box {
-      width: 36px; height: 36px; border-radius: 10px; background: #001935;
-      display: flex; align-items: center; justify-content: center;
-      box-shadow: 0 2px 6px rgba(0,25,53,0.35);
-    }
-    .pt-wh-logo-text { font-size: 1.35rem; font-weight: 900; color: #FFFFFF; letter-spacing: -0.02em; }
     .pt-wh-btns { display: flex; gap: 8px; }
     .pt-wh-btn {
       width: 40px; height: 40px; border-radius: 12px;
@@ -40,8 +35,27 @@
     .pt-wh-btn:hover { background: rgba(255,255,255,0.25); }
 
     .pt-wh-bottom { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
-    .pt-wh-hi   { font-size: 1.6rem; font-weight: 900; color: #FFFFFF; margin: 0 0 3px; }
-    .pt-wh-id   { font-size: 0.83rem; color: #495B7B; margin: 0; opacity: .85; }
+    .pt-wh-hi   { font-size: 1.3rem; font-weight: 700; color: #FFFFFF; margin: 0 0 3px;
+                  max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pt-wh-id   { font-size: 0.83rem; color: #8CA4C4; margin: 0;
+                  max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* ── Pull-to-refresh ───────────────────────────── */
+    .pt-ptr {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      height: 0; overflow: hidden; transition: height .2s ease;
+      font-size: 0.78rem; font-weight: 600; color: #6B7280;
+    }
+    .pt-ptr.visible { height: 44px; }
+    @keyframes ptr-spin { to { transform: rotate(360deg); } }
+    .pt-ptr-spin { animation: ptr-spin .7s linear infinite; }
+
+    @keyframes pt-fade-up {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .pt-reveal { animation: pt-fade-up 0.35s cubic-bezier(.25,.46,.45,.94) forwards; }
+    .pt-reveal-grid { animation: pt-fade-up 0.4s cubic-bezier(.25,.46,.45,.94) 0.05s both; }
 
     /* ── Content ───────────────────────────────────── */
     .pt-wc {
@@ -66,11 +80,20 @@
       .pt-shop-feat { font-size: .75rem; }
     }
     @media (min-width: 1024px) {
-      .pt-wh { padding: 20px 48px 32px; }
-      .pt-wc { padding: 0 40px 64px; }
-      .pt-vgrid { grid-template-columns: repeat(3, 1fr); }
-      .pt-shop-grid { grid-template-columns: repeat(3, 1fr); gap: 20px; }
+      .pt-wh { padding: 20px 60px 28px; }
+      .pt-wh-inner { max-width: 1200px; }
+      .pt-wc { max-width: 1200px; padding: 0 60px 64px; }
+      .pt-vgrid { grid-template-columns: repeat(4, 1fr); gap: 16px; }
+      .pt-shop-grid { grid-template-columns: repeat(4, 1fr); gap: 20px; }
       .pt-shop-name { font-size: 1rem; }
+      .pt-wh-hi { font-size: 1.45rem; }
+      .pt-slide-img { aspect-ratio: 21/7; }
+    }
+    @media (min-width: 1400px) {
+      .pt-wh { padding: 22px 80px 30px; }
+      .pt-wh-inner { max-width: 1400px; }
+      .pt-wc { max-width: 1400px; padding: 0 80px 72px; }
+      .pt-vgrid { grid-template-columns: repeat(5, 1fr); }
     }
 
     /* ── Carousel ──────────────────────────────────── */
@@ -128,21 +151,22 @@
     .pt-car-next { right: 8px; }
 
     /* ── Search ────────────────────────────────────── */
-    .pt-wsearch { display: flex; gap: 10px; align-items: center; padding: 16px 0 0; }
+    .pt-wsearch { position: relative; padding: 16px 0 0; }
     .pt-wsearch-inp {
-      flex: 1; height: 48px; border-radius: 24px;
+      width: 100%; height: 48px; border-radius: 24px;
       border: 1.5px solid #E5E7EB; background: #F9FAFB;
-      padding: 0 18px; font-size: 0.88rem; color: #1F2937;
-      outline: none; font-family: inherit; transition: border-color .15s;
+      padding: 0 52px 0 18px; font-size: 0.88rem; color: #1F2937;
+      outline: none; font-family: inherit; transition: border-color .15s, background .15s;
     }
     .pt-wsearch-inp:focus { border-color:#1A9D20; background: #fff; }
     .pt-wsearch-btn {
-      width: 48px; height: 48px; border-radius: 50%; flex-shrink: 0;
-      background:#1A9D20; border: none; cursor: pointer;
+      position: absolute; right: 6px; top: 50%; transform: translateY(calc(-50% + 8px));
+      width: 36px; height: 36px; border-radius: 50%;
+      background: transparent; border: none; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
       transition: background .15s;
     }
-    .pt-wsearch-btn:hover { background: #157A18; }
+    .pt-wsearch-btn:hover { background: #EBF7EC; }
 
     /* ── Tags heading ──────────────────────────────── */
     .pt-tags-hd { padding: 22px 0 0; }
@@ -155,16 +179,17 @@
 
     .pt-vc {
       background: #fff; border-radius: 18px; border: 1.5px solid #E5E7EB;
-      padding: 18px 12px 14px; display: flex; flex-direction: column;
+      padding: 16px 12px; display: flex; flex-direction: column;
       align-items: center; text-align: center; gap: 5px;
       box-shadow: 0 1px 4px rgba(0,0,0,.04);
-      transition: transform .15s, box-shadow .15s;
+      transition: transform .15s, box-shadow .15s, border-color .15s;
     }
-    .pt-vc:hover { transform: translateY(-2px); box-shadow: 0 4px 14px rgba(0,0,0,.09); border-color:#1A9D20; }
+    .pt-vc:hover  { transform: translateY(-2px); box-shadow: 0 4px 14px rgba(0,0,0,.09); border-color:#1A9D20; }
+    .pt-vc:active { transform: scale(0.97); box-shadow: 0 1px 4px rgba(0,0,0,.04); border-color:#1A9D20; }
     .pt-vc-icon {
-      width: 60px; height: 60px; border-radius: 50%; background: #EEF2FF;
+      width: 60px; height: 60px; border-radius: 50%; background: #EBF7EC;
       display: flex; align-items: center; justify-content: center;
-      color: #4F46E5; position: relative; margin-bottom: 2px;
+      color: #1A9D20; position: relative; margin-bottom: 2px;
     }
     .pt-vc-badge {
       position: absolute; top: -3px; right: -3px;
@@ -198,14 +223,17 @@
     .pt-bottom-nav {
       position: fixed; bottom: 0; left: 0; right: 0;
       background: #fff; border-top: 1.5px solid #E5E7EB;
-      display: flex; z-index: 100;
+      display: flex; justify-content: center; z-index: 100;
       padding-bottom: env(safe-area-inset-bottom, 0);
       box-shadow: 0 -2px 12px rgba(0,0,0,.07);
+    }
+    .pt-bottom-nav-inner {
+      display: flex; width: 100%; max-width: 480px;
     }
     .pt-nav-tab {
       flex: 1; display: flex; flex-direction: column; align-items: center;
       padding: 10px 0 12px; gap: 3px; border: none; background: none; cursor: pointer;
-      color: #9CA3AF; font-size: 0.72rem; font-weight: 700; font-family: inherit;
+      color: #6B7280; font-size: 0.72rem; font-weight: 700; font-family: inherit;
       transition: color .15s; letter-spacing: .02em;
     }
     .pt-nav-tab.active { color:#1A9D20; }
@@ -252,16 +280,17 @@
     }
     .pt-backdrop.open { opacity: 1; pointer-events: auto; }
     .pt-sheet {
-      position: fixed; bottom: 0; left: 0; right: 0; z-index: 201;
+      position: fixed; bottom: 0; left: 50%; z-index: 201;
+      transform: translateX(-50%) translateY(100%);
+      width: 100%; max-width: 480px;
       background: #fff; border-radius: 22px 22px 0 0;
       max-height: 90vh; overflow-y: auto;
       -webkit-overflow-scrolling: touch;
       overscroll-behavior: contain;
-      transform: translateY(100%);
       transition: transform .35s cubic-bezier(.25,.46,.45,.94);
       padding-bottom: max(env(safe-area-inset-bottom, 0px), 16px);
     }
-    .pt-sheet.open { transform: translateY(0); }
+    .pt-sheet.open { transform: translateX(-50%) translateY(0); }
     .pt-sheet-handle {
       width: 40px; height: 4px; background: #E5E7EB; border-radius: 2px;
       margin: 12px auto 0;
@@ -322,16 +351,7 @@
    <div class="pt-wh-inner">
     <div class="pt-wh-top">
       <div class="pt-wh-logo">
-        <div class="pt-wh-logo-box">
-          <svg width="20" height="20" viewBox="0 0 100 100" fill="none">
-            <rect width="100" height="100" rx="16" fill="white"/>
-            <rect x="14" y="14" width="16" height="72" rx="2" fill="#001935"/>
-            <circle cx="44" cy="38" r="24" fill="#001935"/>
-            <circle cx="46" cy="38" r="12" fill="white"/>
-            <path d="M40 38 L44 42 L53 29" stroke="#1A9D20" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </div>
-        <span class="pt-wh-logo-text">Park<span style="color:#1A9D20">Tag</span></span>
+        <img src="/images/dark-logo.png" alt="ParkTag" style="height:38px;width:auto;mix-blend-mode:lighten;">
       </div>
       <div class="pt-wh-btns">
         <button class="pt-wh-btn" aria-label="Notifications">
@@ -342,20 +362,33 @@
         </button>
         <button class="pt-wh-btn" aria-label="Profile">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-            <circle cx="12" cy="8" r="4" stroke="#1a1200" stroke-width="2"/>
-            <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="#1a1200" stroke-width="2" stroke-linecap="round"/>
+            <circle cx="12" cy="8" r="4" stroke="rgba(255,255,255,0.9)" stroke-width="2"/>
+            <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="rgba(255,255,255,0.9)" stroke-width="2" stroke-linecap="round"/>
           </svg>
         </button>
       </div>
     </div>
     <div class="pt-wh-bottom">
       <div>
-        <p class="pt-wh-hi" id="greetName">Hi, there!</p>
-        <p class="pt-wh-id" id="greetId"></p>
+        <p class="pt-wh-hi" id="greetName">
+          <span class="sk" style="display:inline-block;width:160px;height:1.1em;border-radius:6px;vertical-align:middle;opacity:0.35"></span>
+        </p>
+        <p class="pt-wh-id" id="greetId">
+          <span class="sk" style="display:inline-block;width:200px;height:0.8em;border-radius:4px;vertical-align:middle;opacity:0.25"></span>
+        </p>
       </div>
     </div>
   </div><!-- /pt-wh-inner -->
   </div><!-- /pt-wh -->
+
+  <!-- ── Pull-to-refresh indicator ────────── -->
+  <div class="pt-ptr" id="ptrIndicator" role="status" aria-live="polite">
+    <svg class="pt-ptr-spin" width="16" height="16" viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="9" stroke="#D1D5DB" stroke-width="2.5"/>
+      <path d="M12 3a9 9 0 0 1 9 9" stroke="#1A9D20" stroke-width="2.5" stroke-linecap="round"/>
+    </svg>
+    Refreshing…
+  </div>
 
   <!-- ── Tags view ──────────────────────── -->
   <div id="view-tags">
@@ -434,8 +467,8 @@
         <input class="pt-wsearch-inp" type="search" id="vehicleSearch" placeholder="Search ParkTag vehicle" autocomplete="off"/>
         <button class="pt-wsearch-btn" aria-label="Search">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-            <circle cx="11" cy="11" r="8" stroke="#fff" stroke-width="2.2"/>
-            <path d="M21 21l-4.35-4.35" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/>
+            <circle cx="11" cy="11" r="8" stroke="#1A9D20" stroke-width="2.2"/>
+            <path d="M21 21l-4.35-4.35" stroke="#1A9D20" stroke-width="2.2" stroke-linecap="round"/>
           </svg>
         </button>
       </div>
@@ -476,21 +509,23 @@
 
 <!-- ── Bottom nav ──────────────────────────── -->
 <nav class="pt-bottom-nav">
-  <button class="pt-nav-tab active" id="navTags" onclick="switchTab('tags')">
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-      <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-      <circle cx="7" cy="7" r="1.5" fill="currentColor"/>
-    </svg>
-    Tags
-  </button>
-  <button class="pt-nav-tab" id="navShop" onclick="switchTab('shop')">
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-      <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-      <line x1="3" y1="6" x2="21" y2="6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-      <path d="M16 10a4 4 0 0 1-8 0" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>
-    Shop
-  </button>
+  <div class="pt-bottom-nav-inner">
+    <button class="pt-nav-tab active" id="navTags" onclick="switchTab('tags')" aria-label="Tags tab" aria-current="page">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+        <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="7" cy="7" r="1.5" fill="currentColor"/>
+      </svg>
+      Tags
+    </button>
+    <button class="pt-nav-tab" id="navShop" onclick="switchTab('shop')" aria-label="Shop tab">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+        <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <line x1="3" y1="6" x2="21" y2="6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <path d="M16 10a4 4 0 0 1-8 0" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      Shop
+    </button>
+  </div>
 </nav>
 
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>

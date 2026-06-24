@@ -58,7 +58,7 @@ export async function createContactAction(env, input) {
       provider = await triggerExotelCall(env, {
         requestId: String(requestId),
         from: input.phone,
-        to: owner.phone
+        to: owner.phone || owner.mobile
       });
       providerStatus = "provider_started";
     }
@@ -73,7 +73,7 @@ export async function createContactAction(env, input) {
       }
 
       provider = await sendMetaWhatsapp(env, {
-        to: owner.phone,
+        to: owner.phone || owner.mobile,
         body: input.message
       });
       providerStatus = "provider_started";

@@ -1,21 +1,85 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>ParkTag — Owner Sign In</title>
     <link rel="stylesheet" href="/styles/styles.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+      .grecaptcha-badge { visibility: hidden !important; }
+      body { opacity: 0; }
+
+      #login-skeleton {
+        position: fixed; inset: 0; z-index: 999;
+        background: #f3f5f8;
+        display: flex; flex-direction: column;
+      }
+      #login-skeleton .sk-header {
+        height: 64px; background: #001935;
+        display: flex; align-items: center; padding: 0 20px;
+      }
+      #login-skeleton .sk-logo {
+        width: 120px; height: 28px; border-radius: 6px;
+        background: rgba(255,255,255,0.12);
+      }
+      #login-skeleton .sk-body {
+        flex: 1; display: flex; align-items: center; justify-content: center; padding: 20px;
+      }
+      #login-skeleton .sk-card {
+        background: #fff; border-radius: 20px;
+        padding: 28px 24px; width: 100%; max-width: 420px;
+        box-shadow: 0 4px 24px rgba(0,0,0,0.07);
+        display: flex; flex-direction: column; gap: 14px;
+      }
+      .sk-bar {
+        border-radius: 6px; background: #e5e7eb;
+        animation: sk-shimmer 1.2s ease-in-out infinite;
+      }
+      @keyframes sk-shimmer {
+        0%,100% { opacity: 1; } 50% { opacity: 0.45; }
+      }
+      #login-skeleton.fade-out {
+        opacity: 0; transition: opacity 180ms ease;
+      }
+    </style>
+    <script>
+      // Show skeleton immediately, fade it out once DOM is ready
+      document.addEventListener("DOMContentLoaded", () => {
+        document.body.style.opacity = "1";
+        const sk = document.getElementById("login-skeleton");
+        if (sk) {
+          sk.classList.add("fade-out");
+          setTimeout(() => sk.remove(), 200);
+        }
+      });
+    </script>
   </head>
   <body class="pt-hub-body">
 
+    <!-- Skeleton shown instantly while page assets load -->
+    <div id="login-skeleton">
+      <div class="sk-header">
+        <div class="sk-logo sk-bar"></div>
+      </div>
+      <div class="sk-body">
+        <div class="sk-card">
+          <div class="sk-bar" style="width:44px;height:44px;border-radius:50%;align-self:center;margin-bottom:4px"></div>
+          <div class="sk-bar" style="width:55%;height:20px;align-self:center"></div>
+          <div class="sk-bar" style="width:80%;height:14px;align-self:center"></div>
+          <div class="sk-bar" style="width:100%;height:46px;border-radius:12px;margin-top:6px"></div>
+          <div class="sk-bar" style="width:100%;height:46px;border-radius:12px"></div>
+          <div class="sk-bar" style="width:40%;height:12px;align-self:center;margin-top:8px"></div>
+          <div class="sk-bar" style="width:100%;height:46px;border-radius:12px"></div>
+        </div>
+      </div>
+    </div>
+
     <header class="pt-header">
       <div class="pt-logo">
-        <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-          <rect width="28" height="28" rx="8" fill="#F5A623"/>
-          <path d="M8 8h7.5a4.5 4.5 0 0 1 0 9H11v5H8V8Z" fill="#fff"/>
-          <circle cx="15" cy="12.5" r="1.5" fill="#F5A623"/>
-        </svg>
-        <span>ParkTag</span>
+        <img src="/images/dark-logo.png" alt="ParkTag" style="height:42px;width:auto;mix-blend-mode:lighten;">
       </div>
     </header>
 
@@ -24,10 +88,10 @@
         <div class="pt-card-icon pt-icon-tag" style="margin-bottom:12px">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="2"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
         </div>
-        <h1 class="pt-card-title">Owner Sign In</h1>
-        <p class="pt-card-sub" style="margin-bottom:20px">Enter your email or mobile number and we'll send you a verification code.</p>
+        <h1 class="pt-card-title" id="card-title">Owner Sign In</h1>
+        <p class="pt-card-sub" id="card-sub" style="margin-bottom:20px">Enter your email or mobile number and we'll send you a verification code.</p>
 
-        <div class="pt-form">
+        <div class="pt-form" id="owner-form-step1">
           <label class="pt-field">
             <span id="identifier-label">Email or mobile number</span>
             <div style="position:relative">
@@ -49,20 +113,42 @@
 
         <p id="owner-auth-status" class="pt-status" data-tone="info" style="padding:12px 0 0;text-align:center"></p>
 
+        <div id="phone-step2" style="display:none;margin-top:4px">
+          <span id="phone-sent-to" style="display:none"></span>
+          <label class="pt-field">
+            <span>Verification code</span>
+            <input id="phone-otp-inp" type="text" class="pt-input"
+              placeholder="000000" maxlength="6" inputmode="numeric"
+              style="text-align:center;font-size:1.4rem;letter-spacing:0.25em;font-weight:700"/>
+          </label>
+          <button id="phone-verify-btn" class="pt-btn pt-btn-primary pt-btn-full" style="margin-top:8px">Verify</button>
+          <p style="text-align:center;margin-top:12px;margin-bottom:0;font-size:0.85rem;color:#6B7280">
+            Didn't receive the code?
+            <button id="phone-resend-btn" style="background:none;border:none;color:#1A9D20;font-weight:700;font-size:0.85rem;cursor:pointer;padding:0;font-family:inherit">Resend</button>
+          </p>
+          <p style="text-align:center;margin-top:8px;margin-bottom:0">
+            <a href="#" id="phone-back-btn" style="font-size:0.85rem;color:#1A9D20;font-weight:600;text-decoration:none">← Back to sign in</a>
+          </p>
+        </div>
+
+        <div id="google-section">
         <div style="display:flex;align-items:center;gap:12px;margin-top:20px">
           <div style="flex:1;height:1px;background:#E5E7EB"></div>
           <span style="font-size:0.78rem;color:#9CA3AF;font-weight:600;letter-spacing:0.05em">OR</span>
           <div style="flex:1;height:1px;background:#E5E7EB"></div>
         </div>
 
-        <a id="google-login-btn" href="/api/auth/google"
+        <button id="google-login-btn" type="button"
           style="display:flex;align-items:center;justify-content:center;gap:10px;margin-top:14px;
                  width:100%;padding:11px 16px;border-radius:12px;border:1.5px solid #E5E7EB;
                  background:#fff;color:#1F2937;font-size:0.92rem;font-weight:600;
-                 text-decoration:none;cursor:pointer;transition:box-shadow 0.15s,border-color 0.15s;
-                 box-shadow:0 1px 3px rgba(0,0,0,0.06)"
+                 font-family:inherit;cursor:pointer;transition:box-shadow 0.15s,border-color 0.15s;
+                 box-shadow:0 1px 3px rgba(0,0,0,0.06);outline:none"
           onmouseover="this.style.borderColor='#D1D5DB';this.style.boxShadow='0 2px 8px rgba(0,0,0,0.10)'"
-          onmouseout="this.style.borderColor='#E5E7EB';this.style.boxShadow='0 1px 3px rgba(0,0,0,0.06)'">
+          onmouseout="this.style.borderColor='#E5E7EB';this.style.boxShadow='0 1px 3px rgba(0,0,0,0.06)'"
+          onfocus="this.style.outline='2px solid #1A9D20';this.style.outlineOffset='2px'"
+          onblur="this.style.outline='none'"
+          onclick="triggerGoogleSignIn()">
           <svg width="20" height="20" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M47.532 24.552c0-1.636-.134-3.218-.389-4.742H24.48v8.978h12.985c-.56 3.016-2.255 5.574-4.806 7.288v6.056h7.779c4.548-4.19 7.094-10.36 7.094-17.58z" fill="#4285F4"/>
             <path d="M24.48 48c6.516 0 11.982-2.162 15.977-5.868l-7.779-6.056c-2.157 1.446-4.914 2.298-8.198 2.298-6.304 0-11.642-4.258-13.55-9.982H2.906v6.248C6.882 42.918 15.116 48 24.48 48z" fill="#34A853"/>
@@ -70,11 +156,102 @@
             <path d="M24.48 9.626c3.552 0 6.74 1.222 9.248 3.622l6.942-6.942C36.456 2.392 30.992 0 24.48 0 15.116 0 6.882 5.082 2.906 13.36l8.024 6.248c1.908-5.724 7.246-9.982 13.55-9.982z" fill="#EA4335"/>
           </svg>
           Continue with Google
-        </a>
+        </button>
+        </div><!-- /google-section -->
+
+        <p style="margin-top:20px;margin-bottom:0;font-size:0.72rem;color:#9CA3AF;text-align:center;line-height:1.5">
+          Protected by reCAPTCHA —
+          <a href="https://policies.google.com/privacy" target="_blank" rel="noopener" style="color:#9CA3AF">Privacy</a> &amp;
+          <a href="https://policies.google.com/terms" target="_blank" rel="noopener" style="color:#9CA3AF">Terms</a>
+        </p>
+
       </div>
     </main>
 
+    <div id="recaptcha-container"></div>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script type="module" src="/scripts/owner.js"></script>
     <script src="/scripts/ux-feedback.js"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script>
+      let _googleClientId = null;
+
+      // Fetch public client ID from backend, then init GSI
+      fetch("/api/auth/google/config")
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (!data || !data.clientId) return;
+          _googleClientId = data.clientId;
+          waitForGSI();
+        })
+        .catch(() => {});
+
+      function waitForGSI() {
+        if (window.google && window.google.accounts) {
+          initGSI();
+        } else {
+          setTimeout(waitForGSI, 100);
+        }
+      }
+
+      function initGSI() {
+        google.accounts.id.initialize({
+          client_id: _googleClientId,
+          callback: handleGoogleCredential,
+        });
+      }
+
+      function triggerGoogleSignIn() {
+        if (!_googleClientId) {
+          window.location.href = "/api/auth/google";
+          return;
+        }
+        // Always use the standard popup account picker
+        const client = google.accounts.oauth2.initCodeClient({
+          client_id: _googleClientId,
+          scope: "openid email profile",
+          ux_mode: "popup",
+          callback: handlePopupCode
+        });
+        client.requestCode();
+      }
+
+      async function handleGoogleCredential(response) {
+        try {
+          const res = await fetch("/api/auth/google/credential", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ credential: response.credential })
+          });
+          const data = await res.json();
+          if (data.redirect) window.location.href = data.redirect;
+          else showGoogleError(data.error || "Sign-in failed.");
+        } catch {
+          showGoogleError("Network error. Please try again.");
+        }
+      }
+
+      async function handlePopupCode(response) {
+        if (!response.code) { showGoogleError("Sign-in cancelled."); return; }
+        try {
+          const res = await fetch("/api/auth/google/popup", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ code: response.code })
+          });
+          const data = await res.json();
+          if (data.redirect) window.location.href = data.redirect;
+          else showGoogleError(data.error || "Sign-in failed.");
+        } catch {
+          showGoogleError("Network error. Please try again.");
+        }
+      }
+
+      function showGoogleError(msg) {
+        const el = document.getElementById("owner-auth-status");
+        if (el) { el.textContent = msg; el.dataset.tone = "error"; }
+      }
+    </script>
 </body>
 </html>

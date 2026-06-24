@@ -49,7 +49,7 @@ async function verify() {
     return;
   }
   const btn = byId("verify-button");
-  if (btn) { btn.disabled = true; btn.textContent = "Verifying..."; }
+  if (btn) { btn.disabled = true; btn.classList.add("pt-btn-loading"); }
   try {
     const result = await fetchJson("/api/auth/verify-otp", {
       method: "POST",
@@ -60,7 +60,7 @@ async function verify() {
     sessionStorage.setItem("pt_is_new_user", result.isNewUser ? "1" : "0");
     window.location.href = "/owner-welcome";
   } catch (error) {
-    if (btn) { btn.disabled = false; btn.textContent = "Verify"; }
+    if (btn) { btn.disabled = false; btn.classList.remove("pt-btn-loading"); }
     setStatus(error instanceof Error ? error.message : "Verification failed", "error");
   }
 }
@@ -68,7 +68,7 @@ async function verify() {
 async function resend() {
   if (!identifier) return;
   const btn = byId("resend-button");
-  if (btn) { btn.disabled = true; btn.textContent = "Sending..."; }
+  if (btn) { btn.disabled = true; btn.classList.add("pt-btn-loading"); }
   try {
     await fetchJson("/api/auth/send-otp", {
       method: "POST",
@@ -79,7 +79,7 @@ async function resend() {
   } catch (error) {
     setStatus(error instanceof Error ? error.message : "Failed to resend", "error");
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = "Resend"; }
+    if (btn) { btn.disabled = false; btn.classList.remove("pt-btn-loading"); }
   }
 }
 

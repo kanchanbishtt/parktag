@@ -1,80 +1,371 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>ParkTag — Activate Your Tag</title>
-    <link rel="stylesheet" href="/styles/styles.css" />
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <title>ParkTag — Add Your Vehicles</title>
+  <link rel="stylesheet" href="/styles/styles.css"/>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #fff; font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif; min-height: 100vh; }
+
+    /* ── Top bar ── */
+    .av-topbar {
+      display: flex; align-items: center; justify-content: center;
+      padding: 14px 16px; position: relative; border-bottom: 1px solid #F3F4F6;
+    }
+    .av-back {
+      position: absolute; left: 16px;
+      width: 36px; height: 36px; border-radius: 10px;
+      border: 1.5px solid #E5E7EB; background: #fff;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; text-decoration: none; color: #001935;
+      transition: background .15s;
+    }
+    .av-back:hover { background: #F9FAFB; }
+    .av-logo { display: flex; align-items: center; gap: 8px; }
+    .av-logo-box {
+      width: 32px; height: 32px; border-radius: 9px; background: #001935;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .av-logo-text { font-size: 1.2rem; font-weight: 900; color: #001935; letter-spacing: -0.02em; }
+
+    /* ── Page body ── */
+    .av-body { max-width: 480px; margin: 0 auto; padding: 28px 20px 120px; }
+    .av-heading { font-size: 2rem; font-weight: 900; color: #001935; margin: 0 0 6px; line-height: 1.15; }
+    .av-sub { font-size: 0.92rem; color: #6B7280; margin: 0 0 28px; line-height: 1.5; }
+
+    /* ── Form fields ── */
+    .av-field { margin-bottom: 18px; }
+    .av-label { display: block; font-size: 0.88rem; font-weight: 700; color: #1F2937; margin-bottom: 7px; }
+    .av-select, .av-input {
+      width: 100%; height: 52px; border-radius: 14px;
+      border: 1.5px solid #E5E7EB; background: #F9FAFB;
+      padding: 0 16px; font-size: 0.95rem; color: #1F2937;
+      font-family: inherit; outline: none;
+      transition: border-color .15s, background .15s;
+      appearance: none; -webkit-appearance: none;
+    }
+    .av-select {
+      background-image: url("data:image/svg+xml,%3Csvg width='16' height='16' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M6 9l6 6 6-6' stroke='%236B7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 14px center; padding-right: 42px;
+    }
+    .av-select:focus, .av-input:focus { border-color:#1A9D20; background: #fff; }
+
+    /* ── Add vehicle button ── */
+    .av-add-btn {
+      width: 100%; height: 52px; border-radius: 14px;
+      border: 2px solid #1A9D20; background: #fff;
+      color: #001935; font-size: 0.95rem; font-weight: 700;
+      font-family: inherit; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      transition: background .15s; margin-top: 8px;
+    }
+    .av-add-btn:hover { background: #EBF7EC; }
+
+    /* ── Vehicle list ── */
+    .av-list { margin-top: 20px; display: flex; flex-direction: column; gap: 10px; }
+    .av-item {
+      display: flex; align-items: center; gap: 12px;
+      background: #F9FAFB; border: 1.5px solid #E5E7EB;
+      border-radius: 14px; padding: 12px 14px;
+    }
+    .av-item-icon {
+      width: 44px; height: 44px; border-radius: 50%; background: #EEF2FF;
+      display: flex; align-items: center; justify-content: center;
+      color: #4F46E5; flex-shrink: 0;
+    }
+    .av-item-info { flex: 1; min-width: 0; }
+    .av-item-type { font-size: 0.75rem; color: #6B7280; font-weight: 600; margin: 0; text-transform: uppercase; letter-spacing: .05em; }
+    .av-item-num  { font-size: 0.95rem; font-weight: 800; color: #1F2937; margin: 2px 0 0; letter-spacing: .06em; }
+    .av-item-del  {
+      width: 32px; height: 32px; border-radius: 8px; border: none;
+      background: #FEE2E2; color: #DC2626; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .av-item-del:hover { background: #FECACA; }
+
+    /* ── Divider ── */
+    .av-divider { display: flex; align-items: center; gap: 12px; margin: 24px 0 16px; }
+    .av-divider-line { flex: 1; height: 1px; background: #E5E7EB; }
+    .av-divider-txt { font-size: 0.75rem; font-weight: 700; color: #9CA3AF; letter-spacing: .05em; }
+
+    /* ── Submit bar ── */
+    .av-submit-bar {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: #fff; border-top: 1px solid #F3F4F6;
+      padding: 14px 20px calc(14px + env(safe-area-inset-bottom));
+    }
+    .av-submit-btn {
+      display: block; width: 100%; max-width: 480px; margin: 0 auto;
+      height: 54px; border-radius: 16px; border: none;
+      background:#1A9D20; color: #001935;
+      font-size: 1rem; font-weight: 800; font-family: inherit;
+      cursor: pointer; transition: background .15s;
+    }
+    .av-submit-btn:hover { background: #157A18; }
+
+    .av-status { font-size: 0.85rem; text-align: center; margin-top: 10px; min-height: 20px; }
+    .av-status[data-tone="error"]   { color: #DC2626; }
+    .av-status[data-tone="success"] { color: #059669; }
+
+    /* ── E-Tag Popup ── */
+    .etag-overlay {
+      display: none; position: fixed; inset: 0; z-index: 200;
+      background: rgba(0,0,0,0.45);
+      backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px);
+      align-items: center; justify-content: center; padding: 20px;
+    }
+    .etag-overlay.active { display: flex; }
+    .etag-card {
+      background: #fff; border-radius: 24px;
+      padding: 28px 24px; max-width: 380px; width: 100%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.18);
+      animation: slideUp .25s ease;
+    }
+    @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    .etag-card-icon {
+      width: 56px; height: 56px; border-radius: 16px; background: #E8F5E9;
+      display: flex; align-items: center; justify-content: center; margin-bottom: 16px;
+    }
+    .etag-card-title { font-size: 1.2rem; font-weight: 900; color: #001935; margin: 0 0 6px; }
+    .etag-card-sub   { font-size: 0.85rem; color: #6B7280; margin: 0 0 20px; line-height: 1.5; }
+    .etag-badge {
+      display: inline-block; background: #E8F5E9; color: #145E17;
+      font-size: 0.72rem; font-weight: 700; letter-spacing: .05em;
+      padding: 3px 10px; border-radius: 20px; margin-bottom: 16px;
+    }
+    .etag-download-btn {
+      width: 100%; height: 50px; border-radius: 14px; border: none;
+      background:#1A9D20; color: #001935; font-size: 0.95rem; font-weight: 800;
+      font-family: inherit; cursor: pointer; display: flex; align-items: center;
+      justify-content: center; gap: 8px; margin-bottom: 10px; transition: background .15s;
+    }
+    .etag-download-btn:hover { background: #157A18; }
+    .etag-skip-btn {
+      width: 100%; height: 44px; border-radius: 14px; border: 1.5px solid #E5E7EB;
+      background: #fff; color: #6B7280; font-size: 0.88rem; font-weight: 600;
+      font-family: inherit; cursor: pointer; transition: background .15s;
+    }
+    .etag-skip-btn:hover { background: #F9FAFB; }
+
+    /* ── Print template (hidden on screen, shown when printing) ── */
+    #etag-print { display: none; }
+
+    @media print {
+      body > *:not(#etag-print) { display: none !important; }
+      #etag-print { display: block !important; font-family: Arial, sans-serif; }
+      @page { margin: 1.5cm; size: A4; }
+    }
+    .print-instructions { font-size: 11px; color: #000; margin-bottom: 20px; line-height: 1.7; }
+    .print-instructions strong { font-size: 12px; }
+    .print-tag {
+      border: 1.5px dashed #555; display: flex; width: 100%;
+      page-break-inside: avoid;
+    }
+    .print-tag-left {
+      width: 58%; border-right: 1.5px dashed #555;
+      padding: 14px; display: flex; flex-direction: column; justify-content: space-between;
+    }
+    .print-tag-right {
+      width: 42%; padding: 12px;
+      display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+    }
+    .print-logo-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+    .print-logo-box {
+      width: 28px; height: 28px; background:#1A9D20; border-radius: 7px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .print-logo-name { font-size: 13px; font-weight: 900; color: #001935; }
+    .print-logo-sub  { font-size: 7px; color: #6B7280; line-height: 1.4; }
+    .print-headline  { font-size: 20px; font-weight: 900; color: #001935; line-height: 1.3; margin: 0; }
+    .print-headline u { text-decoration: underline; }
+    .print-no-net    { font-size: 7.5px; color: #555; margin: 0; }
+    .print-qr        { width: 140px; height: 140px; display: block; }
+    .print-pt-label  { font-size: 11px; font-weight: 900; color:#1A9D20; letter-spacing: .08em; text-align: center; margin: 4px 0; }
+    .print-icons     { display: flex; justify-content: space-around; width: 100%; border-top: 1px solid #E5E7EB; padding-top: 5px; }
+    .print-icon-wrap { text-align: center; }
+    .print-icon-lbl  { font-size: 6.5px; color: #555; }
+    .print-bottom-note { font-size: 7px; color: #6B7280; text-align: center; margin-top: 3px; }
+  </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   </head>
-  <body class="pt-hub-body">
+<body>
 
-    <header class="pt-header">
-      <div class="pt-logo">
-        <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-          <rect width="28" height="28" rx="8" fill="#F5A623"/>
-          <path d="M8 8h7.5a4.5 4.5 0 0 1 0 9H11v5H8V8Z" fill="#fff"/>
-          <circle cx="15" cy="12.5" r="1.5" fill="#F5A623"/>
+  <!-- Top bar -->
+  <div class="av-topbar">
+    <a href="/owner-welcome" class="av-back" aria-label="Back">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+        <path d="M15 18l-6-6 6-6" stroke="#001935" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </a>
+    <div class="av-logo">
+      <div class="av-logo-box">
+        <svg width="18" height="18" viewBox="0 0 100 100" fill="none">
+          <rect width="100" height="100" rx="16" fill="white"/>
+          <rect x="14" y="14" width="16" height="72" rx="2" fill="#001935"/>
+          <circle cx="44" cy="38" r="24" fill="#001935"/>
+          <circle cx="46" cy="38" r="12" fill="white"/>
+          <path d="M40 38 L44 42 L53 29" stroke="#1A9D20" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
-        <span>ParkTag</span>
       </div>
-      <span class="pt-header-badge">Activation required</span>
-    </header>
+      <span class="av-logo-text">Park<span style="color:#1A9D20">Tag</span></span>
+    </div>
+  </div>
 
-    <main class="pt-hub-main" style="max-width:440px">
+  <!-- Body -->
+  <div class="av-body">
+    <h1 class="av-heading">Add Your Vehicles</h1>
+    <p class="av-sub">Add vehicles to track and manage your tags</p>
 
-      <!-- Hero -->
-      <div style="text-align:center;padding:32px 0 24px">
-        <div style="width:72px;height:72px;border-radius:20px;background:#FEF3C7;display:flex;align-items:center;justify-content:center;margin:0 auto 16px">
-          <svg width="36" height="36" viewBox="0 0 24 24" fill="none">
-            <rect x="3" y="3" width="7" height="7" rx="1" stroke="#F5A623" stroke-width="2"/>
-            <rect x="14" y="3" width="7" height="7" rx="1" stroke="#F5A623" stroke-width="2"/>
-            <rect x="3" y="14" width="7" height="7" rx="1" stroke="#F5A623" stroke-width="2"/>
-            <path d="M14 14h2v2h-2zM18 14h3M14 18v3M18 18h3v3h-3z" stroke="#F5A623" stroke-width="2" stroke-linecap="round"/>
-          </svg>
+    <div class="av-field">
+      <label class="av-label" for="vehicle-type">Vehicle Type</label>
+      <select class="av-select" id="vehicle-type">
+        <option value="" disabled selected>Select vehicle type</option>
+        <option value="car">Car</option>
+        <option value="bike">Bike</option>
+        <option value="scooter">Scooter</option>
+        <option value="auto_rickshaw">Auto Rickshaw</option>
+        <option value="truck">Truck</option>
+        <option value="bus">Bus</option>
+        <option value="bicycle">Bicycle</option>
+        <option value="e_scooter">E-Scooter</option>
+      </select>
+    </div>
+
+    <div class="av-field">
+      <label class="av-label" for="vehicle-number">Vehicle Number</label>
+      <input class="av-input" id="vehicle-number" type="text"
+        placeholder="e.g. DL 01 AB 1234"
+        autocomplete="off" spellcheck="false"
+        style="text-transform:uppercase;letter-spacing:0.05em"/>
+    </div>
+
+    <button class="av-add-btn" id="add-vehicle-btn">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="10" stroke="#1A9D20" stroke-width="2"/>
+        <path d="M12 8v8M8 12h8" stroke="#1A9D20" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      Add Vehicle
+    </button>
+
+    <div class="av-list" id="vehicle-list"></div>
+
+    <div class="av-divider">
+      <div class="av-divider-line"></div>
+      <span class="av-divider-txt">LINK STICKER CODE (OPTIONAL)</span>
+      <div class="av-divider-line"></div>
+    </div>
+
+    <div class="av-field">
+      <label class="av-label" for="token-input">Sticker Code</label>
+      <input class="av-input" id="token-input" type="text"
+        placeholder="12-character code e.g. aB3xKm9pQr7Z" maxlength="12"
+        autocomplete="off" spellcheck="false"
+        style="font-family:monospace;letter-spacing:0.08em;text-transform:uppercase"/>
+    </div>
+
+    <p class="av-status" id="av-status"></p>
+  </div>
+
+  <!-- Submit bar -->
+  <div class="av-submit-bar">
+    <button class="av-submit-btn" id="submit-btn">Submit</button>
+  </div>
+
+  <!-- E-Tag popup -->
+  <div class="etag-overlay" id="etag-overlay">
+    <div class="etag-card">
+      <div class="etag-card-icon">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="#1A9D20" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <span class="etag-badge">ONE TIME USE ONLY</span>
+      <p class="etag-card-title">Download E-Tag</p>
+      <p class="etag-card-sub">No sticker code entered. Download a temporary offline E-Tag for your vehicle. Print and place it on your dashboard.</p>
+      <button class="etag-download-btn" id="etag-download-btn">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="#001935" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Download E-Tag PDF
+      </button>
+      <button class="etag-skip-btn" id="etag-skip-btn">Continue without downloading</button>
+    </div>
+  </div>
+
+  <!-- Print template (only visible during print) -->
+  <div id="etag-print">
+    <div class="print-instructions">
+      <p style="margin:0 0 2px">Thank you for generating the Offline eTag at ParkTag.</p>
+      <strong>How to fix an etag to Your Windscreen</strong>
+      <ol style="margin:6px 0 8px;padding-left:18px">
+        <li>Print this page on a photo sheet or regular paper.</li>
+        <li>Cut the tag from the printed sheet.</li>
+        <li>Attach the Tag:<br>
+          &nbsp;&nbsp;- Apply glue (e.g., Feviglue) or transparent double-sided tape to the front of the tag.<br>
+          &nbsp;&nbsp;- Simply Place the tag on your dashboard.
+        </li>
+      </ol>
+      <p style="margin:0">The tags are pre-activated on vehicle number <strong id="print-vehicle-num">—</strong>. Please do note,
+      This Tag will also work in Offline, So the call masking wont be available. Please use this
+      only in case of area where internet may not be good.</p>
+    </div>
+
+    <!-- The sticker -->
+    <div class="print-tag">
+      <!-- Left -->
+      <div class="print-tag-left">
+        <div>
+          <div class="print-logo-row">
+            <div class="print-logo-box">
+              <svg width="14" height="14" viewBox="0 0 28 28" fill="none">
+                <path d="M6 6h9a5 5 0 0 1 0 10H10v6H6V6Z" fill="#fff"/>
+              </svg>
+            </div>
+            <div>
+              <div class="print-logo-name">Park<span style="color:#1A9D20">Tag</span></div>
+              <div class="print-logo-sub">ParkTag Car tag by ParkTag.<br>Contact vehicle owner, help in emergency, or wrong parking.</div>
+            </div>
+          </div>
+          <p class="print-headline">Scan the code<br>to <u>contact the<br>vehicle owner.</u></p>
         </div>
-        <h1 class="pt-reg-title">Activate your ParkTag</h1>
-        <p class="pt-reg-sub">Got a ParkTag sticker? Scan the QR on it or enter your sticker code below to link it to your vehicle.</p>
+        <p class="print-no-net">No internet needed.<br>This tag will not need internet to function,<br>simply scan using QR reader / ParkTag APP.</p>
       </div>
 
-      <!-- Primary path: scan the sticker -->
-      <div class="pt-vehicle-details-card" style="text-align:center;padding:24px">
-        <div style="width:48px;height:48px;border-radius:14px;background:#ECFDF5;display:flex;align-items:center;justify-content:center;margin:0 auto 12px">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2" stroke="#059669" stroke-width="2" stroke-linecap="round"/><rect x="7" y="7" width="3" height="3" rx="0.5" fill="#059669"/><rect x="14" y="7" width="3" height="3" rx="0.5" fill="#059669"/><rect x="7" y="14" width="3" height="3" rx="0.5" fill="#059669"/><rect x="14" y="14" width="3" height="3" rx="0.5" fill="#059669"/></svg>
+      <!-- Right -->
+      <div class="print-tag-right">
+        <img class="print-qr" id="print-qr-img"
+          src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://parktag.me/demo&color=000000&bgcolor=ffffff"
+          alt="Demo QR Code"/>
+        <div style="width:100%">
+          <p class="print-pt-label">Park<span style="color:#1A9D20">Tag</span></p>
+          <div class="print-icons">
+            <div class="print-icon-wrap">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="2" stroke="#555" stroke-width="1.8"/><path d="M9 9h6M9 12h6M9 15h4" stroke="#555" stroke-width="1.8" stroke-linecap="round"/></svg>
+              <div class="print-icon-lbl">Wrong<br>Parking</div>
+            </div>
+            <div class="print-icon-wrap">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke="#555" stroke-width="1.8" stroke-linejoin="round"/></svg>
+              <div class="print-icon-lbl">Emergency<br>Contact</div>
+            </div>
+            <div class="print-icon-wrap">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" stroke="#555" stroke-width="1.8"/><path d="M12 9v4M12 17h.01" stroke="#555" stroke-width="1.8" stroke-linecap="round"/></svg>
+              <div class="print-icon-lbl">Alert</div>
+            </div>
+            <div class="print-icon-wrap">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.62 3.38 2 2 0 0 1 3.6 1.17h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.86a16 16 0 0 0 6 6l.91-.91a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" stroke="#555" stroke-width="1.8"/></svg>
+              <div class="print-icon-lbl">Contact</div>
+            </div>
+          </div>
+          <p class="print-bottom-note">Wrong Parking, Emergency Contact,<br>any issue with the vehicle. Scan the QR.</p>
         </div>
-        <h3 style="font-size:1.05rem;font-weight:800;color:var(--pt-ink);margin:0 0 6px">Scan the QR on your sticker</h3>
-        <p style="font-size:0.88rem;color:var(--pt-sub);margin:0;line-height:1.6">Open your camera, point it at the QR on your ParkTag sticker, and tap the link. The activation form will open automatically.</p>
       </div>
+    </div>
+  </div>
 
-      <!-- Divider -->
-      <div style="display:flex;align-items:center;gap:12px;margin:16px 0">
-        <div style="flex:1;height:1px;background:var(--pt-border)"></div>
-        <span style="font-size:0.8rem;font-weight:600;color:var(--pt-sub)">OR</span>
-        <div style="flex:1;height:1px;background:var(--pt-border)"></div>
-      </div>
-
-      <!-- Secondary path: enter token manually -->
-      <div class="pt-auth-card">
-        <h3 class="pt-card-title" style="font-size:1.1rem;margin-bottom:6px">Enter your sticker code</h3>
-        <p class="pt-card-sub" style="margin-bottom:16px">Found on the back of your sticker or in your order confirmation.</p>
-
-        <div class="pt-form" style="margin-top:0">
-          <label class="pt-field">
-            <span>Sticker code</span>
-            <input id="token-input" type="text" class="pt-input" placeholder="e.g. aB3xKm9pQr7Z" maxlength="12" autocomplete="off" spellcheck="false" style="font-family:monospace;letter-spacing:0.08em;text-transform:uppercase" />
-          </label>
-          <button id="go-to-activation-btn" class="pt-btn pt-btn-activate pt-btn-full">
-            Go to activation page
-          </button>
-        </div>
-        <p id="token-error" class="pt-status" data-tone="error" style="text-align:center;padding-top:8px"></p>
-      </div>
-
-      <p style="text-align:center;font-size:0.85rem;color:#6B7280;margin-top:20px">
-        Already have an account? <a href="/owner" style="color:#F5A623;font-weight:700">Sign in</a>.
-      </p>
-    </main>
-
-    <script type="module" src="/scripts/register-owner.js"></script>
-    <script src="/scripts/ux-feedback.js"></script>
+  <script type="module" src="/scripts/register-owner.js"></script>
 </body>
 </html>

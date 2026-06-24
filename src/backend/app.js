@@ -16,8 +16,10 @@ import { registerPublicRoutes } from "./routes/public.js";
 import { registerRegistrationRoutes } from "./routes/registration.js";
 import { registerOtpAuthRoutes } from "./routes/otp-auth.js";
 import { registerGoogleAuthRoutes } from "./routes/google-auth.js";
+import { registerFirebasePhoneAuthRoute } from "./routes/firebase-phone-auth.js";
 import { registerPasswordResetRoutes } from "./routes/password-reset.js";
 import { registerRuntimeRoutes } from "./routes/runtime.js";
+import { registerShopRoutes } from "./routes/shop.js";
 
 const currentFile = fileURLToPath(import.meta.url);
 const currentDir = path.dirname(currentFile);
@@ -40,6 +42,7 @@ const forgotPasswordPage = path.join(pagesRoot, "forgot-password.html");
 const resetPasswordPage = path.join(pagesRoot, "reset-password.html");
 const ownerVerifyPage = path.join(pagesRoot, "owner-verify.html");
 const ownerWelcomePage = path.join(pagesRoot, "owner-welcome.html");
+const ownerVehicleDetailPage = path.join(pagesRoot, "owner-vehicle-detail.html");
 const scannerAssetVersion = "parktag-ui-1";
 const hubAssetVersion = "hub-shell-1";
 
@@ -96,18 +99,18 @@ export async function buildApp() {
     return html;
   });
 
-  app.get("/owner", async (request, reply) => {
-    const session = readSession(app, request);
-
-    if (!session || session.role !== "owner") {
-      const html = await fs.readFile(ownerLoginPage, "utf8");
-      reply.type("text/html");
-      return html;
-    }
-
-    const html = await fs.readFile(ownerPage, "utf8");
+  app.get("/owner-login", async (_request, reply) => {
+    const html = await fs.readFile(ownerLoginPage, "utf8");
     reply.type("text/html");
     return html;
+  });
+
+  app.get("/owner", async (request, reply) => {
+    const session = readSession(app, request);
+    if (!session || session.role !== "owner") {
+      return reply.redirect("/owner-login");
+    }
+    return reply.redirect("/owner-welcome");
   });
 
   app.get("/register-owner", async (_request, reply) => {
@@ -124,6 +127,12 @@ export async function buildApp() {
 
   app.get("/owner-welcome", async (_request, reply) => {
     const html = await fs.readFile(ownerWelcomePage, "utf8");
+    reply.type("text/html");
+    return html;
+  });
+
+  app.get("/owner-vehicle-detail", async (_request, reply) => {
+    const html = await fs.readFile(ownerVehicleDetailPage, "utf8");
     reply.type("text/html");
     return html;
   });
@@ -205,7 +214,9 @@ export async function buildApp() {
   registerAuthRoutes(app, env);
   registerOtpAuthRoutes(app, env);
   registerGoogleAuthRoutes(app, env);
+  registerFirebasePhoneAuthRoute(app, env);
   registerPasswordResetRoutes(app, env);
+  registerShopRoutes(app, env);
   registerOwnerRoutes(app, env);
   registerAdminRoutes(app, env);
 

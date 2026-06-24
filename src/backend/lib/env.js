@@ -47,6 +47,15 @@ export function getEnv() {
     exotelSmsDltEntityId: process.env.EXOTEL_SMS_DLT_ENTITY_ID || "",
     exotelSmsTemplateId: process.env.EXOTEL_SMS_TEMPLATE_ID || "",
     metaWhatsappPhoneNumberId: process.env.META_WHATSAPP_PHONE_NUMBER_ID || "",
-    metaWhatsappAccessToken: process.env.META_WHATSAPP_ACCESS_TOKEN || ""
+    metaWhatsappAccessToken: process.env.META_WHATSAPP_ACCESS_TOKEN || "",
+    emailSmtpHost: process.env.EMAIL_SMTP_HOST || "",
+    emailSmtpPort: Number(process.env.EMAIL_SMTP_PORT) || 587,
+    emailSmtpUser: process.env.EMAIL_SMTP_USER || "",
+    emailSmtpPass: process.env.EMAIL_SMTP_PASS || "",
+    emailFrom: process.env.EMAIL_FROM || "noreply@parktag.me",
+    appBaseUrl: process.env.APP_BASE_URL || "http://localhost:4000",
+    googleClientId: process.env.GOOGLE_CLIENT_ID || "",
+    googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
+    googleCallbackUrl: process.env.GOOGLE_CALLBACK_URL || "http://127.0.0.1:4000/api/auth/google/callback"
   };
 }

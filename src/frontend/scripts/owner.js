@@ -128,19 +128,65 @@ async function loadOwnerDashboard() {
   }
 }
 
+function detectIdentifierType(value) {
+  const stripped = value.replace(/[\s\-()]/g, "");
+  if (value.includes("@")) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value.trim()) ? "email" : null;
+  }
+  if (/^\+?\d{7,15}$/.test(stripped)) return "mobile";
+  return null;
+}
+
+function updateIdentifierBadge() {
+  const input = byId("owner-identifier");
+  const badge = byId("identifier-badge");
+  if (!input || !badge) return;
+  const type = detectIdentifierType(input.value.trim());
+  if (type === "email") {
+    badge.textContent = "EMAIL";
+    badge.style.display = "";
+    input.style.paddingRight = "68px";
+    input.setAttribute("inputmode", "email");
+  } else if (type === "mobile") {
+    badge.textContent = "MOBILE";
+    badge.style.display = "";
+    input.style.paddingRight = "68px";
+    input.setAttribute("inputmode", "tel");
+  } else {
+    badge.style.display = "none";
+    input.style.paddingRight = "";
+    input.setAttribute("inputmode", "email");
+  }
+}
+
 async function loginOwner() {
-  const email = byId("owner-email")?.value;
-  const password = byId("owner-password")?.value;
+  const raw = byId("owner-identifier")?.value?.trim();
+  if (!raw) {
+    setStatus("Please enter your email or mobile number.", "error");
+    return;
+  }
+  const type = detectIdentifierType(raw);
+  if (!type) {
+    if (raw.includes("@")) {
+      setStatus("Please enter a valid email address (e.g. name@example.com).", "error");
+    } else {
+      setStatus("Please enter a valid email address or mobile number.", "error");
+    }
+    return;
+  }
+  const btn = byId("owner-login-button");
+  if (btn) { btn.disabled = true; btn.textContent = "Sending code..."; }
   try {
-    await fetchJson("/api/auth/login", {
+    await fetchJson("/api/auth/send-otp", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ role: "owner", email, password })
+      body: JSON.stringify({ identifier: raw })
     });
-    window.location.href = "/owner";
+    sessionStorage.setItem("pt_otp_identifier", raw);
+    window.location.href = "/owner-verify";
   } catch (error) {
-    const el = byId("owner-auth-status");
-    if (el) { el.textContent = error instanceof Error ? error.message : "Login failed"; el.dataset.tone = "error"; }
+    if (btn) { btn.disabled = false; btn.textContent = "Continue"; }
+    setStatus(error instanceof Error ? error.message : "Failed to send code", "error");
   }
 }
 
@@ -209,6 +255,24 @@ async function shareQr() {
   a.click();
 }
 
+// Show error from Google OAuth redirect (e.g. ?error=google_cancelled)
+const urlError = new URLSearchParams(location.search).get("error");
+if (urlError && hasEl("owner-auth-status")) {
+  const messages = {
+    google_cancelled: "Google sign-in was cancelled.",
+    auth_failed: "Google sign-in failed. Please try again.",
+    no_email: "Google account has no email address.",
+  };
+  setStatus(messages[urlError] || "Something went wrong. Please try again.", "error");
+}
+
+if (hasEl("owner-identifier")) {
+  byId("owner-identifier").addEventListener("input", () => {
+    updateIdentifierBadge();
+    setStatus("", "info");
+  });
+  byId("owner-identifier").addEventListener("keydown", (e) => { if (e.key === "Enter") loginOwner(); });
+}
 if (hasEl("owner-login-button")) byId("owner-login-button").addEventListener("click", loginOwner);
 if (hasEl("owner-logout-button")) byId("owner-logout-button").addEventListener("click", logoutOwner);
 if (hasEl("owner-set-active")) byId("owner-set-active").addEventListener("click", () => updateTagStatus("active"));

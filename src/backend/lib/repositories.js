@@ -17,6 +17,8 @@ export async function getCollections(env) {
     admins: db.collection(withPrefix(prefix, "admins")),
     owners: db.collection(withPrefix(prefix, "owners")),
     tags: db.collection(withPrefix(prefix, "tags")),
-    contactRequests: db.collection(withPrefix(prefix, "contact_requests"))
+    contactRequests: db.collection(withPrefix(prefix, "contact_requests")),
+    passwordResetTokens: db.collection(withPrefix(prefix, "password_reset_tokens")),
+    otpTokens: db.collection(withPrefix(prefix, "otp_tokens"))
   };
 }

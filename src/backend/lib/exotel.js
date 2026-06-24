@@ -219,6 +219,37 @@ export async function triggerExotelCall(env, input) {
   return postForm(url, auth, payload, "Unable to start the call right now.");
 }
 
+export function isExotelSmsConfigured(env) {
+  return !!(
+    env.exotelAccountSid &&
+    env.exotelApiKey &&
+    env.exotelApiToken &&
+    env.exotelSmsSenderId
+  );
+}
+
+function buildSmsUrl(env) {
+  const base = normalizeBaseUrl(env.exotelApiBaseUrl).replace(/\/+$/, "");
+  return `${base}/v1/Accounts/${env.exotelAccountSid}/Sms/send`;
+}
+
+export async function sendExotelSms(env, { to, body }) {
+  ensureExotelConfig(env, ["exotelSmsSenderId"]);
+  const auth = createBasicAuth(env);
+  const url = buildSmsUrl(env);
+  const normalized = normalizeIndianNumber(to);
+
+  const payload = {
+    From: env.exotelSmsSenderId,
+    To: normalized,
+    Body: body,
+    ...(env.exotelSmsDltEntityId && { DltEntityId: env.exotelSmsDltEntityId }),
+    ...(env.exotelSmsTemplateId && { DltTemplateId: env.exotelSmsTemplateId })
+  };
+
+  return postForm(url, auth, payload, "Unable to send the SMS right now.");
+}
+
 export async function sendExotelMessage(env, input) {
   ensureExotelConfig(env, ["exotelWhatsappFrom"]);
 

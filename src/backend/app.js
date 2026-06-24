@@ -62,6 +62,8 @@ export async function buildApp() {
   });
 
   app.decorate("sessions", new Map());
+  // Server-side OAuth state store — avoids SameSite cookie blocking on Google callback
+  app.decorate("oauthStates", new Map());
 
   app.addContentTypeParser(
     "application/x-www-form-urlencoded",

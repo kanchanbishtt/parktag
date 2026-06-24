@@ -37,7 +37,7 @@ export function registerOwnerRoutes(app, env) {
         _id: String(owner._id),
         email: owner.email || null,
         mobile: owner.mobile || null,
-        displayName: owner.displayName,
+        displayName: owner.displayName || request.session.displayName || null,
         credits: owner.credits || 0
       },
       tags: [...localVehicles, ...(await Promise.all(tags.map(async (tag) => {
@@ -86,9 +86,22 @@ export function registerOwnerRoutes(app, env) {
     if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
 
     const ownerId = toObjectId(request.session.userId);
+    const normalizedNumber = number.trim().toUpperCase();
+
+    // Check duplicate in local vehicles
+    const owner = await collections.owners.findOne({ _id: ownerId });
+    const existsLocal = (owner?.localVehicles || []).some(v => v.number === normalizedNumber);
+    // Check duplicate in registered tags
+    const existsTag = await collections.tags.findOne({ ownerId, plateNumber: normalizedNumber });
+
+    if (existsLocal || existsTag) {
+      reply.code(409);
+      return { ok: false, error: "Vehicle already added." };
+    }
+
     await collections.owners.updateOne(
       { _id: ownerId },
-      { $addToSet: { localVehicles: { type, number: number.trim().toUpperCase(), addedAt: new Date().toISOString() } } }
+      { $push: { localVehicles: { type, number: normalizedNumber, addedAt: new Date().toISOString() } } }
     );
     return { ok: true };
   });

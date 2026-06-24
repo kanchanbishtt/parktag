@@ -3,8 +3,8 @@ node_modules/
 npm-debug.log*
 Archieve/
 .playwright-cli/
-*.png
 *.pdf
 clusters.yaml
 owner-dashboard*.png
 admin_*.png
+

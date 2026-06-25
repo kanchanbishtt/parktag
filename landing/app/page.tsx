@@ -187,7 +187,7 @@ export default function Home() {
                   Your phone number is never shared. Anyone with a smartphone can reach you about your parked vehicle, just by scanning a QR tag.
                 </p>
                 <div className="flex flex-wrap gap-3">
-                  <a href={`${APP_URL}/register-owner`} className="bg-[#1A9D20] hover:bg-[#158018] text-white font-bold px-7 py-3.5 rounded-xl text-base transition-colors">
+                  <a href={`${APP_URL}/owner-login`} className="bg-[#1A9D20] hover:bg-[#158018] text-white font-bold px-7 py-3.5 rounded-xl text-base transition-colors">
                     Get Started
                   </a>
                   <a href="#how-it-works" className="border border-white/20 hover:border-white/40 text-white font-semibold px-7 py-3.5 rounded-xl text-base transition-colors">

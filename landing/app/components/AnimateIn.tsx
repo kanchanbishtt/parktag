@@ -29,9 +29,10 @@ export function AnimateIn({ children, className = "", delay = 0, from = "bottom"
     // After layout is painted, check position
     const raf = requestAnimationFrame(() => {
       if (!el) return;
+      const rect = el.getBoundingClientRect();
 
-      // Already above the viewport (hash navigation jumped past it)
-      if (el.getBoundingClientRect().bottom <= 0) {
+      // Already above viewport OR currently visible → show immediately (no waiting)
+      if (rect.bottom <= 0 || rect.top < window.innerHeight) {
         show();
         return;
       }

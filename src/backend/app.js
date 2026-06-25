@@ -1,5 +1,7 @@
 import Fastify from "fastify";
 import fastifyCookie from "@fastify/cookie";
+import fastifyHelmet from "@fastify/helmet";
+import fastifyRateLimit from "@fastify/rate-limit";
 import fastifyStatic from "@fastify/static";
 import path from "node:path";
 import fs from "node:fs/promises";
@@ -76,6 +78,19 @@ export async function buildApp() {
   );
 
   await app.register(fastifyCookie);
+
+  await app.register(fastifyHelmet, {
+    contentSecurityPolicy: false // HTML pages use inline scripts; CSP needs separate tuning
+  });
+
+  await app.register(fastifyRateLimit, {
+    max: 60,           // 60 requests
+    timeWindow: "1 minute",
+    errorResponseBuilder: () => ({
+      ok: false,
+      error: "Too many requests. Please slow down."
+    })
+  });
 
   await app.register(fastifyStatic, {
     root: frontendRoot,

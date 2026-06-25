@@ -1,7 +1,7 @@
 import { ObjectId } from "mongodb";
 
 import { getCollections } from "./repositories.js";
-import { verifyPassword } from "./security.js";
+import { verifyPassword, createPasswordHash } from "./security.js";
 import { readSession } from "./session.js";
 
 export async function findUserByEmail(env, role, email) {
@@ -16,10 +16,21 @@ export async function findUserByEmail(env, role, email) {
 }
 
 export async function loginUser(env, role, email, password) {
+  const collections = await getCollections(env);
   const user = await findUserByEmail(env, role, email);
 
-  if (!user || !verifyPassword(password, user.passwordHash)) {
-    return null;
+  if (!user) return null;
+
+  const { valid, needsUpgrade } = await verifyPassword(password, user.passwordHash);
+  if (!valid) return null;
+
+  // Transparently upgrade SHA-256 → bcrypt on first successful login
+  if (needsUpgrade && collections) {
+    const col = role === "admin" ? collections.admins : collections.owners;
+    col.updateOne(
+      { _id: user._id },
+      { $set: { passwordHash: await createPasswordHash(password) } }
+    ).catch(() => {}); // non-blocking, best-effort
   }
 
   return {

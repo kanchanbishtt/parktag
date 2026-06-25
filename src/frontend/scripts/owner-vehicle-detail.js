@@ -3,13 +3,31 @@ const params   = new URLSearchParams(location.search);
 const plate    = params.get("number") || "—";
 const typeKey  = params.get("type")   || "car";
 const label    = params.get("label")  || "Vehicle";
-const tagId    = "DEMO-" + plate.replace(/\s/g, "").toUpperCase().slice(0, 8);
+const realId   = params.get("id")     || "";
+const realToken = params.get("token") || "";
+
+// Real QR data url — populated from API when a real tag id is present
+let realQrDataUrl = "";
+let realScanUrl   = "";
 
 // ── Skeleton → reveal after 500ms ────────────────────────────
 const skeleton  = document.getElementById("skeleton");
 const content   = document.getElementById("vd-content");
 
-setTimeout(() => {
+setTimeout(async () => {
+  // If this is a real tag, fetch its QR from the dashboard API
+  if (realId) {
+    try {
+      const res  = await fetch("/api/owner/dashboard");
+      const data = res.ok ? await res.json() : null;
+      const tag  = data?.tags?.find(t => t.id === realId);
+      if (tag) {
+        realQrDataUrl = tag.qrDataUrl || "";
+        realScanUrl   = tag.scanUrl   || "";
+      }
+    } catch {}
+  }
+
   skeleton.style.transition = "opacity .25s ease";
   skeleton.style.opacity = "0";
   setTimeout(() => {
@@ -21,13 +39,15 @@ setTimeout(() => {
 
 // ── Populate fields ───────────────────────────────────────────
 function populateContent() {
+  const displayTagId = realToken || ("DEMO-" + plate.replace(/\s/g, "").toUpperCase().slice(0, 8));
+
   document.getElementById("vd-plate").textContent  = "#" + plate;
-  document.getElementById("vd-tagid").textContent  = "Tag id: " + tagId;
+  document.getElementById("vd-tagid").textContent  = "Tag id: " + displayTagId;
   document.getElementById("info-plate").textContent = plate;
   document.getElementById("info-type").textContent  = label;
-  document.getElementById("info-tagid").textContent = tagId;
+  document.getElementById("info-tagid").textContent = displayTagId;
 
-  // Try to get owner name from session (API call)
+  // Owner name from session
   fetch("/api/owner/dashboard")
     .then(r => r.ok ? r.json() : null)
     .then(data => {
@@ -38,8 +58,19 @@ function populateContent() {
     })
     .catch(() => {});
 
-  // Contact page link — points to demo scanner page
-  document.getElementById("contact-page-link").href = "/vehicle/DEMOPARKTAG1";
+  // Contact page link — real token if available, else demo
+  const scanLink = realScanUrl || "/vehicle/DEMOPARKTAG1";
+  document.getElementById("contact-page-link").href = scanLink;
+
+  // Inject real QR into print template if available
+  const printQr = document.getElementById("print-qr-img");
+  if (printQr && realQrDataUrl) {
+    printQr.src = realQrDataUrl;
+  }
+
+  // Hide demo banner if this is a real tag
+  const demoBanner = document.querySelector(".vd-demo-banner");
+  if (demoBanner && realId) demoBanner.style.display = "none";
 }
 
 // ── Tab switching ─────────────────────────────────────────────
@@ -58,7 +89,6 @@ document.querySelectorAll(".vd-menu-item").forEach(item => {
   if (!row) return;
   row.addEventListener("click", () => {
     const isOpen = item.classList.contains("open");
-    // Close all others
     document.querySelectorAll(".vd-menu-item.open").forEach(o => o.classList.remove("open"));
     if (!isOpen) item.classList.add("open");
   });
@@ -68,9 +98,8 @@ document.querySelectorAll(".vd-menu-item").forEach(item => {
 const STORAGE_KEY = "pt_vd_toggles_" + plate;
 
 function loadToggles() {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-  } catch { return {}; }
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"); }
+  catch { return {}; }
 }
 
 function saveToggles(state) {
@@ -90,7 +119,6 @@ function initToggles() {
   });
 }
 
-// Toggles are inside the sub-panels; init after skeleton fades
 setTimeout(initToggles, 600);
 
 // ── SOS save ─────────────────────────────────────────────────
@@ -109,7 +137,6 @@ document.getElementById("sos-test-btn")?.addEventListener("click", () => {
   alert("SOS test alert sent! (Demo mode)");
 });
 
-// Pre-fill saved SOS number
 setTimeout(() => {
   const saved = localStorage.getItem("pt_sos_" + plate);
   if (saved) {

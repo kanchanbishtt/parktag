@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.parktag.me";
@@ -53,6 +53,17 @@ export function SiteHeader({ defaultDark = true }: { defaultDark?: boolean }) {
   const cancelClose = () => {
     if (closeTimer.current) clearTimeout(closeTimer.current);
   };
+
+  // Set correct logo before first paint to avoid flash
+  useLayoutEffect(() => {
+    const NAV_H = 64;
+    const firstDark = document.querySelector<HTMLElement>("[data-nav-dark]");
+    const shouldBeDark = firstDark
+      ? firstDark.getBoundingClientRect().bottom > NAV_H
+      : defaultDark;
+    setIsDark(shouldBeDark);
+    prevDarkRef.current = shouldBeDark;
+  }, []);
 
   useEffect(() => {
     const NAV_H = 64;
@@ -109,7 +120,6 @@ export function SiteHeader({ defaultDark = true }: { defaultDark?: boolean }) {
       }
     }
 
-    check();
     window.addEventListener("scroll", check, { passive: true });
     return () => window.removeEventListener("scroll", check);
   }, [defaultDark]);

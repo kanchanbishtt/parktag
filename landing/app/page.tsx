@@ -178,7 +178,7 @@ export default function Home() {
           <div className="max-w-6xl mx-auto px-4 sm:px-6">
             <div className="grid md:grid-cols-2 gap-10 items-center min-h-[520px]">
 
-              <div className="py-12 md:py-16">
+              <AnimateIn from="bottom" delay={0} className="py-12 md:py-16">
                 <h1 className="text-[2.6rem] sm:text-5xl font-extrabold text-white leading-[1.12] tracking-tight mb-6 max-w-[420px]">
                   Make it easy for people to notify you about any issue involving your{" "}
                   <span className="whitespace-nowrap"><VehicleRotator /></span>
@@ -194,9 +194,9 @@ export default function Home() {
                     How it works
                   </a>
                 </div>
-              </div>
+              </AnimateIn>
 
-              <div className="flex items-end justify-center md:justify-end pt-10">
+              <AnimateIn from="bottom" delay={150} className="flex items-end justify-center md:justify-end pt-10">
                 <div className="relative w-full max-w-lg">
                   <div className="absolute inset-0 bg-[#1A9D20]/10 blur-3xl rounded-full scale-90" />
                   <img
@@ -205,7 +205,7 @@ export default function Home() {
                     className="relative w-full drop-shadow-2xl rounded-3xl"
                   />
                 </div>
-              </div>
+              </AnimateIn>
             </div>
           </div>
 

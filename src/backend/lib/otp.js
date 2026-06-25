@@ -2,10 +2,11 @@ import crypto from "node:crypto";
 
 import { getCollections } from "./repositories.js";
 import { sendOtpEmail } from "./email.js";
-import { isExotelSmsConfigured, sendExotelSms } from "./exotel.js";
+import { isMetaWhatsappConfigured, sendMetaWhatsappOtp } from "./meta.js";
 
 const OTP_EXPIRY_MS = 10 * 60 * 1000;
 const RATE_LIMIT_MS = 2 * 60 * 1000;
+const MAX_VERIFY_ATTEMPTS = 5;
 
 function generateOtp() {
   return String(crypto.randomInt(100000, 1000000));
@@ -53,24 +54,21 @@ export async function sendOtp(env, identifier) {
     identifier: normalized,
     code,
     used: false,
+    attempts: 0,
     createdAt: now.toISOString(),
     expiresAt: new Date(now.getTime() + OTP_EXPIRY_MS).toISOString()
   });
 
   if (isMobile) {
-    if (isExotelSmsConfigured(env)) {
-      // Fire-and-forget — OTP is already saved; don't block the response on SMS delivery
-      sendExotelSms(env, {
-        to: normalized,
-        body: `${code} is your ParkTag verification code. Valid for 10 minutes. Do not share this with anyone.`
-      }).catch(err => console.error("[OTP] SMS send failed:", err));
+    if (isMetaWhatsappConfigured(env)) {
+      sendMetaWhatsappOtp(env, { to: normalized, code })
+        .catch(err => console.error("[OTP] WhatsApp send failed:", err));
     } else if (env.runtimeMode !== "production") {
       console.log(`\n[ParkTag] OTP for ${normalized}: ${code}\n`);
     } else {
-      throw new Error("SMS is not configured on this server.");
+      throw new Error("WhatsApp OTP is not configured on this server.");
     }
   } else {
-    // Fire-and-forget — OTP is already saved; don't block the response on email delivery
     sendOtpEmail(env, { to: normalized, code })
       .catch(err => console.error("[OTP] Email send failed:", err));
   }
@@ -85,14 +83,34 @@ export async function verifyOtp(env, identifier, code) {
   const normalized = normalizeIdentifier(identifier);
   const isMobile = isMobileIdentifier(identifier);
 
+  // Find the token without the code first so we can count failed attempts
   const record = await collections.otpTokens.findOne({
     identifier: normalized,
-    code,
     used: false,
     expiresAt: { $gt: new Date().toISOString() }
   });
 
   if (!record) throw new Error("Invalid or expired code. Please try again.");
+
+  // Enforce attempt limit
+  if ((record.attempts || 0) >= MAX_VERIFY_ATTEMPTS) {
+    await collections.otpTokens.updateOne(
+      { _id: record._id },
+      { $set: { used: true } }
+    );
+    throw new Error("Too many incorrect attempts. Please request a new code.");
+  }
+
+  if (record.code !== code) {
+    await collections.otpTokens.updateOne(
+      { _id: record._id },
+      { $inc: { attempts: 1 } }
+    );
+    const remaining = MAX_VERIFY_ATTEMPTS - (record.attempts || 0) - 1;
+    throw new Error(
+      `Invalid code. ${remaining} attempt${remaining === 1 ? "" : "s"} remaining.`
+    );
+  }
 
   await collections.otpTokens.updateOne(
     { _id: record._id },

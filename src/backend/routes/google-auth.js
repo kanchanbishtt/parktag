@@ -137,7 +137,7 @@ export function registerGoogleAuthRoutes(app, env) {
         email: resolvedOwner.email,
         displayName: resolvedOwner.displayName || displayName
       });
-      writeSessionCookie(reply, sessionId);
+      writeSessionCookie(reply, sessionId, env.runtimeMode === "production");
       reply.redirect(isNew ? "/owner-welcome?new=1" : "/owner-welcome");
     } catch (err) {
       app.log.error(err, "Google auth callback error");
@@ -197,7 +197,7 @@ export function registerGoogleAuthRoutes(app, env) {
         id: String(owner._id), role: "owner",
         email: owner.email, displayName: owner.displayName || displayName
       });
-      writeSessionCookie(reply, sessionId);
+      writeSessionCookie(reply, sessionId, env.runtimeMode === "production");
       reply.send({ redirect: isNew ? "/owner-welcome?new=1" : "/owner-welcome" });
     } catch (err) {
       app.log.error(err, "Google credential verification error");
@@ -264,7 +264,7 @@ export function registerGoogleAuthRoutes(app, env) {
         id: String(owner._id), role: "owner",
         email: owner.email, displayName: owner.displayName || displayName
       });
-      writeSessionCookie(reply, sessionId);
+      writeSessionCookie(reply, sessionId, env.runtimeMode === "production");
       reply.send({ redirect: isNew ? "/owner-welcome?new=1" : "/owner-welcome" });
     } catch (err) {
       app.log.error(err, "Google popup auth error");

@@ -40,7 +40,7 @@ export function registerAuthRoutes(app, env) {
     }
 
     const sessionId = await createSession(app, user);
-    writeSessionCookie(reply, sessionId);
+    writeSessionCookie(reply, sessionId, env.runtimeMode === "production");
 
     return {
       ok: true,

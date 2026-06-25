@@ -64,7 +64,7 @@ export function registerOtpAuthRoutes(app, env) {
         email: owner.email || owner.mobile || identifier,
         displayName: owner.displayName
       });
-      writeSessionCookie(reply, sessionId);
+      writeSessionCookie(reply, sessionId, env.runtimeMode === "production");
 
       return { ok: true, isNewUser };
     } catch (error) {

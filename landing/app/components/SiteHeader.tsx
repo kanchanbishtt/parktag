@@ -36,6 +36,7 @@ type DropdownKey = keyof typeof DROPDOWNS;
 
 export function SiteHeader({ defaultDark = true }: { defaultDark?: boolean }) {
   const [isDark, setIsDark] = useState(defaultDark);
+  const [mounted, setMounted] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<DropdownKey | null>(null);
   const headerRef = useRef<HTMLElement>(null);
@@ -63,6 +64,7 @@ export function SiteHeader({ defaultDark = true }: { defaultDark?: boolean }) {
       : defaultDark;
     setIsDark(shouldBeDark);
     prevDarkRef.current = shouldBeDark;
+    setMounted(true);
   }, []);
 
   useEffect(() => {
@@ -171,7 +173,11 @@ export function SiteHeader({ defaultDark = true }: { defaultDark?: boolean }) {
             <img
               src={isDark ? "/dark-logo.png" : "/light-logo.png"}
               alt="ParkTag"
-              style={{ height: "42px", width: "auto", display: "block" }}
+              style={{
+                height: "42px", width: "auto", display: "block",
+                opacity: mounted ? 1 : 0,
+                transition: mounted ? "opacity 120ms ease" : "none",
+              }}
             />
           </Link>
 

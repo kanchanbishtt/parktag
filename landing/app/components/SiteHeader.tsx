@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.parktag.me";
@@ -36,6 +36,7 @@ type DropdownKey = keyof typeof DROPDOWNS;
 
 export function SiteHeader({ defaultDark = true }: { defaultDark?: boolean }) {
   const [isDark, setIsDark] = useState(defaultDark);
+  const [mounted, setMounted] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<DropdownKey | null>(null);
   const headerRef = useRef<HTMLElement>(null);
@@ -53,6 +54,18 @@ export function SiteHeader({ defaultDark = true }: { defaultDark?: boolean }) {
   const cancelClose = () => {
     if (closeTimer.current) clearTimeout(closeTimer.current);
   };
+
+  // Set correct logo before first paint to avoid flash
+  useLayoutEffect(() => {
+    const NAV_H = 64;
+    const firstDark = document.querySelector<HTMLElement>("[data-nav-dark]");
+    const shouldBeDark = firstDark
+      ? firstDark.getBoundingClientRect().bottom > NAV_H
+      : defaultDark;
+    setIsDark(shouldBeDark);
+    prevDarkRef.current = shouldBeDark;
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     const NAV_H = 64;
@@ -109,7 +122,6 @@ export function SiteHeader({ defaultDark = true }: { defaultDark?: boolean }) {
       }
     }
 
-    check();
     window.addEventListener("scroll", check, { passive: true });
     return () => window.removeEventListener("scroll", check);
   }, [defaultDark]);
@@ -161,7 +173,11 @@ export function SiteHeader({ defaultDark = true }: { defaultDark?: boolean }) {
             <img
               src={isDark ? "/dark-logo.png" : "/light-logo.png"}
               alt="ParkTag"
-              style={{ height: "42px", width: "auto", display: "block" }}
+              style={{
+                height: "42px", width: "auto", display: "block",
+                opacity: mounted ? 1 : 0,
+                transition: mounted ? "opacity 120ms ease" : "none",
+              }}
             />
           </Link>
 

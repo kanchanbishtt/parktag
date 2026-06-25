@@ -132,6 +132,14 @@ export function SiteHeader({ defaultDark = true }: { defaultDark?: boolean }) {
 
   const closeAll = () => { setMenuOpen(false); setActiveDropdown(null); };
 
+  const navigateSmoothly = (href: string) => (e: React.MouseEvent) => {
+    e.preventDefault();
+    closeAll();
+    document.body.style.transition = "opacity 150ms ease";
+    document.body.style.opacity = "0";
+    setTimeout(() => { window.location.href = href; }, 160);
+  };
+
   const textColor = isDark ? "rgba(255,255,255,0.65)" : "#495B7B";
   const textHover = isDark ? "#ffffff" : "#001935";
 
@@ -228,6 +236,7 @@ export function SiteHeader({ defaultDark = true }: { defaultDark?: boolean }) {
             {/* Login as nav link */}
             <a
               href={`${APP_URL}/owner-login`}
+              onClick={navigateSmoothly(`${APP_URL}/owner-login`)}
               className="px-3 py-2 text-sm rounded-lg transition-colors duration-200"
               style={{ color: textColor }}
               onMouseEnter={(e) => (e.currentTarget.style.color = "#1A9D20")}
@@ -303,12 +312,15 @@ export function SiteHeader({ defaultDark = true }: { defaultDark?: boolean }) {
 
           {/* Mobile right side */}
           <div className="flex md:hidden items-center gap-3">
-            <a
-              href={`${APP_URL}/register-owner`}
-              className="bg-[#1A9D20] hover:bg-[#158018] text-white text-sm font-bold px-4 py-2 rounded-lg transition-colors"
-            >
-              Order Now
-            </a>
+            {!menuOpen && (
+              <a
+                href={`${APP_URL}/owner-login`}
+                onClick={navigateSmoothly(`${APP_URL}/owner-login`)}
+                className="bg-[#1A9D20] hover:bg-[#158018] text-white text-sm font-bold px-4 py-2 rounded-lg transition-colors"
+              >
+                Login
+              </a>
+            )}
             <button
               onClick={() => setMenuOpen((o) => !o)}
               aria-label={menuOpen ? "Close menu" : "Open menu"}
@@ -336,11 +348,10 @@ export function SiteHeader({ defaultDark = true }: { defaultDark?: boolean }) {
           onClick={closeAll}
         />
         <div
-          className="absolute top-16 left-0 right-0 bg-white shadow-xl transition-all duration-300 overflow-hidden"
-          style={{ maxHeight: menuOpen ? "520px" : "0px", opacity: menuOpen ? 1 : 0 }}
+          className="absolute top-16 left-0 right-0 bg-white shadow-xl transition-all duration-300 overflow-y-auto"
+          style={{ maxHeight: menuOpen ? "calc(100vh - 64px)" : "0px", opacity: menuOpen ? 1 : 0 }}
         >
           <nav className="px-5 pt-4 pb-6 flex flex-col">
-            {/* Flat list of all items for mobile */}
             <div className="text-[10px] font-bold text-[#495B7B]/40 tracking-widest uppercase mb-2">About</div>
             <Link href="/about" onClick={closeAll} className="py-2.5 text-[#001935] font-medium text-sm hover:text-[#1A9D20] transition-colors">About Us</Link>
             <Link href="/contact" onClick={closeAll} className="py-2.5 text-[#001935] font-medium text-sm hover:text-[#1A9D20] transition-colors">Contact</Link>
@@ -357,7 +368,7 @@ export function SiteHeader({ defaultDark = true }: { defaultDark?: boolean }) {
             <a href="#faq" onClick={closeAll} className="py-2.5 text-[#001935] font-medium text-sm hover:text-[#1A9D20] transition-colors">FAQ</a>
 
             <div className="mt-5 flex flex-col gap-3">
-              <a href={`${APP_URL}/owner-login`} onClick={closeAll} className="text-center py-3 rounded-xl border-2 border-[#001935] text-[#001935] font-bold text-sm hover:bg-[#001935] hover:text-white transition-colors">Login</a>
+              <a href={`${APP_URL}/owner-login`} onClick={navigateSmoothly(`${APP_URL}/owner-login`)} className="text-center py-3 rounded-xl border-2 border-[#001935] text-[#001935] font-bold text-sm hover:bg-[#001935] hover:text-white transition-colors">Login</a>
               <a href={`${APP_URL}/register-owner`} onClick={closeAll} className="text-center py-3 rounded-xl bg-[#1A9D20] text-white font-bold text-sm hover:bg-[#158018] transition-colors">Order Now</a>
             </div>
           </nav>

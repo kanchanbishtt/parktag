@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 
 import { getCollections } from "./repositories.js";
 import { sendOtpEmail } from "./email.js";
-import { isExotelSmsConfigured, sendExotelSms } from "./exotel.js";
+import { isMetaWhatsappConfigured, sendMetaWhatsappOtp } from "./meta.js";
 
 const OTP_EXPIRY_MS = 10 * 60 * 1000;
 const RATE_LIMIT_MS = 2 * 60 * 1000;
@@ -58,16 +58,13 @@ export async function sendOtp(env, identifier) {
   });
 
   if (isMobile) {
-    if (isExotelSmsConfigured(env)) {
-      // Fire-and-forget — OTP is already saved; don't block the response on SMS delivery
-      sendExotelSms(env, {
-        to: normalized,
-        body: `${code} is your ParkTag verification code. Valid for 10 minutes. Do not share this with anyone.`
-      }).catch(err => console.error("[OTP] SMS send failed:", err));
+    if (isMetaWhatsappConfigured(env)) {
+      sendMetaWhatsappOtp(env, { to: normalized, code })
+        .catch(err => console.error("[OTP] WhatsApp send failed:", err));
     } else if (env.runtimeMode !== "production") {
       console.log(`\n[ParkTag] OTP for ${normalized}: ${code}\n`);
     } else {
-      throw new Error("SMS is not configured on this server.");
+      throw new Error("WhatsApp OTP is not configured on this server.");
     }
   } else {
     // Fire-and-forget — OTP is already saved; don't block the response on email delivery

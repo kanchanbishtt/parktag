@@ -1,6 +1,5 @@
 
-let _confirmationResult = null;
-let _recaptchaVerifier = null;
+let _currentPhone = null;
 
 function normalizePhoneE164(raw) {
   const digits = raw.replace(/[^\d+]/g, "");
@@ -10,29 +9,16 @@ function normalizePhoneE164(raw) {
   return digits;
 }
 
-async function initFirebaseAuth() {
-  if (typeof firebase === "undefined") throw new Error("Firebase SDK not loaded. Please refresh and try again.");
-  if (!firebase.apps.length) {
-    const cfg = await fetchJson("/api/auth/firebase-config");
-    firebase.initializeApp({ apiKey: cfg.apiKey, authDomain: cfg.authDomain, projectId: cfg.projectId });
-  }
-  return firebase.auth();
-}
-
-async function sendFirebasePhoneOtp(raw) {
+async function sendWhatsappOtp(raw) {
   const phone = normalizePhoneE164(raw);
-  const auth = await initFirebaseAuth();
+  _currentPhone = phone;
 
-  if (!_recaptchaVerifier) {
-    _recaptchaVerifier = new firebase.auth.RecaptchaVerifier("recaptcha-container", {
-      size: "invisible",
-      callback: () => {}
-    });
-  }
+  await fetchJson("/api/auth/send-otp", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ identifier: phone })
+  });
 
-  _confirmationResult = await auth.signInWithPhoneNumber(phone, _recaptchaVerifier);
-
-  byId("phone-sent-to").textContent = phone;
   byId("phone-step2").style.display = "";
   byId("owner-form-step1").style.display = "none";
   byId("google-section").style.display = "none";
@@ -40,34 +26,26 @@ async function sendFirebasePhoneOtp(raw) {
   if (sub) {
     const last4 = phone.replace(/\D/g, "").slice(-4);
     const masked = phone.slice(0, -4).replace(/\d/g, "X") + last4;
-    sub.innerHTML = `Enter the 6-digit code sent to your mobile number <strong style="color:#1F2937;font-weight:800">${masked}</strong>.`;
+    sub.innerHTML = `Enter the 6-digit code sent to your WhatsApp <strong style="color:#1F2937;font-weight:800">${masked}</strong>.`;
     sub.style.marginBottom = "0";
   }
 }
 
-async function verifyFirebasePhoneOtp() {
+async function verifyWhatsappOtp() {
   const otp = byId("phone-otp-inp")?.value?.trim();
   if (!otp || otp.length !== 6) { setStatus("Enter the 6-digit code.", "error"); return; }
   const btn = byId("phone-verify-btn");
   if (btn) { btn.disabled = true; btn.classList.add("pt-btn-loading"); }
   try {
-    const result = await _confirmationResult.confirm(otp);
-    const idToken = await result.user.getIdToken();
-    const data = await fetchJson("/api/auth/firebase-phone/verify-token", {
+    const data = await fetchJson("/api/auth/verify-otp", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ idToken })
+      body: JSON.stringify({ identifier: _currentPhone, code: otp })
     });
-    window.location.href = data.isNew ? "/owner-welcome?new=1" : "/owner-welcome";
+    window.location.href = data.isNewUser ? "/owner-welcome?new=1" : "/owner-welcome";
   } catch (error) {
     if (btn) { btn.disabled = false; btn.classList.remove("pt-btn-loading"); }
-    if (_recaptchaVerifier) { try { _recaptchaVerifier.clear(); } catch (_) {} _recaptchaVerifier = null; }
-    const errorCode = error?.code;
-    const msg = errorCode === "auth/invalid-verification-code" ? "Incorrect code. Please try again."
-      : errorCode === "auth/code-expired" ? "Code expired. Please request a new one."
-      : errorCode === "auth/too-many-requests" ? "Too many attempts. Please wait and try again."
-      : error instanceof Error ? error.message : "Verification failed.";
-    setStatus(msg, "error");
+    setStatus(error instanceof Error ? error.message : "Verification failed.", "error");
   }
 }
 
@@ -255,7 +233,7 @@ async function loginOwner() {
 
   if (type === "mobile") {
     try {
-      await sendFirebasePhoneOtp(raw);
+      await sendWhatsappOtp(raw);
     } catch (error) {
       if (btn) { btn.disabled = false; btn.classList.remove("pt-btn-loading"); }
       setStatus(error instanceof Error ? error.message : "Failed to send code.", "error");
@@ -277,15 +255,17 @@ async function loginOwner() {
   }
 }
 
-async function resendFirebasePhoneOtp() {
-  const raw = byId("phone-sent-to")?.textContent?.trim();
-  if (!raw) return;
+async function resendWhatsappOtp() {
+  if (!_currentPhone) return;
   const btn = byId("phone-resend-btn");
   if (btn) { btn.disabled = true; btn.classList.add("pt-btn-loading"); }
-  if (_recaptchaVerifier) { try { _recaptchaVerifier.clear(); } catch (_) {} _recaptchaVerifier = null; }
   try {
-    await sendFirebasePhoneOtp(raw);
-    setStatus("A new code has been sent.", "success");
+    await fetchJson("/api/auth/send-otp", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ identifier: _currentPhone })
+    });
+    setStatus("A new code has been sent to your WhatsApp.", "success");
   } catch (error) {
     setStatus(error instanceof Error ? error.message : "Failed to resend code.", "error");
   } finally {
@@ -381,9 +361,9 @@ if (hasEl("owner-identifier")) {
   byId("owner-identifier").addEventListener("keydown", (e) => { if (e.key === "Enter") loginOwner(); });
 }
 if (hasEl("owner-login-button")) byId("owner-login-button").addEventListener("click", loginOwner);
-if (hasEl("phone-verify-btn")) byId("phone-verify-btn").addEventListener("click", verifyFirebasePhoneOtp);
-if (hasEl("phone-otp-inp")) byId("phone-otp-inp").addEventListener("keydown", e => { if (e.key === "Enter") verifyFirebasePhoneOtp(); });
-if (hasEl("phone-resend-btn")) byId("phone-resend-btn").addEventListener("click", resendFirebasePhoneOtp);
+if (hasEl("phone-verify-btn")) byId("phone-verify-btn").addEventListener("click", verifyWhatsappOtp);
+if (hasEl("phone-otp-inp")) byId("phone-otp-inp").addEventListener("keydown", e => { if (e.key === "Enter") verifyWhatsappOtp(); });
+if (hasEl("phone-resend-btn")) byId("phone-resend-btn").addEventListener("click", resendWhatsappOtp);
 if (hasEl("phone-back-btn")) {
   byId("phone-back-btn").addEventListener("click", e => {
     e.preventDefault();

@@ -311,7 +311,7 @@ export function registerAdminRoutes(app, env) {
 
     await collections.admins.insertOne({
       email,
-      passwordHash: createPasswordHash(password),
+      passwordHash: await createPasswordHash(password),
       displayName,
       role: "admin",
       createdAt: new Date().toISOString()

@@ -92,7 +92,7 @@ export async function resetPassword(env, token, newPassword) {
 
   await collections.owners.updateOne(
     { _id: owner._id },
-    { $set: { passwordHash: createPasswordHash(newPassword) } }
+    { $set: { passwordHash: await createPasswordHash(newPassword) } }
   );
 
   await collections.passwordResetTokens.updateOne(

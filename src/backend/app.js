@@ -216,11 +216,22 @@ export async function buildApp() {
     return guardAdmin(request, reply, adminAdminsPage);
   });
 
-  app.get("/vehicle/:token([A-Za-z0-9]{12})", async (_request, reply) => {
+  // Public scan landing page. Accepts both the new 256-bit hex tokens (64 chars)
+  // and legacy 12-char tokens for backward compatibility. /tag is the spec URL;
+  // /vehicle is kept as a working alias so already-printed stickers still resolve.
+  async function serveScannerPage(reply) {
     const html = await fs.readFile(scannerPage, "utf8");
     setScannerNoCache(reply);
     reply.type("text/html");
     return html.replaceAll("__SCANNER_ASSET_VERSION__", scannerAssetVersion);
+  }
+
+  app.get("/tag/:token([A-Za-z0-9]{12,64})", async (_request, reply) => {
+    return serveScannerPage(reply);
+  });
+
+  app.get("/vehicle/:token([A-Za-z0-9]{12,64})", async (_request, reply) => {
+    return serveScannerPage(reply);
   });
 
   registerRuntimeRoutes(app, env);

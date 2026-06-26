@@ -12,6 +12,8 @@ let verifiedPlateLastFour = "";
 let expectedPlateLastFour = "";
 let pendingAction = null;
 let currentCallPreviewNumber = "";
+// Server-issued grant proving this scanner passed last-4 verification.
+let contactGrant = "";
 
 function byId(id) {
   return document.getElementById(id);
@@ -51,7 +53,8 @@ function setDisabled(id, disabled) {
 
 function getTokenFromUrl() {
   const path = window.location.pathname;
-  const match = path.match(/\/vehicle\/([A-Za-z0-9]{12})/);
+  // Accept both /tag/<token> and the legacy /vehicle/<token>, 12–64 chars.
+  const match = path.match(/\/(?:tag|vehicle)\/([A-Za-z0-9]{12,64})/);
 
   if (match) {
     return match[1];
@@ -110,6 +113,7 @@ function resetActionState() {
   verifiedPlateLastFour = "";
   expectedPlateLastFour = "";
   currentCallPreviewNumber = "";
+  contactGrant = "";
   pendingAction = null;
   setDisabled("call-owner-button", false);
   setDisabled("send-whatsapp-button", false);
@@ -140,7 +144,8 @@ async function createRequest(payload) {
     headers: {
       "content-type": "application/json"
     },
-    body: JSON.stringify(payload)
+    // Attach the verification grant so the server authorises the contact.
+    body: JSON.stringify({ ...payload, grant: contactGrant })
   });
 }
 
@@ -168,8 +173,7 @@ async function loadScannerView() {
     setValue("request-token", tag.token);
     setValue("claim-vehicle-label", tag.vehicleLabel || "");
     setValue("claim-plate-number", "");
-    expectedPlateLastFour = tag.plateLastFour || "";
-    setText("plate-mask-preview", tag.maskedPlateNumber || "Loading...");
+    setText("plate-mask-preview", tag.maskedPlateNumber || "••••");
 
     if (registrationState) {
       setText("scanner-load-status", "This WaveTag needs owner registration before contact can be enabled.");
@@ -211,28 +215,52 @@ async function handlePlateVerification(event) {
   event.preventDefault();
 
   const entered = byId("plate-last-four-input")?.value.trim();
+  const token = byId("request-token")?.value.trim() || getTokenFromUrl();
 
   if (!entered) {
     setRequestStatus("plate-verify-status", "Enter the last 4 digits first.", "error");
     return;
   }
 
-  if (!expectedPlateLastFour) {
-    setRequestStatus("plate-verify-status", "Vehicle digits are not ready yet. Reload the page.", "error");
+  setDisabled("plate-verify-submit", true);
+  setRequestStatus("plate-verify-status", "Verifying…", "info");
+
+  // Verification happens entirely server-side — the correct digits are never
+  // sent to the browser. The server returns a grant we attach to contact calls.
+  let response;
+  try {
+    response = await fetch(`/api/tags/${token}/verify`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ lastFour: entered })
+    });
+  } catch (_) {
+    setDisabled("plate-verify-submit", false);
+    setRequestStatus("plate-verify-status", "Network error. Please try again.", "error");
     return;
   }
 
-  if (entered !== expectedPlateLastFour) {
-    setRequestStatus("plate-verify-status", "Those last 4 digits do not match this vehicle.", "error");
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    setDisabled("plate-verify-submit", false);
+    let msg = data.error || "Verification failed. Please try again.";
+    if (typeof data.attemptsRemaining === "number") {
+      msg += ` ${data.attemptsRemaining} attempt(s) left.`;
+    }
+    setRequestStatus("plate-verify-status", msg, "error");
     return;
   }
 
+  contactGrant = data.grant || "";
   verifiedPlateLastFour = entered;
+  setDisabled("plate-verify-submit", false);
+  setRequestStatus("plate-verify-status", "", "info");
   showOnly("scanner-action-shell");
   setRequestStatus(
     "request-status",
-    "Choose Call Owner or Leave WhatsApp message.",
-    "info"
+    "Verified ✓ Choose Call Owner or Leave WhatsApp message.",
+    "success"
   );
 }
 

@@ -209,8 +209,13 @@ function addVehicle() {
 
 // ── E-Tag popup ──────────────────────────────────────────────
 
+// Promise that resolves once the real E-Tag (token + scannable QR) is ready.
+let etagReady = null;
+
 function showEtagPopup() {
   document.getElementById("etag-overlay")?.classList.add("active");
+  // Generate the real E-Tag now so the QR is embedded before the user prints.
+  prepareEtagAssets();
 }
 
 function hideEtagPopup() {
@@ -225,8 +230,38 @@ function populatePrintTemplate() {
   if (el) el.textContent = vehicleNum;
 }
 
-function downloadEtag() {
+// Create a real, scannable E-Tag for the first vehicle and embed its high-res QR
+// into the print template (replacing the demo placeholder QR).
+function prepareEtagAssets() {
   populatePrintTemplate();
+  const v = vehicles[0];
+  if (!v) { etagReady = Promise.resolve(); return; }
+
+  etagReady = (async () => {
+    try {
+      const res = await fetch("/api/owner/etag/generate", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ type: v.type, number: v.number })
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      const img = document.getElementById("print-qr-img");
+      if (img && data?.etag?.qrDataUrl) {
+        img.src = data.etag.qrDataUrl;
+      }
+    } catch (_) {
+      // Non-fatal: if generation fails the user can still re-print from the dashboard.
+    }
+  })();
+}
+
+async function downloadEtag() {
+  populatePrintTemplate();
+  // Ensure the real QR is embedded before we open the print dialog.
+  if (etagReady) {
+    try { await etagReady; } catch (_) {}
+  }
   hideEtagPopup();
   const savingPromise = saveVehicles();
 

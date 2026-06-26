@@ -37,7 +37,7 @@ export async function seedDemoData(env) {
   const owner = {
     _id: ownerId,
     email: DEMO_OWNER_EMAIL,
-    passwordHash: createPasswordHash(DEMO_PASSWORD),
+    passwordHash: await createPasswordHash(DEMO_PASSWORD),
     displayName: "Demo Owner",
     phone: "+910000000001",
     credits: 0,
@@ -48,7 +48,7 @@ export async function seedDemoData(env) {
   const admin = {
     _id: adminId,
     email: DEMO_ADMIN_EMAIL,
-    passwordHash: createPasswordHash(DEMO_PASSWORD),
+    passwordHash: await createPasswordHash(DEMO_PASSWORD),
     displayName: "Demo Admin",
     role: "admin",
     createdAt: new Date().toISOString()

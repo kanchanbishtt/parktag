@@ -72,6 +72,27 @@ export function registerOwnerRoutes(app, env) {
     };
   });
 
+  app.post("/api/owner/mobile", async (request, reply) => {
+    const blocked = await requireSession(app, "owner")(request, reply);
+    if (blocked) return blocked;
+
+    const { mobile } = request.body || {};
+    if (!mobile) {
+      reply.code(400);
+      return { ok: false, error: "Mobile is required." };
+    }
+
+    const collections = await getCollections(env);
+    if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
+
+    const ownerId = toObjectId(request.session.userId);
+    await collections.owners.updateOne(
+      { _id: ownerId },
+      { $set: { mobile } }
+    );
+    return { ok: true };
+  });
+
   app.post("/api/owner/local-vehicle", async (request, reply) => {
     const blocked = await requireSession(app, "owner")(request, reply);
     if (blocked) return blocked;

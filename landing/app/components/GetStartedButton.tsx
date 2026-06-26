@@ -1,6 +1,18 @@
 "use client";
+import { useEffect } from "react";
 
 export function GetStartedButton({ href }: { href: string }) {
+  useEffect(() => {
+    const handlePageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) {
+        document.body.style.transition = "";
+        document.body.style.opacity = "1";
+      }
+    };
+    window.addEventListener("pageshow", handlePageShow);
+    return () => window.removeEventListener("pageshow", handlePageShow);
+  }, []);
+
   return (
     <a
       href={href}

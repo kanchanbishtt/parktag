@@ -140,7 +140,7 @@ function vehicleCard(tag, idx) {
   const label = tag.vehicleLabel || VEHICLE_LABELS[tag.type] || "Vehicle";
   const plate  = tag.plateNumber  || tag.number || tag.token || "—";
   const type   = tag.vehicleType  || tag.type   || "car";
-  const params = new URLSearchParams({ number: plate, type, label }).toString();
+  const params = new URLSearchParams({ number: plate, type, label, id: tag.id || "", token: tag.token || "" }).toString();
   const svg    = iconFor(tag).replace("<svg ", '<svg aria-hidden="true" focusable="false" ');
   return `
 <a href="/owner-vehicle-detail?${params}" class="pt-vc"

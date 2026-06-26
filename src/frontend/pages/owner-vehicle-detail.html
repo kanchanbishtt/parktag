@@ -318,25 +318,39 @@
     #etag-print { display: none; }
     @media print {
       body > *:not(#etag-print) { display: none !important; }
-      #etag-print { display: block !important; font-family: Arial, sans-serif; }
-      @page { margin: 1.5cm; size: A4; }
+      #etag-print { display: block !important; }
+      @page { margin: 1.2cm; size: A4; }
     }
-    .print-instructions { font-size: 11px; color: #000; margin-bottom: 20px; line-height: 1.7; }
-    .print-tag { border: 1.5px dashed #555; display: flex; width: 100%; page-break-inside: avoid; }
-    .print-tag-left { width: 58%; border-right: 1.5px dashed #555; padding: 14px; display: flex; flex-direction: column; justify-content: space-between; }
-    .print-tag-right { width: 42%; padding: 12px; display: flex; flex-direction: column; align-items: center; justify-content: space-between; }
-    .print-logo-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
-    .print-logo-box { width: 28px; height: 28px; background:#1A9D20; border-radius: 7px; display: flex; align-items: center; justify-content: center; }
-    .print-logo-name { font-size: 13px; font-weight: 900; color: #001935; }
-    .print-logo-sub  { font-size: 7px; color: #6B7280; line-height: 1.4; }
-    .print-headline  { font-size: 20px; font-weight: 900; color: #001935; line-height: 1.3; margin: 0; }
-    .print-headline u { text-decoration: underline; }
-    .print-no-net    { font-size: 7.5px; color: #555; margin: 0; }
-    .print-qr        { width: 140px; height: 140px; display: block; }
-    .print-pt-label  { font-size: 11px; font-weight: 900; color:#1A9D20; letter-spacing: .08em; text-align: center; margin: 4px 0; }
-    .print-icons     { display: flex; justify-content: space-around; width: 100%; border-top: 1px solid #E5E7EB; padding-top: 5px; }
-    .print-icon-lbl  { font-size: 6.5px; color: #555; text-align: center; }
-    .print-bottom-note { font-size: 7px; color: #6B7280; text-align: center; margin-top: 3px; }
+    .pt-wrap { font-family: 'Inter','Segoe UI',Arial,sans-serif; color: #001935; }
+    .pt-instr { font-size: 11.5px; line-height: 1.85; margin-bottom: 22px; color: #222; }
+    .pt-instr b { font-size: 12.5px; display: block; margin: 3px 0 2px; }
+    .pt-instr ol { margin: 5px 0 0; padding-left: 18px; }
+    .pt-cut { border: 1.5px dashed #aaa; padding: 10px; display: block; page-break-inside: avoid; }
+    .pt-sticker { display: flex; width: 100%; background: #EAECF0; border-radius: 18px; border: 1.5px solid #C5CAD4; overflow: hidden; }
+    .pt-left { flex: 0 0 54%; padding: 18px 16px; display: flex; flex-direction: column; justify-content: space-between; border-right: 1.5px solid #C5CAD4; }
+    .pt-logo-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .pt-logo-box { width: 38px; height: 38px; background: #001935; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .pt-logo-name { font-size: 17px; font-weight: 900; color: #001935; line-height: 1; }
+    .pt-logo-sub { font-size: 7px; font-weight: 700; color: #6B7280; letter-spacing: .14em; margin-top: 3px; }
+    .pt-sep { width: 30px; height: 3px; background: #1A9D20; border-radius: 2px; margin: 10px 0 12px; }
+    .pt-head { font-size: 22px; font-weight: 900; color: #001935; line-height: 1.2; margin: 0 0 4px; }
+    .pt-sub { font-size: 9.5px; color: #6B7280; font-weight: 500; margin: 0 0 13px; }
+    .pt-privacy { display: flex; align-items: center; gap: 7px; }
+    .pt-privacy-txt { font-size: 9.5px; font-weight: 700; color: #374151; }
+    .pt-foot { display: flex; align-items: center; gap: 6px; border-top: 1px solid #D1D5DB; padding-top: 9px; margin-top: 9px; }
+    .pt-foot-info { font-size: 7.5px; color: #6B7280; line-height: 1.6; }
+    .pt-foot-info b { color: #001935; }
+    .pt-foot-sep { width: 1px; height: 24px; background: #D1D5DB; flex-shrink: 0; }
+    .pt-foot-verify { font-size: 7px; color: #6B7280; }
+    .pt-right { flex: 0 0 46%; padding: 16px 14px; display: flex; flex-direction: column; align-items: center; justify-content: space-between; }
+    .pt-qr-wrap { position: relative; background: #fff; border-radius: 10px; padding: 8px; margin-bottom: 10px; }
+    .pt-qr { width: 138px; height: 138px; display: block; }
+    .pt-qr-c { position: absolute; width: 15px; height: 15px; border-color: #1A9D20; border-style: solid; }
+    .pt-qr-c.tl { top: 2px; left: 2px; border-width: 3px 0 0 3px; }
+    .pt-qr-c.tr { top: 2px; right: 2px; border-width: 3px 3px 0 0; }
+    .pt-qr-c.bl { bottom: 2px; left: 2px; border-width: 0 0 3px 3px; }
+    .pt-qr-c.br { bottom: 2px; right: 2px; border-width: 0 3px 3px 0; }
+    .pt-scan { background: #001935; color: #fff; font-weight: 900; font-size: 11px; letter-spacing: .12em; text-align: center; padding: 9px 0; border-radius: 8px; width: 100%; font-family: inherit; }
   </style>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -624,45 +638,74 @@
 
 <!-- Print template (only visible during print) -->
 <div id="etag-print">
-  <div class="print-instructions">
-    <p style="margin:0 0 2px">Thank you for generating the Offline eTag at ParkTag.</p>
-    <strong>How to fix an etag to Your Windscreen</strong>
-    <ol style="margin:6px 0 8px;padding-left:18px">
-      <li>Print this page on a photo sheet or regular paper.</li>
-      <li>Cut the tag from the printed sheet.</li>
-      <li>Attach the Tag:<br>&nbsp;&nbsp;- Apply glue (e.g., Feviglue) or transparent double-sided tape.<br>&nbsp;&nbsp;- Place the tag on your dashboard.</li>
-    </ol>
-    <p style="margin:0">The tags are pre-activated on vehicle number <strong id="print-vehicle-num">—</strong>.</p>
-  </div>
-  <div class="print-tag">
-    <div class="print-tag-left">
-      <div>
-        <div class="print-logo-row">
-          <div class="print-logo-box">
-            <svg width="14" height="14" viewBox="0 0 28 28" fill="none"><path d="M6 6h9a5 5 0 0 1 0 10H10v6H6V6Z" fill="#fff"/></svg>
-          </div>
-          <div>
-            <div class="print-logo-name">Park<span style="color:#1A9D20">Tag</span></div>
-            <div class="print-logo-sub">ParkTag Car tag by ParkTag.<br>Contact vehicle owner, help in emergency, or wrong parking.</div>
-          </div>
-        </div>
-        <p class="print-headline">Scan the code<br>to <u>contact the<br>vehicle owner.</u></p>
-      </div>
-      <p class="print-no-net">No internet needed.<br>This tag will not need internet to function,<br>simply scan using QR reader / ParkTag APP.</p>
+  <div class="pt-wrap">
+    <div class="pt-instr">
+      <p style="margin:0 0 3px">Thank you for generating the Offline eTag at ParkTag.</p>
+      <b>How to fix an etag to Your Windscreen</b>
+      <ol>
+        <li>Print this page on a photo sheet or regular paper.</li>
+        <li>Cut the tag from the printed sheet.</li>
+        <li>Attach the Tag:<br>
+          &nbsp;- Apply glue (e.g., Feviglue) or transparent double-sided tape to the front of the tag.<br>
+          &nbsp;- Simply Place the tag on your dashboard.
+        </li>
+      </ol>
     </div>
-    <div class="print-tag-right">
-      <img id="print-qr-img" class="print-qr"
-        src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://parktag.me/demo&color=000000&bgcolor=ffffff"
-        alt="QR Code"/>
-      <div style="width:100%">
-        <p class="print-pt-label">Park<span style="color:#1A9D20">Tag</span></p>
-        <div class="print-icons">
-          <div><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="2" stroke="#555" stroke-width="1.8"/><path d="M9 9h6M9 12h6M9 15h4" stroke="#555" stroke-width="1.8" stroke-linecap="round"/></svg><div class="print-icon-lbl">Wrong<br>Parking</div></div>
-          <div><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke="#555" stroke-width="1.8" stroke-linejoin="round"/></svg><div class="print-icon-lbl">Emergency<br>Contact</div></div>
-          <div><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" stroke="#555" stroke-width="1.8"/></svg><div class="print-icon-lbl">Alert</div></div>
-          <div><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.62 3.38 2 2 0 0 1 3.6 1.17h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.86a16 16 0 0 0 6 6l.91-.91a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" stroke="#555" stroke-width="1.8"/></svg><div class="print-icon-lbl">Contact</div></div>
+    <div class="pt-cut">
+      <div class="pt-sticker">
+        <!-- Left -->
+        <div class="pt-left">
+          <div>
+            <div class="pt-logo-row">
+              <div class="pt-logo-box">
+                <svg width="20" height="20" viewBox="0 0 28 28" fill="none">
+                  <path d="M6 6h9a5 5 0 0 1 0 10H10v6H6V6Z" fill="#fff"/>
+                </svg>
+              </div>
+              <div>
+                <div class="pt-logo-name">Park<span style="color:#1A9D20">Tag</span></div>
+                <div class="pt-logo-sub">SCAN TO CONNECT</div>
+              </div>
+            </div>
+            <div class="pt-sep"></div>
+            <p class="pt-head">Scan to connect</p>
+            <p class="pt-sub">Private vehicle contact</p>
+            <div class="pt-privacy">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="flex-shrink:0">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill="#1A9D20" stroke="#1A9D20" stroke-width="1.5" stroke-linejoin="round"/>
+                <path d="M9 12l2 2 4-4" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              <span class="pt-privacy-txt">Number stays private</span>
+            </div>
+          </div>
+          <div class="pt-foot">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" style="flex-shrink:0">
+              <rect x="2" y="8" width="20" height="10" rx="2" stroke="#001935" stroke-width="1.5"/>
+              <path d="M5 8l2-4h10l2 4" stroke="#001935" stroke-width="1.5"/>
+              <circle cx="7" cy="18" r="1.5" fill="#001935"/>
+              <circle cx="17" cy="18" r="1.5" fill="#001935"/>
+            </svg>
+            <div class="pt-foot-info">
+              Smart vehicle contact tag<br>
+              <b>PT-ID &nbsp;<span id="print-vehicle-num">—</span></b>
+            </div>
+            <div class="pt-foot-sep"></div>
+            <div class="pt-foot-verify">Private • Secure • Verified</div>
+          </div>
         </div>
-        <p class="print-bottom-note">Wrong Parking, Emergency Contact,<br>any issue with the vehicle. Scan the QR.</p>
+        <!-- Right -->
+        <div class="pt-right">
+          <div class="pt-qr-wrap">
+            <span class="pt-qr-c tl"></span>
+            <span class="pt-qr-c tr"></span>
+            <span class="pt-qr-c bl"></span>
+            <span class="pt-qr-c br"></span>
+            <img class="pt-qr" id="print-qr-img"
+              src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://parktag.me/demo"
+              alt="QR Code"/>
+          </div>
+          <div class="pt-scan">SCAN HERE</div>
+        </div>
       </div>
     </div>
   </div>

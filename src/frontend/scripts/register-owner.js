@@ -182,6 +182,14 @@ function addVehicle() {
 
   if (!type) { setStatus("Please select a vehicle type.", "error"); return; }
 
+  const mobileVal = (document.getElementById("mobile-number")?.value || "").trim();
+  const mobileErr = validateMobile(mobileVal);
+  if (mobileErr) {
+    setMobileError(mobileErr);
+    document.getElementById("mobile-number")?.focus();
+    return;
+  }
+
   const plateErr = validatePlate(raw, type);
   if (plateErr) { setPlateError(plateErr); document.getElementById("vehicle-number")?.focus(); return; }
 
@@ -225,16 +233,17 @@ function populatePrintTemplate() {
   if (el) el.textContent = vehicleNum;
 }
 
-async function downloadEtag() {
+function downloadEtag() {
   populatePrintTemplate();
-  await saveVehicles();
   hideEtagPopup();
-  setTimeout(() => {
-    window.print();
-    window.addEventListener("afterprint", () => {
-      window.location.href = "/owner-welcome";
-    }, { once: true });
-  }, 120);
+  // Start saving in the background — don't await before print, Chrome blocks
+  // window.print() when the user-gesture context is lost after an async call.
+  const savingPromise = saveVehicles();
+  window.print();
+  window.addEventListener("afterprint", async () => {
+    await savingPromise;
+    window.location.href = "/owner-welcome";
+  }, { once: true });
 }
 
 function savePendingVehicles() {

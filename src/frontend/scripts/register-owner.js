@@ -447,6 +447,3 @@ document.getElementById("mobile-edit-btn")?.addEventListener("click", () => {
 // Auto-fill mobile on page load
 loadOwnerMobile();
 
-// Force white text on submit button regardless of browser/system theme
-const _sb = document.getElementById("submit-btn");
-if (_sb) _sb.style.setProperty("color", "#fff", "important");

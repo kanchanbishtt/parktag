@@ -1,6 +1,7 @@
 import { requireSession, toObjectId } from "../lib/auth.js";
 import { getCollections } from "../lib/repositories.js";
-import { createQrDataUrl } from "../lib/qr-output.js";
+import { createQrDataUrl, createPrintQrDataUrl } from "../lib/qr-output.js";
+import { createEtagForVehicle, buildTagScanUrl } from "../lib/tag-issuance.js";
 
 export function registerOwnerRoutes(app, env) {
   app.get("/api/owner/dashboard", async (request, reply) => {
@@ -14,7 +15,10 @@ export function registerOwnerRoutes(app, env) {
     const ownerId = toObjectId(request.session.userId);
 
     const owner = await collections.owners.findOne({ _id: ownerId });
-    const tags = await collections.tags.find({ ownerId }).toArray();
+    // Exclude soft-deleted tags from the owner's view.
+    const tags = await collections.tags
+      .find({ ownerId, deletedAt: { $in: [null, undefined] } })
+      .toArray();
     const requests = await collections.contactRequests
       .find({ ownerId })
       .sort({ createdAt: -1 })
@@ -22,14 +26,23 @@ export function registerOwnerRoutes(app, env) {
       .toArray();
 
     const LABELS = { car:"Car", bike:"Bike", scooter:"Scooter", auto_rickshaw:"Auto Rickshaw", truck:"Truck", bus:"Bus", bicycle:"Bicycle", e_scooter:"E-Scooter" };
-    const localVehicles = (owner.localVehicles || []).map((v, i) => ({
-      id: `local_${i}`,
-      vehicleType: v.type,
-      vehicleLabel: LABELS[v.type] || v.type,
-      plateNumber: v.number,
-      status: "active",
-      isLocal: true
-    }));
+
+    // A vehicle can exist both as a localVehicle and (once an E-Tag is generated)
+    // as a real tag. Prefer the real tag and hide the duplicate local entry so the
+    // dashboard shows a single source of truth per plate.
+    const realTagPlates = new Set(
+      tags.map((t) => (t.plateNumber || "").toUpperCase()).filter(Boolean)
+    );
+    const localVehicles = (owner.localVehicles || [])
+      .filter((v) => !realTagPlates.has((v.number || "").toUpperCase()))
+      .map((v, i) => ({
+        id: `local_${i}`,
+        vehicleType: v.type,
+        vehicleLabel: LABELS[v.type] || v.type,
+        plateNumber: v.number,
+        status: "active",
+        isLocal: true
+      }));
 
     return {
       ok: true,
@@ -41,16 +54,20 @@ export function registerOwnerRoutes(app, env) {
         credits: owner.credits || 0
       },
       tags: [...localVehicles, ...(await Promise.all(tags.map(async (tag) => {
-        const scanUrl = `${request.protocol}://${request.hostname}${request.port ? `:${request.port}` : ""}/vehicle/${tag.token}`;
+        const scanUrl = `${request.protocol}://${request.hostname}${request.port ? `:${request.port}` : ""}/tag/${tag.token}`;
         const qrDataUrl = await createQrDataUrl(scanUrl);
         return {
           id: String(tag._id),
           token: tag.token,
+          etagId: `PT-${String(tag._id).slice(-8).toUpperCase()}`,
           status: tag.status,
+          vehicleType: tag.vehicleType || null,
           vehicleLabel: tag.vehicleLabel,
           plateNumber: tag.plateNumber || null,
           printStatus: tag.printStatus || "not_requested",
           stickerRequested: tag.stickerRequested || false,
+          premium: tag.premium || false,
+          freeContactUsed: tag.freeContactUsed || false,
           scanUrl,
           qrDataUrl
         };
@@ -91,6 +108,52 @@ export function registerOwnerRoutes(app, env) {
       { $set: { mobile } }
     );
     return { ok: true };
+  });
+
+  // Generate (or fetch existing) a real, scannable E-Tag for a vehicle.
+  // Returns a high-resolution QR linked to a 256-bit secure token. This is what
+  // the print/PDF flow now uses instead of the old demo QR placeholder.
+  app.post("/api/owner/etag/generate", async (request, reply) => {
+    const blocked = await requireSession(app, "owner")(request, reply);
+    if (blocked) return blocked;
+
+    const { type, number } = request.body || {};
+    if (!number) {
+      reply.code(400);
+      return { ok: false, error: "Vehicle number is required." };
+    }
+
+    const collections = await getCollections(env);
+    if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
+
+    const ownerId = toObjectId(request.session.userId);
+
+    let result;
+    try {
+      result = await createEtagForVehicle(collections, ownerId, { type, number });
+    } catch (error) {
+      reply.code(400);
+      return { ok: false, error: error instanceof Error ? error.message : "Could not generate E-Tag." };
+    }
+
+    const { tag } = result;
+    const scanUrl = buildTagScanUrl(request, tag.token);
+    const qrDataUrl = await createPrintQrDataUrl(scanUrl);
+
+    return {
+      ok: true,
+      etag: {
+        id: String(tag._id),
+        token: tag.token,
+        etagId: `PT-${String(tag._id).slice(-8).toUpperCase()}`,
+        vehicleType: tag.vehicleType || type || null,
+        plateNumber: tag.plateNumber,
+        status: tag.status,
+        createdAt: tag.createdAt,
+        scanUrl,
+        qrDataUrl
+      }
+    };
   });
 
   app.post("/api/owner/local-vehicle", async (request, reply) => {

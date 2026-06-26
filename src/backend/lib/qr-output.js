@@ -6,3 +6,14 @@ export async function createQrDataUrl(url) {
     margin: 1
   });
 }
+
+// High-resolution QR for printing as a physical sticker. Larger module size +
+// higher error-correction ("H") so it stays scannable even if the print is
+// scuffed, partially covered, or printed small.
+export async function createPrintQrDataUrl(url) {
+  return QRCode.toDataURL(url, {
+    width: 1024,
+    margin: 2,
+    errorCorrectionLevel: "H"
+  });
+}

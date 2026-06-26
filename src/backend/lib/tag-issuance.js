@@ -1,12 +1,36 @@
 import { ObjectId } from "mongodb";
 
-import { createToken } from "./security.js";
+import { createSecureToken } from "./security.js";
 import { createQrDataUrl } from "./qr-output.js";
 
 export function buildClaimUrl(request, token) {
   const host = request.headers["x-forwarded-host"] || request.headers.host;
   const proto = request.headers["x-forwarded-proto"] || "http";
   return `${proto}://${host}/vehicle/${token}`;
+}
+
+// New secure scan URL used for all freshly generated E-Tags (spec: /tag/{token}).
+export function buildTagScanUrl(request, token) {
+  const host = request.headers["x-forwarded-host"] || request.headers.host;
+  const proto = request.headers["x-forwarded-proto"] || "http";
+  return `${proto}://${host}/tag/${token}`;
+}
+
+// Default gating / lifecycle fields stamped on every newly created tag so the
+// free-usage, premium, and soft-delete logic has consistent shape to read.
+export function tagLifecycleDefaults() {
+  const now = new Date().toISOString();
+  return {
+    freeContactUsed: false,
+    freeContactUsedAt: null,
+    contactAttempts: 0,
+    purchaseStatus: "none", // "none" | "paid"
+    physicalTagPurchased: false,
+    premium: false,
+    lastContactAt: null,
+    deletedAt: null,
+    updatedAt: now
+  };
 }
 
 export async function createUnclaimedTags(collections, input) {
@@ -16,16 +40,18 @@ export async function createUnclaimedTags(collections, input) {
   for (let index = 0; index < quantity; index += 1) {
     const tag = {
       _id: new ObjectId(),
-      token: createToken(12),
+      token: createSecureToken(),
       ownerId: null,
       vehicleLabel: null,
+      vehicleType: null,
       plateNumber: null,
       status: "unclaimed",
       batchNumber: input.batchNumber || null,
       batchLabel: input.batchLabel || null,
       printStatus: "pending_print",
       stickerRequested: Boolean(input.stickerRequested),
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      ...tagLifecycleDefaults()
     };
 
     await collections.tags.insertOne(tag);
@@ -55,17 +81,61 @@ export async function buildIssuedTagOutput(request, tag) {
 export async function createRegisteredOwnerTag(collections, ownerId, input) {
   const tag = {
     _id: new ObjectId(),
-    token: createToken(12),
+    token: createSecureToken(),
     ownerId,
     vehicleLabel: input.vehicleLabel || "Registered vehicle",
+    vehicleType: input.vehicleType || null,
     plateNumber: input.plateNumber,
     status: "active",
     batchNumber: null,
     printStatus: Boolean(input.stickerRequested) ? "pending_print" : "not_requested",
     stickerRequested: Boolean(input.stickerRequested),
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    ...tagLifecycleDefaults()
   };
 
   await collections.tags.insertOne(tag);
   return tag;
+}
+
+// Create (or return existing) a real, scannable E-Tag for one of an owner's
+// vehicles. This replaces the old demo-QR placeholder: every generated E-Tag is
+// now permanently linked to a single vehicle via a 256-bit secure token.
+export async function createEtagForVehicle(collections, ownerId, input) {
+  const plateNumber = String(input.number || "").trim().toUpperCase();
+  const vehicleType = input.type || null;
+
+  if (!plateNumber) {
+    throw new Error("Vehicle number is required");
+  }
+
+  // Reuse an existing tag for this exact vehicle so re-printing doesn't mint
+  // duplicate E-Tags (and so the QR stays stable for an already-stuck sticker).
+  const existing = await collections.tags.findOne({
+    ownerId,
+    plateNumber,
+    deletedAt: null
+  });
+
+  if (existing) {
+    return { tag: existing, created: false };
+  }
+
+  const tag = {
+    _id: new ObjectId(),
+    token: createSecureToken(),
+    ownerId,
+    vehicleLabel: input.vehicleLabel || "Registered vehicle",
+    vehicleType,
+    plateNumber,
+    status: "active",
+    batchNumber: null,
+    printStatus: "not_requested",
+    stickerRequested: false,
+    createdAt: new Date().toISOString(),
+    ...tagLifecycleDefaults()
+  };
+
+  await collections.tags.insertOne(tag);
+  return { tag, created: true };
 }

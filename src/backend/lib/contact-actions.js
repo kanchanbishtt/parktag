@@ -43,6 +43,8 @@ export async function createContactAction(env, input) {
     messageChannel: input.messageChannel || null,
     message: input.message || null,
     status: "pending",
+    ipAddress: input.ipAddress || null,
+    userAgent: input.userAgent || null,
     createdAt: new Date().toISOString()
   };
 

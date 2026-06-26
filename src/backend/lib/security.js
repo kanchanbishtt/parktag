@@ -26,3 +26,24 @@ export async function verifyPassword(password, hash) {
 export function createToken(length = 12) {
   return crypto.randomBytes(length).toString("hex").slice(0, length);
 }
+
+// Cryptographically secure 256-bit token (64 hex chars) for QR / E-Tag links.
+// Not guessable or enumerable — replaces the legacy 12-char (48-bit) token.
+export function createSecureToken() {
+  return crypto.randomBytes(32).toString("hex");
+}
+
+// Constant-time string compare to avoid timing side-channels on verification.
+export function safeEqual(a, b) {
+  const bufA = Buffer.from(String(a));
+  const bufB = Buffer.from(String(b));
+  if (bufA.length !== bufB.length) {
+    return false;
+  }
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
+// One-way hash for storing a scanner IP (privacy-preserving rate-limit key).
+export function hashIp(ip, salt = "") {
+  return crypto.createHash("sha256").update(`${ip}|${salt}`).digest("hex");
+}

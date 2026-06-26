@@ -408,5 +408,41 @@ document.getElementById("etag-overlay")?.addEventListener("click", e => {
 
 document.getElementById("mobile-number")?.addEventListener("input", () => setMobileError(""));
 
+document.getElementById("mobile-edit-btn")?.addEventListener("click", () => {
+  const inp = document.getElementById("mobile-number");
+  const btn = document.getElementById("mobile-edit-btn");
+  if (!inp || !btn) return;
+
+  if (inp.readOnly) {
+    inp.readOnly = false;
+    inp.style.background = "";
+    inp.style.color = "";
+    inp.title = "";
+    btn.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+      <polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>`;
+    btn.title = "Confirm";
+    btn.setAttribute("aria-label", "Confirm mobile number");
+    btn.classList.add("done");
+    inp.focus();
+    inp.select();
+  } else {
+    const err = validateMobile(inp.value.trim());
+    if (err) { setMobileError(err); inp.focus(); return; }
+    setMobileError("");
+    inp.readOnly = true;
+    inp.style.background = "#F3F4F6";
+    inp.style.color = "#6B7280";
+    inp.title = "Mobile number";
+    btn.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>`;
+    btn.title = "Edit mobile number";
+    btn.setAttribute("aria-label", "Edit mobile number");
+    btn.classList.remove("done");
+  }
+});
+
 // Auto-fill mobile on page load
 loadOwnerMobile();

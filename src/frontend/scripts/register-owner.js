@@ -65,6 +65,71 @@ let vehicles = [];
 // Indian vehicle number: 2 letters + 1-2 digits + 1-3 letters + 1-4 digits (spaces optional)
 const PLATE_RE = /^[A-Z]{2}\s?[0-9]{1,2}\s?[A-Z]{1,3}\s?[0-9]{1,4}$/;
 
+function validateMobile(raw) {
+  if (!raw || !raw.trim()) return "This field is required.";
+  const digits = raw.replace(/[^\d]/g, "");
+  const ten = digits.length === 10 ? digits
+    : (digits.length === 12 && digits.startsWith("91")) ? digits.slice(2)
+    : null;
+  if (!ten || !/^[6-9]\d{9}$/.test(ten)) return "Enter a valid 10-digit Indian mobile number.";
+  return null;
+}
+
+function setMobileError(msg) {
+  const err = document.getElementById("mobile-error");
+  const inp = document.getElementById("mobile-number");
+  if (!err || !inp) return;
+  if (msg) {
+    err.textContent = msg;
+    err.style.display = "block";
+    inp.style.borderColor = "#DC2626";
+  } else {
+    err.textContent = "";
+    err.style.display = "none";
+    inp.style.borderColor = "";
+  }
+}
+
+async function loadOwnerMobile() {
+  const inp = document.getElementById("mobile-number");
+  if (!inp) return;
+
+  // Try sessionStorage first (set during OTP login)
+  const otpId = sessionStorage.getItem("pt_otp_identifier") || "";
+  if (otpId) {
+    const digits = otpId.replace(/[^\d]/g, "");
+    const ten = digits.length === 10 ? digits
+      : (digits.length === 12 && digits.startsWith("91")) ? digits.slice(2) : null;
+    if (ten && /^[6-9]\d{9}$/.test(ten)) {
+      inp.value = ten;
+      inp.readOnly = true;
+      inp.style.background = "#F3F4F6";
+      inp.style.color = "#6B7280";
+      inp.title = "Mobile number from your login";
+      return;
+    }
+  }
+
+  // Fallback: fetch from owner profile
+  try {
+    const res = await fetch("/api/owner/dashboard");
+    if (!res.ok) return;
+    const data = await res.json();
+    const mobile = data?.owner?.mobile || "";
+    if (mobile) {
+      const digits = mobile.replace(/[^\d]/g, "");
+      const ten = digits.length >= 10 ? digits.slice(-10) : "";
+      if (ten) {
+        inp.value = ten;
+        inp.readOnly = true;
+        inp.style.background = "#F3F4F6";
+        inp.style.color = "#6B7280";
+        inp.title = "Mobile number from your account";
+      }
+    }
+  } catch (_) {}
+}
+
 function validatePlate(raw, type) {
   if (!raw) return "Please enter the vehicle number.";
   if (type === "bicycle") {
@@ -214,7 +279,23 @@ function savePendingVehicles() {
   } catch (_) {}
 }
 
+async function saveMobile(mobile) {
+  const digits = mobile.replace(/[^\d]/g, "");
+  const normalized = digits.length === 10 ? `+91${digits}` : `+${digits}`;
+  try {
+    await fetch("/api/owner/mobile", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ mobile: normalized })
+    });
+  } catch (_) {}
+}
+
 async function saveVehicles() {
+  const mobile = (document.getElementById("mobile-number")?.value || "").trim();
+  if (mobile && !document.getElementById("mobile-number")?.readOnly) {
+    await saveMobile(mobile);
+  }
   const alreadyAdded = [];
   for (const v of vehicles) {
     try {
@@ -257,6 +338,15 @@ function submit() {
     document.getElementById("vehicle-type").value = "";
     document.getElementById("vehicle-number").value = "";
   }
+
+  const mobile = (document.getElementById("mobile-number")?.value || "").trim();
+  const mobileErr = validateMobile(mobile);
+  if (mobileErr) {
+    setMobileError(mobileErr);
+    document.getElementById("mobile-number")?.focus();
+    return;
+  }
+  setMobileError("");
 
   const tokenRaw = (document.getElementById("token-input")?.value || "")
     .trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -315,3 +405,8 @@ document.getElementById("etag-skip-btn")?.addEventListener("click", skipEtag);
 document.getElementById("etag-overlay")?.addEventListener("click", e => {
   if (e.target === document.getElementById("etag-overlay")) hideEtagPopup();
 });
+
+document.getElementById("mobile-number")?.addEventListener("input", () => setMobileError(""));
+
+// Auto-fill mobile on page load
+loadOwnerMobile();

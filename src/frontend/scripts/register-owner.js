@@ -94,39 +94,20 @@ async function loadOwnerMobile() {
   const inp = document.getElementById("mobile-number");
   if (!inp) return;
 
-  // Try sessionStorage first (set during OTP login)
-  const otpId = sessionStorage.getItem("pt_otp_identifier") || "";
-  if (otpId) {
-    const digits = otpId.replace(/[^\d]/g, "");
-    const ten = digits.length === 10 ? digits
-      : (digits.length === 12 && digits.startsWith("91")) ? digits.slice(2) : null;
-    if (ten && /^[6-9]\d{9}$/.test(ten)) {
-      inp.value = ten;
-      inp.readOnly = true;
-      inp.style.background = "#F3F4F6";
-      inp.style.color = "#6B7280";
-      inp.title = "Mobile number from your login";
-      return;
-    }
-  }
-
-  // Fallback: fetch from owner profile
   try {
     const res = await fetch("/api/owner/dashboard");
     if (!res.ok) return;
     const data = await res.json();
     const mobile = data?.owner?.mobile || "";
-    if (mobile) {
-      const digits = mobile.replace(/[^\d]/g, "");
-      const ten = digits.length >= 10 ? digits.slice(-10) : "";
-      if (ten) {
-        inp.value = ten;
-        inp.readOnly = true;
-        inp.style.background = "#F3F4F6";
-        inp.style.color = "#6B7280";
-        inp.title = "Mobile number from your account";
-      }
-    }
+    if (!mobile) return;
+    const digits = mobile.replace(/[^\d]/g, "");
+    const ten = digits.length >= 10 ? digits.slice(-10) : "";
+    if (!ten) return;
+    inp.value = ten;
+    inp.readOnly = true;
+    inp.style.background = "#F3F4F6";
+    inp.style.color = "#6B7280";
+    inp.title = "Mobile number from your account";
   } catch (_) {}
 }
 

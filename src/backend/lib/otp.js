@@ -50,7 +50,7 @@ export async function sendOtp(env, identifier) {
   const code = generateOtp();
   const now = new Date();
 
-  await collections.otpTokens.insertOne({
+  const inserted = await collections.otpTokens.insertOne({
     identifier: normalized,
     code,
     used: false,
@@ -61,8 +61,13 @@ export async function sendOtp(env, identifier) {
 
   if (isMobile) {
     if (isMetaWhatsappConfigured(env)) {
-      sendMetaWhatsappOtp(env, { to: normalized, code })
-        .catch(err => console.error("[OTP] WhatsApp send failed:", err));
+      try {
+        await sendMetaWhatsappOtp(env, { to: normalized, code });
+      } catch (err) {
+        console.error("[OTP] WhatsApp send failed:", err?.message, err?.providerDetail);
+        await collections.otpTokens.deleteOne({ _id: inserted.insertedId });
+        throw new Error("Could not send WhatsApp OTP. Please try again.");
+      }
     } else if (env.runtimeMode !== "production") {
       console.log(`\n[ParkTag] OTP for ${normalized}: ${code}\n`);
     } else {

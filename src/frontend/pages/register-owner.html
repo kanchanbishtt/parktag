@@ -55,6 +55,20 @@
       box-shadow: 0 0 0 3px rgba(26,157,32,0.1);
     }
 
+    /* ── Mobile field with edit button ── */
+    .av-input-row { position: relative; display: flex; align-items: center; }
+    .av-input-row .av-input { padding-right: 44px; }
+    .av-edit-btn {
+      position: absolute; right: 10px;
+      width: 28px; height: 28px; border-radius: 7px;
+      border: none; background: transparent;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: #6B7280; transition: background .15s, color .15s;
+      flex-shrink: 0;
+    }
+    .av-edit-btn:hover { background: #F3F4F6; color: #1A9D20; }
+    .av-edit-btn.done { color: #1A9D20; }
+
     /* ── Add vehicle button ── */
     .av-add-btn {
       width: 100%; height: 44px; border-radius: 10px;
@@ -279,10 +293,18 @@
 
     <div class="av-field">
       <label class="av-label" for="mobile-number">Mobile Number <span style="color:#DC2626">*</span></label>
-      <input class="av-input" id="mobile-number" type="tel"
-        placeholder="e.g. 98765 43210"
-        autocomplete="tel" inputmode="numeric" maxlength="15"/>
-      <span id="mobile-error" style="display:none;font-size:0.78rem;color:#DC2626;font-weight:600;margin-top:5px;display:block"></span>
+      <div class="av-input-row">
+        <input class="av-input" id="mobile-number" type="tel"
+          placeholder="e.g. 98765 43210"
+          autocomplete="tel" inputmode="numeric" maxlength="15"/>
+        <button class="av-edit-btn" id="mobile-edit-btn" type="button" title="Edit mobile number" aria-label="Edit mobile number">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </div>
+      <span id="mobile-error" style="display:none;font-size:0.78rem;color:#DC2626;font-weight:600;margin-top:5px"></span>
     </div>
 
     <button class="av-add-btn" id="add-vehicle-btn">

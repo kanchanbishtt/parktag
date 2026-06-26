@@ -52,7 +52,7 @@ export function registerRegistrationRoutes(app, env) {
     const owner = {
       _id: ownerId,
       email,
-      passwordHash: createPasswordHash(password),
+      passwordHash: await createPasswordHash(password),
       displayName,
       phone,
       credits: 0,

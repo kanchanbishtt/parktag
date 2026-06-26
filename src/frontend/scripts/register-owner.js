@@ -182,14 +182,6 @@ function addVehicle() {
 
   if (!type) { setStatus("Please select a vehicle type.", "error"); return; }
 
-  const mobileVal = (document.getElementById("mobile-number")?.value || "").trim();
-  const mobileErr = validateMobile(mobileVal);
-  if (mobileErr) {
-    setMobileError(mobileErr);
-    document.getElementById("mobile-number")?.focus();
-    return;
-  }
-
   const plateErr = validatePlate(raw, type);
   if (plateErr) { setPlateError(plateErr); document.getElementById("vehicle-number")?.focus(); return; }
 
@@ -237,15 +229,24 @@ function downloadEtag() {
   populatePrintTemplate();
   hideEtagPopup();
   const savingPromise = saveVehicles();
-  // Register BEFORE calling print — in some browsers afterprint fires
-  // synchronously as window.print() returns, so the listener must already exist.
+
+  const printDiv = document.getElementById("etag-print");
+  // Collect every sibling so we can hide/restore without relying on @media print CSS.
+  // This bypasses all backdrop-filter / compositing-layer issues on the overlay.
+  const siblings = Array.from(document.body.children).filter(el => el !== printDiv);
+  const saved    = siblings.map(el => el.style.display);
+
+  siblings.forEach(el => { el.style.display = "none"; });
+  printDiv.style.display = "block";
+
   window.addEventListener("afterprint", async () => {
+    siblings.forEach((el, i) => { el.style.display = saved[i]; });
+    printDiv.style.display = "";
     await savingPromise;
     window.location.href = "/owner-welcome";
   }, { once: true });
-  // Small delay so the browser finishes painting (removes overlay, backdrop-filter)
-  // before the print renderer captures the page.
-  setTimeout(() => window.print(), 150);
+
+  window.print();
 }
 
 function savePendingVehicles() {
@@ -386,10 +387,6 @@ document.getElementById("vehicle-number")?.addEventListener("keydown", e => {
 
 document.getElementById("mobile-number")?.addEventListener("keydown", e => {
   if (e.key === "Enter") addVehicle();
-});
-
-document.getElementById("vehicle-type")?.addEventListener("keydown", e => {
-  if (e.key === "Enter") document.getElementById("vehicle-number")?.focus();
 });
 
 document.getElementById("submit-btn")?.addEventListener("click", submit);

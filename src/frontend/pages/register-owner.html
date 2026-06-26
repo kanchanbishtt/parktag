@@ -186,8 +186,10 @@
     /* ── Print template ── */
     #etag-print { display: none; }
     @media print {
-      body > *:not(#etag-print) { display: none !important; }
+      body > * { display: none !important; }
       #etag-print { display: block !important; }
+      /* Kill the fixed overlay's backdrop-filter so it can't bleed into the print layer */
+      .etag-overlay { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
       @page { margin: 1.2cm; size: A4; }
     }
     .pt-wrap { font-family: 'Inter','Segoe UI',Arial,sans-serif; color: #001935; }

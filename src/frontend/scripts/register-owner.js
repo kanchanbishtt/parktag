@@ -236,14 +236,16 @@ function populatePrintTemplate() {
 function downloadEtag() {
   populatePrintTemplate();
   hideEtagPopup();
-  // Start saving in the background — don't await before print, Chrome blocks
-  // window.print() when the user-gesture context is lost after an async call.
   const savingPromise = saveVehicles();
-  window.print();
+  // Register BEFORE calling print — in some browsers afterprint fires
+  // synchronously as window.print() returns, so the listener must already exist.
   window.addEventListener("afterprint", async () => {
     await savingPromise;
     window.location.href = "/owner-welcome";
   }, { once: true });
+  // Small delay so the browser finishes painting (removes overlay, backdrop-filter)
+  // before the print renderer captures the page.
+  setTimeout(() => window.print(), 150);
 }
 
 function savePendingVehicles() {
@@ -380,6 +382,14 @@ document.getElementById("vehicle-number")?.addEventListener("blur", e => {
 
 document.getElementById("vehicle-number")?.addEventListener("keydown", e => {
   if (e.key === "Enter") addVehicle();
+});
+
+document.getElementById("mobile-number")?.addEventListener("keydown", e => {
+  if (e.key === "Enter") addVehicle();
+});
+
+document.getElementById("vehicle-type")?.addEventListener("keydown", e => {
+  if (e.key === "Enter") document.getElementById("vehicle-number")?.focus();
 });
 
 document.getElementById("submit-btn")?.addEventListener("click", submit);

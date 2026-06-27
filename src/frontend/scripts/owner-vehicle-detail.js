@@ -9,6 +9,7 @@ const realToken = params.get("token") || "";
 // Real QR data url — populated from API when a real tag id is present
 let realQrDataUrl = "";
 let realScanUrl   = "";
+let isPremium     = false;
 
 // ── Skeleton → reveal after 500ms ────────────────────────────
 const skeleton  = document.getElementById("skeleton");
@@ -24,9 +25,11 @@ setTimeout(async () => {
       if (tag) {
         realQrDataUrl = tag.qrDataUrl || "";
         realScanUrl   = tag.scanUrl   || "";
+        isPremium     = Boolean(tag.premium);
       }
     } catch {}
   }
+  updatePremiumUI();
 
   skeleton.style.transition = "opacity .25s ease";
   skeleton.style.opacity = "0";
@@ -150,4 +153,68 @@ document.getElementById("download-etag-btn")?.addEventListener("click", () => {
   const el = document.getElementById("print-vehicle-num");
   if (el) el.textContent = plate;
   setTimeout(() => window.print(), 80);
+});
+
+// ── Premium / Buy official sticker ────────────────────────────
+function updatePremiumUI() {
+  const badge = document.getElementById("vd-premium-badge");
+  const buyBtn = document.getElementById("buy-premium-btn");
+  const activeNote = document.getElementById("premium-active-note");
+  const copy = document.getElementById("premium-copy");
+  if (isPremium) {
+    if (badge) badge.style.display = "inline-block";
+    if (buyBtn) buyBtn.style.display = "none";
+    if (activeNote) activeNote.style.display = "block";
+    if (copy) copy.textContent = "This E-Tag is premium. Call & WhatsApp are always available.";
+  } else {
+    if (badge) badge.style.display = "none";
+    if (buyBtn) { buyBtn.style.display = ""; buyBtn.disabled = !realId; }
+    if (activeNote) activeNote.style.display = "none";
+  }
+}
+
+document.getElementById("buy-premium-btn")?.addEventListener("click", async () => {
+  const btn = document.getElementById("buy-premium-btn");
+  if (!realId) { alert("Open this vehicle from your dashboard to purchase."); return; }
+  if (typeof window.Razorpay === "undefined") { alert("Payment unavailable right now. Please try again."); return; }
+
+  btn.disabled = true;
+  const original = btn.textContent;
+  btn.textContent = "Starting payment…";
+  try {
+    const res = await fetch(`/api/owner/tags/${realId}/purchase-order`, { method: "POST", headers: { "content-type": "application/json" } });
+    const order = await res.json();
+    if (!res.ok) throw new Error(order.error || "Could not start payment.");
+
+    const rzp = new window.Razorpay({
+      key: order.keyId,
+      order_id: order.orderId,
+      amount: order.amount,
+      currency: order.currency,
+      name: "ParkTag",
+      description: order.productName,
+      theme: { color: "#1A9D20" },
+      handler: async (resp) => {
+        const v = await fetch(`/api/owner/tags/${realId}/purchase-verify`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(resp)
+        });
+        const vd = await v.json();
+        if (v.ok && vd.premium) {
+          isPremium = true;
+          updatePremiumUI();
+          alert("Payment successful — your E-Tag is now Premium! Unlimited private contact is enabled.");
+        } else {
+          alert(vd.error || "Payment could not be verified. If you were charged, contact support.");
+          btn.disabled = false; btn.textContent = original;
+        }
+      },
+      modal: { ondismiss: () => { btn.disabled = false; btn.textContent = original; } }
+    });
+    rzp.open();
+  } catch (e) {
+    alert(e.message || "Could not start payment.");
+    btn.disabled = false; btn.textContent = original;
+  }
 });

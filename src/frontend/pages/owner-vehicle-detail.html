@@ -547,6 +547,28 @@
         </div>
       </div>
 
+      <!-- Premium / Official Sticker -->
+      <div class="vd-menu-item" data-item="premium">
+        <div class="vd-menu-row">
+          <div class="vd-menu-icon" style="background:#FEF3C7;color:#B45309">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 2l2.4 7.4H22l-6 4.4 2.3 7.2L12 16.6 5.7 21l2.3-7.2-6-4.4h7.6L12 2z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+          </div>
+          <span class="vd-menu-label">Premium &amp; Official Sticker</span>
+          <span class="vd-menu-badge" id="vd-premium-badge" style="display:none;background:#1A9D20;color:#fff;font-size:.68rem;font-weight:800;padding:2px 8px;border-radius:20px;margin-left:auto;margin-right:8px">PREMIUM</span>
+          <span class="vd-menu-arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+        </div>
+        <div class="vd-sub-panel">
+          <div class="vd-sub-inner">
+            <p class="vd-sub-note" id="premium-copy">The official ParkTag sticker unlocks unlimited private contact and re-enables Call &amp; WhatsApp after the free contact is used.</p>
+            <button class="vd-btn-primary" id="buy-premium-btn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4H6z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M3 6h18M16 10a4 4 0 0 1-8 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+              Buy Official Sticker — ₹199
+            </button>
+            <p class="vd-dl-note" id="premium-active-note" style="display:none;color:#1A9D20;font-weight:700">✓ Premium active — unlimited private contact enabled.</p>
+          </div>
+        </div>
+      </div>
+
       <!-- 7. Download E-Tag -->
       <div class="vd-menu-item" data-item="download-etag">
         <div class="vd-menu-row">
@@ -711,6 +733,7 @@
   </div>
 </div>
 
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 <script type="module" src="/scripts/owner-vehicle-detail.js"></script>
 </body>
 </html>

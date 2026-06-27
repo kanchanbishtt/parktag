@@ -211,10 +211,15 @@ export async function triggerExotelCall(env, input) {
     To: to,
     CallerId: env.exotelCallerId,
     CallType: "trans",
-    StatusCallback: env.exotelStatusCallbackUrl || undefined,
-    "StatusCallbackEvents[]": ["terminal", "answered"],
     CustomField: input.requestId
   };
+
+  // Only send StatusCallback events when a callback URL is configured — Exotel
+  // rejects "StatusCallbackEvents" if there is no "StatusCallback" URL.
+  if (env.exotelStatusCallbackUrl) {
+    payload.StatusCallback = env.exotelStatusCallbackUrl;
+    payload["StatusCallbackEvents[]"] = ["terminal", "answered"];
+  }
 
   return postForm(url, auth, payload, "Unable to start the call right now.");
 }

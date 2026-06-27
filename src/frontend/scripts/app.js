@@ -14,6 +14,8 @@ let pendingAction = null;
 let currentCallPreviewNumber = "";
 // Server-issued grant proving this scanner passed last-4 verification.
 let contactGrant = "";
+// Whether this E-Tag still has its free contact available (server-authoritative).
+let contactAvailable = true;
 
 function byId(id) {
   return document.getElementById(id);
@@ -114,12 +116,31 @@ function resetActionState() {
   expectedPlateLastFour = "";
   currentCallPreviewNumber = "";
   contactGrant = "";
+  contactAvailable = true;
   pendingAction = null;
   setDisabled("call-owner-button", false);
   setDisabled("send-whatsapp-button", false);
   setDisabled("submit-message-button", false);
   setDisabled("contact-number-submit", false);
   setDisabled("final-call-button", false);
+  setContactAvailability(true);
+}
+
+// Toggle between the contact buttons and the "Purchase sticker" CTA based on
+// whether the free contact is still available (server-authoritative).
+function setContactAvailability(available) {
+  contactAvailable = available;
+  setHidden("scanner-why-title", !available);
+  setHidden("pt-reason-chips", !available);
+  setHidden("scanner-contact-actions", !available);
+  setHidden("purchase-cta", available);
+  if (!available) {
+    // Hide any open contact sub-panels too.
+    setHidden("contact-number-panel", true);
+    setHidden("dial-panel", true);
+    setHidden("message-panel", true);
+    setHidden("call-popup", true);
+  }
 }
 
 function setSummaryForTag(tag) {
@@ -139,14 +160,25 @@ function setSummaryForTag(tag) {
 }
 
 async function createRequest(payload) {
-  return fetchJson("/api/contact-requests", {
+  const response = await fetch("/api/contact-requests", {
     method: "POST",
-    headers: {
-      "content-type": "application/json"
-    },
+    headers: { "content-type": "application/json" },
     // Attach the verification grant so the server authorises the contact.
     body: JSON.stringify({ ...payload, grant: contactGrant })
   });
+  const data = await response.json().catch(() => ({}));
+
+  // 402 = free contact used up. Server is authoritative; flip the UI to the CTA.
+  if (response.status === 402) {
+    setContactAvailability(false);
+    const err = new Error(data.error || "This E-Tag's free contact has been used.");
+    err.freeUsed = true;
+    throw err;
+  }
+  if (!response.ok) {
+    throw new Error(data.error || "Request failed");
+  }
+  return data;
 }
 
 async function loadScannerView() {
@@ -257,9 +289,13 @@ async function handlePlateVerification(event) {
   setDisabled("plate-verify-submit", false);
   setRequestStatus("plate-verify-status", "", "info");
   showOnly("scanner-action-shell");
+  // Reflect free-usage state: show buttons, or the Purchase CTA if used up.
+  setContactAvailability(data.contactAvailable !== false);
   setRequestStatus(
     "request-status",
-    "Verified ✓ Choose Call Owner or Leave WhatsApp message.",
+    data.contactAvailable !== false
+      ? "Verified ✓ Choose Call Owner or Leave WhatsApp message."
+      : "Verified ✓",
     "success"
   );
 }

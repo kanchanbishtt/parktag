@@ -205,7 +205,10 @@ export function registerPublicRoutes(app, env) {
       ok: true,
       grant: grantId,
       vehicleLabel: tag.vehicleLabel || "Registered vehicle",
-      maskedPlateNumber: maskPlateNumber(tag.plateNumber)
+      maskedPlateNumber: maskPlateNumber(tag.plateNumber),
+      // Free-usage state for the UI (authoritative check is still server-side
+      // on the contact endpoint). Premium tags always have contact available.
+      contactAvailable: Boolean(tag.premium) || !tag.freeContactUsed
     };
   });
 
@@ -375,6 +378,18 @@ export function registerPublicRoutes(app, env) {
       return {
         ok: false,
         error: "Tag not found"
+      };
+    }
+
+    // Free-usage policy (server-enforced, cannot be bypassed from the client):
+    // each E-Tag includes one free masked contact. Once used, contact is blocked
+    // until the owner activates the official sticker (premium).
+    if (tag.freeContactUsed && !tag.premium) {
+      reply.code(402);
+      return {
+        ok: false,
+        code: "FREE_USED",
+        error: "This E-Tag's free contact has already been used. The owner can re-enable contact with the official ParkTag sticker."
       };
     }
 

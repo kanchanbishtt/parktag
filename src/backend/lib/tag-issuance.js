@@ -3,6 +3,15 @@ import { ObjectId } from "mongodb";
 import { createSecureToken } from "./security.js";
 import { createQrDataUrl } from "./qr-output.js";
 
+export const VEHICLE_LABELS = {
+  car: "Car", bike: "Bike", scooter: "Scooter", auto_rickshaw: "Auto Rickshaw",
+  truck: "Truck", bus: "Bus", bicycle: "Bicycle", e_scooter: "E-Scooter"
+};
+
+function labelForType(type, fallback = "Registered vehicle") {
+  return VEHICLE_LABELS[type] || fallback;
+}
+
 export function buildClaimUrl(request, token) {
   const host = request.headers["x-forwarded-host"] || request.headers.host;
   const proto = request.headers["x-forwarded-proto"] || "http";
@@ -83,7 +92,7 @@ export async function createRegisteredOwnerTag(collections, ownerId, input) {
     _id: new ObjectId(),
     token: createSecureToken(),
     ownerId,
-    vehicleLabel: input.vehicleLabel || "Registered vehicle",
+    vehicleLabel: input.vehicleLabel || labelForType(input.vehicleType),
     vehicleType: input.vehicleType || null,
     plateNumber: input.plateNumber,
     status: "active",
@@ -125,7 +134,7 @@ export async function createEtagForVehicle(collections, ownerId, input) {
     _id: new ObjectId(),
     token: createSecureToken(),
     ownerId,
-    vehicleLabel: input.vehicleLabel || "Registered vehicle",
+    vehicleLabel: input.vehicleLabel || labelForType(vehicleType),
     vehicleType,
     plateNumber,
     status: "active",

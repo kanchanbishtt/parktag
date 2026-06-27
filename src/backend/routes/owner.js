@@ -15,10 +15,33 @@ export function registerOwnerRoutes(app, env) {
     const ownerId = toObjectId(request.session.userId);
 
     const owner = await collections.owners.findOne({ _id: ownerId });
-    // Exclude soft-deleted tags from the owner's view.
-    const tags = await collections.tags
+
+    // Single source of truth: every vehicle is a real tag. Lazily migrate any
+    // legacy owner.localVehicles[] into real E-Tags (each gets its own unique
+    // secure token + QR), then clear them so they never show twice.
+    let tags = await collections.tags
       .find({ ownerId, deletedAt: { $in: [null, undefined] } })
       .toArray();
+
+    const legacyLocals = owner.localVehicles || [];
+    if (legacyLocals.length) {
+      const havePlates = new Set(
+        tags.map((t) => (t.plateNumber || "").toUpperCase()).filter(Boolean)
+      );
+      for (const v of legacyLocals) {
+        const plate = (v.number || "").toUpperCase();
+        if (!plate || havePlates.has(plate)) continue;
+        try {
+          await createEtagForVehicle(collections, ownerId, { type: v.type, number: v.number });
+          havePlates.add(plate);
+        } catch (_) { /* skip malformed legacy rows */ }
+      }
+      await collections.owners.updateOne({ _id: ownerId }, { $set: { localVehicles: [] } });
+      tags = await collections.tags
+        .find({ ownerId, deletedAt: { $in: [null, undefined] } })
+        .toArray();
+    }
+
     const requests = await collections.contactRequests
       .find({ ownerId })
       .sort({ createdAt: -1 })
@@ -26,23 +49,6 @@ export function registerOwnerRoutes(app, env) {
       .toArray();
 
     const LABELS = { car:"Car", bike:"Bike", scooter:"Scooter", auto_rickshaw:"Auto Rickshaw", truck:"Truck", bus:"Bus", bicycle:"Bicycle", e_scooter:"E-Scooter" };
-
-    // A vehicle can exist both as a localVehicle and (once an E-Tag is generated)
-    // as a real tag. Prefer the real tag and hide the duplicate local entry so the
-    // dashboard shows a single source of truth per plate.
-    const realTagPlates = new Set(
-      tags.map((t) => (t.plateNumber || "").toUpperCase()).filter(Boolean)
-    );
-    const localVehicles = (owner.localVehicles || [])
-      .filter((v) => !realTagPlates.has((v.number || "").toUpperCase()))
-      .map((v, i) => ({
-        id: `local_${i}`,
-        vehicleType: v.type,
-        vehicleLabel: LABELS[v.type] || v.type,
-        plateNumber: v.number,
-        status: "active",
-        isLocal: true
-      }));
 
     return {
       ok: true,
@@ -53,8 +59,8 @@ export function registerOwnerRoutes(app, env) {
         displayName: owner.displayName || request.session.displayName || null,
         credits: owner.credits || 0
       },
-      tags: [...localVehicles, ...(await Promise.all(tags.map(async (tag) => {
-        const scanUrl = `${request.protocol}://${request.hostname}${request.port ? `:${request.port}` : ""}/tag/${tag.token}`;
+      tags: await Promise.all(tags.map(async (tag) => {
+        const scanUrl = buildTagScanUrl(request, tag.token);
         const qrDataUrl = await createQrDataUrl(scanUrl);
         return {
           id: String(tag._id),
@@ -62,7 +68,8 @@ export function registerOwnerRoutes(app, env) {
           etagId: `PT-${String(tag._id).slice(-8).toUpperCase()}`,
           status: tag.status,
           vehicleType: tag.vehicleType || null,
-          vehicleLabel: tag.vehicleLabel,
+          // Prefer the real type label; fall back to the stored label for older tags.
+          vehicleLabel: LABELS[tag.vehicleType] || tag.vehicleLabel || "Vehicle",
           plateNumber: tag.plateNumber || null,
           printStatus: tag.printStatus || "not_requested",
           stickerRequested: tag.stickerRequested || false,
@@ -71,7 +78,7 @@ export function registerOwnerRoutes(app, env) {
           scanUrl,
           qrDataUrl
         };
-      })))],
+      })),
       requests: requests.map((item) => ({
         id: String(item._id),
         token: item.token,
@@ -156,6 +163,10 @@ export function registerOwnerRoutes(app, env) {
     };
   });
 
+  // Add a vehicle. Every added vehicle becomes a real, scannable E-Tag with its
+  // own unique 256-bit secure token + QR (single source of truth in `tags`).
+  // Kept at this path for frontend compatibility. Idempotent: re-adding the same
+  // plate returns 409 (the existing E-Tag is reused, never duplicated).
   app.post("/api/owner/local-vehicle", async (request, reply) => {
     const blocked = await requireSession(app, "owner")(request, reply);
     if (blocked) return blocked;
@@ -170,24 +181,20 @@ export function registerOwnerRoutes(app, env) {
     if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
 
     const ownerId = toObjectId(request.session.userId);
-    const normalizedNumber = number.trim().toUpperCase();
 
-    // Check duplicate in local vehicles
-    const owner = await collections.owners.findOne({ _id: ownerId });
-    const existsLocal = (owner?.localVehicles || []).some(v => v.number === normalizedNumber);
-    // Check duplicate in registered tags
-    const existsTag = await collections.tags.findOne({ ownerId, plateNumber: normalizedNumber });
+    let result;
+    try {
+      result = await createEtagForVehicle(collections, ownerId, { type, number });
+    } catch (error) {
+      reply.code(400);
+      return { ok: false, error: error instanceof Error ? error.message : "Could not add vehicle." };
+    }
 
-    if (existsLocal || existsTag) {
+    if (!result.created) {
       reply.code(409);
       return { ok: false, error: "Vehicle already added." };
     }
-
-    await collections.owners.updateOne(
-      { _id: ownerId },
-      { $push: { localVehicles: { type, number: normalizedNumber, addedAt: new Date().toISOString() } } }
-    );
-    return { ok: true };
+    return { ok: true, id: String(result.tag._id), token: result.tag.token };
   });
 
   app.post("/api/owner/tags/:tagId/request-sticker", async (request, reply) => {

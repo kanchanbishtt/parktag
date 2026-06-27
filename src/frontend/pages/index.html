@@ -8,6 +8,19 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+      /* Smooth, premium reveal transitions (spec §13) */
+      @keyframes pt-pop { from { opacity: 0; transform: translateY(10px) scale(.985); } to { opacity: 1; transform: none; } }
+      @keyframes pt-badge-pop { 0% { opacity: 0; transform: scale(.6); } 60% { transform: scale(1.08); } 100% { opacity: 1; transform: scale(1); } }
+      #scanner-action-shell:not([hidden]) { animation: pt-pop .3s cubic-bezier(.2,.7,.3,1) both; }
+      .pt-success-panel:not([hidden]) { animation: pt-pop .32s cubic-bezier(.2,.7,.3,1) both; }
+      #purchase-cta:not([hidden]) { animation: pt-pop .32s cubic-bezier(.2,.7,.3,1) both; }
+      .pt-verified-badge { animation: pt-badge-pop .45s cubic-bezier(.2,.8,.2,1) both; }
+      @media (prefers-reduced-motion: reduce) {
+        #scanner-action-shell:not([hidden]), .pt-success-panel:not([hidden]),
+        #purchase-cta:not([hidden]), .pt-verified-badge { animation: none; }
+      }
+    </style>
   </head>
   <body class="scanner-body">
 

@@ -26,6 +26,11 @@ setTimeout(async () => {
         realQrDataUrl = tag.qrDataUrl || "";
         realScanUrl   = tag.scanUrl   || "";
         isPremium     = Boolean(tag.premium);
+        // Stamp the unique E-Tag ID + activation status onto the print sticker (spec §9).
+        const idEl = document.getElementById("print-etag-id");
+        if (idEl && tag.etagId) idEl.textContent = String(tag.etagId).replace(/^PT-/, "");
+        const stEl = document.getElementById("print-status");
+        if (stEl) stEl.textContent = tag.status === "inactive" ? "Inactive" : "Active";
       }
     } catch {}
   }

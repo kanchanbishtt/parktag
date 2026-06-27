@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>ParkTag Admin — E-Tags</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Segoe UI", Tahoma, sans-serif; background: #F4F5F7; color: #001935; }
+    .wrap { max-width: 1180px; margin: 0 auto; padding: 22px 18px 60px; }
+    .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
+    .title { font-size: 1.5rem; font-weight: 900; margin: 0; }
+    .title span { color: #1A9D20; }
+    a.back { text-decoration: none; color: #6B7280; font-weight: 700; font-size: .85rem; border: 1.5px solid #E5E7EB; padding: 8px 14px; border-radius: 10px; background: #fff; }
+    .bar { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+    .bar input, .bar select { height: 42px; border: 1.5px solid #E5E7EB; border-radius: 10px; padding: 0 12px; font-size: .9rem; font-family: inherit; outline: none; }
+    .bar input { flex: 1; min-width: 220px; }
+    .bar input:focus, .bar select:focus { border-color: #1A9D20; }
+    .summary { font-size: .82rem; color: #6B7280; margin: 0 0 10px; }
+    .card { background: #fff; border: 1px solid #E5E7EB; border-radius: 14px; overflow: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: .84rem; min-width: 860px; }
+    th, td { text-align: left; padding: 11px 12px; border-bottom: 1px solid #F1F2F4; white-space: nowrap; }
+    th { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; color: #9CA3AF; background: #FAFBFC; }
+    tr:last-child td { border-bottom: none; }
+    .plate { font-weight: 800; letter-spacing: .04em; }
+    .muted { color: #6B7280; }
+    .pill { display: inline-block; font-size: .68rem; font-weight: 800; padding: 2px 9px; border-radius: 20px; }
+    .pill.active { background: #E8F5E9; color: #145E17; }
+    .pill.inactive { background: #FEE2E2; color: #B91C1C; }
+    .pill.premium { background: #FEF3C7; color: #92400E; }
+    .pill.free { background: #EEF2FF; color: #3730A3; }
+    .pill.del { background: #F3F4F6; color: #6B7280; }
+    .act { display: inline-flex; gap: 6px; }
+    .act button { border: 1.5px solid #E5E7EB; background: #fff; border-radius: 8px; padding: 5px 10px; font-size: .75rem; font-weight: 700; cursor: pointer; font-family: inherit; color: #374151; }
+    .act button:hover { background: #F9FAFB; }
+    .act button.danger { color: #B91C1C; border-color: #FCA5A5; }
+    .act button.go { color: #1A9D20; border-color: #A7F3A0; }
+    .empty, .err { text-align: center; padding: 40px 16px; color: #6B7280; }
+    /* logs modal */
+    .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; align-items: center; justify-content: center; padding: 16px; z-index: 50; }
+    .overlay.open { display: flex; }
+    .modal { background: #fff; border-radius: 16px; max-width: 720px; width: 100%; max-height: 85vh; overflow: auto; padding: 20px; }
+    .modal h2 { margin: 0 0 4px; font-size: 1.1rem; }
+    .modal .sub { color: #6B7280; font-size: .82rem; margin: 0 0 14px; }
+    .log { border: 1px solid #EEF0F2; border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; font-size: .8rem; }
+    .log b { font-weight: 800; }
+    .closex { float: right; border: none; background: #F3F4F6; border-radius: 8px; width: 30px; height: 30px; cursor: pointer; font-size: 1rem; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <h1 class="title">Park<span>Tag</span> · E-Tags</h1>
+      <a class="back" href="/admin/overview">← Back to Admin</a>
+    </div>
+
+    <div class="bar">
+      <input id="q" type="search" placeholder="Search by vehicle number, E-Tag ID, owner email/mobile…" autocomplete="off"/>
+      <select id="status">
+        <option value="">All statuses</option>
+        <option value="active">Active</option>
+        <option value="inactive">Inactive</option>
+      </select>
+      <label style="display:flex;align-items:center;gap:6px;font-size:.82rem;color:#6B7280">
+        <input id="includeDeleted" type="checkbox"/> Show deleted
+      </label>
+    </div>
+
+    <p class="summary" id="summary">Loading…</p>
+
+    <div class="card">
+      <table>
+        <thead>
+          <tr>
+            <th>E-Tag ID</th><th>Vehicle</th><th>Owner</th><th>Status</th>
+            <th>Plan</th><th>Contacts</th><th>Created</th><th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="rows"><tr><td colspan="8" class="empty">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="overlay" id="overlay">
+    <div class="modal">
+      <button class="closex" id="closeModal">×</button>
+      <h2 id="mTitle">Logs</h2>
+      <p class="sub" id="mSub"></p>
+      <div id="mLogs"></div>
+    </div>
+  </div>
+
+  <script src="/scripts/admin-etags.js"></script>
+</body>
+</html>

@@ -324,7 +324,6 @@ async function saveVehicles() {
   if (mobile && !document.getElementById("mobile-number")?.readOnly) {
     await saveMobile(mobile);
   }
-  const alreadyAdded = [];
   for (const v of vehicles) {
     try {
       const res = await fetch("/api/owner/local-vehicle", {
@@ -332,16 +331,12 @@ async function saveVehicles() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ type: v.type, number: v.number })
       });
-      if (res.status === 409) { alreadyAdded.push(v.number); continue; }
-      if (!res.ok) throw new Error("api-failed");
+      // 409 = this vehicle already has an E-Tag (idempotent) — treat as success.
+      if (!res.ok && res.status !== 409) throw new Error("api-failed");
     } catch {
       savePendingVehicles();
       return;
     }
-  }
-  if (alreadyAdded.length) {
-    setStatus(`Already added: ${alreadyAdded.join(", ")}. Redirecting…`, "info");
-    await new Promise(r => setTimeout(r, 1500));
   }
 }
 

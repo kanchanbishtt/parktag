@@ -267,7 +267,7 @@ function renderPrintQueue(data) {
             <strong>${tag.token}</strong>
             <span>Print status: <strong>${tag.printStatus}</strong></span>
             <a href="${tag.claimUrl}" target="_blank" rel="noreferrer" style="word-break:break-all;font-size:0.82rem">${tag.claimUrl}</a>
-            ${tag.printStatus !== "printed" ? `<button class="action small" onclick="markPrinted('${tag.id}')">Mark as printed</button>` : `<span style="color:#FF8000;font-weight:700">✓ Printed</span>`}
+            ${tag.printStatus !== "printed" ? `<button class="action small" onclick="markPrinted('${tag.id}')">Mark as printed</button>` : `<span style="color:#FF2700;font-weight:700">✓ Printed</span>`}
           </article>
         `).join("")}
       </div>

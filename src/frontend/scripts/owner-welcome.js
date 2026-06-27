@@ -318,7 +318,7 @@ async function load() {
       <div role="alert" style="grid-column:1/-1;text-align:center;padding:28px 16px 12px">
         <p style="font-size:.9rem;font-weight:700;color:#374151;margin:0 0 10px">${UI.loadError}</p>
         <button onclick="load()"
-          style="background:#FF8000;color:#fff;border:none;border-radius:10px;
+          style="background:#FF2700;color:#fff;border:none;border-radius:10px;
                  padding:9px 22px;font-size:.85rem;font-weight:700;cursor:pointer;font-family:inherit">
           ${UI.retry}
         </button>

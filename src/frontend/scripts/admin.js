@@ -258,7 +258,7 @@ function renderPrintQueue(data) {
       : "No batch assigned";
     return `
       <div style="margin-bottom:20px">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding:8px 12px;background:#F9FAFB;border-radius:8px;border:1px solid #E5E7EB">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding:8px 12px;background:#F1F1F0;border-radius:8px;border:1px solid #E5E7EB">
           <span style="font-weight:700;font-size:0.9rem">${batchTitle} <span style="font-weight:400;color:#6B7280">(${batch.tags.length} tags)</span></span>
           ${batch.batchNumber ? `<button class="action small" style="color:#DC2626;background:#FEF2F2;border-color:#FECACA" onclick="deleteBatch('${batch.batchNumber}')">Delete batch</button>` : ""}
         </div>
@@ -267,7 +267,7 @@ function renderPrintQueue(data) {
             <strong>${tag.token}</strong>
             <span>Print status: <strong>${tag.printStatus}</strong></span>
             <a href="${tag.claimUrl}" target="_blank" rel="noreferrer" style="word-break:break-all;font-size:0.82rem">${tag.claimUrl}</a>
-            ${tag.printStatus !== "printed" ? `<button class="action small" onclick="markPrinted('${tag.id}')">Mark as printed</button>` : `<span style="color:#059669;font-weight:700">✓ Printed</span>`}
+            ${tag.printStatus !== "printed" ? `<button class="action small" onclick="markPrinted('${tag.id}')">Mark as printed</button>` : `<span style="color:#FF8000;font-weight:700">✓ Printed</span>`}
           </article>
         `).join("")}
       </div>

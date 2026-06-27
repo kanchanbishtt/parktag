@@ -16,7 +16,7 @@
 
     /* ── Amber header ──────────────────────────────── */
     .pt-wh {
-      background: linear-gradient(155deg, #001935 0%, #0D2545 55%, #1A3A6E 100%);
+      background: linear-gradient(155deg, #03162D 0%, #0D2545 55%, #1A3A6E 100%);
       padding: 14px 18px 28px;
       box-shadow: 0 4px 16px rgba(0,25,53,0.18);
     }
@@ -126,7 +126,7 @@
     }
 
     .pt-slide-blank {
-      width: 100%; aspect-ratio: 16/7; background: #F9FAFB;
+      width: 100%; aspect-ratio: 16/7; background: #F1F1F0;
       border: 2px dashed #E5E7EB;
       display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
     }
@@ -137,7 +137,7 @@
       height: 7px; width: 7px; border-radius: 4px; background: #D1D5DB;
       border: none; cursor: pointer; padding: 0; transition: all .2s;
     }
-    .pt-dot-btn[aria-selected="true"] { width: 22px; background:#1A9D20; }
+    .pt-dot-btn[aria-selected="true"] { width: 22px; background:#FF8000; }
 
     .pt-car-arr {
       position: absolute; top: 50%; transform: translateY(-50%);
@@ -154,11 +154,11 @@
     .pt-wsearch { position: relative; padding: 16px 0 0; }
     .pt-wsearch-inp {
       width: 100%; height: 48px; border-radius: 24px;
-      border: 1.5px solid #E5E7EB; background: #F9FAFB;
-      padding: 0 52px 0 18px; font-size: 0.88rem; color: #1F2937;
+      border: 1.5px solid #E5E7EB; background: #F1F1F0;
+      padding: 0 52px 0 18px; font-size: 0.88rem; color: #323232;
       outline: none; font-family: inherit; transition: border-color .15s, background .15s;
     }
-    .pt-wsearch-inp:focus { border-color:#1A9D20; background: #fff; }
+    .pt-wsearch-inp:focus { border-color:#FF8000; background: #fff; }
     .pt-wsearch-btn {
       position: absolute; right: 6px; top: 50%; transform: translateY(calc(-50% + 8px));
       width: 36px; height: 36px; border-radius: 50%;
@@ -166,12 +166,12 @@
       display: flex; align-items: center; justify-content: center;
       transition: background .15s;
     }
-    .pt-wsearch-btn:hover { background: #EBF7EC; }
+    .pt-wsearch-btn:hover { background: #FFF1E3; }
 
     /* ── Tags heading ──────────────────────────────── */
     .pt-tags-hd { padding: 22px 0 0; }
-    .pt-tags-title { font-size: 1.3rem; font-weight: 900; color: #001935; margin: 0 0 5px; }
-    .pt-tags-bar   { width: 34px; height: 3px; background:#1A9D20; border-radius: 2px; margin-bottom: 7px; }
+    .pt-tags-title { font-size: 1.3rem; font-weight: 900; color: #03162D; margin: 0 0 5px; }
+    .pt-tags-bar   { width: 34px; height: 3px; background:#FF8000; border-radius: 2px; margin-bottom: 7px; }
     .pt-tags-sub   { font-size: 0.88rem; color: #6B7280; margin: 0 0 16px; }
 
     /* ── Vehicle grid ──────────────────────────────── */
@@ -184,39 +184,39 @@
       box-shadow: 0 1px 4px rgba(0,0,0,.04);
       transition: transform .15s, box-shadow .15s, border-color .15s;
     }
-    .pt-vc:hover  { transform: translateY(-2px); box-shadow: 0 4px 14px rgba(0,0,0,.09); border-color:#1A9D20; }
-    .pt-vc:active { transform: scale(0.97); box-shadow: 0 1px 4px rgba(0,0,0,.04); border-color:#1A9D20; }
+    .pt-vc:hover  { transform: translateY(-2px); box-shadow: 0 4px 14px rgba(0,0,0,.09); border-color:#FF8000; }
+    .pt-vc:active { transform: scale(0.97); box-shadow: 0 1px 4px rgba(0,0,0,.04); border-color:#FF8000; }
     .pt-vc-icon {
-      width: 60px; height: 60px; border-radius: 50%; background: #EBF7EC;
+      width: 60px; height: 60px; border-radius: 50%; background: #FFF1E3;
       display: flex; align-items: center; justify-content: center;
-      color: #1A9D20; position: relative; margin-bottom: 2px;
+      color: #FF8000; position: relative; margin-bottom: 2px;
     }
     .pt-vc-badge {
       position: absolute; top: -3px; right: -3px;
       width: 20px; height: 20px; border-radius: 50%;
-      background:#1A9D20; color: #fff; border: 2px solid #fff;
+      background:#FF8000; color: #fff; border: 2px solid #fff;
       font-size: .62rem; font-weight: 800;
       display: flex; align-items: center; justify-content: center;
     }
-    .pt-vc-name  { font-weight: 800; font-size: .92rem; color: #1F2937; margin: 0;
+    .pt-vc-name  { font-weight: 800; font-size: .92rem; color: #323232; margin: 0;
                    max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .pt-vc-plate { font-size: .73rem; color: #6B7280; font-weight: 600;
                    font-family: monospace; letter-spacing: .04em; margin: 0; }
 
     .pt-vadd {
-      background: #EBF7EC; border-radius: 18px; border: 2px dashed #1A9D20;
+      background: #FFF1E3; border-radius: 18px; border: 2px dashed #FF8000;
       padding: 18px 12px 14px; display: flex; flex-direction: column;
       align-items: center; text-align: center; gap: 5px;
       text-decoration: none; cursor: pointer; transition: background .15s;
     }
-    .pt-vadd:hover { background: #D4EED5; }
+    .pt-vadd:hover { background: #FFE4CC; }
     .pt-vadd-icon {
-      width: 60px; height: 60px; border-radius: 50%; background: #D4EED5;
-      border: 2px solid #1A9D20;
+      width: 60px; height: 60px; border-radius: 50%; background: #FFE4CC;
+      border: 2px solid #FF8000;
       display: flex; align-items: center; justify-content: center;
-      color: #1A9D20; margin-bottom: 2px;
+      color: #FF8000; margin-bottom: 2px;
     }
-    .pt-vadd-title { font-weight: 800; font-size: .92rem; color: #1F2937; margin: 0; }
+    .pt-vadd-title { font-weight: 800; font-size: .92rem; color: #323232; margin: 0; }
     .pt-vadd-sub   { font-size: .73rem; color: #6B7280; margin: 0; line-height: 1.5; }
 
     /* ── Bottom nav ────────────────────────────────── */
@@ -236,12 +236,12 @@
       color: #6B7280; font-size: 0.72rem; font-weight: 700; font-family: inherit;
       transition: color .15s; letter-spacing: .02em;
     }
-    .pt-nav-tab.active { color:#1A9D20; }
+    .pt-nav-tab.active { color:#FF8000; }
 
     /* ── Shop grid ─────────────────────────────────── */
     .pt-shop-hd { padding: 22px 0 0; }
-    .pt-shop-title { font-size: 1.3rem; font-weight: 900; color: #001935; margin: 0 0 5px; }
-    .pt-shop-bar   { width: 34px; height: 3px; background:#1A9D20; border-radius: 2px; margin-bottom: 7px; }
+    .pt-shop-title { font-size: 1.3rem; font-weight: 900; color: #03162D; margin: 0 0 5px; }
+    .pt-shop-bar   { width: 34px; height: 3px; background:#FF8000; border-radius: 2px; margin-bottom: 7px; }
     .pt-shop-sub   { font-size: 0.88rem; color: #6B7280; margin: 0; }
     .pt-shop-grid  { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 14px 0 0; }
 
@@ -251,7 +251,7 @@
       box-shadow: 0 1px 4px rgba(0,0,0,.05);
       transition: transform .15s, box-shadow .15s, border-color .15s;
     }
-    .pt-shop-card:hover { transform: translateY(-2px); box-shadow: 0 4px 14px rgba(0,0,0,.1); border-color:#1A9D20; }
+    .pt-shop-card:hover { transform: translateY(-2px); box-shadow: 0 4px 14px rgba(0,0,0,.1); border-color:#FF8000; }
     .pt-shop-img {
       position: relative; background: #F3F4F6; aspect-ratio: 1;
       display: flex; align-items: center; justify-content: center;
@@ -264,13 +264,13 @@
     }
     .pt-shop-body  { padding: 10px 10px 13px; }
     .pt-shop-name  {
-      font-size: .82rem; font-weight: 700; color: #1F2937; margin: 0 0 3px;
+      font-size: .82rem; font-weight: 700; color: #323232; margin: 0 0 3px;
       display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
       line-height: 1.35;
     }
     .pt-shop-feat  { font-size: .68rem; color: #6B7280; margin: 0 0 8px; line-height: 1.4; }
     .pt-shop-prow  { display: flex; align-items: baseline; gap: 5px; flex-wrap: wrap; }
-    .pt-shop-price { font-size: .95rem; font-weight: 900; color: #1F2937; }
+    .pt-shop-price { font-size: .95rem; font-weight: 900; color: #323232; }
     .pt-shop-orig  { font-size: .73rem; color: #9CA3AF; text-decoration: line-through; }
 
     /* ── Product detail sheet ──────────────────────── */
@@ -301,11 +301,11 @@
       display: flex; align-items: center; justify-content: center;
       margin-bottom: 18px;
     }
-    .pt-sheet-name { font-size: 1.05rem; font-weight: 900; color: #001935; margin: 0 0 14px; line-height: 1.35; }
+    .pt-sheet-name { font-size: 1.05rem; font-weight: 900; color: #03162D; margin: 0 0 14px; line-height: 1.35; }
     .pt-sheet-prow { display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px; flex-wrap: wrap; }
-    .pt-sheet-price { font-size: 1.5rem; font-weight: 900; color: #001935; }
+    .pt-sheet-price { font-size: 1.5rem; font-weight: 900; color: #03162D; }
     .pt-sheet-orig  { font-size: .88rem; color: #9CA3AF; text-decoration: line-through; }
-    .pt-sheet-disc  { font-size: .82rem; font-weight: 700; color: #22C55E; }
+    .pt-sheet-disc  { font-size: .82rem; font-weight: 700; color: #FF8000; }
     .pt-sheet-var-lbl { font-size: .88rem; font-weight: 700; color: #374151; margin: 16px 0 8px; }
     .pt-sheet-vars  { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
     .pt-sheet-var {
@@ -313,7 +313,7 @@
       font-size: .83rem; font-weight: 600; color: #374151; cursor: pointer;
       transition: all .15s; background: #fff;
     }
-    .pt-sheet-var.active { background:#1A9D20; border-color:#1A9D20; color: #FFFFFF; }
+    .pt-sheet-var.active { background:#FF8000; border-color:#FF8000; color: #FFFFFF; }
     .pt-sheet-offers-lbl {
       font-size: .88rem; font-weight: 700; color: #374151;
       margin: 0 0 10px; display: flex; align-items: center; gap: 7px;
@@ -325,15 +325,15 @@
     }
     .pt-sheet-offers li::before {
       content: ""; width: 7px; height: 7px; border-radius: 50%;
-      background:#1A9D20; flex-shrink: 0;
+      background:#FF8000; flex-shrink: 0;
     }
     .pt-buy-btn {
       width: 100%; padding: 16px; border-radius: 16px; border: none;
-      background:#1A9D20; color: #FFFFFF; font-size: 1rem; font-weight: 800;
+      background:#FF8000; color: #FFFFFF; font-size: 1rem; font-weight: 800;
       cursor: pointer; font-family: inherit; letter-spacing: .03em;
       transition: background .15s;
     }
-    .pt-buy-btn:hover { background: #157A18; }
+    .pt-buy-btn:hover { background: #E67200; }
     .pt-buy-cs {
       text-align: center; font-size: .75rem; color: #9CA3AF;
       margin: 10px 0 0; font-weight: 600;
@@ -385,7 +385,7 @@
   <div class="pt-ptr" id="ptrIndicator" role="status" aria-live="polite">
     <svg class="pt-ptr-spin" width="16" height="16" viewBox="0 0 24 24" fill="none">
       <circle cx="12" cy="12" r="9" stroke="#D1D5DB" stroke-width="2.5"/>
-      <path d="M12 3a9 9 0 0 1 9 9" stroke="#1A9D20" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M12 3a9 9 0 0 1 9 9" stroke="#FF8000" stroke-width="2.5" stroke-linecap="round"/>
     </svg>
     Refreshing…
   </div>
@@ -467,8 +467,8 @@
         <input class="pt-wsearch-inp" type="search" id="vehicleSearch" placeholder="Search ParkTag vehicle" autocomplete="off"/>
         <button class="pt-wsearch-btn" aria-label="Search">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-            <circle cx="11" cy="11" r="8" stroke="#1A9D20" stroke-width="2.2"/>
-            <path d="M21 21l-4.35-4.35" stroke="#1A9D20" stroke-width="2.2" stroke-linecap="round"/>
+            <circle cx="11" cy="11" r="8" stroke="#FF8000" stroke-width="2.2"/>
+            <path d="M21 21l-4.35-4.35" stroke="#FF8000" stroke-width="2.2" stroke-linecap="round"/>
           </svg>
         </button>
       </div>
@@ -593,33 +593,33 @@ function tagPlaceholder(size) {
   const s = size || 72;
   return `<svg width="${s}" height="${s}" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
     <rect width="72" height="72" rx="14" fill="#F3F4F6"/>
-    <rect x="12" y="12" width="22" height="22" rx="4" fill="#001935"/>
+    <rect x="12" y="12" width="22" height="22" rx="4" fill="#03162D"/>
     <rect x="16" y="16" width="14" height="14" rx="2" fill="#FFFFFF"/>
-    <rect x="18" y="18" width="4" height="4" fill="#001935"/>
-    <rect x="24" y="18" width="4" height="4" fill="#001935"/>
-    <rect x="18" y="24" width="4" height="4" fill="#001935"/>
-    <rect x="38" y="12" width="22" height="22" rx="4" fill="#001935"/>
+    <rect x="18" y="18" width="4" height="4" fill="#03162D"/>
+    <rect x="24" y="18" width="4" height="4" fill="#03162D"/>
+    <rect x="18" y="24" width="4" height="4" fill="#03162D"/>
+    <rect x="38" y="12" width="22" height="22" rx="4" fill="#03162D"/>
     <rect x="42" y="16" width="14" height="14" rx="2" fill="#FFFFFF"/>
-    <rect x="44" y="18" width="4" height="4" fill="#001935"/>
-    <rect x="50" y="18" width="4" height="4" fill="#001935"/>
-    <rect x="44" y="24" width="10" height="4" fill="#001935"/>
-    <rect x="12" y="38" width="22" height="22" rx="4" fill="#001935"/>
+    <rect x="44" y="18" width="4" height="4" fill="#03162D"/>
+    <rect x="50" y="18" width="4" height="4" fill="#03162D"/>
+    <rect x="44" y="24" width="10" height="4" fill="#03162D"/>
+    <rect x="12" y="38" width="22" height="22" rx="4" fill="#03162D"/>
     <rect x="16" y="42" width="14" height="14" rx="2" fill="#FFFFFF"/>
-    <rect x="18" y="44" width="10" height="4" fill="#001935"/>
-    <rect x="18" y="50" width="4" height="4" fill="#001935"/>
-    <rect x="24" y="50" width="4" height="4" fill="#001935"/>
-    <rect x="38" y="38" width="4" height="4" fill="#1A9D20"/>
-    <rect x="44" y="38" width="4" height="4" fill="#1A9D20"/>
-    <rect x="50" y="38" width="4" height="4" fill="#1A9D20"/>
-    <rect x="56" y="38" width="4" height="4" fill="#001935"/>
-    <rect x="38" y="44" width="4" height="4" fill="#1A9D20"/>
-    <rect x="44" y="44" width="16" height="4" fill="#001935"/>
-    <rect x="38" y="50" width="10" height="4" fill="#001935"/>
-    <rect x="50" y="50" width="4" height="4" fill="#1A9D20"/>
-    <rect x="56" y="50" width="4" height="4" fill="#001935"/>
-    <rect x="38" y="56" width="4" height="4" fill="#001935"/>
-    <rect x="44" y="56" width="4" height="4" fill="#1A9D20"/>
-    <rect x="50" y="56" width="10" height="4" fill="#001935"/>
+    <rect x="18" y="44" width="10" height="4" fill="#03162D"/>
+    <rect x="18" y="50" width="4" height="4" fill="#03162D"/>
+    <rect x="24" y="50" width="4" height="4" fill="#03162D"/>
+    <rect x="38" y="38" width="4" height="4" fill="#FF8000"/>
+    <rect x="44" y="38" width="4" height="4" fill="#FF8000"/>
+    <rect x="50" y="38" width="4" height="4" fill="#FF8000"/>
+    <rect x="56" y="38" width="4" height="4" fill="#03162D"/>
+    <rect x="38" y="44" width="4" height="4" fill="#FF8000"/>
+    <rect x="44" y="44" width="16" height="4" fill="#03162D"/>
+    <rect x="38" y="50" width="10" height="4" fill="#03162D"/>
+    <rect x="50" y="50" width="4" height="4" fill="#FF8000"/>
+    <rect x="56" y="50" width="4" height="4" fill="#03162D"/>
+    <rect x="38" y="56" width="4" height="4" fill="#03162D"/>
+    <rect x="44" y="56" width="4" height="4" fill="#FF8000"/>
+    <rect x="50" y="56" width="10" height="4" fill="#03162D"/>
   </svg>`;
 }
 
@@ -691,8 +691,8 @@ function renderSheet() {
     </div>
     <p class="pt-sheet-offers-lbl">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-        <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" stroke="#1A9D20" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        <circle cx="7" cy="7" r="1.5" fill="#1A9D20"/>
+        <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" stroke="#FF8000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="7" cy="7" r="1.5" fill="#FF8000"/>
       </svg>
       Available Offers
     </p>
@@ -735,7 +735,7 @@ async function handleBuyNow() {
       name: "ParkTag",
       description: `${p.name} (${variant})`,
       image: "/icons/icon-192.png",
-      theme: { color: "#1A9D20" },
+      theme: { color: "#FF8000" },
       handler: async function (response) {
         // 4. Verify on backend
         const verifyRes = await fetch("/api/shop/verify-payment", {
@@ -776,7 +776,7 @@ function showToast(message, tone) {
   toast.textContent = message;
   Object.assign(toast.style, {
     position: "fixed", bottom: "90px", left: "50%", transform: "translateX(-50%)",
-    background: tone === "success" ? "#059669" : "#EF4444",
+    background: tone === "success" ? "#FF8000" : "#EF4444",
     color: "#fff", padding: "12px 22px", borderRadius: "12px",
     fontWeight: "700", fontSize: "0.88rem", zIndex: "999",
     boxShadow: "0 4px 16px rgba(0,0,0,0.18)", maxWidth: "88vw", textAlign: "center"

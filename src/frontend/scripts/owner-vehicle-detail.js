@@ -136,8 +136,8 @@ document.getElementById("sos-save-btn")?.addEventListener("click", () => {
   try { localStorage.setItem("pt_sos_" + plate, num); } catch {}
   const btn = document.getElementById("sos-save-btn");
   btn.textContent = "Saved!";
-  btn.style.background = "#D1FAE5";
-  btn.style.color = "#065F46";
+  btn.style.background = "#FFEDD9";
+  btn.style.color = "#B35600";
   setTimeout(() => { btn.textContent = "Save Emergency Contact"; btn.style.background = ""; btn.style.color = ""; }, 2000);
 });
 
@@ -198,7 +198,7 @@ document.getElementById("buy-premium-btn")?.addEventListener("click", async () =
       currency: order.currency,
       name: "ParkTag",
       description: order.productName,
-      theme: { color: "#1A9D20" },
+      theme: { color: "#FF8000" },
       handler: async (resp) => {
         const v = await fetch(`/api/owner/tags/${realId}/purchase-verify`, {
           method: "POST",

@@ -250,6 +250,11 @@ function prepareEtagAssets() {
       if (img && data?.etag?.qrDataUrl) {
         img.src = data.etag.qrDataUrl;
       }
+      // Stamp the unique E-Tag ID + activation status onto the sticker (spec §9).
+      const idEl = document.getElementById("print-etag-id");
+      if (idEl && data?.etag?.etagId) idEl.textContent = data.etag.etagId.replace(/^PT-/, "");
+      const stEl = document.getElementById("print-status");
+      if (stEl && data?.etag?.status) stEl.textContent = data.etag.status === "active" ? "Active" : "Inactive";
     } catch (_) {
       // Non-fatal: if generation fails the user can still re-print from the dashboard.
     }

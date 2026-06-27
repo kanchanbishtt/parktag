@@ -5,9 +5,9 @@
   --ink: #03162D;
   --muted: #495B7B;
   --line: #E2E8F0;
-  --accent: #FF8000;
-  --accent-dark: #E67200;
-  --success: #FF8000;
+  --accent: #FF2700;
+  --accent-dark: #D92200;
+  --success: #FF2700;
   --error: #DC2626;
   --shadow: 0 20px 40px rgba(0, 25, 53, 0.08);
   font-family: 'Inter', 'Roboto', "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
@@ -1146,9 +1146,9 @@ pre {
    ============================================================ */
 
 :root {
-  --pt-amber: #FF8000;
-  --pt-amber-dark: #E67200;
-  --pt-amber-bg: #FFF1E3;
+  --pt-amber: #FF2700;
+  --pt-amber-dark: #D92200;
+  --pt-amber-bg: #FFEDEA;
   --pt-green: #25D366;
   --pt-green-dark: #128C7E;
   --pt-navy: #03162D;
@@ -1229,7 +1229,7 @@ pre {
   border-radius: 999px;
   background: var(--pt-amber-bg);
   color: var(--pt-amber-dark);
-  border: 1px solid rgba(255, 128, 0, 0.3);
+  border: 1px solid rgba(255, 39, 0, 0.3);
 }
 
 /* Main layout */
@@ -1270,7 +1270,7 @@ pre {
   margin-bottom: 16px;
 }
 
-.pt-icon-lock { background: #FFEDD9; color: #FF8000; }
+.pt-icon-lock { background: #FFE3DD; color: #FF2700; }
 .pt-icon-tag { background: var(--pt-amber-bg); color: var(--pt-amber-dark); }
 .pt-icon-error { background: #FEE2E2; color: #DC2626; }
 
@@ -1336,7 +1336,7 @@ pre {
 .pt-input:focus {
   outline: none;
   border-color: var(--pt-amber);
-  box-shadow: 0 0 0 3px rgba(255, 128, 0, 0.15);
+  box-shadow: 0 0 0 3px rgba(255, 39, 0, 0.15);
 }
 
 .pt-input-lg {
@@ -1393,20 +1393,20 @@ pre {
 .pt-btn:active { transform: scale(0.98); }
 .pt-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 .pt-btn:focus { outline: none; }
-.pt-btn:focus-visible { outline: 2px solid #FF8000; outline-offset: 2px; }
+.pt-btn:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
 
 a:focus { outline: none; }
-a:focus-visible { outline: 2px solid #FF8000; outline-offset: 2px; }
+a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
 
 .pt-btn-primary {
   background: var(--pt-amber);
   color: #fff;
-  box-shadow: 0 4px 16px rgba(255, 128, 0, 0.35);
+  box-shadow: 0 4px 16px rgba(255, 39, 0, 0.35);
 }
 
 .pt-btn-primary:hover:not(:disabled) {
   background: var(--pt-amber-dark);
-  box-shadow: 0 6px 20px rgba(255, 128, 0, 0.45);
+  box-shadow: 0 6px 20px rgba(255, 39, 0, 0.45);
 }
 
 .pt-btn-whatsapp {
@@ -1455,8 +1455,8 @@ a:focus-visible { outline: 2px solid #FF8000; outline-offset: 2px; }
   gap: 5px;
   font-size: 0.75rem;
   font-weight: 700;
-  color: #FF8000;
-  background: #FFF5EC;
+  color: #FF2700;
+  background: #FFF2EF;
   padding: 4px 10px;
   border-radius: 999px;
   margin-bottom: 12px;
@@ -1534,15 +1534,15 @@ a:focus-visible { outline: 2px solid #FF8000; outline-offset: 2px; }
 
 .pt-chip-alert {
   grid-column: span 2;
-  color: #E67200;
+  color: #D92200;
   border-color: #A7D9A8;
-  background: #FFF1E3;
+  background: #FFEDEA;
 }
 
 .pt-chip-alert:hover {
-  background: #FFE4CC;
-  border-color: #FF8000;
-  color: #B35600;
+  background: #FFD8D0;
+  border-color: #FF2700;
+  color: #B31C00;
 }
 
 .pt-chip-icon {
@@ -1623,7 +1623,7 @@ a:focus-visible { outline: 2px solid #FF8000; outline-offset: 2px; }
 }
 
 .pt-status[data-tone="info"] { color: var(--pt-sub); }
-.pt-status[data-tone="success"] { color: #FF8000; }
+.pt-status[data-tone="success"] { color: #FF2700; }
 .pt-status[data-tone="error"] { color: #DC2626; }
 
 /* Standalone status (inside pt-card) */
@@ -1864,7 +1864,7 @@ html:has(body.pt-hub-body) {
 }
 
 .pt-icon-tag {
-  background: #FFEDD9;
+  background: #FFE3DD;
   color: var(--pt-amber);
 }
 
@@ -2113,7 +2113,7 @@ html:has(body.pt-hub-body) {
   width: 64px;
   height: 64px;
   border-radius: 50%;
-  background: #FF8000;
+  background: #FF2700;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2238,8 +2238,8 @@ html:has(body.pt-hub-body) {
   gap: 5px;
   font-size: 0.75rem;
   font-weight: 700;
-  color: #FF8000;
-  background: #FFF5EC;
+  color: #FF2700;
+  background: #FFF2EF;
   padding: 4px 10px;
   border-radius: 20px;
   margin-left: auto;
@@ -2321,7 +2321,7 @@ html:has(body.pt-hub-body) {
 }
 
 .pt-menu-item:hover { background: var(--pt-bg); }
-.pt-menu-item-active { background: #FFEDD9; color: #B35600; }
+.pt-menu-item-active { background: #FFE3DD; color: #B31C00; }
 .pt-menu-item-danger { color: #DC2626; }
 
 /* Dashboard hero */
@@ -2335,11 +2335,11 @@ html:has(body.pt-hub-body) {
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  background: #FFEDD9;
+  background: #FFE3DD;
   border-radius: 12px;
   padding: 14px 16px;
   font-size: 0.85rem;
-  color: #B35600;
+  color: #B31C00;
   font-weight: 500;
   line-height: 1.5;
   margin-top: 12px;
@@ -2385,7 +2385,7 @@ html:has(body.pt-hub-body) {
   min-height: 100vh;
   padding: 18px 14px 42px;
   background:
-    radial-gradient(circle at top, rgba(255, 128, 0, 0.2), transparent 24%),
+    radial-gradient(circle at top, rgba(255, 39, 0, 0.2), transparent 24%),
     linear-gradient(180deg, #F0F4F8 0%, #E1EBF4 52%, #D4E4F4 100%);
 }
 
@@ -2417,7 +2417,7 @@ html:has(body.pt-hub-body) {
 
 .pt-activate-eyebrow {
   margin: 0;
-  color: #FF8000;
+  color: #FF2700;
   font-size: 0.82rem;
   font-weight: 800;
   letter-spacing: 0.1em;
@@ -2496,9 +2496,9 @@ html:has(body.pt-hub-body) {
 }
 
 .pt-step-item.is-active {
-  background: rgba(255, 128, 0, 0.14);
-  border-color: rgba(255, 128, 0, 0.3);
-  color: #B35600;
+  background: rgba(255, 39, 0, 0.14);
+  border-color: rgba(255, 39, 0, 0.3);
+  color: #B31C00;
 }
 
 .pt-step-number {
@@ -2555,7 +2555,7 @@ html:has(body.pt-hub-body) {
 
 .pt-form-section-label {
   margin: 0;
-  color: #B35600;
+  color: #B31C00;
   font-size: 0.8rem;
   font-weight: 800;
   letter-spacing: 0.12em;
@@ -2571,8 +2571,8 @@ html:has(body.pt-hub-body) {
   margin-top: 4px;
   padding: 14px 14px 14px 12px;
   border-radius: 18px;
-  background: rgba(255, 128, 0, 0.08);
-  border: 1px solid rgba(255, 128, 0, 0.16);
+  background: rgba(255, 39, 0, 0.08);
+  border: 1px solid rgba(255, 39, 0, 0.16);
 }
 
 .pt-activate-note {
@@ -2609,7 +2609,7 @@ html:has(body.pt-hub-body) {
 }
 
 .pt-login-link a {
-  color: #FF8000;
+  color: #FF2700;
   font-weight: 800;
   text-decoration: none;
 }
@@ -2618,7 +2618,7 @@ html:has(body.pt-hub-body) {
   padding: 26px 24px 10px;
   border-radius: 28px;
   background:
-    radial-gradient(circle at top, rgba(255, 128, 0, 0.18), transparent 34%),
+    radial-gradient(circle at top, rgba(255, 39, 0, 0.18), transparent 34%),
     linear-gradient(180deg, rgba(255,255,255,0.94), rgba(255,248,239,0.98));
   border: 1px solid rgba(0, 25, 53, 0.12);
   box-shadow: 0 18px 42px rgba(0, 25, 53, 0.1);
@@ -2700,11 +2700,11 @@ html:has(body.pt-hub-body) {
   left: 0;
   height: 3px;
   width: 0%;
-  background: linear-gradient(90deg, #FF8000, #FF8000);
+  background: linear-gradient(90deg, #FF2700, #FF2700);
   z-index: 9999;
   transition: width 0.25s ease, opacity 0.4s ease;
   border-radius: 0 2px 2px 0;
-  box-shadow: 0 0 8px rgba(255, 128, 0, 0.6);
+  box-shadow: 0 0 8px rgba(255, 39, 0, 0.6);
   pointer-events: none;
 }
 
@@ -2836,8 +2836,8 @@ html:has(body.pt-hub-body) {
 
 .pt-admin-nav-item:hover { background: #F3F4F6; }
 .pt-admin-nav-item.is-active {
-  background: #FFEDD9;
-  color: #B35600;
+  background: #FFE3DD;
+  color: #B31C00;
   font-weight: 700;
 }
 
@@ -2901,7 +2901,7 @@ html:has(body.pt-hub-body) {
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  color: #FF8000;
+  color: #FF2700;
   margin: 0 0 4px;
 }
 
@@ -3070,7 +3070,7 @@ html:has(body.pt-hub-body) {
 }
 
 .pt-admin-input:focus {
-  border-color: #FF8000;
+  border-color: #FF2700;
   background: #fff;
 }
 
@@ -3088,7 +3088,7 @@ html:has(body.pt-hub-body) {
   padding: 8px 0;
 }
 
-.pt-admin-status[data-tone="success"] { color: #FF8000; }
+.pt-admin-status[data-tone="success"] { color: #FF2700; }
 .pt-admin-status[data-tone="error"] { color: #DC2626; }
 .pt-admin-status[data-tone="info"] { color: #6B7280; }
 
@@ -3107,8 +3107,8 @@ html:has(body.pt-hub-body) {
   border-radius: 20px;
 }
 
-.pt-admin-badge-green { background: #FFF5EC; color: #FF8000; }
-.pt-admin-badge-amber { background: #FFEDD9; color: #FF8000; }
+.pt-admin-badge-green { background: #FFF2EF; color: #FF2700; }
+.pt-admin-badge-amber { background: #FFE3DD; color: #FF2700; }
 .pt-admin-badge-red { background: #FEE2E2; color: #DC2626; }
 .pt-admin-badge-gray { background: #F3F4F6; color: #374151; }
 

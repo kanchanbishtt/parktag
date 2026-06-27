@@ -115,11 +115,11 @@ function renderDashboard(data) {
         <div style="display:flex;align-items:center;gap:10px;padding:8px 0">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M12 7v5l3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
           <span style="font-weight:600">Status</span>
-          <span style="margin-left:auto;font-weight:700;color:${tag.status === 'active' ? '#FF8000' : '#6B7280'}">${tag.status}</span>
+          <span style="margin-left:auto;font-weight:700;color:${tag.status === 'active' ? '#FF2700' : '#6B7280'}">${tag.status}</span>
         </div>
         ${tag.printStatus === "pending_print" || tag.printStatus === "printed" ? `
         <div style="margin-top:8px">
-          <span style="font-size:0.78rem;font-weight:700;background:${tag.printStatus === 'printed' ? '#FFF5EC' : '#FFEDD9'};color:${tag.printStatus === 'printed' ? '#FF8000' : '#FF8000'};padding:4px 10px;border-radius:20px">
+          <span style="font-size:0.78rem;font-weight:700;background:${tag.printStatus === 'printed' ? '#FFF2EF' : '#FFE3DD'};color:${tag.printStatus === 'printed' ? '#FF2700' : '#FF2700'};padding:4px 10px;border-radius:20px">
             ${tag.printStatus === "printed" ? "Sticker printed" : "Sticker order placed"}
           </span>
         </div>` : `

@@ -9,8 +9,8 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --amber: #FF8000;
-      --amber-dark: #E67200;
+      --amber: #FF2700;
+      --amber-dark: #D92200;
       --ink: #323232;
       --ink-2: #374151;
       --ink-3: #6B7280;
@@ -156,7 +156,7 @@
       background: #FFFBEB; border: 1px solid #FDE68A;
       border-radius: 14px; padding: 12px 16px;
       display: flex; align-items: center; gap: 10px;
-      font-size: 0.875rem; font-weight: 600; color: #B35600;
+      font-size: 0.875rem; font-weight: 600; color: #B31C00;
       margin-bottom: 12px;
     }
     .vd-demo-banner svg { flex-shrink: 0; }
@@ -178,7 +178,7 @@
     }
     .vd-tab.active {
       background: var(--amber); color: #fff;
-      box-shadow: 0 2px 8px rgba(255, 128, 0, .35);
+      box-shadow: 0 2px 8px rgba(255, 39, 0, .35);
     }
 
     /* ── Tab panels ──────────────────────────────────────── */
@@ -332,7 +332,7 @@
     .pt-logo-box { width: 38px; height: 38px; background: #03162D; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
     .pt-logo-name { font-size: 17px; font-weight: 900; color: #03162D; line-height: 1; }
     .pt-logo-sub { font-size: 7px; font-weight: 700; color: #6B7280; letter-spacing: .14em; margin-top: 3px; }
-    .pt-sep { width: 30px; height: 3px; background: #FF8000; border-radius: 2px; margin: 10px 0 12px; }
+    .pt-sep { width: 30px; height: 3px; background: #FF2700; border-radius: 2px; margin: 10px 0 12px; }
     .pt-head { font-size: 22px; font-weight: 900; color: #03162D; line-height: 1.2; margin: 0 0 4px; }
     .pt-sub { font-size: 9.5px; color: #6B7280; font-weight: 500; margin: 0 0 13px; }
     .pt-privacy { display: flex; align-items: center; gap: 7px; }
@@ -345,7 +345,7 @@
     .pt-right { flex: 0 0 46%; padding: 16px 14px; display: flex; flex-direction: column; align-items: center; justify-content: space-between; }
     .pt-qr-wrap { position: relative; background: #fff; border-radius: 10px; padding: 8px; margin-bottom: 10px; }
     .pt-qr { width: 138px; height: 138px; display: block; }
-    .pt-qr-c { position: absolute; width: 15px; height: 15px; border-color: #FF8000; border-style: solid; }
+    .pt-qr-c { position: absolute; width: 15px; height: 15px; border-color: #FF2700; border-style: solid; }
     .pt-qr-c.tl { top: 2px; left: 2px; border-width: 3px 0 0 3px; }
     .pt-qr-c.tr { top: 2px; right: 2px; border-width: 3px 3px 0 0; }
     .pt-qr-c.bl { bottom: 2px; left: 2px; border-width: 0 0 3px 3px; }
@@ -408,7 +408,7 @@
 
     <!-- Demo banner -->
     <div class="vd-demo-banner">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="#B35600" stroke-width="1.8"/><path d="M12 8v4M12 16h.01" stroke="#B35600" stroke-width="2" stroke-linecap="round"/></svg>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="#B31C00" stroke-width="1.8"/><path d="M12 8v4M12 16h.01" stroke="#B31C00" stroke-width="2" stroke-linecap="round"/></svg>
       Demo tag — for testing only
     </div>
 
@@ -424,7 +424,7 @@
       <!-- 1. User Info -->
       <div class="vd-menu-item" data-item="user-info">
         <div class="vd-menu-row">
-          <div class="vd-menu-icon" style="background:#FFEDD9;color:#FF8000">
+          <div class="vd-menu-icon" style="background:#FFE3DD;color:#FF2700">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.8"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
           </div>
           <span class="vd-menu-label">User Info</span>
@@ -463,7 +463,7 @@
       <!-- 3. Notifications -->
       <div class="vd-menu-item" data-item="notifications">
         <div class="vd-menu-row">
-          <div class="vd-menu-icon" style="background:#FFEDD9;color:#FF8000">
+          <div class="vd-menu-icon" style="background:#FFE3DD;color:#FF2700">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
           </div>
           <span class="vd-menu-label">Notifications</span>
@@ -505,7 +505,7 @@
       <!-- 5. Tags & Calls -->
       <div class="vd-menu-item" data-item="tags-calls">
         <div class="vd-menu-row">
-          <div class="vd-menu-icon" style="background:#F0FDF4;color:#FF8000">
+          <div class="vd-menu-icon" style="background:#F0FDF4;color:#FF2700">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.62 3.38 2 2 0 0 1 3.6 1.17h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.86a16 16 0 0 0 6 6l.91-.91a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" stroke="currentColor" stroke-width="1.8"/></svg>
           </div>
           <span class="vd-menu-label">Tags &amp; Calls</span>
@@ -554,7 +554,7 @@
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 2l2.4 7.4H22l-6 4.4 2.3 7.2L12 16.6 5.7 21l2.3-7.2-6-4.4h7.6L12 2z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
           </div>
           <span class="vd-menu-label">Premium &amp; Official Sticker</span>
-          <span class="vd-menu-badge" id="vd-premium-badge" style="display:none;background:#FF8000;color:#fff;font-size:.68rem;font-weight:800;padding:2px 8px;border-radius:20px;margin-left:auto;margin-right:8px">PREMIUM</span>
+          <span class="vd-menu-badge" id="vd-premium-badge" style="display:none;background:#FF2700;color:#fff;font-size:.68rem;font-weight:800;padding:2px 8px;border-radius:20px;margin-left:auto;margin-right:8px">PREMIUM</span>
           <span class="vd-menu-arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
         </div>
         <div class="vd-sub-panel">
@@ -564,7 +564,7 @@
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4H6z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M3 6h18M16 10a4 4 0 0 1-8 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
               Buy Official Sticker — ₹199
             </button>
-            <p class="vd-dl-note" id="premium-active-note" style="display:none;color:#FF8000;font-weight:700">✓ Premium active — unlimited private contact enabled.</p>
+            <p class="vd-dl-note" id="premium-active-note" style="display:none;color:#FF2700;font-weight:700">✓ Premium active — unlimited private contact enabled.</p>
           </div>
         </div>
       </div>
@@ -572,7 +572,7 @@
       <!-- 7. Download E-Tag -->
       <div class="vd-menu-item" data-item="download-etag">
         <div class="vd-menu-row">
-          <div class="vd-menu-icon" style="background:#FFEDD9;color:#FF8000">
+          <div class="vd-menu-icon" style="background:#FFE3DD;color:#FF2700">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </div>
           <span class="vd-menu-label">Download E-Tag</span>
@@ -598,7 +598,7 @@
       <!-- 1. WhatsApp Notification -->
       <div class="vd-menu-item" data-item="whatsapp">
         <div class="vd-menu-row">
-          <div class="vd-menu-icon" style="background:#FFEDD9;color:#FF8000">
+          <div class="vd-menu-icon" style="background:#FFE3DD;color:#FF2700">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </div>
           <span class="vd-menu-label">WhatsApp Notification</span>
@@ -637,7 +637,7 @@
       <!-- 3. Get a Tag Replacement -->
       <div class="vd-menu-item" data-item="replacement">
         <div class="vd-menu-row">
-          <div class="vd-menu-icon" style="background:#FFEDD9;color:#FF8000">
+          <div class="vd-menu-icon" style="background:#FFE3DD;color:#FF2700">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M23 4v6h-6M1 20v-6h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </div>
           <span class="vd-menu-label">Get a Tag Replacement</span>
@@ -685,7 +685,7 @@
                 </svg>
               </div>
               <div>
-                <div class="pt-logo-name">Park<span style="color:#FF8000">Tag</span></div>
+                <div class="pt-logo-name">Park<span style="color:#FF2700">Tag</span></div>
                 <div class="pt-logo-sub">SCAN TO CONNECT</div>
               </div>
             </div>
@@ -694,7 +694,7 @@
             <p class="pt-sub">Private vehicle contact</p>
             <div class="pt-privacy">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="flex-shrink:0">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill="#FF8000" stroke="#FF8000" stroke-width="1.5" stroke-linejoin="round"/>
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill="#FF2700" stroke="#FF2700" stroke-width="1.5" stroke-linejoin="round"/>
                 <path d="M9 12l2 2 4-4" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
               <span class="pt-privacy-txt">Number stays private</span>

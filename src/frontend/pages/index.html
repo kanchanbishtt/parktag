@@ -128,7 +128,7 @@
           <p class="pt-vehicle-label" id="pt-vehicle-label">Vehicle</p>
         </div>
 
-        <h2 class="pt-section-title">Why are you contacting?</h2>
+        <h2 class="pt-section-title" id="scanner-why-title">Why are you contacting?</h2>
 
         <div class="pt-reason-chips" id="pt-reason-chips">
           <button class="pt-chip" data-msg="Lights left on. Please check your vehicle." type="button">
@@ -148,7 +148,7 @@
           </button>
         </div>
 
-        <div class="pt-contact-actions">
+        <div class="pt-contact-actions" id="scanner-contact-actions">
           <button id="send-whatsapp-button" class="pt-btn pt-btn-whatsapp pt-btn-full" type="button">
             <svg width="20" height="20" viewBox="0 0 32 32" fill="currentColor">
               <path d="M27 15.6c0 6.1-5 11.1-11.1 11.1-1.9 0-3.7-.5-5.3-1.4L5 27l1.8-5.2a11 11 0 0 1-2-6.2C4.8 9.5 9.8 4.5 15.9 4.5S27 9.5 27 15.6Z"/>
@@ -165,6 +165,17 @@
             Private Call
             <span class="pt-btn-sub">Call the owner privately</span>
           </button>
+        </div>
+
+        <!-- Free-contact-used CTA (replaces the buttons once the free contact is used) -->
+        <div id="purchase-cta" class="pt-panel" hidden style="text-align:center">
+          <div class="pt-success-icon">🔒</div>
+          <h3>Free contact already used</h3>
+          <p>This vehicle's one free contact has been used. The official ParkTag sticker enables unlimited private contact.</p>
+          <a id="purchase-cta-btn" href="https://parktag.me" target="_blank" rel="noopener"
+             class="pt-btn pt-btn-primary pt-btn-full" style="text-decoration:none;margin-top:6px">
+            Purchase Official ParkTag QR Sticker
+          </a>
         </div>
 
         <!-- Phone number input for call -->

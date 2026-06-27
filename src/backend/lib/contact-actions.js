@@ -140,6 +140,18 @@ export async function createContactAction(env, input) {
     }
   );
 
+  // Consume the free contact (non-premium tags) and record usage stats.
+  const contactedAt = new Date().toISOString();
+  const tagUpdate = {
+    $set: { lastContactAt: contactedAt },
+    $inc: { contactAttempts: 1 }
+  };
+  if (!tag.premium) {
+    tagUpdate.$set.freeContactUsed = true;
+    tagUpdate.$set.freeContactUsedAt = contactedAt;
+  }
+  await collections.tags.updateOne({ _id: tag._id }, tagUpdate);
+
   return {
     ok: true,
     request: {

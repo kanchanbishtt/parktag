@@ -3,6 +3,7 @@ import { ObjectId } from "mongodb";
 import { createContactAction } from "../lib/contact-actions.js";
 import { createPasswordHash, createSecureToken, safeEqual, hashIp } from "../lib/security.js";
 import { getCollections, ensureVerificationIndexes } from "../lib/repositories.js";
+import { VEHICLE_LABELS } from "../lib/tag-issuance.js";
 
 // Verification security parameters (spec: 3 attempts, then temporary lockout).
 const MAX_VERIFY_ATTEMPTS = 3;
@@ -74,7 +75,10 @@ export function registerPublicRoutes(app, env) {
       tag: {
         token: tag.token,
         status: tag.status,
-        vehicleLabel: tag.vehicleLabel,
+        vehicleType: tag.vehicleType || null,
+        // Show the real vehicle type per vehicle (e.g. "Bicycle"), falling back
+        // to the stored label only for older tags without a type.
+        vehicleLabel: VEHICLE_LABELS[tag.vehicleType] || tag.vehicleLabel || "Vehicle",
         maskedPlateNumber:
           tag.status === "active" ? maskPlateNumber(tag.plateNumber) : null,
         callPreviewNumber:

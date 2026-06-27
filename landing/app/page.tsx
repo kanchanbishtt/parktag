@@ -29,7 +29,7 @@ function BrandSticker() {
   return (
     <div style={{
       background: "#f0f3f7",
-      border: "2.5px solid #001935",
+      border: "2.5px solid #03162D",
       borderRadius: "22px",
       padding: "20px 20px 18px",
       display: "flex",
@@ -45,16 +45,16 @@ function BrandSticker() {
         {/* Logo row */}
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <svg width="38" height="38" viewBox="0 0 100 100" fill="none" style={{ flexShrink: 0 }}>
-            <rect width="100" height="100" rx="16" fill="#001935"/>
+            <rect width="100" height="100" rx="16" fill="#03162D"/>
             <rect x="14" y="14" width="16" height="72" rx="3" fill="white"/>
             <circle cx="46" cy="37" r="23" fill="white"/>
-            <circle cx="46" cy="37" r="12" fill="#001935"/>
-            <path d="M40 37 L44 41 L53 28" stroke="#1A9D20" strokeWidth="4.5" strokeLinecap="round" strokeLinejoin="round"/>
+            <circle cx="46" cy="37" r="12" fill="#03162D"/>
+            <path d="M40 37 L44 41 L53 28" stroke="#FF2700" strokeWidth="4.5" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
           <div style={{ width: "1.5px", height: "28px", background: "#94a3b8", borderRadius: "1px", flexShrink: 0 }} />
           <div>
-            <div style={{ fontWeight: 800, fontSize: "17px", color: "#001935", lineHeight: 1 }}>
-              Park<span style={{ color: "#1A9D20" }}>Tag</span>
+            <div style={{ fontWeight: 800, fontSize: "17px", color: "#03162D", lineHeight: 1 }}>
+              Park<span style={{ color: "#FF2700" }}>Tag</span>
             </div>
             <div style={{ fontSize: "7.5px", fontWeight: 700, letterSpacing: "0.2em", color: "#64748b", marginTop: "3px" }}>
               SCAN TO CONNECT
@@ -63,10 +63,10 @@ function BrandSticker() {
         </div>
 
         {/* Green accent bar */}
-        <div style={{ width: "22px", height: "3px", background: "#1A9D20", borderRadius: "2px" }} />
+        <div style={{ width: "22px", height: "3px", background: "#FF2700", borderRadius: "2px" }} />
 
         {/* Heading */}
-        <div style={{ fontSize: "20px", fontWeight: 800, color: "#001935", lineHeight: 1.2, marginTop: "2px" }}>
+        <div style={{ fontSize: "20px", fontWeight: 800, color: "#03162D", lineHeight: 1.2, marginTop: "2px" }}>
           Scan to connect
         </div>
         <div style={{ fontSize: "12px", color: "#64748b", fontWeight: 500, marginTop: "-2px" }}>
@@ -76,12 +76,12 @@ function BrandSticker() {
         {/* Shield feature */}
         <div style={{ display: "flex", alignItems: "center", gap: "7px", marginTop: "4px" }}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }}>
-            <path d="M12 2L4 6v6c0 5.25 3.4 10.2 8 12 4.6-1.8 8-6.75 8-12V6l-8-4z" fill="#1A9D20" opacity="0.15"/>
-            <path d="M12 2L4 6v6c0 5.25 3.4 10.2 8 12 4.6-1.8 8-6.75 8-12V6l-8-4z" stroke="#1A9D20" strokeWidth="1.5" fill="none"/>
-            <rect x="10.5" y="10.5" width="3" height="4" rx="0.5" fill="#1A9D20"/>
-            <circle cx="12" cy="9.5" r="1" fill="#1A9D20"/>
+            <path d="M12 2L4 6v6c0 5.25 3.4 10.2 8 12 4.6-1.8 8-6.75 8-12V6l-8-4z" fill="#FF2700" opacity="0.15"/>
+            <path d="M12 2L4 6v6c0 5.25 3.4 10.2 8 12 4.6-1.8 8-6.75 8-12V6l-8-4z" stroke="#FF2700" strokeWidth="1.5" fill="none"/>
+            <rect x="10.5" y="10.5" width="3" height="4" rx="0.5" fill="#FF2700"/>
+            <circle cx="12" cy="9.5" r="1" fill="#FF2700"/>
           </svg>
-          <span style={{ fontSize: "12px", color: "#001935", fontWeight: 600 }}>Number stays private</span>
+          <span style={{ fontSize: "12px", color: "#03162D", fontWeight: 600 }}>Number stays private</span>
         </div>
 
         {/* Spacer */}
@@ -89,14 +89,14 @@ function BrandSticker() {
 
         {/* Footer info strip */}
         <div style={{ borderTop: "1px solid #cbd5e1", paddingTop: "9px", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#001935" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#03162D" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
             <path d="M5 11l1.5-4.5h11L19 11"/>
             <rect x="2" y="11" width="20" height="7" rx="2"/>
             <circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/>
           </svg>
           <div style={{ borderLeft: "1px solid #cbd5e1", paddingLeft: "8px" }}>
             <div style={{ fontSize: "8.5px", color: "#94a3b8", fontWeight: 500 }}>Smart vehicle contact tag</div>
-            <div style={{ fontSize: "10.5px", fontWeight: 700, color: "#001935", letterSpacing: "0.04em" }}>PT-ID &nbsp;000128</div>
+            <div style={{ fontSize: "10.5px", fontWeight: 700, color: "#03162D", letterSpacing: "0.04em" }}>PT-ID &nbsp;000128</div>
           </div>
           <div style={{ borderLeft: "1px solid #cbd5e1", paddingLeft: "8px", fontSize: "8.5px", color: "#94a3b8", lineHeight: 1.5 }}>
             Private · Secure · Verified
@@ -111,7 +111,7 @@ function BrandSticker() {
       <div style={{ paddingLeft: "18px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "12px", flexShrink: 0 }}>
 
         {/* QR with green scan corners */}
-        <div style={{ position: "relative", padding: "10px", background: "white", borderRadius: "12px", border: "1.5px solid #001935" }}>
+        <div style={{ position: "relative", padding: "10px", background: "white", borderRadius: "12px", border: "1.5px solid #03162D" }}>
           {/* Corner brackets */}
           {[
             { top: 0, left: 0, d: "M1 10 L1 1 L10 1" },
@@ -120,36 +120,36 @@ function BrandSticker() {
             { bottom: 0, right: 0, d: "M19 10 L19 19 L10 19" },
           ].map(({ d, ...pos }, i) => (
             <svg key={i} width="20" height="20" viewBox="0 0 20 20" style={{ position: "absolute", ...pos }}>
-              <path d={d} stroke="#1A9D20" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+              <path d={d} stroke="#FF2700" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
             </svg>
           ))}
 
           <svg viewBox="0 0 200 200" width="130" height="130" style={{ display: "block" }}>
             <rect width="200" height="200" fill="white"/>
             {/* Finders */}
-            <rect x="10" y="10" width="58" height="58" rx="6" fill="#001935"/>
+            <rect x="10" y="10" width="58" height="58" rx="6" fill="#03162D"/>
             <rect x="18" y="18" width="42" height="42" rx="4" fill="white"/>
-            <rect x="26" y="26" width="26" height="26" rx="2" fill="#001935"/>
-            <rect x="132" y="10" width="58" height="58" rx="6" fill="#001935"/>
+            <rect x="26" y="26" width="26" height="26" rx="2" fill="#03162D"/>
+            <rect x="132" y="10" width="58" height="58" rx="6" fill="#03162D"/>
             <rect x="140" y="18" width="42" height="42" rx="4" fill="white"/>
-            <rect x="148" y="26" width="26" height="26" rx="2" fill="#001935"/>
-            <rect x="10" y="132" width="58" height="58" rx="6" fill="#001935"/>
+            <rect x="148" y="26" width="26" height="26" rx="2" fill="#03162D"/>
+            <rect x="10" y="132" width="58" height="58" rx="6" fill="#03162D"/>
             <rect x="18" y="140" width="42" height="42" rx="4" fill="white"/>
-            <rect x="26" y="148" width="26" height="26" rx="2" fill="#001935"/>
+            <rect x="26" y="148" width="26" height="26" rx="2" fill="#03162D"/>
             {/* Data dots */}
             {QR_DOTS.map(([x, y], i) => (
-              <rect key={i} x={x} y={y} width="7" height="7" rx="1.5" fill="#001935"/>
+              <rect key={i} x={x} y={y} width="7" height="7" rx="1.5" fill="#03162D"/>
             ))}
             {/* Center logo */}
             <rect x="88" y="88" width="24" height="24" rx="4" fill="white"/>
-            <rect x="90" y="90" width="20" height="20" rx="3" fill="#001935"/>
-            <path d="M95 100 L98 103 L105 93" stroke="#1A9D20" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+            <rect x="90" y="90" width="20" height="20" rx="3" fill="#03162D"/>
+            <path d="M95 100 L98 103 L105 93" stroke="#FF2700" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         </div>
 
         {/* SCAN HERE pill */}
         <div style={{
-          background: "#001935",
+          background: "#03162D",
           color: "white",
           fontWeight: 800,
           fontSize: "11px",
@@ -175,7 +175,7 @@ export default function Home() {
       <main className="flex-1 pt-16">
 
         {/* ── HERO ── */}
-        <section data-nav-dark className="bg-[#001935] pt-8 pb-0">
+        <section data-nav-dark className="bg-[#03162D] pt-8 pb-0">
           <div className="max-w-6xl mx-auto px-4 sm:px-6">
             <div className="grid md:grid-cols-2 gap-10 items-center min-h-[520px]">
 
@@ -197,9 +197,9 @@ export default function Home() {
 
               <AnimateIn from="bottom" delay={150} className="flex items-end justify-center md:justify-end pt-10">
                 <div className="relative w-full max-w-lg">
-                  <div className="absolute inset-0 bg-[#1A9D20]/10 blur-3xl rounded-full scale-90" />
+                  <div className="absolute inset-0 bg-[#FF2700]/10 blur-3xl rounded-full scale-90" />
                   <img
-                    src="/brand-sticker.png"
+                    src="/final-sticker.png"
                     alt="ParkTag brand sticker"
                     className="relative w-full drop-shadow-2xl rounded-3xl"
                   />
@@ -237,7 +237,7 @@ export default function Home() {
                 ["One-Time Payment", <svg key="pay" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>],
               ] as [string, React.ReactNode][]).map(([label, icon]) => (
                 <div key={label} className="flex flex-col items-center gap-2.5 text-center group">
-                  <div className="text-[#495B7B] group-hover:text-[#1A9D20] transition-colors duration-200">{icon}</div>
+                  <div className="text-[#495B7B] group-hover:text-[#FF2700] transition-colors duration-200">{icon}</div>
                   <span className="text-[11px] text-[#495B7B] font-medium leading-tight">{label}</span>
                 </div>
               ))}
@@ -249,7 +249,7 @@ export default function Home() {
         <section className="bg-gray-50 py-20">
           <div className="max-w-5xl mx-auto px-4 sm:px-6">
             <AnimateIn>
-              <h2 className="text-3xl sm:text-4xl font-extrabold text-[#001935] mb-3 tracking-tight">
+              <h2 className="text-3xl sm:text-4xl font-extrabold text-[#03162D] mb-3 tracking-tight">
                 Stop writing your number<br />on a piece of paper.
               </h2>
               <p className="text-[#495B7B] mb-14 text-[15px] max-w-xl">
@@ -283,7 +283,7 @@ export default function Home() {
               </AnimateIn>
 
               <AnimateIn from="right" delay={100}>
-                <div className="rounded-2xl border border-[#1A9D20]/20 bg-white overflow-hidden h-full flex flex-col">
+                <div className="rounded-2xl border border-[#FF2700]/20 bg-white overflow-hidden h-full flex flex-col">
                   {/* Product photo */}
                   <div className="relative overflow-hidden" style={{ aspectRatio: "4/3" }}>
                     <img
@@ -298,11 +298,11 @@ export default function Home() {
                   </div>
                   {/* Benefits */}
                   <div className="p-7 flex-1">
-                    <div className="text-[11px] font-bold text-[#1A9D20] tracking-[0.15em] uppercase mb-5">With ParkTag</div>
+                    <div className="text-[11px] font-bold text-[#FF2700] tracking-[0.15em] uppercase mb-5">With ParkTag</div>
                     <ul className="space-y-3 text-sm text-[#495B7B]">
-                      <li className="flex gap-2.5 items-start"><span className="text-[#1A9D20] font-bold flex-shrink-0 mt-0.5">✓</span> Number never shared, not even to us</li>
-                      <li className="flex gap-2.5 items-start"><span className="text-[#1A9D20] font-bold flex-shrink-0 mt-0.5">✓</span> Know exactly when and why someone scanned</li>
-                      <li className="flex gap-2.5 items-start"><span className="text-[#1A9D20] font-bold flex-shrink-0 mt-0.5">✓</span> Chat anonymously, share ETA, resolve in seconds</li>
+                      <li className="flex gap-2.5 items-start"><span className="text-[#FF2700] font-bold flex-shrink-0 mt-0.5">✓</span> Number never shared, not even to us</li>
+                      <li className="flex gap-2.5 items-start"><span className="text-[#FF2700] font-bold flex-shrink-0 mt-0.5">✓</span> Know exactly when and why someone scanned</li>
+                      <li className="flex gap-2.5 items-start"><span className="text-[#FF2700] font-bold flex-shrink-0 mt-0.5">✓</span> Chat anonymously, share ETA, resolve in seconds</li>
                     </ul>
                   </div>
                 </div>
@@ -317,13 +317,13 @@ export default function Home() {
             <div className="grid md:grid-cols-2 gap-14 lg:gap-20 items-center">
 
               <AnimateIn from="left">
-                <h2 className="text-3xl sm:text-4xl font-extrabold text-[#001935] mb-5 tracking-tight leading-tight">
+                <h2 className="text-3xl sm:text-4xl font-extrabold text-[#03162D] mb-5 tracking-tight leading-tight">
                   Why ParkTag works<br />where others don&apos;t.
                 </h2>
                 <p className="text-[#495B7B] leading-relaxed mb-8 text-[15px]">
                   Most solutions need both parties on the same app. ParkTag doesn&apos;t. Whoever is trying to reach you just points their phone camera at your tag. That&apos;s it.
                 </p>
-                <a href={`${APP_URL}/register-owner`} className="inline-flex items-center bg-[#001935] text-white font-bold px-6 py-3 rounded-xl hover:bg-[#03162D] transition-colors text-sm">
+                <a href={`${APP_URL}/register-owner`} className="inline-flex items-center bg-[#03162D] text-white font-bold px-6 py-3 rounded-xl hover:bg-[#03162D] transition-colors text-sm">
                   Order your tag →
                 </a>
               </AnimateIn>
@@ -336,9 +336,9 @@ export default function Home() {
                     { title: "Done in under a minute", body: "Get notified, share your ETA, move your car. No notes on windscreens, no arguments in the parking lot." },
                   ].map(({ title, body }) => (
                     <div key={title} className="flex gap-4">
-                      <div className="w-[3px] flex-shrink-0 bg-[#1A9D20] rounded-full" style={{ minHeight: "24px" }} />
+                      <div className="w-[3px] flex-shrink-0 bg-[#FF2700] rounded-full" style={{ minHeight: "24px" }} />
                       <div>
-                        <h3 className="font-bold text-[#001935] mb-1.5">{title}</h3>
+                        <h3 className="font-bold text-[#03162D] mb-1.5">{title}</h3>
                         <p className="text-[#495B7B] text-sm leading-relaxed">{body}</p>
                       </div>
                     </div>
@@ -351,7 +351,7 @@ export default function Home() {
         </section>
 
         {/* ── HOW IT WORKS ── */}
-        <section id="how-it-works" data-nav-dark className="bg-[#001935] py-20">
+        <section id="how-it-works" data-nav-dark className="bg-[#03162D] py-20">
           <div className="max-w-5xl mx-auto px-4 sm:px-6">
             <div className="grid md:grid-cols-2 gap-14 lg:gap-24 items-start">
 
@@ -365,7 +365,7 @@ export default function Home() {
                 <div className="flex flex-col gap-3">
                   {["No app needed to scan", "Owner's number never exposed", "Works on any phone camera", "Owner controls tag on / off"].map((point) => (
                     <div key={point} className="flex items-center gap-3">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#1A9D20] flex-shrink-0" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#FF2700] flex-shrink-0" />
                       <span className="text-white/50 text-sm">{point}</span>
                     </div>
                   ))}
@@ -399,7 +399,7 @@ export default function Home() {
                     <div key={step} className="flex gap-5 items-start group">
                       <div className="flex flex-col items-center flex-shrink-0" style={{ width: "32px" }}>
                         <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
-                          style={{ background: actor === "Scanner" ? "rgba(26,157,32,0.15)" : "rgba(255,255,255,0.08)", color: actor === "Scanner" ? "#1A9D20" : "rgba(255,255,255,0.4)" }}>
+                          style={{ background: actor === "Scanner" ? "rgba(255, 39, 0,0.15)" : "rgba(255,255,255,0.08)", color: actor === "Scanner" ? "#FF2700" : "rgba(255,255,255,0.4)" }}>
                           {i + 1}
                         </div>
                         {i < 3 && <div className="w-px flex-1 bg-white/8 mt-1 mb-1" style={{ minHeight: "24px" }} />}
@@ -407,7 +407,7 @@ export default function Home() {
                       <div className="pb-7">
                         <div className="flex items-center gap-2 mb-1">
                           <span className="text-[10px] font-bold tracking-widest uppercase"
-                            style={{ color: actor === "Scanner" ? "#1A9D20" : "rgba(255,255,255,0.25)" }}>
+                            style={{ color: actor === "Scanner" ? "#FF2700" : "rgba(255,255,255,0.25)" }}>
                             {actor}
                           </span>
                         </div>
@@ -428,8 +428,8 @@ export default function Home() {
           <div className="max-w-4xl mx-auto px-4 sm:px-6">
 
             <AnimateIn>
-              <p className="text-xs font-bold text-[#1A9D20] tracking-widest uppercase mb-3">Pricing</p>
-              <h2 className="text-3xl sm:text-4xl font-extrabold text-[#001935] mb-2 tracking-tight">One tag. One payment.</h2>
+              <p className="text-xs font-bold text-[#FF2700] tracking-widest uppercase mb-3">Pricing</p>
+              <h2 className="text-3xl sm:text-4xl font-extrabold text-[#03162D] mb-2 tracking-tight">One tag. One payment.</h2>
               <p className="text-[#495B7B] mb-12">No subscription. No renewal. Pay once, it works forever.</p>
             </AnimateIn>
 
@@ -440,7 +440,7 @@ export default function Home() {
                 <div className="border border-gray-200 rounded-2xl p-8 flex flex-col h-full hover:border-gray-300 transition-colors">
                   <div className="text-xs font-bold tracking-widest uppercase text-[#495B7B] mb-5">Solo Tag</div>
                   <div className="flex items-end gap-2 mb-1">
-                    <span className="text-5xl font-extrabold text-[#001935] tracking-tight leading-none">₹199</span>
+                    <span className="text-5xl font-extrabold text-[#03162D] tracking-tight leading-none">₹199</span>
                     <span className="text-sm text-[#495B7B] mb-1">one-time</span>
                   </div>
                   <div className="text-xs text-[#495B7B] mb-8">1 vehicle · ₹199 per tag</div>
@@ -454,15 +454,15 @@ export default function Home() {
                     ].map((f) => (
                       <li key={f} className="flex items-start gap-3 text-sm text-[#495B7B]">
                         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="flex-shrink-0 mt-0.5">
-                          <circle cx="8" cy="8" r="7" fill="#1A9D20" opacity="0.12"/>
-                          <path d="M5 8l2 2 4-4" stroke="#1A9D20" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          <circle cx="8" cy="8" r="7" fill="#FF2700" opacity="0.12"/>
+                          <path d="M5 8l2 2 4-4" stroke="#FF2700" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                         </svg>
                         {f}
                       </li>
                     ))}
                   </ul>
 
-                  <a href={`${APP_URL}/register-owner`} className="block text-center border-2 border-[#001935] text-[#001935] font-bold py-3 rounded-xl hover:bg-[#001935] hover:text-white transition-colors text-sm">
+                  <a href={`${APP_URL}/register-owner`} className="block text-center border-2 border-[#03162D] text-[#03162D] font-bold py-3 rounded-xl hover:bg-[#03162D] hover:text-white transition-colors text-sm">
                     Get Solo Tag
                   </a>
                 </div>
@@ -470,9 +470,9 @@ export default function Home() {
 
               {/* Duo — recommended */}
               <AnimateIn delay={120}>
-                <div className="bg-[#001935] rounded-2xl p-8 flex flex-col h-full relative overflow-hidden">
+                <div className="bg-[#03162D] rounded-2xl p-8 flex flex-col h-full relative overflow-hidden">
                   {/* Most Popular badge */}
-                  <div className="absolute top-5 right-5 bg-[#1A9D20] text-white text-[10px] font-bold tracking-widest uppercase px-3 py-1 rounded-full">
+                  <div className="absolute top-5 right-5 bg-[#FF2700] text-white text-[10px] font-bold tracking-widest uppercase px-3 py-1 rounded-full">
                     Best Value
                   </div>
 
@@ -492,15 +492,15 @@ export default function Home() {
                     ].map((f) => (
                       <li key={f} className="flex items-start gap-3 text-sm text-white/60">
                         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="flex-shrink-0 mt-0.5">
-                          <circle cx="8" cy="8" r="7" fill="#1A9D20" opacity="0.2"/>
-                          <path d="M5 8l2 2 4-4" stroke="#1A9D20" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          <circle cx="8" cy="8" r="7" fill="#FF2700" opacity="0.2"/>
+                          <path d="M5 8l2 2 4-4" stroke="#FF2700" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                         </svg>
                         {f}
                       </li>
                     ))}
                   </ul>
 
-                  <a href={`${APP_URL}/register-owner`} className="block text-center bg-[#1A9D20] hover:bg-[#158018] text-white font-bold py-3 rounded-xl transition-colors text-sm">
+                  <a href={`${APP_URL}/register-owner`} className="block text-center bg-[#FF2700] hover:bg-[#D92200] text-white font-bold py-3 rounded-xl transition-colors text-sm">
                     Get Duo Pack
                   </a>
                 </div>
@@ -512,16 +512,16 @@ export default function Home() {
             <AnimateIn delay={180}>
               <div className="rounded-2xl bg-gray-50 border border-gray-100 px-8 py-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-start gap-4">
-                  <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#001935" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 mt-0.5 opacity-50">
+                  <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#03162D" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 mt-0.5 opacity-50">
                     <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
                     <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
                   </svg>
                   <div>
-                    <span className="font-bold text-[#001935]">Fleet: 5 or more vehicles</span>
+                    <span className="font-bold text-[#03162D]">Fleet: 5 or more vehicles</span>
                     <p className="text-sm text-[#495B7B] mt-1">Bulk pricing, fleet dashboard, batch tag issuance, dedicated account support.</p>
                   </div>
                 </div>
-                <a href="mailto:support@parktag.me" className="flex-shrink-0 text-sm font-bold text-[#001935] border-2 border-[#001935] px-6 py-2.5 rounded-xl hover:bg-[#001935] hover:text-white transition-colors whitespace-nowrap text-center">
+                <a href="mailto:support@parktag.me" className="flex-shrink-0 text-sm font-bold text-[#03162D] border-2 border-[#03162D] px-6 py-2.5 rounded-xl hover:bg-[#03162D] hover:text-white transition-colors whitespace-nowrap text-center">
                   Talk to us
                 </a>
               </div>
@@ -534,9 +534,9 @@ export default function Home() {
         <section id="faq" className="bg-gray-50 py-20">
           <div className="max-w-3xl mx-auto px-4 sm:px-6">
             <p className="text-center text-xs font-semibold tracking-[0.2em] uppercase text-[#495B7B] mb-4">FAQ</p>
-            <h2 className="text-center text-3xl sm:text-4xl font-extrabold text-[#001935] mb-12 tracking-tight leading-snug">
+            <h2 className="text-center text-3xl sm:text-4xl font-extrabold text-[#03162D] mb-12 tracking-tight leading-snug">
               If your question isn&apos;t answered here,{" "}
-              please <Link href="/contact" className="text-[#1A9D20] hover:underline">contact us</Link>{" "}
+              please <Link href="/contact" className="text-[#FF2700] hover:underline">contact us</Link>{" "}
               using the email form.
             </h2>
             <FaqAccordion />
@@ -544,14 +544,14 @@ export default function Home() {
         </section>
 
         {/* ── CTA ── */}
-        <section data-nav-dark className="bg-[#001935] py-20">
+        <section data-nav-dark className="bg-[#03162D] py-20">
           <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
             <AnimateIn>
               <h2 className="text-3xl sm:text-4xl font-extrabold text-white mb-4 tracking-tight">
                 Never miss a call about<br />your parked vehicle again.
               </h2>
               <p className="text-white/50 mb-8">Join vehicle owners across India who park with confidence.</p>
-              <a href={`${APP_URL}/register-owner`} className="inline-block bg-[#1A9D20] hover:bg-[#158018] text-white font-bold px-8 py-4 rounded-xl transition-colors text-base">
+              <a href={`${APP_URL}/register-owner`} className="inline-block bg-[#FF2700] hover:bg-[#D92200] text-white font-bold px-8 py-4 rounded-xl transition-colors text-base">
                 Get Your ParkTag →
               </a>
               <p className="text-white/25 text-sm mt-4">Starting at ₹199 · Ships across India · No subscription</p>
@@ -570,7 +570,7 @@ export default function Home() {
                 <img src="/dark-logo.png" alt="ParkTag" style={{ height: "42px", width: "auto" }} />
               </div>
               <p className="text-white/40 text-sm leading-relaxed max-w-xs">Smart vehicle connection system built for modern India. Simple, secure, accessible.</p>
-              <a href="mailto:support@parktag.me" className="text-[#1A9D20] text-sm mt-3 inline-block hover:text-white transition-colors">support@parktag.me</a>
+              <a href="mailto:support@parktag.me" className="text-[#FF2700] text-sm mt-3 inline-block hover:text-white transition-colors">support@parktag.me</a>
             </div>
 
             <div>

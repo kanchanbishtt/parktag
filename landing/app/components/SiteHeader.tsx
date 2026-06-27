@@ -153,7 +153,7 @@ export function SiteHeader({ defaultDark = true }: { defaultDark?: boolean }) {
   };
 
   const textColor = isDark ? "rgba(255,255,255,0.65)" : "#495B7B";
-  const textHover = isDark ? "#ffffff" : "#001935";
+  const textHover = isDark ? "#ffffff" : "#03162D";
 
   return (
     <>
@@ -161,7 +161,7 @@ export function SiteHeader({ defaultDark = true }: { defaultDark?: boolean }) {
         ref={headerRef}
         className="fixed top-0 left-0 right-0 z-50"
         style={{
-          background: isDark ? "#001935" : "#ffffff",
+          background: isDark ? "#03162D" : "#ffffff",
           borderBottom: isDark ? "1px solid rgba(255,255,255,0.08)" : "1px solid #e5e7eb",
           boxShadow: isDark ? "none" : "0 1px 6px rgba(0,0,0,0.06)",
         }}
@@ -190,9 +190,9 @@ export function SiteHeader({ defaultDark = true }: { defaultDark?: boolean }) {
                 <div key={key} className="relative">
                   <button
                     className="flex items-center gap-1 px-3 py-2 text-sm rounded-lg transition-colors duration-200"
-                    style={{ color: isOpen ? "#1A9D20" : textColor }}
-                    onMouseEnter={(e) => { e.currentTarget.style.color = "#1A9D20"; openDropdown(key); }}
-                    onMouseLeave={(e) => { e.currentTarget.style.color = isOpen ? "#1A9D20" : textColor; scheduleClose(); }}
+                    style={{ color: isOpen ? "#FF2700" : textColor }}
+                    onMouseEnter={(e) => { e.currentTarget.style.color = "#FF2700"; openDropdown(key); }}
+                    onMouseLeave={(e) => { e.currentTarget.style.color = isOpen ? "#FF2700" : textColor; scheduleClose(); }}
                     onClick={() => setActiveDropdown(isOpen ? null : key)}
                   >
                     {label}
@@ -229,8 +229,8 @@ export function SiteHeader({ defaultDark = true }: { defaultDark?: boolean }) {
                           onClick={closeAll}
                           className="flex flex-col px-4 py-2.5 hover:bg-gray-50 transition-colors group"
                         >
-                          <span className="text-sm font-medium text-[#001935] group-hover:text-[#1A9D20] transition-colors">{item.label}</span>
-                          {"sub" in item && <span className="text-xs text-[#495B7B] group-hover:text-[#1A9D20]/70 mt-0.5 transition-colors">{(item as {sub: string}).sub}</span>}
+                          <span className="text-sm font-medium text-[#03162D] group-hover:text-[#FF2700] transition-colors">{item.label}</span>
+                          {"sub" in item && <span className="text-xs text-[#495B7B] group-hover:text-[#FF2700]/70 mt-0.5 transition-colors">{(item as {sub: string}).sub}</span>}
                         </Link>
                       ) : (
                         <a
@@ -239,8 +239,8 @@ export function SiteHeader({ defaultDark = true }: { defaultDark?: boolean }) {
                           onClick={closeAll}
                           className="flex flex-col px-4 py-2.5 hover:bg-gray-50 transition-colors group"
                         >
-                          <span className="text-sm font-medium text-[#001935] group-hover:text-[#1A9D20] transition-colors">{item.label}</span>
-                          {"sub" in item && <span className="text-xs text-[#495B7B] group-hover:text-[#1A9D20]/70 mt-0.5 transition-colors">{(item as {sub: string}).sub}</span>}
+                          <span className="text-sm font-medium text-[#03162D] group-hover:text-[#FF2700] transition-colors">{item.label}</span>
+                          {"sub" in item && <span className="text-xs text-[#495B7B] group-hover:text-[#FF2700]/70 mt-0.5 transition-colors">{(item as {sub: string}).sub}</span>}
                         </a>
                       )
                     ))}
@@ -255,7 +255,7 @@ export function SiteHeader({ defaultDark = true }: { defaultDark?: boolean }) {
               onClick={navigateSmoothly(`${APP_URL}/owner-login`)}
               className="px-3 py-2 text-sm rounded-lg transition-colors duration-200"
               style={{ color: textColor }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = "#1A9D20")}
+              onMouseEnter={(e) => (e.currentTarget.style.color = "#FF2700")}
               onMouseLeave={(e) => (e.currentTarget.style.color = textColor)}
             >
               Login
@@ -266,7 +266,7 @@ export function SiteHeader({ defaultDark = true }: { defaultDark?: boolean }) {
               href={`${APP_URL}/register-owner`}
               className="px-3 py-2 text-sm rounded-lg transition-colors duration-200"
               style={{ color: textColor }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = "#1A9D20")}
+              onMouseEnter={(e) => (e.currentTarget.style.color = "#FF2700")}
               onMouseLeave={(e) => (e.currentTarget.style.color = textColor)}
             >
               CART
@@ -285,8 +285,8 @@ export function SiteHeader({ defaultDark = true }: { defaultDark?: boolean }) {
                 border: `1.5px solid ${isDark ? "rgba(255,255,255,0.18)" : "#d1d5db"}`,
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.color = "#1A9D20";
-                e.currentTarget.style.border = "1.5px solid #1A9D20";
+                e.currentTarget.style.color = "#FF2700";
+                e.currentTarget.style.border = "1.5px solid #FF2700";
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.color = textColor;
@@ -332,7 +332,7 @@ export function SiteHeader({ defaultDark = true }: { defaultDark?: boolean }) {
               <a
                 href={`${APP_URL}/owner-login`}
                 onClick={navigateSmoothly(`${APP_URL}/owner-login`)}
-                className="bg-[#1A9D20] hover:bg-[#158018] text-white text-sm font-bold px-4 py-2 rounded-lg transition-colors"
+                className="bg-[#FF2700] hover:bg-[#D92200] text-white text-sm font-bold px-4 py-2 rounded-lg transition-colors"
               >
                 Login
               </a>
@@ -342,7 +342,7 @@ export function SiteHeader({ defaultDark = true }: { defaultDark?: boolean }) {
               aria-label={menuOpen ? "Close menu" : "Open menu"}
               aria-expanded={menuOpen}
               className="w-9 h-9 flex flex-col items-center justify-center gap-[5px] rounded-lg"
-              style={{ color: isDark ? "#ffffff" : "#001935" }}
+              style={{ color: isDark ? "#ffffff" : "#03162D" }}
             >
               <span className="block h-[2px] w-5 rounded-full bg-current transition-all duration-300 origin-center"
                 style={{ transform: menuOpen ? "translateY(7px) rotate(45deg)" : "none" }} />
@@ -369,23 +369,23 @@ export function SiteHeader({ defaultDark = true }: { defaultDark?: boolean }) {
         >
           <nav className="px-5 pt-4 pb-6 flex flex-col">
             <div className="text-[10px] font-bold text-[#495B7B]/40 tracking-widest uppercase mb-2">About</div>
-            <Link href="/about" onClick={closeAll} className="py-2.5 text-[#001935] font-medium text-sm hover:text-[#1A9D20] transition-colors">About Us</Link>
-            <Link href="/contact" onClick={closeAll} className="py-2.5 text-[#001935] font-medium text-sm hover:text-[#1A9D20] transition-colors">Contact</Link>
+            <Link href="/about" onClick={closeAll} className="py-2.5 text-[#03162D] font-medium text-sm hover:text-[#FF2700] transition-colors">About Us</Link>
+            <Link href="/contact" onClick={closeAll} className="py-2.5 text-[#03162D] font-medium text-sm hover:text-[#FF2700] transition-colors">Contact</Link>
 
             <div className="text-[10px] font-bold text-[#495B7B]/40 tracking-widest uppercase mt-4 mb-2">Products</div>
-            <a href={`${APP_URL}/register-owner`} onClick={closeAll} className="py-2.5 text-[#001935] font-medium text-sm hover:text-[#1A9D20] transition-colors">Solo Tag · ₹199</a>
-            <a href={`${APP_URL}/register-owner`} onClick={closeAll} className="py-2.5 text-[#001935] font-medium text-sm hover:text-[#1A9D20] transition-colors">Duo Pack · ₹349</a>
-            <a href="mailto:support@parktag.me" onClick={closeAll} className="py-2.5 text-[#001935] font-medium text-sm hover:text-[#1A9D20] transition-colors">Fleet</a>
+            <a href={`${APP_URL}/register-owner`} onClick={closeAll} className="py-2.5 text-[#03162D] font-medium text-sm hover:text-[#FF2700] transition-colors">Solo Tag · ₹199</a>
+            <a href={`${APP_URL}/register-owner`} onClick={closeAll} className="py-2.5 text-[#03162D] font-medium text-sm hover:text-[#FF2700] transition-colors">Duo Pack · ₹349</a>
+            <a href="mailto:support@parktag.me" onClick={closeAll} className="py-2.5 text-[#03162D] font-medium text-sm hover:text-[#FF2700] transition-colors">Fleet</a>
 
             <div className="text-[10px] font-bold text-[#495B7B]/40 tracking-widest uppercase mt-4 mb-2">More</div>
-            <a href="#how-it-works" onClick={closeAll} className="py-2.5 text-[#001935] font-medium text-sm hover:text-[#1A9D20] transition-colors">How it works</a>
-            <a href="#features" onClick={closeAll} className="py-2.5 text-[#001935] font-medium text-sm hover:text-[#1A9D20] transition-colors">Features</a>
-            <a href="#pricing" onClick={closeAll} className="py-2.5 text-[#001935] font-medium text-sm hover:text-[#1A9D20] transition-colors">Pricing</a>
-            <a href="#faq" onClick={closeAll} className="py-2.5 text-[#001935] font-medium text-sm hover:text-[#1A9D20] transition-colors">FAQ</a>
+            <a href="#how-it-works" onClick={closeAll} className="py-2.5 text-[#03162D] font-medium text-sm hover:text-[#FF2700] transition-colors">How it works</a>
+            <a href="#features" onClick={closeAll} className="py-2.5 text-[#03162D] font-medium text-sm hover:text-[#FF2700] transition-colors">Features</a>
+            <a href="#pricing" onClick={closeAll} className="py-2.5 text-[#03162D] font-medium text-sm hover:text-[#FF2700] transition-colors">Pricing</a>
+            <a href="#faq" onClick={closeAll} className="py-2.5 text-[#03162D] font-medium text-sm hover:text-[#FF2700] transition-colors">FAQ</a>
 
             <div className="mt-5 flex flex-col gap-3">
-              <a href={`${APP_URL}/owner-login`} onClick={navigateSmoothly(`${APP_URL}/owner-login`)} className="text-center py-3 rounded-xl border-2 border-[#001935] text-[#001935] font-bold text-sm hover:bg-[#001935] hover:text-white transition-colors">Login</a>
-              <a href={`${APP_URL}/register-owner`} onClick={closeAll} className="text-center py-3 rounded-xl bg-[#1A9D20] text-white font-bold text-sm hover:bg-[#158018] transition-colors">Order Now</a>
+              <a href={`${APP_URL}/owner-login`} onClick={navigateSmoothly(`${APP_URL}/owner-login`)} className="text-center py-3 rounded-xl border-2 border-[#03162D] text-[#03162D] font-bold text-sm hover:bg-[#03162D] hover:text-white transition-colors">Login</a>
+              <a href={`${APP_URL}/register-owner`} onClick={closeAll} className="text-center py-3 rounded-xl bg-[#FF2700] text-white font-bold text-sm hover:bg-[#D92200] transition-colors">Order Now</a>
             </div>
           </nav>
         </div>

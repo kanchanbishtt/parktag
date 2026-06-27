@@ -1,10 +1,10 @@
 @import "tailwindcss";
 
 :root {
-  --navy: #001935;
+  --navy: #03162D;
   --navy-deep: #03162D;
-  --green: #1A9D20;
-  --green-dark: #158018;
+  --green: #FF2700;
+  --green-dark: #D92200;
   --slate: #495B7B;
 }
 
@@ -38,7 +38,7 @@ body {
   color: var(--navy);
   background: #fff;
   scrollbar-width: thin;
-  scrollbar-color: #1A9D20 transparent;
+  scrollbar-color: #FF2700 transparent;
 }
 
 /* Webkit — Chrome, Edge, Safari */
@@ -49,11 +49,11 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #1A9D20;
+  background: #FF2700;
   border-radius: 10px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #158018;
+  background: #D92200;
 }
 
 /* Remove details marker */

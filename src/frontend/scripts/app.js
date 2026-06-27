@@ -16,6 +16,8 @@ let currentCallPreviewNumber = "";
 let contactGrant = "";
 // Whether this E-Tag still has its free contact available (server-authoritative).
 let contactAvailable = true;
+// Optional reason selected via the chips; the message itself is built server-side.
+let selectedReason = "";
 
 function byId(id) {
   return document.getElementById(id);
@@ -117,6 +119,7 @@ function resetActionState() {
   currentCallPreviewNumber = "";
   contactGrant = "";
   contactAvailable = true;
+  selectedReason = "";
   pendingAction = null;
   setDisabled("call-owner-button", false);
   setDisabled("send-whatsapp-button", false);
@@ -382,60 +385,48 @@ function handleTemplateSelection(event) {
   );
 }
 
-async function handleWhatsAppAction() {
+// WhatsApp = notify the owner with a SERVER-BUILT message (spec §6). The scanner
+// never authors the message and never needs to share their own number — the
+// alert goes one-way to the owner. We only pass the optional reason key.
+async function handleWhatsAppNotify() {
   if (actionLocked) {
     return;
   }
 
-  const token = byId("request-token")?.value.trim();
-  const phone = byId("contact-phone")?.value.trim();
-  const message = byId("message-text")?.value.trim();
-  const template = byId("message-template-select")?.value;
+  const token = byId("request-token")?.value.trim() || getTokenFromUrl();
 
-  if (!template) {
-    setRequestStatus("request-status", "Choose a message template first.", "error");
-    return;
-  }
-
-  if (!message) {
-    setRequestStatus("request-status", "Enter a message for the owner.", "error");
-    return;
-  }
-
-  setRequestStatus("request-status", "Sending your WhatsApp request...", "info");
+  setRequestStatus("request-status", "Notifying the owner on WhatsApp…", "info");
   actionLocked = true;
   setDisabled("call-owner-button", true);
   setDisabled("send-whatsapp-button", true);
-  setDisabled("submit-message-button", true);
 
   try {
     await createRequest({
       token,
-      phone,
       action: "message",
       messageChannel: "whatsapp",
-      message
+      reason: selectedReason || undefined
     });
 
     setHidden("request-confirmation", false);
-    setText("confirmation-title", "WhatsApp request sent");
+    setText("confirmation-title", "Owner notified on WhatsApp");
     setText(
       "confirmation-copy",
-      "Your WhatsApp message request has been recorded for the owner through WaveTag."
+      "We've sent a WhatsApp alert to the vehicle owner. Your details stay completely private."
     );
-    setRequestStatus("request-status", "WhatsApp request created successfully.", "success");
+    setRequestStatus("request-status", "WhatsApp alert sent to the owner.", "success");
   } catch (error) {
     actionLocked = false;
     setDisabled("call-owner-button", false);
     setDisabled("send-whatsapp-button", false);
-    setDisabled("submit-message-button", false);
-    setRequestStatus(
-      "request-status",
-      error instanceof Error
-        ? error.message
-        : "Failed to create the WhatsApp request",
-      "error"
-    );
+    // A 402 (free contact used) already flips the UI to the Purchase CTA.
+    if (!error.freeUsed) {
+      setRequestStatus(
+        "request-status",
+        error instanceof Error ? error.message : "Could not notify the owner.",
+        "error"
+      );
+    }
   }
 }
 
@@ -544,24 +535,22 @@ await loadScannerView();
 
 byId("plate-verify-form")?.addEventListener("submit", handlePlateVerification);
 byId("call-owner-button")?.addEventListener("click", () => requestContactNumber("call"));
-byId("send-whatsapp-button")?.addEventListener("click", () => requestContactNumber("message"));
+byId("send-whatsapp-button")?.addEventListener("click", handleWhatsAppNotify);
 byId("contact-number-submit")?.addEventListener("click", handleContactNumberSubmit);
 byId("final-call-button")?.addEventListener("click", handleFinalCallAction);
-byId("message-template-select")?.addEventListener("change", handleTemplateSelection);
-byId("submit-message-button")?.addEventListener("click", handleWhatsAppAction);
 byId("claim-form")?.addEventListener("submit", handleClaim);
 
-// Reason chips — pre-select a message template and open the contact flow
+// Reason chips — select an optional reason (the message itself is server-built).
+// A second tap clears the selection.
 document.querySelectorAll(".pt-chip").forEach(chip => {
   chip.addEventListener("click", () => {
-    const msg = chip.dataset.msg;
-    if (!msg) return;
-    // highlight selected chip
+    const wasSelected = chip.classList.contains("pt-chip-selected");
     document.querySelectorAll(".pt-chip").forEach(c => c.classList.remove("pt-chip-selected"));
-    chip.classList.add("pt-chip-selected");
-    // pre-fill custom message and open WhatsApp panel
-    setValue("message-text", msg);
-    setValue("message-template-select", "custom");
-    requestContactNumber("message");
+    if (wasSelected) {
+      selectedReason = "";
+    } else {
+      chip.classList.add("pt-chip-selected");
+      selectedReason = chip.dataset.reason || "";
+    }
   });
 });

@@ -2,6 +2,12 @@ import { requireSession, toObjectId } from "../lib/auth.js";
 import { getCollections } from "../lib/repositories.js";
 import { createQrDataUrl, createPrintQrDataUrl } from "../lib/qr-output.js";
 import { createEtagForVehicle, buildTagScanUrl } from "../lib/tag-issuance.js";
+import {
+  createRazorpayOrder,
+  verifyRazorpaySignature,
+  isRazorpayConfigured,
+  STICKER_PRICE_INR
+} from "../lib/payments.js";
 
 export function registerOwnerRoutes(app, env) {
   app.get("/api/owner/dashboard", async (request, reply) => {
@@ -74,6 +80,7 @@ export function registerOwnerRoutes(app, env) {
           printStatus: tag.printStatus || "not_requested",
           stickerRequested: tag.stickerRequested || false,
           premium: tag.premium || false,
+          purchaseStatus: tag.purchaseStatus || "none",
           freeContactUsed: tag.freeContactUsed || false,
           scanUrl,
           qrDataUrl
@@ -198,6 +205,97 @@ export function registerOwnerRoutes(app, env) {
       return { ok: false, error: "Vehicle already added." };
     }
     return { ok: true, id: String(result.tag._id), token: result.tag.token };
+  });
+
+  // ── Premium purchase (official physical sticker) ──────────────────
+  // Create a Razorpay order for upgrading a specific E-Tag to premium.
+  app.post("/api/owner/tags/:tagId/purchase-order", async (request, reply) => {
+    const blocked = await requireSession(app, "owner")(request, reply);
+    if (blocked) return blocked;
+
+    const collections = await getCollections(env);
+    if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
+    if (!isRazorpayConfigured(env)) { reply.code(503); return { ok: false, error: "Payments are not configured." }; }
+
+    const ownerId = toObjectId(request.session.userId);
+    const tagId = toObjectId(request.params.tagId);
+    const tag = await collections.tags.findOne({ _id: tagId, ownerId, deletedAt: { $in: [null, undefined] } });
+    if (!tag) { reply.code(404); return { ok: false, error: "Tag not found" }; }
+    if (tag.premium) { reply.code(409); return { ok: false, error: "This E-Tag is already premium." }; }
+
+    let order;
+    try {
+      order = await createRazorpayOrder(env, {
+        amount: STICKER_PRICE_INR,
+        receipt: `pt_sticker_${String(tag._id)}_${Date.now()}`.slice(0, 40),
+        notes: { tagId: String(tag._id), plate: tag.plateNumber || "" }
+      });
+    } catch (error) {
+      reply.code(502);
+      return { ok: false, error: error instanceof Error ? error.message : "Could not create order." };
+    }
+
+    await collections.tags.updateOne(
+      { _id: tag._id },
+      { $set: { "purchase.orderId": order.id, "purchase.status": "created", "purchase.amount": STICKER_PRICE_INR, updatedAt: new Date().toISOString() } }
+    );
+
+    return {
+      ok: true,
+      keyId: env.razorpayKeyId,
+      orderId: order.id,
+      amount: order.amount,
+      currency: order.currency,
+      productName: "Official ParkTag QR Sticker"
+    };
+  });
+
+  // Verify the payment and upgrade the E-Tag to premium (re-enables contact).
+  app.post("/api/owner/tags/:tagId/purchase-verify", async (request, reply) => {
+    const blocked = await requireSession(app, "owner")(request, reply);
+    if (blocked) return blocked;
+
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = request.body || {};
+
+    const collections = await getCollections(env);
+    if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
+
+    const ownerId = toObjectId(request.session.userId);
+    const tagId = toObjectId(request.params.tagId);
+    const tag = await collections.tags.findOne({ _id: tagId, ownerId, deletedAt: { $in: [null, undefined] } });
+    if (!tag) { reply.code(404); return { ok: false, error: "Tag not found" }; }
+
+    const valid = verifyRazorpaySignature(env, {
+      orderId: razorpay_order_id,
+      paymentId: razorpay_payment_id,
+      signature: razorpay_signature
+    });
+    // Bind the verified payment to the order we created for THIS tag.
+    if (!valid || (tag.purchase?.orderId && tag.purchase.orderId !== razorpay_order_id)) {
+      reply.code(400);
+      return { ok: false, error: "Payment verification failed." };
+    }
+
+    const now = new Date().toISOString();
+    await collections.tags.updateOne(
+      { _id: tag._id },
+      {
+        $set: {
+          premium: true,
+          plan: "premium",
+          physicalTagPurchased: true,
+          purchaseStatus: "paid",
+          premiumSince: now,
+          stickerRequested: true,
+          printStatus: "pending_print",
+          "purchase.status": "paid",
+          "purchase.paymentId": razorpay_payment_id,
+          updatedAt: now
+        }
+      }
+    );
+
+    return { ok: true, premium: true };
   });
 
   app.post("/api/owner/tags/:tagId/request-sticker", async (request, reply) => {

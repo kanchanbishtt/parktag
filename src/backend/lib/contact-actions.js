@@ -4,6 +4,28 @@ import { triggerExotelCall } from "./exotel.js";
 import { sendMetaWhatsapp, isMetaWhatsappConfigured } from "./meta.js";
 import { getCollections } from "./repositories.js";
 
+// The WhatsApp message is built ENTIRELY server-side (spec §6) — the scanner can
+// never author it. The optional reason is constrained to this fixed whitelist,
+// so no arbitrary text from the client can reach the owner.
+const WHATSAPP_BASE_MESSAGE =
+  "Someone has reported an issue with your vehicle via your ParkTag E-Tag. Please log in to your ParkTag dashboard or contact support if needed.";
+
+const REASON_LABELS = {
+  lights: "the vehicle's lights appear to be on",
+  towing: "the vehicle is blocking the way and may need to be moved",
+  parking: "the vehicle is parked in a way that is causing difficulty",
+  window: "a window appears to be open or unlocked",
+  suspicious: "there is a suspicious situation near the vehicle"
+};
+
+function buildOwnerWhatsappMessage(reason) {
+  const label = REASON_LABELS[reason];
+  if (label) {
+    return `ParkTag alert: someone reported that ${label}. Please check your vehicle. Log in to your ParkTag dashboard or contact support if needed.`;
+  }
+  return WHATSAPP_BASE_MESSAGE;
+}
+
 async function loadTagWithOwner(collections, token) {
   const tag = await collections.tags.findOne({ token });
 
@@ -33,15 +55,21 @@ export async function createContactAction(env, input) {
 
   const { tag, owner } = await loadTagWithOwner(collections, input.token);
 
+  // For WhatsApp, the message is server-built (never the scanner's words).
+  const ownerMessage =
+    input.action === "message" ? buildOwnerWhatsappMessage(input.reason) : null;
+
   const requestId = new ObjectId();
   const contactRequest = {
     _id: requestId,
+    tagId: tag._id,
     token: tag.token,
     ownerId: tag.ownerId,
-    phone: input.phone,
+    phone: input.phone || null,
     action: input.action,
     messageChannel: input.messageChannel || null,
-    message: input.message || null,
+    reason: input.reason || null,
+    message: ownerMessage,
     status: "pending",
     ipAddress: input.ipAddress || null,
     userAgent: input.userAgent || null,
@@ -76,7 +104,7 @@ export async function createContactAction(env, input) {
 
       provider = await sendMetaWhatsapp(env, {
         to: owner.phone || owner.mobile,
-        body: input.message
+        body: ownerMessage
       });
       providerStatus = "provider_started";
     }

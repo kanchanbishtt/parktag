@@ -314,14 +314,19 @@ export function registerPublicRoutes(app, env) {
       };
     }
 
-    const { token, phone, action, message, messageChannel, grant } = request.body || {};
+    const { token, phone, action, messageChannel, reason, grant } = request.body || {};
+    const resolvedAction = action || "call";
 
-    if (!token || !phone) {
+    if (!token) {
       reply.code(400);
-      return {
-        ok: false,
-        error: "token and phone are required"
-      };
+      return { ok: false, error: "token is required" };
+    }
+
+    // A call needs the scanner's number (to masked-call them). A WhatsApp
+    // notification goes to the owner, so the scanner's number is not required.
+    if (resolvedAction === "call" && !phone) {
+      reply.code(400);
+      return { ok: false, error: "phone is required for a call" };
     }
 
     // Enforce verification server-side: a valid, unexpired grant is mandatory.
@@ -351,16 +356,10 @@ export function registerPublicRoutes(app, env) {
       };
     }
 
-    if ((action || "call") === "message" && !message) {
-      reply.code(400);
-      return {
-        ok: false,
-        error: "message is required for message action"
-      };
-    }
-
+    // The WhatsApp message body is built server-side (spec §6) — the client never
+    // supplies it, so there is nothing to validate here beyond the channel.
     if (
-      (action || "call") === "message" &&
+      resolvedAction === "message" &&
       messageChannel &&
       messageChannel !== "whatsapp"
     ) {
@@ -396,10 +395,10 @@ export function registerPublicRoutes(app, env) {
     try {
       return await createContactAction(env, {
         token,
-        phone,
-        action: action || "call",
-        messageChannel: messageChannel || null,
-        message: message || null,
+        phone: phone || null,
+        action: resolvedAction,
+        messageChannel: resolvedAction === "message" ? (messageChannel || "whatsapp") : null,
+        reason: reason || null,
         ipAddress: getClientIp(request),
         userAgent: request.headers["user-agent"] || null
       });

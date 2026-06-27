@@ -27,7 +27,7 @@ export function Marquee() {
             key={i}
             className="inline-flex items-center gap-3 px-7 text-[13px] text-white/45 font-medium tracking-wide flex-shrink-0"
           >
-            <span className="w-[5px] h-[5px] rounded-full bg-[#1A9D20] inline-block flex-shrink-0" />
+            <span className="w-[5px] h-[5px] rounded-full bg-[#FF2700] inline-block flex-shrink-0" />
             {item}
           </span>
         ))}

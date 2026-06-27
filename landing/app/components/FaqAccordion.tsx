@@ -37,13 +37,13 @@ export function FaqAccordion() {
       {FAQS.map(({ q, a }, i) => (
         <div key={q} className="bg-white border border-gray-200 rounded-xl overflow-hidden">
           <button
-            className="w-full flex items-center justify-between px-6 py-4 font-semibold text-[#001935] text-sm text-left cursor-pointer select-none"
+            className="w-full flex items-center justify-between px-6 py-4 font-semibold text-[#03162D] text-sm text-left cursor-pointer select-none"
             onClick={() => setOpen(open === i ? null : i)}
             aria-expanded={open === i}
           >
             <span>{q}</span>
             <span
-              className="text-[#1A9D20] text-xl font-bold ml-4 flex-shrink-0 transition-transform duration-200"
+              className="text-[#FF2700] text-xl font-bold ml-4 flex-shrink-0 transition-transform duration-200"
               style={{ transform: open === i ? "rotate(45deg)" : "rotate(0deg)" }}
             >
               +

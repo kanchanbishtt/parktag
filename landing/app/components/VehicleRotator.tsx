@@ -23,7 +23,7 @@ export function VehicleRotator() {
     <span
       style={{
         display: "inline-block",
-        color: "#1A9D20",
+        color: "#FF2700",
         opacity: phase === "in" ? 1 : 0,
         transform: phase === "in" ? "translateY(0)" : "translateY(-10px)",
         transition: "opacity 320ms ease, transform 320ms ease",

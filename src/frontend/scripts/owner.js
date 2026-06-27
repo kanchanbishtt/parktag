@@ -26,7 +26,7 @@ async function sendWhatsappOtp(raw) {
   if (sub) {
     const last4 = phone.replace(/\D/g, "").slice(-4);
     const masked = phone.slice(0, -4).replace(/\d/g, "X") + last4;
-    sub.innerHTML = `Enter the 6-digit code sent to your WhatsApp <strong style="color:#1F2937;font-weight:800">${masked}</strong>.`;
+    sub.innerHTML = `Enter the 6-digit code sent to your WhatsApp <strong style="color:#323232;font-weight:800">${masked}</strong>.`;
     sub.style.marginBottom = "0";
   }
 }
@@ -115,11 +115,11 @@ function renderDashboard(data) {
         <div style="display:flex;align-items:center;gap:10px;padding:8px 0">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M12 7v5l3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
           <span style="font-weight:600">Status</span>
-          <span style="margin-left:auto;font-weight:700;color:${tag.status === 'active' ? '#059669' : '#6B7280'}">${tag.status}</span>
+          <span style="margin-left:auto;font-weight:700;color:${tag.status === 'active' ? '#FF8000' : '#6B7280'}">${tag.status}</span>
         </div>
         ${tag.printStatus === "pending_print" || tag.printStatus === "printed" ? `
         <div style="margin-top:8px">
-          <span style="font-size:0.78rem;font-weight:700;background:${tag.printStatus === 'printed' ? '#ECFDF5' : '#EEF2FF'};color:${tag.printStatus === 'printed' ? '#059669' : '#4F46E5'};padding:4px 10px;border-radius:20px">
+          <span style="font-size:0.78rem;font-weight:700;background:${tag.printStatus === 'printed' ? '#FFF5EC' : '#FFEDD9'};color:${tag.printStatus === 'printed' ? '#FF8000' : '#FF8000'};padding:4px 10px;border-radius:20px">
             ${tag.printStatus === "printed" ? "Sticker printed" : "Sticker order placed"}
           </span>
         </div>` : `

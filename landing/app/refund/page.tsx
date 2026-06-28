@@ -14,7 +14,7 @@ export default function RefundPage() {
       <div className="min-h-screen bg-white pt-16">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-12 sm:py-16">
         <p className="text-xs text-[#495B7B] mb-3">Last updated: 23 June 2026</p>
-        <h1 className="text-3xl sm:text-4xl font-extrabold text-[#001935] mb-2 tracking-tight">Refund &amp; Cancellation Policy</h1>
+        <h1 className="text-3xl sm:text-4xl font-extrabold text-[#03162D] mb-2 tracking-tight">Refund &amp; Cancellation Policy</h1>
         <p className="text-[#495B7B] mb-10">We want you to be fully satisfied with ParkTag. This policy explains when and how you can request a refund or cancellation.</p>
 
         <div className="space-y-10">
@@ -23,7 +23,7 @@ export default function RefundPage() {
             <ul>
               <li>
                 <strong>Damaged or defective on arrival:</strong> You may request a free replacement or full refund within 7 days of delivery. Share an unboxing photo/video and the order ID at{" "}
-                <a href="mailto:support@parktag.me" className="text-[#1A9D20] hover:underline">support@parktag.me</a>.
+                <a href="mailto:support@parktag.me" className="text-[#FF2700] hover:underline">support@parktag.me</a>.
               </li>
               <li><strong>Wrong item delivered:</strong> Free replacement within 7 days of delivery.</li>
               <li>
@@ -47,7 +47,7 @@ export default function RefundPage() {
 
           <Section title="4. How to Request a Refund">
             <p>
-              Email <a href="mailto:support@parktag.me" className="text-[#1A9D20] hover:underline">support@parktag.me</a> with:
+              Email <a href="mailto:support@parktag.me" className="text-[#FF2700] hover:underline">support@parktag.me</a> with:
             </p>
             <ul>
               <li>Order ID / transaction reference</li>
@@ -77,8 +77,8 @@ export default function RefundPage() {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <h2 className="text-xl font-bold text-[#001935] mb-3">{title}</h2>
-      <div className="text-[#495B7B] leading-relaxed space-y-3 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-2 [&_strong]:text-[#001935] [&_strong]:font-semibold [&_p]:text-[#495B7B]">
+      <h2 className="text-xl font-bold text-[#03162D] mb-3">{title}</h2>
+      <div className="text-[#495B7B] leading-relaxed space-y-3 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-2 [&_strong]:text-[#03162D] [&_strong]:font-semibold [&_p]:text-[#495B7B]">
         {children}
       </div>
     </div>

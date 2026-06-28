@@ -12,6 +12,12 @@ let verifiedPlateLastFour = "";
 let expectedPlateLastFour = "";
 let pendingAction = null;
 let currentCallPreviewNumber = "";
+// Server-issued grant proving this scanner passed last-4 verification.
+let contactGrant = "";
+// Whether this E-Tag still has its free contact available (server-authoritative).
+let contactAvailable = true;
+// Optional reason selected via the chips; the message itself is built server-side.
+let selectedReason = "";
 
 function byId(id) {
   return document.getElementById(id);
@@ -51,7 +57,8 @@ function setDisabled(id, disabled) {
 
 function getTokenFromUrl() {
   const path = window.location.pathname;
-  const match = path.match(/\/vehicle\/([A-Za-z0-9]{12})/);
+  // Accept both /tag/<token> and the legacy /vehicle/<token>, 12–64 chars.
+  const match = path.match(/\/(?:tag|vehicle)\/([A-Za-z0-9]{12,64})/);
 
   if (match) {
     return match[1];
@@ -110,12 +117,33 @@ function resetActionState() {
   verifiedPlateLastFour = "";
   expectedPlateLastFour = "";
   currentCallPreviewNumber = "";
+  contactGrant = "";
+  contactAvailable = true;
+  selectedReason = "";
   pendingAction = null;
   setDisabled("call-owner-button", false);
   setDisabled("send-whatsapp-button", false);
   setDisabled("submit-message-button", false);
   setDisabled("contact-number-submit", false);
   setDisabled("final-call-button", false);
+  setContactAvailability(true);
+}
+
+// Toggle between the contact buttons and the "Purchase sticker" CTA based on
+// whether the free contact is still available (server-authoritative).
+function setContactAvailability(available) {
+  contactAvailable = available;
+  setHidden("scanner-why-title", !available);
+  setHidden("pt-reason-chips", !available);
+  setHidden("scanner-contact-actions", !available);
+  setHidden("purchase-cta", available);
+  if (!available) {
+    // Hide any open contact sub-panels too.
+    setHidden("contact-number-panel", true);
+    setHidden("dial-panel", true);
+    setHidden("message-panel", true);
+    setHidden("call-popup", true);
+  }
 }
 
 function setSummaryForTag(tag) {
@@ -135,13 +163,25 @@ function setSummaryForTag(tag) {
 }
 
 async function createRequest(payload) {
-  return fetchJson("/api/contact-requests", {
+  const response = await fetch("/api/contact-requests", {
     method: "POST",
-    headers: {
-      "content-type": "application/json"
-    },
-    body: JSON.stringify(payload)
+    headers: { "content-type": "application/json" },
+    // Attach the verification grant so the server authorises the contact.
+    body: JSON.stringify({ ...payload, grant: contactGrant })
   });
+  const data = await response.json().catch(() => ({}));
+
+  // 402 = free contact used up. Server is authoritative; flip the UI to the CTA.
+  if (response.status === 402) {
+    setContactAvailability(false);
+    const err = new Error(data.error || "This E-Tag's free contact has been used.");
+    err.freeUsed = true;
+    throw err;
+  }
+  if (!response.ok) {
+    throw new Error(data.error || "Request failed");
+  }
+  return data;
 }
 
 async function loadScannerView() {
@@ -168,8 +208,7 @@ async function loadScannerView() {
     setValue("request-token", tag.token);
     setValue("claim-vehicle-label", tag.vehicleLabel || "");
     setValue("claim-plate-number", "");
-    expectedPlateLastFour = tag.plateLastFour || "";
-    setText("plate-mask-preview", tag.maskedPlateNumber || "Loading...");
+    setText("plate-mask-preview", tag.maskedPlateNumber || "••••");
 
     if (registrationState) {
       setText("scanner-load-status", "This WaveTag needs owner registration before contact can be enabled.");
@@ -211,28 +250,56 @@ async function handlePlateVerification(event) {
   event.preventDefault();
 
   const entered = byId("plate-last-four-input")?.value.trim();
+  const token = byId("request-token")?.value.trim() || getTokenFromUrl();
 
   if (!entered) {
     setRequestStatus("plate-verify-status", "Enter the last 4 digits first.", "error");
     return;
   }
 
-  if (!expectedPlateLastFour) {
-    setRequestStatus("plate-verify-status", "Vehicle digits are not ready yet. Reload the page.", "error");
+  setDisabled("plate-verify-submit", true);
+  setRequestStatus("plate-verify-status", "Verifying…", "info");
+
+  // Verification happens entirely server-side — the correct digits are never
+  // sent to the browser. The server returns a grant we attach to contact calls.
+  let response;
+  try {
+    response = await fetch(`/api/tags/${token}/verify`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ lastFour: entered })
+    });
+  } catch (_) {
+    setDisabled("plate-verify-submit", false);
+    setRequestStatus("plate-verify-status", "Network error. Please try again.", "error");
     return;
   }
 
-  if (entered !== expectedPlateLastFour) {
-    setRequestStatus("plate-verify-status", "Those last 4 digits do not match this vehicle.", "error");
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    setDisabled("plate-verify-submit", false);
+    let msg = data.error || "Verification failed. Please try again.";
+    if (typeof data.attemptsRemaining === "number") {
+      msg += ` ${data.attemptsRemaining} attempt(s) left.`;
+    }
+    setRequestStatus("plate-verify-status", msg, "error");
     return;
   }
 
+  contactGrant = data.grant || "";
   verifiedPlateLastFour = entered;
+  setDisabled("plate-verify-submit", false);
+  setRequestStatus("plate-verify-status", "", "info");
   showOnly("scanner-action-shell");
+  // Reflect free-usage state: show buttons, or the Purchase CTA if used up.
+  setContactAvailability(data.contactAvailable !== false);
   setRequestStatus(
     "request-status",
-    "Choose Call Owner or Leave WhatsApp message.",
-    "info"
+    data.contactAvailable !== false
+      ? "Verified ✓ Choose Call Owner or Leave WhatsApp message."
+      : "Verified ✓",
+    "success"
   );
 }
 
@@ -318,60 +385,48 @@ function handleTemplateSelection(event) {
   );
 }
 
-async function handleWhatsAppAction() {
+// WhatsApp = notify the owner with a SERVER-BUILT message (spec §6). The scanner
+// never authors the message and never needs to share their own number — the
+// alert goes one-way to the owner. We only pass the optional reason key.
+async function handleWhatsAppNotify() {
   if (actionLocked) {
     return;
   }
 
-  const token = byId("request-token")?.value.trim();
-  const phone = byId("contact-phone")?.value.trim();
-  const message = byId("message-text")?.value.trim();
-  const template = byId("message-template-select")?.value;
+  const token = byId("request-token")?.value.trim() || getTokenFromUrl();
 
-  if (!template) {
-    setRequestStatus("request-status", "Choose a message template first.", "error");
-    return;
-  }
-
-  if (!message) {
-    setRequestStatus("request-status", "Enter a message for the owner.", "error");
-    return;
-  }
-
-  setRequestStatus("request-status", "Sending your WhatsApp request...", "info");
+  setRequestStatus("request-status", "Notifying the owner on WhatsApp…", "info");
   actionLocked = true;
   setDisabled("call-owner-button", true);
   setDisabled("send-whatsapp-button", true);
-  setDisabled("submit-message-button", true);
 
   try {
     await createRequest({
       token,
-      phone,
       action: "message",
       messageChannel: "whatsapp",
-      message
+      reason: selectedReason || undefined
     });
 
     setHidden("request-confirmation", false);
-    setText("confirmation-title", "WhatsApp request sent");
+    setText("confirmation-title", "Owner notified on WhatsApp");
     setText(
       "confirmation-copy",
-      "Your WhatsApp message request has been recorded for the owner through WaveTag."
+      "We've sent a WhatsApp alert to the vehicle owner. Your details stay completely private."
     );
-    setRequestStatus("request-status", "WhatsApp request created successfully.", "success");
+    setRequestStatus("request-status", "WhatsApp alert sent to the owner.", "success");
   } catch (error) {
     actionLocked = false;
     setDisabled("call-owner-button", false);
     setDisabled("send-whatsapp-button", false);
-    setDisabled("submit-message-button", false);
-    setRequestStatus(
-      "request-status",
-      error instanceof Error
-        ? error.message
-        : "Failed to create the WhatsApp request",
-      "error"
-    );
+    // A 402 (free contact used) already flips the UI to the Purchase CTA.
+    if (!error.freeUsed) {
+      setRequestStatus(
+        "request-status",
+        error instanceof Error ? error.message : "Could not notify the owner.",
+        "error"
+      );
+    }
   }
 }
 
@@ -480,24 +535,22 @@ await loadScannerView();
 
 byId("plate-verify-form")?.addEventListener("submit", handlePlateVerification);
 byId("call-owner-button")?.addEventListener("click", () => requestContactNumber("call"));
-byId("send-whatsapp-button")?.addEventListener("click", () => requestContactNumber("message"));
+byId("send-whatsapp-button")?.addEventListener("click", handleWhatsAppNotify);
 byId("contact-number-submit")?.addEventListener("click", handleContactNumberSubmit);
 byId("final-call-button")?.addEventListener("click", handleFinalCallAction);
-byId("message-template-select")?.addEventListener("change", handleTemplateSelection);
-byId("submit-message-button")?.addEventListener("click", handleWhatsAppAction);
 byId("claim-form")?.addEventListener("submit", handleClaim);
 
-// Reason chips — pre-select a message template and open the contact flow
+// Reason chips — select an optional reason (the message itself is server-built).
+// A second tap clears the selection.
 document.querySelectorAll(".pt-chip").forEach(chip => {
   chip.addEventListener("click", () => {
-    const msg = chip.dataset.msg;
-    if (!msg) return;
-    // highlight selected chip
+    const wasSelected = chip.classList.contains("pt-chip-selected");
     document.querySelectorAll(".pt-chip").forEach(c => c.classList.remove("pt-chip-selected"));
-    chip.classList.add("pt-chip-selected");
-    // pre-fill custom message and open WhatsApp panel
-    setValue("message-text", msg);
-    setValue("message-template-select", "custom");
-    requestContactNumber("message");
+    if (wasSelected) {
+      selectedReason = "";
+    } else {
+      chip.classList.add("pt-chip-selected");
+      selectedReason = chip.dataset.reason || "";
+    }
   });
 });

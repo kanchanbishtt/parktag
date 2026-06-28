@@ -14,7 +14,7 @@ export default function PrivacyPage() {
       <div className="min-h-screen bg-white pt-16">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-12 sm:py-16">
         <p className="text-xs text-[#495B7B] mb-3">Last updated: 23 June 2026</p>
-        <h1 className="text-3xl sm:text-4xl font-extrabold text-[#001935] mb-2 tracking-tight">Privacy Policy</h1>
+        <h1 className="text-3xl sm:text-4xl font-extrabold text-[#03162D] mb-2 tracking-tight">Privacy Policy</h1>
         <p className="text-[#495B7B] mb-10">
           ParkTag (&ldquo;we&rdquo;, &ldquo;us&rdquo;, &ldquo;our&rdquo;) respects your privacy. This Privacy Policy explains how we collect, use, share and protect your information when you use our website parktag.me, our web app, and our QR-enabled physical tags (collectively, the &ldquo;Services&rdquo;).
         </p>
@@ -57,7 +57,7 @@ export default function PrivacyPage() {
           <Section title="4. Data Retention">
             <p>
               We retain your data for as long as your account is active and for a reasonable period thereafter to comply with legal, tax and accounting obligations. You can request deletion at any time by writing to{" "}
-              <a href="mailto:support@parktag.me" className="text-[#1A9D20] hover:underline">support@parktag.me</a>.
+              <a href="mailto:support@parktag.me" className="text-[#FF2700] hover:underline">support@parktag.me</a>.
             </p>
           </Section>
 
@@ -77,7 +77,7 @@ export default function PrivacyPage() {
             </ul>
             <p>
               To exercise these rights, email{" "}
-              <a href="mailto:support@parktag.me" className="text-[#1A9D20] hover:underline">support@parktag.me</a>{" "}
+              <a href="mailto:support@parktag.me" className="text-[#FF2700] hover:underline">support@parktag.me</a>{" "}
               from your registered email.
             </p>
           </Section>
@@ -101,8 +101,8 @@ export default function PrivacyPage() {
           </Section>
 
           <Section title="10. Contact">
-            <p>Grievance Officer: <span className="text-[#001935] font-medium">[Name]</span></p>
-            <p>Email: <a href="mailto:privacy@parktag.me" className="text-[#1A9D20] hover:underline">privacy@parktag.me</a></p>
+            <p>Grievance Officer: <span className="text-[#03162D] font-medium">[Name]</span></p>
+            <p>Email: <a href="mailto:privacy@parktag.me" className="text-[#FF2700] hover:underline">privacy@parktag.me</a></p>
             <p>Address: 32/11, Wave One, Sector 18, Noida, UP 201301</p>
           </Section>
 
@@ -116,8 +116,8 @@ export default function PrivacyPage() {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <h2 className="text-xl font-bold text-[#001935] mb-3">{title}</h2>
-      <div className="text-[#495B7B] leading-relaxed space-y-3 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-2 [&_strong]:text-[#001935] [&_strong]:font-semibold [&_p]:text-[#495B7B]">
+      <h2 className="text-xl font-bold text-[#03162D] mb-3">{title}</h2>
+      <div className="text-[#495B7B] leading-relaxed space-y-3 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-2 [&_strong]:text-[#03162D] [&_strong]:font-semibold [&_p]:text-[#495B7B]">
         {children}
       </div>
     </div>

@@ -65,6 +65,52 @@ let vehicles = [];
 // Indian vehicle number: 2 letters + 1-2 digits + 1-3 letters + 1-4 digits (spaces optional)
 const PLATE_RE = /^[A-Z]{2}\s?[0-9]{1,2}\s?[A-Z]{1,3}\s?[0-9]{1,4}$/;
 
+function validateMobile(raw) {
+  if (!raw || !raw.trim()) return "This field is required.";
+  const digits = raw.replace(/[^\d]/g, "");
+  const ten = digits.length === 10 ? digits
+    : (digits.length === 12 && digits.startsWith("91")) ? digits.slice(2)
+    : null;
+  if (!ten || !/^[6-9]\d{9}$/.test(ten)) return "Enter a valid 10-digit Indian mobile number.";
+  return null;
+}
+
+function setMobileError(msg) {
+  const err = document.getElementById("mobile-error");
+  const inp = document.getElementById("mobile-number");
+  if (!err || !inp) return;
+  if (msg) {
+    err.textContent = msg;
+    err.style.display = "block";
+    inp.style.borderColor = "#DC2626";
+  } else {
+    err.textContent = "";
+    err.style.display = "none";
+    inp.style.borderColor = "";
+  }
+}
+
+async function loadOwnerMobile() {
+  const inp = document.getElementById("mobile-number");
+  if (!inp) return;
+
+  try {
+    const res = await fetch("/api/owner/dashboard");
+    if (!res.ok) return;
+    const data = await res.json();
+    const mobile = data?.owner?.mobile || "";
+    if (!mobile) return;
+    const digits = mobile.replace(/[^\d]/g, "");
+    const ten = digits.length >= 10 ? digits.slice(-10) : "";
+    if (!ten) return;
+    inp.value = ten;
+    inp.readOnly = true;
+    inp.style.background = "#F3F4F6";
+    inp.style.color = "#6B7280";
+    inp.title = "Mobile number from your account";
+  } catch (_) {}
+}
+
 function validatePlate(raw, type) {
   if (!raw) return "Please enter the vehicle number.";
   if (type === "bicycle") {
@@ -163,8 +209,13 @@ function addVehicle() {
 
 // ── E-Tag popup ──────────────────────────────────────────────
 
+// Promise that resolves once the real E-Tag (token + scannable QR) is ready.
+let etagReady = null;
+
 function showEtagPopup() {
   document.getElementById("etag-overlay")?.classList.add("active");
+  // Generate the real E-Tag now so the QR is embedded before the user prints.
+  prepareEtagAssets();
 }
 
 function hideEtagPopup() {
@@ -179,16 +230,63 @@ function populatePrintTemplate() {
   if (el) el.textContent = vehicleNum;
 }
 
+// Create a real, scannable E-Tag for the first vehicle and embed its high-res QR
+// into the print template (replacing the demo placeholder QR).
+function prepareEtagAssets() {
+  populatePrintTemplate();
+  const v = vehicles[0];
+  if (!v) { etagReady = Promise.resolve(); return; }
+
+  etagReady = (async () => {
+    try {
+      const res = await fetch("/api/owner/etag/generate", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ type: v.type, number: v.number })
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      const img = document.getElementById("print-qr-img");
+      if (img && data?.etag?.qrDataUrl) {
+        img.src = data.etag.qrDataUrl;
+      }
+      // Stamp the unique E-Tag ID + activation status onto the sticker (spec §9).
+      const idEl = document.getElementById("print-etag-id");
+      if (idEl && data?.etag?.etagId) idEl.textContent = data.etag.etagId.replace(/^PT-/, "");
+      const stEl = document.getElementById("print-status");
+      if (stEl && data?.etag?.status) stEl.textContent = data.etag.status === "active" ? "Active" : "Inactive";
+    } catch (_) {
+      // Non-fatal: if generation fails the user can still re-print from the dashboard.
+    }
+  })();
+}
+
 async function downloadEtag() {
   populatePrintTemplate();
-  await saveVehicles();
+  // Ensure the real QR is embedded before we open the print dialog.
+  if (etagReady) {
+    try { await etagReady; } catch (_) {}
+  }
   hideEtagPopup();
-  setTimeout(() => {
-    window.print();
-    window.addEventListener("afterprint", () => {
-      window.location.href = "/owner-welcome";
-    }, { once: true });
-  }, 120);
+  const savingPromise = saveVehicles();
+
+  const printDiv = document.getElementById("etag-print");
+  // Collect every sibling so we can hide/restore without relying on @media print CSS.
+  // This bypasses all backdrop-filter / compositing-layer issues on the overlay.
+  const siblings = Array.from(document.body.children).filter(el => el !== printDiv);
+  const saved    = siblings.map(el => el.style.display);
+
+  siblings.forEach(el => { el.style.display = "none"; });
+  printDiv.style.display = "block";
+
+  window.addEventListener("afterprint", async () => {
+    siblings.forEach((el, i) => { el.style.display = saved[i]; });
+    printDiv.style.display = "";
+    await savingPromise;
+    window.location.href = "/owner-welcome";
+  }, { once: true });
+
+  window.print();
 }
 
 function savePendingVehicles() {
@@ -214,8 +312,23 @@ function savePendingVehicles() {
   } catch (_) {}
 }
 
+async function saveMobile(mobile) {
+  const digits = mobile.replace(/[^\d]/g, "");
+  const normalized = digits.length === 10 ? `+91${digits}` : `+${digits}`;
+  try {
+    await fetch("/api/owner/mobile", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ mobile: normalized })
+    });
+  } catch (_) {}
+}
+
 async function saveVehicles() {
-  const alreadyAdded = [];
+  const mobile = (document.getElementById("mobile-number")?.value || "").trim();
+  if (mobile && !document.getElementById("mobile-number")?.readOnly) {
+    await saveMobile(mobile);
+  }
   for (const v of vehicles) {
     try {
       const res = await fetch("/api/owner/local-vehicle", {
@@ -223,16 +336,12 @@ async function saveVehicles() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ type: v.type, number: v.number })
       });
-      if (res.status === 409) { alreadyAdded.push(v.number); continue; }
-      if (!res.ok) throw new Error("api-failed");
+      // 409 = this vehicle already has an E-Tag (idempotent) — treat as success.
+      if (!res.ok && res.status !== 409) throw new Error("api-failed");
     } catch {
       savePendingVehicles();
       return;
     }
-  }
-  if (alreadyAdded.length) {
-    setStatus(`Already added: ${alreadyAdded.join(", ")}. Redirecting…`, "info");
-    await new Promise(r => setTimeout(r, 1500));
   }
 }
 
@@ -257,6 +366,15 @@ function submit() {
     document.getElementById("vehicle-type").value = "";
     document.getElementById("vehicle-number").value = "";
   }
+
+  const mobile = (document.getElementById("mobile-number")?.value || "").trim();
+  const mobileErr = validateMobile(mobile);
+  if (mobileErr) {
+    setMobileError(mobileErr);
+    document.getElementById("mobile-number")?.focus();
+    return;
+  }
+  setMobileError("");
 
   const tokenRaw = (document.getElementById("token-input")?.value || "")
     .trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -302,6 +420,10 @@ document.getElementById("vehicle-number")?.addEventListener("keydown", e => {
   if (e.key === "Enter") addVehicle();
 });
 
+document.getElementById("mobile-number")?.addEventListener("keydown", e => {
+  if (e.key === "Enter") addVehicle();
+});
+
 document.getElementById("submit-btn")?.addEventListener("click", submit);
 
 document.getElementById("token-input")?.addEventListener("keydown", e => {
@@ -315,3 +437,45 @@ document.getElementById("etag-skip-btn")?.addEventListener("click", skipEtag);
 document.getElementById("etag-overlay")?.addEventListener("click", e => {
   if (e.target === document.getElementById("etag-overlay")) hideEtagPopup();
 });
+
+document.getElementById("mobile-number")?.addEventListener("input", () => setMobileError(""));
+
+document.getElementById("mobile-edit-btn")?.addEventListener("click", () => {
+  const inp = document.getElementById("mobile-number");
+  const btn = document.getElementById("mobile-edit-btn");
+  if (!inp || !btn) return;
+
+  if (inp.readOnly) {
+    inp.readOnly = false;
+    inp.style.background = "";
+    inp.style.color = "";
+    inp.title = "";
+    btn.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+      <polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>`;
+    btn.title = "Confirm";
+    btn.setAttribute("aria-label", "Confirm mobile number");
+    btn.classList.add("done");
+    inp.focus();
+    inp.select();
+  } else {
+    const err = validateMobile(inp.value.trim());
+    if (err) { setMobileError(err); inp.focus(); return; }
+    setMobileError("");
+    inp.readOnly = true;
+    inp.style.background = "#F3F4F6";
+    inp.style.color = "#6B7280";
+    inp.title = "Mobile number";
+    btn.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>`;
+    btn.title = "Edit mobile number";
+    btn.setAttribute("aria-label", "Edit mobile number");
+    btn.classList.remove("done");
+  }
+});
+
+// Auto-fill mobile on page load
+loadOwnerMobile();
+

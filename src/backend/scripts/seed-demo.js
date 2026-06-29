@@ -1,6 +1,6 @@
 import { getEnv } from "../lib/env.js";
 import { seedDemoData } from "../lib/demo-data.js";
-import { closeMongoConnection } from "../lib/mongo.js";
+import { closeMongoConnection } from "../lib/db/mongo.js";
 
 const env = getEnv();
 

@@ -131,7 +131,7 @@ Current direction:
 - frontend: simple HTML, CSS, and JavaScript in `src/frontend/`, served by the backend or alongside it
 - persistence: `MongoDB` as the single prototype database
 - auth: minimal but real server-side authentication for owner and admin users
-- hosting target: `Render` for the backend app and `MongoDB Atlas M0` for the initial prototype database
+- hosting target: `Railway` for the backend app and `MongoDB Atlas M0` for the initial prototype database
 - telephony: Exotel for call bridging when that slice is reached
 - business messaging: WhatsApp Business Platform Cloud API for owner-message delivery when that slice is reached
 
@@ -298,12 +298,65 @@ The prototype needs a real hosted backend.
 Current direction:
 
 - choose a practical free or low-cost platform
-- primary deployment target: `Render`
+- primary deployment target: `Railway` (migrated from Render)
 - primary database target: `MongoDB Atlas M0`
-- fallback app host if needed: `Heroku Eco`
 - keep deployment simple
 - avoid architecture choices that require multiple managed services for the first prototype
 - make the deployed app usable from a QR-driven mobile browser flow
+
+### 9.1 Scaling Plan — Multi-Server Rate Limiting
+
+**Current state (single server):**
+The rate limiter (`@fastify/rate-limit`) stores counters in Node.js process memory. On a single Railway instance this works correctly — every request hits the same process, counters are accurate.
+
+**The problem when scaling to 2+ servers:**
+Railway (and any platform) can run multiple instances of the same service for load balancing. When that happens, each server has its own in-memory counter. A user making 60 requests could have them split across Server A (30 requests) and Server B (30 requests) — both think the user is within limit. The rate limiter silently stops working.
+
+The same problem also applies to:
+- In-memory session store (`app.decorate("sessions", new Map())`) — a user's session only exists on the server that created it; the next request might hit a different server and see no session
+- In-memory OAuth state store (`app.decorate("oauthStates", new Map())`)
+
+**Action plan — what to do before scaling:**
+
+Step 1 — Add Redis to Railway
+- Provision a Railway Redis plugin (one click in the Railway dashboard)
+- Railway injects `REDIS_URL` automatically as an environment variable
+- Verify: `REDIS_URL` appears in Railway service variables
+
+Step 2 — Replace in-memory rate limit store with Redis
+- Install `@fastify/rate-limit` Redis store adapter: `npm install @fastify/rate-limit ioredis`
+- Update `app.js` rate limit registration:
+  ```js
+  import Redis from "ioredis";
+  const redis = env.redisUrl ? new Redis(env.redisUrl) : null;
+
+  await app.register(fastifyRateLimit, {
+    max: 300,
+    timeWindow: "1 minute",
+    redis,                        // null = falls back to in-memory (single server safe)
+    errorResponseBuilder: () => ({ ok: false, error: "Too many requests. Please slow down." })
+  });
+  ```
+- Verify: deploy 2 instances on Railway, hammer one instance past the limit, confirm the second instance also blocks (counters are shared)
+
+Step 3 — Replace in-memory session store with Redis
+- Replace `app.decorate("sessions", new Map())` with a Redis-backed session map
+- Replace `app.decorate("oauthStates", new Map())` with Redis keys with a short TTL
+- Verify: log in on one server instance, make an authenticated request that routes to a different instance, confirm session is still valid
+
+Step 4 — Add `REDIS_URL` to env schema
+- Update `lib/env.js` to read `REDIS_URL` (optional — falls back gracefully on single-server dev)
+- Verify: app starts without Redis locally (no `REDIS_URL` set), rate limiting still works via in-memory fallback
+
+**Verification checklist (before going multi-server):**
+- [ ] `REDIS_URL` present in Railway environment variables
+- [ ] Rate limit counters survive across server restarts (Redis persists them)
+- [ ] Authenticated session survives a request routed to a different instance
+- [ ] OAuth state token survives a callback routed to a different instance than the one that created it
+- [ ] App starts and runs correctly locally without `REDIS_URL` (in-memory fallback)
+
+**When to do this:**
+Not needed for the prototype or early production. Do this before Railway auto-scaling is enabled or before manually adding a second instance. A single Railway instance handles hundreds of concurrent users without needing this.
 
 ## 10. Verification Strategy
 

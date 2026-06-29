@@ -1,6 +1,6 @@
 import { buildApp } from "./app.js";
 import { getEnv } from "./lib/env.js";
-import { closeMongoConnection } from "./lib/mongo.js";
+import { closeMongoConnection } from "./lib/db/mongo.js";
 
 const env = getEnv();
 const app = await buildApp();

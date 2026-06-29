@@ -8,44 +8,43 @@ import fs from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 import { getEnv } from "./lib/env.js";
-import { readSession } from "./lib/session.js";
-import { registerAdminRoutes } from "./routes/admin.js";
-import { registerAuthRoutes } from "./routes/auth.js";
-import { registerDemoRoutes } from "./routes/demo.js";
-import { registerOwnerRoutes } from "./routes/owner.js";
-import { registerProviderRoutes } from "./routes/provider.js";
-import { registerPublicRoutes } from "./routes/public.js";
-import { registerRegistrationRoutes } from "./routes/registration.js";
-import { registerOtpAuthRoutes } from "./routes/otp-auth.js";
-import { registerGoogleAuthRoutes } from "./routes/google-auth.js";
-import { registerFirebasePhoneAuthRoute } from "./routes/firebase-phone-auth.js";
-import { registerPasswordResetRoutes } from "./routes/password-reset.js";
-import { registerRuntimeRoutes } from "./routes/runtime.js";
-import { registerShopRoutes } from "./routes/shop.js";
+import { readSession } from "./lib/auth/session.js";
+import { registerAdminRoutes } from "./routes/admin/index.js";
+import { registerAuthRoutes } from "./routes/auth/credentials.js";
+import { registerDemoRoutes } from "./routes/system/demo.js";
+import { registerOwnerRoutes } from "./routes/owner/dashboard.js";
+import { registerProviderRoutes } from "./routes/webhooks/exotel.js";
+import { registerPublicRoutes } from "./routes/public/index.js";
+import { registerRegistrationRoutes } from "./routes/owner/registration.js";
+import { registerOtpAuthRoutes } from "./routes/auth/otp.js";
+import { registerGoogleAuthRoutes } from "./routes/auth/google.js";
+import { registerFirebasePhoneAuthRoute } from "./routes/auth/firebase.js";
+import { registerPasswordResetRoutes } from "./routes/auth/password-reset.js";
+import { registerRuntimeRoutes } from "./routes/system/runtime.js";
+import { registerShopRoutes } from "./routes/shop/index.js";
 
 const currentFile = fileURLToPath(import.meta.url);
 const currentDir = path.dirname(currentFile);
 const frontendRoot = path.resolve(currentDir, "../frontend");
 const pagesRoot = path.join(frontendRoot, "pages");
-const scannerPage = path.join(pagesRoot, "index.html");
-const verifyPage = path.join(pagesRoot, "verify.html");
-const ownerPage = path.join(pagesRoot, "owner.html");
-const adminPage = path.join(pagesRoot, "admin.html");
-const adminOverviewPage = path.join(pagesRoot, "admin-overview.html");
-const adminEtagsPage = path.join(pagesRoot, "admin-etags.html");
-const adminIssuancePage = path.join(pagesRoot, "admin-issuance.html");
-const adminPrintQueuePage = path.join(pagesRoot, "admin-print-queue.html");
-const adminOwnersPage = path.join(pagesRoot, "admin-owners.html");
-const adminActivityPage = path.join(pagesRoot, "admin-activity.html");
-const adminAdminsPage = path.join(pagesRoot, "admin-admins.html");
-const registerOwnerPage = path.join(pagesRoot, "register-owner.html");
-const ownerLoginPage = path.join(pagesRoot, "owner-login.html");
+const scannerPage = path.join(pagesRoot, "scanner/index.html");
+const verifyPage = path.join(pagesRoot, "scanner/verify.html");
+const adminPage = path.join(pagesRoot, "admin/index.html");
+const adminOverviewPage = path.join(pagesRoot, "admin/overview.html");
+const adminEtagsPage = path.join(pagesRoot, "admin/etags.html");
+const adminIssuancePage = path.join(pagesRoot, "admin/issuance.html");
+const adminPrintQueuePage = path.join(pagesRoot, "admin/print-queue.html");
+const adminOwnersPage = path.join(pagesRoot, "admin/owners.html");
+const adminActivityPage = path.join(pagesRoot, "admin/activity.html");
+const adminAdminsPage = path.join(pagesRoot, "admin/admins.html");
+const registerOwnerPage = path.join(pagesRoot, "owner/register.html");
+const ownerLoginPage = path.join(pagesRoot, "owner/login.html");
 const hubPage = path.join(pagesRoot, "hub.html");
-const forgotPasswordPage = path.join(pagesRoot, "forgot-password.html");
-const resetPasswordPage = path.join(pagesRoot, "reset-password.html");
-const ownerVerifyPage = path.join(pagesRoot, "owner-verify.html");
-const ownerWelcomePage = path.join(pagesRoot, "owner-welcome.html");
-const ownerVehicleDetailPage = path.join(pagesRoot, "owner-vehicle-detail.html");
+const forgotPasswordPage = path.join(pagesRoot, "owner/forgot-password.html");
+const resetPasswordPage = path.join(pagesRoot, "owner/reset-password.html");
+const ownerVerifyPage = path.join(pagesRoot, "owner/verify.html");
+const ownerWelcomePage = path.join(pagesRoot, "owner/welcome.html");
+const ownerVehicleDetailPage = path.join(pagesRoot, "owner/vehicle-detail.html");
 const scannerAssetVersion = "parktag-ui-1";
 const hubAssetVersion = "hub-shell-1";
 
@@ -85,7 +84,7 @@ export async function buildApp() {
   });
 
   await app.register(fastifyRateLimit, {
-    max: 60,           // 60 requests
+    max: 200,
     timeWindow: "1 minute",
     errorResponseBuilder: () => ({
       ok: false,

@@ -362,6 +362,26 @@ Verification:
 - [ ] Run through the demo script once end to end
 - [ ] Confirm the repo has enough instructions for another contributor to reproduce the demo
 
+## M9. Tiered Rate Limiting — Per-Route Protection
+
+Tasks:
+
+- [ ] Raise global limit in `app.js` → `max: 200, timeWindow: "1 minute"` (was 60)
+- [ ] Add `config: { rateLimit: { max: 5, timeWindow: "1 minute" } }` to `POST /api/contact-requests` in `routes/public/index.js`
+- [ ] Add `config: { rateLimit: { max: 10, timeWindow: "1 minute" } }` to `POST /api/tags/:token/verify` in `routes/public/index.js`
+- [ ] Add `config: { rateLimit: { max: 10, timeWindow: "1 minute" } }` to `POST /api/auth/login` in `routes/auth/credentials.js`
+- [ ] Add `config: { rateLimit: { max: 5, timeWindow: "1 minute" } }` to `POST /api/auth/send-otp` in `routes/auth/otp.js`
+- [ ] Add `config: { rateLimit: { max: 5, timeWindow: "1 minute" } }` to `POST /api/auth/forgot-password` in `routes/auth/password-reset.js`
+
+Verification:
+
+- [ ] Click rapidly through all 7 admin navbar sections → no rate limit error
+- [ ] Scanner flow: verify plate → submit contact request → succeeds
+- [ ] Submit 6th contact request within 1 min → blocked with `Too many requests`
+- [ ] Submit 11th login attempt within 1 min → blocked with `Too many requests`
+- [ ] Submit 6th OTP request within 1 min → blocked before any OTP is sent
+- [ ] `GET /api/health` and `GET /api/runtime/status` respond normally throughout
+
 ## Current Focus
 
 - [x] Establish root workflow and tracking files

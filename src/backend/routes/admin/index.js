@@ -185,7 +185,7 @@ export function registerAdminRoutes(app, env) {
     const ownerSummaries = owners
       .map((owner) => {
       const ownerTags = tags.filter(
-        (tag) => tag.ownerId && String(tag.ownerId) === String(owner._id)
+        (tag) => tag.ownerId && String(tag.ownerId) === String(owner._id) && !tag.deletedAt
       );
 
       return {
@@ -368,7 +368,7 @@ export function registerAdminRoutes(app, env) {
       ok: true,
       owners: owners.map((owner) => {
         const ownerTags = tags.filter(
-          (tag) => tag.ownerId && String(tag.ownerId) === String(owner._id)
+          (tag) => tag.ownerId && String(tag.ownerId) === String(owner._id) && !tag.deletedAt
         );
         return {
           id: String(owner._id),

@@ -371,6 +371,28 @@ export function registerOwnerRoutes(app, env) {
     };
   });
 
+  app.delete("/api/owner/tags/:tagId", async (request, reply) => {
+    const blocked = await requireSession(app, "owner")(request, reply);
+    if (blocked) return blocked;
+
+    const collections = await getCollections(env);
+    const ownerId = toObjectId(request.session.userId);
+    const tagId = toObjectId(request.params.tagId);
+
+    const result = await collections.tags.findOneAndUpdate(
+      { _id: tagId, ownerId, deletedAt: { $in: [null, undefined] } },
+      { $set: { deletedAt: new Date().toISOString(), status: "inactive", updatedAt: new Date().toISOString() } },
+      { returnDocument: "after" }
+    );
+
+    if (!result) {
+      reply.code(404);
+      return { ok: false, error: "Tag not found" };
+    }
+
+    return { ok: true };
+  });
+
   app.post("/api/owner/set-password", async (request, reply) => {
     const blocked = await requireSession(app, "owner")(request, reply);
     if (blocked) return blocked;

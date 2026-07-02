@@ -403,6 +403,75 @@ Verification:
 - [ ] Sign out → go to `/owner-verify` → "Know your password? Sign in" → enter the password set above → logs in successfully
 - [ ] Confirm existing OTP-only owners (no password) are unaffected
 
+## M11. Owner Vehicle Management & Data Integrity
+
+Tasks:
+
+- [x] Add `DELETE /api/owner/tags/:tagId` route — soft delete sets `deletedAt` + `status: "inactive"` so the tag is invisible to all owner and admin queries
+- [x] Add "Remove Vehicle" button to the MORE tab on `/owner-vehicle-detail` — shows a confirmation dialog before deleting
+- [x] Handle localStorage-only vehicles in the remove flow — clears both the user-scoped key and `pt_pending_vehicles` without hitting the API
+- [x] Fix admin dashboard endpoint (`/api/admin/dashboard`) — `ownerTags` now filters `deletedAt` tags so owner tag and active counts are accurate
+- [x] Fix admin owners endpoint (`/api/admin/owners`) — same `deletedAt` filter applied so the owner list tag counts are accurate
+- [x] Add `syncLocalVehicles()` to `welcome.js` — fires silently after dashboard load, POSTs each localStorage-only vehicle to `/api/owner/local-vehicle`, removes from localStorage on success, then re-fetches dashboard and re-renders the grid with real tokens and QR codes
+- [x] Document new vehicle tag allocation and free contact policy in `PLAN.md` section 13
+
+Verification:
+
+- [x] Add a vehicle via `/register-owner` → appears on dashboard with real `PT-XXXXXXXX` tag id (not `DEMO-` prefix) after auto-sync
+- [x] Open a vehicle on dashboard → MORE tab → "Remove Vehicle" → confirm → vehicle disappears from dashboard
+- [x] Remove a vehicle → refresh admin dashboard → owner tag count decreases correctly (no longer counts deleted tag)
+- [ ] Simulate a failed API save during registration (temporarily break the route) → vehicle lands in localStorage → open dashboard → vehicle auto-syncs and gets a real token without any user action
+- [ ] Remove a vehicle → check MongoDB directly → confirm `deletedAt` is set and `status` is `"inactive"` (data preserved, not hard-deleted)
+- [ ] Owner dashboard never shows a vehicle with `deletedAt` set (soft-deleted tag is fully invisible to owner)
+
+## M12. New Vehicle Registration Flow — End-to-End
+
+Covers the complete flow when an existing owner adds a new vehicle, from the registration page through to a live active tag on the dashboard.
+
+### Step 1 — Owner fills the registration form (`/register-owner`)
+
+- [x] Owner selects vehicle type and enters plate number
+- [x] Plate is validated against Indian format (`DL 01 AB 1234`) before the vehicle is added to the in-page list
+- [x] Bicycle frame numbers are accepted with a relaxed 3-char minimum instead of the plate regex
+- [x] Duplicate plates are rejected (checked against both in-page list and localStorage)
+- [x] Owner enters a mobile number (pre-filled and read-only if already saved on the account)
+- [x] Submitting with an unfilled type/plate in the input fields auto-adds the vehicle before proceeding
+
+### Step 2 — E-Tag popup and save
+
+- [x] On submit, the E-Tag popup appears showing a printable QR sticker for the first vehicle
+- [x] "Download E-Tag" → calls `saveVehicles()` which POSTs each vehicle to `POST /api/owner/local-vehicle` → creates a real tag in MongoDB with `status: "active"`, `freeContactUsed: false`, `premium: false`
+- [x] "Skip" → same `saveVehicles()` call, no print dialog
+- [x] If the API call fails (network drop etc.) → `savePendingVehicles()` stores the vehicle in `localStorage` as a fallback
+- [x] `POST /api/owner/local-vehicle` is idempotent — re-adding the same plate returns `409` and reuses the existing tag (never duplicates)
+
+### Step 3 — Dashboard load and auto-sync
+
+- [x] Owner lands on `/owner-welcome` after registration
+- [x] Dashboard fetches `/api/owner/dashboard` → returns all active (non-deleted) tags for this owner
+- [x] If any vehicles are localStorage-only (API save failed in step 2), `syncLocalVehicles()` fires silently in the background
+- [x] `syncLocalVehicles()` retries `POST /api/owner/local-vehicle` for each localStorage vehicle → on success removes it from localStorage and re-renders the grid with the real tag data
+- [x] New vehicle appears on the dashboard with a real `PT-XXXXXXXX` tag id and a scannable QR code
+
+### Step 4 — Tag lifecycle after registration
+
+- [x] New tag starts with `freeContactUsed: false` — one free masked contact is available immediately
+- [x] `contactAvailable` on the public tag page reflects `premium OR NOT freeContactUsed`
+- [x] After the first scanner contact is made, the backend sets `freeContactUsed: true` — subsequent contact attempts return `402 FREE_USED`
+- [x] Owner must purchase the official physical sticker (premium) to unlock unlimited contact for that vehicle
+- [x] Each vehicle has its own independent free contact slot — adding a new vehicle never affects other vehicles
+
+### Verification
+
+- [x] Register a new vehicle as an existing owner → vehicle appears on dashboard with real tag id (not `DEMO-` prefix)
+- [x] Same plate registered twice → second attempt returns 409, only one tag exists in DB
+- [x] Two different vehicles registered → each gets its own independent tag and QR
+- [ ] Simulate API failure during registration → vehicle lands in localStorage → open dashboard → vehicle auto-syncs silently and real token appears without any manual action
+- [ ] Scan the new vehicle QR as a public user → contact succeeds → `freeContactUsed` becomes `true`
+- [ ] Try a second contact on the same tag → page shows `contactAvailable: false`, server returns `402 FREE_USED`
+- [ ] Purchase premium on the tag → second contact now succeeds (premium bypasses `freeContactUsed` gate)
+- [ ] Admin dashboard shows correct tag count for the owner after adding the new vehicle
+
 ## Current Focus
 
 - [x] Establish root workflow and tracking files
@@ -414,8 +483,8 @@ Verification:
 - [x] Verify the hosted demo-flow backend slice end to end on Render
 - [x] Start replacing the combined debug page with a real scanner-facing public entry point
 - [x] Start replacing the shared verify page responsibilities with dedicated owner/admin surfaces
+- [x] Switch working direction to `PLAN.md` instead of revising `docs/RFA_SPEC.md`
+- [x] Lock the chosen stack to `Fastify + MongoDB + simple HTML/CSS/JS`
 - [ ] Track hosted backend, authentication, authorization, security, and cross-device browser support as first-class MVP work
 - [ ] Make verification UI-driven wherever practical so the product stays easy to validate as it grows
 - [ ] Simplify the prototype stack and remove Redis-style optimization assumptions from the working plan
-- [x] Switch working direction to `PLAN.md` instead of revising `docs/RFA_SPEC.md`
-- [x] Lock the chosen stack to `Fastify + MongoDB + simple HTML/CSS/JS`

@@ -153,6 +153,36 @@ setTimeout(() => {
   }
 }, 600);
 
+// ── Remove Vehicle ────────────────────────────────────────────
+document.getElementById("remove-vehicle-btn")?.addEventListener("click", async () => {
+  if (!confirm(`Remove ${plate} from your account? This cannot be undone.`)) return;
+  const btn = document.getElementById("remove-vehicle-btn");
+  btn.disabled = true;
+  btn.textContent = "Removing…";
+
+  if (realId) {
+    try {
+      const res = await fetch(`/api/owner/tags/${realId}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) { alert(data.error || "Could not remove vehicle."); btn.disabled = false; btn.textContent = "Remove Vehicle"; return; }
+    } catch { alert("Network error. Please try again."); btn.disabled = false; btn.textContent = "Remove Vehicle"; return; }
+  } else {
+    // localStorage-only vehicle — remove from both storage keys
+    try {
+      const uid = sessionStorage.getItem("pt_uid");
+      if (uid) {
+        const key = "pt_vehicles_" + uid.replace(/[^a-z0-9]/gi, "_").toLowerCase();
+        const arr = JSON.parse(localStorage.getItem(key) || "[]");
+        localStorage.setItem(key, JSON.stringify(arr.filter(v => (v.number || "").toUpperCase() !== plate.toUpperCase())));
+      }
+      const pend = JSON.parse(localStorage.getItem("pt_pending_vehicles") || "[]");
+      localStorage.setItem("pt_pending_vehicles", JSON.stringify(pend.filter(v => (v.number || "").toUpperCase() !== plate.toUpperCase())));
+    } catch {}
+  }
+
+  window.location.href = "/owner-welcome";
+});
+
 // ── Download E-Tag ────────────────────────────────────────────
 document.getElementById("download-etag-btn")?.addEventListener("click", () => {
   const el = document.getElementById("print-vehicle-num");

@@ -224,6 +224,54 @@ function mergePendingVehicles(userId) {
   } catch {}
 }
 
+// ── Auto-sync localStorage-only vehicles to the DB ───────────────
+// Fires silently after the grid renders. For each vehicle that exists only in
+// localStorage (e.g. API save failed during registration, or DB was reseeded),
+// it retries POST /api/owner/local-vehicle. On success the vehicle gets a real
+// token + QR; the localStorage entry is removed and the grid re-renders with
+// the real tag data.
+async function syncLocalVehicles(localVehicles, userId) {
+  let synced = false;
+  for (const v of localVehicles) {
+    const number = (v.number || v.plateNumber || "").trim().toUpperCase();
+    const type   = v.type || v.vehicleType || null;
+    if (!number) continue;
+    try {
+      const res = await fetch("/api/owner/local-vehicle", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ type, number })
+      });
+      if (res.ok || res.status === 409) {
+        try {
+          const key = userKey(userId);
+          const arr = JSON.parse(localStorage.getItem(key) || "[]");
+          localStorage.setItem(key, JSON.stringify(arr.filter(s => (s.number || "").toUpperCase() !== number)));
+        } catch {}
+        try {
+          const arr = JSON.parse(localStorage.getItem("pt_pending_vehicles") || "[]");
+          localStorage.setItem("pt_pending_vehicles", JSON.stringify(arr.filter(s => (s.number || "").toUpperCase() !== number)));
+        } catch {}
+        synced = true;
+      }
+    } catch {}
+  }
+  if (!synced) return;
+  try {
+    const res = await fetch("/api/owner/dashboard");
+    if (!res.ok) return;
+    const data = await res.json();
+    const seen = new Set();
+    allTags = (data.tags || []).filter(t => {
+      const p = (t.plateNumber || "").toUpperCase();
+      if (!p || seen.has(p)) return false;
+      seen.add(p);
+      return true;
+    });
+    renderGrid(allTags, true);
+  } catch {}
+}
+
 // ── Load data ─────────────────────────────────────────────────────
 async function load() {
   grid.innerHTML = skeletonGrid(3);
@@ -313,6 +361,7 @@ async function load() {
 
     allTags = [...localOnly, ...dedupedApi];
     renderGrid(allTags, true);
+    if (localOnly.length > 0) syncLocalVehicles(localOnly, userId);
   } catch {
     grid.innerHTML = `
       <div role="alert" style="grid-column:1/-1;text-align:center;padding:28px 16px 12px">

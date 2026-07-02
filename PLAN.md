@@ -383,6 +383,36 @@ Build in this order:
 7. validate telephony and WhatsApp recovery behavior
 8. deploy and rehearse the demo
 
+## 13. New Vehicle Registration & Tag Allocation Policy
+
+When an existing owner registers an additional vehicle, the system follows the same tag allocation flow as first-time registration. Each vehicle always gets exactly one real E-Tag.
+
+### How it works
+
+1. Owner visits `/register-owner` and enters a new vehicle type and plate number.
+2. On submit, the backend calls `createEtagForVehicle()` which creates a new tag document in MongoDB with:
+   - a unique 256-bit secure token
+   - `status: "active"`
+   - `freeContactUsed: false`
+   - `premium: false`
+   - `purchaseStatus: "none"`
+3. The new tag appears immediately on the owner dashboard alongside any existing vehicles.
+4. If the API save fails during registration (network error etc.), the vehicle is temporarily stored in `localStorage` and auto-synced to the database on the next dashboard load.
+
+### Free contact rule (per vehicle, per tag)
+
+Each E-Tag includes **one free masked contact**:
+
+- A scanner scans the QR and contacts the owner → `freeContactUsed` is set to `true`.
+- The next scanner who tries to contact gets blocked with a `402 FREE_USED` response.
+- The contact page shows `contactAvailable: false` for that tag.
+- The owner must purchase the official physical sticker (premium upgrade) to unlock unlimited contact for that vehicle.
+- Purchasing premium sets `premium: true` on the tag, which bypasses the `freeContactUsed` gate permanently.
+
+### Key rule
+
+This applies **per vehicle**. Each additional vehicle the owner registers gets its own fresh `freeContactUsed: false` — the free contact is not shared or carried over from other vehicles. Adding a new vehicle always starts a new free contact slot for that vehicle.
+
 ## 12. Living Document Rule
 
 Keep this file updated as the prototype direction changes.

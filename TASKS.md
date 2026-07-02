@@ -21,6 +21,7 @@ Rules:
 - [ ] M6. Harden web security and authorization boundaries
 - [ ] M7. Verify telephony and fallback messaging behavior
 - [ ] M8. Prepare deployment, demo, docs, and operator runbook
+- [x] M9. Tiered rate limiting — per-route protection
 
 ## M1. Confirm MVP Scope And Repo Workflow
 
@@ -366,21 +367,41 @@ Verification:
 
 Tasks:
 
-- [ ] Raise global limit in `app.js` → `max: 200, timeWindow: "1 minute"` (was 60)
-- [ ] Add `config: { rateLimit: { max: 5, timeWindow: "1 minute" } }` to `POST /api/contact-requests` in `routes/public/index.js`
-- [ ] Add `config: { rateLimit: { max: 10, timeWindow: "1 minute" } }` to `POST /api/tags/:token/verify` in `routes/public/index.js`
-- [ ] Add `config: { rateLimit: { max: 10, timeWindow: "1 minute" } }` to `POST /api/auth/login` in `routes/auth/credentials.js`
-- [ ] Add `config: { rateLimit: { max: 5, timeWindow: "1 minute" } }` to `POST /api/auth/send-otp` in `routes/auth/otp.js`
-- [ ] Add `config: { rateLimit: { max: 5, timeWindow: "1 minute" } }` to `POST /api/auth/forgot-password` in `routes/auth/password-reset.js`
+- [x] Raise global limit in `app.js` → `max: 200, timeWindow: "1 minute"` (was 60)
+- [x] Add `config: { rateLimit: { max: 5, timeWindow: "1 minute" } }` to `POST /api/contact-requests` in `routes/public/index.js`
+- [x] Add `config: { rateLimit: { max: 10, timeWindow: "1 minute" } }` to `POST /api/tags/:token/verify` in `routes/public/index.js`
+- [x] Add `config: { rateLimit: { max: 10, timeWindow: "1 minute" } }` to `POST /api/auth/login` in `routes/auth/credentials.js`
+- [x] Add `config: { rateLimit: { max: 5, timeWindow: "1 minute" } }` to `POST /api/auth/send-otp` in `routes/auth/otp.js`
+- [x] Add `config: { rateLimit: { max: 5, timeWindow: "1 minute" } }` to `POST /api/auth/forgot-password` in `routes/auth/password-reset.js`
 
 Verification:
 
-- [ ] Click rapidly through all 7 admin navbar sections → no rate limit error
-- [ ] Scanner flow: verify plate → submit contact request → succeeds
+- [x] Click rapidly through all 7 admin navbar sections → no rate limit error
+- [x] Scanner flow: verify plate → submit contact request → succeeds
 - [ ] Submit 6th contact request within 1 min → blocked with `Too many requests`
 - [ ] Submit 11th login attempt within 1 min → blocked with `Too many requests`
 - [ ] Submit 6th OTP request within 1 min → blocked before any OTP is sent
-- [ ] `GET /api/health` and `GET /api/runtime/status` respond normally throughout
+- [x] `GET /api/health` and `GET /api/runtime/status` respond normally throughout
+
+## M10. Owner Password Registration Path (Testing / Client Decision Pending)
+
+> Added for internal testing. Client will decide whether to keep OTP-only or offer password as an alternative login method after confirming with the team.
+
+Tasks:
+
+- [x] Add `POST /api/owner/set-password` route in `routes/owner/dashboard.js` — requires owner session, min 8 chars, hashes and stores password
+- [x] Add "Set a password" step to `/owner-verify` page — shown automatically after OTP verification when `isNewUser === true`
+- [x] Add "Save & continue" button that calls `POST /api/owner/set-password` then redirects to `/owner-welcome`
+- [x] Add "Skip for now" button to bypass password and go straight to `/owner-welcome`
+- [x] Keep "Know your password? Sign in" option on `/owner-verify` for existing password holders (e.g. seeded demo owner)
+
+Verification:
+
+- [ ] Register a new owner via OTP → password step appears automatically after verification
+- [ ] Set a password → redirected to `/owner-welcome` successfully
+- [ ] Skip password → redirected to `/owner-welcome` without error
+- [ ] Sign out → go to `/owner-verify` → "Know your password? Sign in" → enter the password set above → logs in successfully
+- [ ] Confirm existing OTP-only owners (no password) are unaffected
 
 ## Current Focus
 

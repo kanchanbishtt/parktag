@@ -338,6 +338,26 @@ async function shareQr() {
   a.click();
 }
 
+async function loginWithPassword() {
+  const identifier = _currentPhone;
+  const password = byId("password-inp")?.value?.trim();
+  if (!identifier) { setStatus("Please go back and enter your email or mobile.", "error"); return; }
+  if (!password) { setStatus("Enter your password.", "error"); return; }
+  const btn = byId("password-login-btn");
+  if (btn) { btn.disabled = true; btn.classList.add("pt-btn-loading"); }
+  try {
+    await fetchJson("/api/auth/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ role: "owner", email: identifier, password })
+    });
+    window.location.href = "/owner-welcome";
+  } catch (error) {
+    if (btn) { btn.disabled = false; btn.classList.remove("pt-btn-loading"); }
+    setStatus(error instanceof Error ? error.message : "Sign in failed.", "error");
+  }
+}
+
 // Show error from Google OAuth redirect (e.g. ?error=google_cancelled)
 const urlError = new URLSearchParams(location.search).get("error");
 if (urlError && hasEl("owner-auth-status")) {
@@ -375,6 +395,25 @@ if (hasEl("phone-back-btn")) {
     if (btn) { btn.disabled = false; btn.classList.remove("pt-btn-loading"); }
     const sub = byId("card-sub");
     if (sub) { sub.innerHTML = "Enter your email or mobile number and we'll send you a verification code."; sub.style.marginBottom = "20px"; }
+  });
+}
+if (hasEl("use-password-btn")) {
+  byId("use-password-btn").addEventListener("click", () => {
+    byId("phone-step2").style.display = "none";
+    byId("password-step").style.display = "";
+    byId("password-inp").focus();
+    setStatus("", "info");
+  });
+}
+if (hasEl("password-login-btn")) byId("password-login-btn").addEventListener("click", loginWithPassword);
+if (hasEl("password-inp")) byId("password-inp").addEventListener("keydown", e => { if (e.key === "Enter") loginWithPassword(); });
+if (hasEl("password-back-btn")) {
+  byId("password-back-btn").addEventListener("click", e => {
+    e.preventDefault();
+    byId("password-step").style.display = "none";
+    byId("phone-step2").style.display = "";
+    byId("password-inp").value = "";
+    setStatus("", "info");
   });
 }
 if (hasEl("owner-logout-button")) byId("owner-logout-button").addEventListener("click", logoutOwner);

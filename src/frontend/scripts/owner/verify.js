@@ -58,6 +58,13 @@ async function verify() {
     });
     sessionStorage.removeItem("pt_otp_identifier");
     sessionStorage.setItem("pt_is_new_user", result.isNewUser ? "1" : "0");
+    if (result.isNewUser) {
+      document.querySelector(".pt-form").style.display = "none";
+      byId("verify-status").textContent = "";
+      byId("set-password-step").style.display = "";
+      byId("set-password-inp").focus();
+      return;
+    }
     window.location.href = "/owner-welcome";
   } catch (error) {
     if (btn) { btn.disabled = false; btn.classList.remove("pt-btn-loading"); }
@@ -83,9 +90,57 @@ async function resend() {
   }
 }
 
+async function loginWithPassword() {
+  const password = byId("password-inp")?.value?.trim();
+  if (!identifier) { setStatus("Session expired. Please go back and sign in again.", "error"); return; }
+  if (!password) { setStatus("Enter your password.", "error"); return; }
+  const btn = byId("password-login-btn");
+  if (btn) { btn.disabled = true; btn.classList.add("pt-btn-loading"); }
+  try {
+    await fetchJson("/api/auth/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ role: "owner", email: identifier, password })
+    });
+    sessionStorage.removeItem("pt_otp_identifier");
+    window.location.href = "/owner-welcome";
+  } catch (error) {
+    if (btn) { btn.disabled = false; btn.classList.remove("pt-btn-loading"); }
+    setStatus(error instanceof Error ? error.message : "Sign in failed.", "error");
+  }
+}
+
+async function setPassword() {
+  const password = byId("set-password-inp")?.value?.trim();
+  if (!password || password.length < 8) { setStatus("Password must be at least 8 characters.", "error"); return; }
+  const btn = byId("set-password-btn");
+  if (btn) { btn.disabled = true; btn.classList.add("pt-btn-loading"); }
+  try {
+    await fetchJson("/api/owner/set-password", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ password })
+    });
+    window.location.href = "/owner-welcome";
+  } catch (error) {
+    if (btn) { btn.disabled = false; btn.classList.remove("pt-btn-loading"); }
+    setStatus(error instanceof Error ? error.message : "Failed to set password.", "error");
+  }
+}
+
 byId("verify-button")?.addEventListener("click", verify);
 byId("resend-button")?.addEventListener("click", resend);
+byId("verify-code")?.addEventListener("keydown", (e) => { if (e.key === "Enter") verify(); });
 
-byId("verify-code")?.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") verify();
+byId("use-password-btn")?.addEventListener("click", () => {
+  document.querySelector(".pt-form").style.display = "none";
+  byId("use-password-row").style.display = "none";
+  byId("password-step").style.display = "";
+  byId("password-inp").focus();
+  setStatus("", "info");
 });
+byId("password-login-btn")?.addEventListener("click", loginWithPassword);
+byId("password-inp")?.addEventListener("keydown", (e) => { if (e.key === "Enter") loginWithPassword(); });
+byId("set-password-btn")?.addEventListener("click", setPassword);
+byId("set-password-inp")?.addEventListener("keydown", (e) => { if (e.key === "Enter") setPassword(); });
+byId("skip-password-btn")?.addEventListener("click", () => { window.location.href = "/owner-welcome"; });

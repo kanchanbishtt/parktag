@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -36,8 +36,31 @@
         </div>
 
         <p id="verify-status" class="pt-status" data-tone="info" style="padding:12px 0 0;text-align:center"></p>
+
+        <div id="set-password-step" style="display:none;margin-top:4px">
+          <label class="pt-field">
+            <span>Set a password <span style="font-weight:400;color:#9CA3AF">(optional)</span></span>
+            <input id="set-password-inp" type="password" class="pt-input" placeholder="Min. 8 characters" autocomplete="new-password"/>
+          </label>
+          <button id="set-password-btn" class="pt-btn pt-btn-primary pt-btn-full" style="margin-top:8px">Save & continue</button>
+          <p style="text-align:center;font-size:0.85rem;color:#6B7280;margin-top:10px">
+            <button id="skip-password-btn" style="background:none;border:none;color:#6B7280;font-size:0.85rem;cursor:pointer;padding:0;font-family:inherit;text-decoration:underline;text-underline-offset:2px">Skip for now</button>
+          </p>
+        </div>
+
+        <div id="password-step" style="display:none;margin-top:12px">
+          <label class="pt-field">
+            <span>Password</span>
+            <input id="password-inp" type="password" class="pt-input" placeholder="Enter your password" autocomplete="current-password"/>
+          </label>
+          <button id="password-login-btn" class="pt-btn pt-btn-primary pt-btn-full" style="margin-top:8px">Sign in</button>
+        </div>
+
         <p style="text-align:center;font-size:0.85rem;color:#6B7280;margin-top:12px">
           Didn't receive a code? <button id="resend-button" class="pt-btn" style="display:inline;background:none;border:none;color:#FF2700;font-weight:700;font-size:0.85rem;cursor:pointer;padding:0;font-family:inherit">Resend</button>
+        </p>
+        <p id="use-password-row" style="text-align:center;font-size:0.85rem;color:#6B7280;margin-top:6px">
+          Know your password? <button id="use-password-btn" style="display:inline;background:none;border:none;color:#FF2700;font-weight:700;font-size:0.85rem;cursor:pointer;padding:0;font-family:inherit">Sign in</button>
         </p>
         <p style="text-align:center;font-size:0.85rem;margin-top:8px">
           <a href="/owner" style="color:#FF2700;font-weight:600">← Back to sign in</a>

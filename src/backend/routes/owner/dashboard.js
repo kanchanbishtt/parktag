@@ -1,4 +1,5 @@
 import { requireSession, toObjectId } from "../../lib/auth/auth.js";
+import { createPasswordHash } from "../../lib/auth/security.js";
 import { getCollections } from "../../lib/db/repositories.js";
 import { createQrDataUrl, createPrintQrDataUrl } from "../../lib/core/qr-output.js";
 import { createEtagForVehicle, buildTagScanUrl, VEHICLE_LABELS, etagIdFor } from "../../lib/core/tag-issuance.js";
@@ -369,4 +370,24 @@ export function registerOwnerRoutes(app, env) {
       }
     };
   });
+
+  app.post("/api/owner/set-password", async (request, reply) => {
+    const blocked = await requireSession(app, "owner")(request, reply);
+    if (blocked) return blocked;
+
+    const { password } = request.body || {};
+    if (!password || password.length < 8) {
+      reply.code(400);
+      return { ok: false, error: "Password must be at least 8 characters" };
+    }
+
+    const collections = await getCollections(env);
+    const hash = await createPasswordHash(password);
+    await collections.owners.updateOne(
+      { _id: toObjectId(request.session.userId) },
+      { $set: { passwordHash: hash } }
+    );
+    return { ok: true };
+  });
+
 }

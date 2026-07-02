@@ -125,8 +125,23 @@
             Didn't receive the code?
             <button id="phone-resend-btn" style="background:none;border:none;color:#FF2700;font-weight:700;font-size:0.85rem;cursor:pointer;padding:0;font-family:inherit">Resend</button>
           </p>
+          <p style="text-align:center;margin-top:8px;margin-bottom:0;font-size:0.85rem;color:#6B7280">
+            Know your password?
+            <button id="use-password-btn" style="background:none;border:none;color:#FF2700;font-weight:700;font-size:0.85rem;cursor:pointer;padding:0;font-family:inherit">Sign in with password</button>
+          </p>
           <p style="text-align:center;margin-top:8px;margin-bottom:0">
             <a href="#" id="phone-back-btn" style="font-size:0.85rem;color:#FF2700;font-weight:600;text-decoration:none">← Back to sign in</a>
+          </p>
+        </div>
+
+        <div id="password-step" style="display:none;margin-top:4px">
+          <label class="pt-field">
+            <span>Password</span>
+            <input id="password-inp" type="password" class="pt-input" placeholder="Enter your password" autocomplete="current-password"/>
+          </label>
+          <button id="password-login-btn" class="pt-btn pt-btn-primary pt-btn-full" style="margin-top:8px">Sign in</button>
+          <p style="text-align:center;margin-top:12px;margin-bottom:0">
+            <a href="#" id="password-back-btn" style="font-size:0.85rem;color:#FF2700;font-weight:600;text-decoration:none">← Back to verification code</a>
           </p>
         </div>
 

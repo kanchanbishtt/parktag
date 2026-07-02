@@ -472,6 +472,103 @@ Covers the complete flow when an existing owner adds a new vehicle, from the reg
 - [ ] Purchase premium on the tag → second contact now succeeds (premium bypasses `freeContactUsed` gate)
 - [ ] Admin dashboard shows correct tag count for the owner after adding the new vehicle
 
+## M13. Exotel Inbound Call Flow (Connect-to-Flow)
+
+> Replaces the old two-leg outbound call. Scanner now dials the owner themselves via a virtual Exotel number. Backend provides a "Dial Whom" webhook that Exotel hits to resolve the correct owner number dynamically. The same architecture also powers the owner callback flow — owner dials the same virtual number to reach the scanner.
+
+### Architecture decision
+- [ ] Remove reliance on `triggerExotelCall` outbound API for the call action — backend no longer initiates the call
+- [ ] Add `EXOTEL_VIRTUAL_NUMBER` to `lib/env.js` and `.env` — this is the number both scanner and owner dial
+- [ ] Use a unified `pendingCalls` schema with `callerPhone` (who dials the virtual number) and `targetPhone` (who Exotel connects them to) — works for both directions
+
+### Backend — pending call schema (both directions)
+
+Both `register-call` and owner callback store the same shape:
+
+```
+{
+  callerPhone:  <who dials the virtual number>,
+  targetPhone:  <who Exotel should connect to>,
+  token:        <tag token>,
+  ownerId:      <ObjectId>,
+  type:         "scanner_to_owner" | "owner_to_scanner",
+  requestId:    <contactRequest ObjectId, set for owner_to_scanner>,
+  consumed:     false,
+  expiresAt:    <now + 10 min>   ← TTL index auto-deletes this
+}
+```
+
+Dial Whom always looks up by `callerPhone` — no special casing needed.
+
+### Backend — scanner call registration (public)
+- [ ] Add `POST /api/tags/:token/register-call` route in `routes/public/index.js` — checks `freeContactUsed` gate, resolves token → owner phone, stores `{ callerPhone: scannerPhone, targetPhone: ownerPhone, type: "scanner_to_owner" }` in `pendingCalls`, returns `{ ok: true, virtualNumber }`
+- [ ] Add rate limit `max: 5, timeWindow: "1 minute"` to `POST /api/tags/:token/register-call`
+- [ ] Add MongoDB TTL index on `pendingCalls.expiresAt` so undialled records auto-delete after 10 minutes
+- [ ] Create contact request record at registration time and set `freeContactUsed: true` on the tag
+- [ ] Mark pending call record `consumed: true` after Dial Whom lookup to prevent same record routing two calls
+
+### Backend — owner callback registration (authenticated)
+- [ ] Add `POST /api/owner/callback/register-call` route in `routes/owner/dashboard.js` — requires owner session
+- [ ] Get `ownerPhone` from session → `owners` collection (`owner.mobile`) — no phone input from the owner
+- [ ] Block with `402` if `owner.mobile` is not set — prompt owner to add phone first
+- [ ] Query `contactRequests` for the most recent record for this `ownerId` where `phone` exists and `createdAt >= now - 60min`
+- [ ] Return `410 CALLBACK_WINDOW_EXPIRED` if no contact request exists within the 60-minute window
+- [ ] Store `{ callerPhone: ownerPhone, targetPhone: scannerPhone, type: "owner_to_scanner", requestId }` in `pendingCalls`
+- [ ] Return `{ ok: true, virtualNumber }` — same virtual number as scanner flow
+
+### Backend — Dial Whom webhook
+- [ ] Add `GET /api/exotel/dial-whom` public endpoint in `routes/webhooks/exotel.js` — reads `CallFrom` query param (A-party from Exotel), looks up unconsumed `pendingCalls` record by `callerPhone`, returns `targetPhone` in Exotel's expected format
+- [ ] Confirm exact Exotel Dial Whom response format (plain text number vs XML ExoML) from App Bazaar docs before implementing
+- [ ] Return a safe fallback (busy/unavailable instruction) if no pending record matches the incoming caller number
+- [ ] Log unmatched Dial Whom hits for debugging without writing phone numbers to logs
+
+### Backend — status callback update
+- [ ] Update `routes/webhooks/exotel.js` to handle inbound call status events and link them to the correct contact request record by call SID or caller phone
+
+### Frontend — scanner call button
+- [ ] Replace current call trigger (`POST /api/contact-requests` with `action: "call"`) with two-step flow: 1) `POST /api/tags/:token/register-call` → 2) open `tel:<virtualNumber>` on success
+- [ ] Remove "waiting for a call back" UI state — scanner is making the call, not receiving one
+- [ ] Show the virtual number visibly on screen as a fallback in case `tel:` link does not auto-open the dialer
+- [ ] Add a "Tap to call" button styled as the primary CTA that opens `tel:<virtualNumber>`
+- [ ] Handle `register-call` API failure gracefully — show clear error, do not open dialer
+- [ ] Scanner phone number field remains required — it is the Dial Whom lookup key
+
+### Frontend — owner callback button (dashboard)
+- [ ] Add a "Call Back" button on each contact request card in the owner dashboard (only shown when `phone` is present on the request)
+- [ ] Button calls `POST /api/owner/callback/register-call` (no body — phone comes from owner's profile)
+- [ ] On success, open `tel:<virtualNumber>` — same native dialer flow as scanner
+- [ ] If `owner.mobile` is not set, show inline prompt "Add your phone number to enable callback" linking to profile settings
+- [ ] Show `410` response as "No recent contact to call back — the 60-minute window has passed"
+- [ ] Button enters loading state while awaiting the API response — never open dialer before success
+
+### Exotel App Bazaar — manual configuration (one-time)
+- [ ] Create a Passthru app in App Bazaar with Dial Whom URL → `GET https://<deployed-domain>/api/exotel/dial-whom`
+- [ ] Set StatusCallback URL → `POST https://<deployed-domain>/api/provider/exotel/webhook` (already live)
+- [ ] Assign an ExoPhone virtual number to this Passthru app — copy the number into `EXOTEL_VIRTUAL_NUMBER` env var
+- [ ] Test the App Bazaar flow in sandbox mode before going live
+
+### Verification — scanner → owner
+- [ ] Scanner enters phone, clicks "Call Owner" → `register-call` returns virtual number → native dialer opens with virtual number pre-filled
+- [ ] Scanner dials virtual number → Exotel hits `GET /api/exotel/dial-whom` with scanner's number → backend returns correct owner phone
+- [ ] Call connects: scanner ↔ owner, neither sees the other's real number (both see Exotel's masked number)
+- [ ] Contact request record is created in DB immediately when scanner clicks Call (before they even dial)
+- [ ] `freeContactUsed` is `true` on the tag immediately after `register-call` succeeds
+- [ ] Pending call record is consumed after Dial Whom lookup — same scanner number cannot route a second call with the same record
+- [ ] Stale pending call (registered but never dialled) → auto-deleted by TTL index after 10 minutes
+- [ ] Second call attempt on same tag where `freeContactUsed: true` → `register-call` returns `402 FREE_USED` before dialer opens
+- [ ] Premium tag with `freeContactUsed: true` → `register-call` still succeeds and opens dialer (premium bypasses gate permanently)
+- [ ] Unmatched Dial Whom hit (no pending record) → safe fallback response, no crash, no phone number in logs
+- [ ] Admin dashboard shows contact request with correct action (`call`) and updated status after call completes
+
+### Verification — owner → scanner callback
+- [ ] Scanner contacts owner → "Call Back" button appears on that contact request in the owner dashboard
+- [ ] Owner taps "Call Back" within 60 minutes → `register-call` succeeds → native dialer opens with virtual number pre-filled
+- [ ] Owner dials virtual number → Exotel hits Dial Whom with owner's phone → backend returns scanner's phone → call bridges correctly
+- [ ] Owner taps "Call Back" after 60 minutes → `410 CALLBACK_WINDOW_EXPIRED` → UI shows "window has passed" message, dialer does not open
+- [ ] Second scanner contacts owner at 2:30pm, first scanner contacted at 2:00pm → "Call Back" at 2:45pm connects to the second (most recent) scanner
+- [ ] Owner has no `mobile` set → "Call Back" button disabled with prompt to add phone number
+- [ ] Callback pendingCalls record is consumed after Dial Whom — owner cannot route two calls from one registration
+
 ## Current Focus
 
 - [x] Establish root workflow and tracking files

@@ -213,6 +213,48 @@ Avoid adding more infrastructure unless the prototype is blocked without it.
 5. Backend records the immediate API response and later delivery or failure updates from the webhook.
 6. Owner and admin dashboards show message-attempt state without exposing unsafe internal secrets.
 
+### Flow I: Owner Callback Flow
+
+1. A scanner contacts the owner (contact request is stored in `contactRequests` with the scanner's phone).
+2. Owner opens the dashboard and sees the contact request.
+3. Owner taps "Call Back" — no phone input required. Owner's phone comes from `owner.mobile` on their profile.
+4. Frontend calls `POST /api/owner/callback/register-call` (authenticated). No body needed.
+5. Backend checks that a contact request for this owner exists with `createdAt >= now - 60min`. If not, returns `410 CALLBACK_WINDOW_EXPIRED`.
+6. Backend picks the **most recent** contact request within the 60-minute window as the callback target.
+7. Backend stores a pending call record `{ callerPhone: ownerPhone, targetPhone: scannerPhone, type: "owner_to_scanner", expiresAt: +10min }`.
+8. Backend returns `{ virtualNumber }` — the same shared Exotel ExoPhone used by the scanner flow.
+9. Frontend opens `tel:<virtualNumber>` — native phone dialer with the virtual number pre-filled.
+10. Owner dials. Exotel receives the call with owner's phone as the A-party.
+11. Exotel hits `GET /api/exotel/dial-whom?CallFrom=<ownerPhone>`.
+12. Backend looks up `pendingCalls` by `callerPhone` → returns `targetPhone` (scanner's phone). Marks record `consumed: true`.
+13. Exotel bridges the call: owner ↔ scanner. Neither side sees the other's real number.
+
+#### 60-minute window rules
+
+- The window is measured from the scanner's `contactRequest.createdAt`, not from when the owner opens the dashboard.
+- If multiple scanners contact the owner within the window, the callback always targets the **most recent** one.
+- After 60 minutes with no new contact, the "Call Back" button returns `410` and the UI shows a "window has passed" message.
+- When a new scanner contacts the owner, the 60-minute window resets to that scanner's contact time.
+
+#### Unified pendingCalls schema
+
+Both the scanner flow and the owner callback flow write to the same `pendingCalls` collection with the same shape:
+
+```
+{
+  callerPhone:  <whoever dials the virtual number>,
+  targetPhone:  <whoever Exotel connects them to>,
+  token:        <tag token>,
+  ownerId:      <ObjectId>,
+  type:         "scanner_to_owner" | "owner_to_scanner",
+  requestId:    <contactRequest ObjectId — set only for owner_to_scanner>,
+  consumed:     false,
+  expiresAt:    <now + 10 min>
+}
+```
+
+The `GET /api/exotel/dial-whom` webhook always looks up by `callerPhone = CallFrom`. No special casing is needed for direction — the schema handles both cases identically.
+
 ## 7. Security Direction
 
 For the prototype, keep security simple but real.

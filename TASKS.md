@@ -21,6 +21,7 @@ Rules:
 - [ ] M6. Harden web security and authorization boundaries
 - [ ] M7. Verify telephony and fallback messaging behavior
 - [ ] M8. Prepare deployment, demo, docs, and operator runbook
+- [x] M9. Tiered rate limiting — per-route protection
 
 ## M1. Confirm MVP Scope And Repo Workflow
 
@@ -362,6 +363,212 @@ Verification:
 - [ ] Run through the demo script once end to end
 - [ ] Confirm the repo has enough instructions for another contributor to reproduce the demo
 
+## M9. Tiered Rate Limiting — Per-Route Protection
+
+Tasks:
+
+- [x] Raise global limit in `app.js` → `max: 200, timeWindow: "1 minute"` (was 60)
+- [x] Add `config: { rateLimit: { max: 5, timeWindow: "1 minute" } }` to `POST /api/contact-requests` in `routes/public/index.js`
+- [x] Add `config: { rateLimit: { max: 10, timeWindow: "1 minute" } }` to `POST /api/tags/:token/verify` in `routes/public/index.js`
+- [x] Add `config: { rateLimit: { max: 10, timeWindow: "1 minute" } }` to `POST /api/auth/login` in `routes/auth/credentials.js`
+- [x] Add `config: { rateLimit: { max: 5, timeWindow: "1 minute" } }` to `POST /api/auth/send-otp` in `routes/auth/otp.js`
+- [x] Add `config: { rateLimit: { max: 5, timeWindow: "1 minute" } }` to `POST /api/auth/forgot-password` in `routes/auth/password-reset.js`
+
+Verification:
+
+- [x] Click rapidly through all 7 admin navbar sections → no rate limit error
+- [x] Scanner flow: verify plate → submit contact request → succeeds
+- [ ] Submit 6th contact request within 1 min → blocked with `Too many requests`
+- [ ] Submit 11th login attempt within 1 min → blocked with `Too many requests`
+- [ ] Submit 6th OTP request within 1 min → blocked before any OTP is sent
+- [x] `GET /api/health` and `GET /api/runtime/status` respond normally throughout
+
+## M10. Owner Password Registration Path (Testing / Client Decision Pending)
+
+> Added for internal testing. Client will decide whether to keep OTP-only or offer password as an alternative login method after confirming with the team.
+
+Tasks:
+
+- [x] Add `POST /api/owner/set-password` route in `routes/owner/dashboard.js` — requires owner session, min 8 chars, hashes and stores password
+- [x] Add "Set a password" step to `/owner-verify` page — shown automatically after OTP verification when `isNewUser === true`
+- [x] Add "Save & continue" button that calls `POST /api/owner/set-password` then redirects to `/owner-welcome`
+- [x] Add "Skip for now" button to bypass password and go straight to `/owner-welcome`
+- [x] Keep "Know your password? Sign in" option on `/owner-verify` for existing password holders (e.g. seeded demo owner)
+
+Verification:
+
+- [ ] Register a new owner via OTP → password step appears automatically after verification
+- [ ] Set a password → redirected to `/owner-welcome` successfully
+- [ ] Skip password → redirected to `/owner-welcome` without error
+- [ ] Sign out → go to `/owner-verify` → "Know your password? Sign in" → enter the password set above → logs in successfully
+- [ ] Confirm existing OTP-only owners (no password) are unaffected
+
+## M11. Owner Vehicle Management & Data Integrity
+
+Tasks:
+
+- [x] Add `DELETE /api/owner/tags/:tagId` route — soft delete sets `deletedAt` + `status: "inactive"` so the tag is invisible to all owner and admin queries
+- [x] Add "Remove Vehicle" button to the MORE tab on `/owner-vehicle-detail` — shows a confirmation dialog before deleting
+- [x] Handle localStorage-only vehicles in the remove flow — clears both the user-scoped key and `pt_pending_vehicles` without hitting the API
+- [x] Fix admin dashboard endpoint (`/api/admin/dashboard`) — `ownerTags` now filters `deletedAt` tags so owner tag and active counts are accurate
+- [x] Fix admin owners endpoint (`/api/admin/owners`) — same `deletedAt` filter applied so the owner list tag counts are accurate
+- [x] Add `syncLocalVehicles()` to `welcome.js` — fires silently after dashboard load, POSTs each localStorage-only vehicle to `/api/owner/local-vehicle`, removes from localStorage on success, then re-fetches dashboard and re-renders the grid with real tokens and QR codes
+- [x] Document new vehicle tag allocation and free contact policy in `PLAN.md` section 13
+
+Verification:
+
+- [x] Add a vehicle via `/register-owner` → appears on dashboard with real `PT-XXXXXXXX` tag id (not `DEMO-` prefix) after auto-sync
+- [x] Open a vehicle on dashboard → MORE tab → "Remove Vehicle" → confirm → vehicle disappears from dashboard
+- [x] Remove a vehicle → refresh admin dashboard → owner tag count decreases correctly (no longer counts deleted tag)
+- [ ] Simulate a failed API save during registration (temporarily break the route) → vehicle lands in localStorage → open dashboard → vehicle auto-syncs and gets a real token without any user action
+- [ ] Remove a vehicle → check MongoDB directly → confirm `deletedAt` is set and `status` is `"inactive"` (data preserved, not hard-deleted)
+- [ ] Owner dashboard never shows a vehicle with `deletedAt` set (soft-deleted tag is fully invisible to owner)
+
+## M12. New Vehicle Registration Flow — End-to-End
+
+Covers the complete flow when an existing owner adds a new vehicle, from the registration page through to a live active tag on the dashboard.
+
+### Step 1 — Owner fills the registration form (`/register-owner`)
+
+- [x] Owner selects vehicle type and enters plate number
+- [x] Plate is validated against Indian format (`DL 01 AB 1234`) before the vehicle is added to the in-page list
+- [x] Bicycle frame numbers are accepted with a relaxed 3-char minimum instead of the plate regex
+- [x] Duplicate plates are rejected (checked against both in-page list and localStorage)
+- [x] Owner enters a mobile number (pre-filled and read-only if already saved on the account)
+- [x] Submitting with an unfilled type/plate in the input fields auto-adds the vehicle before proceeding
+
+### Step 2 — E-Tag popup and save
+
+- [x] On submit, the E-Tag popup appears showing a printable QR sticker for the first vehicle
+- [x] "Download E-Tag" → calls `saveVehicles()` which POSTs each vehicle to `POST /api/owner/local-vehicle` → creates a real tag in MongoDB with `status: "active"`, `freeContactUsed: false`, `premium: false`
+- [x] "Skip" → same `saveVehicles()` call, no print dialog
+- [x] If the API call fails (network drop etc.) → `savePendingVehicles()` stores the vehicle in `localStorage` as a fallback
+- [x] `POST /api/owner/local-vehicle` is idempotent — re-adding the same plate returns `409` and reuses the existing tag (never duplicates)
+
+### Step 3 — Dashboard load and auto-sync
+
+- [x] Owner lands on `/owner-welcome` after registration
+- [x] Dashboard fetches `/api/owner/dashboard` → returns all active (non-deleted) tags for this owner
+- [x] If any vehicles are localStorage-only (API save failed in step 2), `syncLocalVehicles()` fires silently in the background
+- [x] `syncLocalVehicles()` retries `POST /api/owner/local-vehicle` for each localStorage vehicle → on success removes it from localStorage and re-renders the grid with the real tag data
+- [x] New vehicle appears on the dashboard with a real `PT-XXXXXXXX` tag id and a scannable QR code
+
+### Step 4 — Tag lifecycle after registration
+
+- [x] New tag starts with `freeContactUsed: false` — one free masked contact is available immediately
+- [x] `contactAvailable` on the public tag page reflects `premium OR NOT freeContactUsed`
+- [x] After the first scanner contact is made, the backend sets `freeContactUsed: true` — subsequent contact attempts return `402 FREE_USED`
+- [x] Owner must purchase the official physical sticker (premium) to unlock unlimited contact for that vehicle
+- [x] Each vehicle has its own independent free contact slot — adding a new vehicle never affects other vehicles
+
+### Verification
+
+- [x] Register a new vehicle as an existing owner → vehicle appears on dashboard with real tag id (not `DEMO-` prefix)
+- [x] Same plate registered twice → second attempt returns 409, only one tag exists in DB
+- [x] Two different vehicles registered → each gets its own independent tag and QR
+- [ ] Simulate API failure during registration → vehicle lands in localStorage → open dashboard → vehicle auto-syncs silently and real token appears without any manual action
+- [ ] Scan the new vehicle QR as a public user → contact succeeds → `freeContactUsed` becomes `true`
+- [ ] Try a second contact on the same tag → page shows `contactAvailable: false`, server returns `402 FREE_USED`
+- [ ] Purchase premium on the tag → second contact now succeeds (premium bypasses `freeContactUsed` gate)
+- [ ] Admin dashboard shows correct tag count for the owner after adding the new vehicle
+
+## M13. Exotel Inbound Call Flow (Connect-to-Flow)
+
+> Replaces the old two-leg outbound call. Scanner now dials the owner themselves via a virtual Exotel number. Backend provides a "Dial Whom" webhook that Exotel hits to resolve the correct owner number dynamically. The same architecture also powers the owner callback flow — owner dials the same virtual number to reach the scanner.
+
+### Architecture decision
+- [ ] Remove reliance on `triggerExotelCall` outbound API for the call action — backend no longer initiates the call
+- [ ] Add `EXOTEL_VIRTUAL_NUMBER` to `lib/env.js` and `.env` — this is the number both scanner and owner dial
+- [ ] Use a unified `pendingCalls` schema with `callerPhone` (who dials the virtual number) and `targetPhone` (who Exotel connects them to) — works for both directions
+
+### Backend — pending call schema (both directions)
+
+Both `register-call` and owner callback store the same shape:
+
+```
+{
+  callerPhone:  <who dials the virtual number>,
+  targetPhone:  <who Exotel should connect to>,
+  token:        <tag token>,
+  ownerId:      <ObjectId>,
+  type:         "scanner_to_owner" | "owner_to_scanner",
+  requestId:    <contactRequest ObjectId, set for owner_to_scanner>,
+  consumed:     false,
+  expiresAt:    <now + 10 min>   ← TTL index auto-deletes this
+}
+```
+
+Dial Whom always looks up by `callerPhone` — no special casing needed.
+
+### Backend — scanner call registration (public)
+- [ ] Add `POST /api/tags/:token/register-call` route in `routes/public/index.js` — checks `freeContactUsed` gate, resolves token → owner phone, stores `{ callerPhone: scannerPhone, targetPhone: ownerPhone, type: "scanner_to_owner" }` in `pendingCalls`, returns `{ ok: true, virtualNumber }`
+- [ ] Add rate limit `max: 5, timeWindow: "1 minute"` to `POST /api/tags/:token/register-call`
+- [ ] Add MongoDB TTL index on `pendingCalls.expiresAt` so undialled records auto-delete after 10 minutes
+- [ ] Create contact request record at registration time and set `freeContactUsed: true` on the tag
+- [ ] Mark pending call record `consumed: true` after Dial Whom lookup to prevent same record routing two calls
+
+### Backend — owner callback registration (authenticated)
+- [ ] Add `POST /api/owner/callback/register-call` route in `routes/owner/dashboard.js` — requires owner session
+- [ ] Get `ownerPhone` from session → `owners` collection (`owner.mobile`) — no phone input from the owner
+- [ ] Block with `402` if `owner.mobile` is not set — prompt owner to add phone first
+- [ ] Query `contactRequests` for the most recent record for this `ownerId` where `phone` exists and `createdAt >= now - 60min`
+- [ ] Return `410 CALLBACK_WINDOW_EXPIRED` if no contact request exists within the 60-minute window
+- [ ] Store `{ callerPhone: ownerPhone, targetPhone: scannerPhone, type: "owner_to_scanner", requestId }` in `pendingCalls`
+- [ ] Return `{ ok: true, virtualNumber }` — same virtual number as scanner flow
+
+### Backend — Dial Whom webhook
+- [ ] Add `GET /api/exotel/dial-whom` public endpoint in `routes/webhooks/exotel.js` — reads `CallFrom` query param (A-party from Exotel), looks up unconsumed `pendingCalls` record by `callerPhone`, returns `targetPhone` in Exotel's expected format
+- [ ] Confirm exact Exotel Dial Whom response format (plain text number vs XML ExoML) from App Bazaar docs before implementing
+- [ ] Return a safe fallback (busy/unavailable instruction) if no pending record matches the incoming caller number
+- [ ] Log unmatched Dial Whom hits for debugging without writing phone numbers to logs
+
+### Backend — status callback update
+- [ ] Update `routes/webhooks/exotel.js` to handle inbound call status events and link them to the correct contact request record by call SID or caller phone
+
+### Frontend — scanner call button
+- [ ] Replace current call trigger (`POST /api/contact-requests` with `action: "call"`) with two-step flow: 1) `POST /api/tags/:token/register-call` → 2) open `tel:<virtualNumber>` on success
+- [ ] Remove "waiting for a call back" UI state — scanner is making the call, not receiving one
+- [ ] Show the virtual number visibly on screen as a fallback in case `tel:` link does not auto-open the dialer
+- [ ] Add a "Tap to call" button styled as the primary CTA that opens `tel:<virtualNumber>`
+- [ ] Handle `register-call` API failure gracefully — show clear error, do not open dialer
+- [ ] Scanner phone number field remains required — it is the Dial Whom lookup key
+
+### Frontend — owner callback button (dashboard)
+- [ ] Add a "Call Back" button on each contact request card in the owner dashboard (only shown when `phone` is present on the request)
+- [ ] Button calls `POST /api/owner/callback/register-call` (no body — phone comes from owner's profile)
+- [ ] On success, open `tel:<virtualNumber>` — same native dialer flow as scanner
+- [ ] If `owner.mobile` is not set, show inline prompt "Add your phone number to enable callback" linking to profile settings
+- [ ] Show `410` response as "No recent contact to call back — the 60-minute window has passed"
+- [ ] Button enters loading state while awaiting the API response — never open dialer before success
+
+### Exotel App Bazaar — manual configuration (one-time)
+- [ ] Create a Passthru app in App Bazaar with Dial Whom URL → `GET https://<deployed-domain>/api/exotel/dial-whom`
+- [ ] Set StatusCallback URL → `POST https://<deployed-domain>/api/provider/exotel/webhook` (already live)
+- [ ] Assign an ExoPhone virtual number to this Passthru app — copy the number into `EXOTEL_VIRTUAL_NUMBER` env var
+- [ ] Test the App Bazaar flow in sandbox mode before going live
+
+### Verification — scanner → owner
+- [ ] Scanner enters phone, clicks "Call Owner" → `register-call` returns virtual number → native dialer opens with virtual number pre-filled
+- [ ] Scanner dials virtual number → Exotel hits `GET /api/exotel/dial-whom` with scanner's number → backend returns correct owner phone
+- [ ] Call connects: scanner ↔ owner, neither sees the other's real number (both see Exotel's masked number)
+- [ ] Contact request record is created in DB immediately when scanner clicks Call (before they even dial)
+- [ ] `freeContactUsed` is `true` on the tag immediately after `register-call` succeeds
+- [ ] Pending call record is consumed after Dial Whom lookup — same scanner number cannot route a second call with the same record
+- [ ] Stale pending call (registered but never dialled) → auto-deleted by TTL index after 10 minutes
+- [ ] Second call attempt on same tag where `freeContactUsed: true` → `register-call` returns `402 FREE_USED` before dialer opens
+- [ ] Premium tag with `freeContactUsed: true` → `register-call` still succeeds and opens dialer (premium bypasses gate permanently)
+- [ ] Unmatched Dial Whom hit (no pending record) → safe fallback response, no crash, no phone number in logs
+- [ ] Admin dashboard shows contact request with correct action (`call`) and updated status after call completes
+
+### Verification — owner → scanner callback
+- [ ] Scanner contacts owner → "Call Back" button appears on that contact request in the owner dashboard
+- [ ] Owner taps "Call Back" within 60 minutes → `register-call` succeeds → native dialer opens with virtual number pre-filled
+- [ ] Owner dials virtual number → Exotel hits Dial Whom with owner's phone → backend returns scanner's phone → call bridges correctly
+- [ ] Owner taps "Call Back" after 60 minutes → `410 CALLBACK_WINDOW_EXPIRED` → UI shows "window has passed" message, dialer does not open
+- [ ] Second scanner contacts owner at 2:30pm, first scanner contacted at 2:00pm → "Call Back" at 2:45pm connects to the second (most recent) scanner
+- [ ] Owner has no `mobile` set → "Call Back" button disabled with prompt to add phone number
+- [ ] Callback pendingCalls record is consumed after Dial Whom — owner cannot route two calls from one registration
+
 ## Current Focus
 
 - [x] Establish root workflow and tracking files
@@ -373,8 +580,8 @@ Verification:
 - [x] Verify the hosted demo-flow backend slice end to end on Render
 - [x] Start replacing the combined debug page with a real scanner-facing public entry point
 - [x] Start replacing the shared verify page responsibilities with dedicated owner/admin surfaces
+- [x] Switch working direction to `PLAN.md` instead of revising `docs/RFA_SPEC.md`
+- [x] Lock the chosen stack to `Fastify + MongoDB + simple HTML/CSS/JS`
 - [ ] Track hosted backend, authentication, authorization, security, and cross-device browser support as first-class MVP work
 - [ ] Make verification UI-driven wherever practical so the product stays easy to validate as it grows
 - [ ] Simplify the prototype stack and remove Redis-style optimization assumptions from the working plan
-- [x] Switch working direction to `PLAN.md` instead of revising `docs/RFA_SPEC.md`
-- [x] Lock the chosen stack to `Fastify + MongoDB + simple HTML/CSS/JS`

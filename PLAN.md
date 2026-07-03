@@ -131,7 +131,7 @@ Current direction:
 - frontend: simple HTML, CSS, and JavaScript in `src/frontend/`, served by the backend or alongside it
 - persistence: `MongoDB` as the single prototype database
 - auth: minimal but real server-side authentication for owner and admin users
-- hosting target: `Render` for the backend app and `MongoDB Atlas M0` for the initial prototype database
+- hosting target: `Railway` for the backend app and `MongoDB Atlas M0` for the initial prototype database
 - telephony: Exotel for call bridging when that slice is reached
 - business messaging: WhatsApp Business Platform Cloud API for owner-message delivery when that slice is reached
 
@@ -212,6 +212,48 @@ Avoid adding more infrastructure unless the prototype is blocked without it.
 4. Backend sends the message through the WhatsApp Business Platform Cloud API.
 5. Backend records the immediate API response and later delivery or failure updates from the webhook.
 6. Owner and admin dashboards show message-attempt state without exposing unsafe internal secrets.
+
+### Flow I: Owner Callback Flow
+
+1. A scanner contacts the owner (contact request is stored in `contactRequests` with the scanner's phone).
+2. Owner opens the dashboard and sees the contact request.
+3. Owner taps "Call Back" — no phone input required. Owner's phone comes from `owner.mobile` on their profile.
+4. Frontend calls `POST /api/owner/callback/register-call` (authenticated). No body needed.
+5. Backend checks that a contact request for this owner exists with `createdAt >= now - 60min`. If not, returns `410 CALLBACK_WINDOW_EXPIRED`.
+6. Backend picks the **most recent** contact request within the 60-minute window as the callback target.
+7. Backend stores a pending call record `{ callerPhone: ownerPhone, targetPhone: scannerPhone, type: "owner_to_scanner", expiresAt: +10min }`.
+8. Backend returns `{ virtualNumber }` — the same shared Exotel ExoPhone used by the scanner flow.
+9. Frontend opens `tel:<virtualNumber>` — native phone dialer with the virtual number pre-filled.
+10. Owner dials. Exotel receives the call with owner's phone as the A-party.
+11. Exotel hits `GET /api/exotel/dial-whom?CallFrom=<ownerPhone>`.
+12. Backend looks up `pendingCalls` by `callerPhone` → returns `targetPhone` (scanner's phone). Marks record `consumed: true`.
+13. Exotel bridges the call: owner ↔ scanner. Neither side sees the other's real number.
+
+#### 60-minute window rules
+
+- The window is measured from the scanner's `contactRequest.createdAt`, not from when the owner opens the dashboard.
+- If multiple scanners contact the owner within the window, the callback always targets the **most recent** one.
+- After 60 minutes with no new contact, the "Call Back" button returns `410` and the UI shows a "window has passed" message.
+- When a new scanner contacts the owner, the 60-minute window resets to that scanner's contact time.
+
+#### Unified pendingCalls schema
+
+Both the scanner flow and the owner callback flow write to the same `pendingCalls` collection with the same shape:
+
+```
+{
+  callerPhone:  <whoever dials the virtual number>,
+  targetPhone:  <whoever Exotel connects them to>,
+  token:        <tag token>,
+  ownerId:      <ObjectId>,
+  type:         "scanner_to_owner" | "owner_to_scanner",
+  requestId:    <contactRequest ObjectId — set only for owner_to_scanner>,
+  consumed:     false,
+  expiresAt:    <now + 10 min>
+}
+```
+
+The `GET /api/exotel/dial-whom` webhook always looks up by `callerPhone = CallFrom`. No special casing is needed for direction — the schema handles both cases identically.
 
 ## 7. Security Direction
 
@@ -298,12 +340,65 @@ The prototype needs a real hosted backend.
 Current direction:
 
 - choose a practical free or low-cost platform
-- primary deployment target: `Render`
+- primary deployment target: `Railway` (migrated from Render)
 - primary database target: `MongoDB Atlas M0`
-- fallback app host if needed: `Heroku Eco`
 - keep deployment simple
 - avoid architecture choices that require multiple managed services for the first prototype
 - make the deployed app usable from a QR-driven mobile browser flow
+
+### 9.1 Scaling Plan — Multi-Server Rate Limiting
+
+**Current state (single server):**
+The rate limiter (`@fastify/rate-limit`) stores counters in Node.js process memory. On a single Railway instance this works correctly — every request hits the same process, counters are accurate.
+
+**The problem when scaling to 2+ servers:**
+Railway (and any platform) can run multiple instances of the same service for load balancing. When that happens, each server has its own in-memory counter. A user making 60 requests could have them split across Server A (30 requests) and Server B (30 requests) — both think the user is within limit. The rate limiter silently stops working.
+
+The same problem also applies to:
+- In-memory session store (`app.decorate("sessions", new Map())`) — a user's session only exists on the server that created it; the next request might hit a different server and see no session
+- In-memory OAuth state store (`app.decorate("oauthStates", new Map())`)
+
+**Action plan — what to do before scaling:**
+
+Step 1 — Add Redis to Railway
+- Provision a Railway Redis plugin (one click in the Railway dashboard)
+- Railway injects `REDIS_URL` automatically as an environment variable
+- Verify: `REDIS_URL` appears in Railway service variables
+
+Step 2 — Replace in-memory rate limit store with Redis
+- Install `@fastify/rate-limit` Redis store adapter: `npm install @fastify/rate-limit ioredis`
+- Update `app.js` rate limit registration:
+  ```js
+  import Redis from "ioredis";
+  const redis = env.redisUrl ? new Redis(env.redisUrl) : null;
+
+  await app.register(fastifyRateLimit, {
+    max: 300,
+    timeWindow: "1 minute",
+    redis,                        // null = falls back to in-memory (single server safe)
+    errorResponseBuilder: () => ({ ok: false, error: "Too many requests. Please slow down." })
+  });
+  ```
+- Verify: deploy 2 instances on Railway, hammer one instance past the limit, confirm the second instance also blocks (counters are shared)
+
+Step 3 — Replace in-memory session store with Redis
+- Replace `app.decorate("sessions", new Map())` with a Redis-backed session map
+- Replace `app.decorate("oauthStates", new Map())` with Redis keys with a short TTL
+- Verify: log in on one server instance, make an authenticated request that routes to a different instance, confirm session is still valid
+
+Step 4 — Add `REDIS_URL` to env schema
+- Update `lib/env.js` to read `REDIS_URL` (optional — falls back gracefully on single-server dev)
+- Verify: app starts without Redis locally (no `REDIS_URL` set), rate limiting still works via in-memory fallback
+
+**Verification checklist (before going multi-server):**
+- [ ] `REDIS_URL` present in Railway environment variables
+- [ ] Rate limit counters survive across server restarts (Redis persists them)
+- [ ] Authenticated session survives a request routed to a different instance
+- [ ] OAuth state token survives a callback routed to a different instance than the one that created it
+- [ ] App starts and runs correctly locally without `REDIS_URL` (in-memory fallback)
+
+**When to do this:**
+Not needed for the prototype or early production. Do this before Railway auto-scaling is enabled or before manually adding a second instance. A single Railway instance handles hundreds of concurrent users without needing this.
 
 ## 10. Verification Strategy
 
@@ -329,6 +424,36 @@ Build in this order:
 6. harden security boundaries
 7. validate telephony and WhatsApp recovery behavior
 8. deploy and rehearse the demo
+
+## 13. New Vehicle Registration & Tag Allocation Policy
+
+When an existing owner registers an additional vehicle, the system follows the same tag allocation flow as first-time registration. Each vehicle always gets exactly one real E-Tag.
+
+### How it works
+
+1. Owner visits `/register-owner` and enters a new vehicle type and plate number.
+2. On submit, the backend calls `createEtagForVehicle()` which creates a new tag document in MongoDB with:
+   - a unique 256-bit secure token
+   - `status: "active"`
+   - `freeContactUsed: false`
+   - `premium: false`
+   - `purchaseStatus: "none"`
+3. The new tag appears immediately on the owner dashboard alongside any existing vehicles.
+4. If the API save fails during registration (network error etc.), the vehicle is temporarily stored in `localStorage` and auto-synced to the database on the next dashboard load.
+
+### Free contact rule (per vehicle, per tag)
+
+Each E-Tag includes **one free masked contact**:
+
+- A scanner scans the QR and contacts the owner → `freeContactUsed` is set to `true`.
+- The next scanner who tries to contact gets blocked with a `402 FREE_USED` response.
+- The contact page shows `contactAvailable: false` for that tag.
+- The owner must purchase the official physical sticker (premium upgrade) to unlock unlimited contact for that vehicle.
+- Purchasing premium sets `premium: true` on the tag, which bypasses the `freeContactUsed` gate permanently.
+
+### Key rule
+
+This applies **per vehicle**. Each additional vehicle the owner registers gets its own fresh `freeContactUsed: false` — the free contact is not shared or carried over from other vehicles. Adding a new vehicle always starts a new free contact slot for that vehicle.
 
 ## 12. Living Document Rule
 

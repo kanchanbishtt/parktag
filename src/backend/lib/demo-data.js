@@ -1,7 +1,7 @@
 import { ObjectId } from "mongodb";
 
-import { getCollections } from "./repositories.js";
-import { createToken, createPasswordHash } from "./security.js";
+import { getCollections } from "./db/repositories.js";
+import { createToken, createPasswordHash } from "./auth/security.js";
 
 const DEMO_OWNER_EMAIL = "owner@wavetag.local";
 const DEMO_ADMIN_EMAIL = "admin@wavetag.local";
@@ -21,6 +21,13 @@ export function getDemoCredentials() {
 }
 
 export async function seedDemoData(env) {
+  // Hash both passwords in parallel before touching the DB so the connection
+  // isn't left idle during slow bcrypt rounds (avoids ECONNRESET on Atlas).
+  const [ownerHash, adminHash] = await Promise.all([
+    createPasswordHash(DEMO_PASSWORD),
+    createPasswordHash(DEMO_PASSWORD)
+  ]);
+
   const collections = await getCollections(env);
 
   if (!collections) {
@@ -37,7 +44,7 @@ export async function seedDemoData(env) {
   const owner = {
     _id: ownerId,
     email: DEMO_OWNER_EMAIL,
-    passwordHash: await createPasswordHash(DEMO_PASSWORD),
+    passwordHash: ownerHash,
     displayName: "Demo Owner",
     phone: "+910000000001",
     credits: 0,
@@ -48,7 +55,7 @@ export async function seedDemoData(env) {
   const admin = {
     _id: adminId,
     email: DEMO_ADMIN_EMAIL,
-    passwordHash: await createPasswordHash(DEMO_PASSWORD),
+    passwordHash: adminHash,
     displayName: "Demo Admin",
     role: "admin",
     createdAt: new Date().toISOString()

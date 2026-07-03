@@ -1,6 +1,5 @@
 import { ObjectId } from "mongodb";
 
-import { triggerExotelCall } from "../integrations/exotel.js";
 import { sendMetaWhatsapp, isMetaWhatsappConfigured } from "../integrations/meta.js";
 import { getCollections } from "../db/repositories.js";
 
@@ -80,19 +79,9 @@ export async function createContactAction(env, input) {
 
   let provider = null;
   let providerStatus = "pending";
-  let providerName = "exotel";
-  if (input.action === "message") providerName = "meta";
+  let providerName = input.action === "message" ? "meta" : null;
 
   try {
-    if (input.action === "call") {
-      provider = await triggerExotelCall(env, {
-        requestId: String(requestId),
-        from: input.phone,
-        to: owner.phone || owner.mobile
-      });
-      providerStatus = "provider_started";
-    }
-
     if (input.action === "message") {
       if (input.messageChannel !== "whatsapp") {
         throw new Error("Only WhatsApp messaging is supported");
@@ -159,7 +148,6 @@ export async function createContactAction(env, input) {
         status: providerStatus,
         provider: providerName,
         providerRequestId:
-          provider?.Call?.Sid ||
           provider?.whatsapp?.messages?.[0]?.sid ||
           provider?.messages?.[0]?.id ||
           provider?.sid ||

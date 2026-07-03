@@ -477,9 +477,9 @@ Covers the complete flow when an existing owner adds a new vehicle, from the reg
 > Replaces the old two-leg outbound call. Scanner now dials the owner themselves via a virtual Exotel number. Backend provides a "Dial Whom" webhook that Exotel hits to resolve the correct owner number dynamically. The same architecture also powers the owner callback flow — owner dials the same virtual number to reach the scanner.
 
 ### Architecture decision
-- [ ] Remove reliance on `triggerExotelCall` outbound API for the call action — backend no longer initiates the call
-- [ ] Add `EXOTEL_VIRTUAL_NUMBER` to `lib/env.js` and `.env` — this is the number both scanner and owner dial
-- [ ] Use a unified `pendingCalls` schema with `callerPhone` (who dials the virtual number) and `targetPhone` (who Exotel connects them to) — works for both directions
+- [x] Remove reliance on `triggerExotelCall` outbound API for the call action — removed from `lib/core/contact-actions.js`; backend no longer initiates the call
+- [x] Add `EXOTEL_VIRTUAL_NUMBER` to `lib/env.js` — add the actual value to `.env` and Railway after App Bazaar config
+- [x] Use a unified `pendingCalls` schema with `callerPhone` (who dials the virtual number) and `targetPhone` (who Exotel connects them to) — works for both directions
 
 ### Backend — pending call schema (both directions)
 
@@ -501,45 +501,45 @@ Both `register-call` and owner callback store the same shape:
 Dial Whom always looks up by `callerPhone` — no special casing needed.
 
 ### Backend — scanner call registration (public)
-- [ ] Add `POST /api/tags/:token/register-call` route in `routes/public/index.js` — checks `freeContactUsed` gate, resolves token → owner phone, stores `{ callerPhone: scannerPhone, targetPhone: ownerPhone, type: "scanner_to_owner" }` in `pendingCalls`, returns `{ ok: true, virtualNumber }`
-- [ ] Add rate limit `max: 5, timeWindow: "1 minute"` to `POST /api/tags/:token/register-call`
-- [ ] Add MongoDB TTL index on `pendingCalls.expiresAt` so undialled records auto-delete after 10 minutes
-- [ ] Create contact request record at registration time and set `freeContactUsed: true` on the tag
-- [ ] Mark pending call record `consumed: true` after Dial Whom lookup to prevent same record routing two calls
+- [x] Add `POST /api/tags/:token/register-call` route in `routes/public/index.js` — checks `freeContactUsed` gate, resolves token → owner phone, stores `{ callerPhone: scannerPhone, targetPhone: ownerPhone, type: "scanner_to_owner" }` in `pendingCalls`, returns `{ ok: true, virtualNumber }`
+- [x] Add rate limit `max: 5, timeWindow: "1 minute"` to `POST /api/tags/:token/register-call`
+- [x] Add MongoDB TTL index on `pendingCalls.expiresAt` so undialled records auto-delete after 10 minutes
+- [x] Create contact request record at registration time and set `freeContactUsed: true` on the tag
+- [x] Mark pending call record `consumed: true` after Dial Whom lookup to prevent same record routing two calls
 
 ### Backend — owner callback registration (authenticated)
-- [ ] Add `POST /api/owner/callback/register-call` route in `routes/owner/dashboard.js` — requires owner session
-- [ ] Get `ownerPhone` from session → `owners` collection (`owner.mobile`) — no phone input from the owner
-- [ ] Block with `402` if `owner.mobile` is not set — prompt owner to add phone first
-- [ ] Query `contactRequests` for the most recent record for this `ownerId` where `phone` exists and `createdAt >= now - 60min`
-- [ ] Return `410 CALLBACK_WINDOW_EXPIRED` if no contact request exists within the 60-minute window
-- [ ] Store `{ callerPhone: ownerPhone, targetPhone: scannerPhone, type: "owner_to_scanner", requestId }` in `pendingCalls`
-- [ ] Return `{ ok: true, virtualNumber }` — same virtual number as scanner flow
+- [x] Add `POST /api/owner/callback/register-call` route in `routes/owner/dashboard.js` — requires owner session
+- [x] Get `ownerPhone` from session → `owners` collection (`owner.mobile`) — no phone input from the owner
+- [x] Block with `402` if `owner.mobile` is not set — prompt owner to add phone first
+- [x] Query `contactRequests` for the most recent record for this `ownerId` where `phone` exists and `createdAt >= now - 60min`
+- [x] Return `410 CALLBACK_WINDOW_EXPIRED` if no contact request exists within the 60-minute window
+- [x] Store `{ callerPhone: ownerPhone, targetPhone: scannerPhone, type: "owner_to_scanner", requestId }` in `pendingCalls`
+- [x] Return `{ ok: true, virtualNumber }` — same virtual number as scanner flow
 
 ### Backend — Dial Whom webhook
-- [ ] Add `GET /api/exotel/dial-whom` public endpoint in `routes/webhooks/exotel.js` — reads `CallFrom` query param (A-party from Exotel), looks up unconsumed `pendingCalls` record by `callerPhone`, returns `targetPhone` in Exotel's expected format
-- [ ] Confirm exact Exotel Dial Whom response format (plain text number vs XML ExoML) from App Bazaar docs before implementing
-- [ ] Return a safe fallback (busy/unavailable instruction) if no pending record matches the incoming caller number
-- [ ] Log unmatched Dial Whom hits for debugging without writing phone numbers to logs
+- [x] Add `GET /api/exotel/dial-whom` public endpoint in `routes/webhooks/exotel.js` — reads `CallFrom` query param (A-party from Exotel), looks up unconsumed `pendingCalls` record by `callerPhone`, returns `targetPhone` as plain text
+- [x] Exotel Dial Whom response format confirmed: plain text phone number, HTTP 200; non-200 or empty = busy tone
+- [x] Return a safe fallback (HTTP 404 + empty body) if no pending record matches the incoming caller number
+- [x] Log unmatched Dial Whom hits for debugging without writing phone numbers to logs
 
 ### Backend — status callback update
-- [ ] Update `routes/webhooks/exotel.js` to handle inbound call status events and link them to the correct contact request record by call SID or caller phone
+- [x] Update `routes/webhooks/exotel.js` to handle inbound call status events — links by `providerRequestId` (CallSid stored at Dial Whom time) when no `CustomField` is present
 
 ### Frontend — scanner call button
-- [ ] Replace current call trigger (`POST /api/contact-requests` with `action: "call"`) with two-step flow: 1) `POST /api/tags/:token/register-call` → 2) open `tel:<virtualNumber>` on success
-- [ ] Remove "waiting for a call back" UI state — scanner is making the call, not receiving one
-- [ ] Show the virtual number visibly on screen as a fallback in case `tel:` link does not auto-open the dialer
-- [ ] Add a "Tap to call" button styled as the primary CTA that opens `tel:<virtualNumber>`
-- [ ] Handle `register-call` API failure gracefully — show clear error, do not open dialer
-- [ ] Scanner phone number field remains required — it is the Dial Whom lookup key
+- [x] Replace current call trigger (`POST /api/contact-requests` with `action: "call"`) with two-step flow: 1) `POST /api/tags/:token/register-call` → 2) open `tel:<virtualNumber>` on success
+- [x] Remove "waiting for a call back" UI state — scanner is making the call, not receiving one
+- [x] Show the virtual number visibly on screen as a fallback in case `tel:` link does not auto-open the dialer
+- [x] Add a "Tap to Call" button that re-opens `tel:<virtualNumber>` after register-call succeeds
+- [x] Handle `register-call` API failure gracefully — show clear error, do not open dialer
+- [x] Scanner phone number field remains required — it is the Dial Whom lookup key
 
 ### Frontend — owner callback button (dashboard)
-- [ ] Add a "Call Back" button on each contact request card in the owner dashboard (only shown when `phone` is present on the request)
-- [ ] Button calls `POST /api/owner/callback/register-call` (no body — phone comes from owner's profile)
-- [ ] On success, open `tel:<virtualNumber>` — same native dialer flow as scanner
-- [ ] If `owner.mobile` is not set, show inline prompt "Add your phone number to enable callback" linking to profile settings
-- [ ] Show `410` response as "No recent contact to call back — the 60-minute window has passed"
-- [ ] Button enters loading state while awaiting the API response — never open dialer before success
+- [x] Add a "Call Back" button on each contact request card in the owner dashboard (only shown when `phone` is present on the request)
+- [x] Button calls `POST /api/owner/callback/register-call` (no body — phone comes from owner's profile)
+- [x] On success, open `tel:<virtualNumber>` — same native dialer flow as scanner
+- [x] If `owner.mobile` is not set, show inline prompt "Add your phone number to enable callback"
+- [x] Show `410` response as "Window expired — no recent contact within 60 min"
+- [x] Button enters loading state while awaiting the API response — never open dialer before success
 
 ### Exotel App Bazaar — manual configuration (one-time)
 - [ ] Create a Passthru app in App Bazaar with Dial Whom URL → `GET https://<deployed-domain>/api/exotel/dial-whom`

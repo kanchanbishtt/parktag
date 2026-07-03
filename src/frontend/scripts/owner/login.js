@@ -147,10 +147,28 @@ function renderDashboard(data) {
     if (!requests.length) {
       reqList.innerHTML = `<p class="pt-empty-hint">No contact requests yet.</p>`;
     } else {
-      reqList.innerHTML = requests.map(r => {
+      const ownerMobile = owner.mobile || null;
+      const now = Date.now();
+      const SIXTY_MIN = 60 * 60 * 1000;
+
+      reqList.innerHTML = requests.map((r, idx) => {
         const channel = r.action === "message"
           ? (r.messageChannel === "whatsapp" ? "WhatsApp" : "SMS")
           : "Call";
+        const withinWindow = r.action === "call" && r.phone &&
+          (now - new Date(r.createdAt).getTime()) < SIXTY_MIN;
+        const callBackBtn = (r.action === "call" && r.phone) ? `
+          <div style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <button data-callback="${idx}"
+              style="font-size:0.78rem;padding:5px 12px;background:#FFE3DD;color:#FF2700;
+                     border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit;
+                     opacity:${withinWindow ? "1" : "0.45"}">
+              📞 Call Back
+            </button>
+            <span data-callback-status style="font-size:0.75rem;color:var(--pt-sub)">
+              ${withinWindow ? "" : "60-min window closed"}
+            </span>
+          </div>` : "";
         return `
           <div style="padding:12px 0;border-bottom:1px solid var(--pt-border)">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
@@ -159,9 +177,58 @@ function renderDashboard(data) {
             </div>
             ${r.message ? `<p style="font-size:0.85rem;color:var(--pt-sub);margin:0">"${r.message}"</p>` : ""}
             <span style="font-size:0.75rem;color:var(--pt-sub)">Status: ${r.status}</span>
-          </div>
-        `;
+            ${callBackBtn}
+          </div>`;
       }).join("");
+
+      // Event delegation — single listener handles all Call Back buttons.
+      reqList.addEventListener("click", async (e) => {
+        const btn = e.target.closest("[data-callback]");
+        if (!btn) return;
+
+        const statusEl = btn.parentElement.querySelector("[data-callback-status]");
+
+        if (!ownerMobile) {
+          if (statusEl) statusEl.textContent = "Add your phone number in profile settings to enable callback.";
+          return;
+        }
+
+        btn.disabled = true;
+        btn.textContent = "Connecting…";
+        if (statusEl) statusEl.textContent = "";
+
+        try {
+          const res = await fetch("/api/owner/callback/register-call", { method: "POST" });
+          const data = await res.json().catch(() => ({}));
+
+          if (res.status === 410) {
+            btn.disabled = false;
+            btn.textContent = "📞 Call Back";
+            if (statusEl) statusEl.textContent = "Window expired — no recent contact within 60 min.";
+            return;
+          }
+          if (res.status === 402) {
+            btn.disabled = false;
+            btn.textContent = "📞 Call Back";
+            if (statusEl) statusEl.textContent = "Add your phone number to enable callback.";
+            return;
+          }
+          if (!res.ok) throw new Error(data.error || "Could not start callback.");
+
+          const virtualNumber = data.virtualNumber || "";
+          if (virtualNumber) {
+            window.location.href = `tel:${virtualNumber}`;
+            btn.disabled = false;
+            btn.textContent = "Tap to Call";
+            btn.onclick = () => { window.location.href = `tel:${virtualNumber}`; };
+            if (statusEl) statusEl.textContent = virtualNumber;
+          }
+        } catch (err) {
+          btn.disabled = false;
+          btn.textContent = "📞 Call Back";
+          if (statusEl) statusEl.textContent = err instanceof Error ? err.message : "Could not start callback.";
+        }
+      });
     }
   }
 }

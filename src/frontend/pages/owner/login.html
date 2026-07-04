@@ -232,6 +232,7 @@
           });
           const data = await res.json();
           if (data.redirect) window.location.href = data.redirect;
+          else if (data.error === "no_account") showGoogleError("No ParkTag account found for this Google account. Please register first.");
           else showGoogleError(data.error || "Sign-in failed.");
         } catch {
           showGoogleError("Network error. Please try again.");
@@ -248,6 +249,7 @@
           });
           const data = await res.json();
           if (data.redirect) window.location.href = data.redirect;
+          else if (data.error === "no_account") showGoogleError("No ParkTag account found for this Google account. Please register first.");
           else showGoogleError(data.error || "Sign-in failed.");
         } catch {
           showGoogleError("Network error. Please try again.");

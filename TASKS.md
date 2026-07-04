@@ -270,6 +270,8 @@ Tasks:
 - [ ] Review input validation for scanner, owner, and admin inputs
 - [ ] Keep verification and debug UI simple without exposing unsafe internal data
 - [ ] Document any remaining security limitations that are acceptable for the MVP demo
+- [x] Block Google Sign-In from auto-creating a new owner account when the Gmail is not already registered — all three handlers (`/callback`, `/credential`, `/popup`) in `routes/auth/google.js` now return `no_account` error instead of inserting a new owner document
+- [x] Show a clear error message on the login page when Google Sign-In fails with `no_account` — "No ParkTag account found for this Google account. Please register first."
 
 Verification:
 
@@ -277,6 +279,10 @@ Verification:
 - [ ] Confirm authenticated users cannot access another user's data
 - [ ] Confirm admin-only routes are blocked for non-admin users
 - [ ] Confirm the frontend does not expose secrets or unsafe debug data
+- [ ] Sign in with a Google account that has NO matching owner in MongoDB → login is blocked, error message "No ParkTag account found for this Google account. Please register first." is shown on the login page
+- [ ] Sign in with a Google account whose email matches an existing owner in MongoDB → login succeeds, redirected to `/owner-welcome`
+- [ ] Sign in with a Google account that has no matching owner via the One Tap flow → same `no_account` error shown inline
+- [ ] Sign in with a Google account that has no matching owner via the redirect flow (`/api/auth/google`) → redirected to `/owner-login?error=no_account` with the correct error message
 
 ## M7. Verify Telephony And Fallback Messaging Behavior
 
@@ -478,7 +484,7 @@ Covers the complete flow when an existing owner adds a new vehicle, from the reg
 
 ### Architecture decision
 - [x] Remove reliance on `triggerExotelCall` outbound API for the call action — removed from `lib/core/contact-actions.js`; backend no longer initiates the call
-- [x] Add `EXOTEL_VIRTUAL_NUMBER` to `lib/env.js` — add the actual value to `.env` and Railway after App Bazaar config
+- [x] Reuse `EXOTEL_CALLER_ID` as the virtual number — removed `EXOTEL_VIRTUAL_NUMBER` from `lib/env.js`; all routes now read `env.exotelCallerId` for the virtual number returned to the frontend
 - [x] Use a unified `pendingCalls` schema with `callerPhone` (who dials the virtual number) and `targetPhone` (who Exotel connects them to) — works for both directions
 
 ### Backend — pending call schema (both directions)

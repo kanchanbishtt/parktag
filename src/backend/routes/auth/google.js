@@ -1,5 +1,4 @@
 import crypto from "node:crypto";
-import { ObjectId } from "mongodb";
 
 import { createSession, writeSessionCookie } from "../../lib/auth/session.js";
 import { getCollections } from "../../lib/db/repositories.js";
@@ -103,32 +102,21 @@ export function registerGoogleAuthRoutes(app, env) {
 
       const owner = await collections.owners.findOne({ email });
 
-      let resolvedOwner = owner;
-      const isNew = !owner;
+      if (!owner) {
+        reply.redirect("/owner-login?error=no_account");
+        return;
+      }
 
-      if (isNew) {
-        const ownerId = new ObjectId();
-        resolvedOwner = {
-          _id: ownerId,
-          email,
-          displayName,
-          googleId: userInfo.sub,
-          credits: 0,
-          role: "owner",
-          createdAt: new Date().toISOString()
-        };
-        await collections.owners.insertOne(resolvedOwner);
-      } else {
-        // Update displayName if the existing record has none or an email-shaped one
-        const existing = owner.displayName || "";
-        const needsName = !existing || existing.includes("@");
-        if (needsName && displayName && !displayName.includes("@")) {
-          await collections.owners.updateOne(
-            { _id: owner._id },
-            { $set: { displayName, googleId: userInfo.sub } }
-          );
-          resolvedOwner = { ...owner, displayName };
-        }
+      // Update displayName if the existing record has none or an email-shaped one
+      const existing = owner.displayName || "";
+      const needsName = !existing || existing.includes("@");
+      let resolvedOwner = owner;
+      if (needsName && displayName && !displayName.includes("@")) {
+        await collections.owners.updateOne(
+          { _id: owner._id },
+          { $set: { displayName, googleId: userInfo.sub } }
+        );
+        resolvedOwner = { ...owner, displayName };
       }
 
       const sessionId = await createSession(app, {
@@ -138,7 +126,7 @@ export function registerGoogleAuthRoutes(app, env) {
         displayName: resolvedOwner.displayName || displayName
       });
       writeSessionCookie(reply, sessionId, env.runtimeMode === "production");
-      reply.redirect(isNew ? "/owner-welcome?new=1" : "/owner-welcome");
+      reply.redirect("/owner-welcome");
     } catch (err) {
       app.log.error(err, "Google auth callback error");
       reply.redirect("/owner-login?error=auth_failed");
@@ -173,24 +161,18 @@ export function registerGoogleAuthRoutes(app, env) {
       if (!collections) return reply.code(503).send({ error: "db_unavailable" });
 
       let owner = await collections.owners.findOne({ email });
-      const isNew = !owner;
-      if (isNew) {
-        owner = {
-          _id: new ObjectId(), email, displayName,
-          googleId: info.sub, credits: 0, role: "owner",
-          createdAt: new Date().toISOString()
-        };
-        await collections.owners.insertOne(owner);
-      } else {
-        const existing = owner.displayName || "";
-        const needsName = !existing || existing.includes("@");
-        if (needsName && displayName && !displayName.includes("@")) {
-          await collections.owners.updateOne(
-            { _id: owner._id },
-            { $set: { displayName, googleId: info.sub } }
-          );
-          owner = { ...owner, displayName };
-        }
+      if (!owner) {
+        return reply.code(404).send({ error: "no_account" });
+      }
+
+      const existing = owner.displayName || "";
+      const needsName = !existing || existing.includes("@");
+      if (needsName && displayName && !displayName.includes("@")) {
+        await collections.owners.updateOne(
+          { _id: owner._id },
+          { $set: { displayName, googleId: info.sub } }
+        );
+        owner = { ...owner, displayName };
       }
 
       const sessionId = await createSession(app, {
@@ -198,7 +180,7 @@ export function registerGoogleAuthRoutes(app, env) {
         email: owner.email, displayName: owner.displayName || displayName
       });
       writeSessionCookie(reply, sessionId, env.runtimeMode === "production");
-      reply.send({ redirect: isNew ? "/owner-welcome?new=1" : "/owner-welcome" });
+      reply.send({ redirect: "/owner-welcome" });
     } catch (err) {
       app.log.error(err, "Google credential verification error");
       reply.code(500).send({ error: "auth_failed" });
@@ -240,24 +222,18 @@ export function registerGoogleAuthRoutes(app, env) {
       if (!collections) return reply.code(503).send({ error: "db_unavailable" });
 
       let owner = await collections.owners.findOne({ email });
-      const isNew = !owner;
-      if (isNew) {
-        owner = {
-          _id: new ObjectId(), email, displayName,
-          googleId: userInfo.sub, credits: 0, role: "owner",
-          createdAt: new Date().toISOString()
-        };
-        await collections.owners.insertOne(owner);
-      } else {
-        const existing = owner.displayName || "";
-        const needsName = !existing || existing.includes("@");
-        if (needsName && displayName && !displayName.includes("@")) {
-          await collections.owners.updateOne(
-            { _id: owner._id },
-            { $set: { displayName, googleId: userInfo.sub } }
-          );
-          owner = { ...owner, displayName };
-        }
+      if (!owner) {
+        return reply.code(404).send({ error: "no_account" });
+      }
+
+      const existing = owner.displayName || "";
+      const needsName = !existing || existing.includes("@");
+      if (needsName && displayName && !displayName.includes("@")) {
+        await collections.owners.updateOne(
+          { _id: owner._id },
+          { $set: { displayName, googleId: userInfo.sub } }
+        );
+        owner = { ...owner, displayName };
       }
 
       const sessionId = await createSession(app, {
@@ -265,7 +241,7 @@ export function registerGoogleAuthRoutes(app, env) {
         email: owner.email, displayName: owner.displayName || displayName
       });
       writeSessionCookie(reply, sessionId, env.runtimeMode === "production");
-      reply.send({ redirect: isNew ? "/owner-welcome?new=1" : "/owner-welcome" });
+      reply.send({ redirect: "/owner-welcome" });
     } catch (err) {
       app.log.error(err, "Google popup auth error");
       reply.code(500).send({ error: "auth_failed" });

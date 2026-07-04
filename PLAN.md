@@ -267,6 +267,7 @@ For the prototype, keep security simple but real.
 - authenticated browser sessions use secure HTTP-only cookies
 - backend authorization is role-based: `owner` and `admin`
 - owner routes must be restricted to the signed-in owner's own records only
+- Google Sign-In is login-only — it never auto-creates a new owner account; if no owner exists with the Google email, login is rejected with a clear error message ("No ParkTag account found for this Google account. Please register first.")
 
 Rules:
 
@@ -481,12 +482,12 @@ Create a new Passthru app and fill in:
 | Field | Value |
 |---|---|
 | **App Name** | `ParkTag Inbound Router` (or any label) |
-| **Dial Whom URL** | `https://<your-railway-domain>/api/exotel/dial-whom` |
+| **Dial Whom URL** | `https://app.parktag.me/api/exotel/dial-whom` |
 | **Dial Whom Method** | `GET` |
 | **Time Limit** | `40` (max call duration in seconds — adjust as needed) |
 | **Time Out** | `20` (ring timeout before giving up) |
 | **Record Call** | Optional — enable if call recordings are needed |
-| **StatusCallback URL** | `https://<your-railway-domain>/api/provider/exotel/webhook` |
+| **StatusCallback URL** | `https://app.parktag.me/api/provider/exotel/webhook` |
 | **StatusCallback Method** | `POST` |
 
 After saving, go to: **Exotel Dashboard → Numbers → ExoPhones**
@@ -501,13 +502,13 @@ After saving, go to: **Exotel Dashboard → Numbers → ExoPhones**
 
 | Variable | Where it comes from | Purpose |
 |---|---|---|
-| `EXOTEL_VIRTUAL_NUMBER` | The ExoPhone assigned to the Passthru app | Returned to frontend so scanner/owner knows what number to dial |
+| `EXOTEL_CALLER_ID` | The ExoPhone assigned to the Passthru app (already set) | Returned to frontend so scanner/owner knows what number to dial — also used as the virtual number for inbound routing |
 | `EXOTEL_ACCOUNT_SID` | Exotel Dashboard → Settings | Already present — used for API auth |
 | `EXOTEL_API_KEY` | Exotel Dashboard → Settings | Already present — used for API auth |
 | `EXOTEL_API_TOKEN` | Exotel Dashboard → Settings | Already present — used for API auth |
-| `EXOTEL_STATUS_CALLBACK_URL` | Set to `https://<railway-domain>/api/provider/exotel/webhook` | Already present — receives call status events |
+| `EXOTEL_STATUS_CALLBACK_URL` | Set to `https://app.parktag.me/api/provider/exotel/webhook` | Already present — receives call status events |
 
-> Only `EXOTEL_VIRTUAL_NUMBER` is new. All other variables are already configured.
+> No new env vars needed. `EXOTEL_CALLER_ID` doubles as the virtual number. `EXOTEL_VIRTUAL_NUMBER` was removed — do not add it.
 
 ---
 

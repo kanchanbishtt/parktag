@@ -19,7 +19,6 @@ export function registerProviderRoutes(app, env) {
     }
 
     const callerPhone = toE164(rawCaller);
-    console.log("[dial-whom] rawCaller:", rawCaller, "→ callerPhone:", callerPhone);
     const now = new Date();
 
     const record = await collections.pendingCalls.findOneAndUpdate(

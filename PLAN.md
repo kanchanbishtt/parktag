@@ -267,6 +267,7 @@ For the prototype, keep security simple but real.
 - authenticated browser sessions use secure HTTP-only cookies
 - backend authorization is role-based: `owner` and `admin`
 - owner routes must be restricted to the signed-in owner's own records only
+- Google Sign-In is login-only — it never auto-creates a new owner account; if no owner exists with the Google email, login is rejected with a clear error message ("No ParkTag account found for this Google account. Please register first.")
 
 Rules:
 
@@ -454,6 +455,117 @@ Each E-Tag includes **one free masked contact**:
 ### Key rule
 
 This applies **per vehicle**. Each additional vehicle the owner registers gets its own fresh `freeContactUsed: false` — the free contact is not shared or carried over from other vehicles. Adding a new vehicle always starts a new free contact slot for that vehicle.
+
+## 14. Exotel Requirements for M13 Inbound Call Flow
+
+> Everything Exotel-related needed to make the Call Owner and Owner Callback features work. Nothing here is code — it is account setup, dashboard config, and env vars.
+
+---
+
+### 14.1 Exotel Account Prerequisites
+
+| Requirement | Details |
+|---|---|
+| Active Exotel account | Must be a paid/activated account — sandbox alone is not enough for live calls |
+| At least one ExoPhone number | This becomes the shared virtual number that both scanner and owner dial |
+| App Bazaar access | Needed to create and configure the Passthru app |
+| API credentials | Already in use for WhatsApp — same `ACCOUNT_SID`, `API_KEY`, `API_TOKEN` |
+
+---
+
+### 14.2 App Bazaar — Passthru App Configuration (one-time)
+
+Navigate to: **Exotel Dashboard → App Bazaar → Passthru**
+
+Create a new Passthru app and fill in:
+
+| Field | Value |
+|---|---|
+| **App Name** | `ParkTag Inbound Router` (or any label) |
+| **Dial Whom URL** | `https://app.parktag.me/api/exotel/dial-whom` |
+| **Dial Whom Method** | `GET` |
+| **Time Limit** | `40` (max call duration in seconds — adjust as needed) |
+| **Time Out** | `20` (ring timeout before giving up) |
+| **Record Call** | Optional — enable if call recordings are needed |
+| **StatusCallback URL** | `https://app.parktag.me/api/provider/exotel/webhook` |
+| **StatusCallback Method** | `POST` |
+
+After saving, go to: **Exotel Dashboard → Numbers → ExoPhones**
+
+- Pick any available ExoPhone number
+- Assign it to the Passthru app created above
+- Copy the number — this becomes `EXOTEL_VIRTUAL_NUMBER`
+
+---
+
+### 14.3 Environment Variables
+
+| Variable | Where it comes from | Purpose |
+|---|---|---|
+| `EXOTEL_CALLER_ID` | The ExoPhone assigned to the Passthru app (already set) | Returned to frontend so scanner/owner knows what number to dial — also used as the virtual number for inbound routing |
+| `EXOTEL_ACCOUNT_SID` | Exotel Dashboard → Settings | Already present — used for API auth |
+| `EXOTEL_API_KEY` | Exotel Dashboard → Settings | Already present — used for API auth |
+| `EXOTEL_API_TOKEN` | Exotel Dashboard → Settings | Already present — used for API auth |
+| `EXOTEL_STATUS_CALLBACK_URL` | Set to `https://app.parktag.me/api/provider/exotel/webhook` | Already present — receives call status events |
+
+> No new env vars needed. `EXOTEL_CALLER_ID` doubles as the virtual number. `EXOTEL_VIRTUAL_NUMBER` was removed — do not add it.
+
+---
+
+### 14.4 What Exotel Sends to the Dial Whom Endpoint
+
+When a caller dials the virtual number, Exotel makes:
+
+```
+GET /api/exotel/dial-whom
+  ?CallSid=XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  &CallFrom=+919876543210          ← A-party (the person who dialled)
+  &CallTo=0xxxxxxxxxx              ← the virtual number that was dialled
+  &Direction=inbound
+  &AccountSid=<your-account-sid>
+```
+
+The backend reads `CallFrom` as the lookup key into `pendingCalls.callerPhone`.
+
+---
+
+### 14.5 What the Dial Whom Endpoint Must Return
+
+Exotel expects a plain-text phone number in the response body (E.164 or 10-digit Indian format). No JSON, no XML.
+
+```
++919999999999
+```
+
+HTTP status must be `200`. Any non-200 or empty body causes Exotel to play a busy tone to the caller.
+
+---
+
+### 14.6 What Exotel Sends to the Status Callback
+
+After the call ends (or fails), Exotel POST-s to `EXOTEL_STATUS_CALLBACK_URL`:
+
+```
+POST /api/provider/exotel/webhook
+  CallSid=XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  CallStatus=completed              ← or no-answer, busy, failed
+  DialCallStatus=completed
+  ConversationDuration=45           ← seconds
+  RecordingUrl=https://...          ← if recording was enabled
+  Direction=inbound
+```
+
+This endpoint already exists and updates the matching `contactRequests` record via `CustomField`. For inbound calls, the link is via `CallSid` stored on the pending call record.
+
+---
+
+### 14.7 Testing Before Going Live
+
+1. Use Exotel's **sandbox/test mode** in App Bazaar to simulate an inbound call and confirm the Dial Whom URL returns the correct number.
+2. Dial the virtual number from a real phone — confirm the native dialer opens and Exotel bridges the call.
+3. Let the call complete — confirm the `contactRequests` record is updated with `callResult` and `callDuration` from the status callback.
+
+---
 
 ## 12. Living Document Rule
 

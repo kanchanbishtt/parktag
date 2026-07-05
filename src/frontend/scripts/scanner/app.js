@@ -11,7 +11,6 @@ let actionLocked = false;
 let verifiedPlateLastFour = "";
 let expectedPlateLastFour = "";
 let pendingAction = null;
-let currentCallPreviewNumber = "";
 // Server-issued grant proving this scanner passed last-4 verification.
 let contactGrant = "";
 // Whether this E-Tag still has its free contact available (server-authoritative).
@@ -116,7 +115,6 @@ function resetActionState() {
   actionLocked = false;
   verifiedPlateLastFour = "";
   expectedPlateLastFour = "";
-  currentCallPreviewNumber = "";
   contactGrant = "";
   contactAvailable = true;
   selectedReason = "";
@@ -232,9 +230,6 @@ async function loadScannerView() {
       "scanner-load-status",
       "Confirm the vehicle plate first to continue."
     );
-    currentCallPreviewNumber = tag.callPreviewNumber || "";
-    setText("dial-virtual-number", "");
-    setHidden("dial-number-block", true);
     showOnly("scanner-verification-shell");
   } catch (error) {
     setText("scanner-load-status", "This WaveTag could not be loaded.");
@@ -304,48 +299,63 @@ async function handlePlateVerification(event) {
 }
 
 async function handleFinalCallAction() {
-  if (actionLocked) {
-    return;
-  }
+  if (actionLocked) return;
 
   const token = byId("request-token")?.value.trim();
   const phone = byId("contact-phone")?.value.trim();
 
   if (!token || !phone) {
-    setRequestStatus("request-status", "Return to the landing shell and enter your number.", "error");
+    setRequestStatus("request-status", "Return to the landing page and enter your number.", "error");
     return;
   }
 
   actionLocked = true;
   setDisabled("final-call-button", true);
   setDisabled("send-whatsapp-button", true);
-  setRequestStatus("request-status", "Creating your call request...", "info");
+  setRequestStatus("request-status", "Preparing your call…", "info");
 
+  let virtualNumber = "";
   try {
-    await createRequest({
-      token,
-      phone,
-      action: "call"
+    const res = await fetch(`/api/tags/${token}/register-call`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ phone, grant: contactGrant })
     });
+    const data = await res.json().catch(() => ({}));
 
-    setHidden("call-popup", false);
-    setHidden("request-confirmation", false);
-    setText("confirmation-title", "Call request sent");
-    setText(
-      "confirmation-copy",
-      "WaveTag has recorded your request. You will be receiving a call sooner."
-    );
-    setRequestStatus("request-status", "Call request created successfully.", "success");
+    if (res.status === 402) {
+      setContactAvailability(false);
+      actionLocked = false;
+      setDisabled("final-call-button", false);
+      setDisabled("send-whatsapp-button", false);
+      return;
+    }
+    if (!res.ok) throw new Error(data.error || "Could not register the call.");
+    virtualNumber = data.virtualNumber || "";
   } catch (error) {
     actionLocked = false;
     setDisabled("final-call-button", false);
     setDisabled("send-whatsapp-button", false);
-    setRequestStatus(
-      "request-status",
-      error instanceof Error ? error.message : "Failed to create the call request",
-      "error"
-    );
+    setRequestStatus("request-status", error instanceof Error ? error.message : "Could not start the call.", "error");
+    return;
   }
+
+  // Show the virtual number visibly as a fallback in case tel: doesn't auto-open.
+  if (virtualNumber) {
+    setText("dial-virtual-number", virtualNumber);
+    setHidden("dial-number-block", false);
+    window.location.href = `tel:${virtualNumber}`;
+  }
+
+  // Let scanner tap again manually if the dialer didn't open automatically.
+  const btn = byId("final-call-button");
+  if (btn && virtualNumber) {
+    btn.disabled = false;
+    btn.textContent = "Tap to Call";
+    btn.onclick = () => { window.location.href = `tel:${virtualNumber}`; };
+  }
+
+  setRequestStatus("request-status", "Your phone dialer should open now.", "success");
 }
 
 function openWhatsAppPanel() {
@@ -462,14 +472,9 @@ function handleContactNumberSubmit() {
   setHidden("contact-number-panel", true);
 
   if (pendingAction === "call") {
-    setText("dial-virtual-number", currentCallPreviewNumber || "");
-    setHidden("dial-number-block", !currentCallPreviewNumber);
+    setHidden("dial-number-block", true);
     setHidden("dial-panel", false);
-    setRequestStatus(
-      "request-status",
-      "Review the dial panel and press Call Now to start the call request.",
-      "info"
-    );
+    setRequestStatus("request-status", "Tap Call Now to connect with the owner privately.", "info");
     return;
   }
 

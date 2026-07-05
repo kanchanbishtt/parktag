@@ -1,6 +1,6 @@
 import { requireSession, toObjectId } from "../../lib/auth/auth.js";
 import { createPasswordHash } from "../../lib/auth/security.js";
-import { getCollections } from "../../lib/db/repositories.js";
+import { getCollections, ensurePendingCallsIndexes } from "../../lib/db/repositories.js";
 import { createQrDataUrl, createPrintQrDataUrl } from "../../lib/core/qr-output.js";
 import { createEtagForVehicle, buildTagScanUrl, VEHICLE_LABELS, etagIdFor } from "../../lib/core/tag-issuance.js";
 import {
@@ -412,4 +412,73 @@ export function registerOwnerRoutes(app, env) {
     return { ok: true };
   });
 
+  // Owner calls back the most recent scanner who contacted them within 60 minutes.
+  // No phone input — owner's phone comes from their profile (owner.mobile).
+  app.post("/api/owner/callback/register-call", async (request, reply) => {
+    const blocked = await requireSession(app, "owner")(request, reply);
+    if (blocked) return blocked;
+
+    if (!env.exotelCallerId) {
+      reply.code(503);
+      return { ok: false, error: "Call service is not configured." };
+    }
+
+    const collections = await getCollections(env);
+    if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
+
+    await ensurePendingCallsIndexes(collections);
+
+    const ownerId = toObjectId(request.session.userId);
+    const owner = await collections.owners.findOne({ _id: ownerId });
+
+    const ownerPhone = owner?.mobile || null;
+    if (!ownerPhone) {
+      reply.code(402);
+      return { ok: false, code: "NO_PHONE", error: "Add your phone number to enable callback." };
+    }
+
+    // Most recent scanner contact within the 60-minute window.
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const recentContact = await collections.contactRequests.findOne(
+      {
+        ownerId,
+        phone: { $exists: true, $ne: null },
+        createdAt: { $gte: oneHourAgo.toISOString() }
+      },
+      { sort: { createdAt: -1 } }
+    );
+
+    if (!recentContact) {
+      reply.code(410);
+      return {
+        ok: false,
+        code: "CALLBACK_WINDOW_EXPIRED",
+        error: "No recent contact to call back. The 60-minute window has passed."
+      };
+    }
+
+    const now = new Date();
+
+    await collections.pendingCalls.insertOne({
+      callerPhone: toE164(ownerPhone),
+      targetPhone: recentContact.phone,
+      token: recentContact.token,
+      ownerId,
+      requestId: recentContact._id,
+      type: "owner_to_scanner",
+      consumed: false,
+      createdAt: now.toISOString(),
+      expiresAt: new Date(now.getTime() + 10 * 60 * 1000)
+    });
+
+    return { ok: true, virtualNumber: env.exotelCallerId };
+  });
+
+}
+
+function toE164(input) {
+  const digits = String(input || "").replace(/\D/g, "");
+  if (digits.length === 10) return `+91${digits}`;
+  if (digits.length === 12 && digits.startsWith("91")) return `+${digits}`;
+  return `+${digits}`;
 }

@@ -21,7 +21,9 @@ export async function getCollections(env) {
     passwordResetTokens: db.collection(withPrefix(prefix, "password_reset_tokens")),
     otpTokens: db.collection(withPrefix(prefix, "otp_tokens")),
     // Tracks per-scanner verification attempts, lockouts, and contact grants.
-    verificationSessions: db.collection(withPrefix(prefix, "verification_sessions"))
+    verificationSessions: db.collection(withPrefix(prefix, "verification_sessions")),
+    // Temporary routing bridge for inbound Exotel calls (TTL 10 min).
+    pendingCalls: db.collection(withPrefix(prefix, "pending_calls"))
   };
 }
 
@@ -41,5 +43,20 @@ export async function ensureVerificationIndexes(collections) {
     verificationIndexEnsured = true;
   } catch (_) {
     // Non-fatal: verification still works without the TTL index.
+  }
+}
+
+// Idempotently ensure indexes for the pendingCalls collection.
+// TTL index auto-deletes records after expiresAt (undialled registrations).
+// callerPhone index is the hot lookup path for the Dial Whom webhook.
+let pendingCallsIndexEnsured = false;
+export async function ensurePendingCallsIndexes(collections) {
+  if (pendingCallsIndexEnsured || !collections) return;
+  try {
+    await collections.pendingCalls.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+    await collections.pendingCalls.createIndex({ callerPhone: 1, consumed: 1 });
+    pendingCallsIndexEnsured = true;
+  } catch (_) {
+    // Non-fatal.
   }
 }

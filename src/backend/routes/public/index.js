@@ -2,7 +2,7 @@ import { ObjectId } from "mongodb";
 
 import { createContactAction } from "../../lib/core/contact-actions.js";
 import { createPasswordHash, createSecureToken, safeEqual, hashIp, minutesFromNow, getClientIp, maskPlateNumber, getPlateLastFour } from "../../lib/auth/security.js";
-import { getCollections, ensureVerificationIndexes } from "../../lib/db/repositories.js";
+import { getCollections, ensureVerificationIndexes, ensurePendingCallsIndexes } from "../../lib/db/repositories.js";
 import { VEHICLE_LABELS } from "../../lib/core/tag-issuance.js";
 
 // Verification security parameters (spec: 3 attempts, then temporary lockout).
@@ -379,4 +379,110 @@ export function registerPublicRoutes(app, env) {
       };
     }
   });
+
+  // Pre-register an inbound call before the scanner dials the virtual number.
+  // Stores a pendingCalls record so the Dial Whom webhook can resolve the owner's
+  // phone from the scanner's A-party number. Returns the virtual number to dial.
+  app.post("/api/tags/:token/register-call", { config: { rateLimit: { max: 5, timeWindow: "1 minute" } } }, async (request, reply) => {
+    const { phone, grant } = request.body || {};
+
+    if (!phone) {
+      reply.code(400);
+      return { ok: false, error: "phone is required" };
+    }
+    if (!grant) {
+      reply.code(403);
+      return { ok: false, error: "Verify the vehicle before contacting the owner." };
+    }
+
+    const collections = await getCollections(env);
+    if (!collections) {
+      reply.code(500);
+      return { ok: false, error: "MongoDB is not configured" };
+    }
+
+    await ensurePendingCallsIndexes(collections);
+
+    const { token } = request.params;
+
+    const grantSession = await collections.verificationSessions.findOne({
+      token,
+      grantId: grant,
+      verified: true
+    });
+    if (!grantSession || new Date(grantSession.grantExpiresAt) <= new Date()) {
+      reply.code(403);
+      return { ok: false, error: "Your verification expired. Please verify the vehicle again." };
+    }
+
+    const tag = await collections.tags.findOne({ token });
+    if (!tag || tag.status !== "active") {
+      reply.code(404);
+      return { ok: false, error: "Tag not found or not active" };
+    }
+
+    if (tag.freeContactUsed && !tag.premium) {
+      reply.code(402);
+      return {
+        ok: false,
+        code: "FREE_USED",
+        error: "This E-Tag's free contact has already been used. The owner can re-enable contact with the official ParkTag sticker."
+      };
+    }
+
+    if (!env.exotelCallerId) {
+      reply.code(503);
+      return { ok: false, error: "Call service is not configured." };
+    }
+
+    const owner = tag.ownerId ? await collections.owners.findOne({ _id: tag.ownerId }) : null;
+    const ownerPhone = owner?.mobile || owner?.phone || null;
+    if (!ownerPhone) {
+      reply.code(422);
+      return { ok: false, error: "Owner has not set a phone number. Call unavailable." };
+    }
+
+    // Normalize to E.164 so the Dial Whom lookup matches Exotel's CallFrom format.
+    const callerPhone = toE164(phone);
+    const now = new Date();
+
+    const { insertedId: requestId } = await collections.contactRequests.insertOne({
+      token,
+      ownerId: tag.ownerId,
+      phone: callerPhone,
+      action: "call",
+      status: "initiated",
+      provider: "exotel",
+      ipAddress: getClientIp(request),
+      userAgent: request.headers["user-agent"] || null,
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString()
+    });
+
+    await collections.tags.updateOne(
+      { _id: tag._id },
+      { $set: { freeContactUsed: true, freeContactUsedAt: now.toISOString(), updatedAt: now.toISOString() } }
+    );
+
+    await collections.pendingCalls.insertOne({
+      callerPhone,
+      targetPhone: ownerPhone,
+      token,
+      ownerId: tag.ownerId,
+      requestId,
+      type: "scanner_to_owner",
+      consumed: false,
+      createdAt: now.toISOString(),
+      expiresAt: new Date(now.getTime() + 10 * 60 * 1000)
+    });
+
+    return { ok: true, virtualNumber: env.exotelCallerId };
+  });
+}
+
+function toE164(input) {
+  const digits = String(input || "").replace(/\D/g, "");
+  if (digits.length === 10) return `+91${digits}`;
+  if (digits.length === 12 && digits.startsWith("91")) return `+${digits}`;
+  return `+${digits}`;
 }

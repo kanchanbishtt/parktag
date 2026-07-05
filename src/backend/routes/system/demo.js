@@ -1,6 +1,8 @@
 import { seedDemoData, getDemoCredentials } from "../../lib/demo-data.js";
 
 export function registerDemoRoutes(app, env) {
+  if (env.runtimeMode === "production") return;
+
   app.get("/api/demo/credentials", async () => {
     return {
       ok: true,

@@ -12,9 +12,9 @@ export function registerProviderRoutes(app, env) {
     const callSid  = request.query.CallSid  || null;
     const rawCaller = request.query.CallFrom || request.query.Callfrom || request.query.caller || null;
 
+    reply.type("text/plain");
+
     if (!collections || !rawCaller) {
-      reply.code(404);
-      reply.type("text/plain");
       return reply.send("");
     }
 
@@ -28,10 +28,7 @@ export function registerProviderRoutes(app, env) {
     );
 
     if (!record) {
-      // No matching pending call. Log without writing the caller's number.
       console.warn("[dial-whom] unmatched inbound call — no pending record found for this caller");
-      reply.code(404);
-      reply.type("text/plain");
       return reply.send("");
     }
 
@@ -44,7 +41,6 @@ export function registerProviderRoutes(app, env) {
       ).catch(() => null);
     }
 
-    reply.type("text/plain");
     return reply.send(record.targetPhone);
   });
 

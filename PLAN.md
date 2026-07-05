@@ -216,18 +216,26 @@ Avoid adding more infrastructure unless the prototype is blocked without it.
 ### Flow I: Owner Callback Flow
 
 1. A scanner contacts the owner (contact request is stored in `contactRequests` with the scanner's phone).
-2. Owner opens the dashboard and sees the contact request.
+2. Owner opens the dashboard and sees the contact request with a "Call Back" button.
 3. Owner taps "Call Back" — no phone input required. Owner's phone comes from `owner.mobile` on their profile.
 4. Frontend calls `POST /api/owner/callback/register-call` (authenticated). No body needed.
 5. Backend checks that a contact request for this owner exists with `createdAt >= now - 60min`. If not, returns `410 CALLBACK_WINDOW_EXPIRED`.
 6. Backend picks the **most recent** contact request within the 60-minute window as the callback target.
-7. Backend stores a pending call record `{ callerPhone: ownerPhone, targetPhone: scannerPhone, type: "owner_to_scanner", expiresAt: +10min }`.
-8. Backend returns `{ virtualNumber }` — the same shared Exotel ExoPhone used by the scanner flow.
+7. Backend stores a pending call record `{ callerPhone: toE164(ownerPhone), targetPhone: scannerPhone, type: "owner_to_scanner", expiresAt: +10min }`.
+8. Backend returns `{ virtualNumber }` — the same shared Exotel ExoPhone (`08047284348`) used by the scanner flow.
 9. Frontend opens `tel:<virtualNumber>` — native phone dialer with the virtual number pre-filled.
-10. Owner dials. Exotel receives the call with owner's phone as the A-party.
-11. Exotel hits `GET /api/exotel/dial-whom?CallFrom=<ownerPhone>`.
-12. Backend looks up `pendingCalls` by `callerPhone` → returns `targetPhone` (scanner's phone). Marks record `consumed: true`.
-13. Exotel bridges the call: owner ↔ scanner. Neither side sees the other's real number.
+10. Owner dials. Exotel receives the call with owner's phone as the A-party in trunk-prefix format (`0XXXXXXXXXX`).
+11. Exotel hits `GET /api/exotel/dial-whom?CallFrom=0<ownerDigits>`.
+12. `toE164("0XXXXXXXXXX")` → `+91XXXXXXXXXX` — matches `callerPhone` stored in step 7.
+13. Backend looks up `pendingCalls` by `callerPhone` → returns `toE164(targetPhone)` (scanner's phone in E.164). Marks record `consumed: true`.
+14. Exotel bridges the call: owner ↔ scanner. Neither side sees the other's real number.
+
+#### Known behaviours and constraints
+
+- Exotel sends `CallFrom` in trunk-prefix format (`08XXXXXXXXXX`, 11 digits with leading `0`). The `toE164()` function in `exotel.js` handles this: strips the leading `0` and prepends `+91`.
+- `targetPhone` may be stored without country code in MongoDB (e.g. `7017737354`). Always pass through `toE164()` before returning to Exotel to guarantee E.164 format.
+- The dial-whom endpoint always returns HTTP 200 (empty body when no match). This is required so Exotel's App Bazaar URL validation passes — a 404 causes Exotel to reject the URL configuration.
+- Owner must have `mobile` saved on their profile. Without it the backend returns `402 NO_PHONE` and the UI shows a prompt to add their phone number before callback is available.
 
 #### 60-minute window rules
 

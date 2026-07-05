@@ -10,7 +10,7 @@ export function registerProviderRoutes(app, env) {
   app.get("/api/exotel/dial-whom", async (request, reply) => {
     const collections = await getCollections(env);
     const callSid  = request.query.CallSid  || null;
-    const rawCaller = request.query.CallFrom || request.query.caller || null;
+    const rawCaller = request.query.CallFrom || request.query.Callfrom || request.query.caller || null;
 
     if (!collections || !rawCaller) {
       reply.code(404);

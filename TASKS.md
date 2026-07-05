@@ -548,32 +548,60 @@ Dial Whom always looks up by `callerPhone` — no special casing needed.
 - [x] Button enters loading state while awaiting the API response — never open dialer before success
 
 ### Exotel App Bazaar — manual configuration (one-time)
-- [ ] Create a Passthru app in App Bazaar with Dial Whom URL → `GET https://<deployed-domain>/api/exotel/dial-whom`
-- [ ] Set StatusCallback URL → `POST https://<deployed-domain>/api/provider/exotel/webhook` (already live)
-- [ ] Assign an ExoPhone virtual number to this Passthru app — copy the number into `EXOTEL_VIRTUAL_NUMBER` env var
-- [ ] Test the App Bazaar flow in sandbox mode before going live
+- [x] Create a Passthru / Connect-to-Flow app in App Bazaar with Primary URL → `https://app.parktag.me/api/exotel/dial-whom` (GET, no fallback URL, "Fetch after every attempt" unchecked)
+- [x] Assign ExoPhone `08047284348` to this flow via "Attach flow" in App Bazaar
+- [x] Confirmed Dial Whom endpoint returns HTTP 200 + empty body when no caller param — Exotel URL validation passes
+- [x] Confirmed Exotel sends `CallFrom` as `0XXXXXXXXXX` (trunk-prefix format) — `toE164` in `exotel.js` updated to handle 11-digit numbers starting with `0`
+- [x] Confirmed `targetPhone` normalized to E.164 via `toE164()` before being returned to Exotel
+- [ ] Set `EXOTEL_STATUS_CALLBACK_URL=https://app.parktag.me/api/provider/exotel/webhook` in Railway env vars
 
-### Verification — scanner → owner
-- [ ] Scanner enters phone, clicks "Call Owner" → `register-call` returns virtual number → native dialer opens with virtual number pre-filled
-- [ ] Scanner dials virtual number → Exotel hits `GET /api/exotel/dial-whom` with scanner's number → backend returns correct owner phone
-- [ ] Call connects: scanner ↔ owner, neither sees the other's real number (both see Exotel's masked number)
-- [ ] Contact request record is created in DB immediately when scanner clicks Call (before they even dial)
-- [ ] `freeContactUsed` is `true` on the tag immediately after `register-call` succeeds
-- [ ] Pending call record is consumed after Dial Whom lookup — same scanner number cannot route a second call with the same record
-- [ ] Stale pending call (registered but never dialled) → auto-deleted by TTL index after 10 minutes
-- [ ] Second call attempt on same tag where `freeContactUsed: true` → `register-call` returns `402 FREE_USED` before dialer opens
-- [ ] Premium tag with `freeContactUsed: true` → `register-call` still succeeds and opens dialer (premium bypasses gate permanently)
-- [ ] Unmatched Dial Whom hit (no pending record) → safe fallback response, no crash, no phone number in logs
-- [ ] Admin dashboard shows contact request with correct action (`call`) and updated status after call completes
+### Verification — scanner → owner (execute in order)
 
-### Verification — owner → scanner callback
-- [ ] Scanner contacts owner → "Call Back" button appears on that contact request in the owner dashboard
-- [ ] Owner taps "Call Back" within 60 minutes → `register-call` succeeds → native dialer opens with virtual number pre-filled
-- [ ] Owner dials virtual number → Exotel hits Dial Whom with owner's phone → backend returns scanner's phone → call bridges correctly
-- [ ] Owner taps "Call Back" after 60 minutes → `410 CALLBACK_WINDOW_EXPIRED` → UI shows "window has passed" message, dialer does not open
-- [ ] Second scanner contacts owner at 2:30pm, first scanner contacted at 2:00pm → "Call Back" at 2:45pm connects to the second (most recent) scanner
-- [ ] Owner has no `mobile` set → "Call Back" button disabled with prompt to add phone number
-- [ ] Callback pendingCalls record is consumed after Dial Whom — owner cannot route two calls from one registration
+**Step 1 — Register the call**
+- [x] Open a tag URL on phone → enter scanner phone → tap "Call Owner"
+- [x] API returns virtual number → native dialer opens (or "Tap to Call" button appears)
+- [x] Open Atlas → `prod_contact_requests` → confirm new document exists with `action: "call"` and `status: "pending"`
+- [x] Open Atlas → `prod_tags` → confirm `freeContactUsed: true` on that tag immediately after clicking Call
+
+**Step 2 — Dial and connect**
+- [x] Scanner dials ExoPhone `08047284348` → Exotel hits `GET /api/exotel/dial-whom?CallFrom=0XXXXXXXXXX`
+- [x] Railway logs show no "unmatched" warning → pending call record found and consumed
+- [x] Owner's phone rings and call connects ✓
+- [x] Open Atlas → `prod_pending_calls` → confirm `consumed: true` on the record after the call
+
+**Step 3 — Status callback**
+- [x] After call ends → open Atlas → `prod_contact_requests` → confirm `callResult` and `callDuration` fields updated by Exotel webhook
+
+**Step 4 — Edge cases**
+- [x] Try "Call Owner" on same tag a second time (freeContactUsed already true) → page shows `402 FREE_USED` error, dialer does not open
+- [x] Visit `https://app.parktag.me/api/exotel/dial-whom` in browser with no params → blank white page (200 + empty body, no Chrome 404 error)
+- [x] Check Railway logs after an unmatched Dial Whom hit → `[dial-whom] unmatched inbound call` warning appears, no phone number logged
+
+### Verification — owner → scanner callback (execute in order)
+
+**Prerequisites**
+- [ ] Owner must have `mobile` set in their profile — open owner dashboard → confirm phone is saved; if not, add it via the profile section first
+- [ ] A scanner must have contacted the owner within the last 60 minutes — open a tag URL → enter scanner phone → tap "Call Owner"
+
+**Step 1 — Call Back button appears**
+- [ ] Owner opens dashboard → finds the contact request card → "Call Back" button is visible (not greyed out)
+- [ ] If button shows "60-min window closed" the scanner contact was too long ago — redo the scanner contact first
+
+**Step 2 — Register the owner callback**
+- [ ] Owner taps "Call Back" → button shows "Connecting…" while API call is in flight
+- [ ] API returns virtual number → native dialer opens with `08047284348` pre-filled (or "Tap to Call" appears)
+- [ ] Open Atlas → `prod_pending_calls` → confirm new document with `type: "owner_to_scanner"`, `callerPhone: owner's E.164 number`, `targetPhone: scanner's phone`, `consumed: false`
+
+**Step 3 — Dial and connect**
+- [ ] Owner dials ExoPhone `08047284348` → Exotel hits `GET /api/exotel/dial-whom?CallFrom=0<owner digits>`
+- [ ] Check Railway logs → `[dial-whom]` line present, no "unmatched" warning
+- [ ] Scanner's phone rings → call connects → both parties connected through Exotel masked number
+- [ ] Open Atlas → `prod_pending_calls` → confirm `consumed: true` on the owner_to_scanner record
+
+**Step 4 — Edge cases**
+- [ ] Owner taps "Call Back" after 60-minute window → UI shows "Window expired — no recent contact within 60 min", dialer does not open
+- [ ] Owner has no `mobile` saved → tapping "Call Back" shows inline prompt "Add your phone number to enable callback", dialer does not open
+- [ ] Two scanners contact owner within 60 min → owner taps "Call Back" → call connects to the most recent scanner (not the first one)
 
 ## Current Focus
 

@@ -10,15 +10,80 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   </head>
   <body class="pt-hub-body">
-    <main class="pt-hub-main" style="max-width:360px;padding-top:60px">
-      <div style="text-align:center;margin-bottom:40px">
-        <img src="/images/dark-logo.png" alt="ParkTag" style="height:48px;width:auto;mix-blend-mode:lighten;">
+
+    <!-- Header -->
+    <div style="background:linear-gradient(155deg,#03162D 0%,#0D2545 55%,#1A3A6E 100%);padding:24px 20px 32px;">
+      <div style="max-width:420px;margin:0 auto;text-align:center">
+        <img src="/images/dark-logo.png" alt="ParkTag" style="height:44px;width:auto;mix-blend-mode:lighten;">
+        <p style="margin:10px 0 0;font-size:0.82rem;color:#8CA4C4;font-weight:500;letter-spacing:0.03em;">Choose where to go</p>
       </div>
-      <div style="display:flex;flex-direction:column;gap:12px">
-        <a href="/owner" class="pt-btn pt-btn-activate pt-btn-full" style="text-align:center;text-decoration:none">Owner Dashboard</a>
-        <a href="/admin" class="pt-btn pt-btn-full" style="text-align:center;text-decoration:none;background:#F3F4F6;color:var(--pt-ink);border:1.5px solid var(--pt-border);border-radius:12px;font-family:inherit;font-weight:700;font-size:1rem;padding:14px">Admin Dashboard</a>
-        <a href="/register-owner" class="pt-btn pt-btn-full" style="text-align:center;text-decoration:none;background:#F3F4F6;color:var(--pt-ink);border:1.5px solid var(--pt-border);border-radius:12px;font-family:inherit;font-weight:700;font-size:1rem;padding:14px">Register as Owner</a>
+    </div>
+
+    <main style="max-width:420px;margin:0 auto;padding:28px 20px 48px;">
+
+      <div style="display:flex;flex-direction:column;gap:14px;">
+
+        <!-- Owner Dashboard -->
+        <a href="/owner" style="text-decoration:none;">
+          <div style="background:#fff;border:1.5px solid #E5E7EB;border-radius:16px;padding:18px 20px;display:flex;align-items:center;gap:16px;box-shadow:0 1px 4px rgba(0,0,0,0.05);transition:box-shadow 0.15s,border-color 0.15s;"
+               onmouseover="this.style.borderColor='#FF2700';this.style.boxShadow='0 4px 14px rgba(0,0,0,0.09)'"
+               onmouseout="this.style.borderColor='#E5E7EB';this.style.boxShadow='0 1px 4px rgba(0,0,0,0.05)'">
+            <div style="width:48px;height:48px;border-radius:14px;background:#FFEDEA;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                <rect x="3" y="3" width="7" height="7" rx="1" stroke="#FF2700" stroke-width="2"/>
+                <rect x="14" y="3" width="7" height="7" rx="1" stroke="#FF2700" stroke-width="2"/>
+                <rect x="3" y="14" width="7" height="7" rx="1" stroke="#FF2700" stroke-width="2"/>
+                <rect x="14" y="14" width="7" height="7" rx="1" stroke="#FF2700" stroke-width="2"/>
+              </svg>
+            </div>
+            <div style="flex:1;">
+              <p style="margin:0 0 2px;font-weight:800;font-size:0.97rem;color:#03162D;">Owner Dashboard</p>
+              <p style="margin:0;font-size:0.78rem;color:#6B7280;">Manage your tags and vehicles</p>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="#9CA3AF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+        </a>
+
+        <!-- Admin Dashboard -->
+        <a href="/admin" style="text-decoration:none;">
+          <div style="background:#fff;border:1.5px solid #E5E7EB;border-radius:16px;padding:18px 20px;display:flex;align-items:center;gap:16px;box-shadow:0 1px 4px rgba(0,0,0,0.05);transition:box-shadow 0.15s,border-color 0.15s;"
+               onmouseover="this.style.borderColor='#FF2700';this.style.boxShadow='0 4px 14px rgba(0,0,0,0.09)'"
+               onmouseout="this.style.borderColor='#E5E7EB';this.style.boxShadow='0 1px 4px rgba(0,0,0,0.05)'">
+            <div style="width:48px;height:48px;border-radius:14px;background:#EFF6FF;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                <path d="M12 2L4 6v6c0 5.25 3.5 9.74 8 11 4.5-1.26 8-5.75 8-11V6l-8-4Z" stroke="#3B82F6" stroke-width="2" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <div style="flex:1;">
+              <p style="margin:0 0 2px;font-weight:800;font-size:0.97rem;color:#03162D;">Admin Dashboard</p>
+              <p style="margin:0;font-size:0.78rem;color:#6B7280;">Operator and issuance controls</p>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="#9CA3AF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+        </a>
+
+        <!-- Register as Owner -->
+        <a href="/register-owner" style="text-decoration:none;">
+          <div style="background:#fff;border:1.5px solid #E5E7EB;border-radius:16px;padding:18px 20px;display:flex;align-items:center;gap:16px;box-shadow:0 1px 4px rgba(0,0,0,0.05);transition:box-shadow 0.15s,border-color 0.15s;"
+               onmouseover="this.style.borderColor='#FF2700';this.style.boxShadow='0 4px 14px rgba(0,0,0,0.09)'"
+               onmouseout="this.style.borderColor='#E5E7EB';this.style.boxShadow='0 1px 4px rgba(0,0,0,0.05)'">
+            <div style="width:48px;height:48px;border-radius:14px;background:#F0FDF4;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="8" r="4" stroke="#22C55E" stroke-width="2"/>
+                <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="#22C55E" stroke-width="2" stroke-linecap="round"/>
+                <path d="M19 8v6M16 11h6" stroke="#22C55E" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <div style="flex:1;">
+              <p style="margin:0 0 2px;font-weight:800;font-size:0.97rem;color:#03162D;">Register as Owner</p>
+              <p style="margin:0;font-size:0.78rem;color:#6B7280;">Create your ParkTag account</p>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="#9CA3AF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+        </a>
+
       </div>
     </main>
+
   </body>
 </html>

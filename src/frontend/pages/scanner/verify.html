@@ -2,11 +2,23 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>ParkTag</title>
-    <meta http-equiv="refresh" content="0;url=/owner" />
+    <link rel="stylesheet" href="/styles/styles.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   </head>
-  <body>
-    <script>window.location.replace("/owner");</script>
+  <body class="pt-hub-body">
+    <main class="pt-hub-main" style="max-width:360px;padding-top:60px">
+      <div style="text-align:center;margin-bottom:40px">
+        <img src="/images/dark-logo.png" alt="ParkTag" style="height:48px;width:auto;mix-blend-mode:lighten;">
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <a href="/owner" class="pt-btn pt-btn-activate pt-btn-full" style="text-align:center;text-decoration:none">Owner Dashboard</a>
+        <a href="/admin" class="pt-btn pt-btn-full" style="text-align:center;text-decoration:none;background:#F3F4F6;color:var(--pt-ink);border:1.5px solid var(--pt-border);border-radius:12px;font-family:inherit;font-weight:700;font-size:1rem;padding:14px">Admin Dashboard</a>
+        <a href="/register-owner" class="pt-btn pt-btn-full" style="text-align:center;text-decoration:none;background:#F3F4F6;color:var(--pt-ink);border:1.5px solid var(--pt-border);border-radius:12px;font-family:inherit;font-weight:700;font-size:1rem;padding:14px">Register as Owner</a>
+      </div>
+    </main>
   </body>
 </html>

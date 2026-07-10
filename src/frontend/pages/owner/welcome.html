@@ -961,7 +961,18 @@
             <h2 class="pt-act-title">Activity</h2>
             <div class="pt-act-bar"></div>
           </div>
-          <span class="pt-act-badge" id="actBadge" style="display:none"></span>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
+            <span class="pt-act-badge" id="actBadge" style="display:none"></span>
+            <div style="position:relative">
+              <button id="actInfoBtn" aria-label="Activity info" onclick="toggleActInfo(event)" style="background:none;border:none;cursor:pointer;color:#9CA3AF;padding:2px;display:flex;align-items:center;flex-shrink:0;transition:color .15s">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M12 16v-4M12 8h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              </button>
+              <div id="actInfoTooltip" style="display:none;position:absolute;right:0;top:calc(100% + 8px);width:220px;background:#F0F4FF;border:1.5px solid #BFCFFF;border-radius:14px;box-shadow:0 8px 28px rgba(0,0,0,.13);padding:12px 14px;z-index:50">
+                <div style="position:absolute;top:-6px;right:6px;width:10px;height:10px;background:#F0F4FF;border-left:1.5px solid #BFCFFF;border-top:1.5px solid #BFCFFF;transform:rotate(45deg);border-radius:2px 0 0 0"></div>
+                <p style="margin:0;font-size:.76rem;color:#374151;line-height:1.65;font-weight:500">Only activity from the <strong style="color:#03162D;font-weight:700">last 2 days</strong> is shown. Older entries are automatically hidden.</p>
+              </div>
+            </div>
+          </div>
         </div>
         <div id="actCards">
           <!-- skeleton -->
@@ -1136,9 +1147,16 @@
             <p style="margin:0 0 2px;font-size:.76rem;font-weight:700;color:#92400E">Add your mobile number to receive call-backs</p>
             <p style="margin:0;font-size:.70rem;color:#B45309;line-height:1.45">Scanners can't call you back until you register a number.</p>
           </div>
-          <button onclick="goToPhoneSetup()" title="How to register your number" style="background:none;border:none;cursor:pointer;color:#D97706;padding:2px 4px;flex-shrink:0;display:flex;align-items:center">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="17" r=".5" fill="currentColor" stroke="currentColor" stroke-width="1.5"/></svg>
-          </button>
+          <div style="position:relative;flex-shrink:0">
+            <button id="phoneInfoBtn" onclick="togglePhoneInfo(event)" aria-label="How to register your number" style="background:none;border:none;cursor:pointer;color:#D97706;padding:2px 4px;display:flex;align-items:center;transition:color .15s">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M12 16v-4M12 8h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+            <div id="phoneInfoTooltip" style="display:none;position:absolute;right:0;top:calc(100% + 8px);width:220px;background:#FFFBEB;border:1.5px solid #FCD34D;border-radius:14px;box-shadow:0 8px 28px rgba(0,0,0,.13);padding:12px 14px;z-index:50">
+              <div style="position:absolute;top:-6px;right:6px;width:10px;height:10px;background:#FFFBEB;border-left:1.5px solid #FCD34D;border-top:1.5px solid #FCD34D;transform:rotate(45deg);border-radius:2px 0 0 0"></div>
+              <p style="margin:0 0 9px;font-size:.76rem;color:#92400E;line-height:1.65;font-weight:500">Go to <strong style="color:#78350F;font-weight:700">User Info → Phone Number</strong> and save your mobile number to enable call-backs.</p>
+              <button onclick="goToPhoneSetup()" style="width:100%;background:#D97706;color:#fff;border:none;border-radius:9px;padding:7px 12px;font-size:.74rem;font-weight:700;cursor:pointer;font-family:inherit">Open Phone Settings →</button>
+            </div>
+          </div>
         </div>
         <div class="pt-tog">
           <div><div class="pt-tog-lb">Tag Active</div><div class="pt-tog-sb">Enable your ParkTag sticker</div></div>

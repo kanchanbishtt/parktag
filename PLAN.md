@@ -273,6 +273,9 @@ For the prototype, keep security simple but real.
 - owner users sign in with a server-managed account created during claim or setup
 - admin signs in with a seeded admin account
 - authenticated browser sessions use secure HTTP-only cookies
+- session cookies are **session-scoped by default** (expire when browser closes); "Remember me" checkbox on login sets a 7-day persistent cookie
+- `/owner-welcome` is server-side guarded — HTML is never served without a valid session; invalid or missing session redirects to `/owner-login`
+- dashboard API returns 401/403 if session is missing or expired; frontend redirects to `/owner-login` on either code
 - backend authorization is role-based: `owner` and `admin`
 - owner routes must be restricted to the signed-in owner's own records only
 - Google Sign-In is login-only — it never auto-creates a new owner account; if no owner exists with the Google email, login is rejected with a clear error message ("No ParkTag account found for this Google account. Please register first.")
@@ -514,7 +517,7 @@ After saving, go to: **Exotel Dashboard → Numbers → ExoPhones**
 | `EXOTEL_ACCOUNT_SID` | Exotel Dashboard → Settings | Already present — used for API auth |
 | `EXOTEL_API_KEY` | Exotel Dashboard → Settings | Already present — used for API auth |
 | `EXOTEL_API_TOKEN` | Exotel Dashboard → Settings | Already present — used for API auth |
-| `EXOTEL_STATUS_CALLBACK_URL` | Set to `https://app.parktag.me/api/provider/exotel/webhook` | Already present — receives call status events |
+| `EXOTEL_STATUS_CALLBACK_URL` | Set to `https://app.parktag.me/api/provider/exotel/webhook` | ✓ Set in Railway — receives call status events |
 
 > No new env vars needed. `EXOTEL_CALLER_ID` doubles as the virtual number. `EXOTEL_VIRTUAL_NUMBER` was removed — do not add it.
 
@@ -653,13 +656,12 @@ Only the Tag Active toggle saves to the server (`POST /api/owner/tags/:tagId/sta
 
 ### Q2 — Contact Requests section: what should it look like and where does it go?
 
-**Current behaviour:**
-The dashboard API already returns a `requests` array — the last 10 scanner contact attempts (who called, when, which vehicle, call result). This data is fetched but nothing on the dashboard displays it. A contact requests UI was built once and reverted.
+**Current behaviour (implemented):**
+The Activity section now appears at the bottom of the Tags tab (after My Vehicles). It shows scanner contact attempts from the **last 2 days only** — older entries are automatically hidden. Each card shows masked scanner number, vehicle plate, call/WhatsApp type, call result badge, and a Call Back button (within 60-min window). A callback prompt also appears between Overview and My Vehicles highlighting the most recent eligible call with a pulsing indicator.
 
-**Question:**
-- Should recent contact attempts be visible on the owner dashboard? If yes, where — as a section below the vehicle grid, a separate tab, inside the notice board sidebar, or as a notification panel behind the bell icon?
-- What fields should each row show? (e.g. date/time, masked scanner number, vehicle plate, call result, callback button)
-- Should the "Call Back" button be part of this section (as per Flow I in §6)?
+**Remaining question:**
+- Should activity older than 2 days be accessible anywhere (e.g. a separate history tab or expandable section)?
+- Should the notification bell open a panel showing the same activity data?
 
 ---
 

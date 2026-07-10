@@ -400,16 +400,22 @@ function renderActivity(requests) {
     return;
   }
 
-  const now      = Date.now();
-  const WIN_MS   = 60 * 60 * 1000;
+  const now        = Date.now();
+  const WIN_MS     = 60 * 60 * 1000;
+  const TWO_DAYS   = 48 * 60 * 60 * 1000;
+
+  // Only show entries from the last 2 days
+  const recent = requests.filter(r =>
+    (now - new Date(r.createdAt).getTime()) <= TWO_DAYS
+  );
 
   // Most recent request within the 60-min callback window
-  const eligible = requests.find(r =>
+  const eligible = recent.find(r =>
     r.action === "call" && (now - new Date(r.createdAt).getTime()) <= WIN_MS
   );
 
   // Count how many are within the window (actionable)
-  const hotCount = requests.filter(r =>
+  const hotCount = recent.filter(r =>
     (now - new Date(r.createdAt).getTime()) <= WIN_MS
   ).length;
 
@@ -457,7 +463,23 @@ function renderActivity(requests) {
   const callSvg = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.62 3.38 2 2 0 0 1 3.6 1.17h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.86a16 16 0 0 0 6 6l.91-.91a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" stroke="currentColor" stroke-width="1.8"/></svg>`;
   const waSvg  = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
-  const cards = requests.slice(0, 6).map(r => {
+  if (!recent.length) {
+    container.innerHTML = `
+      <div class="pt-act-empty">
+        <div class="pt-act-empty-ic">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" stroke="#D1D5DB" stroke-width="2" stroke-linecap="round"/>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0" stroke="#D1D5DB" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <p class="pt-act-empty-t">No recent activity</p>
+        <p class="pt-act-empty-s">Activity older than 2 days is hidden</p>
+      </div>`;
+    if (badge) badge.style.display = "none";
+    return;
+  }
+
+  const cards = recent.slice(0, 20).map(r => {
     const ageMs  = now - new Date(r.createdAt).getTime();
     const within = ageMs <= WIN_MS;
     const isCall = r.action === "call";
@@ -1031,6 +1053,42 @@ function toggleMI(item) {
   if (!wasOpen) item.classList.add("open");
 }
 window.toggleMI = toggleMI;
+
+function toggleActInfo(e) {
+  e.stopPropagation();
+  const tip = document.getElementById("actInfoTooltip");
+  const btn = document.getElementById("actInfoBtn");
+  if (!tip) return;
+  const visible = tip.style.display !== "none";
+  tip.style.display = visible ? "none" : "block";
+  if (btn) btn.style.color = visible ? "#9CA3AF" : "#FF2700";
+}
+window.toggleActInfo = toggleActInfo;
+
+function togglePhoneInfo(e) {
+  e.stopPropagation();
+  const tip = document.getElementById("phoneInfoTooltip");
+  const btn = document.getElementById("phoneInfoBtn");
+  if (!tip) return;
+  const visible = tip.style.display !== "none";
+  tip.style.display = visible ? "none" : "block";
+  if (btn) btn.style.color = visible ? "#D97706" : "#92400E";
+}
+window.togglePhoneInfo = togglePhoneInfo;
+
+document.addEventListener("click", () => {
+  [
+    { tip: "actInfoTooltip",   btn: "actInfoBtn",   defaultColor: "#9CA3AF" },
+    { tip: "phoneInfoTooltip", btn: "phoneInfoBtn",  defaultColor: "#D97706" },
+  ].forEach(({ tip: tipId, btn: btnId, defaultColor }) => {
+    const tip = document.getElementById(tipId);
+    const btn = document.getElementById(btnId);
+    if (tip && tip.style.display !== "none") {
+      tip.style.display = "none";
+      if (btn) btn.style.color = defaultColor;
+    }
+  });
+});
 
 function goToPhoneSetup() {
   // Open the User Info accordion and focus the phone number input

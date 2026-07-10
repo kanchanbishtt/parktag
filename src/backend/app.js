@@ -14,6 +14,7 @@ import { registerAuthRoutes } from "./routes/auth/credentials.js";
 import { registerDemoRoutes } from "./routes/system/demo.js";
 import { registerOwnerRoutes } from "./routes/owner/dashboard.js";
 import { registerProviderRoutes } from "./routes/webhooks/exotel.js";
+import { registerMetaWebhookRoutes } from "./routes/webhooks/meta.js";
 import { registerPublicRoutes } from "./routes/public/index.js";
 import { registerRegistrationRoutes } from "./routes/owner/registration.js";
 import { registerOtpAuthRoutes } from "./routes/auth/otp.js";
@@ -246,6 +247,7 @@ export async function buildApp() {
   registerDemoRoutes(app, env);
   registerPublicRoutes(app, env);
   registerProviderRoutes(app, env);
+  registerMetaWebhookRoutes(app, env);
   registerRegistrationRoutes(app, env);
   registerAuthRoutes(app, env);
   registerOtpAuthRoutes(app, env);

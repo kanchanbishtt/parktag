@@ -48,6 +48,8 @@ export function getEnv() {
     exotelSmsTemplateId: process.env.EXOTEL_SMS_TEMPLATE_ID || "",
     metaWhatsappPhoneNumberId: process.env.META_WHATSAPP_PHONE_NUMBER_ID || "",
     metaWhatsappAccessToken: process.env.META_WHATSAPP_ACCESS_TOKEN || "",
+    metaWhatsappBusinessAccountId: process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || "",
+    metaWhatsappWebhookVerifyToken: process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN || "parktag-whatsapp-handshake",
     emailSmtpHost: process.env.EMAIL_SMTP_HOST || "",
     emailSmtpPort: Number(process.env.EMAIL_SMTP_PORT) || 587,
     emailSmtpUser: process.env.EMAIL_SMTP_USER || "",

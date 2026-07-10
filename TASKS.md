@@ -596,42 +596,77 @@ Dial Whom always looks up by `callerPhone` — no special casing needed.
 ### Verification — owner → scanner callback (execute in order)
 
 **Prerequisites**
-- [ ] Owner must have `mobile` set in their profile — open owner dashboard → confirm phone is saved; if not, add it via the profile section first
-- [ ] A scanner must have contacted the owner within the last 60 minutes — open a tag URL → enter scanner phone → tap "Call Owner"
+- [x] Owner must have `mobile` set in their profile — open owner dashboard → confirm phone is saved; if not, add it via the profile section first
+- [x] A scanner must have contacted the owner within the last 60 minutes — open a tag URL → enter scanner phone → tap "Call Owner"
 
 **Step 1 — Call Back button appears**
-- [ ] Owner opens dashboard → finds the contact request card → "Call Back" button is visible (not greyed out)
-- [ ] If button shows "60-min window closed" the scanner contact was too long ago — redo the scanner contact first
+- [x] Owner opens dashboard → finds the contact request card → "Call Back" button is visible (not greyed out)
+- [x] If button shows "60-min window closed" the scanner contact was too long ago — redo the scanner contact first
 
 **Step 2 — Register the owner callback**
-- [ ] Owner taps "Call Back" → button shows "Connecting…" while API call is in flight
-- [ ] API returns virtual number → native dialer opens with `08047284348` pre-filled (or "Tap to Call" appears)
-- [ ] Open Atlas → `prod_pending_calls` → confirm new document with `type: "owner_to_scanner"`, `callerPhone: owner's E.164 number`, `targetPhone: scanner's phone`, `consumed: false`
+- [x] Owner taps "Call Back" → button shows "Connecting…" while API call is in flight
+- [x] API returns virtual number → native dialer opens with `08047284348` pre-filled (or "Tap to Call" appears)
+- [x] Open Atlas → `prod_pending_calls` → confirm new document with `type: "owner_to_scanner"`, `callerPhone: owner's E.164 number`, `targetPhone: scanner's phone`, `consumed: false`
 
 **Step 3 — Dial and connect**
-- [ ] Owner dials ExoPhone `08047284348` → Exotel hits `GET /api/exotel/dial-whom?CallFrom=0<owner digits>`
-- [ ] Check Railway logs → `[dial-whom]` line present, no "unmatched" warning
-- [ ] Scanner's phone rings → call connects → both parties connected through Exotel masked number
-- [ ] Open Atlas → `prod_pending_calls` → confirm `consumed: true` on the owner_to_scanner record
+- [x] Owner dials ExoPhone `08047284348` → Exotel hits `GET /api/exotel/dial-whom?CallFrom=0<owner digits>`
+- [x] Check Railway logs → `[dial-whom]` line present, no "unmatched" warning
+- [x] Scanner's phone rings → call connects → both parties connected through Exotel masked number
+- [x] Open Atlas → `prod_pending_calls` → confirm `consumed: true` on the owner_to_scanner record
 
 **Step 4 — Edge cases**
-- [ ] Owner taps "Call Back" after 60-minute window → UI shows "Window expired — no recent contact within 60 min", dialer does not open
-- [ ] Owner has no `mobile` saved → tapping "Call Back" shows inline prompt "Add your phone number to enable callback", dialer does not open
-- [ ] Two scanners contact owner within 60 min → owner taps "Call Back" → call connects to the most recent scanner (not the first one)
+- [x] Owner taps "Call Back" after 60-minute window → UI shows "Window expired — no recent contact within 60 min", dialer does not open
+- [x] Owner has no `mobile` saved → tapping "Call Back" shows inline prompt "Add your phone number to enable callback", dialer does not open
+- [x] Two scanners contact owner within 60 min → owner taps "Call Back" → call connects to the most recent scanner (not the first one)
+
+## M14. Owner Dashboard & Scanner UX Polish
+
+Covers UX and security improvements made after M13 call flow was confirmed working end-to-end.
+
+### Admin — Batch Issuance
+- [x] Add premium toggle slider to Batch Issuance page — when ON all tags in the batch get `premium: true`
+- [x] `createUnclaimedTags()` accepts `premiumBatch` flag and overrides `tagLifecycleDefaults()` `premium: false`
+
+### Scanner — Claim Form
+- [x] Add confirm password field with show/hide eye toggle to "Register this WaveTag" form
+- [x] Add real-time blur validation — mismatch hint appears when user leaves confirm field; clears as they correct
+- [x] Add password length check (8-char minimum) before submission
+- [x] Redesign hero section — dark gradient banner, glow decorations, trust pills (🔒 Private calls · ✓ Free to activate · ⚡ Takes 1 min)
+- [x] 2-column form layout on ≥700px screens to reduce scrolling
+- [x] Fix "Registration required" badge — consolidated CSS, glass-style `data-tone` variants (amber/green), overflow protection
+
+### Owner Dashboard — Phone & Callbacks
+- [x] Add phone number input row in User Info menu section with `saveMobile()` function
+- [x] Add amber alert banner in Tags & Call accordion when owner has no mobile number — tooltip 'i' button navigates to phone setup
+- [x] Add callback prompt (`#callbackPrompt`) between Overview and My Vehicles — shows only eligible call (within 60-min window) with pulsing red dot
+- [x] Move Activity section to last position (after My Vehicles)
+- [x] Limit Activity section to last 2 days — entries older than 48 hours are hidden
+- [x] Add 'i' tooltip button on Activity header — floating card explains the 2-day filter, closes on outside click
+- [x] Unify all 'i' tooltip buttons to same floating popup pattern with light colour tinting per context
+
+### Security — Auto-logout
+- [x] Session cookie by default (no `maxAge`) — expires when browser closes
+- [x] "Remember me on this device" checkbox on login — sets 7-day persistent cookie
+- [x] Server-side guard on `/owner-welcome` — redirects to `/owner-login` if no valid session
+- [x] `load()` in `welcome.js` redirects to `/owner-login` on 401/403 from dashboard API
+
+### Pending
+- [x] Set `EXOTEL_STATUS_CALLBACK_URL=https://app.parktag.me/api/provider/exotel/webhook` in Railway env vars — needed for post-call status tracking (call duration, connected/missed); not required for call bridging itself
+- [ ] Add Google Cloud Console Authorized JS Origins: `https://app.parktag.me` — needed for popup-based Google Sign-In
+- [ ] Banner carousel — replace placeholder slides with real content
+- [ ] "Add phone to call back" text in activity cards → make clickable, navigate to phone setup via `goToPhoneSetup()`
 
 ## Current Focus
 
 - [x] Establish root workflow and tracking files
 - [x] Write the first wiki note
 - [x] Define the minimum demo slice before broader implementation
-- [x] Start Milestone 3 with root runtime scaffolding and backend package setup
-- [x] Scaffold the first runnable Milestone 3 backend slice
-- [x] Verify the first demo-flow backend slice end to end against MongoDB Atlas
-- [x] Verify the hosted demo-flow backend slice end to end on Render
-- [x] Start replacing the combined debug page with a real scanner-facing public entry point
-- [x] Start replacing the shared verify page responsibilities with dedicated owner/admin surfaces
-- [x] Switch working direction to `PLAN.md` instead of revising `docs/RFA_SPEC.md`
-- [x] Lock the chosen stack to `Fastify + MongoDB + simple HTML/CSS/JS`
-- [ ] Track hosted backend, authentication, authorization, security, and cross-device browser support as first-class MVP work
-- [ ] Make verification UI-driven wherever practical so the product stays easy to validate as it grows
-- [ ] Simplify the prototype stack and remove Redis-style optimization assumptions from the working plan
+- [x] Scaffold and deploy backend server
+- [x] Build scanner, owner, and admin web flows
+- [x] Implement Exotel inbound call flow — scanner → owner and owner → scanner both verified end-to-end
+- [x] Polish owner dashboard UX and scanner claim form
+- [x] Harden session security — auto-logout, server-side page guard, remember-me
+- [x] Set `EXOTEL_STATUS_CALLBACK_URL` in Railway
+- [ ] Configure Google Cloud Console for production Google Sign-In
+- [ ] Implement WhatsApp Business API message delivery (M7)
+- [ ] Complete M6 security hardening checklist

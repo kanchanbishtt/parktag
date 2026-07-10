@@ -576,6 +576,29 @@ byId("contact-number-submit")?.addEventListener("click", handleContactNumberSubm
 byId("final-call-button")?.addEventListener("click", handleFinalCallAction);
 byId("claim-form")?.addEventListener("submit", handleClaim);
 
+// Confirm password real-time feedback on blur
+byId("claim-confirm-password")?.addEventListener("blur", () => {
+  const pw      = byId("claim-password")?.value || "";
+  const confirm = byId("claim-confirm-password")?.value || "";
+  const hint    = byId("confirm-pw-hint");
+  if (!hint || !confirm) return;
+  if (pw !== confirm) {
+    hint.textContent = "Passwords do not match.";
+    hint.style.display = "block";
+  } else {
+    hint.style.display = "none";
+  }
+});
+
+// Clear hint as the user corrects the confirm field
+byId("claim-confirm-password")?.addEventListener("input", () => {
+  const pw      = byId("claim-password")?.value || "";
+  const confirm = byId("claim-confirm-password")?.value || "";
+  const hint    = byId("confirm-pw-hint");
+  if (!hint || hint.style.display === "none") return;
+  if (pw === confirm) hint.style.display = "none";
+});
+
 // Reason chips — select an optional reason (the message itself is server-built).
 // A second tap clears the selection.
 document.querySelectorAll(".pt-chip").forEach(chip => {

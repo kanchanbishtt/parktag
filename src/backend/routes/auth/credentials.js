@@ -19,7 +19,7 @@ export function registerAuthRoutes(app, env) {
   });
 
   app.post("/api/auth/login", { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } }, async (request, reply) => {
-    const { role, email, password } = request.body || {};
+    const { role, email, password, rememberMe } = request.body || {};
 
     if (!role || !email || !password) {
       reply.code(400);
@@ -40,7 +40,7 @@ export function registerAuthRoutes(app, env) {
     }
 
     const sessionId = await createSession(app, user);
-    writeSessionCookie(reply, sessionId, env.runtimeMode === "production");
+    writeSessionCookie(reply, sessionId, env.runtimeMode === "production", Boolean(rememberMe));
 
     return {
       ok: true,

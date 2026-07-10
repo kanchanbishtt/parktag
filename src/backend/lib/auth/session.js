@@ -44,12 +44,15 @@ export function clearSession(app, request, reply) {
   reply.clearCookie(SESSION_COOKIE, { path: "/" });
 }
 
-export function writeSessionCookie(reply, sessionId, isProduction = false) {
-  reply.setCookie(SESSION_COOKIE, sessionId, {
+export function writeSessionCookie(reply, sessionId, isProduction = false, rememberMe = false) {
+  const opts = {
     httpOnly: true,
     path: "/",
     sameSite: "lax",
-    secure: isProduction,
-    maxAge: Math.floor(SESSION_TTL_MS / 1000)
-  });
+    secure: isProduction
+  };
+  // Only persist across browser restarts when user explicitly chose "Remember me".
+  // Default is a session cookie — cleared when the browser tab/window closes.
+  if (rememberMe) opts.maxAge = Math.floor(SESSION_TTL_MS / 1000);
+  reply.setCookie(SESSION_COOKIE, sessionId, opts);
 }

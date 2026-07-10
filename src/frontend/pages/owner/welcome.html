@@ -1061,6 +1061,23 @@
         <div class="pt-irow"><span class="pt-ik">Vehicle Type</span><span class="pt-iv" id="mi-type">—</span></div>
         <div class="pt-irow"><span class="pt-ik">Owner Name</span><span class="pt-iv" id="mi-name">—</span></div>
         <div class="pt-irow"><span class="pt-ik">Tag ID</span><span class="pt-iv" id="mi-tagid">—</span></div>
+        <div class="pt-irow" style="flex-direction:column;align-items:flex-start;gap:8px">
+          <div style="display:flex;align-items:center;justify-content:space-between;width:100%">
+            <span class="pt-ik">Phone Number</span>
+            <span class="pt-iv" id="mi-mobile" style="color:#6B7280">Not set</span>
+          </div>
+          <div style="display:flex;gap:8px;width:100%">
+            <div class="pt-input-phone-wrap" style="flex:1">
+              <span class="pt-phone-prefix" style="font-size:.8rem;padding:0 8px">
+                <svg width="14" height="10" viewBox="0 0 14 10" fill="none"><rect width="14" height="10" rx="1" fill="#FF9933"/><rect y="3.33" width="14" height="3.34" fill="#fff"/><rect y="6.67" width="14" height="3.33" fill="#138808"/></svg>
+                +91
+              </span>
+              <input id="mi-mobile-input" type="tel" inputmode="tel" class="pt-input pt-input-phone" placeholder="Enter mobile number" style="font-size:.82rem;padding:8px 10px" />
+            </div>
+            <button onclick="saveMobile()" style="background:#FF2700;color:#fff;border:none;border-radius:10px;padding:0 14px;font-size:.78rem;font-weight:700;cursor:pointer;white-space:nowrap">Save</button>
+          </div>
+          <p id="mi-mobile-status" style="font-size:.73rem;margin:0;display:none"></p>
+        </div>
       </div></div>
     </div>
 

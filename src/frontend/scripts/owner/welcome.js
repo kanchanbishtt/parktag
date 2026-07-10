@@ -504,6 +504,41 @@ async function callBack() {
 }
 window.callBack = callBack;
 
+async function saveMobile() {
+  const input  = document.getElementById("mi-mobile-input");
+  const status = document.getElementById("mi-mobile-status");
+  const raw    = (input?.value || "").trim().replace(/\D/g, "");
+
+  if (!raw || raw.length < 10) {
+    if (status) { status.textContent = "Enter a valid 10-digit number."; status.style.color = "#DC2626"; status.style.display = "block"; }
+    return;
+  }
+
+  const mobile = raw.length === 10 ? `+91${raw}` : `+${raw}`;
+
+  try {
+    const res  = await fetch("/api/owner/mobile", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ mobile })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      _ownerMobile = mobile;
+      const mobileEl = document.getElementById("mi-mobile");
+      if (mobileEl) { mobileEl.textContent = mobile; mobileEl.style.color = "#03162D"; }
+      if (status) { status.textContent = "Phone number saved."; status.style.color = "#16A34A"; status.style.display = "block"; }
+      _toast("Phone number saved — Call Back is now enabled.", "ok");
+      renderActivity(allRequests);
+    } else {
+      if (status) { status.textContent = data.error || "Failed to save."; status.style.color = "#DC2626"; status.style.display = "block"; }
+    }
+  } catch {
+    if (status) { status.textContent = "Network error. Try again."; status.style.color = "#DC2626"; status.style.display = "block"; }
+  }
+}
+window.saveMobile = saveMobile;
+
 // ── Notice board KPI filter ───────────────────────────────────────
 function applyNbFilter(key) {
   if (_nbFilter === key) { clearNbFilter(); return; }
@@ -896,10 +931,19 @@ function _fillMenu() {
 
   // User info panel
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-  set("mi-plate", plate);
-  set("mi-type",  label);
-  set("mi-name",  _owner ? (_owner.displayName || _owner.email || _owner.mobile || "—") : "—");
-  set("mi-tagid", tag.token || tag.id || "DEMO");
+  set("mi-plate",  plate);
+  set("mi-type",   label);
+  set("mi-name",   _owner ? (_owner.displayName || _owner.email || _owner.mobile || "—") : "—");
+  set("mi-tagid",  tag.token || tag.id || "DEMO");
+  const mobileEl = document.getElementById("mi-mobile");
+  if (mobileEl) {
+    mobileEl.textContent = _ownerMobile || "Not set";
+    mobileEl.style.color = _ownerMobile ? "#03162D" : "#6B7280";
+  }
+  const mobileInput = document.getElementById("mi-mobile-input");
+  if (mobileInput && _ownerMobile) {
+    mobileInput.value = _ownerMobile.replace(/^\+91/, "");
+  }
 
   // Toggles — Tag Active uses real DB status; rest use localStorage
   const s = _loadSw(tag);

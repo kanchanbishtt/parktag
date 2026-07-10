@@ -575,6 +575,134 @@ This endpoint already exists and updates the matching `contactRequests` record v
 
 ---
 
+## 15. Google OAuth Configuration
+
+### 15.1 Why this matters
+
+The popup-based Google Sign-In flow requires the requesting origin to be explicitly whitelisted in Google Cloud Console. Without it, the popup opens and the user selects their account, but Google silently drops the auth code — `handlePopupCode` never fires and nothing happens on the page (no error, no redirect).
+
+### 15.2 Authorized JavaScript Origins
+
+Navigate to: **Google Cloud Console → APIs & Services → Credentials → OAuth 2.0 Client ID**
+
+Under **Authorized JavaScript origins**, add all origins that serve the login page:
+
+| Origin | Purpose |
+|---|---|
+| `https://app.parktag.me` | Production |
+| `http://localhost:4000` | Local dev |
+| `http://127.0.0.1:4000` | Local dev (alternate) |
+
+### 15.3 Authorized Redirect URIs
+
+Under **Authorized redirect URIs**, ensure all of these are present:
+
+| URI | Purpose |
+|---|---|
+| `https://app.parktag.me/api/auth/google/callback` | Production redirect flow |
+| `http://localhost:4000/api/auth/google/callback` | Local dev redirect flow |
+| `postmessage` | Popup code exchange (required for `ux_mode: "popup"`) |
+
+> `postmessage` is a special value required for popup-based OAuth code flows. Without it the server-side token exchange at `/api/auth/google/popup` returns `redirect_uri_mismatch` from Google.
+
+### 15.4 Railway environment variables
+
+All three must be set:
+
+| Variable | Value |
+|---|---|
+| `GOOGLE_CLIENT_ID` | OAuth client ID from Console |
+| `GOOGLE_CLIENT_SECRET` | OAuth client secret from Console |
+| `GOOGLE_CALLBACK_URL` | `https://app.parktag.me/api/auth/google/callback` |
+
+### 15.5 How the login page selects a flow
+
+1. On page load, the frontend fetches `GET /api/auth/google/config` to get `clientId`.
+2. If `GOOGLE_CLIENT_ID` is set in Railway → all Google routes are registered → popup flow is used.
+3. If `GOOGLE_CLIENT_ID` is missing → routes are not registered → button falls back to `window.location.href = "/api/auth/google"` (redirect flow).
+4. Both flows require the Console config above. The popup flow additionally requires the JS origin to be whitelisted.
+
+### 15.6 Propagation delay
+
+Google Cloud Console changes take **2–5 minutes** to propagate globally. Saving and testing immediately may still fail. Wait, then retry.
+
+---
+
+## 16. Open Questions for Client
+
+These are unresolved product decisions that need a client answer before implementation can be finalised. Each item describes the current behaviour, the ambiguity, and the options.
+
+---
+
+### Q1 — Which dashboard toggles need a real backend?
+
+**Current behaviour:**
+Only the Tag Active toggle saves to the server (`POST /api/owner/tags/:tagId/status`). All other toggles in the burger menu save only to the device's localStorage:
+- Calls Active
+- Call Masking (disable/enable number masking)
+- Push Notifications
+- Email Alerts
+- WhatsApp Alerts
+- Location Access
+
+**Problem:** If the owner opens the dashboard on a different phone or clears their browser, all these settings are lost silently.
+
+**Question:** Which of the above toggles must save to the server (persist across devices)? For those that do, does a backend API already exist, or does it need to be built?
+
+---
+
+### Q2 — Contact Requests section: what should it look like and where does it go?
+
+**Current behaviour:**
+The dashboard API already returns a `requests` array — the last 10 scanner contact attempts (who called, when, which vehicle, call result). This data is fetched but nothing on the dashboard displays it. A contact requests UI was built once and reverted.
+
+**Question:**
+- Should recent contact attempts be visible on the owner dashboard? If yes, where — as a section below the vehicle grid, a separate tab, inside the notice board sidebar, or as a notification panel behind the bell icon?
+- What fields should each row show? (e.g. date/time, masked scanner number, vehicle plate, call result, callback button)
+- Should the "Call Back" button be part of this section (as per Flow I in §6)?
+
+---
+
+### Q3 — Shop vs Premium Upgrade: are these two separate products?
+
+**Current behaviour:**
+There are two separate payment flows:
+1. **Shop tab** (`/api/shop/*`) — sells physical ParkTag stickers delivered by post. Products: Car Tag ₹399, Bike Tag ₹349, Combo ₹699. Does not change any existing tag's `premium` field.
+2. **Vehicle-detail Premium button** (`/api/owner/tags/:tagId/purchase-*`) — upgrades a specific existing digital tag for ₹199. Sets `premium: true` on that tag, enabling unlimited masked contact.
+
+**Question:**
+- Are these genuinely two separate products (physical sticker = new hardware; ₹199 upgrade = digital unlock for an existing tag)?
+- Or should buying from the shop also mark the matching registered vehicle's tag as premium?
+- What happens if an owner buys the physical sticker but already has the vehicle registered digitally — do they need to pay the ₹199 separately to unlock unlimited contact, or does the physical sticker purchase cover it?
+
+---
+
+### Q4 — SOS Emergency Contact: should it save to the server?
+
+**Current behaviour:**
+The emergency contact phone number entered in the burger menu (and on the vehicle-detail page) is stored only in the browser's localStorage keyed by vehicle plate number. If the owner logs in from a different device or clears storage, the SOS number is gone.
+
+**Question:**
+- Should the SOS number be saved to the backend (on the tag or owner document) so it persists across devices and can be shown to scanners in an emergency?
+- If yes, does a backend field and API endpoint already exist for this, or does it need to be added?
+
+---
+
+### Q5 — Notification bell: what should it open?
+
+**Current behaviour:**
+The bell icon in the dashboard header is a non-functional button. Nothing happens when tapped.
+
+**Options:**
+1. Open a slide-down panel showing recent contact requests (same data as Q2 above).
+2. Open a notification preferences screen (Push, Email, WhatsApp settings).
+3. Show a badge count of unread scan events and open a list of those events.
+4. Defer — keep it non-functional for now.
+
+**Question:** Which of the above should the bell do, and is there a priority order if multiple are wanted eventually?
+
+---
+
 ## 12. Living Document Rule
 
 Keep this file updated as the prototype direction changes.

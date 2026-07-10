@@ -14,31 +14,61 @@
 
     .pt-wp { width: 100%; min-height: 100vh; background: #fff; padding-bottom: 72px; }
 
-    /* ── Amber header ──────────────────────────────── */
+    /* ── Header ──────────────────────────────────── */
     .pt-wh {
-      background: linear-gradient(155deg, #03162D 0%, #0D2545 55%, #1A3A6E 100%);
-      padding: 14px 18px 28px;
-      box-shadow: 0 4px 16px rgba(0,25,53,0.18);
+      background: linear-gradient(155deg, #010D1A 0%, #03162D 28%, #0A2040 58%, #162F60 100%);
+      padding: 0 18px;
+      box-shadow: 0 1px 0 rgba(255,255,255,0.06), 0 6px 32px rgba(0,18,48,0.32);
+      position: relative; overflow: hidden;
     }
-    .pt-wh-inner { max-width: 880px; margin: 0 auto; }
-    .pt-wh-top {
-      display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;
+    .pt-wh::before {
+      content: ''; position: absolute; inset: 0; pointer-events: none;
+      background: radial-gradient(ellipse 90% 55% at 50% -5%, rgba(255,255,255,0.07) 0%, transparent 70%);
     }
-    .pt-wh-logo { display: flex; align-items: center; gap: 9px; }
-    .pt-wh-btns { display: flex; gap: 8px; }
-    .pt-wh-btn {
-      width: 40px; height: 40px; border-radius: 12px;
-      background: rgba(255,255,255,0.15); border: none; cursor: pointer;
-      display: flex; align-items: center; justify-content: center;
-      transition: background .15s;
+    .pt-wh::after {
+      content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 2px; pointer-events: none;
+      background: linear-gradient(90deg, transparent 0%, rgba(255,39,0,0.45) 25%, rgba(255,39,0,0.70) 50%, rgba(255,39,0,0.45) 75%, transparent 100%);
     }
-    .pt-wh-btn:hover { background: rgba(255,255,255,0.25); }
+    .pt-wh-inner { max-width: 880px; margin: 0 auto; position: relative; z-index: 1; }
 
-    .pt-wh-bottom { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
-    .pt-wh-hi   { font-size: 1.3rem; font-weight: 700; color: #FFFFFF; margin: 0 0 3px;
-                  max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .pt-wh-id   { font-size: 0.83rem; color: #8CA4C4; margin: 0;
-                  max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /* Single-row layout */
+    .pt-wh-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 0 14px;
+    }
+    /* Logo + divider + greeting — flex 1 */
+    .pt-wh-brand {
+      display: flex; align-items: center; gap: 11px; flex: 1; min-width: 0;
+    }
+    .pt-wh-logo-img {
+      height: 28px; width: auto; mix-blend-mode: lighten; flex-shrink: 0;
+    }
+    .pt-wh-sep {
+      width: 1px; height: 28px; background: rgba(255,255,255,0.15); flex-shrink: 0;
+    }
+    .pt-wh-greet { flex: 1; min-width: 0; }
+    .pt-wh-hi {
+      font-size: .96rem; font-weight: 800; color: #fff; margin: 0;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; letter-spacing: -.01em;
+    }
+    .pt-wh-id {
+      font-size: .70rem; color: #7B9ABF; margin: 3px 0 0; font-weight: 500;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    /* Right: stats + action buttons */
+    .pt-wh-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    .pt-wh-btn {
+      width: 38px; height: 38px; border-radius: 11px;
+      background: rgba(255,255,255,0.10);
+      border: 1px solid rgba(255,255,255,0.16);
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background .18s, border-color .18s;
+      backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+      flex-shrink: 0;
+    }
+    .pt-wh-btn:hover  { background: rgba(255,255,255,0.20); border-color: rgba(255,255,255,0.28); }
+    .pt-wh-btn:active { background: rgba(255,255,255,0.28); }
 
     /* ── Pull-to-refresh ───────────────────────────── */
     .pt-ptr {
@@ -66,34 +96,28 @@
 
     /* ── Responsive breakpoints ────────────────────── */
     @media (min-width: 480px) {
-      .pt-shop-grid { grid-template-columns: repeat(2, 1fr); gap: 14px; }
-      .pt-shop-name { font-size: .88rem; }
+      .pt-shop-name  { font-size: .86rem; }
       .pt-shop-price { font-size: 1rem; }
     }
     @media (min-width: 640px) {
       .pt-wh { padding: 16px 28px 28px; }
       .pt-wc { padding: 0 28px 56px; }
-      .pt-vgrid { grid-template-columns: repeat(3, 1fr); }
-      .pt-shop-grid { grid-template-columns: repeat(3, 1fr); gap: 16px; }
-      .pt-shop-body { padding: 12px 14px 16px; }
-      .pt-shop-name { font-size: .92rem; }
-      .pt-shop-feat { font-size: .75rem; }
+      .pt-shop-grid { grid-template-columns: repeat(3, 1fr); gap: 14px; }
+      .pt-shop-body { padding: 11px 13px 14px; }
+      .pt-shop-name { font-size: .88rem; }
     }
     @media (min-width: 1024px) {
       .pt-wh { padding: 20px 60px 28px; }
       .pt-wh-inner { max-width: 1200px; }
       .pt-wc { max-width: 1200px; padding: 0 60px 64px; }
-      .pt-vgrid { grid-template-columns: repeat(4, 1fr); gap: 16px; }
       .pt-shop-grid { grid-template-columns: repeat(4, 1fr); gap: 20px; }
       .pt-shop-name { font-size: 1rem; }
       .pt-wh-hi { font-size: 1.45rem; }
-      .pt-slide-img { aspect-ratio: 21/7; }
     }
     @media (min-width: 1400px) {
       .pt-wh { padding: 22px 80px 30px; }
       .pt-wh-inner { max-width: 1400px; }
       .pt-wc { max-width: 1400px; padding: 0 80px 72px; }
-      .pt-vgrid { grid-template-columns: repeat(5, 1fr); }
     }
 
     /* ── Carousel ──────────────────────────────────── */
@@ -174,69 +198,89 @@
     .pt-tags-bar   { width: 34px; height: 3px; background:#FF2700; border-radius: 2px; margin-bottom: 7px; }
     .pt-tags-sub   { font-size: 0.88rem; color: #6B7280; margin: 0 0 16px; }
 
-    /* ── Vehicle grid ──────────────────────────────── */
-    .pt-vgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    /* ── Vehicle list ───────────────────────────────── */
+    .pt-vgrid { display: flex; flex-direction: column; gap: 10px; }
 
-    .pt-vc {
-      background: #fff; border-radius: 18px; border: 1.5px solid #E5E7EB;
-      padding: 16px 12px; display: flex; flex-direction: column;
-      align-items: center; text-align: center; gap: 5px;
-      box-shadow: 0 1px 4px rgba(0,0,0,.04);
-      transition: transform .15s, box-shadow .15s, border-color .15s;
+    .pt-vlc {
+      display: flex; align-items: center; gap: 14px;
+      background: #fff; border-radius: 16px;
+      border: 1.5px solid #E5E7EB; border-left-width: 4px;
+      padding: 14px 16px; text-decoration: none; color: inherit;
+      transition: box-shadow .16s, transform .13s;
     }
-    .pt-vc:hover  { transform: translateY(-2px); box-shadow: 0 4px 14px rgba(0,0,0,.09); border-color:#FF2700; }
-    .pt-vc:active { transform: scale(0.97); box-shadow: 0 1px 4px rgba(0,0,0,.04); border-color:#FF2700; }
-    .pt-vc-icon {
-      width: 60px; height: 60px; border-radius: 50%; background: #FFEDEA;
-      display: flex; align-items: center; justify-content: center;
-      color: #FF2700; position: relative; margin-bottom: 2px;
-    }
-    .pt-vc-badge {
-      position: absolute; top: -3px; right: -3px;
-      width: 20px; height: 20px; border-radius: 50%;
-      background:#FF2700; color: #fff; border: 2px solid #fff;
-      font-size: .62rem; font-weight: 800;
+    .pt-vlc:hover  { box-shadow: 0 4px 18px rgba(0,0,0,.09); transform: translateX(3px); }
+    .pt-vlc:active { transform: scale(.99); box-shadow: none; }
+    .pt-vlc-icon {
+      width: 48px; height: 48px; border-radius: 14px; flex-shrink: 0;
       display: flex; align-items: center; justify-content: center;
     }
-    .pt-vc-name  { font-weight: 800; font-size: .92rem; color: #323232; margin: 0;
-                   max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .pt-vc-plate { font-size: .73rem; color: #6B7280; font-weight: 600;
-                   font-family: monospace; letter-spacing: .04em; margin: 0; }
+    .pt-vlc-body  { flex: 1; min-width: 0; }
+    .pt-vlc-name  { font-size: .95rem; font-weight: 800; color: #03162D; margin: 0 0 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pt-vlc-plate { font-size: .78rem; font-family: monospace; color: #6B7280; letter-spacing: .05em; margin: 0; }
+    .pt-vlc-meta  { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
+    .pt-vlc-pill  { font-size: .64rem; font-weight: 700; padding: 3px 9px; border-radius: 20px; white-space: nowrap; }
+    .pt-vlc-pill.vp-premium { background: #FEF3C7; color: #92400E; }
+    .pt-vlc-pill.vp-free    { background: #DCFCE7; color: #14532D; }
+    .pt-vlc-pill.vp-used    { background: #FEE2E2; color: #B91C1C; }
+    .pt-vlc-stxt    { font-size: .68rem; font-weight: 600; color: #9CA3AF; }
+    .pt-vlc-stxt.on { color: #10B981; }
+    .pt-vlc-arr     { color: #D1D5DB; flex-shrink: 0; display: flex; align-items: center; margin-left: 2px; }
 
-    .pt-vadd {
-      background: #FFEDEA; border-radius: 18px; border: 2px dashed #FF2700;
-      padding: 18px 12px 14px; display: flex; flex-direction: column;
-      align-items: center; text-align: center; gap: 5px;
-      text-decoration: none; cursor: pointer; transition: background .15s;
+    /* Add vehicle row */
+    .pt-vadd-lc {
+      display: flex; align-items: center; gap: 14px;
+      background: #FFEDEA; border-radius: 16px; border: 1.5px dashed #FF2700;
+      padding: 14px 16px; text-decoration: none; color: inherit; transition: background .15s;
     }
-    .pt-vadd:hover { background: #FFD8D0; }
-    .pt-vadd-icon {
-      width: 60px; height: 60px; border-radius: 50%; background: #FFD8D0;
-      border: 2px solid #FF2700;
+    .pt-vadd-lc:hover { background: #FFD8D0; }
+    .pt-vadd-lc-ic {
+      width: 48px; height: 48px; border-radius: 14px; flex-shrink: 0;
       display: flex; align-items: center; justify-content: center;
-      color: #FF2700; margin-bottom: 2px;
+      background: #FFD8D0; border: 2px dashed #FF2700; color: #FF2700;
     }
-    .pt-vadd-title { font-weight: 800; font-size: .92rem; color: #323232; margin: 0; }
-    .pt-vadd-sub   { font-size: .73rem; color: #6B7280; margin: 0; line-height: 1.5; }
+    .pt-vadd-lc-t { font-size: .95rem; font-weight: 800; color: #FF2700; margin: 0 0 2px; }
+    .pt-vadd-lc-s { font-size: .78rem; color: #9CA3AF; margin: 0; }
+
+    /* Active filter bar */
+    .pt-filter-bar {
+      display: none; align-items: center; justify-content: space-between;
+      background: #FFF5F3; border: 1px solid #FECACA; border-radius: 10px;
+      padding: 8px 14px; margin-bottom: 10px;
+      font-size: .78rem; font-weight: 600; color: #374151;
+    }
+    .pt-filter-bar.visible { display: flex; }
+    .pt-filter-clear {
+      background: none; border: none; cursor: pointer; color: #FF2700;
+      font-weight: 700; font-size: .75rem; padding: 0; font-family: inherit;
+    }
 
     /* ── Bottom nav ────────────────────────────────── */
     .pt-bottom-nav {
       position: fixed; bottom: 0; left: 0; right: 0;
-      background: #fff; border-top: 1.5px solid #E5E7EB;
+      background: rgba(255,255,255,0.92);
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      border-top: none;
+      box-shadow: 0 -1px 0 rgba(0,0,0,0.07), 0 -8px 30px rgba(0,0,0,0.06);
       display: flex; justify-content: center; z-index: 100;
       padding-bottom: env(safe-area-inset-bottom, 0);
-      box-shadow: 0 -2px 12px rgba(0,0,0,.07);
     }
     .pt-bottom-nav-inner {
       display: flex; width: 100%; max-width: 480px;
+      padding: 10px 16px; gap: 8px; align-items: center;
     }
     .pt-nav-tab {
-      flex: 1; display: flex; flex-direction: column; align-items: center;
-      padding: 10px 0 12px; gap: 3px; border: none; background: none; cursor: pointer;
-      color: #6B7280; font-size: 0.72rem; font-weight: 700; font-family: inherit;
-      transition: color .15s; letter-spacing: .02em;
+      flex: 1; display: flex; align-items: center; justify-content: center; gap: 7px;
+      padding: 10px 16px; border-radius: 14px;
+      border: none; cursor: pointer; font-family: inherit;
+      background: transparent; color: #B0B7C3;
+      font-size: 0.82rem; font-weight: 700; letter-spacing: .01em;
+      transition: background .2s, color .18s;
     }
-    .pt-nav-tab.active { color:#FF2700; }
+    .pt-nav-lbl { display: none; white-space: nowrap; }
+    .pt-nav-tab.active { background: #FF2700; color: #fff; }
+    .pt-nav-tab.active .pt-nav-lbl { display: block; }
+    .pt-nav-tab:not(.active):hover { background: rgba(0,0,0,0.05); color: #374151; }
 
     /* ── Shop grid ─────────────────────────────────── */
     .pt-shop-hd { padding: 22px 0 0; }
@@ -251,27 +295,32 @@
       box-shadow: 0 1px 4px rgba(0,0,0,.05);
       transition: transform .15s, box-shadow .15s, border-color .15s;
     }
-    .pt-shop-card:hover { transform: translateY(-2px); box-shadow: 0 4px 14px rgba(0,0,0,.1); border-color:#FF2700; }
+    .pt-shop-card:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(0,0,0,.10); border-color: #FF2700; }
+
     .pt-shop-img {
-      position: relative; background: #F3F4F6; aspect-ratio: 1;
+      position: relative; background: #F3F4F6;
+      aspect-ratio: 4/3;
       display: flex; align-items: center; justify-content: center;
     }
     .pt-shop-badge {
       position: absolute; top: 8px; left: 8px;
-      background: #EF4444; color: #fff;
-      font-size: .63rem; font-weight: 800; padding: 3px 7px; border-radius: 4px;
+      background: #FF2700; color: #fff;
+      font-size: .6rem; font-weight: 800; padding: 3px 7px; border-radius: 5px;
       letter-spacing: .03em;
     }
-    .pt-shop-body  { padding: 10px 10px 13px; }
+    .pt-shop-body  { padding: 10px 11px 13px; }
     .pt-shop-name  {
-      font-size: .82rem; font-weight: 700; color: #323232; margin: 0 0 3px;
+      font-size: .82rem; font-weight: 700; color: #03162D; margin: 0 0 4px;
       display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
       line-height: 1.35;
     }
-    .pt-shop-feat  { font-size: .68rem; color: #6B7280; margin: 0 0 8px; line-height: 1.4; }
-    .pt-shop-prow  { display: flex; align-items: baseline; gap: 5px; flex-wrap: wrap; }
-    .pt-shop-price { font-size: .95rem; font-weight: 900; color: #323232; }
-    .pt-shop-orig  { font-size: .73rem; color: #9CA3AF; text-decoration: line-through; }
+    .pt-shop-feat  {
+      font-size: .66rem; color: #6B7280; margin: 0 0 8px; line-height: 1.35;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .pt-shop-prow  { display: flex; align-items: baseline; gap: 5px; }
+    .pt-shop-price { font-size: .92rem; font-weight: 900; color: #03162D; }
+    .pt-shop-orig  { font-size: .7rem; color: #9CA3AF; text-decoration: line-through; }
 
     /* ── Product detail sheet ──────────────────────── */
     .pt-backdrop {
@@ -338,6 +387,403 @@
       text-align: center; font-size: .75rem; color: #9CA3AF;
       margin: 10px 0 0; font-weight: 600;
     }
+
+    /* ── Burger menu ─────────────────────────────────────── */
+    .pt-menu-bk {
+      position: fixed; inset: 0; background: rgba(0,0,0,.50);
+      z-index: 400; opacity: 0; pointer-events: none;
+      transition: opacity .28s;
+    }
+    .pt-menu-bk.open { opacity: 1; pointer-events: auto; }
+
+    .pt-menu-dr {
+      position: fixed; top: 0; left: 0; bottom: 0;
+      width: min(340px, 90vw);
+      background: #fff; z-index: 401;
+      display: flex; flex-direction: column;
+      transform: translateX(-100%);
+      transition: transform .3s cubic-bezier(.4,0,.2,1);
+      box-shadow: 4px 0 24px rgba(0,0,0,.14);
+    }
+    .pt-menu-dr.open { transform: translateX(0); }
+
+    /* Profile header */
+    .pt-menu-ph {
+      background: linear-gradient(135deg, #03162D 0%, #1A3A6E 100%);
+      padding: 18px 16px; display: flex; align-items: center; gap: 12px;
+      flex-shrink: 0;
+    }
+    .pt-menu-av {
+      width: 46px; height: 46px; border-radius: 50%;
+      background: #FF2700; color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.15rem; font-weight: 800; flex-shrink: 0;
+    }
+    .pt-menu-pn { font-size: .95rem; font-weight: 700; color: #fff; margin: 0 0 3px; }
+    .pt-menu-pi { font-size: .73rem; color: #8CA4C4; margin: 0;
+                  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 170px; }
+    .pt-menu-cx {
+      margin-left: auto; flex-shrink: 0;
+      width: 30px; height: 30px; border-radius: 50%; border: none;
+      background: rgba(255,255,255,.15); color: rgba(255,255,255,.85);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; transition: background .15s;
+    }
+    .pt-menu-cx:hover { background: rgba(255,255,255,.25); }
+
+    /* Scrollable body */
+    .pt-menu-bd { flex: 1; overflow-y: auto; overscroll-behavior: contain; }
+
+    /* Sticky vehicle label */
+    .pt-sticky-veh {
+      position: sticky; top: 0; z-index: 10;
+      display: flex; align-items: center; gap: 9px;
+      padding: 10px 16px;
+      background: rgba(255,255,255,0.96);
+      border-bottom: 1px solid #F3F4F6;
+      border-left: 4px solid #FF2700;
+      backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+      transition: border-color .25s, background .25s;
+    }
+    .pt-sticky-dot {
+      width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0;
+      transition: background .25s;
+    }
+    .pt-sticky-plate {
+      font-size: .88rem; font-weight: 800; color: #03162D; letter-spacing: .02em;
+    }
+    .pt-sticky-sep { font-size: .78rem; color: #D1D5DB; }
+    .pt-sticky-type { font-size: .73rem; color: #6B7280; font-weight: 600; }
+
+    /* Section labels */
+    .pt-msec { padding: 14px 16px 6px; }
+    .pt-msec-l { font-size: .68rem; font-weight: 800; color: #9CA3AF;
+                 letter-spacing: .09em; text-transform: uppercase; }
+
+    /* Vehicle chips */
+    .pt-mchips { display: flex; gap: 7px; padding: 4px 16px 6px; overflow-x: auto; }
+    .pt-mchip {
+      padding: 5px 13px; border-radius: 20px; border: 1.5px solid #E5E7EB;
+      background: #fff; font-size: .76rem; font-weight: 700; color: #374151;
+      cursor: pointer; white-space: nowrap; flex-shrink: 0; transition: all .15s;
+    }
+    .pt-mchip.active { background: #FF2700; border-color: #FF2700; color: #fff; }
+
+    /* Vehicle summary pill */
+    .pt-mvsm {
+      margin: 4px 16px 8px; padding: 11px 14px;
+      background: #F9FAFB; border: 1.5px solid #E5E7EB; border-radius: 14px;
+      display: flex; align-items: center; gap: 11px;
+    }
+    .pt-mvsm-ic {
+      width: 36px; height: 36px; border-radius: 10px;
+      background: #FFEDEA; color: #FF2700;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .pt-mvsm-pl { font-size: .9rem; font-weight: 800; color: #03162D; margin: 0 0 2px; }
+    .pt-mvsm-ty { font-size: .72rem; color: #6B7280; margin: 0; }
+
+    /* Accordion rows */
+    .pt-mi { border-bottom: 1px solid #F3F4F6; }
+    .pt-mi-r {
+      display: flex; align-items: center; gap: 11px;
+      padding: 13px 16px; cursor: pointer; user-select: none;
+      min-height: 58px; transition: background .12s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .pt-mi-r:active { background: #F9FAFB; }
+    .pt-mi-ic {
+      width: 36px; height: 36px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .pt-mi-lb { flex: 1; font-size: .88rem; font-weight: 600; color: #374151; }
+    .pt-mi-ar { color: #9CA3AF; display: flex; transition: transform .22s; }
+    .pt-mi.open .pt-mi-ar { transform: rotate(90deg); }
+
+    /* Direct link rows (no accordion) */
+    .pt-mi-a {
+      display: flex; align-items: center; gap: 11px;
+      padding: 13px 16px; min-height: 58px;
+      border-bottom: 1px solid #F3F4F6;
+      text-decoration: none; color: inherit;
+      transition: background .12s; -webkit-tap-highlight-color: transparent;
+    }
+    .pt-mi-a:active { background: #F9FAFB; }
+
+    /* Accordion sub-panels */
+    .pt-mi-s {
+      max-height: 0; overflow: hidden;
+      transition: max-height .3s cubic-bezier(.4,0,.2,1);
+      background: #FAFAFA; border-top: 1px solid transparent;
+    }
+    .pt-mi.open .pt-mi-s { max-height: 380px; border-top-color: #F3F4F6; }
+    .pt-mi-si { padding: 12px 16px 14px; }
+
+    /* Toggle rows */
+    .pt-tog {
+      display: flex; align-items: center; justify-content: space-between; padding: 9px 0;
+    }
+    .pt-tog + .pt-tog { border-top: 1px solid #F3F4F6; }
+    .pt-tog-lb { font-size: .84rem; font-weight: 600; color: #374151; }
+    .pt-tog-sb { font-size: .7rem; color: #9CA3AF; margin-top: 2px; line-height: 1.4; }
+
+    /* iOS-style switch */
+    .pt-sw { position: relative; width: 44px; height: 25px; flex-shrink: 0; }
+    .pt-sw input { opacity: 0; width: 0; height: 0; position: absolute; }
+    .pt-sw-t {
+      position: absolute; inset: 0; border-radius: 25px; cursor: pointer;
+      background: #D1D5DB; transition: background .2s;
+    }
+    .pt-sw-t::after {
+      content: ""; position: absolute; left: 3px; top: 3px;
+      width: 19px; height: 19px; border-radius: 50%; background: #fff;
+      transition: transform .2s cubic-bezier(.4,0,.2,1);
+      box-shadow: 0 1px 3px rgba(0,0,0,.2);
+    }
+    .pt-sw input:checked + .pt-sw-t { background: #FF2700; }
+    .pt-sw input:checked + .pt-sw-t::after { transform: translateX(19px); }
+
+    /* Sub-panel helpers */
+    .pt-snote { font-size: .79rem; color: #6B7280; line-height: 1.6; margin: 0 0 11px; }
+    .pt-sfield {
+      width: 100%; height: 42px; border: 1.5px solid #E5E7EB; border-radius: 11px;
+      padding: 0 13px; margin-bottom: 9px;
+      font-size: .88rem; font-family: inherit; color: #323232;
+      background: #fff; outline: none; transition: border-color .15s;
+    }
+    .pt-sfield:focus { border-color: #FF2700; }
+    .pt-sbtn {
+      width: 100%; height: 42px; border-radius: 11px; border: none;
+      background: #FF2700; color: #fff;
+      font-size: .85rem; font-weight: 700; font-family: inherit; cursor: pointer;
+      transition: background .15s;
+    }
+    .pt-sbtn:active { background: #D92200; }
+
+    /* Info rows */
+    .pt-irow {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 0; border-bottom: 1px solid #F3F4F6;
+    }
+    .pt-irow:last-child { border-bottom: none; }
+    .pt-ik { font-size: .7rem; font-weight: 700; color: #9CA3AF; text-transform: uppercase; letter-spacing: .05em; }
+    .pt-iv { font-size: .82rem; font-weight: 700; color: #323232; text-align: right; max-width: 58%; word-break: break-all; }
+
+    /* Footer */
+    .pt-menu-ft {
+      flex-shrink: 0; border-top: 1px solid #E5E7EB;
+      padding: 12px 16px max(12px, env(safe-area-inset-bottom));
+      display: flex; flex-direction: column; gap: 7px;
+    }
+    .pt-menu-ft-d {
+      width: 100%; height: 42px; border-radius: 11px; border: none;
+      background: #FEE2E2; color: #DC2626;
+      font-size: .85rem; font-weight: 700; font-family: inherit; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 7px;
+      transition: background .15s;
+    }
+    .pt-menu-ft-d:active { background: #FECACA; }
+    .pt-menu-ft-o {
+      width: 100%; height: 42px; border-radius: 11px; border: none;
+      background: #F3F4F6; color: #374151;
+      font-size: .85rem; font-weight: 700; font-family: inherit; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 7px;
+      transition: background .15s;
+    }
+    .pt-menu-ft-o:active { background: #E5E7EB; }
+
+  /* ── Header stats chips ── */
+  .pt-wh-stats { display: none; gap: 7px; align-items: center; }
+  @media (min-width: 400px) { .pt-wh-stats { display: flex; } }
+  .pt-wh-sc {
+    display: flex; flex-direction: column; align-items: center;
+    background: rgba(255,255,255,0.10);
+    border: 1px solid rgba(255,255,255,0.16);
+    border-radius: 10px; padding: 5px 11px; min-width: 38px;
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  }
+  .pt-wh-sn { font-size: .86rem; font-weight: 900; color: #fff; line-height: 1; letter-spacing: -.01em; }
+  .pt-wh-sl { font-size: .52rem; color: rgba(255,255,255,0.50); font-weight: 700; text-transform: uppercase; letter-spacing: .07em; margin-top: 2px; }
+
+  /* ── Vehicle card — status dot & contact pill ── */
+  .pt-vc-status {
+    position: absolute; bottom: -3px; left: -3px;
+    width: 12px; height: 12px; border-radius: 50%;
+    background: #D1D5DB; border: 2px solid #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,.15);
+  }
+  .pt-vc-status.on { background: #10B981; }
+  .pt-vc-pill {
+    font-size: .59rem; font-weight: 700; padding: 2px 7px;
+    border-radius: 20px; line-height: 1.4; margin-top: 1px;
+    white-space: nowrap;
+  }
+  .pt-vc-pill.vp-premium { background: #FEF3C7; color: #92400E; }
+  .pt-vc-pill.vp-free    { background: #D1FAE5; color: #065F46; }
+  .pt-vc-pill.vp-used    { background: #FEE2E2; color: #B91C1C; }
+
+  /* ── Overview section ─────────────────────────────────────────── */
+  .pt-ov { padding: 20px 0 0; }
+  .pt-ov-hd { margin-bottom: 16px; }
+  .pt-ov-title { font-size: 1.3rem; font-weight: 900; color: #03162D; margin: 0 0 7px; }
+  .pt-ov-bar   { width: 34px; height: 3px; background: #FF2700; border-radius: 2px; }
+  .pt-ov-sub   { font-size: .82rem; color: #6B7280; margin: 6px 0 0; font-weight: 500; }
+
+  /* KPI tiles — 2 col on mobile, 4 col on 540px+ */
+  .pt-ov-kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+  @media (min-width: 540px) { .pt-ov-kpis { grid-template-columns: repeat(4, 1fr); gap: 12px; } }
+
+  .pt-ov-kpi {
+    background: #fff; border: 1.5px solid #E5E7EB; border-radius: 16px;
+    padding: 18px 16px 16px; cursor: pointer; user-select: none;
+    transition: box-shadow .15s, transform .12s, border-color .15s; position: relative;
+  }
+  .pt-ov-kpi:hover { box-shadow: 0 6px 20px rgba(0,0,0,.08); transform: translateY(-2px); border-color: #D1D5DB; }
+  .pt-ov-kpi.nb-active { background: #FFF5F3; border-color: #FF2700; box-shadow: 0 0 0 3px rgba(255,39,0,.10); }
+  .pt-ov-kpi.nb-active .pt-ov-kl { color: #FF2700; }
+
+  .pt-ov-ki { width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center; margin-bottom: 12px; }
+  .pt-ov-kn { font-size: 2rem; font-weight: 900; line-height: 1; color: #03162D; display: block; transition: transform .15s; }
+  .pt-ov-kpi:hover .pt-ov-kn { transform: scale(1.04); }
+  .pt-ov-kn.green { color: #10B981; }
+  .pt-ov-kn.amber { color: #D97706; }
+  .pt-ov-kn.red   { color: #EF4444; }
+  .pt-ov-kl { font-size: .72rem; font-weight: 700; color: #6B7280; margin-top: 5px; letter-spacing: .01em; }
+
+  /* Filter bar */
+  .pt-ov-fbar {
+    display: none; align-items: center; justify-content: space-between;
+    background: #FFF5F3; border: 1px solid #FECACA; border-radius: 10px;
+    padding: 8px 14px; margin-bottom: 12px;
+    font-size: .78rem; font-weight: 600; color: #374151;
+  }
+  .pt-ov-fbar.visible { display: flex; }
+  .pt-ov-fbar-clear { background: none; border: none; cursor: pointer; color: #FF2700; font-weight: 700; font-size: .75rem; padding: 0; font-family: inherit; }
+
+  /* Tag status rows */
+  .pt-ov-rows { background: #fff; border: 1.5px solid #E5E7EB; border-radius: 16px; overflow: hidden; margin-bottom: 14px; }
+  .pt-ov-rows-hd {
+    padding: 13px 18px; border-bottom: 1px solid #F3F4F6;
+    font-size: .68rem; font-weight: 800; color: #9CA3AF;
+    text-transform: uppercase; letter-spacing: .1em;
+  }
+  .pt-ov-row { display: flex; align-items: center; gap: 14px; padding: 13px 18px; border-bottom: 1px solid #F3F4F6; transition: background .1s; }
+  .pt-ov-row:last-child { border-bottom: none; }
+  .pt-ov-row:hover { background: #F9FAFB; }
+  .pt-ov-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .pt-ov-dot.on  { background: #10B981; box-shadow: 0 0 0 3px rgba(16,185,129,.15); }
+  .pt-ov-dot.off { background: #D1D5DB; }
+  .pt-ov-body { flex: 1; min-width: 0; }
+  .pt-ov-plate {
+    font-size: .9rem; font-weight: 800; color: #03162D;
+    font-family: monospace; letter-spacing: .04em;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 0 0 2px;
+  }
+  .pt-ov-vtype { font-size: .73rem; color: #6B7280; margin: 0; }
+  .pt-ov-badge { font-size: .68rem; font-weight: 700; padding: 4px 10px; border-radius: 20px; flex-shrink: 0; line-height: 1.4; white-space: nowrap; }
+  .pt-ov-badge.vp-premium { background: #FEF3C7; color: #92400E; }
+  .pt-ov-badge.vp-free    { background: #DCFCE7; color: #14532D; }
+  .pt-ov-badge.vp-used    { background: #FEE2E2; color: #B91C1C; }
+
+  /* Tip */
+  .pt-ov-tip { display: flex; align-items: flex-start; gap: 10px; background: #F8FAFC; border: 1px solid #E5E7EB; border-radius: 12px; padding: 13px 16px; font-size: .8rem; color: #374151; line-height: 1.55; }
+  .pt-ov-tip-ic { flex-shrink: 0; margin-top: 1px; }
+  .pt-ov-empty { padding: 36px 20px; text-align: center; color: #9CA3AF; font-size: .9rem; font-weight: 600; }
+
+  /* ── Activity section ────────────────────────────────────────── */
+  .pt-act { padding: 20px 0 0; }
+  .pt-act-hd { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 14px; }
+  .pt-act-title { font-size: 1.3rem; font-weight: 900; color: #03162D; margin: 0 0 7px; }
+  .pt-act-bar   { width: 34px; height: 3px; background: #FF2700; border-radius: 2px; }
+  .pt-act-badge {
+    background: #FF2700; color: #fff; font-size: .63rem; font-weight: 800;
+    padding: 3px 9px; border-radius: 20px; line-height: 1.5; margin-top: 4px; flex-shrink: 0;
+  }
+
+  .pt-act-empty {
+    display: flex; flex-direction: column; align-items: center; text-align: center;
+    padding: 32px 16px; background: #F9FAFB; border-radius: 16px; border: 1.5px dashed #E5E7EB;
+  }
+  .pt-act-empty-ic {
+    width: 52px; height: 52px; border-radius: 50%; background: #F3F4F6;
+    display: flex; align-items: center; justify-content: center; margin-bottom: 12px;
+  }
+  .pt-act-empty-t { font-size: .92rem; font-weight: 800; color: #323232; margin: 0 0 4px; }
+  .pt-act-empty-s { font-size: .78rem; color: #9CA3AF; margin: 0; }
+
+  .pt-act-card {
+    display: flex; align-items: center; gap: 13px;
+    background: #fff; border-radius: 16px;
+    border: 1.5px solid #E5E7EB; border-left-width: 4px;
+    padding: 14px 16px; margin-bottom: 10px;
+    transition: box-shadow .15s;
+  }
+  .pt-act-card:last-child { margin-bottom: 0; }
+  .pt-act-card.urgent { border-left-color: #FF2700; }
+  .pt-act-card.call   { border-left-color: #2563EB; }
+  .pt-act-card.wa     { border-left-color: #16A34A; }
+  .pt-act-card.idle   { border-left-color: #E5E7EB; }
+
+  .pt-act-ic {
+    width: 42px; height: 42px; border-radius: 12px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .pt-act-body { flex: 1; min-width: 0; }
+  .pt-act-who  { font-size: .88rem; font-weight: 800; color: #03162D; margin: 0 0 3px;
+                 white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pt-act-det  { font-size: .74rem; color: #6B7280; margin: 0 0 4px; display: flex; align-items: center; flex-wrap: wrap; gap: 5px; }
+  .pt-act-det-badge {
+    font-size: .6rem; font-weight: 700; padding: 2px 7px; border-radius: 20px;
+  }
+  .pt-act-time { font-size: .67rem; color: #9CA3AF; font-weight: 600; margin: 0; }
+
+  .pt-act-cta {
+    flex-shrink: 0; padding: 9px 16px; border-radius: 11px; border: none;
+    background: #FF2700; color: #fff; font-size: .8rem; font-weight: 800;
+    cursor: pointer; font-family: inherit; transition: background .15s, opacity .15s;
+    white-space: nowrap; letter-spacing: .02em;
+  }
+  .pt-act-cta:hover    { background: #D92200; }
+  .pt-act-cta:disabled { opacity: .6; cursor: default; }
+  .pt-act-cta.ok       { background: #10B981; }
+
+  /* No-phone prompt inline */
+  .pt-act-nophone {
+    flex-shrink: 0; font-size: .72rem; font-weight: 700; color: #D97706;
+    background: #FEF3C7; padding: 6px 10px; border-radius: 9px; text-align: center;
+    white-space: nowrap;
+  }
+
+  /* ── E-Tag print styles ── */
+  #wl-etag-print { display: none; }
+  @media print {
+    body > *:not(#wl-etag-print) { display: none !important; }
+    #wl-etag-print { display: block !important; }
+    #wl-etag-print, #wl-etag-print * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    @page { margin: 1.2cm; size: A4; }
+  }
+  .wl-pt-wrap { font-family: 'Inter','Segoe UI',Arial,sans-serif; color: #03162D; }
+  .wl-pt-instr { font-size: 11px; line-height: 1.8; margin-bottom: 18px; color: #323232; }
+  .wl-pt-instr .wl-pt-instr-h { display: block; font-size: 12.5px; font-weight: 800; margin: 3px 0 2px; color: #03162D; }
+  .wl-pt-instr ol { margin: 5px 0 0; padding-left: 18px; }
+  .wl-pt-freebox { margin-top: 10px; padding: 9px 12px; background: #FFF1EF; border: 1px solid #FFD8D0; border-radius: 9px; font-size: 10px; color: #03162D; line-height: 1.55; }
+  .wl-pt-freebox b { color: #B31C00; }
+  .wl-pt-cut { border: 1.5px dashed #b6bcc6; border-radius: 16px; padding: 14px; display: block; page-break-inside: avoid; }
+  .wl-pt-sticker { display: flex; width: 100%; border-radius: 18px; overflow: hidden; border: 2px solid #03162D; }
+  .wl-pt-left { flex: 0 0 60%; background: #fff; padding: 22px; display: flex; flex-direction: column; justify-content: space-between; }
+  .wl-pt-logo { height: 26px; width: auto; display: block; }
+  .wl-pt-tagline { font-size: 7px; font-weight: 800; letter-spacing: .2em; color: #6B7280; margin-top: 5px; }
+  .wl-pt-head { font-size: 29px; font-weight: 900; color: #03162D; line-height: 1.12; margin: 16px 0 0; letter-spacing: -0.01em; }
+  .wl-pt-head u { text-decoration: underline; text-decoration-thickness: 2.5px; text-underline-offset: 2px; }
+  .wl-pt-scaninfo { font-size: 7px; font-weight: 700; letter-spacing: .05em; color: #6B7280; margin-top: 14px; line-height: 1.6; text-transform: uppercase; }
+  .wl-pt-etagline { font-size: 7px; color: #9CA3AF; margin-top: 6px; letter-spacing: .02em; }
+  .wl-pt-right { flex: 0 0 40%; background: #FF2700; padding: 18px 14px; display: flex; flex-direction: column; align-items: center; justify-content: space-between; }
+  .wl-pt-qr-box { background: #fff; border-radius: 12px; padding: 10px; }
+  .wl-pt-qr { width: 150px; height: 150px; display: block; }
+  .wl-pt-rt-brand { font-size: 8.5px; font-weight: 800; color: #fff; margin-top: 11px; text-align: center; }
+  .wl-pt-rt-brand span { font-weight: 600; opacity: .9; }
+  .wl-pt-icons { display: flex; gap: 13px; margin-top: 11px; }
+  .wl-pt-rt-note { font-size: 7.5px; font-weight: 700; color: #fff; text-align: center; margin-top: 8px; line-height: 1.5; }
   </style>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -346,39 +792,45 @@
 <body>
 <div class="pt-wp">
 
-  <!-- ── Amber header ────────────────────── -->
+  <!-- ── Header ───────────────────────────── -->
   <div class="pt-wh">
-   <div class="pt-wh-inner">
-    <div class="pt-wh-top">
-      <div class="pt-wh-logo">
-        <img src="/images/dark-logo.png" alt="ParkTag" style="height:38px;width:auto;mix-blend-mode:lighten;">
-      </div>
-      <div class="pt-wh-btns">
-        <button class="pt-wh-btn" aria-label="Notifications">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" stroke="rgba(255,255,255,0.9)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M13.73 21a2 2 0 0 1-3.46 0" stroke="rgba(255,255,255,0.9)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <div class="pt-wh-inner">
+      <div class="pt-wh-row">
+
+        <!-- Hamburger -->
+        <button class="pt-wh-btn" aria-label="Menu" onclick="openMenu()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+            <path d="M4 6h16M4 12h10M4 18h16" stroke="rgba(255,255,255,0.92)" stroke-width="2" stroke-linecap="round"/>
           </svg>
         </button>
-        <button class="pt-wh-btn" aria-label="Profile">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-            <circle cx="12" cy="8" r="4" stroke="rgba(255,255,255,0.9)" stroke-width="2"/>
-            <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="rgba(255,255,255,0.9)" stroke-width="2" stroke-linecap="round"/>
-          </svg>
-        </button>
+
+        <!-- Logo + separator + greeting -->
+        <div class="pt-wh-brand">
+          <img src="/images/dark-logo.png" alt="ParkTag" class="pt-wh-logo-img">
+          <div class="pt-wh-sep"></div>
+          <div class="pt-wh-greet">
+            <p class="pt-wh-hi" id="greetName">
+              <span class="sk" style="display:inline-block;width:120px;height:.9em;border-radius:5px;vertical-align:middle;opacity:0.3"></span>
+            </p>
+            <p class="pt-wh-id" id="greetId">
+              <span class="sk" style="display:inline-block;width:90px;height:.65em;border-radius:4px;vertical-align:middle;opacity:0.2"></span>
+            </p>
+          </div>
+        </div>
+
+        <!-- Stats + notification -->
+        <div class="pt-wh-right">
+          <div class="pt-wh-stats" id="headerStats"></div>
+          <button class="pt-wh-btn" aria-label="Notifications">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" stroke="rgba(255,255,255,0.92)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0" stroke="rgba(255,255,255,0.92)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </div>
+
       </div>
     </div>
-    <div class="pt-wh-bottom">
-      <div>
-        <p class="pt-wh-hi" id="greetName">
-          <span class="sk" style="display:inline-block;width:160px;height:1.1em;border-radius:6px;vertical-align:middle;opacity:0.35"></span>
-        </p>
-        <p class="pt-wh-id" id="greetId">
-          <span class="sk" style="display:inline-block;width:200px;height:0.8em;border-radius:4px;vertical-align:middle;opacity:0.25"></span>
-        </p>
-      </div>
-    </div>
-  </div><!-- /pt-wh-inner -->
   </div><!-- /pt-wh -->
 
   <!-- ── Pull-to-refresh indicator ────────── -->
@@ -394,7 +846,7 @@
   <div id="view-tags">
     <div class="pt-wc">
 
-      <!-- Carousel -->
+      <!-- ── Banners carousel ── -->
       <div class="pt-car-wrap">
         <div class="pt-car-vp" id="carVp">
           <div class="pt-car-track" id="carTrack">
@@ -408,7 +860,7 @@
                     <circle cx="8.5" cy="8.5" r="1.5" fill="#D1D5DB"/>
                     <path d="M21 15l-5-5L5 21" stroke="#D1D5DB" stroke-width="1.5" stroke-linecap="round"/>
                   </svg>
-                  <span class="pt-slide-ph-tag">Mobile Image — Slide 1</span>
+                  <span class="pt-slide-ph-tag">Mobile Banner — Slide 1</span>
                 </div>
                 <div class="pt-slide-ph pt-ph-desk">
                   <svg width="36" height="36" viewBox="0 0 24 24" fill="none">
@@ -416,7 +868,7 @@
                     <circle cx="8.5" cy="8.5" r="1.5" fill="#D1D5DB"/>
                     <path d="M21 15l-5-5L5 21" stroke="#D1D5DB" stroke-width="1.5" stroke-linecap="round"/>
                   </svg>
-                  <span class="pt-slide-ph-tag">Desktop Image — Slide 1</span>
+                  <span class="pt-slide-ph-tag">Desktop Banner — Slide 1</span>
                 </div>
               </div>
             </div>
@@ -462,9 +914,43 @@
         </div>
       </div>
 
+      <!-- ── Activity section ── -->
+      <section class="pt-act" id="activitySection" aria-label="Recent activity">
+        <div class="pt-act-hd">
+          <div>
+            <h2 class="pt-act-title">Activity</h2>
+            <div class="pt-act-bar"></div>
+          </div>
+          <span class="pt-act-badge" id="actBadge" style="display:none"></span>
+        </div>
+        <div id="actCards">
+          <!-- skeleton -->
+          <div class="pt-act-card idle" style="pointer-events:none">
+            <div class="sk" style="width:42px;height:42px;border-radius:12px;flex-shrink:0"></div>
+            <div style="flex:1">
+              <div class="sk" style="height:13px;width:68%;border-radius:6px;margin-bottom:8px"></div>
+              <div class="sk" style="height:10px;width:44%;border-radius:5px"></div>
+            </div>
+          </div>
+          <div class="pt-act-card idle" style="pointer-events:none">
+            <div class="sk" style="width:42px;height:42px;border-radius:12px;flex-shrink:0"></div>
+            <div style="flex:1">
+              <div class="sk" style="height:13px;width:55%;border-radius:6px;margin-bottom:8px"></div>
+              <div class="sk" style="height:10px;width:36%;border-radius:5px"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Overview section ── -->
+      <section class="pt-ov" id="noticeboard" aria-label="Dashboard overview">
+        <div class="pt-ov-empty">Loading overview…</div>
+      </section>
+
+      <!-- ── My Vehicles ── -->
       <!-- Search -->
       <div class="pt-wsearch">
-        <input class="pt-wsearch-inp" type="search" id="vehicleSearch" placeholder="Search ParkTag vehicle" autocomplete="off"/>
+        <input class="pt-wsearch-inp" type="search" id="vehicleSearch" placeholder="Search vehicles…" autocomplete="off"/>
         <button class="pt-wsearch-btn" aria-label="Search">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
             <circle cx="11" cy="11" r="8" stroke="#FF2700" stroke-width="2.2"/>
@@ -472,15 +958,17 @@
           </svg>
         </button>
       </div>
-
-      <!-- Tags heading -->
+      <!-- Vehicles heading -->
       <div class="pt-tags-hd">
-        <h2 class="pt-tags-title">Tags</h2>
+        <h2 class="pt-tags-title">My Vehicles <span id="tagsCount" style="font-size:.85rem;font-weight:600;color:#9CA3AF"></span></h2>
         <div class="pt-tags-bar"></div>
-        <p class="pt-tags-sub">Manage your ParkTag tags in one place.</p>
       </div>
-
-      <!-- Vehicle grid -->
+      <!-- Active filter indicator -->
+      <div class="pt-filter-bar" id="mainFilterBar">
+        <span>Showing: <strong id="mainFilterLabel">—</strong></span>
+        <button class="pt-filter-clear" onclick="clearNbFilter()">× Clear filter</button>
+      </div>
+      <!-- Vehicle list -->
       <div class="pt-vgrid" id="vehicleGrid"></div>
 
     </div>
@@ -510,23 +998,322 @@
 <!-- ── Bottom nav ──────────────────────────── -->
 <nav class="pt-bottom-nav">
   <div class="pt-bottom-nav-inner">
-    <button class="pt-nav-tab active" id="navTags" onclick="switchTab('tags')" aria-label="Tags tab" aria-current="page">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+    <button class="pt-nav-tab active" id="navTags" onclick="switchTab('tags')" aria-label="Tags" aria-current="page">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
         <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         <circle cx="7" cy="7" r="1.5" fill="currentColor"/>
       </svg>
-      Tags
+      <span class="pt-nav-lbl">Tags</span>
     </button>
-    <button class="pt-nav-tab" id="navShop" onclick="switchTab('shop')" aria-label="Shop tab">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+    <button class="pt-nav-tab" id="navShop" onclick="switchTab('shop')" aria-label="Shop">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
         <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         <line x1="3" y1="6" x2="21" y2="6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
         <path d="M16 10a4 4 0 0 1-8 0" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
-      Shop
+      <span class="pt-nav-lbl">Shop</span>
     </button>
   </div>
 </nav>
+
+<!-- ── Burger menu backdrop ───────────────────────── -->
+<div id="menuBackdrop" class="pt-menu-bk" onclick="closeMenu()"></div>
+
+<!-- ── Burger menu drawer ────────────────────────── -->
+<div id="menuDrawer" class="pt-menu-dr" role="dialog" aria-modal="true" aria-label="Menu">
+
+  <!-- Profile header -->
+  <div class="pt-menu-ph">
+    <div class="pt-menu-av" id="menuAvatar">?</div>
+    <div style="flex:1;min-width:0">
+      <p class="pt-menu-pn" id="menuName">—</p>
+      <p class="pt-menu-pi" id="menuId">—</p>
+    </div>
+    <button class="pt-menu-cx" onclick="closeMenu()" aria-label="Close">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+        <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- Scrollable body -->
+  <div class="pt-menu-bd">
+
+    <!-- Sticky vehicle label — always visible while scrolling -->
+    <div class="pt-sticky-veh" id="stickyVehicle">
+      <div class="pt-sticky-dot" id="stickyDot"></div>
+      <span class="pt-sticky-plate" id="stickyPlate">—</span>
+      <span class="pt-sticky-sep">·</span>
+      <span class="pt-sticky-type" id="stickyType">—</span>
+    </div>
+
+    <!-- User Info -->
+    <div class="pt-mi" data-key="user-info">
+      <div class="pt-mi-r" onclick="toggleMI(this.parentElement)">
+        <div class="pt-mi-ic" style="background:#FFE3DD;color:#FF2700">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.8"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </div>
+        <span class="pt-mi-lb">User Info</span>
+        <span class="pt-mi-ar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>
+      </div>
+      <div class="pt-mi-s"><div class="pt-mi-si">
+        <div class="pt-irow"><span class="pt-ik">Vehicle Number</span><span class="pt-iv" id="mi-plate">—</span></div>
+        <div class="pt-irow"><span class="pt-ik">Vehicle Type</span><span class="pt-iv" id="mi-type">—</span></div>
+        <div class="pt-irow"><span class="pt-ik">Owner Name</span><span class="pt-iv" id="mi-name">—</span></div>
+        <div class="pt-irow"><span class="pt-ik">Tag ID</span><span class="pt-iv" id="mi-tagid">—</span></div>
+      </div></div>
+    </div>
+
+    <!-- ── My Vehicle ── -->
+    <div class="pt-msec"><span class="pt-msec-l">My Vehicle</span></div>
+    <div id="menuChips" class="pt-mchips" style="display:none"></div>
+    <div class="pt-mvsm" id="menuVSummary">
+      <div class="pt-mvsm-ic" id="menuVIcon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+          <rect x="2" y="8" width="20" height="10" rx="2" stroke="currentColor" stroke-width="1.8"/>
+          <path d="M5 8l2-4h10l2 4" stroke="currentColor" stroke-width="1.8"/>
+          <circle cx="7" cy="18" r="1.5" fill="currentColor"/>
+          <circle cx="17" cy="18" r="1.5" fill="currentColor"/>
+        </svg>
+      </div>
+      <div>
+        <p class="pt-mvsm-pl" id="menuVPlate">—</p>
+        <p class="pt-mvsm-ty" id="menuVType">—</p>
+      </div>
+    </div>
+
+    <!-- Add Vehicle -->
+    <a href="/register-owner" class="pt-mi-a">
+      <div class="pt-mi-ic" style="background:#FFEDEA;color:#FF2700">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.8"/><path d="M12 8v8M8 12h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </div>
+      <span class="pt-mi-lb">Add Vehicle</span>
+      <span class="pt-mi-ar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>
+    </a>
+
+    <!-- Tags & Call -->
+    <div class="pt-mi" data-key="tags-call">
+      <div class="pt-mi-r" onclick="toggleMI(this.parentElement)">
+        <div class="pt-mi-ic" style="background:#F0FDF4;color:#16A34A">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.62 3.38 2 2 0 0 1 3.6 1.17h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.86a16 16 0 0 0 6 6l.91-.91a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" stroke="currentColor" stroke-width="1.8"/></svg>
+        </div>
+        <span class="pt-mi-lb">Tags &amp; Call</span>
+        <span class="pt-mi-ar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>
+      </div>
+      <div class="pt-mi-s"><div class="pt-mi-si">
+        <div class="pt-tog">
+          <div><div class="pt-tog-lb">Tag Active</div><div class="pt-tog-sb">Enable your ParkTag sticker</div></div>
+          <label class="pt-sw"><input type="checkbox" id="sw-tag" onchange="saveSw(this,'tagActive')"><span class="pt-sw-t"></span></label>
+        </div>
+        <div class="pt-tog">
+          <div><div class="pt-tog-lb">Calls Active</div><div class="pt-tog-sb">Allow callers to reach you via tag</div></div>
+          <label class="pt-sw"><input type="checkbox" id="sw-calls" onchange="saveSw(this,'callsActive')"><span class="pt-sw-t"></span></label>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- Call Masking -->
+    <div class="pt-mi" data-key="masking">
+      <div class="pt-mi-r" onclick="toggleMI(this.parentElement)">
+        <div class="pt-mi-ic" style="background:#F3F4F6;color:#6B7280">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><line x1="1" y1="1" x2="23" y2="23" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55M5 5a10.94 10.94 0 0 0-1.956 2.428M10.71 6.29a6 6 0 0 1 8 8M6.35 6.35A6 6 0 0 0 8 17.66" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </div>
+        <span class="pt-mi-lb">Call Masking</span>
+        <span class="pt-mi-ar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>
+      </div>
+      <div class="pt-mi-s"><div class="pt-mi-si">
+        <p class="pt-snote">Hides your real number from callers. Disable to expose your actual phone number.</p>
+        <div class="pt-tog">
+          <div><div class="pt-tog-lb">Keep number private</div><div class="pt-tog-sb">Your number stays hidden from callers</div></div>
+          <label class="pt-sw"><input type="checkbox" id="sw-masking" onchange="saveSw(this,'callMasking')"><span class="pt-sw-t"></span></label>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- ── Alerts & Notifications ── -->
+    <div class="pt-msec"><span class="pt-msec-l">Alerts &amp; Notifications</span></div>
+
+    <!-- Notifications -->
+    <div class="pt-mi" data-key="notif">
+      <div class="pt-mi-r" onclick="toggleMI(this.parentElement)">
+        <div class="pt-mi-ic" style="background:#FFE3DD;color:#FF2700">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M13.73 21a2 2 0 0 1-3.46 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </div>
+        <span class="pt-mi-lb">Notifications</span>
+        <span class="pt-mi-ar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>
+      </div>
+      <div class="pt-mi-s"><div class="pt-mi-si">
+        <div class="pt-tog">
+          <div><div class="pt-tog-lb">Push Notifications</div><div class="pt-tog-sb">Alert when someone scans your tag</div></div>
+          <label class="pt-sw"><input type="checkbox" id="sw-push" onchange="saveSw(this,'pushNotif')"><span class="pt-sw-t"></span></label>
+        </div>
+        <div class="pt-tog">
+          <div><div class="pt-tog-lb">Email Alerts</div><div class="pt-tog-sb">Receive scan reports by email</div></div>
+          <label class="pt-sw"><input type="checkbox" id="sw-email" onchange="saveSw(this,'emailAlerts')"><span class="pt-sw-t"></span></label>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- WhatsApp Notifications -->
+    <div class="pt-mi" data-key="whatsapp">
+      <div class="pt-mi-r" onclick="toggleMI(this.parentElement)">
+        <div class="pt-mi-ic" style="background:#DCFCE7;color:#16A34A">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <span class="pt-mi-lb">WhatsApp Notifications</span>
+        <span class="pt-mi-ar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>
+      </div>
+      <div class="pt-mi-s"><div class="pt-mi-si">
+        <div class="pt-tog">
+          <div><div class="pt-tog-lb">WhatsApp Alerts</div><div class="pt-tog-sb">Get notified via WhatsApp when tag is scanned</div></div>
+          <label class="pt-sw"><input type="checkbox" id="sw-whatsapp" onchange="saveSw(this,'whatsapp')"><span class="pt-sw-t"></span></label>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- ── Contact & Safety ── -->
+    <div class="pt-msec"><span class="pt-msec-l">Contact &amp; Safety</span></div>
+
+    <!-- View Contact Page -->
+    <a id="menuContactLink" href="#" target="_blank" rel="noopener" class="pt-mi-a">
+      <div class="pt-mi-ic" style="background:#EFF6FF;color:#2563EB">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <span class="pt-mi-lb">View Contact Page</span>
+      <span class="pt-mi-ar" style="color:#2563EB"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+    </a>
+
+    <!-- Emergency / SOS -->
+    <div class="pt-mi" data-key="sos">
+      <div class="pt-mi-r" onclick="toggleMI(this.parentElement)">
+        <div class="pt-mi-ic" style="background:#FFF1F2;color:#E11D48">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" stroke="currentColor" stroke-width="1.8"/><path d="M12 9v4M12 17h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <span class="pt-mi-lb">Emergency / SOS</span>
+        <span class="pt-mi-ar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>
+      </div>
+      <div class="pt-mi-s"><div class="pt-mi-si">
+        <p class="pt-snote">Set an emergency contact. Scanners can call this number directly in an accident.</p>
+        <input class="pt-sfield" id="sos-inp" type="tel" placeholder="Emergency contact number" inputmode="tel"/>
+        <button class="pt-sbtn" onclick="saveSos()">Save Emergency Contact</button>
+      </div></div>
+    </div>
+
+    <!-- ── Location ── -->
+    <div class="pt-msec"><span class="pt-msec-l">Location</span></div>
+
+    <div class="pt-mi" data-key="location">
+      <div class="pt-mi-r" onclick="toggleMI(this.parentElement)">
+        <div class="pt-mi-ic" style="background:#FEE2E2;color:#DC2626">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="9" r="2.5" stroke="currentColor" stroke-width="1.8"/></svg>
+        </div>
+        <span class="pt-mi-lb">Location Access</span>
+        <span class="pt-mi-ar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>
+      </div>
+      <div class="pt-mi-s"><div class="pt-mi-si">
+        <div class="pt-tog">
+          <div><div class="pt-tog-lb">Check Scan Locations</div><div class="pt-tog-sb">See where your tag was scanned</div></div>
+          <label class="pt-sw"><input type="checkbox" id="sw-location" onchange="saveSw(this,'location')"><span class="pt-sw-t"></span></label>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- ── Tag & Shop ── -->
+    <div class="pt-msec"><span class="pt-msec-l">Tag &amp; Shop</span></div>
+
+    <div class="pt-mi-a" onclick="downloadETag()" style="cursor:pointer" role="button" tabindex="0">
+      <div class="pt-mi-ic" style="background:#FFE3DD;color:#FF2700">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <span class="pt-mi-lb">Download E-Tag</span>
+      <span class="pt-mi-ar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>
+    </div>
+
+    <div class="pt-mi-a" onclick="goToShop()" style="cursor:pointer" role="button" tabindex="0">
+      <div class="pt-mi-ic" style="background:#FEF3C7;color:#B45309">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2l2.4 7.4H22l-6 4.4 2.3 7.2L12 16.6 5.7 21l2.3-7.2-6-4.4h7.6L12 2z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+      </div>
+      <span class="pt-mi-lb">Premium &amp; Official Sticker</span>
+      <span id="menuPremiumBadge" style="display:none;background:#FF2700;color:#fff;font-size:.65rem;font-weight:800;padding:2px 8px;border-radius:20px;margin-left:auto;margin-right:6px;flex-shrink:0">PREMIUM</span>
+      <span class="pt-mi-ar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>
+    </div>
+
+    <div class="pt-mi-a" onclick="goToVehicleDetail('replacement')" style="cursor:pointer" role="button" tabindex="0">
+      <div class="pt-mi-ic" style="background:#FFE3DD;color:#FF2700">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <span class="pt-mi-lb">Get a Tag Replacement</span>
+      <span class="pt-mi-ar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>
+    </div>
+
+    <div style="height:8px"></div>
+  </div><!-- /pt-menu-bd -->
+
+  <!-- Footer: Remove Vehicle + Sign Out -->
+  <div class="pt-menu-ft">
+    <button class="pt-menu-ft-d" id="menuRemoveBtn" onclick="removeVehicle()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Remove Vehicle
+    </button>
+    <button class="pt-menu-ft-o" onclick="signOut()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Sign Out
+    </button>
+  </div>
+
+</div><!-- /menuDrawer -->
+
+<!-- ── E-Tag print template (hidden; shown only via @media print) ── -->
+<div id="wl-etag-print">
+  <div class="wl-pt-wrap">
+    <div class="wl-pt-instr">
+      <p style="margin:0 0 3px">Thank you for generating your free ParkTag E-Tag.</p>
+      <span class="wl-pt-instr-h">How to fix the E-Tag to your windscreen</span>
+      <ol>
+        <li>Print this page on a photo sheet or regular paper.</li>
+        <li>Cut the tag along the dotted line.</li>
+        <li>Attach the tag:<br>
+          &nbsp;- Apply glue (e.g., Feviglue) or transparent double-sided tape to the front of the tag.<br>
+          &nbsp;- Place it on your dashboard or windscreen with the QR facing out.
+        </li>
+      </ol>
+      <div class="wl-pt-freebox">This free E-Tag includes <b>1 free contact</b> — a finder can reach you once via masked call or WhatsApp (your number stays private). For unlimited contact, upgrade to the official physical ParkTag sticker.</div>
+    </div>
+
+    <div class="wl-pt-cut">
+      <div class="wl-pt-sticker">
+        <!-- Left: white panel -->
+        <div class="wl-pt-left">
+          <div>
+            <img class="wl-pt-logo" src="/images/light-logo.png" alt="ParkTag"/>
+            <div class="wl-pt-tagline">SCAN TO CONNECT</div>
+          </div>
+          <p class="wl-pt-head">Scan the code<br>to <u>contact the<br>vehicle owner.</u></p>
+          <div>
+            <p class="wl-pt-scaninfo">Scan using phone camera, Google Lens or any QR scanner app. Visit www.parktag.me for more.</p>
+            <p class="wl-pt-etagline">E-Tag <span id="wl-print-etag-id">—</span> &nbsp;·&nbsp; <span id="wl-print-vehicle-num">—</span> &nbsp;·&nbsp; <span id="wl-print-status">Active</span></p>
+          </div>
+        </div>
+        <!-- Right: red panel -->
+        <div class="wl-pt-right">
+          <div class="wl-pt-qr-box">
+            <img class="wl-pt-qr" id="wl-print-qr-img"
+              src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=https://parktag.me"
+              alt="QR Code"/>
+          </div>
+          <div class="wl-pt-rt-brand">Park<span>Tag</span>.me &nbsp;·&nbsp; <span>vehicle tag</span></div>
+          <div class="wl-pt-icons">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9.5" stroke="#fff" stroke-width="1.7"/><path d="M9.2 16V8h3.1a2.4 2.4 0 0 1 0 4.8H9.2" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.5 5.5l13 13" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/></svg>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9.5" stroke="#fff" stroke-width="1.7"/><path d="M7 12h10" stroke="#fff" stroke-width="1.9" stroke-linecap="round"/></svg>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 3.5l9 15.5H3l9-15.5Z" stroke="#fff" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 9.5v4M12 16.5h.01" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M6.5 4.5C6 4 5.2 3.9 4.7 4.4 3.9 5.1 3.4 6.3 3.5 7.5c.2 4 2 7.6 5 10.5 2.9 2.9 6.5 4.8 10.5 5 1.2.1 2.4-.4 3.1-1.2.5-.5.4-1.3-.1-1.8l-2.6-2.3c-.4-.4-1-.4-1.5-.1l-1.4.9c-.3.2-.7.1-1-.1l-3-3c-.3-.3-.3-.7-.1-1l.9-1.4c.3-.5.3-1.1-.1-1.5L6.5 4.5Z" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg>
+          </div>
+          <p class="wl-pt-rt-note">Wrong parking, emergency contact,<br>any issue with the vehicle — scan the QR.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 <script type="module" src="/scripts/owner/welcome.js"></script>
@@ -579,7 +1366,7 @@ const PRODUCTS = [
 function skeletonShopCards(count) {
   return Array.from({ length: count }, () => `
     <div class="pt-shop-card" style="pointer-events:none">
-      <div class="pt-shop-img sk" style="border-radius:0;aspect-ratio:1"></div>
+      <div class="pt-shop-img sk" style="border-radius:0;aspect-ratio:4/3"></div>
       <div class="pt-shop-body">
         <div class="sk" style="height:13px;border-radius:6px;margin-bottom:7px;width:88%"></div>
         <div class="sk" style="height:10px;border-radius:6px;margin-bottom:10px;width:65%"></div>
@@ -634,7 +1421,7 @@ function renderShop() {
       </div>
       <div class="pt-shop-body">
         <p class="pt-shop-name">${p.name}</p>
-        <p class="pt-shop-feat">${p.features.join(" | ")}</p>
+        <p class="pt-shop-feat">${p.features.slice(0, 3).join(" · ")}</p>
         <div class="pt-shop-prow">
           <span class="pt-shop-price">₹${p.price}</span>
           <span class="pt-shop-orig">₹${p.orig}</span>
@@ -751,6 +1538,7 @@ async function handleBuyNow() {
         closeProduct();
         if (verifyData.ok) {
           showToast("Payment successful! We'll process your order shortly.", "success");
+          if (typeof window._reloadDashboard === "function") window._reloadDashboard();
         } else {
           showToast("Payment verification failed. Contact support.", "error");
         }

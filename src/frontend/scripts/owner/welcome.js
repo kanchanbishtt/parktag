@@ -1,4 +1,4 @@
-// ── Carousel ─────────────────────────────────────────────────────
+// ── Banners carousel ─────────────────────────────────────────────
 const track    = document.getElementById("carTrack");
 const viewport = document.getElementById("carVp");
 const dots     = document.querySelectorAll(".pt-dot-btn");
@@ -41,7 +41,15 @@ const greetName = document.getElementById("greetName");
 const greetId   = document.getElementById("greetId");
 const grid      = document.getElementById("vehicleGrid");
 const searchInp = document.getElementById("vehicleSearch");
-let allTags     = [];
+let allTags      = [];
+let allRequests  = [];
+let _ownerMobile = null;
+let _nbFilter    = null; // "active" | "premium" | "free" | "used" | null
+
+// ── Burger menu state ─────────────────────────────────────────────
+let _owner  = null;
+let _userId = null;
+let _selIdx = 0;
 
 
 // ── UI strings (externalised for i18n) ───────────────────────────
@@ -54,6 +62,15 @@ const UI = {
   retry:          "Retry",
   refreshing:     "Refreshing…",
 };
+
+// ── Per-vehicle color palette ─────────────────────────────────────
+const VEHICLE_COLORS = [
+  { bg: "#FFE3DD", accent: "#FF2700" },  // red
+  { bg: "#DBEAFE", accent: "#2563EB" },  // blue
+  { bg: "#D1FAE5", accent: "#059669" },  // green
+  { bg: "#EDE9FE", accent: "#7C3AED" },  // purple
+  { bg: "#FEF3C7", accent: "#D97706" },  // amber
+];
 
 // ── Type labels ───────────────────────────────────────────────────
 const VEHICLE_LABELS = {
@@ -125,44 +142,57 @@ function iconFor(tag) {
 }
 
 const ADD_CARD = `
-<a href="/register-owner" class="pt-vadd">
-  <div class="pt-vadd-icon">
-    <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+<a href="/register-owner" class="pt-vadd-lc" aria-label="Add a new vehicle">
+  <div class="pt-vadd-lc-ic">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
       <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.8"/>
       <path d="M12 8v8M8 12h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
     </svg>
   </div>
-  <p class="pt-vadd-title">Add</p>
-  <p class="pt-vadd-sub">Vehicle<br/>Tap to add</p>
+  <div>
+    <p class="pt-vadd-lc-t">Add Vehicle</p>
+    <p class="pt-vadd-lc-s">Register a new vehicle</p>
+  </div>
 </a>`;
 
 function vehicleCard(tag, idx) {
-  const label = tag.vehicleLabel || VEHICLE_LABELS[tag.type] || "Vehicle";
-  const plate  = tag.plateNumber  || tag.number || tag.token || "—";
-  const type   = tag.vehicleType  || tag.type   || "car";
-  const params = new URLSearchParams({ number: plate, type, label, id: tag.id || "", token: tag.token || "" }).toString();
-  const svg    = iconFor(tag).replace("<svg ", '<svg aria-hidden="true" focusable="false" ');
+  const colorIdx  = allTags.indexOf(tag);
+  const color     = VEHICLE_COLORS[(colorIdx >= 0 ? colorIdx : idx) % VEHICLE_COLORS.length];
+  const label     = tag.vehicleLabel || VEHICLE_LABELS[tag.type] || "Vehicle";
+  const plate     = tag.plateNumber  || tag.number || tag.token || "—";
+  const type      = tag.vehicleType  || tag.type   || "car";
+  const params    = new URLSearchParams({ number: plate, type, label, id: tag.id || "", token: tag.token || "" }).toString();
+  const svg       = iconFor(tag).replace(/width="\d+"/, 'width="22"').replace(/height="\d+"/, 'height="22"').replace("<svg ", '<svg aria-hidden="true" focusable="false" ');
+  const isActive  = tag.status !== "inactive";
+  const pill      = tag.premium ? "★ Premium" : (!tag.freeContactUsed ? "1 Free Call" : "Call Used");
+  const pillClass = tag.premium ? "vp-premium" : (!tag.freeContactUsed ? "vp-free" : "vp-used");
+
   return `
-<a href="/owner-vehicle-detail?${params}" class="pt-vc"
-   style="text-decoration:none;color:inherit"
-   aria-label="${label}, plate ${plate}">
-  <div class="pt-vc-icon">
-    ${svg}
-    <span class="pt-vc-badge" aria-hidden="true">${idx + 1}</span>
+<a href="/owner-vehicle-detail?${params}" class="pt-vlc"
+   style="border-left-color:${color.accent}"
+   aria-label="${label}, ${plate}, ${isActive ? "active" : "inactive"}">
+  <div class="pt-vlc-icon" style="background:${color.bg};color:${color.accent}">${svg}</div>
+  <div class="pt-vlc-body">
+    <p class="pt-vlc-name">${label}</p>
+    <p class="pt-vlc-plate">${plate}</p>
   </div>
-  <p class="pt-vc-name" aria-hidden="true">${label}</p>
-  <p class="pt-vc-plate" aria-hidden="true">${plate}</p>
+  <div class="pt-vlc-meta">
+    <span class="pt-vlc-pill ${pillClass}">${pill}</span>
+    <span class="pt-vlc-stxt${isActive ? " on" : ""}">${isActive ? "● Active" : "○ Inactive"}</span>
+  </div>
+  <span class="pt-vlc-arr"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>
 </a>`;
 }
 
 function skeletonGrid(count = 3) {
-  const cards = Array.from({ length: count }, () => `
-    <div class="pt-vc" style="pointer-events:none;gap:8px">
-      <div class="sk" style="width:60px;height:60px;border-radius:50%"></div>
-      <div class="sk" style="width:65%;height:13px;margin-top:2px"></div>
-      <div class="sk" style="width:45%;height:10px"></div>
-    </div>`).join("");
-  return cards + ADD_CARD;
+  return Array.from({ length: count }, () => `
+    <div class="pt-vlc" style="pointer-events:none">
+      <div class="sk" style="width:48px;height:48px;border-radius:14px;flex-shrink:0"></div>
+      <div style="flex:1">
+        <div class="sk" style="height:14px;width:62%;border-radius:6px;margin-bottom:7px"></div>
+        <div class="sk" style="height:11px;width:42%;border-radius:5px"></div>
+      </div>
+    </div>`).join("") + ADD_CARD;
 }
 
 const EMPTY_STATE = `
@@ -177,26 +207,332 @@ const EMPTY_STATE = `
     <p style="font-size:.8rem;color:#6B7280;margin:0">${UI.noVehiclesSub}</p>
   </div>`;
 
+function getDisplayTags() {
+  const q = searchInp ? searchInp.value.trim().toLowerCase() : "";
+  let tags = allTags;
+  if (_nbFilter) {
+    tags = tags.filter(t => {
+      if (_nbFilter === "active")  return t.status !== "inactive";
+      if (_nbFilter === "premium") return t.premium;
+      if (_nbFilter === "free")    return !t.premium && !t.freeContactUsed;
+      if (_nbFilter === "used")    return !t.premium && t.freeContactUsed;
+      return true;
+    });
+  }
+  if (q) {
+    tags = tags.filter(t =>
+      (t.vehicleLabel || t.type || "").toLowerCase().includes(q) ||
+      (t.plateNumber  || t.number || "").toLowerCase().includes(q)
+    );
+  }
+  return tags;
+}
+
+const FILTER_EMPTY = `
+  <div role="status" style="grid-column:1/-1;display:flex;flex-direction:column;align-items:center;padding:28px 16px 12px;text-align:center">
+    <div aria-hidden="true" style="width:60px;height:60px;border-radius:50%;background:#FFF5F3;display:flex;align-items:center;justify-content:center;margin-bottom:12px">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <circle cx="11" cy="11" r="8" stroke="#FF2700" stroke-width="1.8"/>
+        <path d="M21 21l-4.35-4.35" stroke="#FF2700" stroke-width="1.8" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <p style="font-size:.92rem;font-weight:800;color:#323232;margin:0 0 4px">No matches</p>
+    <p style="font-size:.8rem;color:#6B7280;margin:0">Try a different filter or search term</p>
+  </div>`;
+
 function renderGrid(tags, animate = false) {
-  const empty = tags.length === 0 ? EMPTY_STATE : "";
+  const isFiltered = _nbFilter || (searchInp && searchInp.value.trim());
+  const empty = tags.length === 0 ? (isFiltered ? FILTER_EMPTY : EMPTY_STATE) : "";
   grid.innerHTML = empty + tags.map((t, i) => vehicleCard(t, i)).join("") + ADD_CARD;
   if (animate) {
     grid.classList.remove("pt-reveal-grid");
     void grid.offsetWidth;
     grid.classList.add("pt-reveal-grid");
   }
+  const countEl = document.getElementById("tagsCount");
+  if (countEl) {
+    if (!allTags.length) {
+      countEl.textContent = "";
+    } else if (tags.length !== allTags.length) {
+      countEl.textContent = `(${tags.length} of ${allTags.length})`;
+    } else {
+      countEl.textContent = `(${allTags.length})`;
+    }
+  }
 }
 
+function updateHeaderStats(tags) {
+  const el = document.getElementById("headerStats");
+  if (!el || !tags.length) { if (el) el.innerHTML = ""; return; }
+  const active  = tags.filter(t => t.status !== "inactive").length;
+  const premium = tags.filter(t => t.premium).length;
+  el.innerHTML = [
+    { n: tags.length, l: "Tags"    },
+    { n: active,      l: "Active"  },
+    { n: premium,     l: "Premium" },
+  ].map(s => `<div class="pt-wh-sc"><span class="pt-wh-sn">${s.n}</span><span class="pt-wh-sl">${s.l}</span></div>`).join("");
+}
+
+function renderNoticeboard(tags) {
+  const nb = document.getElementById("noticeboard");
+  if (!nb) return;
+
+  const total    = tags.length;
+  const active   = tags.filter(t => t.status !== "inactive").length;
+  const premium  = tags.filter(t => t.premium).length;
+  const freeLeft = tags.filter(t => !t.premium && !t.freeContactUsed).length;
+  const used     = tags.filter(t => !t.premium &&  t.freeContactUsed).length;
+
+  const ka = (key) => _nbFilter === key ? " nb-active" : "";
+  const FILTER_NAMES = { active: "Active", premium: "Premium", free: "Free Calls Left", used: "Call Used" };
+
+  const hd = `
+<div class="pt-ov-hd">
+  <h2 class="pt-ov-title">Overview</h2>
+  <div class="pt-ov-bar"></div>
+  <p class="pt-ov-sub">${total} Vehicle${total !== 1 ? "s" : ""} registered</p>
+</div>
+<div class="pt-ov-kpis">
+  <div class="pt-ov-kpi${ka("active")}" data-filter="active" onclick="window.applyNbFilter('active')" title="Filter: Active">
+    <div class="pt-ov-ki" style="background:#DCFCE7">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="#10B981" stroke-width="2"/><path d="M8 12l3 3 5-5" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <span class="pt-ov-kn green">${active}</span>
+    <div class="pt-ov-kl">Active Tags</div>
+  </div>
+  <div class="pt-ov-kpi${ka("premium")}" data-filter="premium" onclick="window.applyNbFilter('premium')" title="Filter: Premium">
+    <div class="pt-ov-ki" style="background:#FEF3C7">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2l2.4 7.4H22l-6 4.4 2.3 7.2L12 16.6 5.7 21l2.3-7.2-6-4.4h7.6L12 2z" stroke="#D97706" stroke-width="1.7" stroke-linejoin="round"/></svg>
+    </div>
+    <span class="pt-ov-kn amber">${premium}</span>
+    <div class="pt-ov-kl">Premium Tags</div>
+  </div>
+  <div class="pt-ov-kpi${ka("free")}" data-filter="free" onclick="window.applyNbFilter('free')" title="Filter: Free calls left">
+    <div class="pt-ov-ki" style="background:#DBEAFE">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.62 3.36 2 2 0 0 1 3.59 1.18h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.73a16 16 0 0 0 6.36 6.36l.92-.92a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" stroke="#2563EB" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <span class="pt-ov-kn">${freeLeft}</span>
+    <div class="pt-ov-kl">Free Calls Left</div>
+  </div>
+  <div class="pt-ov-kpi${ka("used")}" data-filter="used" onclick="window.applyNbFilter('used')" title="Filter: Call used">
+    <div class="pt-ov-ki" style="background:#FEE2E2">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="#EF4444" stroke-width="2"/><path d="M15 9l-6 6M9 9l6 6" stroke="#EF4444" stroke-width="2" stroke-linecap="round"/></svg>
+    </div>
+    <span class="pt-ov-kn${used ? " red" : ""}">${used}</span>
+    <div class="pt-ov-kl">Calls Used</div>
+  </div>
+</div>
+${_nbFilter ? `
+<div class="pt-ov-fbar visible">
+  <span>Filtered: <strong>${FILTER_NAMES[_nbFilter] || _nbFilter}</strong></span>
+  <button class="pt-ov-fbar-clear" onclick="window.clearNbFilter()">✕ Clear</button>
+</div>` : ""}`;
+
+  if (total === 0) {
+    nb.innerHTML = hd + `<div class="pt-ov-empty">Add your first vehicle to see tag status here.</div>`;
+    return;
+  }
+
+  const rows = tags.map(tag => {
+    const plate = tag.plateNumber || tag.number || "—";
+    const vtype = tag.vehicleLabel || VEHICLE_LABELS[tag.vehicleType || tag.type] || "Vehicle";
+    const on    = tag.status !== "inactive";
+    const badge = tag.premium ? "Unlimited" : (!tag.freeContactUsed ? "1 Free Left" : "Call Used");
+    const bc    = tag.premium ? "vp-premium" : (!tag.freeContactUsed ? "vp-free" : "vp-used");
+    return `
+<div class="pt-ov-row">
+  <span class="pt-ov-dot ${on ? "on" : "off"}"></span>
+  <div class="pt-ov-body">
+    <p class="pt-ov-plate">${plate}</p>
+    <p class="pt-ov-vtype">${vtype} · ${on ? "Active" : "Inactive"}</p>
+  </div>
+  <span class="pt-ov-badge ${bc}">${badge}</span>
+</div>`;
+  }).join("");
+
+  const tipIcon = freeLeft < total && !premium
+    ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 2l2.4 7.4H22l-6 4.4 2.3 7.2L12 16.6 5.7 21l2.3-7.2-6-4.4h7.6L12 2z" stroke="#D97706" stroke-width="1.8" stroke-linejoin="round"/></svg>`
+    : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="#10B981" stroke-width="2"/><path d="M9 12l2 2 4-4" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  const tipText = freeLeft < total && !premium
+    ? `Upgrade to <strong>Premium</strong> for unlimited private contact — your number stays hidden.`
+    : `Each free E-Tag includes <strong>1 free contact</strong> via masked call or WhatsApp.`;
+
+  nb.innerHTML = hd + `
+<div class="pt-ov-rows">
+  <div class="pt-ov-rows-hd">Tag Status</div>
+  ${rows}
+</div>
+<div class="pt-ov-tip">
+  <span class="pt-ov-tip-ic">${tipIcon}</span>
+  <span>${tipText}</span>
+</div>`;
+}
+
+// ── Activity section ──────────────────────────────────────────────
+function formatTimeAgo(ms) {
+  const s = Math.floor(ms / 1000);
+  if (s < 60) return "just now";
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m} min ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
+
+function renderActivity(requests) {
+  const container = document.getElementById("actCards");
+  const badge     = document.getElementById("actBadge");
+  if (!container) return;
+
+  if (!requests || !requests.length) {
+    container.innerHTML = `
+      <div class="pt-act-empty">
+        <div class="pt-act-empty-ic">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" stroke="#D1D5DB" stroke-width="2" stroke-linecap="round"/>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0" stroke="#D1D5DB" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <p class="pt-act-empty-t">No activity yet</p>
+        <p class="pt-act-empty-s">Contact requests from scanners will appear here</p>
+      </div>`;
+    if (badge) badge.style.display = "none";
+    return;
+  }
+
+  const now      = Date.now();
+  const WIN_MS   = 60 * 60 * 1000;
+
+  // Most recent request within the 60-min callback window
+  const eligible = requests.find(r =>
+    r.action === "call" && (now - new Date(r.createdAt).getTime()) <= WIN_MS
+  );
+
+  // Count how many are within the window (actionable)
+  const hotCount = requests.filter(r =>
+    (now - new Date(r.createdAt).getTime()) <= WIN_MS
+  ).length;
+
+  if (badge) {
+    badge.textContent    = hotCount;
+    badge.style.display  = hotCount ? "inline-block" : "none";
+  }
+
+  const callSvg = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.62 3.38 2 2 0 0 1 3.6 1.17h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.86a16 16 0 0 0 6 6l.91-.91a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" stroke="currentColor" stroke-width="1.8"/></svg>`;
+  const waSvg  = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+
+  const cards = requests.slice(0, 6).map(r => {
+    const ageMs  = now - new Date(r.createdAt).getTime();
+    const within = ageMs <= WIN_MS;
+    const isCall = r.action === "call";
+    const isElig = r === eligible;
+
+    // Match token → vehicle plate
+    const tag    = allTags.find(t => t.token === r.token);
+    const plate  = tag?.plateNumber || tag?.number || "your vehicle";
+    const masked = r.phone ? `•••• ${String(r.phone).slice(-4)}` : "Unknown caller";
+
+    let cardCls, icBg, icCol;
+    if (isElig)              { cardCls = "urgent"; icBg = "#FFE3DD"; icCol = "#FF2700"; }
+    else if (isCall && within) { cardCls = "call";   icBg = "#DBEAFE"; icCol = "#2563EB"; }
+    else if (!isCall)        { cardCls = "wa";     icBg = "#DCFCE7"; icCol = "#16A34A"; }
+    else                     { cardCls = "idle";   icBg = "#F3F4F6"; icCol = "#9CA3AF"; }
+
+    // Call result badge
+    let resultBadge = "";
+    if (isCall && r.callResult) {
+      const label = r.callResult === "connected" ? "Connected"
+                  : r.callResult === "no-answer"  ? "No answer" : "Failed";
+      const bg    = r.callResult === "connected" ? "background:#DCFCE7;color:#14532D"
+                                                 : "background:#FEE2E2;color:#B91C1C";
+      resultBadge = `<span class="pt-act-det-badge" style="${bg}">${label}</span>`;
+      if (r.callDuration) resultBadge += `<span style="color:#9CA3AF;font-size:.67rem">${r.callDuration}s</span>`;
+    }
+    if (!isCall && r.status) {
+      const label = r.status === "delivered" ? "Delivered" : r.status === "pending" ? "Pending" : r.status;
+      resultBadge = `<span class="pt-act-det-badge" style="background:#DCFCE7;color:#14532D">${label}</span>`;
+    }
+
+    // CTA
+    let cta = "";
+    if (isElig) {
+      if (!_ownerMobile) {
+        cta = `<span class="pt-act-nophone">Add phone<br>to call back</span>`;
+      } else {
+        cta = `<button class="pt-act-cta" id="cbBtn" onclick="callBack()">Call Back</button>`;
+      }
+    }
+
+    return `
+<div class="pt-act-card ${cardCls}">
+  <div class="pt-act-ic" style="background:${icBg};color:${icCol}">${isCall ? callSvg : waSvg}</div>
+  <div class="pt-act-body">
+    <p class="pt-act-who">${masked} contacted you</p>
+    <p class="pt-act-det">${plate} · ${isCall ? "Call" : "WhatsApp"} ${resultBadge}</p>
+    <p class="pt-act-time">${formatTimeAgo(ageMs)}</p>
+  </div>
+  ${cta}
+</div>`;
+  }).join("");
+
+  container.innerHTML = cards;
+}
+
+async function callBack() {
+  const btn = document.getElementById("cbBtn");
+  if (btn) { btn.disabled = true; btn.textContent = "Calling…"; }
+  try {
+    const res  = await fetch("/api/owner/callback/register-call", { method: "POST" });
+    const data = await res.json();
+    if (data.ok && data.virtualNumber) {
+      if (btn) { btn.textContent = "Opening dialer…"; btn.classList.add("ok"); }
+      setTimeout(() => { window.location.href = `tel:${data.virtualNumber}`; }, 120);
+    } else if (data.code === "NO_PHONE") {
+      _toast("Add your mobile number to your profile to enable callback.", "err");
+      if (btn) { btn.disabled = false; btn.textContent = "Call Back"; }
+    } else if (data.code === "CALLBACK_WINDOW_EXPIRED") {
+      _toast("The 60-minute callback window has passed.", "err");
+      renderActivity(allRequests); // re-render to remove the button
+    } else {
+      _toast(data.error || "Couldn't initiate callback. Try again.", "err");
+      if (btn) { btn.disabled = false; btn.textContent = "Call Back"; }
+    }
+  } catch {
+    _toast("Network error. Please try again.", "err");
+    if (btn) { btn.disabled = false; btn.textContent = "Call Back"; }
+  }
+}
+window.callBack = callBack;
+
+// ── Notice board KPI filter ───────────────────────────────────────
+function applyNbFilter(key) {
+  if (_nbFilter === key) { clearNbFilter(); return; }
+  _nbFilter = key;
+  renderGrid(getDisplayTags());
+  renderNoticeboard(allTags);
+  const bar = document.getElementById("mainFilterBar");
+  const lbl = document.getElementById("mainFilterLabel");
+  if (bar && lbl) {
+    const names = { active: "Active", premium: "Premium", free: "Free Calls Left", used: "Call Used" };
+    lbl.textContent = names[key] || key;
+    bar.classList.add("visible");
+  }
+}
+
+function clearNbFilter() {
+  _nbFilter = null;
+  renderGrid(getDisplayTags());
+  renderNoticeboard(allTags);
+  const bar = document.getElementById("mainFilterBar");
+  if (bar) bar.classList.remove("visible");
+}
+
+window.applyNbFilter = applyNbFilter;
+window.clearNbFilter = clearNbFilter;
+
 // ── Search filter ─────────────────────────────────────────────────
-searchInp.addEventListener("input", e => {
-  const q = e.target.value.trim().toLowerCase();
-  const filtered = q
-    ? allTags.filter(t =>
-        (t.vehicleLabel || t.type || "").toLowerCase().includes(q) ||
-        (t.plateNumber  || t.number || "").toLowerCase().includes(q)
-      )
-    : allTags;
-  renderGrid(filtered);
+searchInp.addEventListener("input", () => {
+  renderGrid(getDisplayTags());
 });
 
 // ── User-scoped localStorage helpers ─────────────────────────────
@@ -268,7 +604,9 @@ async function syncLocalVehicles(localVehicles, userId) {
       seen.add(p);
       return true;
     });
-    renderGrid(allTags, true);
+    renderGrid(getDisplayTags(), true);
+    updateHeaderStats(allTags);
+    renderNoticeboard(allTags);
   } catch {}
 }
 
@@ -318,6 +656,17 @@ async function load() {
         void greetId.offsetWidth;
         greetId.classList.add("pt-reveal");
       }
+
+      // Populate burger menu owner header
+      _owner       = data.owner;
+      _ownerMobile = data.owner.mobile || null;
+      _userId = id || String(data.owner._id || "");
+      const mName = document.getElementById("menuName");
+      const mId   = document.getElementById("menuId");
+      const mAv   = document.getElementById("menuAvatar");
+      if (mName) mName.textContent = firstName;
+      if (mId)   mId.textContent   = id;
+      if (mAv)   mAv.textContent   = firstName.charAt(0).toUpperCase();
     }
 
     // One-time migration: move the old unscoped key into pending so it gets claimed below
@@ -359,8 +708,12 @@ async function load() {
       return true;
     });
 
-    allTags = [...localOnly, ...dedupedApi];
-    renderGrid(allTags, true);
+    allTags     = [...localOnly, ...dedupedApi];
+    allRequests = data.requests || [];
+    renderGrid(getDisplayTags(), true);
+    updateHeaderStats(allTags);
+    renderNoticeboard(allTags);
+    renderActivity(allRequests);
     if (localOnly.length > 0) syncLocalVehicles(localOnly, userId);
   } catch {
     grid.innerHTML = `
@@ -378,6 +731,7 @@ async function load() {
 // Show skeleton immediately so layout is stable before API responds
 if (grid) grid.innerHTML = skeletonGrid(3);
 load();
+window._reloadDashboard = load;
 
 // ── Pull-to-refresh ───────────────────────────────────────────────
 const PTR_THRESHOLD = 72;
@@ -406,3 +760,297 @@ document.addEventListener("touchend", () => {
   if (ptrTriggered) { ptrTriggered = false; load(); }
   ptrStartY = 0;
 });
+
+// ── Burger menu ────────────────────────────────────────────────────
+
+function _vKey(tag) {
+  // Same key format as vehicle-detail.js so toggle state is shared between pages
+  return "pt_vd_toggles_" + (tag.plateNumber || tag.number || "demo");
+}
+
+function _sosKey(tag) {
+  // Same key format as vehicle-detail.js
+  return "pt_sos_" + (tag.plateNumber || tag.number || "");
+}
+
+function _loadSw(tag) {
+  const def = { tagActive: true, callsActive: true, callMasking: true,
+                pushNotif: true, emailAlerts: true, whatsapp: false, location: true };
+  try { return { ...def, ...JSON.parse(localStorage.getItem(_vKey(tag)) || "{}") }; }
+  catch { return def; }
+}
+
+function saveSw(el, key) {
+  const tag = allTags[_selIdx];
+  if (!tag) return;
+  const s = _loadSw(tag);
+  s[key] = el.checked;
+  localStorage.setItem(_vKey(tag), JSON.stringify(s));
+
+  // Tag Active is backed by a real API endpoint
+  if (key === "tagActive") {
+    const tagId = tag.id || String(tag._id || "");
+    if (!tagId) return;
+    const swEl = el;
+    fetch(`/api/owner/tags/${tagId}/status`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ status: el.checked ? "active" : "inactive" })
+    }).catch(() => {
+      // Revert toggle on failure
+      s[key] = !el.checked;
+      localStorage.setItem(_vKey(tag), JSON.stringify(s));
+      swEl.checked = !swEl.checked;
+      _toast("Couldn't update tag status. Try again.", "err");
+    });
+  }
+}
+window.saveSw = saveSw;
+
+function saveSos() {
+  const tag = allTags[_selIdx];
+  const num = (document.getElementById("sos-inp")?.value || "").trim();
+  if (!num) { _toast("Please enter an emergency contact number.", "err"); return; }
+  if (tag) localStorage.setItem(_sosKey(tag), num);
+  _toast("Emergency contact saved.", "ok");
+}
+window.saveSos = saveSos;
+
+function _fillMenu() {
+  const removeBtn = document.getElementById("menuRemoveBtn");
+  const tag = allTags[_selIdx];
+
+  if (!tag) {
+    const vsm = document.getElementById("menuVSummary");
+    if (vsm) vsm.style.display = "none";
+    if (removeBtn) removeBtn.style.display = "none";
+    return;
+  }
+
+  const vsm = document.getElementById("menuVSummary");
+  if (vsm) vsm.style.display = "flex";
+  if (removeBtn) removeBtn.style.display = "";
+
+  const plate = tag.plateNumber || tag.number || "—";
+  const type  = tag.vehicleType || tag.type || "car";
+  const label = tag.vehicleLabel || VEHICLE_LABELS[type] || "Vehicle";
+
+  // Vehicle color for this selection
+  const color = VEHICLE_COLORS[_selIdx % VEHICLE_COLORS.length];
+
+  // ── Sticky label (Option 3) ──
+  const stickyEl  = document.getElementById("stickyVehicle");
+  const stickyDot = document.getElementById("stickyDot");
+  const stickyPl  = document.getElementById("stickyPlate");
+  const stickyTy  = document.getElementById("stickyType");
+  if (stickyEl)  { stickyEl.style.borderLeftColor = color.accent; stickyEl.style.background = color.bg + "CC"; }
+  if (stickyDot) stickyDot.style.background = color.accent;
+  if (stickyPl)  stickyPl.textContent = plate;
+  if (stickyTy)  stickyTy.textContent = label;
+
+  // ── Profile header accent (Option 4) ──
+  const ph = document.querySelector(".pt-menu-ph");
+  if (ph) ph.style.borderBottom = `3px solid ${color.accent}`;
+
+  const vpEl = document.getElementById("menuVPlate");
+  const vtEl = document.getElementById("menuVType");
+  const viEl = document.getElementById("menuVIcon");
+  if (vpEl) vpEl.textContent = plate;
+  if (vtEl) vtEl.textContent = label;
+  if (viEl) {
+    viEl.innerHTML = (VEHICLE_SVGS[type] || VEHICLE_SVGS.car)
+      .replace(/width="28"/, 'width="22"').replace(/height="28"/, 'height="22"');
+    viEl.style.background = color.bg;
+    viEl.style.color      = color.accent;
+  }
+  if (vsm) vsm.style.borderColor = color.accent + "55";
+
+  // Vehicle chips — each chip uses its own vehicle's color when active (Option 4)
+  const chips = document.getElementById("menuChips");
+  if (chips) {
+    if (allTags.length > 1) {
+      chips.style.display = "flex";
+      chips.innerHTML = allTags.map((t, i) => {
+        const c = VEHICLE_COLORS[i % VEHICLE_COLORS.length];
+        const p = t.plateNumber || t.number || "?";
+        const activeStyle = i === _selIdx
+          ? `background:${c.accent};border-color:${c.accent};color:#fff`
+          : "";
+        return `<button class="pt-mchip${i === _selIdx ? " active" : ""}" style="${activeStyle}" onclick="selectV(${i})">${p}</button>`;
+      }).join("");
+    } else {
+      chips.style.display = "none";
+    }
+  }
+
+  // Contact page link
+  const link = document.getElementById("menuContactLink");
+  if (link) {
+    link.href = tag.scanUrl || "#";
+    if (!tag.scanUrl) {
+      link.onclick = e => { e.preventDefault(); _toast("Contact page not yet available for this tag.", "err"); };
+    } else {
+      link.onclick = null;
+    }
+  }
+
+  // User info panel
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  set("mi-plate", plate);
+  set("mi-type",  label);
+  set("mi-name",  _owner ? (_owner.displayName || _owner.email || _owner.mobile || "—") : "—");
+  set("mi-tagid", tag.token || tag.id || "DEMO");
+
+  // Toggles — Tag Active uses real DB status; rest use localStorage
+  const s = _loadSw(tag);
+  const sw = (id, v) => { const el = document.getElementById(id); if (el) el.checked = v; };
+  sw("sw-tag",      tag.status ? tag.status === "active" : s.tagActive);
+  sw("sw-calls",    s.callsActive);
+  sw("sw-masking",  s.callMasking);
+  sw("sw-push",     s.pushNotif);
+  sw("sw-email",    s.emailAlerts);
+  sw("sw-whatsapp", s.whatsapp);
+  sw("sw-location", s.location);
+
+  // Premium badge
+  const premBadge = document.getElementById("menuPremiumBadge");
+  if (premBadge) premBadge.style.display = tag.premium ? "inline-block" : "none";
+
+  // SOS number — same key as vehicle-detail.js (plain string, not JSON)
+  const sosVal = localStorage.getItem(_sosKey(tag)) || "";
+  const sosEl = document.getElementById("sos-inp");
+  if (sosEl) sosEl.value = sosVal;
+}
+
+function openMenu() {
+  _fillMenu();
+  document.getElementById("menuBackdrop").classList.add("open");
+  document.getElementById("menuDrawer").classList.add("open");
+  document.body.style.overflow = "hidden";
+}
+window.openMenu = openMenu;
+
+function closeMenu() {
+  document.getElementById("menuBackdrop").classList.remove("open");
+  document.getElementById("menuDrawer").classList.remove("open");
+  document.body.style.overflow = "";
+}
+window.closeMenu = closeMenu;
+
+function toggleMI(item) {
+  const wasOpen = item.classList.contains("open");
+  document.querySelectorAll("#menuDrawer .pt-mi.open").forEach(el => el.classList.remove("open"));
+  if (!wasOpen) item.classList.add("open");
+}
+window.toggleMI = toggleMI;
+
+function selectV(idx) {
+  _selIdx = idx;
+  document.querySelectorAll("#menuDrawer .pt-mi.open").forEach(el => el.classList.remove("open"));
+  _fillMenu();
+}
+window.selectV = selectV;
+
+function goToVehicleDetail(section) {
+  const tag = allTags[_selIdx];
+  if (!tag) return;
+  const plate = tag.plateNumber || tag.number || "";
+  const type  = tag.vehicleType || tag.type || "car";
+  const label = tag.vehicleLabel || VEHICLE_LABELS[type] || "Vehicle";
+  const params = new URLSearchParams({
+    number: plate, type, label,
+    id: tag.id || String(tag._id || ""),
+    token: tag.token || "",
+    open: section
+  }).toString();
+  window.location.href = `/owner-vehicle-detail?${params}`;
+}
+window.goToVehicleDetail = goToVehicleDetail;
+
+function downloadETag() {
+  const tag = allTags[_selIdx];
+  if (!tag) { _toast("No vehicle selected.", "err"); return; }
+  const plate = tag.plateNumber || tag.number || "—";
+  const etagId = tag.etagId ? String(tag.etagId).replace(/^PT-/, "") : "—";
+  const status = tag.status === "inactive" ? "Inactive" : "Active";
+  const qr = tag.qrDataUrl || "";
+
+  const numEl = document.getElementById("wl-print-vehicle-num");
+  const idEl  = document.getElementById("wl-print-etag-id");
+  const stEl  = document.getElementById("wl-print-status");
+  const qrEl  = document.getElementById("wl-print-qr-img");
+
+  if (numEl) numEl.textContent = plate;
+  if (idEl)  idEl.textContent  = etagId;
+  if (stEl)  stEl.textContent  = status;
+  if (qrEl)  qrEl.src          = qr;
+
+  setTimeout(() => window.print(), 80);
+}
+window.downloadETag = downloadETag;
+
+function goToShop() {
+  closeMenu();
+  if (typeof switchTab === "function") switchTab("shop");
+}
+window.goToShop = goToShop;
+
+async function removeVehicle() {
+  const tag = allTags[_selIdx];
+  if (!tag) return;
+  const plate = tag.plateNumber || tag.number || "this vehicle";
+  if (!confirm(`Remove ${plate}? This cannot be undone.`)) return;
+  const tagId = tag.id || String(tag._id || "");
+  if (!tagId) {
+    try {
+      const key = userKey(_userId || "");
+      const arr = JSON.parse(localStorage.getItem(key) || "[]");
+      localStorage.setItem(key, JSON.stringify(
+        arr.filter(v => (v.number || "").toUpperCase() !== (tag.number || "").toUpperCase())
+      ));
+    } catch {}
+    _selIdx = 0;
+    closeMenu();
+    load();
+    return;
+  }
+  try {
+    const res = await fetch(`/api/owner/tags/${tagId}`, { method: "DELETE" });
+    if (res.ok) {
+      _selIdx = 0;
+      closeMenu();
+      _toast(`${plate} removed.`, "ok");
+      load();
+    } else {
+      _toast("Couldn't remove vehicle. Try again.", "err");
+    }
+  } catch {
+    _toast("Couldn't remove vehicle. Try again.", "err");
+  }
+}
+window.removeVehicle = removeVehicle;
+
+async function signOut() {
+  try { await fetch("/api/auth/logout", { method: "POST" }); } catch {}
+  sessionStorage.clear();
+  window.location.href = "/owner-login";
+}
+window.signOut = signOut;
+
+function _toast(msg, tone) {
+  const existing = document.getElementById("pt-toast");
+  if (existing) existing.remove();
+  const t = document.createElement("div");
+  t.id = "pt-toast";
+  t.textContent = msg;
+  Object.assign(t.style, {
+    position: "fixed", bottom: "90px", left: "50%", transform: "translateX(-50%)",
+    background: tone === "ok" ? "#FF2700" : "#EF4444",
+    color: "#fff", padding: "11px 20px", borderRadius: "11px",
+    fontWeight: "700", fontSize: ".85rem", zIndex: "9999",
+    boxShadow: "0 4px 16px rgba(0,0,0,.18)", maxWidth: "88vw",
+    textAlign: "center", whiteSpace: "nowrap"
+  });
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3200);
+}

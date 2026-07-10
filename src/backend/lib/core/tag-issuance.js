@@ -65,7 +65,8 @@ export async function createUnclaimedTags(collections, input) {
       printStatus: "pending_print",
       stickerRequested: Boolean(input.stickerRequested),
       createdAt: new Date().toISOString(),
-      ...tagLifecycleDefaults()
+      ...tagLifecycleDefaults(),
+      premium: Boolean(input.premiumBatch)
     };
 
     await collections.tags.insertOne(tag);

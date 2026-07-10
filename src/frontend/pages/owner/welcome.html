@@ -711,6 +711,14 @@
   .pt-act-empty-t { font-size: .92rem; font-weight: 800; color: #323232; margin: 0 0 4px; }
   .pt-act-empty-s { font-size: .78rem; color: #9CA3AF; margin: 0; }
 
+  /* Callback prompt */
+  .pt-cb-prompt { margin-bottom: 4px; }
+  .pt-cb-prompt-hd { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .pt-cb-prompt-label { font-size: .78rem; font-weight: 800; color: #FF2700; letter-spacing: .01em; text-transform: uppercase; }
+  .pt-cb-pulse { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #FF2700; flex-shrink: 0;
+    animation: cbPulse 1.4s ease-in-out infinite; }
+  @keyframes cbPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(255,39,0,.5); } 50% { box-shadow: 0 0 0 6px rgba(255,39,0,0); } }
+
   .pt-act-card {
     display: flex; align-items: center; gap: 13px;
     background: #fff; border-radius: 16px;
@@ -914,6 +922,38 @@
         </div>
       </div>
 
+      <!-- ── Overview section ── -->
+      <section class="pt-ov" id="noticeboard" aria-label="Dashboard overview">
+        <div class="pt-ov-empty">Loading overview…</div>
+      </section>
+
+      <!-- ── Callback prompt (eligible call only) ── -->
+      <div id="callbackPrompt" style="display:none"></div>
+
+      <!-- ── My Vehicles ── -->
+      <!-- Search -->
+      <div class="pt-wsearch">
+        <input class="pt-wsearch-inp" type="search" id="vehicleSearch" placeholder="Search vehicles…" autocomplete="off"/>
+        <button class="pt-wsearch-btn" aria-label="Search">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+            <circle cx="11" cy="11" r="8" stroke="#FF2700" stroke-width="2.2"/>
+            <path d="M21 21l-4.35-4.35" stroke="#FF2700" stroke-width="2.2" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+      <!-- Vehicles heading -->
+      <div class="pt-tags-hd">
+        <h2 class="pt-tags-title">My Vehicles <span id="tagsCount" style="font-size:.85rem;font-weight:600;color:#9CA3AF"></span></h2>
+        <div class="pt-tags-bar"></div>
+      </div>
+      <!-- Active filter indicator -->
+      <div class="pt-filter-bar" id="mainFilterBar">
+        <span>Showing: <strong id="mainFilterLabel">—</strong></span>
+        <button class="pt-filter-clear" onclick="clearNbFilter()">× Clear filter</button>
+      </div>
+      <!-- Vehicle list -->
+      <div class="pt-vgrid" id="vehicleGrid"></div>
+
       <!-- ── Activity section ── -->
       <section class="pt-act" id="activitySection" aria-label="Recent activity">
         <div class="pt-act-hd">
@@ -941,35 +981,6 @@
           </div>
         </div>
       </section>
-
-      <!-- ── Overview section ── -->
-      <section class="pt-ov" id="noticeboard" aria-label="Dashboard overview">
-        <div class="pt-ov-empty">Loading overview…</div>
-      </section>
-
-      <!-- ── My Vehicles ── -->
-      <!-- Search -->
-      <div class="pt-wsearch">
-        <input class="pt-wsearch-inp" type="search" id="vehicleSearch" placeholder="Search vehicles…" autocomplete="off"/>
-        <button class="pt-wsearch-btn" aria-label="Search">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-            <circle cx="11" cy="11" r="8" stroke="#FF2700" stroke-width="2.2"/>
-            <path d="M21 21l-4.35-4.35" stroke="#FF2700" stroke-width="2.2" stroke-linecap="round"/>
-          </svg>
-        </button>
-      </div>
-      <!-- Vehicles heading -->
-      <div class="pt-tags-hd">
-        <h2 class="pt-tags-title">My Vehicles <span id="tagsCount" style="font-size:.85rem;font-weight:600;color:#9CA3AF"></span></h2>
-        <div class="pt-tags-bar"></div>
-      </div>
-      <!-- Active filter indicator -->
-      <div class="pt-filter-bar" id="mainFilterBar">
-        <span>Showing: <strong id="mainFilterLabel">—</strong></span>
-        <button class="pt-filter-clear" onclick="clearNbFilter()">× Clear filter</button>
-      </div>
-      <!-- Vehicle list -->
-      <div class="pt-vgrid" id="vehicleGrid"></div>
 
     </div>
   </div><!-- /view-tags -->

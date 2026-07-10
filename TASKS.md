@@ -273,14 +273,30 @@ Tasks:
 - [x] Block Google Sign-In from auto-creating a new owner account when the Gmail is not already registered — all three handlers (`/callback`, `/credential`, `/popup`) in `routes/auth/google.js` now return `no_account` error instead of inserting a new owner document
 - [x] Show a clear error message on the login page when Google Sign-In fails with `no_account` — "No ParkTag account found for this Google account. Please register first."
 
+### Google OAuth Console Configuration (one-time setup)
+
+> Root cause: popup fires and user selects account but `handlePopupCode` never fires — Google silently drops the auth code when the requesting origin is not whitelisted. See `PLAN.md` section 15 for full context.
+
+- [ ] Open Google Cloud Console → APIs & Services → Credentials → click your OAuth 2.0 Client ID
+- [ ] Under **Authorized JavaScript origins** → confirm or add:
+  - `https://app.parktag.me`
+  - `http://localhost:4000`
+  - `http://127.0.0.1:4000`
+- [ ] Under **Authorized redirect URIs** → confirm or add:
+  - `https://app.parktag.me/api/auth/google/callback`
+  - `http://localhost:4000/api/auth/google/callback`
+  - `postmessage` ← required for the popup code exchange; without this the token exchange returns `redirect_uri_mismatch`
+- [ ] Click **Save** and wait 2–5 minutes for Google to propagate the change
+- [ ] Confirm Railway has all three vars set: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_CALLBACK_URL=https://app.parktag.me/api/auth/google/callback`
+
 Verification:
 
 - [ ] Confirm protected routes fail safely without authentication
 - [ ] Confirm authenticated users cannot access another user's data
 - [ ] Confirm admin-only routes are blocked for non-admin users
 - [ ] Confirm the frontend does not expose secrets or unsafe debug data
-- [ ] Sign in with a Google account that has NO matching owner in MongoDB → login is blocked, error message "No ParkTag account found for this Google account. Please register first." is shown on the login page
-- [ ] Sign in with a Google account whose email matches an existing owner in MongoDB → login succeeds, redirected to `/owner-welcome`
+- [ ] Sign in with a Google account whose email matches an existing owner in MongoDB → popup opens → select account → redirected to `/owner-welcome` automatically (no error, no manual step)
+- [ ] Sign in with a Google account that has NO matching owner in MongoDB → popup closes → error "No ParkTag account found for this Google account. Please register first." appears on login page
 - [ ] Sign in with a Google account that has no matching owner via the One Tap flow → same `no_account` error shown inline
 - [ ] Sign in with a Google account that has no matching owner via the redirect flow (`/api/auth/google`) → redirected to `/owner-login?error=no_account` with the correct error message
 

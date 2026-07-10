@@ -9,81 +9,143 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   </head>
-  <body class="pt-hub-body">
+  <body class="verify-body">
 
-    <!-- Header -->
-    <div style="background:linear-gradient(155deg,#03162D 0%,#0D2545 55%,#1A3A6E 100%);padding:24px 20px 32px;">
-      <div style="max-width:420px;margin:0 auto;text-align:center">
-        <img src="/images/dark-logo.png" alt="ParkTag" style="height:44px;width:auto;mix-blend-mode:lighten;">
-        <p style="margin:10px 0 0;font-size:0.82rem;color:#8CA4C4;font-weight:500;letter-spacing:0.03em;">Choose where to go</p>
+    <!-- Production view: simple nav cards -->
+    <div id="view-prod" style="display:none">
+      <div style="background:linear-gradient(155deg,#03162D 0%,#0D2545 55%,#1A3A6E 100%);padding:24px 20px 32px;">
+        <div style="max-width:420px;margin:0 auto;text-align:center">
+          <img src="/images/dark-logo.png" alt="ParkTag" style="height:44px;width:auto;mix-blend-mode:lighten;">
+          <p style="margin:10px 0 0;font-size:0.82rem;color:#8CA4C4;font-weight:500;letter-spacing:0.03em;">Choose where to go</p>
+        </div>
       </div>
+      <main style="max-width:420px;margin:0 auto;padding:28px 20px 48px;">
+        <div style="display:flex;flex-direction:column;gap:14px;">
+          <a href="/owner" style="text-decoration:none;">
+            <div class="pt-nav-card" onmouseover="this.style.borderColor='#FF2700';this.style.boxShadow='0 4px 14px rgba(0,0,0,0.09)'" onmouseout="this.style.borderColor='#E5E7EB';this.style.boxShadow='0 1px 4px rgba(0,0,0,0.05)'">
+              <div style="width:48px;height:48px;border-radius:14px;background:#FFEDEA;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1" stroke="#FF2700" stroke-width="2"/><rect x="14" y="3" width="7" height="7" rx="1" stroke="#FF2700" stroke-width="2"/><rect x="3" y="14" width="7" height="7" rx="1" stroke="#FF2700" stroke-width="2"/><rect x="14" y="14" width="7" height="7" rx="1" stroke="#FF2700" stroke-width="2"/></svg>
+              </div>
+              <div style="flex:1;"><p style="margin:0 0 2px;font-weight:800;font-size:0.97rem;color:#03162D;">Owner Dashboard</p><p style="margin:0;font-size:0.78rem;color:#6B7280;">Manage your tags and vehicles</p></div>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="#9CA3AF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+          </a>
+          <a href="/admin" style="text-decoration:none;">
+            <div class="pt-nav-card" onmouseover="this.style.borderColor='#FF2700';this.style.boxShadow='0 4px 14px rgba(0,0,0,0.09)'" onmouseout="this.style.borderColor='#E5E7EB';this.style.boxShadow='0 1px 4px rgba(0,0,0,0.05)'">
+              <div style="width:48px;height:48px;border-radius:14px;background:#EFF6FF;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 2L4 6v6c0 5.25 3.5 9.74 8 11 4.5-1.26 8-5.75 8-11V6l-8-4Z" stroke="#3B82F6" stroke-width="2" stroke-linejoin="round"/></svg>
+              </div>
+              <div style="flex:1;"><p style="margin:0 0 2px;font-weight:800;font-size:0.97rem;color:#03162D;">Admin Dashboard</p><p style="margin:0;font-size:0.78rem;color:#6B7280;">Operator and issuance controls</p></div>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="#9CA3AF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+          </a>
+          <a href="/register-owner" style="text-decoration:none;">
+            <div class="pt-nav-card" onmouseover="this.style.borderColor='#FF2700';this.style.boxShadow='0 4px 14px rgba(0,0,0,0.09)'" onmouseout="this.style.borderColor='#E5E7EB';this.style.boxShadow='0 1px 4px rgba(0,0,0,0.05)'">
+              <div style="width:48px;height:48px;border-radius:14px;background:#F0FDF4;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="#22C55E" stroke-width="2"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="#22C55E" stroke-width="2" stroke-linecap="round"/><path d="M19 8v6M16 11h6" stroke="#22C55E" stroke-width="2" stroke-linecap="round"/></svg>
+              </div>
+              <div style="flex:1;"><p style="margin:0 0 2px;font-weight:800;font-size:0.97rem;color:#03162D;">Register as Owner</p><p style="margin:0;font-size:0.78rem;color:#6B7280;">Create your ParkTag account</p></div>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="#9CA3AF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+          </a>
+        </div>
+      </main>
     </div>
 
-    <main style="max-width:420px;margin:0 auto;padding:28px 20px 48px;">
+    <!-- Dev view: full debug tools -->
+    <div id="view-dev" style="display:none">
+      <main class="shell verify-shell">
+        <section class="hero">
+          <p class="eyebrow">ParkTag — Dev</p>
+          <h1>Verification dashboard</h1>
+          <p class="lede">Seed demo data, check the runtime, and verify the main flows.</p>
+        </section>
 
-      <div style="display:flex;flex-direction:column;gap:14px;">
+        <section class="grid">
+          <article class="card">
+            <h2>Health</h2>
+            <pre id="health-output">Loading...</pre>
+          </article>
+          <article class="card">
+            <h2>Runtime Status</h2>
+            <pre id="status-output">Loading...</pre>
+          </article>
+        </section>
 
-        <!-- Owner Dashboard -->
-        <a href="/owner" style="text-decoration:none;">
-          <div style="background:#fff;border:1.5px solid #E5E7EB;border-radius:16px;padding:18px 20px;display:flex;align-items:center;gap:16px;box-shadow:0 1px 4px rgba(0,0,0,0.05);transition:box-shadow 0.15s,border-color 0.15s;"
-               onmouseover="this.style.borderColor='#FF2700';this.style.boxShadow='0 4px 14px rgba(0,0,0,0.09)'"
-               onmouseout="this.style.borderColor='#E5E7EB';this.style.boxShadow='0 1px 4px rgba(0,0,0,0.05)'">
-            <div style="width:48px;height:48px;border-radius:14px;background:#FFEDEA;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-                <rect x="3" y="3" width="7" height="7" rx="1" stroke="#FF2700" stroke-width="2"/>
-                <rect x="14" y="3" width="7" height="7" rx="1" stroke="#FF2700" stroke-width="2"/>
-                <rect x="3" y="14" width="7" height="7" rx="1" stroke="#FF2700" stroke-width="2"/>
-                <rect x="14" y="14" width="7" height="7" rx="1" stroke="#FF2700" stroke-width="2"/>
-              </svg>
-            </div>
-            <div style="flex:1;">
-              <p style="margin:0 0 2px;font-weight:800;font-size:0.97rem;color:#03162D;">Owner Dashboard</p>
-              <p style="margin:0;font-size:0.78rem;color:#6B7280;">Manage your tags and vehicles</p>
-            </div>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="#9CA3AF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </div>
-        </a>
+        <section class="grid">
+          <article class="card">
+            <h2>Demo Seed</h2>
+            <p class="meta-copy">Create one admin, one owner, one active tag, and one claimable tag.</p>
+            <button id="seed-button" class="action">Seed demo data</button>
+            <pre id="seed-output">Not run yet.</pre>
+          </article>
+          <article class="card">
+            <h2>Demo Credentials</h2>
+            <pre id="credentials-output">Loading...</pre>
+          </article>
+        </section>
 
-        <!-- Admin Dashboard -->
-        <a href="/admin" style="text-decoration:none;">
-          <div style="background:#fff;border:1.5px solid #E5E7EB;border-radius:16px;padding:18px 20px;display:flex;align-items:center;gap:16px;box-shadow:0 1px 4px rgba(0,0,0,0.05);transition:box-shadow 0.15s,border-color 0.15s;"
-               onmouseover="this.style.borderColor='#FF2700';this.style.boxShadow='0 4px 14px rgba(0,0,0,0.09)'"
-               onmouseout="this.style.borderColor='#E5E7EB';this.style.boxShadow='0 1px 4px rgba(0,0,0,0.05)'">
-            <div style="width:48px;height:48px;border-radius:14px;background:#EFF6FF;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-                <path d="M12 2L4 6v6c0 5.25 3.5 9.74 8 11 4.5-1.26 8-5.75 8-11V6l-8-4Z" stroke="#3B82F6" stroke-width="2" stroke-linejoin="round"/>
-              </svg>
-            </div>
-            <div style="flex:1;">
-              <p style="margin:0 0 2px;font-weight:800;font-size:0.97rem;color:#03162D;">Admin Dashboard</p>
-              <p style="margin:0;font-size:0.78rem;color:#6B7280;">Operator and issuance controls</p>
-            </div>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="#9CA3AF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </div>
-        </a>
+        <section class="grid">
+          <article class="card">
+            <h2>Public Tag Resolve</h2>
+            <label class="field">
+              <span>Tag token</span>
+              <input id="tag-token" placeholder="Paste token from seeded demo" />
+            </label>
+            <button id="resolve-tag-button" class="action">Resolve tag</button>
+            <pre id="tag-output">No request yet.</pre>
+          </article>
+          <article class="card">
+            <h2>Create Contact Request</h2>
+            <label class="field">
+              <span>Tag token</span>
+              <input id="request-token" placeholder="Paste token from seeded demo" />
+            </label>
+            <label class="field">
+              <span>Scanner phone</span>
+              <input id="request-phone" placeholder="+919999999999" />
+            </label>
+            <button id="create-request-button" class="action">Create request</button>
+            <pre id="request-output">No request yet.</pre>
+          </article>
+        </section>
 
-        <!-- Register as Owner -->
-        <a href="/register-owner" style="text-decoration:none;">
-          <div style="background:#fff;border:1.5px solid #E5E7EB;border-radius:16px;padding:18px 20px;display:flex;align-items:center;gap:16px;box-shadow:0 1px 4px rgba(0,0,0,0.05);transition:box-shadow 0.15s,border-color 0.15s;"
-               onmouseover="this.style.borderColor='#FF2700';this.style.boxShadow='0 4px 14px rgba(0,0,0,0.09)'"
-               onmouseout="this.style.borderColor='#E5E7EB';this.style.boxShadow='0 1px 4px rgba(0,0,0,0.05)'">
-            <div style="width:48px;height:48px;border-radius:14px;background:#F0FDF4;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-                <circle cx="12" cy="8" r="4" stroke="#22C55E" stroke-width="2"/>
-                <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="#22C55E" stroke-width="2" stroke-linecap="round"/>
-                <path d="M19 8v6M16 11h6" stroke="#22C55E" stroke-width="2" stroke-linecap="round"/>
-              </svg>
+        <section class="grid">
+          <article class="card">
+            <h2>Portal Links</h2>
+            <div class="actions">
+              <a class="action link-action" href="/owner">Owner Page</a>
+              <a class="action subtle link-action" href="/admin">Admin Page</a>
+              <a class="action subtle link-action" href="/register-owner">Owner Registration</a>
             </div>
-            <div style="flex:1;">
-              <p style="margin:0 0 2px;font-weight:800;font-size:0.97rem;color:#03162D;">Register as Owner</p>
-              <p style="margin:0;font-size:0.78rem;color:#6B7280;">Create your ParkTag account</p>
-            </div>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="#9CA3AF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </div>
-        </a>
+          </article>
+        </section>
+      </main>
+    </div>
 
-      </div>
-    </main>
+    <style>
+      .pt-nav-card {
+        background: #fff;
+        border: 1.5px solid #E5E7EB;
+        border-radius: 16px;
+        padding: 18px 20px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+        transition: box-shadow 0.15s, border-color 0.15s;
+      }
+    </style>
 
+    <script type="module">
+      // Check runtime mode — show dev tools locally, nav cards in production
+      const res = await fetch("/api/runtime/status").catch(() => null);
+      const data = res ? await res.json().catch(() => null) : null;
+      const isProd = data?.env === "production";
+
+      document.getElementById(isProd ? "view-prod" : "view-dev").style.display = "";
+    </script>
+
+    <script type="module" src="/scripts/scanner/verify.js"></script>
   </body>
 </html>

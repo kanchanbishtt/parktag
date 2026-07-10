@@ -42,6 +42,7 @@ setTimeout(async () => {
     skeleton.style.display = "none";
     populateContent();
     content.classList.add("visible");
+    autoOpenSection();
   }, 250);
 }, 500);
 
@@ -79,6 +80,33 @@ function populateContent() {
   // Hide demo banner if this is a real tag
   const demoBanner = document.querySelector(".vd-demo-banner");
   if (demoBanner && realId) demoBanner.style.display = "none";
+}
+
+// ── Auto-open section from ?open= URL param ───────────────────
+function autoOpenSection() {
+  const openKey = params.get("open");
+  if (!openKey) return;
+  const map = {
+    etag:        { tab: "manage", item: "download-etag" },
+    premium:     { tab: "manage", item: "premium" },
+    replacement: { tab: "more",   item: "replacement" }
+  };
+  const target = map[openKey];
+  if (!target) return;
+
+  // Switch tab if needed
+  if (target.tab === "more") {
+    const moreTab = document.querySelector('.vd-tab[data-tab="more"]');
+    if (moreTab) moreTab.click();
+  }
+
+  setTimeout(() => {
+    const item = document.querySelector(`.vd-menu-item[data-item="${target.item}"]`);
+    if (!item) return;
+    document.querySelectorAll(".vd-menu-item.open").forEach(o => o.classList.remove("open"));
+    item.classList.add("open");
+    item.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, 80);
 }
 
 // ── Tab switching ─────────────────────────────────────────────

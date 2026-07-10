@@ -147,7 +147,11 @@ function setContactAvailability(available) {
 function setSummaryForTag(tag) {
   const isRegistrationState = ["unclaimed", "inactive"].includes(tag.status);
 
-  setText("tag-chip", isRegistrationState ? "Registration required" : "✓ Active");
+  const chip = byId("tag-chip");
+  if (chip) {
+    chip.textContent = isRegistrationState ? "Register to activate" : "✓ Active";
+    chip.dataset.tone = isRegistrationState ? "warn" : "success";
+  }
 
   // Populate action shell vehicle display
   const plateDisplay = byId("pt-plate-display");

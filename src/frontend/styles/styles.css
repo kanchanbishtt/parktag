@@ -1223,13 +1223,30 @@ pre {
 }
 
 .pt-header-badge {
-  font-size: 0.75rem;
-  font-weight: 600;
+  font-size: 0.70rem;
+  font-weight: 700;
   padding: 5px 12px;
   border-radius: 999px;
-  background: var(--pt-amber-bg);
-  color: var(--pt-amber-dark);
-  border: 1px solid rgba(255, 39, 0, 0.3);
+  white-space: nowrap;
+  max-width: 170px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: 0.01em;
+  flex-shrink: 0;
+  /* default — neutral glass (Checking…) */
+  background: rgba(255,255,255,0.10);
+  color: rgba(255,255,255,0.65);
+  border: 1px solid rgba(255,255,255,0.14);
+}
+.pt-header-badge[data-tone="warn"] {
+  background: rgba(251,191,36,0.18);
+  color: #FCD34D;
+  border-color: rgba(251,191,36,0.30);
+}
+.pt-header-badge[data-tone="success"] {
+  background: rgba(34,197,94,0.18);
+  color: #4ADE80;
+  border-color: rgba(34,197,94,0.30);
 }
 
 /* Main layout */
@@ -1239,6 +1256,30 @@ pre {
   padding: 20px 16px 48px;
   display: grid;
   gap: 16px;
+}
+
+/* ── Laptop / desktop: 2-column registration form ── */
+@media (min-width: 700px) {
+  .pt-main { max-width: 780px; padding: 28px 24px 56px; }
+
+  #registration-shell { max-width: 100%; }
+
+  /* Hero icon slightly smaller on desktop — form dominates */
+  .pt-reg-hero-icon { width: 50px; height: 50px; }
+  .pt-reg-hero { padding: 28px 32px 22px; }
+
+  /* Each section becomes a 2-col grid */
+  #claim-form .pt-form-section {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 20px;
+  }
+
+  /* Section label always spans the full row */
+  #claim-form .pt-form-section-label { grid-column: 1 / -1; }
+
+  /* Fields marked wide (e.g. email) span both columns */
+  #claim-form .pt-field-wide { grid-column: 1 / -1; }
 }
 
 /* Card */
@@ -1287,6 +1328,76 @@ pre {
   color: var(--pt-sub);
   line-height: 1.6;
   margin: 0 0 20px;
+}
+
+/* ── Registration hero banner ── */
+.pt-reg-hero {
+  background: linear-gradient(145deg, #010D1A 0%, #03162D 40%, #0e1f3d 70%, #1a1035 100%);
+  padding: 32px 24px 24px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  border-radius: 20px 20px 0 0;
+}
+.pt-reg-hero::before {
+  content: '';
+  position: absolute;
+  top: -40px; right: -40px;
+  width: 180px; height: 180px;
+  background: radial-gradient(circle, rgba(255,39,0,0.22) 0%, transparent 68%);
+  border-radius: 50%;
+  pointer-events: none;
+}
+.pt-reg-hero::after {
+  content: '';
+  position: absolute;
+  bottom: -20px; left: -20px;
+  width: 120px; height: 120px;
+  background: radial-gradient(circle, rgba(255,39,0,0.10) 0%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+}
+.pt-reg-hero-icon {
+  width: 58px; height: 58px;
+  background: rgba(255,39,0,0.14);
+  border: 1.5px solid rgba(255,80,0,0.32);
+  border-radius: 18px;
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 16px;
+  color: #FF6B4A;
+  box-shadow: 0 4px 20px rgba(255,39,0,0.18);
+  position: relative;
+}
+.pt-reg-hero-title {
+  font-size: 1.45rem;
+  font-weight: 900;
+  color: #fff;
+  margin: 0 0 8px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+.pt-reg-hero-sub {
+  font-size: 0.86rem;
+  color: rgba(255,255,255,0.55);
+  line-height: 1.6;
+  margin: 0 auto 18px;
+  max-width: 360px;
+}
+.pt-reg-hero-pills {
+  display: flex;
+  justify-content: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+.pt-reg-hero-pills span {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 4px 11px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.07);
+  color: rgba(255,255,255,0.65);
+  border: 1px solid rgba(255,255,255,0.13);
+  letter-spacing: 0.01em;
 }
 
 /* Plate preview (verification screen) */
@@ -1920,18 +2031,8 @@ html:has(body.pt-hub-body) {
 }
 
 /* ═══════════════════════════════════════════
-   HEADER BADGE
+   HEADER BADGE  — styles defined above near .pt-header
    ═══════════════════════════════════════════ */
-
-.pt-header-badge {
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: #DC2626;
-  background: #FEE2E2;
-  padding: 4px 10px;
-  border-radius: 20px;
-  margin-left: auto;
-}
 
 /* ═══════════════════════════════════════════
    REGISTRATION PAGE

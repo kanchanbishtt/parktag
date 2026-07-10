@@ -59,15 +59,26 @@
       </article>
 
       <!-- Registration shell -->
-      <article class="pt-card" id="registration-shell" hidden>
-        <div class="pt-card-icon pt-icon-tag">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-            <path d="M3 7a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l7.414 7.414a2 2 0 0 1 0 2.828l-4.172 4.172a2 2 0 0 1-2.828 0L4.293 12.293A1 1 0 0 1 4 11.586V7Z" stroke="currentColor" stroke-width="2"/>
-            <circle cx="8" cy="9" r="1.5" fill="currentColor"/>
-          </svg>
+      <article class="pt-card" id="registration-shell" hidden style="overflow:hidden;padding:0">
+
+        <!-- Hero banner -->
+        <div class="pt-reg-hero">
+          <div class="pt-reg-hero-icon">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+              <path d="M3 7a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l7.414 7.414a2 2 0 0 1 0 2.828l-4.172 4.172a2 2 0 0 1-2.828 0L4.293 12.293A1 1 0 0 1 4 11.586V7Z" stroke="currentColor" stroke-width="2"/>
+              <circle cx="8" cy="9" r="1.5" fill="currentColor"/>
+            </svg>
+          </div>
+          <h1 class="pt-reg-hero-title" id="registration-title">Register this WaveTag</h1>
+          <p class="pt-reg-hero-sub" id="registration-copy">Activate your sticker so people can reach you privately — your number always stays hidden.</p>
+          <div class="pt-reg-hero-pills">
+            <span>🔒 Private calls</span>
+            <span>✓ Free to activate</span>
+            <span>⚡ Takes 1 min</span>
+          </div>
         </div>
-        <h1 class="pt-card-title" id="registration-title">Activate your ParkTag</h1>
-        <p class="pt-card-sub" id="registration-copy">Link this tag to your vehicle so people can reach you privately.</p>
+
+        <div style="padding:24px">
 
         <form id="claim-form" class="pt-form" style="margin-top:16px">
           <div class="pt-form-section">
@@ -106,7 +117,7 @@
           </div>
           <div class="pt-form-section">
             <p class="pt-form-section-label">Account setup</p>
-            <label class="pt-field">
+            <label class="pt-field pt-field-wide">
               <span>Email address</span>
               <input id="claim-email" type="email" class="pt-input" placeholder="name@example.com" />
             </label>
@@ -140,6 +151,7 @@
           Your information is used only for contact and safety.
         </p>
         <p id="claim-status" class="pt-status" data-tone="info"></p>
+        </div><!-- /padding wrapper -->
       </article>
 
       <!-- Action shell -->

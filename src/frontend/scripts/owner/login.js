@@ -413,10 +413,11 @@ async function loginWithPassword() {
   const btn = byId("password-login-btn");
   if (btn) { btn.disabled = true; btn.classList.add("pt-btn-loading"); }
   try {
+    const rememberMe = document.getElementById("remember-me")?.checked || false;
     await fetchJson("/api/auth/login", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ role: "owner", email: identifier, password })
+      body: JSON.stringify({ role: "owner", email: identifier, password, rememberMe })
     });
     window.location.href = "/owner-welcome";
   } catch (error) {

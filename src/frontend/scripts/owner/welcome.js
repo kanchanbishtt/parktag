@@ -563,6 +563,8 @@ async function saveMobile() {
       _ownerMobile = mobile;
       const mobileEl = document.getElementById("mi-mobile");
       if (mobileEl) { mobileEl.textContent = mobile; mobileEl.style.color = "#03162D"; }
+      const mobileAlert = document.getElementById("mobile-missing-alert");
+      if (mobileAlert) mobileAlert.style.display = "none";
       if (status) { status.textContent = "Phone number saved."; status.style.color = "#16A34A"; status.style.display = "block"; }
       _toast("Phone number saved — Call Back is now enabled.", "ok");
       renderActivity(allRequests);
@@ -686,6 +688,10 @@ async function load() {
   grid.innerHTML = skeletonGrid(3);
   try {
     const res = await fetch("/api/owner/dashboard");
+    if (res.status === 401 || res.status === 403) {
+      window.location.href = "/owner-login";
+      return;
+    }
     if (!res.ok) {
       grid.innerHTML = ADD_CARD;
       return;
@@ -980,6 +986,8 @@ function _fillMenu() {
   if (mobileInput && _ownerMobile) {
     mobileInput.value = _ownerMobile.replace(/^\+91/, "");
   }
+  const mobileAlert = document.getElementById("mobile-missing-alert");
+  if (mobileAlert) mobileAlert.style.display = _ownerMobile ? "none" : "flex";
 
   // Toggles — Tag Active uses real DB status; rest use localStorage
   const s = _loadSw(tag);
@@ -1023,6 +1031,21 @@ function toggleMI(item) {
   if (!wasOpen) item.classList.add("open");
 }
 window.toggleMI = toggleMI;
+
+function goToPhoneSetup() {
+  // Open the User Info accordion and focus the phone number input
+  document.querySelectorAll("#menuDrawer .pt-mi.open").forEach(el => el.classList.remove("open"));
+  const userInfoItem = document.querySelector("#menuDrawer .pt-mi[data-key='user-info']");
+  if (userInfoItem) userInfoItem.classList.add("open");
+  setTimeout(() => {
+    const phoneInput = document.getElementById("mi-mobile-input");
+    if (phoneInput) {
+      phoneInput.scrollIntoView({ behavior: "smooth", block: "center" });
+      phoneInput.focus();
+    }
+  }, 300);
+}
+window.goToPhoneSetup = goToPhoneSetup;
 
 function selectV(idx) {
   _selIdx = idx;

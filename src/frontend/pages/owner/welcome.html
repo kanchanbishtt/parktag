@@ -1129,6 +1129,17 @@
         <span class="pt-mi-ar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>
       </div>
       <div class="pt-mi-s"><div class="pt-mi-si">
+        <!-- shown when owner has no mobile number registered -->
+        <div id="mobile-missing-alert" style="display:none;background:#FFFBEB;border:1px solid #FCD34D;border-radius:10px;padding:10px 12px;margin-bottom:10px;align-items:flex-start;gap:9px">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" style="flex-shrink:0;margin-top:1px;color:#D97706"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M12 8v4M12 16h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          <div style="flex:1;min-width:0">
+            <p style="margin:0 0 2px;font-size:.76rem;font-weight:700;color:#92400E">Add your mobile number to receive call-backs</p>
+            <p style="margin:0;font-size:.70rem;color:#B45309;line-height:1.45">Scanners can't call you back until you register a number.</p>
+          </div>
+          <button onclick="goToPhoneSetup()" title="How to register your number" style="background:none;border:none;cursor:pointer;color:#D97706;padding:2px 4px;flex-shrink:0;display:flex;align-items:center">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="17" r=".5" fill="currentColor" stroke="currentColor" stroke-width="1.5"/></svg>
+          </button>
+        </div>
         <div class="pt-tog">
           <div><div class="pt-tog-lb">Tag Active</div><div class="pt-tog-sb">Enable your ParkTag sticker</div></div>
           <label class="pt-sw"><input type="checkbox" id="sw-tag" onchange="saveSw(this,'tagActive')"><span class="pt-sw-t"></span></label>

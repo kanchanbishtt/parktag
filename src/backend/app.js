@@ -142,7 +142,11 @@ export async function buildApp() {
     return html;
   });
 
-  app.get("/owner-welcome", async (_request, reply) => {
+  app.get("/owner-welcome", async (request, reply) => {
+    const session = readSession(app, request);
+    if (!session || session.role !== "owner") {
+      return reply.redirect("/owner-login");
+    }
     const html = await fs.readFile(ownerWelcomePage, "utf8");
     reply.type("text/html");
     return html;

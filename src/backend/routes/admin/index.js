@@ -257,7 +257,7 @@ export function registerAdminRoutes(app, env) {
       return blocked;
     }
 
-    const { batchNumber, batchLabel, quantity, stickerRequested } =
+    const { batchNumber, batchLabel, quantity, stickerRequested, premiumBatch } =
       request.body || {};
 
     const collections = await getCollections(env);
@@ -265,7 +265,8 @@ export function registerAdminRoutes(app, env) {
       batchNumber,
       batchLabel,
       quantity,
-      stickerRequested
+      stickerRequested,
+      premiumBatch
     });
 
     const output = await Promise.all(

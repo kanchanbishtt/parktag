@@ -417,6 +417,23 @@ async function logoutAdmin() {
   window.location.href = "/admin";
 }
 
+function updatePremiumToggle(checkbox) {
+  const track = byId("premium-toggle-track");
+  const thumb = byId("premium-toggle-thumb");
+  const row   = byId("premium-toggle-row");
+  if (!track || !thumb) return;
+  if (checkbox.checked) {
+    track.style.background = "#FF2700";
+    thumb.style.left = "22px";
+    if (row) row.classList.add("is-premium");
+  } else {
+    track.style.background = "#D1D5DB";
+    thumb.style.left = "2px";
+    if (row) row.classList.remove("is-premium");
+  }
+}
+window.updatePremiumToggle = updatePremiumToggle;
+
 async function issueTag() {
   const btn = byId("issue-tag-button");
   if (btn) { btn.disabled = true; btn.textContent = "Generating…"; }
@@ -432,7 +449,8 @@ async function issueTag() {
         batchNumber: byId("issue-batch-number")?.value.trim(),
         batchLabel: byId("issue-batch-label")?.value.trim(),
         quantity: byId("issue-quantity")?.value.trim(),
-        stickerRequested: byId("issue-sticker-requested")?.checked
+        stickerRequested: byId("issue-sticker-requested")?.checked,
+        premiumBatch: byId("issue-premium-batch")?.checked
       })
     });
 

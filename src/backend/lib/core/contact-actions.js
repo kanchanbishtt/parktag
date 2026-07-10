@@ -1,6 +1,6 @@
 import { ObjectId } from "mongodb";
 
-import { sendMetaWhatsapp, isMetaWhatsappConfigured } from "../integrations/meta.js";
+import { sendMetaWhatsappAlert, isMetaWhatsappConfigured } from "../integrations/meta.js";
 import { getCollections } from "../db/repositories.js";
 
 // The WhatsApp message is built ENTIRELY server-side (spec §6) — the scanner can
@@ -91,9 +91,10 @@ export async function createContactAction(env, input) {
         throw new Error("WhatsApp is not configured");
       }
 
-      provider = await sendMetaWhatsapp(env, {
+      provider = await sendMetaWhatsappAlert(env, {
         to: owner.phone || owner.mobile,
-        body: ownerMessage
+        ownerName: owner.displayName || "there",
+        reason: REASON_LABELS[input.reason] || "an issue has been reported"
       });
       providerStatus = "provider_started";
     }

@@ -67,12 +67,12 @@ export async function sendMetaWhatsappOtp(env, { to, code }) {
   return data;
 }
 
-export async function sendMetaWhatsapp(env, input) {
+export async function sendMetaWhatsappAlert(env, { to, ownerName, reason }) {
   if (!isMetaWhatsappConfigured(env)) {
     throw new Error("Meta WhatsApp is not configured: missing metaWhatsappPhoneNumberId or metaWhatsappAccessToken");
   }
 
-  const to = normalizeIndianNumber(input.to);
+  const toNumber = normalizeIndianNumber(to);
   const url = `https://graph.facebook.com/v19.0/${env.metaWhatsappPhoneNumberId}/messages`;
 
   const response = await fetch(url, {
@@ -83,9 +83,21 @@ export async function sendMetaWhatsapp(env, input) {
     },
     body: JSON.stringify({
       messaging_product: "whatsapp",
-      to,
-      type: "text",
-      text: { body: input.body }
+      to: toNumber,
+      type: "template",
+      template: {
+        name: "parktag_owner_notification",
+        language: { code: "en" },
+        components: [
+          {
+            type: "body",
+            parameters: [
+              { type: "text", text: ownerName },
+              { type: "text", text: reason }
+            ]
+          }
+        ]
+      }
     })
   });
 

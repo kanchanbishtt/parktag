@@ -418,6 +418,42 @@ function renderActivity(requests) {
     badge.style.display  = hotCount ? "inline-block" : "none";
   }
 
+  // ── Callback prompt (after Overview) ──────────────────────────
+  const prompt = document.getElementById("callbackPrompt");
+  if (prompt) {
+    if (eligible) {
+      const ageMs  = Date.now() - new Date(eligible.createdAt).getTime();
+      const tag    = allTags.find(t => t.token === eligible.token);
+      const plate  = tag?.plateNumber || tag?.number || "your vehicle";
+      const masked = eligible.phone ? `•••• ${String(eligible.phone).slice(-4)}` : "Unknown caller";
+      const cta    = _ownerMobile
+        ? `<button class="pt-act-cta" id="cbBtnPrompt" onclick="callBack('cbBtnPrompt')" style="flex-shrink:0">Call Back</button>`
+        : `<span class="pt-act-nophone" style="flex-shrink:0">Add phone<br>to call back</span>`;
+      prompt.style.display = "block";
+      prompt.innerHTML = `
+<div class="pt-cb-prompt">
+  <div class="pt-cb-prompt-hd">
+    <span class="pt-cb-pulse"></span>
+    <span class="pt-cb-prompt-label">Someone wants you to call back</span>
+  </div>
+  <div class="pt-act-card urgent" style="margin:0;border-radius:14px">
+    <div class="pt-act-ic" style="background:#FFE3DD;color:#FF2700">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.62 3.38 2 2 0 0 1 3.6 1.17h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.86a16 16 0 0 0 6 6l.91-.91a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" stroke="currentColor" stroke-width="1.8"/></svg>
+    </div>
+    <div class="pt-act-body">
+      <p class="pt-act-who">${masked} contacted you</p>
+      <p class="pt-act-det">${plate} · Call</p>
+      <p class="pt-act-time">${formatTimeAgo(ageMs)}</p>
+    </div>
+    ${cta}
+  </div>
+</div>`;
+    } else {
+      prompt.style.display = "none";
+      prompt.innerHTML = "";
+    }
+  }
+
   const callSvg = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.62 3.38 2 2 0 0 1 3.6 1.17h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.86a16 16 0 0 0 6 6l.91-.91a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" stroke="currentColor" stroke-width="1.8"/></svg>`;
   const waSvg  = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
@@ -478,8 +514,8 @@ function renderActivity(requests) {
   container.innerHTML = cards;
 }
 
-async function callBack() {
-  const btn = document.getElementById("cbBtn");
+async function callBack(btnId = "cbBtn") {
+  const btn = document.getElementById(btnId);
   if (btn) { btn.disabled = true; btn.textContent = "Calling…"; }
   try {
     const res  = await fetch("/api/owner/callback/register-call", { method: "POST" });

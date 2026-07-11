@@ -16,7 +16,6 @@ export async function createSession(app, user) {
     role: user.role,
     email: user.email,
     displayName: user.displayName || null,
-    superAdmin: user.superAdmin || false,
     createdAt: new Date().toISOString(),
     expiresAt: new Date(Date.now() + SESSION_TTL_MS).toISOString()
   });

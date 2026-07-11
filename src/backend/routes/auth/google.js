@@ -115,8 +115,7 @@ export function registerGoogleAuthRoutes(app, env) {
           id: String(admin._id),
           role: "admin",
           email: admin.email,
-          displayName: admin.displayName || email,
-          superAdmin: admin.superAdmin === true || admin.superAdmin === "true"
+          displayName: admin.displayName || email
         });
         writeSessionCookie(reply, sessionId, env.runtimeMode === "production");
         reply.redirect("/admin/overview");

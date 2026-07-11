@@ -20,14 +20,10 @@ export function registerGoogleAuthRoutes(app, env) {
     }
   }
 
-  app.get("/api/auth/google", async (request, reply) => {
+  function startOAuth(reply, role) {
     purgeExpiredStates();
     const state = crypto.randomBytes(16).toString("hex");
-
-    // Store state server-side — avoids browser SameSite cookie blocking on the
-    // Google → callback redirect which some browsers treat as cross-site
-    app.oauthStates.set(state, Date.now());
-
+    app.oauthStates.set(state, { ts: Date.now(), role });
     const params = new URLSearchParams({
       client_id: env.googleClientId,
       redirect_uri: env.googleCallbackUrl,
@@ -36,8 +32,15 @@ export function registerGoogleAuthRoutes(app, env) {
       state,
       access_type: "online"
     });
-
     reply.redirect(`${GOOGLE_AUTH_URL}?${params}`);
+  }
+
+  app.get("/api/auth/google", async (_request, reply) => {
+    startOAuth(reply, "owner");
+  });
+
+  app.get("/api/auth/admin/google", async (_request, reply) => {
+    startOAuth(reply, "admin");
   });
 
   app.get("/api/auth/google/callback", async (request, reply) => {
@@ -48,12 +51,13 @@ export function registerGoogleAuthRoutes(app, env) {
       return;
     }
 
-    const storedAt = app.oauthStates.get(state);
-    if (!storedAt || Date.now() - storedAt > STATE_TTL_MS) {
+    const storedState = app.oauthStates.get(state);
+    if (!storedState || Date.now() - storedState.ts > STATE_TTL_MS) {
       app.oauthStates.delete(state);
       reply.redirect("/owner-login?error=invalid_state");
       return;
     }
+    const role = storedState.role || "owner";
     app.oauthStates.delete(state);
 
     try {
@@ -96,7 +100,25 @@ export function registerGoogleAuthRoutes(app, env) {
 
       const collections = await getCollections(env);
       if (!collections) {
-        reply.redirect("/owner-login?error=db_unavailable");
+        const errBase = role === "admin" ? "/admin" : "/owner-login";
+        reply.redirect(`${errBase}?error=db_unavailable`);
+        return;
+      }
+
+      if (role === "admin") {
+        const admin = await collections.admins.findOne({ email });
+        if (!admin) {
+          reply.redirect("/admin?error=no_account");
+          return;
+        }
+        const sessionId = await createSession(app, {
+          id: String(admin._id),
+          role: "admin",
+          email: admin.email,
+          displayName: admin.displayName || email
+        });
+        writeSessionCookie(reply, sessionId, env.runtimeMode === "production");
+        reply.redirect("/admin/overview");
         return;
       }
 

@@ -38,7 +38,7 @@ export async function loginUser(env, role, email, password) {
     role,
     email: user.email,
     displayName: user.displayName,
-    superAdmin: user.superAdmin || false
+    superAdmin: user.superAdmin === true || user.superAdmin === "true"
   };
 }
 

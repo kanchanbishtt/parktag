@@ -432,7 +432,12 @@ export function registerAdminRoutes(app, env) {
       ok: true,
       email: request.session.email,
       displayName: request.session.displayName,
-      superAdmin
+      superAdmin,
+      _debug: {
+        found: !!admin,
+        rawValue: admin?.superAdmin,
+        rawType: typeof admin?.superAdmin
+      }
     };
   });
 

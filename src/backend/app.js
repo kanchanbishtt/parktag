@@ -22,6 +22,7 @@ import { registerGoogleAuthRoutes } from "./routes/auth/google.js";
 import { registerFirebasePhoneAuthRoute } from "./routes/auth/firebase.js";
 import { registerPasswordResetRoutes } from "./routes/auth/password-reset.js";
 import { registerRuntimeRoutes } from "./routes/system/runtime.js";
+import { registerReviewerSetupRoute } from "./routes/system/reviewer-setup.js";
 import { registerShopRoutes } from "./routes/shop/index.js";
 
 const currentFile = fileURLToPath(import.meta.url);
@@ -245,6 +246,7 @@ export async function buildApp() {
 
   registerRuntimeRoutes(app, env);
   registerDemoRoutes(app, env);
+  registerReviewerSetupRoute(app, env);
   registerPublicRoutes(app, env);
   registerProviderRoutes(app, env);
   registerMetaWebhookRoutes(app, env);

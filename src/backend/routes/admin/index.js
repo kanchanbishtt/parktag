@@ -422,45 +422,13 @@ export function registerAdminRoutes(app, env) {
     };
   });
 
-  // One-time bootstrap: promote logged-in admin to superAdmin.
-  // Only works when SUPER_ADMIN_BOOTSTRAP_KEY is set in Railway env vars.
-  // Remove the env var after use.
-  app.post("/api/admin/make-super", async (request, reply) => {
-    const blocked = await requireSession(app, "admin")(request, reply);
-    if (blocked) return blocked;
-    const { key } = request.body || {};
-    if (!env.superAdminBootstrapKey) {
-      reply.code(403);
-      return { ok: false, error: "Bootstrap key not set in environment", debug: { hasKey: false } };
-    }
-    if (key !== env.superAdminBootstrapKey) {
-      reply.code(403);
-      return { ok: false, error: "Key mismatch", debug: { hasKey: true, keyLength: env.superAdminBootstrapKey.length } };
-    }
-    const collections = await getCollections(env);
-    await collections.admins.updateOne(
-      { email: request.session.email },
-      { $set: { superAdmin: true } }
-    );
-    return { ok: true, message: `${request.session.email} is now super-admin` };
-  });
-
   app.get("/api/admin/me", async (request, reply) => {
     const blocked = await requireSession(app, "admin")(request, reply);
     if (blocked) return blocked;
-    const collections = await getCollections(env);
-    const admin = await collections.admins.findOne({ email: request.session.email });
-    const superAdmin = admin?.superAdmin === true || admin?.superAdmin === "true";
     return {
       ok: true,
       email: request.session.email,
-      displayName: request.session.displayName,
-      superAdmin,
-      _debug: {
-        found: !!admin,
-        rawValue: admin?.superAdmin,
-        rawType: typeof admin?.superAdmin
-      }
+      displayName: request.session.displayName
     };
   });
 
@@ -477,7 +445,6 @@ export function registerAdminRoutes(app, env) {
         id: String(a._id),
         email: a.email,
         displayName: a.displayName,
-        superAdmin: a.superAdmin || false,
         createdAt: a.createdAt
       }))
     };
@@ -486,13 +453,6 @@ export function registerAdminRoutes(app, env) {
   app.post("/api/admin/admins", async (request, reply) => {
     const blocked = await requireSession(app, "admin")(request, reply);
     if (blocked) return blocked;
-
-    const collections2 = await getCollections(env);
-    const me = await collections2.admins.findOne({ email: request.session.email });
-    if (!me?.superAdmin && me?.superAdmin !== "true") {
-      reply.code(403);
-      return { ok: false, error: "Super-admin access required" };
-    }
 
     const { email, password, displayName } = request.body || {};
 
@@ -531,13 +491,6 @@ export function registerAdminRoutes(app, env) {
   app.delete("/api/admin/admins/:id", async (request, reply) => {
     const blocked = await requireSession(app, "admin")(request, reply);
     if (blocked) return blocked;
-
-    const collections3 = await getCollections(env);
-    const me2 = await collections3.admins.findOne({ email: request.session.email });
-    if (!me2?.superAdmin && me2?.superAdmin !== "true") {
-      reply.code(403);
-      return { ok: false, error: "Super-admin access required" };
-    }
 
     const { id } = request.params;
 

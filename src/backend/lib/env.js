@@ -62,6 +62,7 @@ export function getEnv() {
     firebaseApiKey: process.env.FIREBASE_API_KEY || "",
     firebaseProjectId: process.env.FIREBASE_PROJECT_ID || "",
     razorpayKeyId: process.env.RAZORPAY_KEY_ID || "",
-    razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET || ""
+    razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET || "",
+    superAdminBootstrapKey: process.env.SUPER_ADMIN_BOOTSTRAP_KEY || ""
   };
 }

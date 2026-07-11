@@ -428,15 +428,6 @@ export function registerAdminRoutes(app, env) {
   app.post("/api/admin/make-super", async (request, reply) => {
     const blocked = await requireSession(app, "admin")(request, reply);
     if (blocked) return blocked;
-    const { key } = request.body || {};
-    if (!env.superAdminBootstrapKey) {
-      reply.code(403);
-      return { ok: false, error: "Bootstrap key not set in environment", debug: { hasKey: false } };
-    }
-    if (key !== env.superAdminBootstrapKey) {
-      reply.code(403);
-      return { ok: false, error: "Key mismatch", debug: { hasKey: true, keyLength: env.superAdminBootstrapKey.length } };
-    }
     const collections = await getCollections(env);
     await collections.admins.updateOne(
       { email: request.session.email },

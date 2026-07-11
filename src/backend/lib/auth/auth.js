@@ -37,7 +37,8 @@ export async function loginUser(env, role, email, password) {
     id: String(user._id),
     role,
     email: user.email,
-    displayName: user.displayName
+    displayName: user.displayName,
+    superAdmin: user.superAdmin || false
   };
 }
 

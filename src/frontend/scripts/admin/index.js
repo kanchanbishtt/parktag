@@ -538,24 +538,59 @@ async function loadActivity() {
 
 async function loadAdmins() {
   const target = byId("admin-list");
+  const addSection = byId("add-admin-section");
   try {
-    const data = await fetchJson("/api/admin/admins");
+    const [meData, data] = await Promise.all([
+      fetchJson("/api/admin/me"),
+      fetchJson("/api/admin/admins")
+    ]);
+    const isSuperAdmin = meData.superAdmin || false;
+    const myEmail = meData.email;
+
+    if (addSection) addSection.style.display = isSuperAdmin ? "" : "none";
     if (!target) return;
+
     if (!data.admins.length) {
       target.innerHTML = `<p class="empty-copy">No admins yet.</p>`;
       return;
     }
     target.innerHTML = data.admins.map((a) => `
-      <div class="pt-admin-row">
+      <div class="pt-admin-row" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
         <div>
-          <p class="pt-admin-row-title">${a.displayName}</p>
+          <p class="pt-admin-row-title" style="display:flex;align-items:center;gap:8px">
+            ${a.displayName}
+            ${a.superAdmin ? `<span style="font-size:0.68rem;background:#FEE2E2;color:#991B1B;border-radius:999px;padding:2px 9px;font-weight:700;letter-spacing:0.03em">Super Admin</span>` : ""}
+          </p>
           <p class="pt-admin-row-meta">${a.email} &middot; Added ${new Date(a.createdAt).toLocaleString()}</p>
         </div>
+        ${isSuperAdmin && a.email !== myEmail ? `
+          <button onclick="deleteAdmin('${a.id}')"
+            style="flex-shrink:0;background:none;border:1.5px solid #FCA5A5;color:#DC2626;
+                   border-radius:8px;padding:6px 14px;font-size:0.78rem;font-weight:700;
+                   cursor:pointer;font-family:inherit;transition:background 150ms"
+            onmouseover="this.style.background='#FEE2E2'"
+            onmouseout="this.style.background='none'">Remove</button>
+        ` : ""}
       </div>`).join("");
   } catch (error) {
     if (target) target.innerHTML = `<p class="empty-copy">Failed to load admins.</p>`;
   }
 }
+
+async function deleteAdmin(id) {
+  if (!confirm("Remove this admin? They will lose dashboard access immediately.")) return;
+  try {
+    await fetchJson(`/api/admin/admins/${id}`, { method: "DELETE" });
+    await loadAdmins();
+  } catch (error) {
+    const statusEl = byId("admin-mgmt-status");
+    if (statusEl) {
+      statusEl.textContent = error instanceof Error ? error.message : "Failed to remove admin";
+      statusEl.dataset.tone = "error";
+    }
+  }
+}
+window.deleteAdmin = deleteAdmin;
 
 async function refreshCurrentPage() {
   try {
@@ -618,10 +653,11 @@ async function createNewAdmin() {
       statusEl.textContent = "Admin account created successfully.";
       statusEl.dataset.tone = "success";
     }
-    
+
     byId("new-admin-email").value = "";
     byId("new-admin-password").value = "";
     byId("new-admin-name").value = "";
+    await loadAdmins();
   } catch (error) {
     if (statusEl) {
       statusEl.textContent = error instanceof Error ? error.message : "Failed to create admin";

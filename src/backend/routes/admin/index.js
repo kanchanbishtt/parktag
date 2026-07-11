@@ -422,6 +422,17 @@ export function registerAdminRoutes(app, env) {
     };
   });
 
+  app.get("/api/admin/me", async (request, reply) => {
+    const blocked = await requireSession(app, "admin")(request, reply);
+    if (blocked) return blocked;
+    return {
+      ok: true,
+      email: request.session.email,
+      displayName: request.session.displayName,
+      superAdmin: request.session.superAdmin || false
+    };
+  });
+
   app.get("/api/admin/admins", async (request, reply) => {
     const blocked = await requireSession(app, "admin")(request, reply);
     if (blocked) return blocked;
@@ -435,6 +446,7 @@ export function registerAdminRoutes(app, env) {
         id: String(a._id),
         email: a.email,
         displayName: a.displayName,
+        superAdmin: a.superAdmin || false,
         createdAt: a.createdAt
       }))
     };
@@ -442,9 +454,11 @@ export function registerAdminRoutes(app, env) {
 
   app.post("/api/admin/admins", async (request, reply) => {
     const blocked = await requireSession(app, "admin")(request, reply);
+    if (blocked) return blocked;
 
-    if (blocked) {
-      return blocked;
+    if (!request.session.superAdmin) {
+      reply.code(403);
+      return { ok: false, error: "Super-admin access required" };
     }
 
     const { email, password, displayName } = request.body || {};
@@ -478,8 +492,33 @@ export function registerAdminRoutes(app, env) {
       createdAt: new Date().toISOString()
     });
 
-    return {
-      ok: true
-    };
+    return { ok: true };
+  });
+
+  app.delete("/api/admin/admins/:id", async (request, reply) => {
+    const blocked = await requireSession(app, "admin")(request, reply);
+    if (blocked) return blocked;
+
+    if (!request.session.superAdmin) {
+      reply.code(403);
+      return { ok: false, error: "Super-admin access required" };
+    }
+
+    const { id } = request.params;
+
+    if (id === request.session.userId) {
+      reply.code(400);
+      return { ok: false, error: "You cannot remove your own admin account" };
+    }
+
+    const collections = await getCollections(env);
+    const result = await collections.admins.deleteOne({ _id: new ObjectId(id) });
+
+    if (result.deletedCount === 0) {
+      reply.code(404);
+      return { ok: false, error: "Admin not found" };
+    }
+
+    return { ok: true };
   });
 }

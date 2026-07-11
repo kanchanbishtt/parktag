@@ -425,11 +425,14 @@ export function registerAdminRoutes(app, env) {
   app.get("/api/admin/me", async (request, reply) => {
     const blocked = await requireSession(app, "admin")(request, reply);
     if (blocked) return blocked;
+    const collections = await getCollections(env);
+    const admin = await collections.admins.findOne({ email: request.session.email });
+    const superAdmin = admin?.superAdmin === true || admin?.superAdmin === "true";
     return {
       ok: true,
       email: request.session.email,
       displayName: request.session.displayName,
-      superAdmin: request.session.superAdmin || false
+      superAdmin
     };
   });
 
@@ -456,7 +459,9 @@ export function registerAdminRoutes(app, env) {
     const blocked = await requireSession(app, "admin")(request, reply);
     if (blocked) return blocked;
 
-    if (!request.session.superAdmin) {
+    const collections2 = await getCollections(env);
+    const me = await collections2.admins.findOne({ email: request.session.email });
+    if (!me?.superAdmin && me?.superAdmin !== "true") {
       reply.code(403);
       return { ok: false, error: "Super-admin access required" };
     }
@@ -499,7 +504,9 @@ export function registerAdminRoutes(app, env) {
     const blocked = await requireSession(app, "admin")(request, reply);
     if (blocked) return blocked;
 
-    if (!request.session.superAdmin) {
+    const collections3 = await getCollections(env);
+    const me2 = await collections3.admins.findOne({ email: request.session.email });
+    if (!me2?.superAdmin && me2?.superAdmin !== "true") {
       reply.code(403);
       return { ok: false, error: "Super-admin access required" };
     }

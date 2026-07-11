@@ -180,36 +180,44 @@ function setIssueMessage(message) {
   `;
 }
 
+function stickerHtml(tag) {
+  return `
+    <div style="width:196px;background:#fff;border:2px solid #E5E7EB;border-radius:18px;
+                padding:16px 12px 14px;text-align:center;
+                box-shadow:0 2px 12px rgba(0,25,53,0.09);display:inline-flex;
+                flex-direction:column;align-items:center;gap:9px;vertical-align:top">
+      <div style="display:flex;align-items:center;gap:5px">
+        <svg width="18" height="18" viewBox="0 0 100 100" fill="none">
+          <rect width="100" height="100" rx="16" fill="#03162D"/>
+          <rect x="14" y="14" width="16" height="72" rx="2" fill="white"/>
+          <circle cx="44" cy="38" r="24" fill="white"/>
+          <circle cx="46" cy="38" r="12" fill="#03162D"/>
+          <path d="M40 38 L44 42 L53 29" stroke="#FF2700" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span style="font-weight:900;font-size:0.88rem;color:#03162D;letter-spacing:-0.01em">Park<span style="color:#FF2700">Tag</span></span>
+      </div>
+      <img src="${tag.qrDataUrl}" alt="QR ${tag.token}" style="width:152px;height:152px;display:block;border-radius:8px" />
+      <p style="margin:0;font-size:0.62rem;color:#6B7280;font-weight:600;line-height:1.3">Scan to contact the vehicle owner</p>
+      <div style="background:#03162D;color:#fff;border-radius:7px;padding:5px 12px;
+                  font-size:0.72rem;font-weight:800;font-family:monospace;letter-spacing:0.05em">
+        ${tag.token}
+      </div>
+      <p style="margin:0;font-size:0.58rem;color:#9CA3AF;word-break:break-all;line-height:1.3">${tag.claimUrl}</p>
+    </div>`;
+}
+
 function renderIssuedTag(data) {
   const target = byId("issue-output");
   const tags = data.tags || [];
 
-  if (!target) {
-    return;
-  }
+  if (!target) return;
 
   if (!tags.length) {
     target.innerHTML = `<p class="empty-copy">No tag batch issued yet.</p>`;
     return;
   }
 
-  target.innerHTML = tags
-    .map(
-      (tag) => `
-        <article class="qr-card">
-          <img src="${tag.qrDataUrl}" alt="QR code for ${tag.token}" class="qr-preview" />
-          <div class="qr-card-body">
-            <strong>${tag.token}</strong>
-            <span>Batch: ${tag.batchNumber || "-"}</span>
-            <span>Label: ${tag.batchLabel || "-"}</span>
-            <span>Print: ${tag.printStatus}</span>
-            <a href="${tag.claimUrl}" target="_blank" rel="noreferrer">${tag.claimUrl}</a>
-          </div>
-        </article>
-      `
-    )
-    .join("");
-
+  target.innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:16px;padding:4px 0">${tags.map(stickerHtml).join("")}</div>`;
   setStatus("QR batch generated successfully.", "success");
 }
 
@@ -294,13 +302,7 @@ async function exportQrsForPrint() {
       return;
     }
 
-    grid.innerHTML = tags.map(tag => `
-      <div style="text-align:center;padding:12px;border:1px solid #E5E7EB;border-radius:8px;background:#fff">
-        <img src="${tag.qrDataUrl}" alt="QR ${tag.token}" style="width:140px;height:140px;display:block;margin:0 auto 8px" />
-        <p style="font-size:0.72rem;font-weight:700;font-family:monospace;color:#374151;margin:0 0 2px;word-break:break-all">${tag.token}</p>
-        ${tag.batchLabel ? `<p style="font-size:0.68rem;color:#9CA3AF;margin:0">${tag.batchLabel}</p>` : ""}
-      </div>
-    `).join("");
+    grid.innerHTML = tags.map(tag => stickerHtml(tag)).join("");
   } catch (err) {
     grid.innerHTML = `<p style="color:#DC2626">Failed to load: ${err.message}</p>`;
   }

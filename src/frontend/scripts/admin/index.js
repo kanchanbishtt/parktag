@@ -680,6 +680,19 @@ function bindEvents() {
 
 bindEvents();
 
+// Show Google auth errors redirected back from the server
+const _urlError = new URLSearchParams(window.location.search).get("error");
+if (_urlError && currentAdminPage() === "login") {
+  const _errorMessages = {
+    no_account: "No admin account found for this Google account.",
+    db_unavailable: "Database unavailable. Please try again.",
+    token_exchange_failed: "Google sign-in failed. Please try again.",
+    auth_failed: "Authentication error. Please try again.",
+    invalid_state: "Session expired. Please try again.",
+  };
+  setStatus(_errorMessages[_urlError] || "Sign-in failed. Please try again.", "error");
+}
+
 if (currentAdminPage() !== "login") {
   await refreshCurrentPage();
 }

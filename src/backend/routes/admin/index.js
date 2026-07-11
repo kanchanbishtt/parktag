@@ -422,6 +422,25 @@ export function registerAdminRoutes(app, env) {
     };
   });
 
+  // One-time bootstrap: promote logged-in admin to superAdmin.
+  // Only works when SUPER_ADMIN_BOOTSTRAP_KEY is set in Railway env vars.
+  // Remove the env var after use.
+  app.post("/api/admin/make-super", async (request, reply) => {
+    const blocked = await requireSession(app, "admin")(request, reply);
+    if (blocked) return blocked;
+    const { key } = request.body || {};
+    if (!env.superAdminBootstrapKey || key !== env.superAdminBootstrapKey) {
+      reply.code(403);
+      return { ok: false, error: "Invalid or missing bootstrap key" };
+    }
+    const collections = await getCollections(env);
+    await collections.admins.updateOne(
+      { email: request.session.email },
+      { $set: { superAdmin: true } }
+    );
+    return { ok: true, message: `${request.session.email} is now super-admin` };
+  });
+
   app.get("/api/admin/me", async (request, reply) => {
     const blocked = await requireSession(app, "admin")(request, reply);
     if (blocked) return blocked;

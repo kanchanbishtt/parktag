@@ -213,18 +213,7 @@
       }
 
       function triggerGoogleSignIn() {
-        if (!_googleClientId) {
-          window.location.href = "/api/auth/google";
-          return;
-        }
-        // Always use the standard popup account picker
-        const client = google.accounts.oauth2.initCodeClient({
-          client_id: _googleClientId,
-          scope: "openid email profile",
-          ux_mode: "popup",
-          callback: handlePopupCode
-        });
-        client.requestCode();
+        window.location.href = "/api/auth/google";
       }
 
       async function handleGoogleCredential(response) {

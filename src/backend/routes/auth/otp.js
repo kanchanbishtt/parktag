@@ -2,6 +2,7 @@ import { ObjectId } from "mongodb";
 import { sendOtp, verifyOtp, isMobileIdentifier, normalizeIdentifier } from "../../lib/auth/otp.js";
 import { createSession, writeSessionCookie } from "../../lib/auth/session.js";
 import { getCollections } from "../../lib/db/repositories.js";
+import { clientErrorMessage } from "../../lib/errors.js";
 
 export function registerOtpAuthRoutes(app, env) {
   app.post("/api/auth/send-otp", { config: { rateLimit: { max: 5, timeWindow: "1 minute" } } }, async (request, reply) => {
@@ -19,7 +20,11 @@ export function registerOtpAuthRoutes(app, env) {
       reply.code(500);
       return {
         ok: false,
-        error: error instanceof Error ? error.message : "Failed to send code"
+        error: clientErrorMessage(
+          error,
+          "We couldn't send your code right now. Please try again in a moment.",
+          app.log
+        )
       };
     }
   });
@@ -68,10 +73,15 @@ export function registerOtpAuthRoutes(app, env) {
 
       return { ok: true, isNewUser };
     } catch (error) {
-      reply.code(400);
+      const isExposable = error && error.expose === true;
+      reply.code(isExposable ? 400 : 500);
       return {
         ok: false,
-        error: error instanceof Error ? error.message : "Verification failed"
+        error: clientErrorMessage(
+          error,
+          "We couldn't verify your code right now. Please try again in a moment.",
+          app.log
+        )
       };
     }
   });

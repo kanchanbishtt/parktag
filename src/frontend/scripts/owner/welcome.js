@@ -181,7 +181,7 @@ function vehicleCard(tag, idx) {
            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
            Download E-Tag
          </button>`
-      : `<button class="pt-vlc-act buy" onclick="event.stopPropagation();buyOfficialSticker('${tag.id}',this)">Official Sticker — ₹199</button>`
+      : `<button class="pt-vlc-act buy" onclick="event.stopPropagation();buyOfficialSticker('${tag.id}',this)">Official Sticker · ₹199</button>`
     }
   </div>` : "";
 
@@ -376,7 +376,7 @@ ${_nbFilter ? `
     ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 2l2.4 7.4H22l-6 4.4 2.3 7.2L12 16.6 5.7 21l2.3-7.2-6-4.4h7.6L12 2z" stroke="#D97706" stroke-width="1.8" stroke-linejoin="round"/></svg>`
     : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="#10B981" stroke-width="2"/><path d="M9 12l2 2 4-4" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
   const tipText = freeLeft < total && !premium
-    ? `Upgrade to <strong>Premium</strong> for unlimited private contact — your number stays hidden.`
+    ? `Upgrade to <strong>Premium</strong> for unlimited private contact. Your number stays hidden.`
     : `Each free E-Tag includes <strong>1 free contact</strong> via masked call or WhatsApp.`;
 
   nb.innerHTML = hd + `
@@ -607,10 +607,12 @@ async function saveMobile() {
       _ownerMobile = mobile;
       const mobileEl = document.getElementById("mi-mobile");
       if (mobileEl) { mobileEl.textContent = mobile; mobileEl.style.color = "#03162D"; }
+      const mobileEdit = document.getElementById("mi-mobile-edit");
+      if (mobileEdit) mobileEdit.style.display = "none";
       const mobileAlert = document.getElementById("mobile-missing-alert");
       if (mobileAlert) mobileAlert.style.display = "none";
       if (status) { status.textContent = "Phone number saved."; status.style.color = "#16A34A"; status.style.display = "block"; }
-      _toast("Phone number saved — Call Back is now enabled.", "ok");
+      _toast("Phone number saved. Call Back is now enabled.", "ok");
       renderActivity(allRequests);
     } else {
       if (status) { status.textContent = data.error || "Failed to save."; status.style.color = "#DC2626"; status.style.display = "block"; }
@@ -1030,6 +1032,11 @@ function _fillMenu() {
   if (mobileInput && _ownerMobile) {
     mobileInput.value = _ownerMobile.replace(/^\+91/, "");
   }
+  // Phone-login users already have their number on file, so show it as detected
+  // and hide the input. Only users without a mobile (Google/email login) are
+  // asked to enter one.
+  const mobileEdit = document.getElementById("mi-mobile-edit");
+  if (mobileEdit) mobileEdit.style.display = _ownerMobile ? "none" : "flex";
   const mobileAlert = document.getElementById("mobile-missing-alert");
   if (mobileAlert) mobileAlert.style.display = _ownerMobile ? "none" : "flex";
 
@@ -1239,7 +1246,7 @@ async function buyOfficialSticker(tagId, btnEl) {
           });
           const vd = await v.json();
           if (v.ok && vd.premium) {
-            _toast("Payment successful — official sticker unlocked!", "ok");
+            _toast("Payment successful! Official sticker unlocked.", "ok");
             if (typeof window._reloadDashboard === "function") window._reloadDashboard();
           } else {
             _toast(vd.error || "Payment could not be verified. If you were charged, contact support.", "err");

@@ -1,6 +1,36 @@
 import { MongoClient } from "mongodb";
+import dns from "node:dns";
 
 let clientPromise = null;
+let dnsPinned = false;
+
+// Atlas uses mongodb+srv://, which needs a DNS SRV lookup. Some ISP resolvers
+// (e.g. the secondary DNS handed out by certain routers) answer SRV queries
+// with REFUSED, surfacing as "querySrv EREFUSED ..." and breaking connection.
+// Pin Node's resolver to public DNS that reliably answers SRV, keeping any
+// existing servers as fallback. Only relevant for +srv connection strings.
+function pinReliableDnsForSrv(mongoUri) {
+  if (dnsPinned || !mongoUri || !mongoUri.startsWith("mongodb+srv://")) {
+    return;
+  }
+
+  const reliable = ["8.8.8.8", "1.1.1.1"];
+  let existing = [];
+  try {
+    existing = dns.getServers();
+  } catch {
+    existing = [];
+  }
+
+  const ordered = [...reliable, ...existing.filter((s) => !reliable.includes(s))];
+
+  try {
+    dns.setServers(ordered);
+    dnsPinned = true;
+  } catch {
+    // If the platform rejects setServers, fall back to system defaults.
+  }
+}
 
 function createClient(env) {
   return new MongoClient(env.mongoUri, {
@@ -18,6 +48,7 @@ export async function getMongoDb(env) {
   }
 
   if (!clientPromise) {
+    pinReliableDnsForSrv(env.mongoUri);
     const client = createClient(env);
     clientPromise = client.connect();
   }

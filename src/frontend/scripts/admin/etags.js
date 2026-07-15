@@ -122,7 +122,7 @@ async function openLogs(id) {
     const dur = l.callDuration != null ? ` · ${l.callDuration}s` : "";
     const result = l.callResult ? ` · ${esc(l.callResult)}` : "";
     return `<div class="log">
-      <b>${kind}</b> — ${esc(l.status)}${dur}${result}<br>
+      <b>${kind}</b> · ${esc(l.status)}${dur}${result}<br>
       <span class="muted">${fmtDate(l.createdAt)}${l.ipAddress ? " · IP " + esc(l.ipAddress) : ""}</span>
       ${l.recordingUrl ? `<br><a href="${esc(l.recordingUrl)}" target="_blank" rel="noopener">Recording</a>` : ""}
     </div>`;

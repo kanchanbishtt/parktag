@@ -885,7 +885,7 @@
                     <circle cx="8.5" cy="8.5" r="1.5" fill="#D1D5DB"/>
                     <path d="M21 15l-5-5L5 21" stroke="#D1D5DB" stroke-width="1.5" stroke-linecap="round"/>
                   </svg>
-                  <span class="pt-slide-ph-tag">Mobile Banner — Slide 1</span>
+                  <span class="pt-slide-ph-tag">Mobile Banner · Slide 1</span>
                 </div>
                 <div class="pt-slide-ph pt-ph-desk">
                   <svg width="36" height="36" viewBox="0 0 24 24" fill="none">
@@ -893,7 +893,7 @@
                     <circle cx="8.5" cy="8.5" r="1.5" fill="#D1D5DB"/>
                     <path d="M21 15l-5-5L5 21" stroke="#D1D5DB" stroke-width="1.5" stroke-linecap="round"/>
                   </svg>
-                  <span class="pt-slide-ph-tag">Desktop Banner — Slide 1</span>
+                  <span class="pt-slide-ph-tag">Desktop Banner · Slide 1</span>
                 </div>
               </div>
             </div>
@@ -906,7 +906,7 @@
                   <circle cx="8.5" cy="8.5" r="1.5" fill="#D1D5DB"/>
                   <path d="M21 15l-5-5L5 21" stroke="#D1D5DB" stroke-width="1.5" stroke-linecap="round"/>
                 </svg>
-                <p class="pt-slide-blank-lbl">Slide 2 — Coming Soon</p>
+                <p class="pt-slide-blank-lbl">Slide 2: Coming Soon</p>
               </div>
             </div>
 
@@ -918,7 +918,7 @@
                   <circle cx="8.5" cy="8.5" r="1.5" fill="#D1D5DB"/>
                   <path d="M21 15l-5-5L5 21" stroke="#D1D5DB" stroke-width="1.5" stroke-linecap="round"/>
                 </svg>
-                <p class="pt-slide-blank-lbl">Slide 3 — Coming Soon</p>
+                <p class="pt-slide-blank-lbl">Slide 3: Coming Soon</p>
               </div>
             </div>
 
@@ -1098,14 +1098,14 @@
       <div class="pt-mi-s"><div class="pt-mi-si">
         <div class="pt-irow"><span class="pt-ik">Vehicle Number</span><span class="pt-iv" id="mi-plate">—</span></div>
         <div class="pt-irow"><span class="pt-ik">Vehicle Type</span><span class="pt-iv" id="mi-type">—</span></div>
-        <div class="pt-irow"><span class="pt-ik">Owner Name</span><span class="pt-iv" id="mi-name">—</span></div>
+        <div class="pt-irow"><span class="pt-ik">Owner</span><span class="pt-iv" id="mi-name">—</span></div>
         <div class="pt-irow"><span class="pt-ik">Tag ID</span><span class="pt-iv" id="mi-tagid">—</span></div>
         <div class="pt-irow" style="flex-direction:column;align-items:flex-start;gap:8px">
           <div style="display:flex;align-items:center;justify-content:space-between;width:100%">
             <span class="pt-ik">Phone Number</span>
             <span class="pt-iv" id="mi-mobile" style="color:#6B7280">Not set</span>
           </div>
-          <div style="display:flex;gap:8px;width:100%">
+          <div id="mi-mobile-edit" style="display:flex;gap:8px;width:100%">
             <div class="pt-input-phone-wrap" style="flex:1">
               <span class="pt-phone-prefix" style="font-size:.8rem;padding:0 8px">
                 <svg width="14" height="10" viewBox="0 0 14 10" fill="none"><rect width="14" height="10" rx="1" fill="#FF9933"/><rect y="3.33" width="14" height="3.34" fill="#fff"/><rect y="6.67" width="14" height="3.33" fill="#138808"/></svg>
@@ -1351,7 +1351,7 @@
           &nbsp;- Place it on your dashboard or windscreen with the QR facing out.
         </li>
       </ol>
-      <div class="wl-pt-freebox">This free E-Tag includes <b>1 free contact</b> — a finder can reach you once via masked call or WhatsApp (your number stays private). For unlimited contact, upgrade to the official physical ParkTag sticker.</div>
+      <div class="wl-pt-freebox">This free E-Tag includes <b>1 free contact</b>. A finder can reach you once via masked call or WhatsApp (your number stays private). For unlimited contact, upgrade to the official physical ParkTag sticker.</div>
     </div>
 
     <div class="wl-pt-cut">
@@ -1382,7 +1382,7 @@
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 3.5l9 15.5H3l9-15.5Z" stroke="#fff" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 9.5v4M12 16.5h.01" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M6.5 4.5C6 4 5.2 3.9 4.7 4.4 3.9 5.1 3.4 6.3 3.5 7.5c.2 4 2 7.6 5 10.5 2.9 2.9 6.5 4.8 10.5 5 1.2.1 2.4-.4 3.1-1.2.5-.5.4-1.3-.1-1.8l-2.6-2.3c-.4-.4-1-.4-1.5-.1l-1.4.9c-.3.2-.7.1-1-.1l-3-3c-.3-.3-.3-.7-.1-1l.9-1.4c.3-.5.3-1.1-.1-1.5L6.5 4.5Z" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg>
           </div>
-          <p class="wl-pt-rt-note">Wrong parking, emergency contact,<br>any issue with the vehicle — scan the QR.</p>
+          <p class="wl-pt-rt-note">Wrong parking, emergency contact,<br>any issue with the vehicle? Scan the QR.</p>
         </div>
       </div>
     </div>
@@ -1407,7 +1407,7 @@ const PRODUCTS = [
   {
     id: "pt-car-2",
     name: "ParkTag Car Tag (Pack of 2)",
-    desc: "Best value — tag two cars and never miss an emergency call.",
+    desc: "Best value: tag two cars and never miss an emergency call.",
     features: ["Masked Calls", "WhatsApp", "Emergency Contact", "One time buy"],
     price: 699,
     orig: 799,
@@ -1417,7 +1417,7 @@ const PRODUCTS = [
   {
     id: "pt-bike-1",
     name: "ParkTag Bike Tag",
-    desc: "For Bike & Helmet — weatherproof sticker with QR contact.",
+    desc: "For Bike & Helmet: weatherproof sticker with QR contact.",
     features: ["Masked Calls", "WhatsApp", "Emergency Contact", "One time buy"],
     price: 349,
     orig: 399,
@@ -1427,7 +1427,7 @@ const PRODUCTS = [
   {
     id: "pt-combo",
     name: "ParkTag Combo Pack",
-    desc: "Car + Bike tags — the complete bundle for your entire fleet.",
+    desc: "Car + Bike tags: the complete bundle for your entire fleet.",
     features: ["Masked Calls", "WhatsApp", "Emergency Contact", "One time buy"],
     price: 699,
     orig: 899,

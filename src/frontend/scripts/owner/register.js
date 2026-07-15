@@ -120,7 +120,7 @@ function validatePlate(raw, type) {
   }
   return PLATE_RE.test(raw)
     ? null
-    : "Invalid format. Use Indian format — e.g. DL 01 AB 1234.";
+    : "Invalid format. Use Indian format, e.g. DL 01 AB 1234.";
 }
 
 function setPlateError(msg) {
@@ -402,9 +402,12 @@ function submit() {
 document.getElementById("add-vehicle-btn")?.addEventListener("click", addVehicle);
 
 document.getElementById("vehicle-number")?.addEventListener("input", e => {
-  // Strip anything that isn't A-Z, 0-9, or space; auto-uppercase
+  // Only strip disallowed characters. Do NOT rewrite value just to uppercase:
+  // reassigning .value mid-word breaks Android keyboard composition (letters
+  // vanish when switching to the numeric layout). Casing is handled by the
+  // uppercase CSS on the field and normalized to upper-case on submit/blur.
   const cur = e.target.value;
-  const clean = cur.replace(/[^A-Za-z0-9 ]/g, "").toUpperCase();
+  const clean = cur.replace(/[^A-Za-z0-9 ]/g, "");
   if (cur !== clean) e.target.value = clean;
   // Clear error while user is actively editing
   setPlateError("");

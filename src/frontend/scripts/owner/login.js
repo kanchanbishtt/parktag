@@ -204,7 +204,7 @@ function renderDashboard(data) {
           if (res.status === 410) {
             btn.disabled = false;
             btn.textContent = "📞 Call Back";
-            if (statusEl) statusEl.textContent = "Window expired — no recent contact within 60 min.";
+            if (statusEl) statusEl.textContent = "Window expired. No recent contact within 60 min.";
             return;
           }
           if (res.status === 402) {

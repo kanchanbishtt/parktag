@@ -247,7 +247,7 @@ function renderPrintQueue(data) {
   }
 
   if (!tags.length) {
-    target.innerHTML = `<p class="empty-copy">Queue is empty — all tags have been printed or none have been issued yet.</p>`;
+    target.innerHTML = `<p class="empty-copy">Queue is empty. All tags have been printed or none have been issued yet.</p>`;
     return;
   }
 
@@ -262,7 +262,7 @@ function renderPrintQueue(data) {
   target.innerHTML = Object.values(batches).map(batch => {
     const batchKey = batch.batchNumber || "__no_batch__";
     const batchTitle = batch.batchNumber
-      ? `Batch ${batch.batchNumber}${batch.batchLabel ? ` — ${batch.batchLabel}` : ""}`
+      ? `Batch ${batch.batchNumber}${batch.batchLabel ? ` · ${batch.batchLabel}` : ""}`
       : "No batch assigned";
     return `
       <div style="margin-bottom:20px">

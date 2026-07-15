@@ -267,7 +267,7 @@ document.getElementById("buy-premium-btn")?.addEventListener("click", async () =
         if (v.ok && vd.premium) {
           isPremium = true;
           updatePremiumUI();
-          alert("Payment successful — your E-Tag is now Premium! Unlimited private contact is enabled.");
+          alert("Payment successful! Your E-Tag is now Premium. Unlimited private contact is enabled.");
         } else {
           alert(vd.error || "Payment could not be verified. If you were charged, contact support.");
           btn.disabled = false; btn.textContent = original;

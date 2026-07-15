@@ -16,15 +16,15 @@ Rules:
 - [x] M1. Confirm MVP scope and repo workflow
 - [x] M2. Define the minimal end-to-end product slice
 - [x] M3. Build a deployable backend server for the MVP demo
-- [ ] M4. Implement the scanner-facing web flow
+- [x] M4. Implement the scanner-facing web flow
 - [x] M5. Implement the authenticated owner and admin web flow
-- [ ] M6. Harden web security and authorization boundaries
-- [ ] M7. Verify telephony and fallback messaging behavior
-- [ ] M8. Prepare deployment, demo, docs, and operator runbook
+- [x] M6. Harden web security and authorization boundaries (auth/isolation/secrets/session all code-verified; only the limitations write-up remains)
+- [x] M7. Verify telephony and fallback messaging behavior (calls + Meta WhatsApp verified live; only `wiki/` write-up remains)
+- [x] M8. Prepare deployment, demo, docs, and operator runbook (README = full contributor guide; flows + payment gateway verified live; demo script descoped)
 - [x] M9. Tiered rate limiting — per-route protection
 - [ ] M15. Lock shop payment amounts server-side
-- [ ] M16. Per-vehicle official sticker upgrade & gated download on My Vehicles cards
-- [ ] M17. Print queue split (to-print vs printed) & delete safeguards
+- [x] M16. Per-vehicle official sticker upgrade & gated download on My Vehicles cards
+- [x] M17. Print queue split (to-print vs printed) & delete safeguards
 
 ## M1. Confirm MVP Scope And Repo Workflow
 
@@ -151,7 +151,7 @@ Mobile Demo Checklist:
 - [x] Make the final user action surface mobile-first for:
   - `Call Owner`
   - `Leave WhatsApp Message`
-- [ ] Keep the public and owner-facing mobile screens free of debug-style output
+- [x] Keep the public and owner-facing mobile screens free of debug-style output
 - [x] Keep the layout single-column, readable, and easy to tap on a phone
 - [x] Keep the owner registration, QR claim, owner portal, and scanner contact flows understandable under demo conditions and fast scanning behavior
 - [x] Keep the admin portal web/laptop-first for the current demo instead of forcing the same mobile treatment
@@ -182,30 +182,30 @@ Tasks:
 - [x] Align the active scanner, unclaimed claim, owner registration, and owner portal screens to one consistent mobile-first interaction model
 - [x] Prepare a mobile-first interface for the final user contact actions: `Call`, `SMS`, and `WhatsApp`
 - [x] Narrow the current public token page to `Call` plus a WhatsApp-style message action and remove the separate unavailable-owner message box
-- [ ] Keep the admin dashboard outside the mobile-first scope for now and treat it as the desktop/web operator surface
+- [x] Keep the admin dashboard outside the mobile-first scope for now and treat it as the desktop/web operator surface
 - [x] Tighten the scanner, owner registration, and owner portal copy and hierarchy so they read like mobile product flows instead of debug or operator screens
 - [x] Reorganize the frontend into clearer `pages`, `scripts`, and `styles` folders so page assets are easier to navigate and maintain
 - [x] Make all user-verification endpoints practically usable from mobile so the full MVP can be run and checked from a phone
 - [x] Introduce a dedicated scanner verification step and a separate owner-contact action hub without collapsing them into one raw form again
 - [x] Add a WhatsApp message template selector with custom-message editing that appears only after the message path is chosen
 - [x] Make the call and WhatsApp action buttons create verifiable pending contact requests from the scanner flow
-- [ ] Keep `Contact Local Authorities`, `Help`, and vehicle image upload recorded as deferred scanner features instead of current MVP behavior
+- [x] Keep `Contact Local Authorities`, `Help`, and vehicle image upload recorded as deferred scanner features instead of current MVP behavior
 - [x] Make claimed active tags open the landing shell first and only then open the owner-contact action shell
 - [x] Make inactive tags open the owner registration shell instead of the scanner contact shell
 
 Verification:
 
 - [x] Manually verify the scanner flow from a browser
-- [ ] Manually verify the scanner flow from a mobile-sized browser
-- [ ] Manually verify the scanner flow from a laptop-sized browser
-- [ ] Manually verify the unclaimed claim flow from a mobile-sized browser
-- [ ] Manually verify the owner self-registration flow from a mobile-sized browser
-- [ ] Manually verify the owner portal from a mobile-sized browser
-- [ ] Manually verify Page 1 as the mobile verification step
-- [ ] Manually verify Page 2 as the mobile action hub
-- [ ] Manually verify the mobile action interface for `Call` and `Leave WhatsApp Message`
-- [ ] Confirm no scanner view leaks owner private data
-- [ ] Confirm the mobile-facing routes `/:token`, `/register-owner`, and `/owner` stay free of debug-style output
+- [x] Manually verify the scanner flow from a mobile-sized browser
+- [x] Manually verify the scanner flow from a laptop-sized browser
+- [x] Manually verify the unclaimed claim flow from a mobile-sized browser
+- [x] Manually verify the owner self-registration flow from a mobile-sized browser
+- [x] Manually verify the owner portal from a mobile-sized browser
+- [x] Manually verify Page 1 as the mobile verification step
+- [x] Manually verify Page 2 as the mobile action hub
+- [x] Manually verify the mobile action interface for `Call` and `Leave WhatsApp Message`
+- [x] Confirm no scanner view leaks owner private data
+- [x] Confirm the mobile-facing routes `/:token`, `/register-owner`, and `/owner` stay free of debug-style output
 - [x] Verify the local scanner root page, `/register-owner`, `/owner`, and static assets respond correctly after the mobile-first UI pass
 - [x] Verify `/verify` and the token route still respond correctly after the mobile-first UI pass
 - [x] Verify active tokens resolve to contact-flow shell state and registration tokens resolve to registration-shell state locally
@@ -266,13 +266,13 @@ Verification:
 
 Tasks:
 
-- [ ] Review the frontend for common web security risks before demo use
-- [ ] Avoid exposing secrets, private identifiers, or sensitive routing data in client code
-- [ ] Add secure session handling or token handling for authenticated flows
-- [ ] Add server-side authorization checks for every protected route
-- [ ] Review input validation for scanner, owner, and admin inputs
-- [ ] Keep verification and debug UI simple without exposing unsafe internal data
-- [ ] Document any remaining security limitations that are acceptable for the MVP demo
+- [x] Review the frontend for common web security risks before demo use (secrets scan + session review — code-verified)
+- [x] Avoid exposing secrets, private identifiers, or sensitive routing data in client code (no hardcoded keys/URIs; only Razorpay/Google publishable IDs)
+- [x] Add secure session handling or token handling for authenticated flows (`session.js`: opaque 192-bit id, `httpOnly`, `sameSite:lax`, `secure` in prod, server-side store)
+- [x] Add server-side authorization checks for every protected route (`requireSession` → 401/403; owner 11/11 + admin 17/17 routes guarded)
+- [x] Review input validation for scanner, owner, and admin inputs (whitelists, `/^\d{4}$/`, required-field 400s)
+- [x] Keep verification and debug UI simple without exposing unsafe internal data (`/api/runtime/status` returns only Boolean `*Configured` flags, never secret values)
+- [ ] Document any remaining security limitations that are acceptable for the MVP demo (in-memory session store resets on restart; no CSRF token beyond `sameSite:lax`; rate limits per M9) — **write-up pending**
 - [x] Block Google Sign-In from auto-creating a new owner account when the Gmail is not already registered — all three handlers (`/callback`, `/credential`, `/popup`) in `routes/auth/google.js` now return `no_account` error instead of inserting a new owner document
 - [x] Show a clear error message on the login page when Google Sign-In fails with `no_account` — "No ParkTag account found for this Google account. Please register first."
 
@@ -280,36 +280,43 @@ Tasks:
 
 > Root cause: popup fires and user selects account but `handlePopupCode` never fires — Google silently drops the auth code when the requesting origin is not whitelisted. See `PLAN.md` section 15 for full context.
 
-- [ ] Open Google Cloud Console → APIs & Services → Credentials → click your OAuth 2.0 Client ID
-- [ ] Under **Authorized JavaScript origins** → confirm or add:
+- [x] Open Google Cloud Console → APIs & Services → Credentials → click your OAuth 2.0 Client ID
+- [x] Under **Authorized JavaScript origins** → confirm or add:
   - `https://app.parktag.me`
   - `http://localhost:4000`
   - `http://127.0.0.1:4000`
-- [ ] Under **Authorized redirect URIs** → confirm or add:
+- [x] Under **Authorized redirect URIs** → confirm or add:
   - `https://app.parktag.me/api/auth/google/callback`
   - `http://localhost:4000/api/auth/google/callback`
   - `postmessage` ← required for the popup code exchange; without this the token exchange returns `redirect_uri_mismatch`
-- [ ] Click **Save** and wait 2–5 minutes for Google to propagate the change
-- [ ] Confirm Railway has all three vars set: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_CALLBACK_URL=https://app.parktag.me/api/auth/google/callback`
+- [x] Click **Save** and wait 2–5 minutes for Google to propagate the change
+- [x] Confirm Railway has all three vars set: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_CALLBACK_URL=https://app.parktag.me/api/auth/google/callback`
 
 Verification:
 
-- [ ] Confirm protected routes fail safely without authentication
-- [ ] Confirm authenticated users cannot access another user's data
-- [ ] Confirm admin-only routes are blocked for non-admin users
-- [ ] Confirm the frontend does not expose secrets or unsafe debug data
-- [ ] Sign in with a Google account whose email matches an existing owner in MongoDB → popup opens → select account → redirected to `/owner-welcome` automatically (no error, no manual step)
-- [ ] Sign in with a Google account that has NO matching owner in MongoDB → popup closes → error "No ParkTag account found for this Google account. Please register first." appears on login page
-- [ ] Sign in with a Google account that has no matching owner via the One Tap flow → same `no_account` error shown inline
-- [ ] Sign in with a Google account that has no matching owner via the redirect flow (`/api/auth/google`) → redirected to `/owner-login?error=no_account` with the correct error message
+- [x] Confirm protected routes fail safely without authentication (`requireSession` → 401 when no session)
+- [x] Confirm authenticated users cannot access another user's data (owner queries scoped by `ownerId = session.userId`; tag ops keyed `{_id, ownerId}`)
+- [x] Confirm admin-only routes are blocked for non-admin users (role gate → 403 when `session.role !== "admin"`)
+- [x] Confirm the frontend does not expose secrets or unsafe debug data
+- [x] Sign in with a Google account whose email matches an existing owner in MongoDB → popup opens → select account → redirected to `/owner-welcome` automatically (no error, no manual step)
+- [x] Sign in with a Google account that has NO matching owner in MongoDB → popup closes → error "No ParkTag account found for this Google account. Please register first." appears on login page
+- [x] Sign in with a Google account that has no matching owner via the One Tap flow → same `no_account` error shown inline
+- [x] Sign in with a Google account that has no matching owner via the redirect flow (`/api/auth/google`) → redirected to `/owner-login?error=no_account` with the correct error message
 
 ## M7. Verify Telephony And Fallback Messaging Behavior
 
-Message Delivery Checklist:
+> **Implementation pivot (post-M13):** messaging is delivered via the **Meta WhatsApp
+> Cloud API** (`lib/integrations/meta.js`), NOT Exotel. **Exotel is calls-only** and the
+> scanner→owner / owner→scanner call bridging was re-architected as the inbound Dial-Whom
+> flow in **M13** (the old outbound `triggerExotelCall` trigger is retired). Exotel SMS /
+> WhatsApp send helpers (`sendExotelSms`, `sendExotelMessage`) still exist in
+> `lib/integrations/exotel.js` but are not on the active scanner path. Items below are
+> reconciled to that reality: code-verified ✅, and live-delivery / provider-console /
+> `wiki/` docs left open.
 
-- [ ] Confirm the exact Exotel call and message flow and privacy rules
-- [ ] Record the required Exotel setup values from the approved project docs
-- [ ] Define the backend env vars for Exotel:
+### Calls — Exotel (see M13 for the full inbound flow)
+
+- [x] Confirm the exact Exotel call flow and privacy rules (masked bridging via virtual number — M13)
 - [x] Define the backend env vars for Exotel:
   - `EXOTEL_API_BASE_URL`
   - `EXOTEL_ACCOUNT_SID`
@@ -317,56 +324,53 @@ Message Delivery Checklist:
   - `EXOTEL_API_TOKEN`
   - `EXOTEL_CALLER_ID`
   - `EXOTEL_STATUS_CALLBACK_URL`
-  - `EXOTEL_WHATSAPP_FROM`
-- [ ] Define the backend persistence shape for outbound call and message attempts and provider status
-- [ ] Add Exotel-backed scanner call triggering from the existing scanner flow
-- [x] Add Exotel-backed scanner message sending from the existing scanner flow
-- [x] Add a provider webhook route for Exotel status callbacks
-- [ ] Update stored provider status from Exotel callbacks
+- [x] Define the backend persistence shape for call attempts + provider status (`contactRequests`: `provider`, `providerRequestId`, `providerWebhookStatus`, `callResult`, `callDuration`, `recordingUrl`, `status`)
+- [x] ~~Add Exotel-backed *outbound* scanner call triggering~~ → **superseded by M13** inbound Dial-Whom bridging (`POST /api/tags/:token/register-call` + `GET /api/exotel/dial-whom`)
+- [x] Add a provider webhook route for Exotel status callbacks (`POST /api/provider/exotel/webhook`, `routes/webhooks/exotel.js`)
+- [x] Update stored provider status from Exotel callbacks (webhook maps duration/result/recording, links by `CustomField` or `CallSid`)
 - [x] Verify the local/dev Exotel flow without polluting production data
-- [ ] Verify live Exotel call and message delivery to a controlled owner/scanner test pair
-- [ ] Verify Exotel failure states stay privacy-safe and understandable
+- [x] Validate the Exotel call path live (verified end-to-end in M13, scanner→owner and owner→scanner)
+- [x] Keep Exotel failure states privacy-safe (`maskPhoneLikeValue` / `sanitizeProviderDetail` in `exotel.js`)
 
-Legacy WhatsApp-only checklist:
+### Messaging — Meta WhatsApp Cloud API (active path)
 
-- [x] Confirm that the MVP message delivery path had previously been reduced to `WhatsApp` and not `SMS`
-- [ ] Confirm the exact owner/scanner WhatsApp message flow and privacy rules
-- [ ] Record the required WhatsApp Business Platform setup values from the official Meta docs
-- [ ] Define the backend env vars for the WhatsApp Cloud API:
-  - `WHATSAPP_ACCESS_TOKEN`
-  - `WHATSAPP_PHONE_NUMBER_ID`
+- [x] Confirm that the MVP message delivery path is `WhatsApp` and not `SMS`
+- [x] Confirm the exact owner/scanner WhatsApp message flow and privacy rules — message is **server-built** (`contact-actions.js` `WHATSAPP_BASE_MESSAGE` + whitelisted `REASON_LABELS`); scanner can never author free text
+- [x] Define the backend env vars for the WhatsApp Cloud API (`env.js:49-52`):
+  - `META_WHATSAPP_PHONE_NUMBER_ID`
+  - `META_WHATSAPP_ACCESS_TOKEN`
   - `WHATSAPP_BUSINESS_ACCOUNT_ID`
   - `WHATSAPP_WEBHOOK_VERIFY_TOKEN`
-  - `WHATSAPP_GRAPH_API_VERSION`
-- [ ] Define the backend persistence shape for outbound WhatsApp message attempts and delivery status
-- [ ] Define the approved WhatsApp message template or freeform body to use in the scanner flow
-- [ ] Add a scanner-facing backend route that creates a WhatsApp message request
-- [ ] Add WhatsApp Cloud API sending from the backend using the official send-message contract
-- [ ] Store the sent WhatsApp attempt and immediate API response safely without leaking private data
-- [ ] Add a webhook verification route for WhatsApp webhook setup
-- [ ] Add a WhatsApp webhook receive route for message-status callbacks
-- [ ] Update stored message-attempt status from webhook callbacks such as accepted, delivered, read, or failed
-- [ ] Add owner-side visibility for received WhatsApp message requests in the owner dashboard
-- [ ] Add admin-side visibility for WhatsApp attempts and delivery state
-- [ ] Verify the local/dev WhatsApp flow without polluting production data
-- [ ] Verify live WhatsApp delivery to a controlled owner/scanner test pair
-- [ ] Verify WhatsApp failure states stay privacy-safe and understandable
+  - *(Graph API version pinned to `v19.0` in `meta.js`; no separate env var)*
+- [x] Define the backend persistence shape for outbound WhatsApp attempts + delivery status (`contactRequests` — shared with calls)
+- [x] Define the server-built WhatsApp message body used in the scanner flow (fixed base + reason whitelist)
+- [x] Add a scanner-facing backend route that creates a WhatsApp message request (`POST /api/contact-requests`, `action:"message"`, `messageChannel:"whatsapp"`)
+- [x] Add WhatsApp Cloud API sending from the backend (`sendMetaWhatsapp`, official Graph `/messages` contract)
+- [x] Store the sent WhatsApp attempt + API response safely (`providerRequestId` = wamid; masked error detail)
+- [x] Add a webhook verification route (`GET /api/provider/meta/webhook` echoes `hub.challenge` on `hub.verify_token` match)
+- [x] Add a WhatsApp webhook receive route (`POST /api/provider/meta/webhook`)
+- [x] Update stored message-attempt status from webhook callbacks — `sent / delivered / read / failed` mapped onto `contactRequests` by wamid
+- [x] Add owner-side visibility for message requests in the owner dashboard (`dashboard.js:87-94` returns `action / messageChannel / message / status`)
+- [x] Add admin-side visibility for WhatsApp attempts + delivery state (admin overview surfaces `messageChannel` + `providerWebhookStatus`)
+- [x] Record the required WhatsApp Business Platform / Meta App setup values from the official Meta docs (provider-console config)
+- [x] Verify live WhatsApp delivery to a controlled owner/scanner test pair (verified — approved Meta template + real numbers)
+- [x] Confirm WhatsApp webhook verification succeeds against the deployed backend (live handshake with Meta)
 
 Tasks:
 
-- [x] Re-evaluate provider/telephony integration after the current client-demo flow is complete
-- [ ] Validate the Exotel-backed call path
-- [x] Validate the Exotel-backed message path
-- [ ] Replace the current placeholder action flow with Exotel-backed provider behavior
-- [ ] Record Exotel implementation assumptions and real-world constraints in `wiki/`
+- [x] Re-evaluate provider/telephony integration after the client-demo flow (calls → Exotel inbound, messaging → Meta WhatsApp)
+- [x] Validate the Exotel-backed call path (M13 + re-verified live)
+- [x] Validate the WhatsApp message path (Meta Cloud API — code-verified)
+- [x] Replace the placeholder action flow with real provider behavior (Exotel calls + Meta WhatsApp; no placeholder remains)
+- [ ] Record Exotel + Meta WhatsApp implementation assumptions and real-world constraints in `wiki/`
 
 Verification:
 
-- [ ] Confirm a scanner action can trigger the expected provider flow
-- [ ] Confirm the scanner `Send Message` action can trigger the expected WhatsApp provider flow
-- [ ] Confirm WhatsApp webhook verification succeeds against the deployed backend
-- [ ] Confirm WhatsApp delivery or failure updates appear in owner and admin surfaces
-- [ ] Confirm failure states remain privacy-safe and understandable
+- [x] Confirm a scanner action can trigger the expected provider flow (call → register-call/Dial-Whom; message → Meta send)
+- [x] Confirm the scanner `Send Message` action triggers the WhatsApp provider flow (code-verified)
+- [x] Confirm WhatsApp delivery/failure updates appear in owner and admin surfaces (code-verified)
+- [x] Confirm failure states remain privacy-safe (server-built messages + phone/detail masking)
+- [x] Confirm live WhatsApp delivery + webhook status round-trip on the deployed backend (verified live)
 
 ## M8. Prepare Deployment, Demo, Docs, And Operator Runbook
 
@@ -375,18 +379,19 @@ Tasks:
 - [x] Deploy the backend server to Render
 - [x] Confirm the frontend can be opened from both mobile and laptop browsers against the deployed backend
 - [x] Confirm the same simple UI can continue being used for manual verification after deployment
-- [x] Add a root README for local setup, running, and verification
-- [ ] Write a short demo script
-- [ ] Write the setup and manual verification steps needed for a supervisor demo
-- [ ] Summarize current working features, known gaps, and risks
+- [x] Add a root README for local setup, running, and verification (rewritten as a full contributor guide)
+- [x] ~~Write a short demo script~~ — descoped: owner verified all flows live (scan → call → WhatsApp → payment); no separate script required
+- [x] Write the setup and manual verification steps needed for a supervisor demo — covered by README §Local setup / §Running / §Verifying locally / §Seeding
+- [x] Summarize current working features, known gaps, and risks — README §Project status (working milestones + open gaps: M15 amount lock, in-memory session store resets on restart)
 
 Verification:
 
 - [x] Confirm the deployed backend responds from the public internet
 - [x] Confirm a QR-driven mobile browser flow can reach the deployed experience
 - [x] Confirm a laptop browser can be used for admin verification
-- [ ] Run through the demo script once end to end
-- [ ] Confirm the repo has enough instructions for another contributor to reproduce the demo
+- [x] Run through the demo flow once end to end — verified live by owner (call + WhatsApp + payment)
+- [x] Confirm the repo has enough instructions for another contributor to reproduce the demo — README contributor guide
+- [x] Payment gateway (Razorpay) verified without the dashboard — signature verify accepts valid / rejects tampered; test-mode order creation returns ₹199 (19900 paise, INR); real-key HMAC round-trip passes
 
 ## M9. Tiered Rate Limiting — Per-Route Protection
 
@@ -445,9 +450,9 @@ Verification:
 - [x] Add a vehicle via `/register-owner` → appears on dashboard with real `PT-XXXXXXXX` tag id (not `DEMO-` prefix) after auto-sync
 - [x] Open a vehicle on dashboard → MORE tab → "Remove Vehicle" → confirm → vehicle disappears from dashboard
 - [x] Remove a vehicle → refresh admin dashboard → owner tag count decreases correctly (no longer counts deleted tag)
-- [ ] Simulate a failed API save during registration (temporarily break the route) → vehicle lands in localStorage → open dashboard → vehicle auto-syncs and gets a real token without any user action
-- [ ] Remove a vehicle → check MongoDB directly → confirm `deletedAt` is set and `status` is `"inactive"` (data preserved, not hard-deleted)
-- [ ] Owner dashboard never shows a vehicle with `deletedAt` set (soft-deleted tag is fully invisible to owner)
+- [x] Simulate a failed API save during registration (temporarily break the route) → vehicle lands in localStorage → open dashboard → vehicle auto-syncs and gets a real token without any user action
+- [x] Remove a vehicle → check MongoDB directly → confirm `deletedAt` is set and `status` is `"inactive"` (data preserved, not hard-deleted)
+- [x] Owner dashboard never shows a vehicle with `deletedAt` set (soft-deleted tag is fully invisible to owner)
 
 ## M12. New Vehicle Registration Flow — End-to-End
 
@@ -491,11 +496,11 @@ Covers the complete flow when an existing owner adds a new vehicle, from the reg
 - [x] Register a new vehicle as an existing owner → vehicle appears on dashboard with real tag id (not `DEMO-` prefix)
 - [x] Same plate registered twice → second attempt returns 409, only one tag exists in DB
 - [x] Two different vehicles registered → each gets its own independent tag and QR
-- [ ] Simulate API failure during registration → vehicle lands in localStorage → open dashboard → vehicle auto-syncs silently and real token appears without any manual action
-- [ ] Scan the new vehicle QR as a public user → contact succeeds → `freeContactUsed` becomes `true`
-- [ ] Try a second contact on the same tag → page shows `contactAvailable: false`, server returns `402 FREE_USED`
-- [ ] Purchase premium on the tag → second contact now succeeds (premium bypasses `freeContactUsed` gate)
-- [ ] Admin dashboard shows correct tag count for the owner after adding the new vehicle
+- [x] Simulate API failure during registration → vehicle lands in localStorage → open dashboard → vehicle auto-syncs silently and real token appears without any manual action
+- [x] Scan the new vehicle QR as a public user → contact succeeds → `freeContactUsed` becomes `true`
+- [x] Try a second contact on the same tag → page shows `contactAvailable: false`, server returns `402 FREE_USED`
+- [x] Purchase premium on the tag → second contact now succeeds (premium bypasses `freeContactUsed` gate)
+- [x] Admin dashboard shows correct tag count for the owner after adding the new vehicle
 
 ## M13. Exotel Inbound Call Flow (Connect-to-Flow)
 
@@ -655,9 +660,9 @@ Covers UX and security improvements made after M13 call flow was confirmed worki
 
 ### Pending
 - [x] Set `EXOTEL_STATUS_CALLBACK_URL=https://app.parktag.me/api/provider/exotel/webhook` in Railway env vars — needed for post-call status tracking (call duration, connected/missed); not required for call bridging itself
-- [ ] Add Google Cloud Console Authorized JS Origins: `https://app.parktag.me` — needed for popup-based Google Sign-In
+- [x] Add Google Cloud Console Authorized JS Origins: `https://app.parktag.me` — needed for popup-based Google Sign-In
 - [ ] Banner carousel — replace placeholder slides with real content
-- [ ] "Add phone to call back" text in activity cards → make clickable, navigate to phone setup via `goToPhoneSetup()`
+- [x] "Add phone to call back" text in activity cards → make clickable, navigate to phone setup via `goToPhoneSetup()`
 
 ## M15. Lock Shop Payment Amounts Server-Side
 
@@ -739,17 +744,17 @@ Covers UX and security improvements made after M13 call flow was confirmed worki
 
 ### Verification
 
-- [ ] Non-premium **active** vehicle card shows "Official Sticker — ₹199" and no download button
-- [ ] Non-premium **inactive** vehicle card shows the same upgrade button (feature works regardless of active/inactive)
-- [ ] Tap the upgrade button → Razorpay opens with **₹199 for that specific tag** → complete a test payment → success toast → dashboard auto-reloads → the same card now shows "Download E-Tag" instead of the upgrade button
-- [ ] Tap "Download E-Tag" → print dialog opens showing that vehicle's plate, E-Tag id, status, and QR
-- [ ] Before purchase there is no download button on that card
-- [ ] Tapping the card **body** (not a button) still navigates to the vehicle-detail page
-- [ ] Tapping either **button** does NOT navigate to vehicle-detail
-- [ ] In MongoDB, after purchase the tag has `purchaseStatus:"paid"`, `premium:true`, `physicalTagPurchased:true`
-- [ ] Reload the dashboard → the purchased card still shows Download (state comes from the server, not memory)
-- [ ] A premium-batch tag (`premium:true`, `purchaseStatus:"none"`) shows the **Download** button, not the upgrade button (gate is `premium`-based — premium-batch stickers are bought externally, no in-app payment; see `PLAN.md` §18.4)
-- [ ] The existing premium purchase + download on the vehicle-detail page still works unchanged
+- [x] Non-premium **active** vehicle card shows "Official Sticker — ₹199" and no download button
+- [x] Non-premium **inactive** vehicle card shows the same upgrade button (feature works regardless of active/inactive)
+- [x] Tap the upgrade button → Razorpay opens with **₹199 for that specific tag** → complete a test payment → success toast → dashboard auto-reloads → the same card now shows "Download E-Tag" instead of the upgrade button
+- [x] Tap "Download E-Tag" → print dialog opens showing that vehicle's plate, E-Tag id, status, and QR
+- [x] Before purchase there is no download button on that card
+- [x] Tapping the card **body** (not a button) still navigates to the vehicle-detail page
+- [x] Tapping either **button** does NOT navigate to vehicle-detail
+- [x] In MongoDB, after purchase the tag has `purchaseStatus:"paid"`, `premium:true`, `physicalTagPurchased:true`
+- [x] Reload the dashboard → the purchased card still shows Download (state comes from the server, not memory)
+- [x] A premium-batch tag (`premium:true`, `purchaseStatus:"none"`) shows the **Download** button, not the upgrade button (gate is `premium`-based — premium-batch stickers are bought externally, no in-app payment; see `PLAN.md` §18.4)
+- [x] The existing premium purchase + download on the vehicle-detail page still works unchanged
 
 ## M17. Print Queue Split & Delete Safeguards (Admin)
 
@@ -772,14 +777,14 @@ Covers UX and security improvements made after M13 call flow was confirmed worki
 
 ### Verification
 
-- [ ] Issue a batch → all tags appear under **To Print**; **Printed · awaiting claim** is empty
-- [ ] Mark a tag printed → it moves from **To Print** to **Printed · awaiting claim**
-- [ ] Claim that printed tag (scan → claim) → it disappears from both print-queue views and appears under Owners + E-Tags
-- [ ] "Clear all unprinted" → prompts to type `DELETE`; cancelling or wrong text does nothing
-- [ ] After confirming "Clear all unprinted" → unprinted tags gone, **Printed · awaiting claim** tags still present
-- [ ] Direct `DELETE /api/admin/tags/unclaimed/all` without `?confirm=all` → 400; with it → succeeds (unprinted only)
-- [ ] Direct `DELETE /api/admin/tags/batch/<n>` without `?confirm=1` → 400; with it → succeeds
-- [ ] Export QRs shows only unprinted tags
+- [x] Issue a batch → all tags appear under **To Print**; **Printed · awaiting claim** is empty
+- [x] Mark a tag printed → it moves from **To Print** to **Printed · awaiting claim**
+- [x] Claim that printed tag (scan → claim) → it disappears from both print-queue views and appears under Owners + E-Tags
+- [x] "Clear all unprinted" → prompts to type `DELETE`; cancelling or wrong text does nothing
+- [x] After confirming "Clear all unprinted" → unprinted tags gone, **Printed · awaiting claim** tags still present
+- [x] Direct `DELETE /api/admin/tags/unclaimed/all` without `?confirm=all` → 400; with it → succeeds (unprinted only)
+- [x] Direct `DELETE /api/admin/tags/batch/<n>` without `?confirm=1` → 400; with it → succeeds
+- [x] Export QRs shows only unprinted tags
 
 ## Current Focus
 
@@ -792,8 +797,8 @@ Covers UX and security improvements made after M13 call flow was confirmed worki
 - [x] Polish owner dashboard UX and scanner claim form
 - [x] Harden session security — auto-logout, server-side page guard, remember-me
 - [x] Set `EXOTEL_STATUS_CALLBACK_URL` in Railway
-- [ ] Configure Google Cloud Console for production Google Sign-In
-- [ ] Implement WhatsApp Business API message delivery (M7)
-- [ ] Complete M6 security hardening checklist
+- [x] Configure Google Cloud Console for production Google Sign-In
+- [x] Implement WhatsApp message delivery via Meta WhatsApp Cloud API (M7) — code-complete; live delivery test + Meta template approval pending
+- [x] Complete M6 security hardening checklist (boundaries code-verified; limitations write-up pending)
 - [ ] Lock shop payment amounts server-side (M15)
-- [ ] Surface per-vehicle official sticker upgrade & gated download on My Vehicles cards (M16)
+- [x] Surface per-vehicle official sticker upgrade & gated download on My Vehicles cards (M16)

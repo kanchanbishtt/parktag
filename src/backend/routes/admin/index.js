@@ -4,6 +4,7 @@ import { requireSession } from "../../lib/auth/auth.js";
 import { getCollections } from "../../lib/db/repositories.js";
 import {
   buildIssuedTagOutput,
+  buildClaimUrl,
   createUnclaimedTags,
   etagIdFor
 } from "../../lib/core/tag-issuance.js";
@@ -303,7 +304,8 @@ export function registerAdminRoutes(app, env) {
         batchNumber: tag.batchNumber || null,
         batchLabel: tag.batchLabel || null,
         printStatus: tag.printStatus || "pending_print",
-        claimUrl: `${request.protocol}://${request.hostname}/vehicle/${tag.token}`,
+        premium: Boolean(tag.premium),
+        claimUrl: buildClaimUrl(request, tag.token),
         createdAt: tag.createdAt
       }))
     };

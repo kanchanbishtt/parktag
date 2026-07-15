@@ -23,7 +23,10 @@ export async function getCollections(env) {
     // Tracks per-scanner verification attempts, lockouts, and contact grants.
     verificationSessions: db.collection(withPrefix(prefix, "verification_sessions")),
     // Temporary routing bridge for inbound Exotel calls (TTL 10 min).
-    pendingCalls: db.collection(withPrefix(prefix, "pending_calls"))
+    pendingCalls: db.collection(withPrefix(prefix, "pending_calls")),
+    // Server-created shop orders — the source of truth for what price was
+    // actually charged, re-checked at verify time (M15 hardening).
+    shopOrders: db.collection(withPrefix(prefix, "shop_orders"))
   };
 }
 

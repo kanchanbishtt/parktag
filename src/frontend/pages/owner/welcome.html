@@ -1572,11 +1572,13 @@ async function handleBuyNow() {
   if (btn) { btn.disabled = true; btn.classList.add("pt-btn-loading"); }
 
   try {
-    // 1. Create order on backend
+    // 1. Create order on backend. Send only the productId + chosen variant —
+    //    the server resolves the price from its catalog (M15), so the ₹price
+    //    shown in the UI is display-only and can't be tampered with here.
     const orderRes = await fetch("/api/shop/create-order", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ amount: p.price, productId: p.id, productName: `${p.name} (${variant})` })
+      body: JSON.stringify({ productId: p.id, variant })
     });
     const orderData = await orderRes.json();
     if (!orderRes.ok || !orderData.orderId) throw new Error(orderData.error || "Order creation failed.");

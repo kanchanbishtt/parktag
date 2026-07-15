@@ -154,6 +154,31 @@ unclaimed ──(owner claims / self-registers)──▶ active ⇄ inactive ─
   - the owner buying the **official sticker** (Razorpay ₹199, per-tag), or
   - an admin issuing a **premium batch**.
 
+**Pricing**
+
+All prices are in **INR** and are **server-authoritative** — the browser only sends a
+`productId`; the amount charged is resolved on the server (never trusted from the client).
+
+*Owner premium upgrade* — buy the official sticker for an existing E-Tag:
+
+| Item                     | Price | Where it's set |
+|--------------------------|-------|----------------|
+| Official sticker upgrade | ₹199  | `STICKER_PRICE_INR` in `lib/integrations/payments.js` |
+
+*Shop catalog* — new physical tags, from the owner dashboard shop (`SHOP_PRODUCTS` in
+`lib/integrations/payments.js`):
+
+| `productId` | Product                       | Price | MRP  |
+|-------------|-------------------------------|-------|------|
+| `pt-car-1`  | ParkTag Car Tag (Pack of 1)   | ₹399  | ₹499 |
+| `pt-car-2`  | ParkTag Car Tag (Pack of 2)   | ₹699  | ₹799 |
+| `pt-bike-1` | ParkTag Bike Tag              | ₹349  | ₹399 |
+| `pt-combo`  | ParkTag Combo Pack (Car+Bike) | ₹699  | ₹899 |
+
+> Changing a shop price means editing `SHOP_PRODUCTS` (the charged amount) **and** the
+> `PRODUCTS` list in `frontend/pages/owner/welcome.html` (the displayed price). The MRP is
+> display-only. See [Project status](#project-status) → M15 for how the amount is locked.
+
 **Contact flow (privacy-preserving)**
 
 - **Call** — `POST /api/tags/:token/register-call` stores a pending record; the finder dials a
@@ -394,8 +419,9 @@ scope every query by `ownerId = session.userId`, so a user can only ever touch t
 - **Meta WhatsApp (messaging)** — `lib/integrations/meta.js` sends server-built messages via
   the Graph API. Delivery status (`sent/delivered/read/failed`) is received at
   `/api/provider/meta/webhook`; the `GET` handler answers Meta's `hub.challenge` verification.
-- **Razorpay (payments)** — `lib/integrations/payments.js`; the owner premium upgrade is
-  server-locked to ₹199. *(Shop `create-order` amount-locking is tracked as M15.)*
+- **Razorpay (payments)** — `lib/integrations/payments.js`; both the owner premium upgrade
+  (₹199) and the shop checkout are **server-locked** — the shop resolves prices from a
+  `SHOP_PRODUCTS` catalog by `productId` and re-checks the order at verify time (M15).
 - **Google OAuth** — sign-in never auto-creates an account; unknown Gmails get a `no_account`
   error. Callback/JS-origins must be whitelisted in the Google Cloud Console.
 
@@ -446,10 +472,13 @@ are kept for the alternative Render target.
 
 MVP is essentially feature-complete and verified. Milestone tracker: `TASKS.md`.
 
-- ✅ **M1–M14, M16, M17** — backend, scanner/owner/admin flows, Exotel calls, Meta WhatsApp
-  messaging, owner vehicle management, per-vehicle premium upgrade, print-queue split, and
-  security-boundary hardening — all implemented and verified.
-- 🔜 **M15** — lock shop payment amounts server-side (`/api/shop/create-order` currently
-  trusts a client `amount`). The owner premium flow is already server-locked.
-- 📝 Remaining docs: security-limitations write-up (M6), telephony/messaging assumptions in
-  `wiki/` (M7), demo script (M8); banner carousel content is deferred.
+- ✅ **M1–M17** — backend, scanner/owner/admin flows, Exotel calls, Meta WhatsApp
+  messaging, owner vehicle management, per-vehicle premium upgrade, server-locked shop
+  pricing, print-queue split, and security-boundary hardening — all implemented and verified.
+<!-- - ✅ **M15** — shop payment amounts are locked server-side: `/api/shop/create-order`
+  resolves the price from a server catalog (`SHOP_PRODUCTS` in `payments.js`) by `productId`
+  and ignores any client `amount`. Orders are persisted to `shop_orders`, and
+  `verify-payment` re-checks the paid order against the catalog price before granting —
+  a valid signature on an unknown or mispriced order is rejected. -->
+- 📝 **Pending — owner dashboard banner carousel (M14):** the carousel still shows placeholder
+  slides; real content/artwork is outstanding.

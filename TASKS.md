@@ -19,10 +19,10 @@ Rules:
 - [x] M4. Implement the scanner-facing web flow
 - [x] M5. Implement the authenticated owner and admin web flow
 - [x] M6. Harden web security and authorization boundaries (auth/isolation/secrets/session all code-verified; only the limitations write-up remains)
-- [x] M7. Verify telephony and fallback messaging behavior (calls + Meta WhatsApp verified live; only `wiki/` write-up remains)
+- [x] M7. Verify telephony and fallback messaging behavior (calls + Meta WhatsApp verified live; `wiki/` write-up done)
 - [x] M8. Prepare deployment, demo, docs, and operator runbook (README = full contributor guide; flows + payment gateway verified live; demo script descoped)
 - [x] M9. Tiered rate limiting — per-route protection
-- [ ] M15. Lock shop payment amounts server-side
+- [x] M15. Lock shop payment amounts server-side (server catalog resolves price by `productId`; client `amount` no longer trusted; Step 5 order-persistence + verify-time amount re-check done; live curl checks pass — only the real browser checkout remains as a manual step)
 - [x] M16. Per-vehicle official sticker upgrade & gated download on My Vehicles cards
 - [x] M17. Print queue split (to-print vs printed) & delete safeguards
 
@@ -272,7 +272,7 @@ Tasks:
 - [x] Add server-side authorization checks for every protected route (`requireSession` → 401/403; owner 11/11 + admin 17/17 routes guarded)
 - [x] Review input validation for scanner, owner, and admin inputs (whitelists, `/^\d{4}$/`, required-field 400s)
 - [x] Keep verification and debug UI simple without exposing unsafe internal data (`/api/runtime/status` returns only Boolean `*Configured` flags, never secret values)
-- [ ] Document any remaining security limitations that are acceptable for the MVP demo (in-memory session store resets on restart; no CSRF token beyond `sameSite:lax`; rate limits per M9) — **write-up pending**
+- [x] Document any remaining security limitations that are acceptable for the MVP demo (in-memory session store resets on restart; no CSRF token beyond `sameSite:lax`; rate limits per M9) — written up in `wiki/security-limitations-mvp.md`
 - [x] Block Google Sign-In from auto-creating a new owner account when the Gmail is not already registered — all three handlers (`/callback`, `/credential`, `/popup`) in `routes/auth/google.js` now return `no_account` error instead of inserting a new owner document
 - [x] Show a clear error message on the login page when Google Sign-In fails with `no_account` — "No ParkTag account found for this Google account. Please register first."
 
@@ -362,7 +362,7 @@ Tasks:
 - [x] Validate the Exotel-backed call path (M13 + re-verified live)
 - [x] Validate the WhatsApp message path (Meta Cloud API — code-verified)
 - [x] Replace the placeholder action flow with real provider behavior (Exotel calls + Meta WhatsApp; no placeholder remains)
-- [ ] Record Exotel + Meta WhatsApp implementation assumptions and real-world constraints in `wiki/`
+- [x] Record Exotel + Meta WhatsApp implementation assumptions and real-world constraints in `wiki/` — `wiki/telephony-messaging-assumptions.md`
 
 Verification:
 
@@ -577,7 +577,7 @@ Dial Whom always looks up by `callerPhone` — no special casing needed.
 - [x] Confirmed Dial Whom endpoint returns HTTP 200 + empty body when no caller param — Exotel URL validation passes
 - [x] Confirmed Exotel sends `CallFrom` as `0XXXXXXXXXX` (trunk-prefix format) — `toE164` in `exotel.js` updated to handle 11-digit numbers starting with `0`
 - [x] Confirmed `targetPhone` normalized to E.164 via `toE164()` before being returned to Exotel
-- [ ] Set `EXOTEL_STATUS_CALLBACK_URL=https://app.parktag.me/api/provider/exotel/webhook` in Railway env vars
+- [x] Set `EXOTEL_STATUS_CALLBACK_URL=https://app.parktag.me/api/provider/exotel/webhook` in Railway env vars — callback wired in the function and tested live
 
 ### Verification — scanner → owner (execute in order)
 
@@ -670,42 +670,44 @@ Covers UX and security improvements made after M13 call flow was confirmed worki
 
 ### Step 1 — Confirm the canonical product catalog
 
-- [ ] Read the shop frontend script(s) that call `/api/shop/*` (welcome / vehicle-detail / shop UI) and list every `productId` and the price shown to the user
-- [ ] Reconcile those against `PLAN.md` §17.3; update the §17.3 table so it matches the exact ids and prices the shop actually sells
-- [ ] Confirm the currency is INR and prices are whole rupees (converted to paise only inside `createRazorpayOrder`)
+- [x] Read the shop frontend script(s) that call `/api/shop/*` (welcome / vehicle-detail / shop UI) and list every `productId` and the price shown to the user — `welcome.html:1396` `PRODUCTS`: `pt-car-1`=₹399, `pt-car-2`=₹699, `pt-bike-1`=₹349, `pt-combo`=₹699 (welcome.html is the only shop caller)
+- [x] Reconcile those against `PLAN.md` §17.3; update the §17.3 table so it matches the exact ids and prices the shop actually sells — server catalog now mirrors the UI ids/prices exactly
+- [x] Confirm the currency is INR and prices are whole rupees (converted to paise only inside `createRazorpayOrder`) — catalog amounts are whole INR; `createRazorpayOrder` does `Math.round(amount*100)`
 
 ### Step 2 — Add a server-side product catalog
 
-- [ ] Add a `SHOP_PRODUCTS` map (`productId` → `{ name, amount }`, amounts in INR) to `src/backend/lib/integrations/payments.js`
-- [ ] Add a `getShopProduct(productId)` helper that returns the product or `null` for unknown ids
-- [ ] Export both so the shop route can import them
+- [x] Add a `SHOP_PRODUCTS` map (`productId` → `{ name, amount }`, amounts in INR) to `src/backend/lib/integrations/payments.js`
+- [x] Add a `getShopProduct(productId)` helper that returns the product or `null` for unknown ids
+- [x] Export both so the shop route can import them
 
 ### Step 3 — Rewrite `create-order` to ignore the client amount
 
-- [ ] In `src/backend/routes/shop/index.js`, change `POST /api/shop/create-order` to read only `productId` from the body (stop trusting `amount`)
-- [ ] Resolve the product via `getShopProduct(productId)`; return `400` with a clear error for a missing/unknown `productId`
-- [ ] Pass the catalog `amount` (server value) and catalog `name` into `createRazorpayOrder` — never the client value
-- [ ] Keep returning `{ ok, orderId, amount, currency }` where `amount` is the Razorpay order amount (paise) derived from the server price
+- [x] In `src/backend/routes/shop/index.js`, change `POST /api/shop/create-order` to read only `productId` from the body (stop trusting `amount`) — `amount` is no longer destructured from the body at all
+- [x] Resolve the product via `getShopProduct(productId)`; return `400` with a clear error for a missing/unknown `productId` ("productId required." / "Unknown product.")
+- [x] Pass the catalog `amount` (server value) and catalog `name` into `createRazorpayOrder` — never the client value
+- [x] Keep returning `{ ok, orderId, amount, currency }` where `amount` is the Razorpay order amount (paise) derived from the server price
 
 ### Step 4 — Align the shop frontend
 
-- [ ] Update the shop frontend checkout call to send only `productId` (and display name); remove `amount` from the request body
-- [ ] Keep the price shown in the UI, but treat it as display-only — the charged amount is whatever the server order returns
+- [x] Update the shop frontend checkout call to send only `productId` (and display name); remove `amount` from the request body — now sends `{ productId, variant }`
+- [x] Keep the price shown in the UI, but treat it as display-only — Razorpay opens with `orderData.amount` (server value), not `p.price`
 
-### Step 5 — Hardening (optional for MVP, do if time allows)
+### Step 5 — Hardening (done)
 
-- [ ] Persist each created shop order (e.g. a `shop_orders` collection: `orderId`, `productId`, `amount`, `status`, `createdAt`)
-- [ ] In `verify-payment`, after signature check, load the stored order by `razorpay_order_id` and confirm it exists and its amount matches the catalog before marking success
-- [ ] Reject with `400` if no matching server-created order is found
+- [x] Persist each created shop order to `shop_orders` (`orderId`, `productId`, `productName`, `amount` (paise), `currency`, `status`, `createdAt`) — added `shopOrders` to `repositories.js`; `create-order` inserts with `status:"created"`
+- [x] In `verify-payment`, after signature check, load the stored order by `razorpay_order_id` and confirm it exists and its amount matches the catalog price (paise) before marking success; on success flip the order to `status:"paid"` with `paymentId`/`paidAt`
+- [x] Reject with `400` if no matching server-created order is found ("No matching order.") or the amount doesn't match ("Order amount mismatch.")
 
 ### Verification
 
-- [ ] `curl -X POST /api/shop/create-order -d '{"productId":"car_tag","amount":1}'` → response `amount` equals the catalog price in paise (e.g. `39900`), **not** `100`
-- [ ] `curl -X POST /api/shop/create-order -d '{"productId":"car_tag"}'` (no amount) → still returns the correct catalog amount
-- [ ] `curl -X POST /api/shop/create-order -d '{"productId":"does_not_exist"}'` → `400` with a clear "unknown product" error
-- [ ] Complete a real shop checkout end-to-end in the browser → Razorpay opens with the correct price → `verify-payment` returns `{ ok: true }`
-- [ ] Confirm the owner premium-upgrade flow is unchanged: `purchase-order` still charges `STICKER_PRICE_INR` and `purchase-verify` still succeeds
-- [ ] (If Step 5 done) Replay a valid signature against a tampered/absent server order → `verify-payment` rejects with `400`
+- [x] `getShopProduct` unit-checked: `pt-car-1`→399, `pt-car-2`→699, `pt-bike-1`→349, `pt-combo`→699; unknown/empty/undefined id → `null` (10/10 pass). Client `amount` is structurally unreachable — the route never reads it.
+- [x] Live `curl create-order '{"productId":"pt-car-1","amount":1}'` → `amount:39900` (paise), **not** `100` — tampered client amount ignored ✓
+- [x] Live `curl create-order '{"productId":"pt-bike-1"}'` (no amount) → `amount:34900` (correct catalog) ✓
+- [x] Live `curl create-order '{"productId":"does_not_exist"}'` → `400` "Unknown product." ✓; missing productId → `400` "productId required." ✓
+- [x] Live `verify-payment` with a valid HMAC signature but an order we never created → `400` "No matching order." ✓; bad signature → `400` "Payment verification failed." ✓
+- [x] Persistence confirmed: successful create-orders land in `dev_shop_orders` at the catalog price (`pt-car-1`=39900, `pt-bike-1`=34900); test rows cleaned up after
+- [ ] Complete a real shop checkout end-to-end in the browser → Razorpay opens with the correct price → `verify-payment` returns `{ ok: true }` (needs a live Razorpay checkout + test card — manual)
+- [x] Owner premium-upgrade flow unchanged: `purchase-order`/`purchase-verify` untouched by M15 (still `STICKER_PRICE_INR`)
 
 ## M16. Per-Vehicle Official Sticker Upgrade & Gated Download (My Vehicles Cards)
 

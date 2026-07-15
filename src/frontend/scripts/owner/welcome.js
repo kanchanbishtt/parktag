@@ -167,16 +167,17 @@ function vehicleCard(tag, idx) {
   const pill      = tag.premium ? "★ Premium" : (!tag.freeContactUsed ? "1 Free Call" : "Call Used");
   const pillClass = tag.premium ? "vp-premium" : (!tag.freeContactUsed ? "vp-free" : "vp-used");
   const detailUrl = `/owner-vehicle-detail?${params}`;
-  // Download is gated on a completed Razorpay purchase (spec: PLAN §18.4),
-  // not merely premium — admin premium-batch tags are not owner-purchased.
-  const purchased = tag.purchaseStatus === "paid";
-  const hasId     = Boolean(tag.id);
+  // Download is available for any official (premium) tag — whether upgraded
+  // in-app via Razorpay or bought as a physical premium-batch sticker on
+  // Amazon/other platforms (those arrive premium with no in-app payment).
+  const isOfficial = Boolean(tag.premium);
+  const hasId      = Boolean(tag.id);
 
   // Per-vehicle official-sticker action row (both active and inactive cards).
   // Buttons stopPropagation so tapping them never navigates to the detail page.
   const actions = hasId ? `
   <div class="pt-vlc-actions">
-    ${purchased
+    ${isOfficial
       ? `<button class="pt-vlc-act dl" onclick="event.stopPropagation();downloadETagFor('${tag.id}')">
            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
            Download E-Tag

@@ -4,6 +4,7 @@ import { requireSession } from "../../lib/auth/auth.js";
 import { getCollections } from "../../lib/db/repositories.js";
 import {
   buildIssuedTagOutput,
+  buildClaimUrl,
   createUnclaimedTags,
   etagIdFor
 } from "../../lib/core/tag-issuance.js";
@@ -284,8 +285,14 @@ export function registerAdminRoutes(app, env) {
     if (blocked) return blocked;
 
     const collections = await getCollections(env);
+    // ?printed=1 → unclaimed tags already printed (awaiting owner claim).
+    // default    → unclaimed tags still waiting to be printed (the print queue).
+    const printedOnly = request.query.printed === "1";
     const tags = await collections.tags
-      .find({ status: "unclaimed" })
+      .find({
+        status: "unclaimed",
+        printStatus: printedOnly ? "printed" : { $ne: "printed" }
+      })
       .sort({ createdAt: -1 })
       .toArray();
 
@@ -297,7 +304,8 @@ export function registerAdminRoutes(app, env) {
         batchNumber: tag.batchNumber || null,
         batchLabel: tag.batchLabel || null,
         printStatus: tag.printStatus || "pending_print",
-        claimUrl: `${request.protocol}://${request.hostname}/vehicle/${tag.token}`,
+        premium: Boolean(tag.premium),
+        claimUrl: buildClaimUrl(request, tag.token),
         createdAt: tag.createdAt
       }))
     };
@@ -308,8 +316,9 @@ export function registerAdminRoutes(app, env) {
     if (blocked) return blocked;
 
     const collections = await getCollections(env);
+    // Export the sheet of tags that still need printing (not already-printed ones).
     const tags = await collections.tags
-      .find({ status: "unclaimed" })
+      .find({ status: "unclaimed", printStatus: { $ne: "printed" } })
       .sort({ createdAt: -1 })
       .toArray();
 
@@ -321,6 +330,13 @@ export function registerAdminRoutes(app, env) {
   app.delete("/api/admin/tags/batch/:batchNumber", async (request, reply) => {
     const blocked = await requireSession(app, "admin")(request, reply);
     if (blocked) return blocked;
+
+    // Safeguard: destructive, so require an explicit confirm flag. This blocks
+    // accidental or drive-by calls; the UI sends it after a typed confirmation.
+    if (request.query.confirm !== "1") {
+      reply.code(400);
+      return { ok: false, error: "Confirmation required to delete a batch." };
+    }
 
     const collections = await getCollections(env);
     const result = await collections.tags.deleteMany({
@@ -335,8 +351,19 @@ export function registerAdminRoutes(app, env) {
     const blocked = await requireSession(app, "admin")(request, reply);
     if (blocked) return blocked;
 
+    // Safeguard: require an explicit confirm flag before this mass delete.
+    if (request.query.confirm !== "all") {
+      reply.code(400);
+      return { ok: false, error: "Confirmation required to clear unprinted tags." };
+    }
+
+    // Only delete UNPRINTED tags — already-printed unclaimed tags are preserved
+    // (they live in the separate "Printed" view) so this can't wipe them.
     const collections = await getCollections(env);
-    const result = await collections.tags.deleteMany({ status: "unclaimed" });
+    const result = await collections.tags.deleteMany({
+      status: "unclaimed",
+      printStatus: { $ne: "printed" }
+    });
 
     return { ok: true, deleted: result.deletedCount };
   });

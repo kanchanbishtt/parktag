@@ -180,30 +180,106 @@ function setIssueMessage(message) {
   `;
 }
 
+// Branded two-panel E-Tag sticker — a pixel-exact port of the owner E-Tag PDF
+// sticker (`.wl-pt-sticker` in pages/owner/welcome.html): same logo image,
+// "SCAN TO CONNECT" tagline, 60/40 white+red split, identical font sizes,
+// icon row and note copy. Inline styles + print-color-adjust so the export
+// sheet prints in colour. Used by batch-issuance output and print export.
 function stickerHtml(tag) {
+  const idLine = tag.token ? `Tag ${tag.token}` : "—";
   return `
-    <div style="width:196px;background:#fff;border:2px solid #E5E7EB;border-radius:18px;
-                padding:16px 12px 14px;text-align:center;
-                box-shadow:0 2px 12px rgba(0,25,53,0.09);display:inline-flex;
-                flex-direction:column;align-items:center;gap:9px;vertical-align:top">
-      <div style="display:flex;align-items:center;gap:5px">
-        <svg width="18" height="18" viewBox="0 0 100 100" fill="none">
-          <rect width="100" height="100" rx="16" fill="#03162D"/>
-          <rect x="14" y="14" width="16" height="72" rx="2" fill="white"/>
-          <circle cx="44" cy="38" r="24" fill="white"/>
-          <circle cx="46" cy="38" r="12" fill="#03162D"/>
-          <path d="M40 38 L44 42 L53 29" stroke="#FF2700" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-        <span style="font-weight:900;font-size:0.88rem;color:#03162D;letter-spacing:-0.01em">Park<span style="color:#FF2700">Tag</span></span>
+    <div style="width:420px;font-family:'Inter','Segoe UI',Arial,sans-serif;color:#03162D;-webkit-print-color-adjust:exact;print-color-adjust:exact">
+      <div style="display:flex;width:100%;border-radius:18px;overflow:hidden;border:2px solid #03162D;-webkit-print-color-adjust:exact;print-color-adjust:exact">
+        <!-- Left: white panel -->
+        <div style="flex:0 0 60%;background:#fff;padding:22px;display:flex;flex-direction:column;justify-content:space-between">
+          <div>
+            <img src="/images/light-logo.png" alt="ParkTag" style="height:26px;width:auto;display:block" />
+            <div style="font-size:7px;font-weight:800;letter-spacing:.2em;color:#6B7280;margin-top:5px">SCAN TO CONNECT</div>
+          </div>
+          <p style="font-size:29px;font-weight:900;color:#03162D;line-height:1.12;margin:16px 0 0;letter-spacing:-0.01em">Scan the code<br>to <u style="text-decoration:underline;text-decoration-thickness:2.5px;text-underline-offset:2px">contact the<br>vehicle owner.</u></p>
+          <div>
+            <p style="font-size:7px;font-weight:700;letter-spacing:.05em;color:#6B7280;margin-top:14px;line-height:1.6;text-transform:uppercase">Scan using phone camera, Google Lens or any QR scanner app. Visit www.parktag.me for more.</p>
+            <p style="font-size:7px;color:#9CA3AF;margin-top:6px;letter-spacing:.02em">${idLine}</p>
+          </div>
+        </div>
+        <!-- Right: red panel -->
+        <div style="flex:0 0 40%;background:#FF2700;padding:18px 14px;display:flex;flex-direction:column;align-items:center;justify-content:space-between;-webkit-print-color-adjust:exact;print-color-adjust:exact">
+          <div style="background:#fff;border-radius:12px;padding:10px">
+            <img src="${tag.qrDataUrl}" alt="QR ${tag.token}" style="width:150px;height:150px;display:block" />
+          </div>
+          <div style="font-size:8.5px;font-weight:800;color:#fff;margin-top:11px;text-align:center">Park<span style="font-weight:600;opacity:.9">Tag</span>.me &nbsp;·&nbsp; <span style="font-weight:600;opacity:.9">vehicle tag</span></div>
+          <div style="display:flex;gap:13px;margin-top:11px">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9.5" stroke="#fff" stroke-width="1.7"/><path d="M9.2 16V8h3.1a2.4 2.4 0 0 1 0 4.8H9.2" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.5 5.5l13 13" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/></svg>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9.5" stroke="#fff" stroke-width="1.7"/><path d="M7 12h10" stroke="#fff" stroke-width="1.9" stroke-linecap="round"/></svg>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 3.5l9 15.5H3l9-15.5Z" stroke="#fff" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 9.5v4M12 16.5h.01" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M6.5 4.5C6 4 5.2 3.9 4.7 4.4 3.9 5.1 3.4 6.3 3.5 7.5c.2 4 2 7.6 5 10.5 2.9 2.9 6.5 4.8 10.5 5 1.2.1 2.4-.4 3.1-1.2.5-.5.4-1.3-.1-1.8l-2.6-2.3c-.4-.4-1-.4-1.5-.1l-1.4.9c-.3.2-.7.1-1-.1l-3-3c-.3-.3-.3-.7-.1-1l.9-1.4c.3-.5.3-1.1-.1-1.5L6.5 4.5Z" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg>
+          </div>
+          <p style="font-size:7.5px;font-weight:700;color:#fff;text-align:center;margin-top:8px;line-height:1.5">Wrong parking, emergency contact,<br>any issue with the vehicle — scan the QR.</p>
+        </div>
       </div>
-      <img src="${tag.qrDataUrl}" alt="QR ${tag.token}" style="width:152px;height:152px;display:block;border-radius:8px" />
-      <p style="margin:0;font-size:0.62rem;color:#6B7280;font-weight:600;line-height:1.3">Scan to contact the vehicle owner</p>
-      <div style="background:#03162D;color:#fff;border-radius:7px;padding:5px 12px;
-                  font-size:0.72rem;font-weight:800;font-family:monospace;letter-spacing:0.05em">
-        ${tag.token}
-      </div>
-      <p style="margin:0;font-size:0.58rem;color:#9CA3AF;word-break:break-all;line-height:1.3">${tag.claimUrl}</p>
     </div>`;
+}
+
+// Full-page E-Tag print layout — a 1:1 match of the owner Vehicle-Detail PDF
+// (pages/owner/vehicle-detail.html #etag-print): instruction block + free-
+// contact note + dashed cut + two-panel sticker. Class-based markup that
+// relies on the `#qr-export-grid .pt-*` styles in print-queue.html. One tag
+// per `.pt-page` (page-break-after: always) so the export prints one per page.
+function etagPrintPageHtml(tag) {
+  const idLine = tag.token ? `Tag ${tag.token}` : "—";
+  // Premium tags carry unlimited private contact — the freebox reflects that
+  // instead of the single-free-contact copy used on the free E-Tag.
+  const freeboxHtml = tag.premium
+    ? `<div class="pt-freebox">This is a <b>Premium ParkTag E-Tag</b> — finders can reach you with <b>unlimited private contact</b> via masked call or WhatsApp (your number stays private). No further upgrade needed.</div>`
+    : `<div class="pt-freebox">This free E-Tag includes <b>1 free contact</b> — a finder can reach you once via masked call or WhatsApp (your number stays private). For unlimited contact, upgrade to the official physical ParkTag sticker.</div>`;
+  return `
+  <div class="pt-page">
+    <div class="pt-wrap">
+      <div class="pt-instr">
+        <p style="margin:0 0 3px">Thank you for generating your free ParkTag E-Tag.</p>
+        <span class="pt-instr-h">How to fix the E-Tag to your windscreen</span>
+        <ol>
+          <li>Print this page on a photo sheet or regular paper.</li>
+          <li>Cut the tag along the dotted line.</li>
+          <li>Attach the tag:<br>
+            &nbsp;- Apply glue (e.g., Feviglue) or transparent double-sided tape to the front of the tag.<br>
+            &nbsp;- Place it on your dashboard or windscreen with the QR facing out.
+          </li>
+        </ol>
+        ${freeboxHtml}
+      </div>
+      <div class="pt-cut">
+        <div class="pt-sticker">
+          <!-- Left: white panel -->
+          <div class="pt-left">
+            <div>
+              <img class="pt-logo" src="/images/light-logo.png" alt="ParkTag"/>
+              <div class="pt-tagline">SCAN TO CONNECT</div>
+            </div>
+            <p class="pt-head">Scan the code<br>to <u>contact the<br>vehicle owner.</u></p>
+            <div>
+              <p class="pt-scaninfo">Scan using phone camera, Google Lens or any QR scanner app. Visit www.parktag.me for more.</p>
+              <p class="pt-etagline">${idLine}</p>
+            </div>
+          </div>
+          <!-- Right: red panel -->
+          <div class="pt-right">
+            <div class="pt-qr-box">
+              <img class="pt-qr" src="${tag.qrDataUrl}" alt="QR ${tag.token}"/>
+            </div>
+            <div class="pt-rt-brand">Park<span>Tag</span>.me &nbsp;·&nbsp; <span>vehicle tag</span></div>
+            <div class="pt-icons">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9.5" stroke="#fff" stroke-width="1.7"/><path d="M9.2 16V8h3.1a2.4 2.4 0 0 1 0 4.8H9.2" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.5 5.5l13 13" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/></svg>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9.5" stroke="#fff" stroke-width="1.7"/><path d="M7 12h10" stroke="#fff" stroke-width="1.9" stroke-linecap="round"/></svg>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 3.5l9 15.5H3l9-15.5Z" stroke="#fff" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 9.5v4M12 16.5h.01" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M6.5 4.5C6 4 5.2 3.9 4.7 4.4 3.9 5.1 3.4 6.3 3.5 7.5c.2 4 2 7.6 5 10.5 2.9 2.9 6.5 4.8 10.5 5 1.2.1 2.4-.4 3.1-1.2.5-.5.4-1.3-.1-1.8l-2.6-2.3c-.4-.4-1-.4-1.5-.1l-1.4.9c-.3.2-.7.1-1-.1l-3-3c-.3-.3-.3-.7-.1-1l.9-1.4c.3-.5.3-1.1-.1-1.5L6.5 4.5Z" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg>
+            </div>
+            <p class="pt-rt-note">Wrong parking, emergency contact,<br>any issue with the vehicle — scan the QR.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>`;
 }
 
 function renderIssuedTag(data) {
@@ -246,8 +322,15 @@ function renderPrintQueue(data) {
     return;
   }
 
+  // Prune selections for tags no longer in the queue, then remember the
+  // current ids so "Select all" / export fallback see the full visible set.
+  _pqVisibleIds = tags.map((t) => t.id);
+  const visibleSet = new Set(_pqVisibleIds);
+  for (const id of [..._pqSelected]) if (!visibleSet.has(id)) _pqSelected.delete(id);
+
   if (!tags.length) {
-    target.innerHTML = `<p class="empty-copy">Queue is empty — all tags have been printed or none have been issued yet.</p>`;
+    _pqUpdateExportLabel();
+    target.innerHTML = `<p class="empty-copy">${_pqPrinted ? "No printed tags are awaiting a claim." : "Nothing waiting to be printed — issue a batch to populate the queue."}</p>`;
     return;
   }
 
@@ -264,15 +347,24 @@ function renderPrintQueue(data) {
     const batchTitle = batch.batchNumber
       ? `Batch ${batch.batchNumber}${batch.batchLabel ? ` — ${batch.batchLabel}` : ""}`
       : "No batch assigned";
+    const batchIds = batch.tags.map((t) => t.id);
+    const batchIdsCsv = batchIds.join(",");
+    const allSelected = batchIds.length > 0 && batchIds.every((id) => _pqSelected.has(id));
     return `
       <div style="margin-bottom:20px">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding:8px 12px;background:#F1F1F0;border-radius:8px;border:1px solid #E5E7EB">
-          <span style="font-weight:700;font-size:0.9rem">${batchTitle} <span style="font-weight:400;color:#6B7280">(${batch.tags.length} tags)</span></span>
+          <label style="display:flex;align-items:center;gap:8px;font-weight:700;font-size:0.9rem;cursor:pointer">
+            <input type="checkbox" class="pq-select-all" data-ids="${batchIdsCsv}" ${allSelected ? "checked" : ""} onchange="togglePqSelectBatch('${batchIdsCsv}', this.checked)" style="width:16px;height:16px;cursor:pointer" />
+            ${batchTitle} <span style="font-weight:400;color:#6B7280">(${batch.tags.length} tags)</span>
+          </label>
           ${batch.batchNumber ? `<button class="action small" style="color:#DC2626;background:#FEF2F2;border-color:#FECACA" onclick="deleteBatch('${batch.batchNumber}')">Delete batch</button>` : ""}
         </div>
         ${batch.tags.map(tag => `
           <article class="queue-row">
-            <strong>${tag.token}</strong>
+            <input type="checkbox" class="pq-select" data-id="${tag.id}" ${_pqSelected.has(tag.id) ? "checked" : ""} onchange="togglePqSelect('${tag.id}', this.checked)" style="width:16px;height:16px;cursor:pointer;flex:0 0 auto" />
+            <strong>${tag.token} ${tag.premium
+              ? `<span style="display:inline-block;background:#FF2700;color:#fff;font-size:0.62rem;font-weight:800;letter-spacing:.04em;padding:2px 7px;border-radius:20px;vertical-align:middle;margin-left:4px">PREMIUM</span>`
+              : `<span style="display:inline-block;background:#F1F1F0;color:#6B7280;font-size:0.62rem;font-weight:700;letter-spacing:.04em;padding:2px 7px;border-radius:20px;vertical-align:middle;margin-left:4px">FREE</span>`}</strong>
             <span>Print status: <strong>${tag.printStatus}</strong></span>
             <a href="${tag.claimUrl}" target="_blank" rel="noreferrer" style="word-break:break-all;font-size:0.82rem">${tag.claimUrl}</a>
             ${tag.printStatus !== "printed" ? `<button class="action small" onclick="markPrinted('${tag.id}')">Mark as printed</button>` : `<span style="color:#FF2700;font-weight:700">✓ Printed</span>`}
@@ -281,6 +373,8 @@ function renderPrintQueue(data) {
       </div>
     `;
   }).join("");
+
+  _pqUpdateExportLabel();
 }
 
 async function exportQrsForPrint() {
@@ -294,7 +388,11 @@ async function exportQrsForPrint() {
 
   try {
     const data = await fetchJson("/api/admin/print-queue/export");
-    const tags = data.tags || [];
+    let tags = data.tags || [];
+    // If the admin ticked specific tags, export only those; otherwise export
+    // the whole sheet (original behaviour).
+    if (_pqSelected.size > 0) tags = tags.filter((tag) => _pqSelected.has(tag.id));
+
     if (countLabel) countLabel.textContent = `${tags.length} tag${tags.length !== 1 ? "s" : ""} ready to print`;
 
     if (!tags.length) {
@@ -302,7 +400,7 @@ async function exportQrsForPrint() {
       return;
     }
 
-    grid.innerHTML = tags.map(tag => stickerHtml(tag)).join("");
+    grid.innerHTML = tags.map(tag => etagPrintPageHtml(tag)).join("");
   } catch (err) {
     grid.innerHTML = `<p style="color:#DC2626">Failed to load: ${err.message}</p>`;
   }
@@ -318,9 +416,9 @@ async function markPrinted(tagId) {
 }
 
 async function deleteBatch(batchNumber) {
-  if (!confirm(`Delete all unclaimed tags in batch "${batchNumber}"? This cannot be undone.`)) return;
+  if (!confirm(`Delete ALL unclaimed tags in batch "${batchNumber}" (including any already printed)? This cannot be undone.`)) return;
   try {
-    const data = await fetchJson(`/api/admin/tags/batch/${encodeURIComponent(batchNumber)}`, { method: "DELETE" });
+    const data = await fetchJson(`/api/admin/tags/batch/${encodeURIComponent(batchNumber)}?confirm=1`, { method: "DELETE" });
     setStatus(`Deleted ${data.deleted} tags from batch ${batchNumber}.`, "success");
     await loadPrintQueue();
   } catch (err) {
@@ -329,10 +427,13 @@ async function deleteBatch(batchNumber) {
 }
 
 async function clearAllUnprinted() {
-  if (!confirm("Delete ALL unclaimed unprinted tags? This cannot be undone.")) return;
+  // Typed-confirmation safeguard for this mass delete. Printed tags are NOT
+  // affected (they live in the separate "Printed" view).
+  const answer = prompt('This permanently deletes ALL unprinted tags. Printed tags are kept.\n\nType DELETE to confirm.');
+  if (answer !== "DELETE") return;
   try {
-    const data = await fetchJson("/api/admin/tags/unclaimed/all", { method: "DELETE" });
-    setStatus(`Cleared ${data.deleted} unclaimed tags.`, "success");
+    const data = await fetchJson("/api/admin/tags/unclaimed/all?confirm=all", { method: "DELETE" });
+    setStatus(`Cleared ${data.deleted} unprinted tag(s).`, "success");
     await loadPrintQueue();
   } catch (err) {
     alert(`Failed to clear queue: ${err.message}`);
@@ -469,9 +570,56 @@ async function issueTag() {
   }
 }
 
+let _pqPrinted = false;
+// Tags ticked in the queue for export. Empty ⇒ export all (preserves the
+// original "export everything" behaviour). Survives re-renders of the queue.
+const _pqSelected = new Set();
+// Ids currently shown in the queue — used so "Select all" and the fallback
+// know the full set, and so we can prune stale selections after a reload.
+let _pqVisibleIds = [];
+
+function _pqUpdateExportLabel() {
+  const btn = byId("export-qr-button");
+  if (!btn) return;
+  const n = _pqSelected.size;
+  // Keep the icon; only swap the trailing text node.
+  const label = n > 0 ? `Export QRs (${n})` : "Export QRs";
+  const textNode = [...btn.childNodes].reverse().find((node) => node.nodeType === 3 && node.textContent.trim());
+  if (textNode) textNode.textContent = ` ${label}`;
+  else btn.append(document.createTextNode(` ${label}`));
+}
+
+function togglePqSelect(id, checked) {
+  if (checked) _pqSelected.add(id);
+  else _pqSelected.delete(id);
+  // Reflect batch "select all" checkbox states without a full re-render.
+  document.querySelectorAll(".pq-select-all").forEach((box) => {
+    const ids = (box.dataset.ids || "").split(",").filter(Boolean);
+    box.checked = ids.length > 0 && ids.every((i) => _pqSelected.has(i));
+  });
+  _pqUpdateExportLabel();
+}
+window.togglePqSelect = togglePqSelect;
+
+function togglePqSelectBatch(idsCsv, checked) {
+  const ids = idsCsv.split(",").filter(Boolean);
+  for (const id of ids) {
+    if (checked) _pqSelected.add(id);
+    else _pqSelected.delete(id);
+  }
+  // Sync the individual row checkboxes in this batch.
+  for (const id of ids) {
+    const box = document.querySelector(`.pq-select[data-id="${id}"]`);
+    if (box) box.checked = checked;
+  }
+  _pqUpdateExportLabel();
+}
+window.togglePqSelectBatch = togglePqSelectBatch;
+
 async function loadPrintQueue() {
   try {
-    const data = await fetchJson("/api/admin/print-queue");
+    const url = _pqPrinted ? "/api/admin/print-queue?printed=1" : "/api/admin/print-queue";
+    const data = await fetchJson(url);
     renderPrintQueue(data);
     setStatus("Print queue loaded.", "success");
   } catch (error) {
@@ -483,6 +631,20 @@ async function loadPrintQueue() {
     window.ptProgress?.finish();
   }
 }
+
+// Toggle between "To Print" (unprinted) and "Printed · awaiting claim" views.
+function switchPqTab(printed) {
+  _pqPrinted = Boolean(printed);
+  const uBtn = byId("pq-tab-unprinted");
+  const pBtn = byId("pq-tab-printed");
+  if (uBtn) uBtn.className = _pqPrinted ? "pt-admin-btn pt-admin-btn-ghost" : "pt-admin-btn pt-admin-btn-primary";
+  if (pBtn) pBtn.className = _pqPrinted ? "pt-admin-btn pt-admin-btn-primary" : "pt-admin-btn pt-admin-btn-ghost";
+  // "Clear all unprinted" only applies to the unprinted view.
+  const clearBtn = byId("clear-all-button");
+  if (clearBtn) clearBtn.style.display = _pqPrinted ? "none" : "";
+  loadPrintQueue();
+}
+window.switchPqTab = switchPqTab;
 
 async function loadOwners() {
   const target = byId("owner-monitor-list");

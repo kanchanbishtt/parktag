@@ -5,6 +5,24 @@ import crypto from "node:crypto";
 // plans/tiers can be added without touching call sites.
 export const STICKER_PRICE_INR = 199;
 
+// Server-authoritative shop catalog (M15). Prices live here, NOT in the browser:
+// the shop checkout sends only a productId, and the server resolves the amount it
+// charges from this map — so a tampered client `amount` can never be trusted.
+// Keep the ids/prices in sync with the shop UI (`frontend/pages/owner/welcome.html`).
+export const SHOP_PRODUCTS = {
+  "pt-car-1": { name: "ParkTag Car Tag (Pack of 1)", amount: 399 },
+  "pt-car-2": { name: "ParkTag Car Tag (Pack of 2)", amount: 699 },
+  "pt-bike-1": { name: "ParkTag Bike Tag", amount: 349 },
+  "pt-combo": { name: "ParkTag Combo Pack", amount: 699 }
+};
+
+// Look up a shop product by id. Returns { id, name, amount } or null for an
+// unknown id, so callers can 400 on anything not in the catalog.
+export function getShopProduct(productId) {
+  const product = SHOP_PRODUCTS[productId];
+  return product ? { id: productId, ...product } : null;
+}
+
 export function isRazorpayConfigured(env) {
   return Boolean(env.razorpayKeyId && env.razorpayKeySecret);
 }

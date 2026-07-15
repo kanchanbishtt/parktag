@@ -59,6 +59,11 @@
             </div>
           </div>
 
+          <div class="pt-admin-pq-tabs" style="display:flex;gap:8px;margin:4px 0 16px">
+            <button id="pq-tab-unprinted" class="pt-admin-btn pt-admin-btn-primary" onclick="switchPqTab(false)">To Print</button>
+            <button id="pq-tab-printed" class="pt-admin-btn pt-admin-btn-ghost" onclick="switchPqTab(true)">Printed · awaiting claim</button>
+          </div>
+
           <div id="print-queue-output"><p class="pt-admin-empty">No print queue loaded yet.</p></div>
         </div>
 
@@ -74,14 +79,51 @@
               <button id="close-export-button" style="padding:10px 20px;background:#F3F4F6;color:#323232;border:1px solid #E5E7EB;border-radius:10px;font-weight:700;cursor:pointer;font-size:0.95rem;font-family:inherit">Close</button>
             </div>
           </div>
-          <div id="qr-export-grid" style="display:flex;flex-wrap:wrap;gap:16px;max-width:1200px;margin:0 auto"></div>
+          <div id="qr-export-grid" style="max-width:760px;margin:0 auto"></div>
         </div>
 
         <style>
+          /* Full-page E-Tag export layout — a 1:1 copy of the owner
+             Vehicle-Detail PDF (pages/owner/vehicle-detail.html #etag-print),
+             scoped to the export grid. One tag per .pt-page. */
+          #qr-export-grid .pt-page { width: 100%; max-width: 720px; margin: 0 auto 40px; }
+          #qr-export-grid .pt-wrap { font-family: 'Inter','Segoe UI',Arial,sans-serif; color: #03162D; }
+          #qr-export-grid .pt-instr { font-size: 11px; line-height: 1.8; margin-bottom: 18px; color: #323232; }
+          #qr-export-grid .pt-instr .pt-instr-h { display: block; font-size: 12.5px; font-weight: 800; margin: 3px 0 2px; color: #03162D; }
+          #qr-export-grid .pt-instr ol { margin: 5px 0 0; padding-left: 18px; }
+          #qr-export-grid .pt-freebox { margin-top: 10px; padding: 9px 12px; background: #FFF1EF; border: 1px solid #FFD8D0; border-radius: 9px; font-size: 10px; color: #03162D; line-height: 1.55; }
+          #qr-export-grid .pt-freebox b { color: #B31C00; }
+          #qr-export-grid .pt-cut { border: 1.5px dashed #b6bcc6; border-radius: 16px; padding: 14px; display: block; page-break-inside: avoid; }
+          #qr-export-grid .pt-sticker { display: flex; width: 100%; border-radius: 18px; overflow: hidden; border: 2px solid #03162D; }
+          #qr-export-grid .pt-left { flex: 0 0 60%; background: #fff; padding: 22px; display: flex; flex-direction: column; justify-content: space-between; }
+          #qr-export-grid .pt-logo { height: 26px; width: auto; display: block; }
+          #qr-export-grid .pt-tagline { font-size: 7px; font-weight: 800; letter-spacing: .2em; color: #6B7280; margin-top: 5px; }
+          #qr-export-grid .pt-head { font-size: 29px; font-weight: 900; color: #03162D; line-height: 1.12; margin: 16px 0 0; letter-spacing: -0.01em; }
+          #qr-export-grid .pt-head u { text-decoration: underline; text-decoration-thickness: 2.5px; text-underline-offset: 2px; }
+          #qr-export-grid .pt-scaninfo { font-size: 7px; font-weight: 700; letter-spacing: .05em; color: #6B7280; margin-top: 14px; line-height: 1.6; text-transform: uppercase; }
+          #qr-export-grid .pt-etagline { font-size: 7px; color: #9CA3AF; margin-top: 6px; letter-spacing: .02em; }
+          #qr-export-grid .pt-right { flex: 0 0 40%; background: #FF2700; padding: 18px 14px; display: flex; flex-direction: column; align-items: center; justify-content: space-between; }
+          #qr-export-grid .pt-qr-box { background: #fff; border-radius: 12px; padding: 10px; }
+          #qr-export-grid .pt-qr { width: 150px; height: 150px; display: block; }
+          #qr-export-grid .pt-rt-brand { font-size: 8.5px; font-weight: 800; color: #fff; margin-top: 11px; text-align: center; }
+          #qr-export-grid .pt-rt-brand span { font-weight: 600; opacity: .9; }
+          #qr-export-grid .pt-icons { display: flex; gap: 13px; margin-top: 11px; }
+          #qr-export-grid .pt-rt-note { font-size: 7.5px; font-weight: 700; color: #fff; text-align: center; margin-top: 8px; line-height: 1.5; }
+
           @media print {
-            body > * { display: none !important; }
-            #qr-export-overlay { display: block !important; position: static !important; }
+            /* visibility (not display) so the overlay shows even though it is
+               nested inside .pt-admin-shell — a display:none ancestor can't be
+               un-hidden, but visibility is per-element. */
+            body * { visibility: hidden !important; }
+            #qr-export-overlay, #qr-export-overlay * { visibility: visible !important; }
+            #qr-export-overlay { display: block !important; position: static !important; overflow: visible !important; padding: 0 !important; }
             #qr-export-overlay > div:first-child { display: none !important; }
+            #qr-export-overlay, #qr-export-overlay * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+            /* One tag per page, full page width within the @page margins. */
+            @page { margin: 1.2cm; size: A4; }
+            #qr-export-grid { max-width: none !important; }
+            #qr-export-grid .pt-page { max-width: none; margin: 0 auto; page-break-after: always; }
+            #qr-export-grid .pt-page:last-child { page-break-after: auto; }
           }
         </style>
 

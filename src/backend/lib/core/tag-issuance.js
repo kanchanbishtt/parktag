@@ -88,6 +88,7 @@ export async function buildIssuedTagOutput(request, tag) {
     batchLabel: tag.batchLabel || null,
     printStatus: tag.printStatus,
     stickerRequested: tag.stickerRequested,
+    premium: Boolean(tag.premium),
     claimUrl,
     qrDataUrl
   };

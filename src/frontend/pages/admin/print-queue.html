@@ -59,6 +59,11 @@
             </div>
           </div>
 
+          <div class="pt-admin-pq-tabs" style="display:flex;gap:8px;margin:4px 0 16px">
+            <button id="pq-tab-unprinted" class="pt-admin-btn pt-admin-btn-primary" onclick="switchPqTab(false)">To Print</button>
+            <button id="pq-tab-printed" class="pt-admin-btn pt-admin-btn-ghost" onclick="switchPqTab(true)">Printed · awaiting claim</button>
+          </div>
+
           <div id="print-queue-output"><p class="pt-admin-empty">No print queue loaded yet.</p></div>
         </div>
 

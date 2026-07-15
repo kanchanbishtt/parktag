@@ -24,6 +24,7 @@ Rules:
 - [x] M9. Tiered rate limiting — per-route protection
 - [ ] M15. Lock shop payment amounts server-side
 - [ ] M16. Per-vehicle official sticker upgrade & gated download on My Vehicles cards
+- [ ] M17. Print queue split (to-print vs printed) & delete safeguards
 
 ## M1. Confirm MVP Scope And Repo Workflow
 
@@ -708,8 +709,8 @@ Covers UX and security improvements made after M13 call flow was confirmed worki
 ### Step 1 — Card action row (structure + conditional render)
 
 - [x] Restructure `vehicleCard()` in `welcome.js` so the wrapper is no longer a single `<a>` — keep icon/body as the tap target that opens `/owner-vehicle-detail?...`, add a dedicated action-row region inside the card
-- [x] When `tag.purchaseStatus !== "paid"`: render a primary **"Official Sticker — ₹199"** button in the action row (no download button)
-- [x] When `tag.purchaseStatus === "paid"`: render a **"Download E-Tag"** button in the action row (no upgrade button)
+- [x] When `tag.premium !== true`: render a primary **"Official Sticker — ₹199"** button in the action row (no download button)
+- [x] When `tag.premium === true`: render a **"Download E-Tag"** button in the action row (no upgrade button) — covers both in-app upgrade and external premium-batch stickers
 - [x] Ensure both buttons call `event.stopPropagation()` / `preventDefault()` so tapping them never triggers card navigation
 - [x] Show the action row on both active and inactive cards
 
@@ -747,8 +748,38 @@ Covers UX and security improvements made after M13 call flow was confirmed worki
 - [ ] Tapping either **button** does NOT navigate to vehicle-detail
 - [ ] In MongoDB, after purchase the tag has `purchaseStatus:"paid"`, `premium:true`, `physicalTagPurchased:true`
 - [ ] Reload the dashboard → the purchased card still shows Download (state comes from the server, not memory)
-- [ ] A premium-batch tag (`premium:true`, `purchaseStatus:"none"`) still shows the upgrade button, not download (confirms the gate is purchase-based) — or per client decision in `PLAN.md` §18.4
+- [ ] A premium-batch tag (`premium:true`, `purchaseStatus:"none"`) shows the **Download** button, not the upgrade button (gate is `premium`-based — premium-batch stickers are bought externally, no in-app payment; see `PLAN.md` §18.4)
 - [ ] The existing premium purchase + download on the vehicle-detail page still works unchanged
+
+## M17. Print Queue Split & Delete Safeguards (Admin)
+
+> Splits the admin Print Queue into "To Print" (unprinted) and "Printed · awaiting claim" views, and hardens the destructive delete actions. Backend: `src/backend/routes/admin/index.js`; frontend: `src/frontend/scripts/admin/index.js` + `src/frontend/pages/admin/print-queue.html`.
+
+### Print Queue split
+
+- [x] `GET /api/admin/print-queue` accepts `?printed=1` → returns unclaimed tags with `printStatus === "printed"`; default returns unclaimed with `printStatus !== "printed"`
+- [x] `GET /api/admin/print-queue/export` scoped to unprinted tags only (the sheet that still needs printing)
+- [x] Print Queue page has a tab toggle: **To Print** (default) vs **Printed · awaiting claim**; each loads the matching view
+- [x] "Clear all unprinted" button is hidden on the Printed view (only applies to unprinted)
+
+### Delete safeguards
+
+- [x] `DELETE /api/admin/tags/unclaimed/all` requires `?confirm=all`; otherwise 400
+- [x] `DELETE /api/admin/tags/unclaimed/all` now deletes only UNPRINTED tags (`printStatus !== "printed"`) — printed unclaimed tags are preserved (previously it wiped all unclaimed regardless of print status)
+- [x] `DELETE /api/admin/tags/batch/:batchNumber` requires `?confirm=1`; otherwise 400
+- [x] Frontend "Clear all unprinted" uses a typed-confirmation (type `DELETE`) before calling the API
+- [x] Frontend batch delete confirm wording clarifies it includes already-printed tags
+
+### Verification
+
+- [ ] Issue a batch → all tags appear under **To Print**; **Printed · awaiting claim** is empty
+- [ ] Mark a tag printed → it moves from **To Print** to **Printed · awaiting claim**
+- [ ] Claim that printed tag (scan → claim) → it disappears from both print-queue views and appears under Owners + E-Tags
+- [ ] "Clear all unprinted" → prompts to type `DELETE`; cancelling or wrong text does nothing
+- [ ] After confirming "Clear all unprinted" → unprinted tags gone, **Printed · awaiting claim** tags still present
+- [ ] Direct `DELETE /api/admin/tags/unclaimed/all` without `?confirm=all` → 400; with it → succeeds (unprinted only)
+- [ ] Direct `DELETE /api/admin/tags/batch/<n>` without `?confirm=1` → 400; with it → succeeds
+- [ ] Export QRs shows only unprinted tags
 
 ## Current Focus
 

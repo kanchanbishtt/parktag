@@ -247,7 +247,7 @@ function renderPrintQueue(data) {
   }
 
   if (!tags.length) {
-    target.innerHTML = `<p class="empty-copy">Queue is empty — all tags have been printed or none have been issued yet.</p>`;
+    target.innerHTML = `<p class="empty-copy">${_pqPrinted ? "No printed tags are awaiting a claim." : "Nothing waiting to be printed — issue a batch to populate the queue."}</p>`;
     return;
   }
 
@@ -318,9 +318,9 @@ async function markPrinted(tagId) {
 }
 
 async function deleteBatch(batchNumber) {
-  if (!confirm(`Delete all unclaimed tags in batch "${batchNumber}"? This cannot be undone.`)) return;
+  if (!confirm(`Delete ALL unclaimed tags in batch "${batchNumber}" (including any already printed)? This cannot be undone.`)) return;
   try {
-    const data = await fetchJson(`/api/admin/tags/batch/${encodeURIComponent(batchNumber)}`, { method: "DELETE" });
+    const data = await fetchJson(`/api/admin/tags/batch/${encodeURIComponent(batchNumber)}?confirm=1`, { method: "DELETE" });
     setStatus(`Deleted ${data.deleted} tags from batch ${batchNumber}.`, "success");
     await loadPrintQueue();
   } catch (err) {
@@ -329,10 +329,13 @@ async function deleteBatch(batchNumber) {
 }
 
 async function clearAllUnprinted() {
-  if (!confirm("Delete ALL unclaimed unprinted tags? This cannot be undone.")) return;
+  // Typed-confirmation safeguard for this mass delete. Printed tags are NOT
+  // affected (they live in the separate "Printed" view).
+  const answer = prompt('This permanently deletes ALL unprinted tags. Printed tags are kept.\n\nType DELETE to confirm.');
+  if (answer !== "DELETE") return;
   try {
-    const data = await fetchJson("/api/admin/tags/unclaimed/all", { method: "DELETE" });
-    setStatus(`Cleared ${data.deleted} unclaimed tags.`, "success");
+    const data = await fetchJson("/api/admin/tags/unclaimed/all?confirm=all", { method: "DELETE" });
+    setStatus(`Cleared ${data.deleted} unprinted tag(s).`, "success");
     await loadPrintQueue();
   } catch (err) {
     alert(`Failed to clear queue: ${err.message}`);
@@ -469,9 +472,12 @@ async function issueTag() {
   }
 }
 
+let _pqPrinted = false;
+
 async function loadPrintQueue() {
   try {
-    const data = await fetchJson("/api/admin/print-queue");
+    const url = _pqPrinted ? "/api/admin/print-queue?printed=1" : "/api/admin/print-queue";
+    const data = await fetchJson(url);
     renderPrintQueue(data);
     setStatus("Print queue loaded.", "success");
   } catch (error) {
@@ -483,6 +489,20 @@ async function loadPrintQueue() {
     window.ptProgress?.finish();
   }
 }
+
+// Toggle between "To Print" (unprinted) and "Printed · awaiting claim" views.
+function switchPqTab(printed) {
+  _pqPrinted = Boolean(printed);
+  const uBtn = byId("pq-tab-unprinted");
+  const pBtn = byId("pq-tab-printed");
+  if (uBtn) uBtn.className = _pqPrinted ? "pt-admin-btn pt-admin-btn-ghost" : "pt-admin-btn pt-admin-btn-primary";
+  if (pBtn) pBtn.className = _pqPrinted ? "pt-admin-btn pt-admin-btn-primary" : "pt-admin-btn pt-admin-btn-ghost";
+  // "Clear all unprinted" only applies to the unprinted view.
+  const clearBtn = byId("clear-all-button");
+  if (clearBtn) clearBtn.style.display = _pqPrinted ? "none" : "";
+  loadPrintQueue();
+}
+window.switchPqTab = switchPqTab;
 
 async function loadOwners() {
   const target = byId("owner-monitor-list");

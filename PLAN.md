@@ -757,13 +757,17 @@ Make buying the official ParkTag sticker and downloading the official E-Tag dire
 
 Add an action row to `vehicleCard()` in `welcome.js`, shown on both active and inactive cards:
 
-- If the tag has NOT been purchased (`purchaseStatus !== "paid"`): show a single primary button **"Official Sticker — ₹199"** that launches the per-tag Razorpay purchase for that specific tag. No download button yet.
-- If the tag HAS been purchased (`purchaseStatus === "paid"`): hide the upgrade button and show a **"Download E-Tag"** button that downloads/prints the official sticker for that tag.
-- After a successful purchase, the dashboard reloads (`window._reloadDashboard()`) so the same card flips from "upgrade" to "download" with no manual refresh.
+- If the tag is NOT official yet (`premium !== true`): show a single primary button **"Official Sticker — ₹199"** that launches the per-tag Razorpay purchase for that specific tag. No download button yet.
+- If the tag IS official (`premium === true`): hide the upgrade button and show a **"Download E-Tag"** button that downloads/prints the official sticker for that tag.
+- After a successful in-app purchase, the dashboard reloads (`window._reloadDashboard()`) so the same card flips from "upgrade" to "download" with no manual refresh.
 
 ### 18.4 Gating rule (decision)
 
-Download is gated on a completed Razorpay purchase — `purchaseStatus === "paid"` (equivalently `physicalTagPurchased === true`) — **not** merely `premium === true`. Rationale: admin "premium batch" tags carry `premium:true` without any owner purchase, and the download button is meant to represent the sticker the owner actually paid for. If the client later wants premium-batch tags to also expose download, relax the gate to `premium === true`.
+Download is gated on **`premium === true`** — i.e. the tag is official, however it became official:
+- **In-app upgrade:** `purchase-verify` sets `premium: true` (and `purchaseStatus: "paid"`).
+- **Premium-batch sticker:** admin issuance sets `premium: true` with `purchaseStatus: "none"`. These physical stickers are sold externally (Amazon / other platforms), so there is no in-app payment to track — the `premium` flag alone marks them official.
+
+Gating on `premium` (rather than `purchaseStatus === "paid"`) covers both paths, so any official tag exposes Download and only non-premium tags show the ₹199 upgrade.
 
 ### 18.5 Implementation notes / constraints
 

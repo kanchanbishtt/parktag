@@ -705,6 +705,79 @@ The bell icon in the dashboard header is a non-functional button. Nothing happen
 
 ---
 
+## 17. Server-Side Payment Amount Lock (Shop Checkout)
+
+### 17.1 Why this matters
+
+`POST /api/shop/create-order` in `src/backend/routes/shop/index.js` currently reads `amount` directly from the client request body and passes it straight to Razorpay. Anyone can edit the request and create a real, payable order for any price (for example `₹1` instead of `₹399`). The signature check in `POST /api/shop/verify-payment` only proves the payment matches *some* order Razorpay created — it does not prove the order was for the correct price. This is a money-integrity hole.
+
+Scope note: the owner premium-upgrade flow (`POST /api/owner/tags/:tagId/purchase-order` and `.../purchase-verify`) is already safe. It uses the server-side constant `STICKER_PRICE_INR`, ignores any client amount, and binds the verified payment to the order created for that specific tag. **Only the generic `/api/shop/*` path is affected by this section.**
+
+### 17.2 Fix direction
+
+Move the price to the server. The client may say *which* product it wants (`productId`); it may never dictate *how much* it costs.
+
+1. Define a server-side product catalog (`productId` → `{ name, amount }`) in `src/backend/lib/integrations/payments.js`. Prices must mirror the current shop frontend exactly — confirm against the shop UI before locking.
+2. `create-order` resolves the price from the catalog by `productId`, **ignores any client-supplied `amount`**, and rejects unknown product ids with `400`.
+3. The shop frontend sends only `productId` (and optionally a display name); the charged amount always comes from the server catalog.
+4. Hardening (optional for MVP): persist each created shop order server-side so `verify-payment` can bind payment → order → expected amount, matching the robustness of the owner premium flow.
+
+### 17.3 Product catalog (confirm exact values against the shop frontend before locking)
+
+| productId | Name | Amount (INR) |
+|---|---|---|
+| `car_tag` | Car Tag | 399 |
+| `bike_tag` | Bike Tag | 349 |
+| `combo` | Combo (Car + Bike) | 699 |
+
+> These prices come from `PLAN.md` §16 Q3 and must be reconciled with the live shop frontend script before they are treated as canonical. If the frontend uses different ids/prices, the server catalog wins and the frontend is aligned to it.
+
+### 17.4 Out of scope
+
+- No change to the owner premium-upgrade flow (already server-locked).
+- No new payment providers, product tiers, or shop products.
+
+## 18. Per-Vehicle Official Sticker Upgrade & Gated Download (My Vehicles cards)
+
+### 18.1 Goal
+
+Make buying the official ParkTag sticker and downloading the official E-Tag directly accessible from each registered vehicle card in the owner dashboard's "My Vehicles" list, instead of forcing the owner to open the vehicle-detail page first. Both active and inactive vehicle cards get these actions. The download button appears only after the owner has completed the official-sticker purchase through Razorpay.
+
+### 18.2 Current state (reuse, do not rebuild)
+
+- Per-tag purchase already works end-to-end: `POST /api/owner/tags/:tagId/purchase-order` (fixed price `STICKER_PRICE_INR` = ₹199, resolved server-side) → Razorpay checkout → `POST /api/owner/tags/:tagId/purchase-verify` (verifies signature, binds the payment to that tag's order, sets `premium:true`, `purchaseStatus:"paid"`, `physicalTagPurchased:true`, `printStatus:"pending_print"`).
+- A working reference frontend implementation already exists in `src/frontend/scripts/owner/vehicle-detail.js` (`buy-premium-btn`).
+- The dashboard tag payload (`GET /api/owner/dashboard`) already includes `premium`, `purchaseStatus`, `qrDataUrl`, `scanUrl`, `etagId`, and `status` — everything a card needs.
+- `downloadETag()` in `src/frontend/scripts/owner/welcome.js` already fills a hidden print sticker template (`#wl-print-*`) and calls `window.print()`.
+- Razorpay `checkout.js` is already loaded on `welcome.html`; `window._reloadDashboard()` already exists to refresh the dashboard after a purchase.
+
+**No backend changes are required.** This is a frontend surfacing feature only.
+
+### 18.3 Behaviour on each vehicle card
+
+Add an action row to `vehicleCard()` in `welcome.js`, shown on both active and inactive cards:
+
+- If the tag has NOT been purchased (`purchaseStatus !== "paid"`): show a single primary button **"Official Sticker — ₹199"** that launches the per-tag Razorpay purchase for that specific tag. No download button yet.
+- If the tag HAS been purchased (`purchaseStatus === "paid"`): hide the upgrade button and show a **"Download E-Tag"** button that downloads/prints the official sticker for that tag.
+- After a successful purchase, the dashboard reloads (`window._reloadDashboard()`) so the same card flips from "upgrade" to "download" with no manual refresh.
+
+### 18.4 Gating rule (decision)
+
+Download is gated on a completed Razorpay purchase — `purchaseStatus === "paid"` (equivalently `physicalTagPurchased === true`) — **not** merely `premium === true`. Rationale: admin "premium batch" tags carry `premium:true` without any owner purchase, and the download button is meant to represent the sticker the owner actually paid for. If the client later wants premium-batch tags to also expose download, relax the gate to `premium === true`.
+
+### 18.5 Implementation notes / constraints
+
+- The card is currently a single `<a>` linking to the detail page. Interactive buttons cannot be nested inside an anchor. Restructure the card wrapper to a non-anchor container: the icon/body stays the tap target that opens `/owner-vehicle-detail?...`, and the new action buttons call `event.stopPropagation()` (and `preventDefault()`) so tapping a button never also navigates.
+- Reuse the purchase flow verbatim (same two endpoints). Add a `buyOfficialSticker(tagId, btnEl)` helper in `welcome.js` mirroring the logic already proven in `vehicle-detail.js`.
+- Reuse the existing hidden print template. Add a `downloadETagFor(tagId)` helper that resolves the tag by id from `allTags`, fills `#wl-print-*`, and prints — independent of the burger-menu `_selIdx` selection used by the current `downloadETag()`.
+- Preserve loading/disabled button states and error toasts consistent with existing patterns (`.pt-btn-loading`, `_toast`).
+
+### 18.6 Out of scope
+
+- No change to pricing or the purchase endpoints.
+- No change to the Shop tab or the separate shop-order flow (see §17).
+- No new backend routes or database fields.
+
 ## 12. Living Document Rule
 
 Keep this file updated as the prototype direction changes.

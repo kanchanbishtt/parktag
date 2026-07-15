@@ -245,7 +245,7 @@ document.getElementById("buy-premium-btn")?.addEventListener("click", async () =
   const original = btn.textContent;
   btn.textContent = "Starting payment…";
   try {
-    const res = await fetch(`/api/owner/tags/${realId}/purchase-order`, { method: "POST", headers: { "content-type": "application/json" } });
+    const res = await fetch(`/api/owner/tags/${realId}/purchase-order`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
     const order = await res.json();
     if (!res.ok) throw new Error(order.error || "Could not start payment.");
 

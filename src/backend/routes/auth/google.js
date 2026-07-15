@@ -15,8 +15,8 @@ export function registerGoogleAuthRoutes(app, env) {
   // Purge expired states to prevent unbounded memory growth
   function purgeExpiredStates() {
     const now = Date.now();
-    for (const [key, ts] of app.oauthStates) {
-      if (now - ts > STATE_TTL_MS) app.oauthStates.delete(key);
+    for (const [key, value] of app.oauthStates) {
+      if (now - value.ts > STATE_TTL_MS) app.oauthStates.delete(key);
     }
   }
 

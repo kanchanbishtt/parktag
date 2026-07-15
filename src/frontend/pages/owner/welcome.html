@@ -202,14 +202,31 @@
     .pt-vgrid { display: flex; flex-direction: column; gap: 10px; }
 
     .pt-vlc {
-      display: flex; align-items: center; gap: 14px;
+      display: flex; flex-direction: column; align-items: stretch;
       background: #fff; border-radius: 16px;
       border: 1.5px solid #E5E7EB; border-left-width: 4px;
-      padding: 14px 16px; text-decoration: none; color: inherit;
+      color: inherit; overflow: hidden;
       transition: box-shadow .16s, transform .13s;
     }
     .pt-vlc:hover  { box-shadow: 0 4px 18px rgba(0,0,0,.09); transform: translateX(3px); }
-    .pt-vlc:active { transform: scale(.99); box-shadow: none; }
+    .pt-vlc-main {
+      display: flex; align-items: center; gap: 14px;
+      padding: 14px 16px; cursor: pointer;
+      text-decoration: none; color: inherit;
+    }
+    .pt-vlc-main:active { transform: scale(.99); }
+    .pt-vlc-actions { display: flex; gap: 8px; padding: 0 16px 13px; }
+    .pt-vlc-act {
+      flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      border: none; border-radius: 10px; padding: 9px 12px;
+      font-size: .78rem; font-weight: 800; cursor: pointer; font-family: inherit;
+      transition: filter .15s, background .15s;
+    }
+    .pt-vlc-act.buy { background: #FF2700; color: #fff; }
+    .pt-vlc-act.buy:hover { filter: brightness(1.06); }
+    .pt-vlc-act.dl  { background: #F3F4F6; color: #03162D; border: 1.5px solid #E5E7EB; }
+    .pt-vlc-act.dl:hover { background: #E9EBEF; }
+    .pt-vlc-act:disabled { opacity: .6; cursor: default; }
     .pt-vlc-icon {
       width: 48px; height: 48px; border-radius: 14px; flex-shrink: 0;
       display: flex; align-items: center; justify-content: center;

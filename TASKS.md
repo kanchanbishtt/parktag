@@ -22,6 +22,8 @@ Rules:
 - [ ] M7. Verify telephony and fallback messaging behavior
 - [ ] M8. Prepare deployment, demo, docs, and operator runbook
 - [x] M9. Tiered rate limiting — per-route protection
+- [ ] M15. Lock shop payment amounts server-side
+- [ ] M16. Per-vehicle official sticker upgrade & gated download on My Vehicles cards
 
 ## M1. Confirm MVP Scope And Repo Workflow
 
@@ -656,6 +658,98 @@ Covers UX and security improvements made after M13 call flow was confirmed worki
 - [ ] Banner carousel — replace placeholder slides with real content
 - [ ] "Add phone to call back" text in activity cards → make clickable, navigate to phone setup via `goToPhoneSetup()`
 
+## M15. Lock Shop Payment Amounts Server-Side
+
+> Closes the money-integrity hole in `POST /api/shop/create-order`, which currently trusts a client-supplied `amount`. See `PLAN.md` §17 for the design and rationale. The owner premium-upgrade flow (`/api/owner/tags/:tagId/purchase-*`) is already server-locked and must stay unchanged.
+
+### Step 1 — Confirm the canonical product catalog
+
+- [ ] Read the shop frontend script(s) that call `/api/shop/*` (welcome / vehicle-detail / shop UI) and list every `productId` and the price shown to the user
+- [ ] Reconcile those against `PLAN.md` §17.3; update the §17.3 table so it matches the exact ids and prices the shop actually sells
+- [ ] Confirm the currency is INR and prices are whole rupees (converted to paise only inside `createRazorpayOrder`)
+
+### Step 2 — Add a server-side product catalog
+
+- [ ] Add a `SHOP_PRODUCTS` map (`productId` → `{ name, amount }`, amounts in INR) to `src/backend/lib/integrations/payments.js`
+- [ ] Add a `getShopProduct(productId)` helper that returns the product or `null` for unknown ids
+- [ ] Export both so the shop route can import them
+
+### Step 3 — Rewrite `create-order` to ignore the client amount
+
+- [ ] In `src/backend/routes/shop/index.js`, change `POST /api/shop/create-order` to read only `productId` from the body (stop trusting `amount`)
+- [ ] Resolve the product via `getShopProduct(productId)`; return `400` with a clear error for a missing/unknown `productId`
+- [ ] Pass the catalog `amount` (server value) and catalog `name` into `createRazorpayOrder` — never the client value
+- [ ] Keep returning `{ ok, orderId, amount, currency }` where `amount` is the Razorpay order amount (paise) derived from the server price
+
+### Step 4 — Align the shop frontend
+
+- [ ] Update the shop frontend checkout call to send only `productId` (and display name); remove `amount` from the request body
+- [ ] Keep the price shown in the UI, but treat it as display-only — the charged amount is whatever the server order returns
+
+### Step 5 — Hardening (optional for MVP, do if time allows)
+
+- [ ] Persist each created shop order (e.g. a `shop_orders` collection: `orderId`, `productId`, `amount`, `status`, `createdAt`)
+- [ ] In `verify-payment`, after signature check, load the stored order by `razorpay_order_id` and confirm it exists and its amount matches the catalog before marking success
+- [ ] Reject with `400` if no matching server-created order is found
+
+### Verification
+
+- [ ] `curl -X POST /api/shop/create-order -d '{"productId":"car_tag","amount":1}'` → response `amount` equals the catalog price in paise (e.g. `39900`), **not** `100`
+- [ ] `curl -X POST /api/shop/create-order -d '{"productId":"car_tag"}'` (no amount) → still returns the correct catalog amount
+- [ ] `curl -X POST /api/shop/create-order -d '{"productId":"does_not_exist"}'` → `400` with a clear "unknown product" error
+- [ ] Complete a real shop checkout end-to-end in the browser → Razorpay opens with the correct price → `verify-payment` returns `{ ok: true }`
+- [ ] Confirm the owner premium-upgrade flow is unchanged: `purchase-order` still charges `STICKER_PRICE_INR` and `purchase-verify` still succeeds
+- [ ] (If Step 5 done) Replay a valid signature against a tampered/absent server order → `verify-payment` rejects with `400`
+
+## M16. Per-Vehicle Official Sticker Upgrade & Gated Download (My Vehicles Cards)
+
+> Surfaces the existing per-tag premium purchase (`/api/owner/tags/:tagId/purchase-*`, ₹199 server-fixed) and the official E-Tag download directly on each vehicle card in the owner dashboard's My Vehicles list. Download appears only after the Razorpay purchase completes. Frontend-only — no backend changes. See `PLAN.md` §18. All edits are in `src/frontend/scripts/owner/welcome.js` and `src/frontend/pages/owner/welcome.html`.
+
+### Step 1 — Card action row (structure + conditional render)
+
+- [x] Restructure `vehicleCard()` in `welcome.js` so the wrapper is no longer a single `<a>` — keep icon/body as the tap target that opens `/owner-vehicle-detail?...`, add a dedicated action-row region inside the card
+- [x] When `tag.purchaseStatus !== "paid"`: render a primary **"Official Sticker — ₹199"** button in the action row (no download button)
+- [x] When `tag.purchaseStatus === "paid"`: render a **"Download E-Tag"** button in the action row (no upgrade button)
+- [x] Ensure both buttons call `event.stopPropagation()` / `preventDefault()` so tapping them never triggers card navigation
+- [x] Show the action row on both active and inactive cards
+
+### Step 2 — Purchase wiring (reuse existing endpoints)
+
+- [x] Add `buyOfficialSticker(tagId, btnEl)` in `welcome.js` mirroring `vehicle-detail.js`: `POST /api/owner/tags/:tagId/purchase-order` → open Razorpay with the returned `keyId/orderId/amount/currency` → on handler success `POST /api/owner/tags/:tagId/purchase-verify`
+- [x] Guard: `window.Razorpay` present and tag has a real id; disable button + apply `.pt-btn-loading` while in flight
+- [x] On verify success → success toast + `window._reloadDashboard()` so the card flips from upgrade → download automatically
+- [x] On verify failure or modal dismiss → restore button, show error toast (never leave the button stuck)
+- [x] Expose the helper on `window` and wire the card's upgrade button to it with the correct `tagId`
+
+### Step 3 — Download wiring (reuse existing print template)
+
+- [x] Add `downloadETagFor(tagId)` in `welcome.js` that resolves the tag from `allTags` by id, fills `#wl-print-vehicle-num` / `#wl-print-etag-id` / `#wl-print-status` / `#wl-print-qr-img`, then calls `window.print()` — independent of the burger-menu `_selIdx`
+- [x] Wire the card's Download button (rendered only when purchased) to `downloadETagFor(tag.id)`
+- [x] Expose the helper on `window`
+
+### Step 4 — Styles
+
+- [x] Add CSS for the `.pt-vlc` action row and button variants (upgrade = primary/red, download = neutral) that lay out cleanly in the card grid on both mobile and desktop widths
+
+### Step 5 — Cross-check
+
+- [x] Confirm Razorpay `checkout.js` is loaded on `welcome.html`; add the script tag if missing
+- [x] Confirm no regression: tapping the card body still opens the vehicle-detail page (card body is a `role="link"` tap target; buttons stopPropagation)
+
+### Verification
+
+- [ ] Non-premium **active** vehicle card shows "Official Sticker — ₹199" and no download button
+- [ ] Non-premium **inactive** vehicle card shows the same upgrade button (feature works regardless of active/inactive)
+- [ ] Tap the upgrade button → Razorpay opens with **₹199 for that specific tag** → complete a test payment → success toast → dashboard auto-reloads → the same card now shows "Download E-Tag" instead of the upgrade button
+- [ ] Tap "Download E-Tag" → print dialog opens showing that vehicle's plate, E-Tag id, status, and QR
+- [ ] Before purchase there is no download button on that card
+- [ ] Tapping the card **body** (not a button) still navigates to the vehicle-detail page
+- [ ] Tapping either **button** does NOT navigate to vehicle-detail
+- [ ] In MongoDB, after purchase the tag has `purchaseStatus:"paid"`, `premium:true`, `physicalTagPurchased:true`
+- [ ] Reload the dashboard → the purchased card still shows Download (state comes from the server, not memory)
+- [ ] A premium-batch tag (`premium:true`, `purchaseStatus:"none"`) still shows the upgrade button, not download (confirms the gate is purchase-based) — or per client decision in `PLAN.md` §18.4
+- [ ] The existing premium purchase + download on the vehicle-detail page still works unchanged
+
 ## Current Focus
 
 - [x] Establish root workflow and tracking files
@@ -670,3 +764,5 @@ Covers UX and security improvements made after M13 call flow was confirmed worki
 - [ ] Configure Google Cloud Console for production Google Sign-In
 - [ ] Implement WhatsApp Business API message delivery (M7)
 - [ ] Complete M6 security hardening checklist
+- [ ] Lock shop payment amounts server-side (M15)
+- [ ] Surface per-vehicle official sticker upgrade & gated download on My Vehicles cards (M16)

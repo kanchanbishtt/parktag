@@ -166,22 +166,44 @@ function vehicleCard(tag, idx) {
   const isActive  = tag.status !== "inactive";
   const pill      = tag.premium ? "★ Premium" : (!tag.freeContactUsed ? "1 Free Call" : "Call Used");
   const pillClass = tag.premium ? "vp-premium" : (!tag.freeContactUsed ? "vp-free" : "vp-used");
+  const detailUrl = `/owner-vehicle-detail?${params}`;
+  // Download is gated on a completed Razorpay purchase (spec: PLAN §18.4),
+  // not merely premium — admin premium-batch tags are not owner-purchased.
+  const purchased = tag.purchaseStatus === "paid";
+  const hasId     = Boolean(tag.id);
+
+  // Per-vehicle official-sticker action row (both active and inactive cards).
+  // Buttons stopPropagation so tapping them never navigates to the detail page.
+  const actions = hasId ? `
+  <div class="pt-vlc-actions">
+    ${purchased
+      ? `<button class="pt-vlc-act dl" onclick="event.stopPropagation();downloadETagFor('${tag.id}')">
+           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+           Download E-Tag
+         </button>`
+      : `<button class="pt-vlc-act buy" onclick="event.stopPropagation();buyOfficialSticker('${tag.id}',this)">Official Sticker — ₹199</button>`
+    }
+  </div>` : "";
 
   return `
-<a href="/owner-vehicle-detail?${params}" class="pt-vlc"
-   style="border-left-color:${color.accent}"
-   aria-label="${label}, ${plate}, ${isActive ? "active" : "inactive"}">
-  <div class="pt-vlc-icon" style="background:${color.bg};color:${color.accent}">${svg}</div>
-  <div class="pt-vlc-body">
-    <p class="pt-vlc-name">${label}</p>
-    <p class="pt-vlc-plate">${plate}</p>
+<div class="pt-vlc" style="border-left-color:${color.accent}">
+  <div class="pt-vlc-main" role="link" tabindex="0"
+       onclick="location.href='${detailUrl}'"
+       onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();location.href='${detailUrl}'}"
+       aria-label="${label}, ${plate}, ${isActive ? "active" : "inactive"}">
+    <div class="pt-vlc-icon" style="background:${color.bg};color:${color.accent}">${svg}</div>
+    <div class="pt-vlc-body">
+      <p class="pt-vlc-name">${label}</p>
+      <p class="pt-vlc-plate">${plate}</p>
+    </div>
+    <div class="pt-vlc-meta">
+      <span class="pt-vlc-pill ${pillClass}">${pill}</span>
+      <span class="pt-vlc-stxt${isActive ? " on" : ""}">${isActive ? "● Active" : "○ Inactive"}</span>
+    </div>
+    <span class="pt-vlc-arr"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>
   </div>
-  <div class="pt-vlc-meta">
-    <span class="pt-vlc-pill ${pillClass}">${pill}</span>
-    <span class="pt-vlc-stxt${isActive ? " on" : ""}">${isActive ? "● Active" : "○ Inactive"}</span>
-  </div>
-  <span class="pt-vlc-arr"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>
-</a>`;
+  ${actions}
+</div>`;
 }
 
 function skeletonGrid(count = 3) {
@@ -1149,6 +1171,94 @@ function downloadETag() {
   setTimeout(() => window.print(), 80);
 }
 window.downloadETag = downloadETag;
+
+// Download the official E-Tag sticker for a specific tag (by id), independent of
+// the burger-menu selection. Reuses the shared hidden print template.
+function downloadETagFor(tagId) {
+  const tag = allTags.find(t => String(t.id) === String(tagId));
+  if (!tag) { _toast("Vehicle not found.", "err"); return; }
+  const plate  = tag.plateNumber || tag.number || "—";
+  const etagId = tag.etagId ? String(tag.etagId).replace(/^PT-/, "") : "—";
+  const status = tag.status === "inactive" ? "Inactive" : "Active";
+  const qr     = tag.qrDataUrl || "";
+
+  const numEl = document.getElementById("wl-print-vehicle-num");
+  const idEl  = document.getElementById("wl-print-etag-id");
+  const stEl  = document.getElementById("wl-print-status");
+  const qrEl  = document.getElementById("wl-print-qr-img");
+
+  if (numEl) numEl.textContent = plate;
+  if (idEl)  idEl.textContent  = etagId;
+  if (stEl)  stEl.textContent  = status;
+  if (qrEl)  qrEl.src          = qr;
+
+  setTimeout(() => window.print(), 80);
+}
+window.downloadETagFor = downloadETagFor;
+
+// Buy the official ParkTag sticker (premium upgrade) for one tag, straight from
+// its dashboard card. Reuses the per-tag purchase endpoints — the price is fixed
+// server-side (STICKER_PRICE_INR). On success the dashboard reloads so the card
+// flips from the upgrade button to the download button.
+async function buyOfficialSticker(tagId, btnEl) {
+  if (!tagId) { _toast("Open this vehicle to purchase.", "err"); return; }
+  if (typeof window.Razorpay === "undefined") { _toast("Payment is unavailable right now. Please try again.", "err"); return; }
+
+  const original = btnEl ? btnEl.textContent : "";
+  const restore = () => {
+    if (!btnEl) return;
+    btnEl.disabled = false;
+    btnEl.classList.remove("pt-btn-loading");
+    btnEl.textContent = original;
+  };
+  if (btnEl) { btnEl.disabled = true; btnEl.classList.add("pt-btn-loading"); btnEl.textContent = "Starting…"; }
+
+  try {
+    const res = await fetch(`/api/owner/tags/${tagId}/purchase-order`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}" // Fastify's JSON parser rejects an empty body with this content-type
+    });
+    const order = await res.json();
+    if (!res.ok) throw new Error(order.error || "Could not start payment.");
+
+    const rzp = new window.Razorpay({
+      key: order.keyId,
+      order_id: order.orderId,
+      amount: order.amount,
+      currency: order.currency,
+      name: "ParkTag",
+      description: order.productName || "Official ParkTag QR Sticker",
+      theme: { color: "#FF2700" },
+      handler: async (resp) => {
+        try {
+          const v = await fetch(`/api/owner/tags/${tagId}/purchase-verify`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(resp)
+          });
+          const vd = await v.json();
+          if (v.ok && vd.premium) {
+            _toast("Payment successful — official sticker unlocked!", "ok");
+            if (typeof window._reloadDashboard === "function") window._reloadDashboard();
+          } else {
+            _toast(vd.error || "Payment could not be verified. If you were charged, contact support.", "err");
+            restore();
+          }
+        } catch {
+          _toast("Verification failed. If you were charged, contact support.", "err");
+          restore();
+        }
+      },
+      modal: { ondismiss: restore }
+    });
+    rzp.open();
+  } catch (e) {
+    _toast(e.message || "Could not start payment.", "err");
+    restore();
+  }
+}
+window.buyOfficialSticker = buyOfficialSticker;
 
 function goToShop() {
   closeMenu();

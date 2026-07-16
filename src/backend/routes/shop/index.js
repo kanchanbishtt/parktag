@@ -1,4 +1,5 @@
-import { createRazorpayOrder, verifyRazorpaySignature, isRazorpayConfigured } from "../../lib/integrations/payments.js";
+import { createRazorpayOrder, verifyRazorpaySignature, isRazorpayConfigured, getShopProduct } from "../../lib/integrations/payments.js";
+import { getCollections } from "../../lib/db/repositories.js";
 
 export function registerShopRoutes(app, env) {
   // Expose key ID to frontend (safe — public key)
@@ -7,18 +8,41 @@ export function registerShopRoutes(app, env) {
     return { keyId: env.razorpayKeyId };
   });
 
-  // Create order
+  // Create order — the price is resolved SERVER-SIDE from the catalog (M15).
+  // The client sends only a productId; any client-supplied `amount` is ignored,
+  // so a tampered request can't buy a product for the wrong price.
   app.post("/api/shop/create-order", async (request, reply) => {
-    const { amount, productId, productName } = request.body || {};
-    if (!amount || !productId) { reply.code(400); return { error: "amount and productId required." }; }
+    const { productId } = request.body || {};
+    if (!productId) { reply.code(400); return { error: "productId required." }; }
+
+    const product = getShopProduct(productId);
+    if (!product) { reply.code(400); return { error: "Unknown product." }; }
+
     if (!isRazorpayConfigured(env)) { reply.code(500); return { error: "Razorpay not configured." }; }
 
     try {
       const order = await createRazorpayOrder(env, {
-        amount,
+        amount: product.amount, // server catalog price (INR) → paise inside helper
         receipt: `pt_${productId}_${Date.now()}`,
-        notes: { productName: productName || productId }
+        notes: { productId, productName: product.name }
       });
+
+      // Persist the server-created order so verify-payment can prove the payment
+      // maps to a real order at the catalog price (M15 Step 5). Amount is stored
+      // in paise, exactly as Razorpay recorded it.
+      const collections = await getCollections(env);
+      if (collections) {
+        await collections.shopOrders.insertOne({
+          orderId: order.id,
+          productId,
+          productName: product.name,
+          amount: order.amount, // paise
+          currency: order.currency,
+          status: "created",
+          createdAt: new Date().toISOString()
+        });
+      }
+
       return { ok: true, orderId: order.id, amount: order.amount, currency: order.currency };
     } catch (err) {
       reply.code(500);
@@ -42,6 +66,28 @@ export function registerShopRoutes(app, env) {
 
     if (!valid) {
       reply.code(400); return { ok: false, error: "Payment verification failed." };
+    }
+
+    // A valid signature only proves "this payment matches this order" — it says
+    // nothing about the order's amount. Re-check against the server-created order
+    // (M15 Step 5): the order must exist and its stored amount must still equal
+    // the current catalog price in paise. This rejects any order that was never
+    // minted by us, or whose amount doesn't match the catalog.
+    const collections = await getCollections(env);
+    if (collections) {
+      const order = await collections.shopOrders.findOne({ orderId: razorpay_order_id });
+      if (!order) {
+        reply.code(400); return { ok: false, error: "No matching order." };
+      }
+      const product = getShopProduct(order.productId);
+      const expectedPaise = product ? Math.round(product.amount * 100) : null;
+      if (expectedPaise === null || order.amount !== expectedPaise) {
+        reply.code(400); return { ok: false, error: "Order amount mismatch." };
+      }
+      await collections.shopOrders.updateOne(
+        { orderId: razorpay_order_id },
+        { $set: { status: "paid", paymentId: razorpay_payment_id, paidAt: new Date().toISOString() } }
+      );
     }
 
     return { ok: true, paymentId: razorpay_payment_id };

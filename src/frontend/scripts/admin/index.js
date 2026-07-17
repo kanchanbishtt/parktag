@@ -232,7 +232,7 @@ function etagPrintPageHtml(tag) {
     <div class="pt-wrap">
       <div class="pt-cut">
         <div class="pt-figma-sticker">
-          <img class="pt-figma-bg" src="/images/sticker-bg-premium.svg" alt="ParkTag sticker"/>
+          <img class="pt-figma-bg" src="/images/org-premium-bg.svg" alt="ParkTag sticker"/>
           <img class="pt-figma-qr" src="${tag.qrDataUrl}" alt="QR ${tag.token}"/>
         </div>
       </div>

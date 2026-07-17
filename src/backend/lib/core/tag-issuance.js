@@ -2,6 +2,7 @@ import { ObjectId } from "mongodb";
 
 import { createSecureToken } from "../auth/security.js";
 import { createQrDataUrl } from "./qr-output.js";
+import { getEnv } from "../env.js";
 
 // Canonical display ID for an E-Tag (last 8 chars of MongoDB ObjectId, uppercased).
 export function etagIdFor(id) {
@@ -17,17 +18,23 @@ function labelForType(type, fallback = "Registered vehicle") {
   return VEHICLE_LABELS[type] || fallback;
 }
 
-export function buildClaimUrl(request, token) {
+// Base for scan/QR URLs: use env.scanBaseUrl if set (production pin), else the
+// host the request came in on (local→local, production→production).
+function scanBase(request) {
+  const pinned = getEnv().scanBaseUrl;
+  if (pinned) return pinned;
   const host = request.headers["x-forwarded-host"] || request.headers.host;
   const proto = request.headers["x-forwarded-proto"] || "http";
-  return `${proto}://${host}/vehicle/${token}`;
+  return `${proto}://${host}`;
+}
+
+export function buildClaimUrl(request, token) {
+  return `${scanBase(request)}/vehicle/${token}`;
 }
 
 // New secure scan URL used for all freshly generated E-Tags (spec: /tag/{token}).
 export function buildTagScanUrl(request, token) {
-  const host = request.headers["x-forwarded-host"] || request.headers.host;
-  const proto = request.headers["x-forwarded-proto"] || "http";
-  return `${proto}://${host}/tag/${token}`;
+  return `${scanBase(request)}/tag/${token}`;
 }
 
 // Default gating / lifecycle fields stamped on every newly created tag so the

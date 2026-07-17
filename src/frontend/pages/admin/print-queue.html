@@ -94,6 +94,13 @@
           #qr-export-grid .pt-freebox { margin-top: 10px; padding: 9px 12px; background: #FFF1EF; border: 1px solid #FFD8D0; border-radius: 9px; font-size: 10px; color: #03162D; line-height: 1.55; }
           #qr-export-grid .pt-freebox b { color: #B31C00; }
           #qr-export-grid .pt-cut { border: 1.5px dashed #b6bcc6; border-radius: 16px; padding: 14px; display: block; page-break-inside: avoid; }
+          /* Figma SVG sticker: artwork fills the box, QR overlaid as a % of the
+             1585x987 artwork so it lands inside the blank square at any size.
+             Image-based (not CSS background) so it prints without the browser's
+             "Background graphics" option enabled. */
+          #qr-export-grid .pt-figma-sticker { position: relative; width: 100%; aspect-ratio: 1585 / 987; }
+          #qr-export-grid .pt-figma-bg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+          #qr-export-grid .pt-figma-qr { position: absolute; left: 63.91%; top: 14.49%; width: 26.18%; aspect-ratio: 1; display: block; }
           #qr-export-grid .pt-sticker { display: flex; width: 100%; border-radius: 18px; overflow: hidden; border: 2px solid #03162D; }
           #qr-export-grid .pt-left { flex: 0 0 60%; background: #fff; padding: 22px; display: flex; flex-direction: column; justify-content: space-between; }
           #qr-export-grid .pt-logo { height: 26px; width: auto; display: block; }

@@ -226,56 +226,14 @@ function stickerHtml(tag) {
 // relies on the `#qr-export-grid .pt-*` styles in print-queue.html. One tag
 // per `.pt-page` (page-break-after: always) so the export prints one per page.
 function etagPrintPageHtml(tag) {
-  const idLine = tag.token ? `Tag ${tag.token}` : "—";
-  // Premium tags carry unlimited private contact — the freebox reflects that
-  // instead of the single-free-contact copy used on the free E-Tag.
-  const freeboxHtml = tag.premium
-    ? `<div class="pt-freebox">This is a <b>Premium ParkTag E-Tag</b> — finders can reach you with <b>unlimited private contact</b> via masked call or WhatsApp (your number stays private). No further upgrade needed.</div>`
-    : `<div class="pt-freebox">This free E-Tag includes <b>1 free contact</b> — a finder can reach you once via masked call or WhatsApp (your number stays private). For unlimited contact, upgrade to the official physical ParkTag sticker.</div>`;
+  // Sticker only — no instructions text. Just the Figma artwork with the tag's QR.
   return `
   <div class="pt-page">
     <div class="pt-wrap">
-      <div class="pt-instr">
-        <p style="margin:0 0 3px">Thank you for generating your free ParkTag E-Tag.</p>
-        <span class="pt-instr-h">How to fix the E-Tag to your windscreen</span>
-        <ol>
-          <li>Print this page on a photo sheet or regular paper.</li>
-          <li>Cut the tag along the dotted line.</li>
-          <li>Attach the tag:<br>
-            &nbsp;- Apply glue (e.g., Feviglue) or transparent double-sided tape to the front of the tag.<br>
-            &nbsp;- Place it on your dashboard or windscreen with the QR facing out.
-          </li>
-        </ol>
-        ${freeboxHtml}
-      </div>
       <div class="pt-cut">
-        <div class="pt-sticker">
-          <!-- Left: white panel -->
-          <div class="pt-left">
-            <div>
-              <img class="pt-logo" src="/images/light-logo.png" alt="ParkTag"/>
-              <div class="pt-tagline">SCAN TO CONNECT</div>
-            </div>
-            <p class="pt-head">Scan the code<br>to <u>contact the<br>vehicle owner.</u></p>
-            <div>
-              <p class="pt-scaninfo">Scan using phone camera, Google Lens or any QR scanner app. Visit www.parktag.me for more.</p>
-              <p class="pt-etagline">${idLine}</p>
-            </div>
-          </div>
-          <!-- Right: red panel -->
-          <div class="pt-right">
-            <div class="pt-qr-box">
-              <img class="pt-qr" src="${tag.qrDataUrl}" alt="QR ${tag.token}"/>
-            </div>
-            <div class="pt-rt-brand">Park<span>Tag</span>.me &nbsp;·&nbsp; <span>vehicle tag</span></div>
-            <div class="pt-icons">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9.5" stroke="#fff" stroke-width="1.7"/><path d="M9.2 16V8h3.1a2.4 2.4 0 0 1 0 4.8H9.2" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.5 5.5l13 13" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/></svg>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9.5" stroke="#fff" stroke-width="1.7"/><path d="M7 12h10" stroke="#fff" stroke-width="1.9" stroke-linecap="round"/></svg>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 3.5l9 15.5H3l9-15.5Z" stroke="#fff" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 9.5v4M12 16.5h.01" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M6.5 4.5C6 4 5.2 3.9 4.7 4.4 3.9 5.1 3.4 6.3 3.5 7.5c.2 4 2 7.6 5 10.5 2.9 2.9 6.5 4.8 10.5 5 1.2.1 2.4-.4 3.1-1.2.5-.5.4-1.3-.1-1.8l-2.6-2.3c-.4-.4-1-.4-1.5-.1l-1.4.9c-.3.2-.7.1-1-.1l-3-3c-.3-.3-.3-.7-.1-1l.9-1.4c.3-.5.3-1.1-.1-1.5L6.5 4.5Z" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg>
-            </div>
-            <p class="pt-rt-note">Wrong parking, emergency contact,<br>any issue with the vehicle — scan the QR.</p>
-          </div>
+        <div class="pt-figma-sticker">
+          <img class="pt-figma-bg" src="/images/sticker-bg-premium.svg" alt="ParkTag sticker"/>
+          <img class="pt-figma-qr" src="${tag.qrDataUrl}" alt="QR ${tag.token}"/>
         </div>
       </div>
     </div>
@@ -329,12 +287,8 @@ function renderPrintQueue(data) {
   for (const id of [..._pqSelected]) if (!visibleSet.has(id)) _pqSelected.delete(id);
 
   if (!tags.length) {
-<<<<<<< HEAD
-    target.innerHTML = `<p class="empty-copy">Queue is empty. All tags have been printed or none have been issued yet.</p>`;
-=======
     _pqUpdateExportLabel();
-    target.innerHTML = `<p class="empty-copy">${_pqPrinted ? "No printed tags are awaiting a claim." : "Nothing waiting to be printed — issue a batch to populate the queue."}</p>`;
->>>>>>> upstream/main
+    target.innerHTML = `<p class="empty-copy">${_pqPrinted ? "No printed tags are awaiting a claim." : "Nothing waiting to be printed. Issue a batch to populate the queue."}</p>`;
     return;
   }
 

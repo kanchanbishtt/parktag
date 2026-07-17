@@ -9,6 +9,13 @@ import {
   isRazorpayConfigured,
   STICKER_PRICE_INR
 } from "../../lib/integrations/payments.js";
+import { validateAddress, addressToNotes } from "../../lib/core/address.js";
+
+// Strip an address DB doc down to the shippable fields (no _id/ownerId/timestamps).
+function shapeAddress(doc) {
+  const { fullName, phone, line1, line2, landmark, city, state, pincode } = doc;
+  return { fullName, phone, line1, line2, landmark, city, state, pincode };
+}
 
 export function registerOwnerRoutes(app, env) {
   app.get("/api/owner/dashboard", async (request, reply) => {
@@ -205,6 +212,43 @@ export function registerOwnerRoutes(app, env) {
     return { ok: true, id: String(result.tag._id), token: result.tag.token };
   });
 
+  // ── Delivery address (physical sticker shipping) ──────────────────
+  // One saved address per owner, reused across purchases. Returns the saved
+  // address so the checkout form can prefill it on repeat buys.
+  app.get("/api/owner/address", async (request, reply) => {
+    const blocked = await requireSession(app, "owner")(request, reply);
+    if (blocked) return blocked;
+
+    const collections = await getCollections(env);
+    if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
+
+    const ownerId = toObjectId(request.session.userId);
+    const doc = await collections.addresses.findOne({ ownerId });
+    return { ok: true, address: doc ? shapeAddress(doc) : null };
+  });
+
+  // Validate and upsert the owner's delivery address before checkout.
+  app.post("/api/owner/address", async (request, reply) => {
+    const blocked = await requireSession(app, "owner")(request, reply);
+    if (blocked) return blocked;
+
+    const collections = await getCollections(env);
+    if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
+
+    const result = validateAddress(request.body);
+    if (!result.ok) { reply.code(400); return { ok: false, error: result.error }; }
+
+    const ownerId = toObjectId(request.session.userId);
+    const now = new Date().toISOString();
+    await collections.addresses.updateOne(
+      { ownerId },
+      { $set: { ...result.address, updatedAt: now }, $setOnInsert: { ownerId, createdAt: now } },
+      { upsert: true }
+    );
+
+    return { ok: true, address: result.address };
+  });
+
   // ── Premium purchase (official physical sticker) ──────────────────
   // Create a Razorpay order for upgrading a specific E-Tag to premium.
   app.post("/api/owner/tags/:tagId/purchase-order", async (request, reply) => {
@@ -221,12 +265,19 @@ export function registerOwnerRoutes(app, env) {
     if (!tag) { reply.code(404); return { ok: false, error: "Tag not found" }; }
     if (tag.premium) { reply.code(409); return { ok: false, error: "This E-Tag is already premium." }; }
 
+    // A physical sticker ships to a real address — refuse to take money until we
+    // have somewhere to send it. The checkout form saves the address first, so a
+    // missing one here means a tampered/out-of-order request.
+    const addressDoc = await collections.addresses.findOne({ ownerId });
+    const shipping = addressDoc ? shapeAddress(addressDoc) : null;
+    if (!shipping) { reply.code(400); return { ok: false, error: "Please add a delivery address before paying." }; }
+
     let order;
     try {
       order = await createRazorpayOrder(env, {
         amount: STICKER_PRICE_INR,
         receipt: `pt_sticker_${String(tag._id)}_${Date.now()}`.slice(0, 40),
-        notes: { tagId: String(tag._id), plate: tag.plateNumber || "" }
+        notes: { tagId: String(tag._id), plate: tag.plateNumber || "", ...addressToNotes(shipping) }
       });
     } catch (error) {
       reply.code(502);
@@ -235,7 +286,7 @@ export function registerOwnerRoutes(app, env) {
 
     await collections.tags.updateOne(
       { _id: tag._id },
-      { $set: { "purchase.orderId": order.id, "purchase.status": "created", "purchase.amount": STICKER_PRICE_INR, updatedAt: new Date().toISOString() } }
+      { $set: { "purchase.orderId": order.id, "purchase.status": "created", "purchase.amount": STICKER_PRICE_INR, "purchase.shippingAddress": shipping, updatedAt: new Date().toISOString() } }
     );
 
     return {

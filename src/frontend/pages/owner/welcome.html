@@ -1390,6 +1390,7 @@
 </div>
 
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<script src="/scripts/owner/address-step.js"></script>
 <script type="module" src="/scripts/owner/welcome.js"></script>
 <script>
 // ── Shop products ─────────────────────────────────────────────
@@ -1569,6 +1570,13 @@ async function handleBuyNow() {
   const p = PRODUCTS[_activeProduct];
   const variant = p.variants[_activeVariant];
   const btn = document.querySelector(".pt-buy-btn");
+
+  // Collect a delivery address before payment — the physical tag ships home.
+  if (typeof window.ptCollectAddress === "function") {
+    const haveAddress = await window.ptCollectAddress();
+    if (!haveAddress) return; // user backed out of the address step
+  }
+
   if (btn) { btn.disabled = true; btn.classList.add("pt-btn-loading"); }
 
   try {

@@ -1212,6 +1212,12 @@ async function buyOfficialSticker(tagId, btnEl) {
   if (!tagId) { _toast("Open this vehicle to purchase.", "err"); return; }
   if (typeof window.Razorpay === "undefined") { _toast("Payment is unavailable right now. Please try again.", "err"); return; }
 
+  // Collect a delivery address before payment — the physical sticker ships home.
+  if (typeof window.ptCollectAddress === "function") {
+    const haveAddress = await window.ptCollectAddress();
+    if (!haveAddress) return; // user backed out of the address step
+  }
+
   const original = btnEl ? btnEl.textContent : "";
   const restore = () => {
     if (!btnEl) return;

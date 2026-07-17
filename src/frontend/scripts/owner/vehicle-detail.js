@@ -241,6 +241,12 @@ document.getElementById("buy-premium-btn")?.addEventListener("click", async () =
   if (!realId) { alert("Open this vehicle from your dashboard to purchase."); return; }
   if (typeof window.Razorpay === "undefined") { alert("Payment unavailable right now. Please try again."); return; }
 
+  // Collect a delivery address before taking payment — the sticker ships home.
+  if (typeof window.ptCollectAddress === "function") {
+    const haveAddress = await window.ptCollectAddress();
+    if (!haveAddress) return; // user backed out of the address step
+  }
+
   btn.disabled = true;
   const original = btn.textContent;
   btn.textContent = "Starting payment…";

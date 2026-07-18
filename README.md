@@ -170,10 +170,10 @@ All prices are in **INR** and are **server-authoritative** — the browser only 
 
 | `productId` | Product                       | Price | MRP  |
 |-------------|-------------------------------|-------|------|
-| `pt-car-1`  | ParkTag Car Tag (Pack of 1)   | ₹399  | ₹499 |
-| `pt-car-2`  | ParkTag Car Tag (Pack of 2)   | ₹699  | ₹799 |
-| `pt-bike-1` | ParkTag Bike Tag              | ₹349  | ₹399 |
-| `pt-combo`  | ParkTag Combo Pack (Car+Bike) | ₹699  | ₹899 |
+| `pt-car-1`  | ParkTag Car Tag (Pack of 1)   | ₹299  | ₹499 |
+| `pt-car-2`  | ParkTag Car Tag (Pack of 2)   | ₹499  | ₹799 |
+| `pt-bike-1` | ParkTag Bike Tag              | ₹299  | ₹399 |
+| `pt-combo`  | ParkTag Combo Pack (Car+Bike) | ₹499  | ₹899 |
 
 > Changing a shop price means editing `SHOP_PRODUCTS` (the charged amount) **and** the
 > `PRODUCTS` list in `frontend/pages/owner/welcome.html` (the displayed price). The MRP is

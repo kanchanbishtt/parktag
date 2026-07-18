@@ -109,21 +109,51 @@
           #qr-export-grid .pt-rt-brand span { font-weight: 600; opacity: .9; }
           #qr-export-grid .pt-icons { display: flex; gap: 13px; margin-top: 11px; }
           #qr-export-grid .pt-rt-note { font-size: 7.5px; font-weight: 700; color: #fff; text-align: center; margin-top: 8px; line-height: 1.5; }
+          /* Screen-only "Page X of N" reference marker above each sticker. */
+          #qr-export-grid .pt-pagemark { font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #9CA3AF; margin: 0 0 10px; padding-bottom: 7px; border-bottom: 1px dashed #E5E7EB; }
 
           @media print {
-            /* visibility (not display) so the overlay shows even though it is
-               nested inside .pt-admin-shell — a display:none ancestor can't be
-               un-hidden, but visibility is per-element. */
-            body * { visibility: hidden !important; }
-            #qr-export-overlay, #qr-export-overlay * { visibility: visible !important; }
-            #qr-export-overlay { display: block !important; position: static !important; overflow: visible !important; padding: 0 !important; }
-            #qr-export-overlay > div:first-child { display: none !important; }
+            /* Remove the app chrome from the layout ENTIRELY (display:none, not
+               visibility:hidden). visibility:hidden keeps elements in flow, so
+               the sidebar + header + queue card still occupied space and printed
+               as several blank pages before the stickers. */
+            .pt-admin-sidebar,
+            .pt-admin-page-header,
+            .pt-admin-card,
+            #admin-auth-status { display: none !important; }
+
+            /* Collapse the shell/main wrappers so the overlay is full A4 width
+               (the shell is a grid with a sidebar column — left intact it clips
+               the sticker to the narrow main column). */
+            html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
+            .pt-admin-body,
+            .pt-admin-shell,
+            .pt-admin-main {
+              display: block !important;
+              margin: 0 !important; padding: 0 !important;
+              width: auto !important; max-width: none !important;
+              min-height: 0 !important; height: auto !important;
+              overflow: visible !important;
+            }
+
+            /* Show the export overlay in normal flow, full width, from the top. */
+            #qr-export-overlay {
+              display: block !important; position: static !important; inset: auto !important;
+              overflow: visible !important; padding: 0 !important; margin: 0 !important; width: auto !important;
+            }
+            #qr-export-overlay > div:first-child { display: none !important; } /* the on-screen toolbar */
             #qr-export-overlay, #qr-export-overlay * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-            /* One tag per page, full page width within the @page margins. */
+
             @page { margin: 1.2cm; size: A4; }
-            #qr-export-grid { max-width: none !important; }
-            #qr-export-grid .pt-page { max-width: none; margin: 0 auto; page-break-after: always; }
-            #qr-export-grid .pt-page:last-child { page-break-after: auto; }
+            /* The page marker is a screen-only reference — keep it off the print. */
+            #qr-export-grid .pt-pagemark { display: none !important; }
+            #qr-export-grid { max-width: none !important; margin: 0 !important; }
+            /* Pack stickers to fill each page instead of one-per-page, to reduce
+               paper waste. Natural flow + page-break-inside:avoid keeps each
+               sticker whole; the small bottom margin is the gap between them. */
+            #qr-export-grid .pt-page { max-width: none !important; margin: 0 0 8mm !important; page-break-after: auto !important; page-break-inside: avoid; break-inside: avoid; }
+            #qr-export-grid .pt-page:last-child { margin-bottom: 0 !important; }
+            #qr-export-grid .pt-cut { page-break-inside: avoid; break-inside: avoid; }
           }
         </style>
 

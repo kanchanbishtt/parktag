@@ -220,34 +220,17 @@ function stickerHtml(tag) {
     </div>`;
 }
 
-// Full-page E-Tag print layout — a 1:1 match of the owner Vehicle-Detail PDF
-// (pages/owner/vehicle-detail.html #etag-print): instruction block + free-
-// contact note + dashed cut + two-panel sticker. Class-based markup that
-// relies on the `#qr-export-grid .pt-*` styles in print-queue.html. One tag
-// per `.pt-page` (page-break-after: always) so the export prints one per page.
+// Batch export print layout — sticker only: dashed cut + two-panel sticker
+// (white panel + red QR panel), no instruction / free-contact text. Class-based
+// markup that relies on the `#qr-export-grid .pt-*` styles in print-queue.html.
+// One tag per `.pt-page` (page-break-after: always) so the export prints one
+// per page.
 function etagPrintPageHtml(tag) {
   const idLine = tag.token ? `Tag ${tag.token}` : "—";
-  // Premium tags carry unlimited private contact — the freebox reflects that
-  // instead of the single-free-contact copy used on the free E-Tag.
-  const freeboxHtml = tag.premium
-    ? `<div class="pt-freebox">This is a <b>Premium ParkTag E-Tag</b> — finders can reach you with <b>unlimited private contact</b> via masked call or WhatsApp (your number stays private). No further upgrade needed.</div>`
-    : `<div class="pt-freebox">This free E-Tag includes <b>1 free contact</b> — a finder can reach you once via masked call or WhatsApp (your number stays private). For unlimited contact, upgrade to the official physical ParkTag sticker.</div>`;
+  // Batch export sheet: sticker + QR only — no instruction / how-to text.
   return `
   <div class="pt-page">
     <div class="pt-wrap">
-      <div class="pt-instr">
-        <p style="margin:0 0 3px">Thank you for generating your free ParkTag E-Tag.</p>
-        <span class="pt-instr-h">How to fix the E-Tag to your windscreen</span>
-        <ol>
-          <li>Print this page on a photo sheet or regular paper.</li>
-          <li>Cut the tag along the dotted line.</li>
-          <li>Attach the tag:<br>
-            &nbsp;- Apply glue (e.g., Feviglue) or transparent double-sided tape to the front of the tag.<br>
-            &nbsp;- Place it on your dashboard or windscreen with the QR facing out.
-          </li>
-        </ol>
-        ${freeboxHtml}
-      </div>
       <div class="pt-cut">
         <div class="pt-sticker">
           <!-- Left: white panel -->
@@ -383,24 +366,58 @@ async function exportQrsForPrint() {
   const countLabel = byId("export-count-label");
   if (!overlay || !grid) return;
 
+  // Require an explicit selection — never default to exporting the whole sheet.
+  if (_pqSelected.size === 0) {
+    setStatus("Select the tag(s) you want to export first.", "info");
+    return;
+  }
+
   grid.innerHTML = `<p style="color:#6B7280">Loading QR codes...</p>`;
   overlay.style.display = "block";
 
   try {
     const data = await fetchJson("/api/admin/print-queue/export");
-    let tags = data.tags || [];
-    // If the admin ticked specific tags, export only those; otherwise export
-    // the whole sheet (original behaviour).
-    if (_pqSelected.size > 0) tags = tags.filter((tag) => _pqSelected.has(tag.id));
-
-    if (countLabel) countLabel.textContent = `${tags.length} tag${tags.length !== 1 ? "s" : ""} ready to print`;
+    // Export only the ticked tags.
+    const tags = (data.tags || []).filter((tag) => _pqSelected.has(tag.id));
 
     if (!tags.length) {
+      if (countLabel) countLabel.textContent = "0 tags to print";
       grid.innerHTML = `<p style="color:#6B7280">No unclaimed tags to export.</p>`;
       return;
     }
 
-    grid.innerHTML = tags.map(tag => etagPrintPageHtml(tag)).join("");
+    grid.innerHTML = tags.map((tag) => etagPrintPageHtml(tag)).join("");
+
+    // Stickers now pack several to a page (no forced page break). Measure the
+    // rendered sticker height to estimate how many fit per A4 page, so the count
+    // label and the screen page-dividers stay accurate.
+    // A4 printable height ≈ 1032px = 29.7cm − 2×1.2cm margins at 96dpi.
+    const PRINTABLE_PX = 1032;
+    const GAP_PX = 30; // ≈ 8mm bottom margin between stickers
+    const firstCut = grid.querySelector(".pt-cut");
+    let perPage = 1;
+    if (firstCut) {
+      const stickerPx = firstCut.getBoundingClientRect().height + GAP_PX;
+      if (stickerPx > 0) perPage = Math.max(1, Math.floor(PRINTABLE_PX / stickerPx));
+    }
+    const pageCount = Math.ceil(tags.length / perPage);
+
+    if (countLabel) {
+      countLabel.textContent =
+        `${tags.length} tag${tags.length !== 1 ? "s" : ""} · ` +
+        `~${pageCount} page${pageCount !== 1 ? "s" : ""} (${perPage}/page)`;
+    }
+
+    // Insert a screen-only "Page N" divider before the first sticker of each
+    // page so the admin can see the page boundaries while scrolling the preview.
+    const pageEls = [...grid.querySelectorAll(".pt-page")];
+    pageEls.forEach((pageEl, i) => {
+      if (i % perPage !== 0) return;
+      const divider = document.createElement("div");
+      divider.className = "pt-pagemark";
+      divider.textContent = `Page ${i / perPage + 1} of ${pageCount}`;
+      pageEl.parentNode.insertBefore(divider, pageEl);
+    });
   } catch (err) {
     grid.innerHTML = `<p style="color:#DC2626">Failed to load: ${err.message}</p>`;
   }

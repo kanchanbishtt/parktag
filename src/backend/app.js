@@ -8,7 +8,7 @@ import fs from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 import { getEnv } from "./lib/env.js";
-import { readSession } from "./lib/auth/session.js";
+import { readSession, loadSessions } from "./lib/auth/session.js";
 import { registerAdminRoutes } from "./routes/admin/index.js";
 import { registerAuthRoutes } from "./routes/auth/credentials.js";
 import { registerDemoRoutes } from "./routes/system/demo.js";
@@ -66,6 +66,8 @@ export async function buildApp() {
   });
 
   app.decorate("sessions", new Map());
+  // Dev only: restore sessions persisted before the last nodemon restart.
+  loadSessions(app);
   // Server-side OAuth state store — avoids SameSite cookie blocking on Google callback
   app.decorate("oauthStates", new Map());
 
@@ -81,8 +83,16 @@ export async function buildApp() {
 
   await app.register(fastifyCookie);
 
+  const isProduction = env.runtimeMode === "production";
+
   await app.register(fastifyHelmet, {
-    contentSecurityPolicy: false // HTML pages use inline scripts; CSP needs separate tuning
+    contentSecurityPolicy: false, // HTML pages use inline scripts; CSP needs separate tuning
+    // In dev, allow the app to render inside VS Code's Simple Browser (a
+    // cross-origin webview iframe). These frame/embedding guards stay on in prod.
+    frameguard: isProduction,
+    crossOriginOpenerPolicy: isProduction,
+    crossOriginResourcePolicy: isProduction,
+    crossOriginEmbedderPolicy: isProduction
   });
 
   await app.register(fastifyRateLimit, {

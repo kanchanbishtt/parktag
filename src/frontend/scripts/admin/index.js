@@ -313,7 +313,7 @@ function renderPrintQueue(data) {
 
   if (!tags.length) {
     _pqUpdateExportLabel();
-    target.innerHTML = `<p class="empty-copy">${_pqPrinted ? "No printed tags are awaiting a claim." : "Nothing waiting to be printed — issue a batch to populate the queue."}</p>`;
+    target.innerHTML = `<p class="empty-copy">${_pqPrinted ? "No printed tags are awaiting a claim." : "Nothing waiting to be printed, issue a batch to populate the queue."}</p>`;
     return;
   }
 
@@ -328,7 +328,7 @@ function renderPrintQueue(data) {
   target.innerHTML = Object.values(batches).map(batch => {
     const batchKey = batch.batchNumber || "__no_batch__";
     const batchTitle = batch.batchNumber
-      ? `Batch ${batch.batchNumber}${batch.batchLabel ? ` — ${batch.batchLabel}` : ""}`
+      ? `Batch ${batch.batchNumber}${batch.batchLabel ? ` · ${batch.batchLabel}` : ""}`
       : "No batch assigned";
     const batchIds = batch.tags.map((t) => t.id);
     const batchIdsCsv = batchIds.join(",");

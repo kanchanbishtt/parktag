@@ -23,8 +23,9 @@ Rules:
 - [x] M8. Prepare deployment, demo, docs, and operator runbook (README = full contributor guide; flows + payment gateway verified live; demo script descoped)
 - [x] M9. Tiered rate limiting — per-route protection
 - [x] M15. Lock shop payment amounts server-side (server catalog resolves price by `productId`; client `amount` no longer trusted; Step 5 order-persistence + verify-time amount re-check done; live curl checks pass — only the real browser checkout remains as a manual step)
-- [x] M16. Per-vehicle official sticker upgrade & gated download on My Vehicles cards
+- [x] M16. Per-vehicle official sticker upgrade & gated download on My Vehicles cards (₹199 in-place upgrade **superseded by M18**)
 - [x] M17. Print queue split (to-print vs printed) & delete safeguards
+- [x] M18. Free-trial → buy-premium-via-shop & tag replacement (₹199 in-place upgrade retired; paid shop order mints a new premium tag + removes the spent free tag) — code complete; live browser checkout pending
 
 ## M1. Confirm MVP Scope And Repo Workflow
 
@@ -787,6 +788,39 @@ Covers UX and security improvements made after M13 call flow was confirmed worki
 - [x] Direct `DELETE /api/admin/tags/unclaimed/all` without `?confirm=all` → 400; with it → succeeds (unprinted only)
 - [x] Direct `DELETE /api/admin/tags/batch/<n>` without `?confirm=1` → 400; with it → succeeds
 - [x] Export QRs shows only unprinted tags
+
+## M18. Free-Trial → Buy-Premium-Via-Shop & Tag Replacement
+
+> Retires the in-place ₹199 per-tag upgrade. The free E-Tag is now a one-contact trial;
+> when it's spent the owner buys a premium tag through the shop (rate list). A paid shop
+> order carrying `replaceTagId` mints a new premium tag for that vehicle and soft-removes
+> the spent free tag. Download E-Tag / E-Tag info are kept for premium tags only. See
+> `PLAN.md` §13, §16 Q3, §18.
+
+### Backend
+
+- [x] Add `createPremiumTagForVehicle(collections, ownerId, {plateNumber, vehicleType, vehicleLabel})` to `lib/core/tag-issuance.js` — inserts a premium tag directly (new token, `premium:true`, `purchaseStatus:"paid"`, `printStatus:"pending_print"`); does not reuse by plate
+- [x] `POST /api/shop/create-order` — add owner session; accept optional `replaceTagId`, validate it (owner-scoped, live, non-premium), store it + `ownerId` on the `shopOrders` doc and in Razorpay `notes`
+- [x] `POST /api/shop/verify-payment` — add owner session; on the `created → paid` transition only, if the order has a `replaceTagId`: mint the premium tag (copy plate/type/label from the old tag) + soft-remove the old free tag (`deletedAt`, `status:"inactive"`); return `{ replaced, newTagId }`
+- [x] Remove `POST /api/owner/tags/:tagId/purchase-order` + `purchase-verify` and their `STICKER_PRICE_INR`/Razorpay imports from `routes/owner/dashboard.js`
+
+### Frontend
+
+- [x] `welcome.js` `vehicleCard()` — premium → Download E-Tag; free+used → "trial ended" note + Buy Premium Tag (`goToShopForReplace`); free+unused → no action buttons; remove `buyOfficialSticker`
+- [x] `welcome.js` — add `goToShopForReplace(tagId)` (remembers `window._replaceTagId`, opens shop); parse `?shop=1&replace=<id>` on load to auto-open the shop with the replace-context
+- [x] `welcome.html` `handleBuyNow()` — send `replaceTagId: window._replaceTagId || null`; clear it on success; success toast reflects `replaced`
+- [x] `welcome.html` — `.pt-vlc-trial` style for the trial-ended note
+- [x] `vehicle-detail.js` — capture `freeContactUsed`; `updatePremiumUI()` drives premium / free-unused / free-used states; Buy button redirects to `/owner-welcome?shop=1&replace=<id>`; Download E-Tag item shown only for premium
+- [x] `vehicle-detail.html` — relabel buy button "Buy Premium Tag"; Download E-Tag item gated to premium via JS
+
+### Verification
+
+- [ ] Fresh free tag card shows "1 Free Call", no buy/download buttons
+- [x] After the free contact is used → card shows the trial-ended note + Buy Premium Tag (verified locally via expired demo-seed tag)
+- [ ] Buy Premium Tag → shop opens → pay `pt-car-1` (₹299) test card → dashboard reloads: vehicle now premium with Download E-Tag; old free tag `deletedAt` set + new tag `premium:true, purchaseStatus:"paid"` (new token) in Mongo
+- [ ] Same path from the vehicle-detail page (redirects to `/owner-welcome?shop=1&replace=…`)
+- [ ] A generic shop purchase (no replace-context) still behaves as a plain order — no tag minted/removed
+- [ ] Removed `purchase-order`/`purchase-verify` endpoints 404; premium tags still download
 
 ## Current Focus
 

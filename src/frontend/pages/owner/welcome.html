@@ -215,7 +215,8 @@
       text-decoration: none; color: inherit;
     }
     .pt-vlc-main:active { transform: scale(.99); }
-    .pt-vlc-actions { display: flex; gap: 8px; padding: 0 16px 13px; }
+    .pt-vlc-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 16px 13px; }
+    .pt-vlc-trial { flex: 1 0 100%; margin: 0; font-size: .72rem; font-weight: 600; color: #B31C00; line-height: 1.4; }
     .pt-vlc-act {
       flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
       border: none; border-radius: 10px; padding: 9px 12px;
@@ -1575,10 +1576,14 @@ async function handleBuyNow() {
     // 1. Create order on backend. Send only the productId + chosen variant —
     //    the server resolves the price from its catalog (M15), so the ₹price
     //    shown in the UI is display-only and can't be tampered with here.
+    // replaceTagId (M18): set when the owner arrived from an expired free-trial
+    // vehicle card. A paid order then mints a new premium tag for that vehicle
+    // and soft-removes the old free tag. Null for a generic shop purchase.
+    const replaceTagId = window._replaceTagId || null;
     const orderRes = await fetch("/api/shop/create-order", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ productId: p.id, variant })
+      body: JSON.stringify({ productId: p.id, variant, replaceTagId })
     });
     const orderData = await orderRes.json();
     if (!orderRes.ok || !orderData.orderId) throw new Error(orderData.error || "Order creation failed.");
@@ -1612,8 +1617,14 @@ async function handleBuyNow() {
         });
         const verifyData = await verifyRes.json();
         closeProduct();
+        window._replaceTagId = null; // consume the replace-context either way
         if (verifyData.ok) {
-          showToast("Payment successful! We'll process your order shortly.", "success");
+          showToast(
+            verifyData.replaced
+              ? "Payment successful! Your premium tag is ready — download the new E-Tag."
+              : "Payment successful! We'll process your order shortly.",
+            "success"
+          );
           if (typeof window._reloadDashboard === "function") window._reloadDashboard();
         } else {
           showToast("Payment verification failed. Contact support.", "error");

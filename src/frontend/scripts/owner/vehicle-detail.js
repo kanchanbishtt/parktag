@@ -10,6 +10,7 @@ const realToken = params.get("token") || "";
 let realQrDataUrl = "";
 let realScanUrl   = "";
 let isPremium     = false;
+let isFreeUsed    = false;
 
 // ── Skeleton → reveal after 500ms ────────────────────────────
 const skeleton  = document.getElementById("skeleton");
@@ -26,6 +27,7 @@ setTimeout(async () => {
         realQrDataUrl = tag.qrDataUrl || "";
         realScanUrl   = tag.scanUrl   || "";
         isPremium     = Boolean(tag.premium);
+        isFreeUsed    = Boolean(tag.freeContactUsed);
         // Stamp the unique E-Tag ID + activation status onto the print sticker (spec §9).
         const idEl = document.getElementById("print-etag-id");
         if (idEl && tag.etagId) idEl.textContent = String(tag.etagId).replace(/^PT-/, "");
@@ -218,66 +220,46 @@ document.getElementById("download-etag-btn")?.addEventListener("click", () => {
   setTimeout(() => window.print(), 80);
 });
 
-// ── Premium / Buy official sticker ────────────────────────────
+// ── Premium / buy-premium-tag (M18) ───────────────────────────
+// Three states, matching the dashboard cards:
+//  • premium            → PREMIUM badge, active note, Download E-Tag available
+//  • free, unused       → free-trial info, no buy button, no download
+//  • free, contact used → "trial ended" copy + Buy Premium Tag → shop
 function updatePremiumUI() {
   const badge = document.getElementById("vd-premium-badge");
   const buyBtn = document.getElementById("buy-premium-btn");
   const activeNote = document.getElementById("premium-active-note");
   const copy = document.getElementById("premium-copy");
+  const downloadItem = document.querySelector('[data-item="download-etag"]');
+
   if (isPremium) {
     if (badge) badge.style.display = "inline-block";
     if (buyBtn) buyBtn.style.display = "none";
     if (activeNote) activeNote.style.display = "block";
     if (copy) copy.textContent = "This E-Tag is premium. Call & WhatsApp are always available.";
-  } else {
-    if (badge) badge.style.display = "none";
+    if (downloadItem) downloadItem.style.display = ""; // Download only for premium
+    return;
+  }
+
+  // Non-premium: never show Download / E-Tag info.
+  if (badge) badge.style.display = "none";
+  if (activeNote) activeNote.style.display = "none";
+  if (downloadItem) downloadItem.style.display = "none";
+
+  if (isFreeUsed) {
+    // Free trial spent → send them to the shop to buy a premium tag.
+    if (copy) copy.textContent = "Your free trial has ended — buy a premium tag to continue.";
     if (buyBtn) { buyBtn.style.display = ""; buyBtn.disabled = !realId; }
-    if (activeNote) activeNote.style.display = "none";
+  } else {
+    // Free trial still live → informational only, no purchase yet.
+    if (copy) copy.textContent = "This E-Tag includes 1 free contact. After it's used, buy a premium tag to keep Call & WhatsApp active.";
+    if (buyBtn) buyBtn.style.display = "none";
   }
 }
 
-document.getElementById("buy-premium-btn")?.addEventListener("click", async () => {
-  const btn = document.getElementById("buy-premium-btn");
+// Buy Premium Tag → open the dashboard shop with this tag as the replace-context
+// (M18). A paid shop order mints a new premium tag and removes this free tag.
+document.getElementById("buy-premium-btn")?.addEventListener("click", () => {
   if (!realId) { alert("Open this vehicle from your dashboard to purchase."); return; }
-  if (typeof window.Razorpay === "undefined") { alert("Payment unavailable right now. Please try again."); return; }
-
-  btn.disabled = true;
-  const original = btn.textContent;
-  btn.textContent = "Starting payment…";
-  try {
-    const res = await fetch(`/api/owner/tags/${realId}/purchase-order`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
-    const order = await res.json();
-    if (!res.ok) throw new Error(order.error || "Could not start payment.");
-
-    const rzp = new window.Razorpay({
-      key: order.keyId,
-      order_id: order.orderId,
-      amount: order.amount,
-      currency: order.currency,
-      name: "ParkTag",
-      description: order.productName,
-      theme: { color: "#FF2700" },
-      handler: async (resp) => {
-        const v = await fetch(`/api/owner/tags/${realId}/purchase-verify`, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(resp)
-        });
-        const vd = await v.json();
-        if (v.ok && vd.premium) {
-          isPremium = true;
-          updatePremiumUI();
-          alert("Payment successful — your E-Tag is now Premium! Unlimited private contact is enabled.");
-        } else {
-          alert(vd.error || "Payment could not be verified. If you were charged, contact support.");
-          btn.disabled = false; btn.textContent = original;
-        }
-      },
-      modal: { ondismiss: () => { btn.disabled = false; btn.textContent = original; } }
-    });
-    rzp.open();
-  } catch (e) {
-    alert(e.message || "Could not start payment.");
-    btn.disabled = false; btn.textContent = original;
-  }
+  window.location.href = "/owner-welcome?shop=1&replace=" + encodeURIComponent(realId);
 });

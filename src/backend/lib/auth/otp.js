@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import { getCollections } from "../db/repositories.js";
 import { sendOtpEmail } from "../integrations/email.js";
 import { isMetaWhatsappConfigured, sendMetaWhatsappOtp } from "../integrations/meta.js";
+import { clientError } from "../errors.js";
 
 const OTP_EXPIRY_MS = 10 * 60 * 1000;
 const RATE_LIMIT_MS = 2 * 60 * 1000;
@@ -66,12 +67,12 @@ export async function sendOtp(env, identifier) {
       } catch (err) {
         console.error("[OTP] WhatsApp send failed:", err?.message, err?.providerDetail);
         await collections.otpTokens.deleteOne({ _id: inserted.insertedId });
-        throw new Error("Could not send WhatsApp OTP. Please try again.");
+        throw clientError("Could not send WhatsApp OTP. Please try again.");
       }
     } else if (env.runtimeMode !== "production") {
       console.log(`\n[ParkTag] OTP for ${normalized}: ${code}\n`);
     } else {
-      throw new Error("WhatsApp OTP is not configured on this server.");
+      throw clientError("WhatsApp OTP is not configured on this server.");
     }
   } else {
     sendOtpEmail(env, { to: normalized, code })
@@ -95,7 +96,7 @@ export async function verifyOtp(env, identifier, code) {
     expiresAt: { $gt: new Date().toISOString() }
   });
 
-  if (!record) throw new Error("Invalid or expired code. Please try again.");
+  if (!record) throw clientError("Invalid or expired code. Please try again.");
 
   // Enforce attempt limit
   if ((record.attempts || 0) >= MAX_VERIFY_ATTEMPTS) {
@@ -103,7 +104,7 @@ export async function verifyOtp(env, identifier, code) {
       { _id: record._id },
       { $set: { used: true } }
     );
-    throw new Error("Too many incorrect attempts. Please request a new code.");
+    throw clientError("Too many incorrect attempts. Please request a new code.");
   }
 
   if (record.code !== code) {
@@ -112,7 +113,7 @@ export async function verifyOtp(env, identifier, code) {
       { $inc: { attempts: 1 } }
     );
     const remaining = MAX_VERIFY_ATTEMPTS - (record.attempts || 0) - 1;
-    throw new Error(
+    throw clientError(
       `Invalid code. ${remaining} attempt${remaining === 1 ? "" : "s"} remaining.`
     );
   }

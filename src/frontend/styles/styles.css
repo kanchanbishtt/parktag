@@ -1969,7 +1969,10 @@ html:has(body.pt-hub-body) {
 }
 
 /* ── Auth page responsiveness ── */
-@media (max-width: 400px) {
+/* On phones, anchor the card just under the header instead of vertically
+   centering it (which left a large void on tall screens). Desktop keeps the
+   centered card. 600px covers all phones in portrait. */
+@media (max-width: 600px) {
   .pt-auth-main {
     padding: 16px 12px;
     align-items: flex-start;

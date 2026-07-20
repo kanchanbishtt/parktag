@@ -226,39 +226,14 @@ function stickerHtml(tag) {
 // One tag per `.pt-page` (page-break-after: always) so the export prints one
 // per page.
 function etagPrintPageHtml(tag) {
-  const idLine = tag.token ? `Tag ${tag.token}` : "—";
-  // Batch export sheet: sticker + QR only — no instruction / how-to text.
+  // Sticker only — no instructions text. Just the Figma artwork with the tag's QR.
   return `
   <div class="pt-page">
     <div class="pt-wrap">
       <div class="pt-cut">
-        <div class="pt-sticker">
-          <!-- Left: white panel -->
-          <div class="pt-left">
-            <div>
-              <img class="pt-logo" src="/images/light-logo.png" alt="ParkTag"/>
-              <div class="pt-tagline">SCAN TO CONNECT</div>
-            </div>
-            <p class="pt-head">Scan the code<br>to <u>contact the<br>vehicle owner.</u></p>
-            <div>
-              <p class="pt-scaninfo">Scan using phone camera, Google Lens or any QR scanner app. Visit www.parktag.me for more.</p>
-              <p class="pt-etagline">${idLine}</p>
-            </div>
-          </div>
-          <!-- Right: red panel -->
-          <div class="pt-right">
-            <div class="pt-qr-box">
-              <img class="pt-qr" src="${tag.qrDataUrl}" alt="QR ${tag.token}"/>
-            </div>
-            <div class="pt-rt-brand">Park<span>Tag</span>.me &nbsp;·&nbsp; <span>vehicle tag</span></div>
-            <div class="pt-icons">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9.5" stroke="#fff" stroke-width="1.7"/><path d="M9.2 16V8h3.1a2.4 2.4 0 0 1 0 4.8H9.2" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.5 5.5l13 13" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/></svg>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9.5" stroke="#fff" stroke-width="1.7"/><path d="M7 12h10" stroke="#fff" stroke-width="1.9" stroke-linecap="round"/></svg>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 3.5l9 15.5H3l9-15.5Z" stroke="#fff" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 9.5v4M12 16.5h.01" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M6.5 4.5C6 4 5.2 3.9 4.7 4.4 3.9 5.1 3.4 6.3 3.5 7.5c.2 4 2 7.6 5 10.5 2.9 2.9 6.5 4.8 10.5 5 1.2.1 2.4-.4 3.1-1.2.5-.5.4-1.3-.1-1.8l-2.6-2.3c-.4-.4-1-.4-1.5-.1l-1.4.9c-.3.2-.7.1-1-.1l-3-3c-.3-.3-.3-.7-.1-1l.9-1.4c.3-.5.3-1.1-.1-1.5L6.5 4.5Z" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg>
-            </div>
-            <p class="pt-rt-note">Wrong parking, emergency contact,<br>any issue with the vehicle — scan the QR.</p>
-          </div>
+        <div class="pt-figma-sticker">
+          <img class="pt-figma-bg" src="/images/org-premium-bg.svg" alt="ParkTag sticker"/>
+          <img class="pt-figma-qr" src="${tag.qrDataUrl}" alt="QR ${tag.token}"/>
         </div>
       </div>
     </div>
@@ -386,38 +361,15 @@ async function exportQrsForPrint() {
       return;
     }
 
-    grid.innerHTML = tags.map((tag) => etagPrintPageHtml(tag)).join("");
-
-    // Stickers now pack several to a page (no forced page break). Measure the
-    // rendered sticker height to estimate how many fit per A4 page, so the count
-    // label and the screen page-dividers stay accurate.
-    // A4 printable height ≈ 1032px = 29.7cm − 2×1.2cm margins at 96dpi.
-    const PRINTABLE_PX = 1032;
-    const GAP_PX = 30; // ≈ 8mm bottom margin between stickers
-    const firstCut = grid.querySelector(".pt-cut");
-    let perPage = 1;
-    if (firstCut) {
-      const stickerPx = firstCut.getBoundingClientRect().height + GAP_PX;
-      if (stickerPx > 0) perPage = Math.max(1, Math.floor(PRINTABLE_PX / stickerPx));
+    // Group into landscape sheets of 4 (2x2) so the on-screen preview matches
+    // the printed page and each page holds exactly four stickers.
+    const perSheet = 4;
+    let sheetsHtml = "";
+    for (let i = 0; i < tags.length; i += perSheet) {
+      const cells = tags.slice(i, i + perSheet).map(etagPrintPageHtml).join("");
+      sheetsHtml += `<div class="pt-sheet">${cells}</div>`;
     }
-    const pageCount = Math.ceil(tags.length / perPage);
-
-    if (countLabel) {
-      countLabel.textContent =
-        `${tags.length} tag${tags.length !== 1 ? "s" : ""} · ` +
-        `~${pageCount} page${pageCount !== 1 ? "s" : ""} (${perPage}/page)`;
-    }
-
-    // Insert a screen-only "Page N" divider before the first sticker of each
-    // page so the admin can see the page boundaries while scrolling the preview.
-    const pageEls = [...grid.querySelectorAll(".pt-page")];
-    pageEls.forEach((pageEl, i) => {
-      if (i % perPage !== 0) return;
-      const divider = document.createElement("div");
-      divider.className = "pt-pagemark";
-      divider.textContent = `Page ${i / perPage + 1} of ${pageCount}`;
-      pageEl.parentNode.insertBefore(divider, pageEl);
-    });
+    grid.innerHTML = sheetsHtml;
   } catch (err) {
     grid.innerHTML = `<p style="color:#DC2626">Failed to load: ${err.message}</p>`;
   }

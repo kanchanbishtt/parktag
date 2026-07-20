@@ -3,6 +3,13 @@ import { createPasswordHash } from "../../lib/auth/security.js";
 import { getCollections, ensurePendingCallsIndexes } from "../../lib/db/repositories.js";
 import { createQrDataUrl, createPrintQrDataUrl } from "../../lib/core/qr-output.js";
 import { createEtagForVehicle, buildTagScanUrl, VEHICLE_LABELS, etagIdFor } from "../../lib/core/tag-issuance.js";
+import { validateAddress } from "../../lib/core/address.js";
+
+// Strip an address DB doc down to the shippable fields (no _id/ownerId/timestamps).
+function shapeAddress(doc) {
+  const { fullName, phone, line1, line2, landmark, city, state, pincode } = doc;
+  return { fullName, phone, line1, line2, landmark, city, state, pincode };
+}
 
 export function registerOwnerRoutes(app, env) {
   app.get("/api/owner/dashboard", async (request, reply) => {
@@ -197,6 +204,43 @@ export function registerOwnerRoutes(app, env) {
       return { ok: false, error: "Vehicle already added." };
     }
     return { ok: true, id: String(result.tag._id), token: result.tag.token };
+  });
+
+  // ── Delivery address (physical sticker shipping) ──────────────────
+  // One saved address per owner, reused across purchases. Returns the saved
+  // address so the checkout form can prefill it on repeat buys.
+  app.get("/api/owner/address", async (request, reply) => {
+    const blocked = await requireSession(app, "owner")(request, reply);
+    if (blocked) return blocked;
+
+    const collections = await getCollections(env);
+    if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
+
+    const ownerId = toObjectId(request.session.userId);
+    const doc = await collections.addresses.findOne({ ownerId });
+    return { ok: true, address: doc ? shapeAddress(doc) : null };
+  });
+
+  // Validate and upsert the owner's delivery address before checkout.
+  app.post("/api/owner/address", async (request, reply) => {
+    const blocked = await requireSession(app, "owner")(request, reply);
+    if (blocked) return blocked;
+
+    const collections = await getCollections(env);
+    if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
+
+    const result = validateAddress(request.body);
+    if (!result.ok) { reply.code(400); return { ok: false, error: result.error }; }
+
+    const ownerId = toObjectId(request.session.userId);
+    const now = new Date().toISOString();
+    await collections.addresses.updateOne(
+      { ownerId },
+      { $set: { ...result.address, updatedAt: now }, $setOnInsert: { ownerId, createdAt: now } },
+      { upsert: true }
+    );
+
+    return { ok: true, address: result.address };
   });
 
   // The old in-place ₹199 premium-upgrade endpoints (purchase-order /

@@ -234,6 +234,44 @@ function updatePremiumUI() {
     if (buyBtn) { buyBtn.style.display = ""; buyBtn.disabled = !realId; }
     if (activeNote) activeNote.style.display = "none";
   }
+  applyEtagDownloadMode();
+}
+
+// Premium tags download the OFFICIAL sticker (real Figma artwork) and the button
+// is renamed to "Download Premium Tag". Free tags keep the generated E-Tag and
+// the original label. Toggled purely on the tag's premium state.
+function applyEtagDownloadMode() {
+  const print     = document.getElementById("etag-print");
+  const menuLabel = document.getElementById("etag-menu-label");
+  const btnLabel  = document.getElementById("etag-btn-label");
+  const intro     = document.getElementById("etag-intro");
+  const instrH    = document.getElementById("etag-instr-h");
+  const freebox   = document.getElementById("etag-freebox");
+
+  if (isPremium) {
+    if (print) print.classList.add("is-premium");
+    if (menuLabel) menuLabel.textContent = "Download Premium Tag";
+    if (btnLabel)  btnLabel.textContent  = "Download Premium Tag PDF";
+    if (intro)  intro.textContent  = "Thank you for purchasing your official ParkTag premium sticker.";
+    if (instrH) instrH.textContent = "How to fix your sticker to the windscreen";
+    if (freebox) freebox.innerHTML = "This official ParkTag sticker unlocks <b>unlimited private contact</b>. Finders can always reach you via masked call or WhatsApp, and your number stays private.";
+  } else {
+    if (print) print.classList.remove("is-premium");
+    if (menuLabel) menuLabel.textContent = "Download E-Tag";
+    if (btnLabel)  btnLabel.textContent  = "Download E-Tag PDF";
+    if (intro)  intro.textContent  = "Thank you for generating your free ParkTag E-Tag.";
+    if (instrH) instrH.textContent = "How to fix the E-Tag to your windscreen";
+    if (freebox) freebox.innerHTML = "This free E-Tag includes <b>1 free contact</b>. A finder can reach you once via masked call or WhatsApp (your number stays private). For unlimited contact, upgrade to the official physical ParkTag sticker.";
+  }
+
+  // Put the real tag QR on both sticker variants (the generated one was left on a
+  // placeholder before).
+  if (realQrDataUrl) {
+    const figmaQr = document.getElementById("print-figma-qr-img");
+    const genQr   = document.getElementById("print-qr-img");
+    if (figmaQr) figmaQr.src = realQrDataUrl;
+    if (genQr)   genQr.src   = realQrDataUrl;
+  }
 }
 
 document.getElementById("buy-premium-btn")?.addEventListener("click", async () => {
@@ -260,9 +298,15 @@ document.getElementById("buy-premium-btn")?.addEventListener("click", async () =
       order_id: order.orderId,
       amount: order.amount,
       currency: order.currency,
-      name: "ParkTag",
+      // Blank (a single space) so the checkout shows ONLY the ParkTag logo and
+      // no name text. An empty string would make Razorpay fall back to the
+      // account's business name ("Edit Tree"), which we don't want.
+      name: " ",
       description: order.productName,
-      theme: { color: "#FF2700" },
+      // Show the ParkTag wordmark (not the Razorpay account's default logo) and
+      // a white checkout header, per brand.
+      image: `${window.location.origin}/images/light-logo.png`,
+      theme: { color: "#ffffff" },
       handler: async (resp) => {
         const v = await fetch(`/api/owner/tags/${realId}/purchase-verify`, {
           method: "POST",

@@ -180,7 +180,7 @@ function vehicleCard(tag, idx) {
     ${isOfficial
       ? `<button class="pt-vlc-act dl" onclick="event.stopPropagation();downloadETagFor('${tag.id}')">
            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-           Download E-Tag
+           Download Premium Tag
          </button>`
       : `<button class="pt-vlc-act buy" onclick="event.stopPropagation();buyOfficialSticker('${tag.id}',this)">Official Sticker · ₹199</button>`
     }
@@ -1241,9 +1241,15 @@ async function buyOfficialSticker(tagId, btnEl) {
       order_id: order.orderId,
       amount: order.amount,
       currency: order.currency,
-      name: "ParkTag",
+      // Blank (a single space) so the checkout shows ONLY the ParkTag logo and
+      // no name text. An empty string would make Razorpay fall back to the
+      // account's business name ("Edit Tree"), which we don't want.
+      name: " ",
       description: order.productName || "Official ParkTag QR Sticker",
-      theme: { color: "#FF2700" },
+      // Show the ParkTag wordmark (not the Razorpay account's default logo) and
+      // a white checkout header, per brand.
+      image: `${window.location.origin}/images/light-logo.png`,
+      theme: { color: "#ffffff" },
       handler: async (resp) => {
         try {
           const v = await fetch(`/api/owner/tags/${tagId}/purchase-verify`, {

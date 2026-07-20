@@ -358,7 +358,15 @@ async function exportQrsForPrint() {
       return;
     }
 
-    grid.innerHTML = tags.map(tag => etagPrintPageHtml(tag)).join("");
+    // Group into landscape sheets of 4 (2x2) so the on-screen preview matches
+    // the printed page and each page holds exactly four stickers.
+    const perSheet = 4;
+    let sheetsHtml = "";
+    for (let i = 0; i < tags.length; i += perSheet) {
+      const cells = tags.slice(i, i + perSheet).map(etagPrintPageHtml).join("");
+      sheetsHtml += `<div class="pt-sheet">${cells}</div>`;
+    }
+    grid.innerHTML = sheetsHtml;
   } catch (err) {
     grid.innerHTML = `<p style="color:#DC2626">Failed to load: ${err.message}</p>`;
   }

@@ -2,6 +2,7 @@ import { createRazorpayOrder, verifyRazorpaySignature, isRazorpayConfigured, get
 import { getCollections } from "../../lib/db/repositories.js";
 import { requireSession, toObjectId } from "../../lib/auth/auth.js";
 import { addressToNotes } from "../../lib/core/address.js";
+import { createPremiumTagForVehicle } from "../../lib/core/tag-issuance.js";
 
 // Shippable subset of an address DB doc.
 function shapeAddress(doc) {
@@ -19,13 +20,19 @@ export function registerShopRoutes(app, env) {
   // Create order — the price is resolved SERVER-SIDE from the catalog (M15).
   // The client sends only a productId; any client-supplied `amount` is ignored,
   // so a tampered request can't buy a product for the wrong price.
+  //
+  // Optional `replaceTagId` (M18): when the owner buys a premium tag from an
+  // expired free-trial vehicle card, this is the free tag to replace. On a
+  // successful payment (verify-payment) we mint a new premium tag for that
+  // vehicle and soft-remove the old free tag. Missing/invalid → plain order.
   app.post("/api/shop/create-order", async (request, reply) => {
     // Shop items are physical tags that ship to the buyer, so checkout now
     // requires a logged-in owner with a saved delivery address.
     const blocked = await requireSession(app, "owner")(request, reply);
     if (blocked) return blocked;
+    const ownerId = toObjectId(request.session.userId);
 
-    const { productId } = request.body || {};
+    const { productId, replaceTagId } = request.body || {};
     if (!productId) { reply.code(400); return { error: "productId required." }; }
 
     const product = getShopProduct(productId);
@@ -38,16 +45,29 @@ export function registerShopRoutes(app, env) {
 
     // Refuse to take money for a physical item with nowhere to ship it. The
     // checkout form saves the address first, so a missing one is out-of-order.
-    const ownerId = toObjectId(request.session.userId);
     const addressDoc = await collections.addresses.findOne({ ownerId });
     const shipping = addressDoc ? shapeAddress(addressDoc) : null;
     if (!shipping) { reply.code(400); return { error: "Please add a delivery address before paying." }; }
+
+    // Validate the replace-context tag (scoped to this owner, still a live,
+    // non-premium tag). Invalid or absent → treat as a plain physical order.
+    let validReplaceTagId = null;
+    if (replaceTagId) {
+      const oldTag = await collections.tags.findOne({
+        _id: toObjectId(replaceTagId),
+        ownerId,
+        deletedAt: { $in: [null, undefined] }
+      });
+      if (oldTag && !oldTag.premium) {
+        validReplaceTagId = String(oldTag._id);
+      }
+    }
 
     try {
       const order = await createRazorpayOrder(env, {
         amount: product.amount, // server catalog price (INR) → paise inside helper
         receipt: `pt_${productId}_${Date.now()}`,
-        notes: { productId, productName: product.name, ...addressToNotes(shipping) }
+        notes: { productId, productName: product.name, replaceTagId: validReplaceTagId || "", ...addressToNotes(shipping) }
       });
 
       // Persist the server-created order so verify-payment can prove the payment
@@ -63,6 +83,7 @@ export function registerShopRoutes(app, env) {
           currency: order.currency,
           status: "created",
           shippingAddress: shipping,
+          replaceTagId: validReplaceTagId,
           createdAt: new Date().toISOString()
         });
       }
@@ -76,6 +97,10 @@ export function registerShopRoutes(app, env) {
 
   // Verify payment signature
   app.post("/api/shop/verify-payment", async (request, reply) => {
+    const blocked = await requireSession(app, "owner")(request, reply);
+    if (blocked) return blocked;
+    const ownerId = toObjectId(request.session.userId);
+
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = request.body || {};
     if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
       reply.code(400); return { ok: false, error: "Missing payment fields." };
@@ -98,6 +123,8 @@ export function registerShopRoutes(app, env) {
     // the current catalog price in paise. This rejects any order that was never
     // minted by us, or whose amount doesn't match the catalog.
     const collections = await getCollections(env);
+    let replaced = false;
+    let newTagId = null;
     if (collections) {
       const order = await collections.shopOrders.findOne({ orderId: razorpay_order_id });
       if (!order) {
@@ -108,12 +135,44 @@ export function registerShopRoutes(app, env) {
       if (expectedPaise === null || order.amount !== expectedPaise) {
         reply.code(400); return { ok: false, error: "Order amount mismatch." };
       }
-      await collections.shopOrders.updateOne(
-        { orderId: razorpay_order_id },
+
+      // Atomically flip created → paid so a duplicate verify can't mint twice.
+      const paidTransition = await collections.shopOrders.updateOne(
+        { orderId: razorpay_order_id, status: "created" },
         { $set: { status: "paid", paymentId: razorpay_payment_id, paidAt: new Date().toISOString() } }
       );
+      const firstTime = paidTransition.modifiedCount === 1;
+
+      // Tag replacement (M18): mint a new premium tag for the vehicle and
+      // soft-remove the spent free-trial tag. Only on the first paid transition
+      // and only when this order carried a valid replace-context.
+      if (firstTime && order.replaceTagId) {
+        const oldTag = await collections.tags.findOne({
+          _id: toObjectId(order.replaceTagId),
+          ownerId,
+          deletedAt: { $in: [null, undefined] }
+        });
+        if (oldTag && !oldTag.premium) {
+          const premiumTag = await createPremiumTagForVehicle(collections, ownerId, {
+            plateNumber: oldTag.plateNumber,
+            vehicleType: oldTag.vehicleType,
+            vehicleLabel: oldTag.vehicleLabel
+          });
+          const now = new Date().toISOString();
+          await collections.tags.updateOne(
+            { _id: oldTag._id },
+            { $set: { deletedAt: now, status: "inactive", updatedAt: now } }
+          );
+          newTagId = String(premiumTag._id);
+          replaced = true;
+          await collections.shopOrders.updateOne(
+            { orderId: razorpay_order_id },
+            { $set: { mintedTagId: newTagId } }
+          );
+        }
+      }
     }
 
-    return { ok: true, paymentId: razorpay_payment_id };
+    return { ok: true, paymentId: razorpay_payment_id, replaced, newTagId };
   });
 }

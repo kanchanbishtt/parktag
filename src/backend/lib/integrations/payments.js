@@ -10,10 +10,10 @@ export const STICKER_PRICE_INR = 199;
 // charges from this map — so a tampered client `amount` can never be trusted.
 // Keep the ids/prices in sync with the shop UI (`frontend/pages/owner/welcome.html`).
 export const SHOP_PRODUCTS = {
-  "pt-car-1": { name: "ParkTag Car Tag (Pack of 1)", amount: 399 },
-  "pt-car-2": { name: "ParkTag Car Tag (Pack of 2)", amount: 699 },
-  "pt-bike-1": { name: "ParkTag Bike Tag", amount: 349 },
-  "pt-combo": { name: "ParkTag Combo Pack", amount: 699 }
+  "pt-car-1": { name: "ParkTag Car Tag (Pack of 1)", amount: 299 },
+  "pt-car-2": { name: "ParkTag Car Tag (Pack of 2)", amount: 499 },
+  "pt-bike-1": { name: "ParkTag Bike Tag", amount: 299 },
+  "pt-combo": { name: "ParkTag Combo Pack", amount: 499 }
 };
 
 // Look up a shop product by id. Returns { id, name, amount } or null for an

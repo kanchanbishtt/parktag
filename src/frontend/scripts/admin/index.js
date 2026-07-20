@@ -220,11 +220,11 @@ function stickerHtml(tag) {
     </div>`;
 }
 
-// Full-page E-Tag print layout — a 1:1 match of the owner Vehicle-Detail PDF
-// (pages/owner/vehicle-detail.html #etag-print): instruction block + free-
-// contact note + dashed cut + two-panel sticker. Class-based markup that
-// relies on the `#qr-export-grid .pt-*` styles in print-queue.html. One tag
-// per `.pt-page` (page-break-after: always) so the export prints one per page.
+// Batch export print layout — sticker only: dashed cut + two-panel sticker
+// (white panel + red QR panel), no instruction / free-contact text. Class-based
+// markup that relies on the `#qr-export-grid .pt-*` styles in print-queue.html.
+// One tag per `.pt-page` (page-break-after: always) so the export prints one
+// per page.
 function etagPrintPageHtml(tag) {
   // Sticker only — no instructions text. Just the Figma artwork with the tag's QR.
   return `
@@ -288,7 +288,7 @@ function renderPrintQueue(data) {
 
   if (!tags.length) {
     _pqUpdateExportLabel();
-    target.innerHTML = `<p class="empty-copy">${_pqPrinted ? "No printed tags are awaiting a claim." : "Nothing waiting to be printed. Issue a batch to populate the queue."}</p>`;
+    target.innerHTML = `<p class="empty-copy">${_pqPrinted ? "No printed tags are awaiting a claim." : "Nothing waiting to be printed, issue a batch to populate the queue."}</p>`;
     return;
   }
 
@@ -341,19 +341,22 @@ async function exportQrsForPrint() {
   const countLabel = byId("export-count-label");
   if (!overlay || !grid) return;
 
+  // Require an explicit selection — never default to exporting the whole sheet.
+  if (_pqSelected.size === 0) {
+    setStatus("Select the tag(s) you want to export first.", "info");
+    return;
+  }
+
   grid.innerHTML = `<p style="color:#6B7280">Loading QR codes...</p>`;
   overlay.style.display = "block";
 
   try {
     const data = await fetchJson("/api/admin/print-queue/export");
-    let tags = data.tags || [];
-    // If the admin ticked specific tags, export only those; otherwise export
-    // the whole sheet (original behaviour).
-    if (_pqSelected.size > 0) tags = tags.filter((tag) => _pqSelected.has(tag.id));
-
-    if (countLabel) countLabel.textContent = `${tags.length} tag${tags.length !== 1 ? "s" : ""} ready to print`;
+    // Export only the ticked tags.
+    const tags = (data.tags || []).filter((tag) => _pqSelected.has(tag.id));
 
     if (!tags.length) {
+      if (countLabel) countLabel.textContent = "0 tags to print";
       grid.innerHTML = `<p style="color:#6B7280">No unclaimed tags to export.</p>`;
       return;
     }

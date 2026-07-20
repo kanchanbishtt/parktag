@@ -162,3 +162,39 @@ export async function createEtagForVehicle(collections, ownerId, input) {
   await collections.tags.insertOne(tag);
   return { tag, created: true };
 }
+
+// Mint a brand-new PREMIUM tag for one of an owner's vehicles. Used when an
+// owner buys a premium tag from the shop to replace a spent free-trial tag:
+// the caller soft-removes the old free tag, then mints this one (new token +
+// QR). Inserts directly — it must NOT reuse an existing tag by plate the way
+// createEtagForVehicle does, so the new premium tag is always distinct.
+export async function createPremiumTagForVehicle(collections, ownerId, input) {
+  const plateNumber = String(input.plateNumber || "").trim().toUpperCase();
+  const vehicleType = input.vehicleType || null;
+  const now = new Date().toISOString();
+
+  const tag = {
+    _id: new ObjectId(),
+    token: createSecureToken(),
+    ownerId,
+    vehicleLabel: input.vehicleLabel || labelForType(vehicleType),
+    vehicleType,
+    plateNumber,
+    status: "active",
+    batchNumber: null,
+    stickerRequested: true,
+    createdAt: now,
+    ...tagLifecycleDefaults(),
+    // Premium overrides — this tag is paid and official from birth.
+    premium: true,
+    plan: "premium",
+    physicalTagPurchased: true,
+    purchaseStatus: "paid",
+    premiumSince: now,
+    printStatus: "pending_print",
+    updatedAt: now
+  };
+
+  await collections.tags.insertOne(tag);
+  return tag;
+}

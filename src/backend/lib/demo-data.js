@@ -68,6 +68,12 @@ export async function seedDemoData(env) {
     vehicleLabel: "Demo Honda City",
     plateNumber: "DL01AB1234",
     status: "active",
+    // Free call already spent + non-premium → the owner dashboard renders the
+    // M18 "trial ended → Buy Premium Tag" state so it can be tested immediately.
+    premium: false,
+    purchaseStatus: "none",
+    freeContactUsed: true,
+    freeContactUsedAt: new Date().toISOString(),
     createdAt: new Date().toISOString()
   };
 

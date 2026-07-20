@@ -82,7 +82,7 @@ Production runs at **[app.parktag.me](https://app.parktag.me)**. Operable surfac
 | Database     | **MongoDB** (Atlas in prod, local `mongod` in dev)                 |
 | Calls        | **Exotel** — inbound "Dial-Whom" masked call bridging              |
 | Messaging    | **Meta WhatsApp Cloud API** (Graph API `v19.0`)                    |
-| Payments     | **Razorpay** (official sticker upgrade, ₹199)                      |
+| Payments     | **Razorpay** (shop premium tags, server-locked rate list)          |
 | Auth         | Server-side sessions (cookie), password + OTP + **Google OAuth**   |
 | Email/OTP    | `nodemailer` (SMTP)                                                 |
 | QR           | `qrcode` (data-URL QR generation)                                  |
@@ -147,33 +147,34 @@ unclaimed ──(owner claims / self-registers)──▶ active ⇄ inactive ─
 
 **Free contact vs premium**
 
-- Every E-Tag includes **one free masked contact** (`freeContactUsed:false` at creation).
+- Every E-Tag includes **one free masked contact** (`freeContactUsed:false` at creation) —
+  a **one-contact free trial**.
 - After it's used, the server blocks further contact with **`402 FREE_USED`** —
   the gate is `freeContactUsed && !premium`.
 - **Premium** (`premium:true`) bypasses the gate → unlimited contact. Premium is granted by:
-  - the owner buying the **official sticker** (Razorpay ₹199, per-tag), or
+  - the owner **buying a premium tag through the shop** (rate list, ₹299+): a paid shop
+    order **mints a new premium tag** for that vehicle and **soft-removes the spent free
+    tag** (M18 — the old in-place ₹199 upgrade is retired), or
   - an admin issuing a **premium batch**.
+- **Download E-Tag** and E-Tag info are shown only for **premium** tags; non-premium
+  (trial) tags show neither.
 
 **Pricing**
 
 All prices are in **INR** and are **server-authoritative** — the browser only sends a
 `productId`; the amount charged is resolved on the server (never trusted from the client).
-
-*Owner premium upgrade* — buy the official sticker for an existing E-Tag:
-
-| Item                     | Price | Where it's set |
-|--------------------------|-------|----------------|
-| Official sticker upgrade | ₹199  | `STICKER_PRICE_INR` in `lib/integrations/payments.js` |
+Premium is bought from the shop catalog below (the standalone ₹199 per-tag upgrade was
+removed in M18).
 
 *Shop catalog* — new physical tags, from the owner dashboard shop (`SHOP_PRODUCTS` in
 `lib/integrations/payments.js`):
 
 | `productId` | Product                       | Price | MRP  |
 |-------------|-------------------------------|-------|------|
-| `pt-car-1`  | ParkTag Car Tag (Pack of 1)   | ₹399  | ₹499 |
-| `pt-car-2`  | ParkTag Car Tag (Pack of 2)   | ₹699  | ₹799 |
-| `pt-bike-1` | ParkTag Bike Tag              | ₹349  | ₹399 |
-| `pt-combo`  | ParkTag Combo Pack (Car+Bike) | ₹699  | ₹899 |
+| `pt-car-1`  | ParkTag Car Tag (Pack of 1)   | ₹299  | ₹499 |
+| `pt-car-2`  | ParkTag Car Tag (Pack of 2)   | ₹499  | ₹799 |
+| `pt-bike-1` | ParkTag Bike Tag              | ₹299  | ₹399 |
+| `pt-combo`  | ParkTag Combo Pack (Car+Bike) | ₹499  | ₹899 |
 
 > Changing a shop price means editing `SHOP_PRODUCTS` (the charged amount) **and** the
 > `PRODUCTS` list in `frontend/pages/owner/welcome.html` (the displayed price). The MRP is
@@ -379,7 +380,7 @@ WAVETAG_VERIFY_MESSAGE=<test-message>   # whatsapp script only
 | `GET /api/owner/dashboard`             | Owner's vehicles, requests, activity |
 | `POST /api/owner/local-vehicle`        | Add a vehicle → real E-Tag (idempotent, 409 on dup) |
 | `POST /api/owner/mobile`               | Save owner phone                     |
-| `POST /api/owner/tags/:tagId/purchase-order` / `purchase-verify` | Razorpay premium upgrade |
+| `POST /api/shop/create-order` / `verify-payment` | Razorpay shop checkout; a paid order with `replaceTagId` mints a premium tag + removes the free tag (M18) |
 | `POST /api/owner/tags/:tagId/status`   | Activate / deactivate                |
 | `DELETE /api/owner/tags/:tagId`        | Soft-delete a vehicle                |
 | `POST /api/owner/callback/register-call` | Owner → finder callback            |
@@ -419,9 +420,10 @@ scope every query by `ownerId = session.userId`, so a user can only ever touch t
 - **Meta WhatsApp (messaging)** — `lib/integrations/meta.js` sends server-built messages via
   the Graph API. Delivery status (`sent/delivered/read/failed`) is received at
   `/api/provider/meta/webhook`; the `GET` handler answers Meta's `hub.challenge` verification.
-- **Razorpay (payments)** — `lib/integrations/payments.js`; both the owner premium upgrade
-  (₹199) and the shop checkout are **server-locked** — the shop resolves prices from a
-  `SHOP_PRODUCTS` catalog by `productId` and re-checks the order at verify time (M15).
+- **Razorpay (payments)** — `lib/integrations/payments.js`; the shop checkout is
+  **server-locked** — the shop resolves prices from a `SHOP_PRODUCTS` catalog by `productId`
+  and re-checks the order at verify time (M15). A paid order carrying `replaceTagId` mints a
+  new premium tag and soft-removes the spent free tag (M18).
 - **Google OAuth** — sign-in never auto-creates an account; unknown Gmails get a `no_account`
   error. Callback/JS-origins must be whitelisted in the Google Cloud Console.
 
@@ -472,9 +474,11 @@ are kept for the alternative Render target.
 
 MVP is essentially feature-complete and verified. Milestone tracker: `TASKS.md`.
 
-- ✅ **M1–M17** — backend, scanner/owner/admin flows, Exotel calls, Meta WhatsApp
-  messaging, owner vehicle management, per-vehicle premium upgrade, server-locked shop
-  pricing, print-queue split, and security-boundary hardening — all implemented and verified.
+- ✅ **M1–M18** — backend, scanner/owner/admin flows, Exotel calls, Meta WhatsApp
+  messaging, owner vehicle management, server-locked shop pricing, print-queue split,
+  security-boundary hardening, and the free-trial → buy-premium-via-shop model (a paid shop
+  order mints a new premium tag and removes the spent free tag) — all implemented; M18 needs
+  a live browser checkout to fully verify.
 <!-- - ✅ **M15** — shop payment amounts are locked server-side: `/api/shop/create-order`
   resolves the price from a server catalog (`SHOP_PRODUCTS` in `payments.js`) by `productId`
   and ignores any client `amount`. Orders are persisted to `shop_orders`, and

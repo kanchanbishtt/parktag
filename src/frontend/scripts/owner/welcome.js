@@ -167,24 +167,26 @@ function vehicleCard(tag, idx) {
   const pill      = tag.premium ? "★ Premium" : (!tag.freeContactUsed ? "1 Free Call" : "Call Used");
   const pillClass = tag.premium ? "vp-premium" : (!tag.freeContactUsed ? "vp-free" : "vp-used");
   const detailUrl = `/owner-vehicle-detail?${params}`;
-  // Download is available for any official (premium) tag — whether upgraded
-  // in-app via Razorpay or bought as a physical premium-batch sticker on
-  // Amazon/other platforms (those arrive premium with no in-app payment).
+  // Card action row (both active and inactive cards). Three states (M18):
+  //  • premium            → Download E-Tag (kept for official tags only)
+  //  • free, contact used → "trial expired" note + Buy Premium Tag → shop
+  //  • free, unused       → nothing (the free trial is still live)
+  // Buttons stopPropagation so tapping them never navigates to the detail page.
   const isOfficial = Boolean(tag.premium);
   const hasId      = Boolean(tag.id);
+  const trialExpired = !isOfficial && Boolean(tag.freeContactUsed);
 
-  // Per-vehicle official-sticker action row (both active and inactive cards).
-  // Buttons stopPropagation so tapping them never navigates to the detail page.
-  const actions = hasId ? `
-  <div class="pt-vlc-actions">
-    ${isOfficial
-      ? `<button class="pt-vlc-act dl" onclick="event.stopPropagation();downloadETagFor('${tag.id}')">
-           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-           Download Premium Tag
-         </button>`
-      : `<button class="pt-vlc-act buy" onclick="event.stopPropagation();buyOfficialSticker('${tag.id}',this)">Official Sticker · ₹199</button>`
-    }
-  </div>` : "";
+  let actionsInner = "";
+  if (hasId && isOfficial) {
+    actionsInner = `<button class="pt-vlc-act dl" onclick="event.stopPropagation();downloadETagFor('${tag.id}')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Download E-Tag
+      </button>`;
+  } else if (hasId && trialExpired) {
+    actionsInner = `<p class="pt-vlc-trial">Your free trial has ended, buy a premium tag to continue.</p>
+      <button class="pt-vlc-act buy" onclick="event.stopPropagation();goToShopForReplace('${tag.id}')">Buy Premium Tag</button>`;
+  }
+  const actions = actionsInner ? `\n  <div class="pt-vlc-actions">${actionsInner}</div>` : "";
 
   return `
 <div class="pt-vlc" style="border-left-color:${color.accent}">
@@ -857,6 +859,17 @@ if (grid) grid.innerHTML = skeletonGrid(3);
 load();
 window._reloadDashboard = load;
 
+// Deep-link from the vehicle-detail page: /owner-welcome?shop=1&replace=<tagId>
+// opens the shop with the trial tag remembered as the replace-context (M18).
+(function openShopFromQuery() {
+  const q = new URLSearchParams(location.search);
+  if (q.get("shop") === "1") {
+    window._replaceTagId = q.get("replace") || null;
+    // Defer until the shop tab wiring is ready.
+    setTimeout(() => { if (typeof switchTab === "function") switchTab("shop"); }, 0);
+  }
+})();
+
 // ── Pull-to-refresh ───────────────────────────────────────────────
 const PTR_THRESHOLD = 72;
 let ptrStartY = 0;
@@ -1204,84 +1217,19 @@ function downloadETagFor(tagId) {
 }
 window.downloadETagFor = downloadETagFor;
 
-// Buy the official ParkTag sticker (premium upgrade) for one tag, straight from
-// its dashboard card. Reuses the per-tag purchase endpoints — the price is fixed
-// server-side (STICKER_PRICE_INR). On success the dashboard reloads so the card
-// flips from the upgrade button to the download button.
-async function buyOfficialSticker(tagId, btnEl) {
-  if (!tagId) { _toast("Open this vehicle to purchase.", "err"); return; }
-  if (typeof window.Razorpay === "undefined") { _toast("Payment is unavailable right now. Please try again.", "err"); return; }
-
-  // Collect a delivery address before payment — the physical sticker ships home.
-  if (typeof window.ptCollectAddress === "function") {
-    const haveAddress = await window.ptCollectAddress();
-    if (!haveAddress) return; // user backed out of the address step
-  }
-
-  const original = btnEl ? btnEl.textContent : "";
-  const restore = () => {
-    if (!btnEl) return;
-    btnEl.disabled = false;
-    btnEl.classList.remove("pt-btn-loading");
-    btnEl.textContent = original;
-  };
-  if (btnEl) { btnEl.disabled = true; btnEl.classList.add("pt-btn-loading"); btnEl.textContent = "Starting…"; }
-
-  try {
-    const res = await fetch(`/api/owner/tags/${tagId}/purchase-order`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: "{}" // Fastify's JSON parser rejects an empty body with this content-type
-    });
-    const order = await res.json();
-    if (!res.ok) throw new Error(order.error || "Could not start payment.");
-
-    const rzp = new window.Razorpay({
-      key: order.keyId,
-      order_id: order.orderId,
-      amount: order.amount,
-      currency: order.currency,
-      // Blank (a single space) so the checkout shows ONLY the ParkTag logo and
-      // no name text. An empty string would make Razorpay fall back to the
-      // account's business name ("Edit Tree"), which we don't want.
-      name: " ",
-      description: order.productName || "Official ParkTag QR Sticker",
-      // Show the ParkTag wordmark (not the Razorpay account's default logo) and
-      // a white checkout header, per brand.
-      image: `${window.location.origin}/images/light-logo.png`,
-      theme: { color: "#ffffff" },
-      handler: async (resp) => {
-        try {
-          const v = await fetch(`/api/owner/tags/${tagId}/purchase-verify`, {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify(resp)
-          });
-          const vd = await v.json();
-          if (v.ok && vd.premium) {
-            _toast("Payment successful! Official sticker unlocked.", "ok");
-            if (typeof window._reloadDashboard === "function") window._reloadDashboard();
-          } else {
-            _toast(vd.error || "Payment could not be verified. If you were charged, contact support.", "err");
-            restore();
-          }
-        } catch {
-          _toast("Verification failed. If you were charged, contact support.", "err");
-          restore();
-        }
-      },
-      modal: { ondismiss: restore }
-    });
-    rzp.open();
-  } catch (e) {
-    _toast(e.message || "Could not start payment.", "err");
-    restore();
-  }
+// Send the owner to the shop to buy a premium tag that REPLACES a spent
+// free-trial tag (M18). The old tag id is remembered so the shop's create-order
+// can pass it as replaceTagId; on a paid order the backend mints a new premium
+// tag and soft-removes this old free tag, then the dashboard reloads.
+function goToShopForReplace(tagId) {
+  window._replaceTagId = tagId || null;
+  if (typeof switchTab === "function") switchTab("shop");
 }
-window.buyOfficialSticker = buyOfficialSticker;
+window.goToShopForReplace = goToShopForReplace;
 
 function goToShop() {
   closeMenu();
+  window._replaceTagId = null; // generic shop visit — not a trial replacement
   if (typeof switchTab === "function") switchTab("shop");
 }
 window.goToShop = goToShop;

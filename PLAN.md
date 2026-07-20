@@ -460,8 +460,8 @@ Each E-Tag includes **one free masked contact**:
 - A scanner scans the QR and contacts the owner → `freeContactUsed` is set to `true`.
 - The next scanner who tries to contact gets blocked with a `402 FREE_USED` response.
 - The contact page shows `contactAvailable: false` for that tag.
-- The owner must purchase the official physical sticker (premium upgrade) to unlock unlimited contact for that vehicle.
-- Purchasing premium sets `premium: true` on the tag, which bypasses the `freeContactUsed` gate permanently.
+- The free E-Tag is a **one-contact trial**. Once it is spent there is **no in-place ₹199 upgrade** (retired in M18). The owner buys a **premium tag through the shop** (rate list, ₹299+); a paid shop order **mints a new premium tag** for that vehicle and **soft-removes the old free tag**. The new premium tag (new token/QR) bypasses the `freeContactUsed` gate permanently.
+- Download E-Tag and E-Tag info are shown only for **premium** tags; non-premium (trial) tags show neither. See M18 in `TASKS.md` and §18 below.
 
 ### Key rule
 
@@ -667,7 +667,14 @@ The Activity section now appears at the bottom of the Tags tab (after My Vehicle
 
 ### Q3 — Shop vs Premium Upgrade: are these two separate products?
 
-**Current behaviour:**
+> **RESOLVED (M18).** They are unified. The in-place ₹199 upgrade is retired.
+> The free E-Tag is a one-contact trial; when it is spent the owner buys a
+> premium tag **through the shop** (rate list: `pt-car-1`/`pt-bike-1` ₹299,
+> `pt-car-2`/`pt-combo` ₹499). A paid shop order mints a new premium tag for the
+> vehicle and soft-removes the old free tag. The historical description below is
+> kept for context only.
+
+**Current behaviour (historical — pre-M18):**
 There are two separate payment flows:
 1. **Shop tab** (`/api/shop/*`) — sells physical ParkTag stickers delivered by post. Products: Car Tag ₹399, Bike Tag ₹349, Combo ₹699. Does not change any existing tag's `premium` field.
 2. **Vehicle-detail Premium button** (`/api/owner/tags/:tagId/purchase-*`) — upgrades a specific existing digital tag for ₹199. Sets `premium: true` on that tag, enabling unlimited masked contact.
@@ -738,6 +745,14 @@ Move the price to the server. The client may say *which* product it wants (`prod
 - No new payment providers, product tiers, or shop products.
 
 ## 18. Per-Vehicle Official Sticker Upgrade & Gated Download (My Vehicles cards)
+
+> **Superseded by M18 (free-trial → buy-premium-via-shop).** The in-place ₹199
+> per-tag upgrade described below (the `purchase-order`/`purchase-verify`
+> endpoints and the "Official Sticker — ₹199" button) has been **removed**.
+> Premium is now bought through the shop at the rate list; a paid shop order
+> mints a new premium tag for the vehicle and soft-removes the spent free tag.
+> Download E-Tag is kept **only for premium tags**. The gated-download idea
+> (download appears once a tag is premium) still holds. See `TASKS.md` M18.
 
 ### 18.1 Goal
 

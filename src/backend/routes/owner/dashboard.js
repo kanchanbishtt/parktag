@@ -280,8 +280,23 @@ export function registerOwnerRoutes(app, env) {
         notes: { tagId: String(tag._id), plate: tag.plateNumber || "", ...addressToNotes(shipping) }
       });
     } catch (error) {
+      // The Razorpay SDK rejects with a plain object ({ statusCode, error:
+      // { code, description } }), NOT an Error — so `error.message` is undefined
+      // and the old fallback hid the real cause (e.g. invalid API keys → 401
+      // "Authentication failed"). Log the full payload and surface Razorpay's
+      // own description so the failure is diagnosable.
+      const detail =
+        error?.error?.description ||
+        (error instanceof Error ? error.message : null);
+      request.log.error(
+        { err: error, statusCode: error?.statusCode, tagId: String(tag._id) },
+        "Razorpay order creation failed"
+      );
       reply.code(502);
-      return { ok: false, error: error instanceof Error ? error.message : "Could not create order." };
+      return {
+        ok: false,
+        error: detail ? `Payment setup failed: ${detail}` : "Could not create order."
+      };
     }
 
     await collections.tags.updateOne(

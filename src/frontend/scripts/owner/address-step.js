@@ -288,6 +288,13 @@
         headers: { "content-type": "application/json" },
         body: JSON.stringify(v)
       });
+      // Not signed in as a vehicle owner (no owner session, or a session for a
+      // different role such as admin). The raw API error here is "Forbidden" /
+      // "Authentication required", which is confusing on a checkout form — show
+      // an actionable message instead.
+      if (res.status === 401 || res.status === 403) {
+        throw new Error("Please sign in as a vehicle owner to save your delivery address.");
+      }
       var data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.error || "Could not save address.");
       close(true);

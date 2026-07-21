@@ -156,6 +156,16 @@
     }
     .pt-slide-blank-lbl { font-size: 0.78rem; font-weight: 600; color: #D1D5DB; margin: 0; }
 
+    /* Desktop banner images replace the placeholders at >=600px. Banners are
+       2480x1085 (~16:7), matching the slide frame, so cover fits with no crop. */
+    .pt-slide-desk-img { display: none; width: 100%; aspect-ratio: 16/7; object-fit: cover; }
+    .pt-slide-mob-img  { display: block; width: 100%; aspect-ratio: 16/7; object-fit: cover; }
+    @media (min-width: 600px) {
+      .pt-slide-desk-img { display: block; }
+      .pt-slide-mob-img  { display: none; }
+      .pt-slide-hide-desk { display: none; }
+    }
+
     .pt-car-dots { display: flex; justify-content: center; gap: 7px; margin-top: 10px; }
     .pt-dot-btn {
       height: 7px; width: 7px; border-radius: 4px; background: #D1D5DB;
@@ -479,7 +489,10 @@
                  letter-spacing: .09em; text-transform: uppercase; }
 
     /* Vehicle chips */
-    .pt-mchips { display: flex; gap: 7px; padding: 4px 16px 6px; overflow-x: auto; }
+    /* Horizontal finger-swipe through vehicles when there are more than fit on
+       screen. Scroll by touch/trackpad only — no visible scrollbar, no buttons. */
+    .pt-mchips { display: flex; gap: 7px; padding: 4px 16px 6px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; -ms-overflow-style: none; }
+    .pt-mchips::-webkit-scrollbar { display: none; }
     .pt-mchip {
       padding: 5px 13px; border-radius: 20px; border: 1.5px solid #E5E7EB;
       background: #fff; font-size: .76rem; font-weight: 700; color: #374151;
@@ -887,47 +900,21 @@
             <!-- Slide 1 -->
             <div class="pt-car-slide">
               <div class="pt-slide-img">
-                <div class="pt-slide-ph pt-ph-mob">
-                  <svg width="36" height="36" viewBox="0 0 24 24" fill="none">
-                    <rect x="3" y="3" width="18" height="18" rx="2" stroke="#D1D5DB" stroke-width="1.5"/>
-                    <circle cx="8.5" cy="8.5" r="1.5" fill="#D1D5DB"/>
-                    <path d="M21 15l-5-5L5 21" stroke="#D1D5DB" stroke-width="1.5" stroke-linecap="round"/>
-                  </svg>
-                  <span class="pt-slide-ph-tag">Mobile Banner · Slide 1</span>
-                </div>
-                <div class="pt-slide-ph pt-ph-desk">
-                  <svg width="36" height="36" viewBox="0 0 24 24" fill="none">
-                    <rect x="3" y="3" width="18" height="18" rx="2" stroke="#D1D5DB" stroke-width="1.5"/>
-                    <circle cx="8.5" cy="8.5" r="1.5" fill="#D1D5DB"/>
-                    <path d="M21 15l-5-5L5 21" stroke="#D1D5DB" stroke-width="1.5" stroke-linecap="round"/>
-                  </svg>
-                  <span class="pt-slide-ph-tag">Desktop Banner · Slide 1</span>
-                </div>
+                <img class="pt-slide-mob-img" src="/images/Parktag%20Mobil%20Banner%201.svg" alt="ParkTag banner 1">
+                <img class="pt-slide-desk-img" src="/images/Parktag%20Desktop%20Banner%201.0.svg" alt="ParkTag banner 1">
               </div>
             </div>
 
             <!-- Slide 2 -->
             <div class="pt-car-slide">
-              <div class="pt-slide-blank">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
-                  <rect x="3" y="3" width="18" height="18" rx="2" stroke="#D1D5DB" stroke-width="1.5"/>
-                  <circle cx="8.5" cy="8.5" r="1.5" fill="#D1D5DB"/>
-                  <path d="M21 15l-5-5L5 21" stroke="#D1D5DB" stroke-width="1.5" stroke-linecap="round"/>
-                </svg>
-                <p class="pt-slide-blank-lbl">Slide 2: Coming Soon</p>
-              </div>
+              <img class="pt-slide-mob-img" src="/images/Group%201973340790.svg" alt="ParkTag banner 2">
+              <img class="pt-slide-desk-img" src="/images/Parktag%20Desktop%20Banner%202.svg" alt="ParkTag banner 2">
             </div>
 
             <!-- Slide 3 -->
             <div class="pt-car-slide">
-              <div class="pt-slide-blank">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
-                  <rect x="3" y="3" width="18" height="18" rx="2" stroke="#D1D5DB" stroke-width="1.5"/>
-                  <circle cx="8.5" cy="8.5" r="1.5" fill="#D1D5DB"/>
-                  <path d="M21 15l-5-5L5 21" stroke="#D1D5DB" stroke-width="1.5" stroke-linecap="round"/>
-                </svg>
-                <p class="pt-slide-blank-lbl">Slide 3: Coming Soon</p>
-              </div>
+              <img class="pt-slide-mob-img" src="/images/Parktag%20Mobil%20Banner%203.svg" alt="ParkTag banner 3">
+              <img class="pt-slide-desk-img" src="/images/Parktag%20Desktop%20Banner%203.svg" alt="ParkTag banner 3">
             </div>
 
           </div>

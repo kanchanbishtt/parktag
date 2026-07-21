@@ -92,7 +92,12 @@ export async function buildApp() {
     frameguard: isProduction,
     crossOriginOpenerPolicy: isProduction,
     crossOriginResourcePolicy: isProduction,
-    crossOriginEmbedderPolicy: isProduction
+    // COEP (require-corp) blocks third-party sub-resources that don't send a
+    // CORP header — including Razorpay's checkout.js — which broke sticker
+    // checkout in production with "Razorpay is not defined". The app doesn't
+    // use cross-origin isolation (SharedArrayBuffer etc.), so COEP buys us
+    // nothing here; keep it off so the payment script loads.
+    crossOriginEmbedderPolicy: false
   });
 
   await app.register(fastifyRateLimit, {

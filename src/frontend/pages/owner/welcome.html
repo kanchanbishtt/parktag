@@ -479,7 +479,10 @@
                  letter-spacing: .09em; text-transform: uppercase; }
 
     /* Vehicle chips */
-    .pt-mchips { display: flex; gap: 7px; padding: 4px 16px 6px; overflow-x: auto; }
+    /* Horizontal finger-swipe through vehicles when there are more than fit on
+       screen. Scroll by touch/trackpad only — no visible scrollbar, no buttons. */
+    .pt-mchips { display: flex; gap: 7px; padding: 4px 16px 6px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; -ms-overflow-style: none; }
+    .pt-mchips::-webkit-scrollbar { display: none; }
     .pt-mchip {
       padding: 5px 13px; border-radius: 20px; border: 1.5px solid #E5E7EB;
       background: #fff; font-size: .76rem; font-weight: 700; color: #374151;

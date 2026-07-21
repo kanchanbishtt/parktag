@@ -25,7 +25,23 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className="h-full antialiased">
-      <body className="min-h-full flex flex-col font-sans">{children}</body>
+      <body className="min-h-full flex flex-col font-sans">
+        {children}
+        {/*
+          Navigation buttons fade the page out by setting document.body opacity
+          to 0 right before leaving. When the browser restores this page from the
+          back/forward cache (the Back button), that inline opacity:0 is preserved
+          — so the landing page came back fully invisible (a blank white screen).
+          `pageshow` fires on every display, including a bfcache restore, so we
+          clear the fade there to guarantee the page is visible again.
+        */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "window.addEventListener('pageshow',function(){var b=document.body;if(b){b.style.transition='';b.style.opacity='';}});",
+          }}
+        />
+      </body>
     </html>
   );
 }

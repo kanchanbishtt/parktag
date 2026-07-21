@@ -168,7 +168,7 @@ function vehicleCard(tag, idx) {
   const pillClass = tag.premium ? "vp-premium" : (!tag.freeContactUsed ? "vp-free" : "vp-used");
   const detailUrl = `/owner-vehicle-detail?${params}`;
   // Card action row (both active and inactive cards). Three states (M18):
-  //  • premium            → Download E-Tag (kept for official tags only)
+  //  • premium            → Download Premium Tag (official sticker)
   //  • free, contact used → "trial expired" note + Buy Premium Tag → shop
   //  • free, unused       → nothing (the free trial is still live)
   // Buttons stopPropagation so tapping them never navigates to the detail page.
@@ -180,7 +180,7 @@ function vehicleCard(tag, idx) {
   if (hasId && isOfficial) {
     actionsInner = `<button class="pt-vlc-act dl" onclick="event.stopPropagation();downloadETagFor('${tag.id}')">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        Download E-Tag
+        Download Premium Tag
       </button>`;
   } else if (hasId && trialExpired) {
     actionsInner = `<p class="pt-vlc-trial">Your free trial has ended, buy a premium tag to continue.</p>
@@ -1068,6 +1068,11 @@ function _fillMenu() {
   // Premium badge
   const premBadge = document.getElementById("menuPremiumBadge");
   if (premBadge) premBadge.style.display = tag.premium ? "inline-block" : "none";
+
+  // Download menu label reflects the tag type: premium tags download the
+  // official premium sticker, free tags the generated E-Tag.
+  const dlLbl = document.getElementById("mi-download-lb");
+  if (dlLbl) dlLbl.textContent = tag.premium ? "Download Premium Tag" : "Download E-Tag";
 
   // SOS number — same key as vehicle-detail.js (plain string, not JSON)
   const sosVal = localStorage.getItem(_sosKey(tag)) || "";

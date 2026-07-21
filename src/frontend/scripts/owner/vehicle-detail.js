@@ -255,6 +255,44 @@ function updatePremiumUI() {
     if (copy) copy.textContent = "This E-Tag includes 1 free contact. After it's used, buy a premium tag to keep Call & WhatsApp active.";
     if (buyBtn) buyBtn.style.display = "none";
   }
+  applyEtagDownloadMode();
+}
+
+// Premium tags download the OFFICIAL sticker (real Figma artwork) and the button
+// is renamed to "Download Premium Tag". Free tags keep the generated E-Tag and
+// the original label. Toggled purely on the tag's premium state.
+function applyEtagDownloadMode() {
+  const print     = document.getElementById("etag-print");
+  const menuLabel = document.getElementById("etag-menu-label");
+  const btnLabel  = document.getElementById("etag-btn-label");
+  const intro     = document.getElementById("etag-intro");
+  const instrH    = document.getElementById("etag-instr-h");
+  const freebox   = document.getElementById("etag-freebox");
+
+  if (isPremium) {
+    if (print) print.classList.add("is-premium");
+    if (menuLabel) menuLabel.textContent = "Download Premium Tag";
+    if (btnLabel)  btnLabel.textContent  = "Download Premium Tag PDF";
+    if (intro)  intro.textContent  = "Thank you for purchasing your official ParkTag premium sticker.";
+    if (instrH) instrH.textContent = "How to fix your sticker to the windscreen";
+    if (freebox) freebox.innerHTML = "This official ParkTag sticker unlocks <b>unlimited private contact</b>. Finders can always reach you via masked call or WhatsApp, and your number stays private.";
+  } else {
+    if (print) print.classList.remove("is-premium");
+    if (menuLabel) menuLabel.textContent = "Download E-Tag";
+    if (btnLabel)  btnLabel.textContent  = "Download E-Tag PDF";
+    if (intro)  intro.textContent  = "Thank you for generating your free ParkTag E-Tag.";
+    if (instrH) instrH.textContent = "How to fix the E-Tag to your windscreen";
+    if (freebox) freebox.innerHTML = "This free E-Tag includes <b>1 free contact</b>. A finder can reach you once via masked call or WhatsApp (your number stays private). For unlimited contact, upgrade to the official physical ParkTag sticker.";
+  }
+
+  // Put the real tag QR on both sticker variants (the generated one was left on a
+  // placeholder before).
+  if (realQrDataUrl) {
+    const figmaQr = document.getElementById("print-figma-qr-img");
+    const genQr   = document.getElementById("print-qr-img");
+    if (figmaQr) figmaQr.src = realQrDataUrl;
+    if (genQr)   genQr.src   = realQrDataUrl;
+  }
 }
 
 // Buy Premium Tag → open the dashboard shop with this tag as the replace-context

@@ -26,7 +26,10 @@ export async function getCollections(env) {
     pendingCalls: db.collection(withPrefix(prefix, "pending_calls")),
     // Server-created shop orders — the source of truth for what price was
     // actually charged, re-checked at verify time (M15 hardening).
-    shopOrders: db.collection(withPrefix(prefix, "shop_orders"))
+    shopOrders: db.collection(withPrefix(prefix, "shop_orders")),
+    // Delivery addresses for physical sticker fulfilment — one active doc per
+    // owner (upserted on ownerId), snapshotted onto each order at purchase time.
+    addresses: db.collection(withPrefix(prefix, "addresses"))
   };
 }
 

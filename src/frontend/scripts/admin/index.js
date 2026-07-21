@@ -474,8 +474,13 @@ async function loginAdmin() {
     window.ptProgress?.finish();
     const message =
       error instanceof Error ? error.message : "Admin login failed";
+    // The "Seed demo setup" hint only applies to local dev (the demo/seed
+    // routes are disabled in production), so don't leak it onto the live site.
+    const isLocalDev = ["localhost", "127.0.0.1"].includes(window.location.hostname);
     setStatus(
-      `${message}. If this is local dev, click "Seed demo setup" first.`,
+      isLocalDev
+        ? `${message}. If this is local dev, click "Seed demo setup" first.`
+        : message,
       "error"
     );
   }

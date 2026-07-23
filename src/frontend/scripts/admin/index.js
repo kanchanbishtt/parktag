@@ -1,9 +1,24 @@
 async function fetchJson(url, options) {
   const response = await fetch(url, options);
-  const data = await response.json();
+  const raw = await response.text();
+
+  let data;
+  try {
+    data = raw ? JSON.parse(raw) : {};
+  } catch {
+    // Non-JSON body: almost always a proxy/gateway error page (e.g. a 502/504
+    // "upstream error" when the request timed out upstream). Surface something
+    // readable instead of a raw "Unexpected token 'u'" JSON.parse crash.
+    const snippet = raw.trim().slice(0, 120);
+    throw new Error(
+      response.ok
+        ? `Unexpected non-JSON response from server${snippet ? ` — ${snippet}` : ""}`
+        : `Server error ${response.status}${snippet ? ` — ${snippet}` : ""}`
+    );
+  }
 
   if (!response.ok) {
-    throw new Error(data.error || "Request failed");
+    throw new Error(data.error || `Request failed (${response.status})`);
   }
 
   return data;
@@ -35,6 +50,11 @@ function currentAdminPage() {
 function goToOverview() {
   window.location.href = "/admin/overview";
 }
+
+function goToPrintQueue() {
+  window.location.href = "/admin/print-queue";
+}
+window.goToPrintQueue = goToPrintQueue;
 
 function setReadyState(message, tone = "info") {
   const card = byId("admin-ready-card");
@@ -180,46 +200,6 @@ function setIssueMessage(message) {
   `;
 }
 
-// Branded two-panel E-Tag sticker — a pixel-exact port of the owner E-Tag PDF
-// sticker (`.wl-pt-sticker` in pages/owner/welcome.html): same logo image,
-// "SCAN TO CONNECT" tagline, 60/40 white+red split, identical font sizes,
-// icon row and note copy. Inline styles + print-color-adjust so the export
-// sheet prints in colour. Used by batch-issuance output and print export.
-function stickerHtml(tag) {
-  const idLine = tag.token ? `Tag ${tag.token}` : "—";
-  return `
-    <div style="width:420px;font-family:'Inter','Segoe UI',Arial,sans-serif;color:#03162D;-webkit-print-color-adjust:exact;print-color-adjust:exact">
-      <div style="display:flex;width:100%;border-radius:18px;overflow:hidden;border:2px solid #03162D;-webkit-print-color-adjust:exact;print-color-adjust:exact">
-        <!-- Left: white panel -->
-        <div style="flex:0 0 60%;background:#fff;padding:22px;display:flex;flex-direction:column;justify-content:space-between">
-          <div>
-            <img src="/images/light-logo.png" alt="ParkTag" style="height:26px;width:auto;display:block" />
-            <div style="font-size:7px;font-weight:800;letter-spacing:.2em;color:#6B7280;margin-top:5px">SCAN TO CONNECT</div>
-          </div>
-          <p style="font-size:29px;font-weight:900;color:#03162D;line-height:1.12;margin:16px 0 0;letter-spacing:-0.01em">Scan the code<br>to <u style="text-decoration:underline;text-decoration-thickness:2.5px;text-underline-offset:2px">contact the<br>vehicle owner.</u></p>
-          <div>
-            <p style="font-size:7px;font-weight:700;letter-spacing:.05em;color:#6B7280;margin-top:14px;line-height:1.6;text-transform:uppercase">Scan using phone camera, Google Lens or any QR scanner app. Visit www.parktag.me for more.</p>
-            <p style="font-size:7px;color:#9CA3AF;margin-top:6px;letter-spacing:.02em">${idLine}</p>
-          </div>
-        </div>
-        <!-- Right: red panel -->
-        <div style="flex:0 0 40%;background:#FF2700;padding:18px 14px;display:flex;flex-direction:column;align-items:center;justify-content:space-between;-webkit-print-color-adjust:exact;print-color-adjust:exact">
-          <div style="background:#fff;border-radius:12px;padding:10px">
-            <img src="${tag.qrDataUrl}" alt="QR ${tag.token}" style="width:150px;height:150px;display:block" />
-          </div>
-          <div style="font-size:8.5px;font-weight:800;color:#fff;margin-top:11px;text-align:center">Park<span style="font-weight:600;opacity:.9">Tag</span>.me &nbsp;·&nbsp; <span style="font-weight:600;opacity:.9">vehicle tag</span></div>
-          <div style="display:flex;gap:13px;margin-top:11px">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9.5" stroke="#fff" stroke-width="1.7"/><path d="M9.2 16V8h3.1a2.4 2.4 0 0 1 0 4.8H9.2" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.5 5.5l13 13" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/></svg>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9.5" stroke="#fff" stroke-width="1.7"/><path d="M7 12h10" stroke="#fff" stroke-width="1.9" stroke-linecap="round"/></svg>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 3.5l9 15.5H3l9-15.5Z" stroke="#fff" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 9.5v4M12 16.5h.01" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M6.5 4.5C6 4 5.2 3.9 4.7 4.4 3.9 5.1 3.4 6.3 3.5 7.5c.2 4 2 7.6 5 10.5 2.9 2.9 6.5 4.8 10.5 5 1.2.1 2.4-.4 3.1-1.2.5-.5.4-1.3-.1-1.8l-2.6-2.3c-.4-.4-1-.4-1.5-.1l-1.4.9c-.3.2-.7.1-1-.1l-3-3c-.3-.3-.3-.7-.1-1l.9-1.4c.3-.5.3-1.1-.1-1.5L6.5 4.5Z" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg>
-          </div>
-          <p style="font-size:7.5px;font-weight:700;color:#fff;text-align:center;margin-top:8px;line-height:1.5">Wrong parking, emergency contact,<br>any issue with the vehicle — scan the QR.</p>
-        </div>
-      </div>
-    </div>`;
-}
-
 // Batch export print layout — sticker only: dashed cut + two-panel sticker
 // (white panel + red QR panel), no instruction / free-contact text. Class-based
 // markup that relies on the `#qr-export-grid .pt-*` styles in print-queue.html.
@@ -242,17 +222,26 @@ function etagPrintPageHtml(tag) {
 
 function renderIssuedTag(data) {
   const target = byId("issue-output");
-  const tags = data.tags || [];
-
   if (!target) return;
 
-  if (!tags.length) {
+  // The issue endpoint no longer returns a QR image per tag (that didn't scale
+  // to large batches). It returns a count; the actual print sheets are produced
+  // by the Print Queue export flow, on demand and in bounded chunks.
+  const count = data.count ?? (Array.isArray(data.tags) ? data.tags.length : 0);
+
+  if (!count) {
     target.innerHTML = `<p class="empty-copy">No tag batch issued yet.</p>`;
     return;
   }
 
-  target.innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:16px;padding:4px 0">${tags.map(stickerHtml).join("")}</div>`;
-  setStatus("QR batch generated successfully.", "success");
+  const batchBits = [data.batchNumber, data.batchLabel].filter(Boolean).join(" · ");
+  target.innerHTML = `
+    <div style="border:1px solid #BBF7D0;border-radius:12px;padding:20px;background:#F0FDF4">
+      <strong style="font-size:1rem;color:#03162D">✓ ${count} QR tag${count !== 1 ? "s" : ""} generated${batchBits ? ` — ${batchBits}` : ""}.</strong>
+      <p style="color:#4B5563;margin:8px 0 14px;font-size:0.9rem">They're queued for printing. Open the Print Queue to select the tags you want and export them as print-ready sheets (in batches).</p>
+      <button class="action" onclick="goToPrintQueue()">Go to Print Queue →</button>
+    </div>`;
+  setStatus(`Generated ${count} tag${count !== 1 ? "s" : ""}.`, "success");
 }
 
 function setQueueMessage(message) {
@@ -342,24 +331,39 @@ async function exportQrsForPrint() {
   if (!overlay || !grid) return;
 
   // Require an explicit selection — never default to exporting the whole sheet.
-  if (_pqSelected.size === 0) {
+  const selectedIds = [..._pqSelected];
+  if (selectedIds.length === 0) {
     setStatus("Select the tag(s) you want to export first.", "info");
     return;
   }
 
-  grid.innerHTML = `<p style="color:#6B7280">Loading QR codes...</p>`;
+  grid.innerHTML = `<p style="color:#6B7280">Loading QR codes… 0/${selectedIds.length}</p>`;
   overlay.style.display = "block";
 
   try {
-    const data = await fetchJson("/api/admin/print-queue/export");
-    // Export only the ticked tags.
-    const tags = (data.tags || []).filter((tag) => _pqSelected.has(tag.id));
+    // Fetch QR images in bounded chunks so a large selection never becomes one
+    // heavy request (rendering thousands of QR PNGs at once is what used to time
+    // out the gateway). Each chunk renders only its own tags.
+    const CHUNK = 100;
+    const tags = [];
+    for (let i = 0; i < selectedIds.length; i += CHUNK) {
+      const chunk = selectedIds.slice(i, i + CHUNK);
+      const data = await fetchJson("/api/admin/print-queue/export", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ids: chunk })
+      });
+      tags.push(...(data.tags || []));
+      grid.innerHTML = `<p style="color:#6B7280">Loading QR codes… ${Math.min(i + CHUNK, selectedIds.length)}/${selectedIds.length}</p>`;
+    }
 
     if (!tags.length) {
       if (countLabel) countLabel.textContent = "0 tags to print";
       grid.innerHTML = `<p style="color:#6B7280">No unclaimed tags to export.</p>`;
       return;
     }
+
+    if (countLabel) countLabel.textContent = `${tags.length} tag${tags.length !== 1 ? "s" : ""} to print`;
 
     // Group into landscape sheets of 4 (2x2) so the on-screen preview matches
     // the printed page and each page holds exactly four stickers.

@@ -59,7 +59,7 @@ export async function createUnclaimedTags(collections, input) {
   const tags = [];
 
   for (let index = 0; index < quantity; index += 1) {
-    const tag = {
+    tags.push({
       _id: new ObjectId(),
       token: createSecureToken(),
       ownerId: null,
@@ -74,10 +74,17 @@ export async function createUnclaimedTags(collections, input) {
       createdAt: new Date().toISOString(),
       ...tagLifecycleDefaults(),
       premium: Boolean(input.premiumBatch)
-    };
+    });
+  }
 
-    await collections.tags.insertOne(tag);
-    tags.push(tag);
+  // Bulk-insert with insertMany (one round-trip per chunk) instead of the old
+  // one-insertOne-per-tag loop — a 1000-tag batch used to make 1000 sequential
+  // trips to Atlas, which blew past the hosting gateway's request timeout
+  // ("upstream error"). Chunking also keeps a very large batch from building one
+  // oversized write payload.
+  const INSERT_CHUNK = 500;
+  for (let i = 0; i < tags.length; i += INSERT_CHUNK) {
+    await collections.tags.insertMany(tags.slice(i, i + INSERT_CHUNK), { ordered: false });
   }
 
   return tags;

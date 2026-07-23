@@ -1,39 +1,36 @@
 import crypto from "node:crypto";
-import fs from "node:fs";
-import path from "node:path";
+
+import { getEnv } from "../env.js";
+import { getCollections } from "../db/repositories.js";
 
 const SESSION_COOKIE = "wavetag_session";
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
-// In development, nodemon restarts the server on every file save, which would
-// otherwise wipe the in-memory session store and log you out constantly.
-// Persist sessions to a local file (dev only) so a restart reloads them.
-// Production keeps sessions in memory only — no session tokens are written to disk.
-const SESSION_FILE = path.join(process.cwd(), ".dev-sessions.json");
-const PERSIST =
-  process.env.APP_ENV !== "production" && process.env.APP_ENV !== "prod";
+// Sessions are persisted in MongoDB (the `sessions` collection) so they survive
+// server restarts/deploys and are shared across multiple instances — an
+// in-memory-only store logged users out on every restart and behaved
+// inconsistently behind a load balancer. `app.sessions` stays as a fast
+// in-process cache in front of Mongo.
 
-export function loadSessions(app) {
-  if (!PERSIST) return;
+async function sessionCollection() {
+  const collections = await getCollections(getEnv());
+  return collections ? collections.sessions : null;
+}
+
+// One-time TTL index so Mongo auto-removes expired session docs.
+let indexEnsured = false;
+async function ensureSessionIndex(coll) {
+  if (indexEnsured || !coll) return;
   try {
-    const now = Date.now();
-    for (const s of JSON.parse(fs.readFileSync(SESSION_FILE, "utf8"))) {
-      if (!s.expiresAt || new Date(s.expiresAt).getTime() > now) {
-        app.sessions.set(s.id, s);
-      }
-    }
+    await coll.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+    indexEnsured = true;
   } catch {
-    // No session file yet, or it is unreadable — start with an empty store.
+    // Non-fatal: sessions still work; readSession also checks expiry itself.
   }
 }
 
-function persistSessions(app) {
-  if (!PERSIST) return;
-  try {
-    fs.writeFileSync(SESSION_FILE, JSON.stringify([...app.sessions.values()]));
-  } catch {
-    // Best effort — persistence is a dev convenience, never fatal.
-  }
+function isLive(session, now) {
+  return session && session.expiresAt && new Date(session.expiresAt).getTime() > now;
 }
 
 export function getSessionCookieName() {
@@ -42,41 +39,103 @@ export function getSessionCookieName() {
 
 export async function createSession(app, user) {
   const sessionId = crypto.randomBytes(24).toString("hex");
-
-  app.sessions.set(sessionId, {
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + SESSION_TTL_MS);
+  const session = {
     id: sessionId,
     userId: user.id,
     role: user.role,
     email: user.email,
     displayName: user.displayName || null,
-    createdAt: new Date().toISOString(),
-    expiresAt: new Date(Date.now() + SESSION_TTL_MS).toISOString()
-  });
+    createdAt: now.toISOString(),
+    expiresAt
+  };
 
-  persistSessions(app);
+  // Best-effort persistence: if Mongo is momentarily unavailable, still cache
+  // the session so login succeeds (login already required Mongo to verify the
+  // user, so this rarely fails).
+  try {
+    const coll = await sessionCollection();
+    if (coll) {
+      await ensureSessionIndex(coll);
+      await coll.updateOne(
+        { _id: sessionId },
+        {
+          $set: {
+            _id: sessionId,
+            userId: session.userId,
+            role: session.role,
+            email: session.email,
+            displayName: session.displayName,
+            createdAt: now,
+            expiresAt
+          }
+        },
+        { upsert: true }
+      );
+    }
+  } catch {
+    // Fall back to the in-memory cache only.
+  }
+
+  app.sessions.set(sessionId, session);
   return sessionId;
 }
 
-export function readSession(app, request) {
+export async function readSession(app, request) {
   const sessionId = request.cookies[SESSION_COOKIE];
   if (!sessionId) return null;
 
-  const session = app.sessions.get(sessionId);
-  if (!session) return null;
+  const now = Date.now();
 
-  if (session.expiresAt && new Date(session.expiresAt) < new Date()) {
-    app.sessions.delete(sessionId);
+  // Fast path: in-process cache.
+  const cached = app.sessions.get(sessionId);
+  if (cached) {
+    if (isLive(cached, now)) return cached;
+    app.sessions.delete(sessionId); // expired
+  }
+
+  // Fallback: Mongo (survives restarts and is shared across instances).
+  let doc;
+  try {
+    const coll = await sessionCollection();
+    if (!coll) return null;
+    doc = await coll.findOne({ _id: sessionId });
+  } catch {
+    return null;
+  }
+  if (!doc) return null;
+
+  if (!isLive(doc, now)) {
+    sessionCollection()
+      .then((coll) => coll && coll.deleteOne({ _id: sessionId }))
+      .catch(() => {});
     return null;
   }
 
+  const session = {
+    id: sessionId,
+    userId: doc.userId,
+    role: doc.role,
+    email: doc.email,
+    displayName: doc.displayName || null,
+    createdAt: doc.createdAt,
+    expiresAt: doc.expiresAt
+  };
+  app.sessions.set(sessionId, session); // warm the cache
   return session;
 }
 
-export function clearSession(app, request, reply) {
+export async function clearSession(app, request, reply) {
   const sessionId = request.cookies[SESSION_COOKIE];
   if (sessionId) {
     app.sessions.delete(sessionId);
-    persistSessions(app);
+    try {
+      const coll = await sessionCollection();
+      if (coll) await coll.deleteOne({ _id: sessionId });
+    } catch {
+      // Best-effort — the cookie is cleared regardless, so the client is logged out.
+    }
   }
   reply.clearCookie(SESSION_COOKIE, { path: "/" });
 }

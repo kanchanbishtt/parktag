@@ -43,7 +43,7 @@ export async function loginUser(env, role, email, password) {
 
 export function requireSession(app, role) {
   return async function guarded(request, reply) {
-    const session = readSession(app, request);
+    const session = await readSession(app, request);
 
     if (!session) {
       reply.code(401);

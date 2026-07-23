@@ -10,7 +10,7 @@ import {
 
 export function registerAuthRoutes(app, env) {
   app.get("/api/session", async (request) => {
-    const session = readSession(app, request);
+    const session = await readSession(app, request);
 
     return {
       ok: true,
@@ -49,7 +49,7 @@ export function registerAuthRoutes(app, env) {
   });
 
   app.post("/api/auth/logout", async (request, reply) => {
-    clearSession(app, request, reply);
+    await clearSession(app, request, reply);
 
     return {
       ok: true

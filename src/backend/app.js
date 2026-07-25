@@ -6,6 +6,7 @@ import fastifyStatic from "@fastify/static";
 import path from "node:path";
 import fs from "node:fs/promises";
 import { fileURLToPath } from "node:url";
+import QRCode from "qrcode";
 
 import { getEnv } from "./lib/env.js";
 import { clientErrorMessage } from "./lib/errors.js";
@@ -40,6 +41,7 @@ const adminPrintQueuePage = path.join(pagesRoot, "admin/print-queue.html");
 const adminOwnersPage = path.join(pagesRoot, "admin/owners.html");
 const adminActivityPage = path.join(pagesRoot, "admin/activity.html");
 const adminAdminsPage = path.join(pagesRoot, "admin/admins.html");
+const stickerPrintPage = path.join(pagesRoot, "admin/sticker-print.html");
 const registerOwnerPage = path.join(pagesRoot, "owner/register.html");
 const ownerLoginPage = path.join(pagesRoot, "owner/login.html");
 const hubPage = path.join(pagesRoot, "hub.html");
@@ -153,7 +155,12 @@ export async function buildApp() {
     frameguard: isProduction,
     crossOriginOpenerPolicy: isProduction,
     crossOriginResourcePolicy: isProduction,
-    crossOriginEmbedderPolicy: isProduction
+    // COEP (require-corp) blocks third-party sub-resources that don't send a
+    // CORP header — including Razorpay's checkout.js — which broke sticker
+    // checkout in production with "Razorpay is not defined". The app doesn't
+    // use cross-origin isolation (SharedArrayBuffer etc.), so COEP buys us
+    // nothing here; keep it off so the payment script loads.
+    crossOriginEmbedderPolicy: false
   });
 
   await app.register(fastifyRateLimit, {
@@ -317,6 +324,34 @@ export async function buildApp() {
 
   app.get("/admin/admins", async (request, reply) => {
     return guardAdmin(request, reply, adminAdminsPage);
+  });
+
+  // Printable premium sticker for a given tag: the fixed SVG artwork with the
+  // tag's OWN scannable QR overlaid (encodes the pinned production scan URL, so
+  // printed stickers never point at localhost/whatever host generated them).
+  app.get("/admin/sticker/:token([A-Za-z0-9]{6,80})", async (request, reply) => {
+    const session = readSession(app, request);
+    if (!session || session.role !== "admin") {
+      reply.redirect("/admin");
+      return;
+    }
+
+    const token = request.params.token;
+    // Use the pinned scan domain if configured, else the current host
+    // (local→local, production→production).
+    const proto = request.headers["x-forwarded-proto"] || request.protocol || "http";
+    const host = request.headers.host;
+    const base = env.scanBaseUrl || `${proto}://${host}`;
+    const scanUrl = `${base}/tag/${token}`;
+    const qrSvg = await QRCode.toString(scanUrl, {
+      type: "svg",
+      margin: 0,
+      errorCorrectionLevel: "M"
+    });
+
+    const html = await fs.readFile(stickerPrintPage, "utf8");
+    reply.type("text/html");
+    return html.replaceAll("__SCAN_URL__", scanUrl).replace("<!--QR-->", qrSvg);
   });
 
   // Public scan landing page. Accepts both the new 256-bit hex tokens (64 chars)

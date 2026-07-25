@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Check JS syntax
+        run: |
+          find src -name "*.js" -print0 | xargs -0 -n1 node --check
+
+      - name: Boot smoke test
+        run: |
+          PORT=4100 \
+          APP_ENV=dev \
+          MONGODB_URI=mongodb://127.0.0.1:27017 \
+          MONGODB_DB_NAME=wavetag \
+          MONGODB_COLLECTION_PREFIX=ci_ \
+          APP_BASE_URL=http://localhost:4100 \
+          node src/backend/server.js &
+          SERVER_PID=$!
+          for i in $(seq 1 10); do
+            if curl -sf http://localhost:4100/api/health > /dev/null; then
+              echo "Server is up"
+              kill $SERVER_PID
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Server failed to become healthy"
+          kill $SERVER_PID 2>/dev/null || true
+          exit 1

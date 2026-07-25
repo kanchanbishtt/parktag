@@ -9,7 +9,8 @@
     "seed:demo": "node src/backend/scripts/seed-demo.js",
     "verify:admin-registration": "node src/backend/scripts/verify-admin-registration-visibility.js",
     "verify:exotel-call": "node src/backend/scripts/verify-exotel-call.js",
-    "verify:exotel-whatsapp": "node src/backend/scripts/verify-exotel-whatsapp.js"
+    "verify:exotel-whatsapp": "node src/backend/scripts/verify-exotel-whatsapp.js",
+    "dev:mail": "maildev"
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.2",
@@ -29,6 +30,7 @@
     "node": ">=20.0.0"
   },
   "devDependencies": {
+    "maildev": "^2.2.1",
     "nodemon": "^3.1.14"
   }
 }

@@ -330,6 +330,14 @@
     .pt-freebox b { color: #B31C00; }
 
     .pt-cut { border: 1.5px dashed #b6bcc6; border-radius: 16px; padding: 14px; display: block; page-break-inside: avoid; }
+    /* Official premium sticker (real Figma artwork, cropped to its 1500x902
+       card). Hidden by default; shown ONLY for premium tags via
+       #etag-print.is-premium, which then hides the generated .pt-sticker. */
+    .pt-figma-sticker { position: relative; width: 100%; aspect-ratio: 1500 / 902; overflow: hidden; display: none; }
+    .pt-figma-bg { position: absolute; top: 0; left: 0; width: calc(100% * 1585 / 1500); height: auto; transform: translate(-1.83%, -3.44%); display: block; }
+    .pt-figma-qr { position: absolute; left: 65.6%; top: 12.08%; width: 27.67%; aspect-ratio: 1; display: block; }
+    #etag-print.is-premium .pt-sticker { display: none; }
+    #etag-print.is-premium .pt-figma-sticker { display: block; }
     .pt-sticker { display: flex; width: 100%; border-radius: 18px; overflow: hidden; border: 2px solid #03162D; }
     .pt-left { flex: 0 0 60%; background: #fff; padding: 22px; display: flex; flex-direction: column; justify-content: space-between; }
     .pt-logo { height: 26px; width: auto; display: block; }
@@ -361,7 +369,7 @@
     </svg>
   </a>
   <div class="vd-logo">
-    <img src="/images/light-logo.png" alt="ParkTag" style="height:38px;width:auto;">
+    <a href="https://parktag.me" aria-label="ParkTag home" style="display:inline-flex;align-items:center;text-decoration:none"><img src="/images/light-logo.png" alt="ParkTag" style="height:38px;width:auto;"></a>
   </div>
   <div class="vd-header-right">
     <button class="vd-icon-btn" aria-label="Notifications">
@@ -570,7 +578,7 @@
           <div class="vd-menu-icon" style="background:#FFE3DD;color:#FF2700">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </div>
-          <span class="vd-menu-label">Download E-Tag</span>
+          <span class="vd-menu-label" id="etag-menu-label">Download E-Tag</span>
           <span class="vd-menu-arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
         </div>
         <div class="vd-sub-panel">
@@ -578,7 +586,7 @@
             <p class="vd-sub-note">Print an offline E-Tag for your vehicle and place it on your dashboard.</p>
             <button class="vd-btn-primary" id="download-etag-btn">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              Download E-Tag PDF
+              <span id="etag-btn-label">Download E-Tag PDF</span>
             </button>
             <p class="vd-dl-note">One-time use demo tag. QR will be activated after linking a sticker code.</p>
           </div>
@@ -666,8 +674,8 @@
 <div id="etag-print">
   <div class="pt-wrap">
     <div class="pt-instr">
-      <p style="margin:0 0 3px">Thank you for generating your free ParkTag E-Tag.</p>
-      <span class="pt-instr-h">How to fix the E-Tag to your windscreen</span>
+      <p style="margin:0 0 3px" id="etag-intro">Thank you for generating your free ParkTag E-Tag.</p>
+      <span class="pt-instr-h" id="etag-instr-h">How to fix the E-Tag to your windscreen</span>
       <ol>
         <li>Print this page on a photo sheet or regular paper.</li>
         <li>Cut the tag along the dotted line.</li>
@@ -676,7 +684,7 @@
           &nbsp;- Place it on your dashboard or windscreen with the QR facing out.
         </li>
       </ol>
-      <div class="pt-freebox">This free E-Tag includes <b>1 free contact</b>. A finder can reach you once via masked call or WhatsApp (your number stays private). For unlimited contact, upgrade to the official physical ParkTag sticker.</div>
+      <div class="pt-freebox" id="etag-freebox">This free E-Tag includes <b>1 free contact</b>. A finder can reach you once via masked call or WhatsApp (your number stays private). For unlimited contact, upgrade to the official physical ParkTag sticker.</div>
     </div>
 
     <div class="pt-cut">
@@ -710,11 +718,19 @@
           <p class="pt-rt-note">Wrong parking, emergency contact,<br>any issue with the vehicle? Scan the QR.</p>
         </div>
       </div>
+      <!-- Official premium sticker (real Figma artwork); shown only for premium tags -->
+      <div class="pt-figma-sticker">
+        <img class="pt-figma-bg" src="/images/org-premium-bg.svg" alt="ParkTag sticker"/>
+        <img class="pt-figma-qr" id="print-figma-qr-img"
+          src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=https://parktag.me"
+          alt="QR Code"/>
+      </div>
     </div>
   </div>
 </div>
 
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<script src="/scripts/owner/address-step.js"></script>
 <script type="module" src="/scripts/owner/vehicle-detail.js"></script>
 </body>
 </html>

@@ -75,7 +75,7 @@
               <p style="margin:0;color:#6B7280;font-size:0.9rem" id="export-count-label"></p>
             </div>
             <div style="display:flex;gap:10px">
-              <button onclick="window.print()" style="padding:10px 20px;background:#323232;color:#fff;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:0.95rem;font-family:inherit">Print / Save PDF</button>
+              <button onclick="window.print()" style="padding:10px 20px;background:#FF2700;color:#fff;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:0.95rem;font-family:inherit">Print / Save PDF</button>
               <button id="close-export-button" style="padding:10px 20px;background:#F3F4F6;color:#323232;border:1px solid #E5E7EB;border-radius:10px;font-weight:700;cursor:pointer;font-size:0.95rem;font-family:inherit">Close</button>
             </div>
           </div>
@@ -83,17 +83,34 @@
         </div>
 
         <style>
-          /* Full-page E-Tag export layout — a 1:1 copy of the owner
-             Vehicle-Detail PDF (pages/owner/vehicle-detail.html #etag-print),
-             scoped to the export grid. One tag per .pt-page. */
-          #qr-export-grid .pt-page { width: 100%; max-width: 720px; margin: 0 auto 40px; }
+          /* Export sheet: 4 stickers per landscape A4 page (2x2), each the exact
+             Figma card (1500x902) cropped from the SVG. Stickers are grouped into
+             .pt-sheet blocks of 4 so the on-screen preview matches the print. */
+          #qr-export-grid { display: block; }
+          #qr-export-grid .pt-sheet {
+            display: grid; grid-template-columns: repeat(2, 1fr); gap: 6%;
+            align-content: start; aspect-ratio: 297 / 210; box-sizing: border-box;
+            padding: 4%; margin: 0 auto 22px; background: #fff;
+            border: 1px solid #E5E7EB; border-radius: 6px; box-shadow: 0 2px 12px rgba(0,0,0,.08);
+          }
+          #qr-export-grid .pt-page { width: 100%; margin: 0; break-inside: avoid; page-break-inside: avoid; }
           #qr-export-grid .pt-wrap { font-family: 'Inter','Segoe UI',Arial,sans-serif; color: #03162D; }
           #qr-export-grid .pt-instr { font-size: 11px; line-height: 1.8; margin-bottom: 18px; color: #323232; }
           #qr-export-grid .pt-instr .pt-instr-h { display: block; font-size: 12.5px; font-weight: 800; margin: 3px 0 2px; color: #03162D; }
           #qr-export-grid .pt-instr ol { margin: 5px 0 0; padding-left: 18px; }
           #qr-export-grid .pt-freebox { margin-top: 10px; padding: 9px 12px; background: #FFF1EF; border: 1px solid #FFD8D0; border-radius: 9px; font-size: 10px; color: #03162D; line-height: 1.55; }
           #qr-export-grid .pt-freebox b { color: #B31C00; }
-          #qr-export-grid .pt-cut { border: 1.5px dashed #b6bcc6; border-radius: 16px; padding: 14px; display: block; page-break-inside: avoid; }
+          #qr-export-grid .pt-cut { border: 1px dashed #b6bcc6; border-radius: 10px; padding: 7px; display: block; break-inside: avoid; page-break-inside: avoid; }
+          /* Figma SVG sticker cropped to the exact 1500x902 card. The exported
+             SVG is 1585x987 with ~30px transparent margin (top/left) and shadow
+             bleed (right/bottom); we scale the artwork by 1585/1500 and shift it
+             so the card fills the box exactly (overflow:hidden clips the rest),
+             preserving the true Figma ratio with no distortion. The QR is placed
+             as a % of the *card* so it lands in the blank square. Image-based
+             (not CSS background) so it prints without "Background graphics". */
+          #qr-export-grid .pt-figma-sticker { position: relative; width: 100%; aspect-ratio: 1500 / 902; overflow: hidden; }
+          #qr-export-grid .pt-figma-bg { position: absolute; top: 0; left: 0; width: calc(100% * 1585 / 1500); height: auto; transform: translate(-1.83%, -3.44%); display: block; }
+          #qr-export-grid .pt-figma-qr { position: absolute; left: 65.6%; top: 12.08%; width: 27.67%; aspect-ratio: 1; display: block; }
           #qr-export-grid .pt-sticker { display: flex; width: 100%; border-radius: 18px; overflow: hidden; border: 2px solid #03162D; }
           #qr-export-grid .pt-left { flex: 0 0 60%; background: #fff; padding: 22px; display: flex; flex-direction: column; justify-content: space-between; }
           #qr-export-grid .pt-logo { height: 26px; width: auto; display: block; }
@@ -113,47 +130,29 @@
           #qr-export-grid .pt-pagemark { font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #9CA3AF; margin: 0 0 10px; padding-bottom: 7px; border-bottom: 1px dashed #E5E7EB; }
 
           @media print {
-            /* Remove the app chrome from the layout ENTIRELY (display:none, not
-               visibility:hidden). visibility:hidden keeps elements in flow, so
-               the sidebar + header + queue card still occupied space and printed
-               as several blank pages before the stickers. */
+            /* Only the export overlay prints. Hide the app chrome with
+               display:none (NOT visibility:hidden) so it reserves no layout
+               space — visibility:hidden kept the space, which pushed stickers
+               down and produced blank leading pages. */
             .pt-admin-sidebar,
-            .pt-admin-page-header,
-            .pt-admin-card,
-            #admin-auth-status { display: none !important; }
-
-            /* Collapse the shell/main wrappers so the overlay is full A4 width
-               (the shell is a grid with a sidebar column — left intact it clips
-               the sticker to the narrow main column). */
-            html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
-            .pt-admin-body,
-            .pt-admin-shell,
-            .pt-admin-main {
-              display: block !important;
-              margin: 0 !important; padding: 0 !important;
-              width: auto !important; max-width: none !important;
-              min-height: 0 !important; height: auto !important;
-              overflow: visible !important;
-            }
-
-            /* Show the export overlay in normal flow, full width, from the top. */
-            #qr-export-overlay {
-              display: block !important; position: static !important; inset: auto !important;
-              overflow: visible !important; padding: 0 !important; margin: 0 !important; width: auto !important;
-            }
-            #qr-export-overlay > div:first-child { display: none !important; } /* the on-screen toolbar */
+            .pt-admin-main > *:not(#qr-export-overlay) { display: none !important; }
+            .pt-admin-shell { display: block !important; }
+            .pt-admin-main { display: block !important; padding: 0 !important; overflow: visible !important; }
+            #qr-export-overlay { display: block !important; position: static !important; overflow: visible !important; padding: 0 !important; }
+            #qr-export-overlay > div:first-child { display: none !important; }
             #qr-export-overlay, #qr-export-overlay * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-
-            @page { margin: 1.2cm; size: A4; }
-            /* The page marker is a screen-only reference — keep it off the print. */
-            #qr-export-grid .pt-pagemark { display: none !important; }
-            #qr-export-grid { max-width: none !important; margin: 0 !important; }
-            /* Pack stickers to fill each page instead of one-per-page, to reduce
-               paper waste. Natural flow + page-break-inside:avoid keeps each
-               sticker whole; the small bottom margin is the gap between them. */
-            #qr-export-grid .pt-page { max-width: none !important; margin: 0 0 8mm !important; page-break-after: auto !important; page-break-inside: avoid; break-inside: avoid; }
-            #qr-export-grid .pt-page:last-child { margin-bottom: 0 !important; }
-            #qr-export-grid .pt-cut { page-break-inside: avoid; break-inside: avoid; }
+            /* Landscape A4: each .pt-sheet is one page holding a 2x2 grid of
+               four stickers. Never split a sticker across a page break. */
+            @page { margin: 1cm; size: A4 landscape; }
+            #qr-export-grid { max-width: none !important; }
+            #qr-export-grid .pt-sheet {
+              aspect-ratio: auto !important; padding: 0 !important; margin: 0 !important;
+              gap: 8mm !important; border: none !important; box-shadow: none !important;
+              border-radius: 0 !important; background: transparent !important;
+              break-after: page; page-break-after: always;
+            }
+            #qr-export-grid .pt-sheet:last-child { break-after: auto; page-break-after: auto; }
+            #qr-export-grid .pt-page { break-inside: avoid; page-break-inside: avoid; }
           }
         </style>
 

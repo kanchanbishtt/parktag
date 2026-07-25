@@ -1,7 +1,14 @@
 import { createRazorpayOrder, verifyRazorpaySignature, isRazorpayConfigured, getShopProduct } from "../../lib/integrations/payments.js";
 import { getCollections } from "../../lib/db/repositories.js";
 import { requireSession, toObjectId } from "../../lib/auth/auth.js";
+import { addressToNotes } from "../../lib/core/address.js";
 import { createPremiumTagForVehicle } from "../../lib/core/tag-issuance.js";
+
+// Shippable subset of an address DB doc.
+function shapeAddress(doc) {
+  const { fullName, phone, line1, line2, landmark, city, state, pincode } = doc;
+  return { fullName, phone, line1, line2, landmark, city, state, pincode };
+}
 
 export function registerShopRoutes(app, env) {
   // Expose key ID to frontend (safe — public key)
@@ -19,6 +26,8 @@ export function registerShopRoutes(app, env) {
   // successful payment (verify-payment) we mint a new premium tag for that
   // vehicle and soft-remove the old free tag. Missing/invalid → plain order.
   app.post("/api/shop/create-order", { config: { rateLimit: { max: 20, timeWindow: "1 minute" } } }, async (request, reply) => {
+    // Shop items are physical tags that ship to the buyer, so checkout now
+    // requires a logged-in owner with a saved delivery address.
     const blocked = await requireSession(app, "owner")(request, reply);
     if (blocked) return blocked;
     const ownerId = toObjectId(request.session.userId);
@@ -32,11 +41,18 @@ export function registerShopRoutes(app, env) {
     if (!isRazorpayConfigured(env)) { reply.code(500); return { error: "Razorpay not configured." }; }
 
     const collections = await getCollections(env);
+    if (!collections) { reply.code(500); return { error: "Database not configured." }; }
+
+    // Refuse to take money for a physical item with nowhere to ship it. The
+    // checkout form saves the address first, so a missing one is out-of-order.
+    const addressDoc = await collections.addresses.findOne({ ownerId });
+    const shipping = addressDoc ? shapeAddress(addressDoc) : null;
+    if (!shipping) { reply.code(400); return { error: "Please add a delivery address before paying." }; }
 
     // Validate the replace-context tag (scoped to this owner, still a live,
     // non-premium tag). Invalid or absent → treat as a plain physical order.
     let validReplaceTagId = null;
-    if (replaceTagId && collections) {
+    if (replaceTagId) {
       const oldTag = await collections.tags.findOne({
         _id: toObjectId(replaceTagId),
         ownerId,
@@ -51,21 +67,22 @@ export function registerShopRoutes(app, env) {
       const order = await createRazorpayOrder(env, {
         amount: product.amount, // server catalog price (INR) → paise inside helper
         receipt: `pt_${productId}_${Date.now()}`,
-        notes: { productId, productName: product.name, replaceTagId: validReplaceTagId || "" }
+        notes: { productId, productName: product.name, replaceTagId: validReplaceTagId || "", ...addressToNotes(shipping) }
       });
 
       // Persist the server-created order so verify-payment can prove the payment
       // maps to a real order at the catalog price (M15 Step 5). Amount is stored
       // in paise, exactly as Razorpay recorded it.
-      if (collections) {
+      {
         await collections.shopOrders.insertOne({
           orderId: order.id,
+          ownerId,
           productId,
           productName: product.name,
           amount: order.amount, // paise
           currency: order.currency,
           status: "created",
-          ownerId,
+          shippingAddress: shipping,
           replaceTagId: validReplaceTagId,
           createdAt: new Date().toISOString()
         });

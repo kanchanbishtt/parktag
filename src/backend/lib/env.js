@@ -91,6 +91,11 @@ export function getEnv() {
     emailSmtpPass: process.env.EMAIL_SMTP_PASS || "",
     emailFrom: process.env.EMAIL_FROM || "noreply@parktag.me",
     appBaseUrl: process.env.APP_BASE_URL || "http://localhost:4000",
+    // Optional override for the scan/activation domain used in printed-QR URLs.
+    // Empty by default → QR uses the host it was generated on (local→local,
+    // production→production). Set SCAN_BASE_URL=https://app.parktag.me in prod
+    // if you ever generate stickers from a non-canonical host.
+    scanBaseUrl: (process.env.SCAN_BASE_URL || "").replace(/\/+$/, ""),
     googleClientId: process.env.GOOGLE_CLIENT_ID || "",
     googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
     googleCallbackUrl: process.env.GOOGLE_CALLBACK_URL || "http://127.0.0.1:4000/api/auth/google/callback",

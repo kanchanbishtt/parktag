@@ -26,10 +26,34 @@ function readRuntimeMode(value) {
   return "dev";
 }
 
+// Critical vars: the app cannot safely operate without these. In production
+// we refuse to start rather than run in a half-configured, insecure state.
+// (Non-production keeps the historical "run with degraded features" behavior
+// so local dev doesn't require every integration to be configured.)
+const REQUIRED_IN_PRODUCTION = [
+  ["MONGODB_URI", "mongoUri"],
+  ["RAZORPAY_KEY_ID", "razorpayKeyId"],
+  ["RAZORPAY_KEY_SECRET", "razorpayKeySecret"]
+];
+
+function validateEnv(env, runtimeMode) {
+  if (runtimeMode !== "production") return;
+
+  const missing = REQUIRED_IN_PRODUCTION.filter(([, key]) => !env[key]).map(
+    ([envName]) => envName
+  );
+
+  if (missing.length > 0) {
+    throw new Error(
+      `Refusing to start in production: missing required environment variable(s): ${missing.join(", ")}.`
+    );
+  }
+}
+
 export function getEnv() {
   const runtimeMode = readRuntimeMode(process.env.APP_ENV);
 
-  return {
+  const env = {
     port: readPort(process.env.PORT),
     runtimeMode,
     mongoUri: process.env.MONGODB_URI || "",
@@ -49,7 +73,18 @@ export function getEnv() {
     metaWhatsappPhoneNumberId: process.env.META_WHATSAPP_PHONE_NUMBER_ID || "",
     metaWhatsappAccessToken: process.env.META_WHATSAPP_ACCESS_TOKEN || "",
     metaWhatsappBusinessAccountId: process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || "",
-    metaWhatsappWebhookVerifyToken: process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN || "parktag-whatsapp-handshake",
+    // No hardcoded fallback: an unset verify token must never silently
+    // resolve to a value that's checked into source control.
+    metaWhatsappWebhookVerifyToken: process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN || "",
+    // Meta App Secret (from the Meta App dashboard, NOT the WhatsApp access
+    // token) — used to verify the `X-Hub-Signature-256` header Meta sends on
+    // every webhook POST, so inbound webhook calls can be authenticated.
+    metaAppSecret: process.env.META_APP_SECRET || "",
+    // Exotel has no native request-signing scheme for callbacks. The
+    // mitigation is a shared secret embedded as a query param in the callback
+    // URLs configured in the Exotel dashboard (?token=...), checked on every
+    // inbound request to /api/exotel/dial-whom and /api/provider/exotel/webhook.
+    exotelWebhookSecret: process.env.EXOTEL_WEBHOOK_SECRET || "",
     emailSmtpHost: process.env.EMAIL_SMTP_HOST || "",
     emailSmtpPort: Number(process.env.EMAIL_SMTP_PORT) || 587,
     emailSmtpUser: process.env.EMAIL_SMTP_USER || "",
@@ -63,6 +98,22 @@ export function getEnv() {
     firebaseProjectId: process.env.FIREBASE_PROJECT_ID || "",
     razorpayKeyId: process.env.RAZORPAY_KEY_ID || "",
     razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET || "",
-    superAdminBootstrapKey: process.env.SUPER_ADMIN_BOOTSTRAP_KEY || ""
+    superAdminBootstrapKey: process.env.SUPER_ADMIN_BOOTSTRAP_KEY || "",
+    reviewerSetupEmail: process.env.REVIEWER_SETUP_EMAIL || "",
+    reviewerSetupPassword: process.env.REVIEWER_SETUP_PASSWORD || "",
+    reviewerSetupMobile: process.env.REVIEWER_SETUP_MOBILE || "",
+    reviewerSetupSecret: process.env.REVIEWER_SETUP_SECRET || "",
+    // Defense-in-depth for POST /api/demo/seed (see routes/system/demo.js):
+    // that route already refuses to register at all when APP_ENV=production,
+    // but that is a single string comparison — a deploy that forgets to set
+    // APP_ENV correctly would otherwise expose an UNAUTHENTICATED endpoint
+    // that wipes every owners/admins/tags/contact_requests document and
+    // reseeds a well-known admin/owner login (admin@wavetag.local / demo1234).
+    // When this secret is set, it is also required on every seed call.
+    demoSeedSecret: process.env.DEMO_SEED_SECRET || ""
   };
+
+  validateEnv(env, runtimeMode);
+
+  return env;
 }

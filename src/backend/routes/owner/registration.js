@@ -1,6 +1,6 @@
 import { ObjectId } from "mongodb";
 
-import { createPasswordHash } from "../../lib/auth/security.js";
+import { createPasswordHash, isNonEmptyString } from "../../lib/auth/security.js";
 import { getCollections } from "../../lib/db/repositories.js";
 import {
   buildIssuedTagOutput,
@@ -8,7 +8,7 @@ import {
 } from "../../lib/core/tag-issuance.js";
 
 export function registerRegistrationRoutes(app, env) {
-  app.post("/api/register-owner", async (request, reply) => {
+  app.post("/api/register-owner", { config: { rateLimit: { max: 5, timeWindow: "1 minute" } } }, async (request, reply) => {
     const collections = await getCollections(env);
 
     if (!collections) {
@@ -29,7 +29,13 @@ export function registerRegistrationRoutes(app, env) {
       stickerRequested
     } = request.body || {};
 
-    if (!displayName || !email || !password || !phone || !plateNumber) {
+    if (
+      !isNonEmptyString(displayName) ||
+      !isNonEmptyString(email) ||
+      !isNonEmptyString(password) ||
+      !isNonEmptyString(phone) ||
+      !isNonEmptyString(plateNumber)
+    ) {
       reply.code(400);
       return {
         ok: false,
@@ -38,6 +44,8 @@ export function registerRegistrationRoutes(app, env) {
       };
     }
 
+    // `email` is used as a raw Mongo filter value just below — reject non-string
+    // input above so a crafted body can't be interpreted as a query operator.
     const existingOwner = await collections.owners.findOne({ email });
 
     if (existingOwner) {

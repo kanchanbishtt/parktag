@@ -1,7 +1,7 @@
 import { ObjectId } from "mongodb";
 
 import { getCollections } from "../db/repositories.js";
-import { verifyPassword, createPasswordHash } from "./security.js";
+import { verifyPassword, createPasswordHash, isNonEmptyString } from "./security.js";
 import { readSession } from "./session.js";
 
 export async function findUserByEmail(env, role, email) {
@@ -11,11 +11,18 @@ export async function findUserByEmail(env, role, email) {
     throw new Error("MongoDB is not configured");
   }
 
+  // `email` reaches Mongo as a raw filter value — reject anything that isn't
+  // a plain string so a crafted body (e.g. `{ "$ne": null }`) can never be
+  // interpreted as a query operator (NoSQL injection / auth bypass).
+  if (!isNonEmptyString(email)) return null;
+
   const collection = role === "admin" ? collections.admins : collections.owners;
   return collection.findOne({ email });
 }
 
 export async function loginUser(env, role, email, password) {
+  if (!isNonEmptyString(password)) return null;
+
   const collections = await getCollections(env);
   const user = await findUserByEmail(env, role, email);
 

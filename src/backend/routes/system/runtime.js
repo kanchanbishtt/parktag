@@ -9,7 +9,17 @@ export function registerRuntimeRoutes(app, env) {
     };
   });
 
-  app.get("/api/runtime/status", async () => {
+  // Unauthenticated by design (used for local/dev smoke checks), so it must
+  // never leak infra details (ports, collection prefixes, integration
+  // configuration, DB connectivity) to the public internet. Full detail is
+  // only returned outside production; production gets an admin-gated view.
+  app.get("/api/runtime/status", async (request, reply) => {
+    if (env.runtimeMode === "production") {
+      const { requireSession } = await import("../../lib/auth/auth.js");
+      const blocked = await requireSession(app, "admin")(request, reply);
+      if (blocked) return blocked;
+    }
+
     const mongo = await getMongoStatus(env);
 
     return {

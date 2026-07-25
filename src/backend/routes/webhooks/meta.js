@@ -1,4 +1,5 @@
 import { getCollections } from "../../lib/db/repositories.js";
+import { verifyMetaWebhookSignature } from "../../lib/integrations/meta.js";
 
 export function registerMetaWebhookRoutes(app, env) {
   // Meta sends a GET request to verify the webhook URL is real.
@@ -19,7 +20,25 @@ export function registerMetaWebhookRoutes(app, env) {
 
   // Meta POSTs delivery status updates here after each message.
   // Statuses: sent, delivered, read, failed
-  app.post("/api/provider/meta/webhook", async (request) => {
+  app.post("/api/provider/meta/webhook", async (request, reply) => {
+    // Authenticate the caller as Meta before touching the DB. Without this,
+    // anyone who finds this URL can POST arbitrary `entry[].changes[].value`
+    // payloads and flip the status of any contact-request record (matched by
+    // `providerRequestId`, which is echoed back to owners/admins).
+    if (env.metaAppSecret) {
+      const signature = request.headers["x-hub-signature-256"];
+      if (!verifyMetaWebhookSignature(env, request.rawBody, signature)) {
+        reply.code(401);
+        return { ok: false, error: "Invalid signature" };
+      }
+    } else {
+      // No app secret configured — log loudly rather than silently accepting
+      // unauthenticated writes forever. Set META_APP_SECRET to close this.
+      request.log.warn(
+        "[meta webhook] META_APP_SECRET is not configured — webhook signature is NOT being verified."
+      );
+    }
+
     const collections = await getCollections(env);
     if (!collections) return { ok: true };
 

@@ -1,3 +1,34 @@
+import crypto from "node:crypto";
+
+import { redactText, safeEqual } from "../auth/security.js";
+
+// Meta signs every webhook POST with `X-Hub-Signature-256: sha256=<hex hmac>`
+// computed over the *raw* request body using the App Secret (Meta App
+// dashboard → Settings → Basic — NOT the WhatsApp access token). Verifying
+// this is the only way to know a webhook call actually came from Meta and
+// not an attacker POSTing directly to our public endpoint.
+export function verifyMetaWebhookSignature(env, rawBody, signatureHeader) {
+  if (!env.metaAppSecret || !rawBody || !signatureHeader) return false;
+
+  const prefix = "sha256=";
+  if (!signatureHeader.startsWith(prefix)) return false;
+
+  const expected = crypto
+    .createHmac("sha256", env.metaAppSecret)
+    .update(rawBody)
+    .digest("hex");
+
+  return safeEqual(signatureHeader.slice(prefix.length), expected);
+}
+
+// Meta's error payloads sometimes echo the destination phone number back in
+// the message text (e.g. "Recipient +91XXXXXXXXXX is not a WhatsApp user").
+// Redact PII before this ever reaches logs or the admin API.
+function sanitizeProviderDetail(detail) {
+  if (detail === null || detail === undefined) return null;
+  return redactText(detail).slice(0, 1000);
+}
+
 function normalizeIndianNumber(input) {
   const raw = String(input || "").trim();
   const digits = raw.replace(/[^\d+]/g, "");
@@ -60,7 +91,7 @@ export async function sendMetaWhatsappOtp(env, { to, code }) {
   if (!response.ok) {
     const detail = data?.error?.message || JSON.stringify(data);
     const err = new Error("Unable to send WhatsApp OTP.");
-    err.providerDetail = detail.slice(0, 1000);
+    err.providerDetail = sanitizeProviderDetail(detail);
     throw err;
   }
 
@@ -106,7 +137,7 @@ export async function sendMetaWhatsappAlert(env, { to, ownerName, reason }) {
   if (!response.ok) {
     const detail = data?.error?.message || JSON.stringify(data);
     const err = new Error("Unable to send the WhatsApp message right now.");
-    err.providerDetail = detail.slice(0, 1000);
+    err.providerDetail = sanitizeProviderDetail(detail);
     err.providerStatusCode = response.status;
     throw err;
   }

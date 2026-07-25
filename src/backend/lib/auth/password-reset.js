@@ -1,10 +1,10 @@
 import crypto from "node:crypto";
 
 import { getCollections } from "../db/repositories.js";
-import { createPasswordHash } from "./security.js";
+import { createPasswordHash, isNonEmptyString } from "./security.js";
 import { sendPasswordResetEmail } from "../integrations/email.js";
 
-const TOKEN_EXPIRY_MS = 60 * 60 * 1000;   // 1 hour
+const TOKEN_EXPIRY_MS = 15 * 60 * 1000;   // 15 minutes — keep the reset window short-lived
 const RATE_LIMIT_MS  = 10 * 60 * 1000;    // 1 request per email per 10 minutes
 
 function generateToken() {
@@ -16,6 +16,14 @@ export async function requestPasswordReset(env, email) {
 
   if (!collections) {
     throw new Error("MongoDB is not configured");
+  }
+
+  // `email` becomes a raw Mongo filter value below — a non-string (e.g. a
+  // crafted `{ "$ne": null }` body) must never reach `findOne`. Treat it the
+  // same as "not found" so this stays a no-op, matching the no-enumeration
+  // behaviour just below.
+  if (!isNonEmptyString(email)) {
+    return { ok: true };
   }
 
   const owner = await collections.owners.findOne({ email });
@@ -56,7 +64,14 @@ export async function requestPasswordReset(env, email) {
 }
 
 export async function resetPassword(env, token, newPassword) {
-  if (!token || !newPassword) {
+  // CRITICAL: `token` is used as a raw Mongo filter value (`findOne({ token })`)
+  // below. Without a strict string check, a client could send
+  // `{ "token": { "$ne": null } }` and Mongo would treat it as "any document
+  // where token is not null" instead of an exact match — matching an
+  // arbitrary (attacker-uncontrolled but real) outstanding reset token
+  // belonging to a different user, letting the attacker take over that
+  // account without ever seeing the email. Reject non-string tokens outright.
+  if (!isNonEmptyString(token) || !isNonEmptyString(newPassword)) {
     throw new Error("Token and new password are required");
   }
 

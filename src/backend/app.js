@@ -8,6 +8,7 @@ import fs from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 import { getEnv } from "./lib/env.js";
+import { clientErrorMessage } from "./lib/errors.js";
 import { readSession, loadSessions } from "./lib/auth/session.js";
 import { registerAdminRoutes } from "./routes/admin/index.js";
 import { registerAuthRoutes } from "./routes/auth/credentials.js";
@@ -62,7 +63,21 @@ function setScannerNoCache(reply) {
 export async function buildApp() {
   const env = getEnv();
   const app = Fastify({
-    logger: true
+    logger: true,
+    // The app runs behind a single reverse proxy hop in every real deployment
+    // (Render's edge network, and any other PaaS/CDN in front of it). Without
+    // this, Fastify's `request.ip` is the proxy's own socket address — the
+    // SAME value for every visitor — so every IP-keyed rate limit
+    // (@fastify/rate-limit's default key generator uses `request.ip`)
+    // collapses into one shared, site-wide bucket. A single attacker sending
+    // 5 junk POSTs to /api/auth/login (or /send-otp, /register-owner,
+    // /forgot-password, etc.) would exhaust that bucket and lock the
+    // corresponding action out for every real visitor for the rest of the
+    // window — a trivial, cheap denial-of-service against a payments app.
+    // `trustProxy: true` makes Fastify parse `X-Forwarded-For` and populate
+    // `request.ip` with the real client IP instead, restoring per-visitor
+    // rate limiting.
+    trustProxy: true
   });
 
   app.decorate("sessions", new Map());
@@ -81,12 +96,58 @@ export async function buildApp() {
     }
   );
 
+  // Custom JSON parser that also stashes the raw request bytes on
+  // `request.rawBody`. Needed to verify Meta's `X-Hub-Signature-256` webhook
+  // header, which is an HMAC over the exact raw payload — recomputing it from
+  // the re-serialized/parsed JSON body would not reliably match.
+  app.addContentTypeParser(
+    "application/json",
+    { parseAs: "buffer" },
+    (request, body, done) => {
+      request.rawBody = body;
+      if (!body || body.length === 0) {
+        done(null, undefined);
+        return;
+      }
+      try {
+        done(null, JSON.parse(body.toString("utf8")));
+      } catch (err) {
+        err.statusCode = 400;
+        done(err, undefined);
+      }
+    }
+  );
+
   await app.register(fastifyCookie);
 
   const isProduction = env.runtimeMode === "production";
 
   await app.register(fastifyHelmet, {
-    contentSecurityPolicy: false, // HTML pages use inline scripts; CSP needs separate tuning
+    // Pages use inline <script>/<style> blocks (no nonce infrastructure yet),
+    // so 'unsafe-inline' stays on for now — but every other directive is
+    // locked down to the known first/third-party origins the app actually
+    // uses. This still blocks arbitrary third-party script/asset injection,
+    // clickjacking via unexpected frames, and stray form-action exfiltration.
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: [
+          "'self'",
+          "'unsafe-inline'",
+          "https://accounts.google.com",
+          "https://checkout.razorpay.com"
+        ],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
+        imgSrc: ["'self'", "data:", "https://api.qrserver.com"],
+        connectSrc: ["'self'"],
+        frameSrc: ["https://accounts.google.com", "https://*.razorpay.com"],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
+        frameAncestors: ["'self'"]
+      }
+    },
     // In dev, allow the app to render inside VS Code's Simple Browser (a
     // cross-origin webview iframe). These frame/embedding guards stay on in prod.
     frameguard: isProduction,
@@ -102,6 +163,28 @@ export async function buildApp() {
       ok: false,
       error: "Too many requests. Please slow down."
     })
+  });
+
+  // Catch-all for any error not already turned into a response by a route
+  // handler (thrown validation errors, unexpected exceptions, etc). Fastify's
+  // built-in default handler echoes `error.message` straight to the client,
+  // which can leak internal details (DB driver errors, file paths, third-party
+  // SDK internals). Only ClientError-marked messages (see lib/errors.js) are
+  // ever shown verbatim; everything else is logged server-side and collapsed
+  // into a generic message.
+  app.setErrorHandler((error, request, reply) => {
+    const statusCode =
+      Number.isInteger(error.statusCode) && error.statusCode >= 400 && error.statusCode < 600
+        ? error.statusCode
+        : 500;
+
+    const message = clientErrorMessage(
+      error,
+      "Something went wrong. Please try again.",
+      request.log
+    );
+
+    reply.code(statusCode).send({ ok: false, error: message });
   });
 
   await app.register(fastifyStatic, {

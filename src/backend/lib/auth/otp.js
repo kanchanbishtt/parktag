@@ -4,6 +4,7 @@ import { getCollections } from "../db/repositories.js";
 import { sendOtpEmail } from "../integrations/email.js";
 import { isMetaWhatsappConfigured, sendMetaWhatsappOtp } from "../integrations/meta.js";
 import { clientError } from "../errors.js";
+import { maskIdentifier, redactText } from "./security.js";
 
 const OTP_EXPIRY_MS = 10 * 60 * 1000;
 const RATE_LIMIT_MS = 2 * 60 * 1000;
@@ -70,13 +71,15 @@ export async function sendOtp(env, identifier) {
         throw clientError("Could not send WhatsApp OTP. Please try again.");
       }
     } else if (env.runtimeMode !== "production") {
-      console.log(`\n[ParkTag] OTP for ${normalized}: ${code}\n`);
+      // Dev-only fallback so the flow is testable without WhatsApp configured.
+      // Identifier is masked — only the OTP itself needs to be readable here.
+      console.log(`\n[ParkTag] Dev OTP for ${maskIdentifier(normalized)}: ${code}\n`);
     } else {
       throw clientError("WhatsApp OTP is not configured on this server.");
     }
   } else {
     sendOtpEmail(env, { to: normalized, code })
-      .catch(err => console.error("[OTP] Email send failed:", err));
+      .catch(err => console.error("[OTP] Email send failed:", redactText(err?.message || String(err))));
   }
 
   return { ok: true };

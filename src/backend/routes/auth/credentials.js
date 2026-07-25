@@ -18,7 +18,7 @@ export function registerAuthRoutes(app, env) {
     };
   });
 
-  app.post("/api/auth/login", { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } }, async (request, reply) => {
+  app.post("/api/auth/login", { config: { rateLimit: { max: 5, timeWindow: "1 minute" } } }, async (request, reply) => {
     const { role, email, password, rememberMe } = request.body || {};
 
     if (!role || !email || !password) {

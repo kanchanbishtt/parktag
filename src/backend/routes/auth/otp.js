@@ -29,7 +29,7 @@ export function registerOtpAuthRoutes(app, env) {
     }
   });
 
-  app.post("/api/auth/verify-otp", async (request, reply) => {
+  app.post("/api/auth/verify-otp", { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } }, async (request, reply) => {
     const { identifier, code } = request.body || {};
 
     if (!identifier || !code) {

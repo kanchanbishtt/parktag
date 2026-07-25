@@ -135,6 +135,16 @@ const VEHICLE_SVGS = {
   </svg>`,
 };
 
+// HTML-escape any value before interpolating it into innerHTML. vehicleLabel
+// and plateNumber are owner-supplied free text (from registration/claim/add-
+// vehicle) with no character allowlist on the backend, so they can contain
+// `<`, `"`, etc. They're rendered here via innerHTML (not textContent), so an
+// unescaped value would execute as HTML/script in this owner's own dashboard.
+function esc(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
 function iconFor(tag) {
   // tag.vehicleType from API, or tag.type from localStorage pending vehicles
   const t = tag.vehicleType || tag.type || "car";
@@ -161,6 +171,11 @@ function vehicleCard(tag, idx) {
   const label     = tag.vehicleLabel || VEHICLE_LABELS[tag.type] || "Vehicle";
   const plate     = tag.plateNumber  || tag.number || tag.token || "—";
   const type      = tag.vehicleType  || tag.type   || "car";
+  // Owner-supplied free text, HTML-escaped before it's placed inside markup
+  // below (the raw `label`/`plate` are still used for URLSearchParams, which
+  // does its own percent-encoding — escaping there would double-encode it).
+  const labelSafe = esc(label);
+  const plateSafe = esc(plate);
   const params    = new URLSearchParams({ number: plate, type, label, id: tag.id || "", token: tag.token || "" }).toString();
   const svg       = iconFor(tag).replace(/width="\d+"/, 'width="22"').replace(/height="\d+"/, 'height="22"').replace("<svg ", '<svg aria-hidden="true" focusable="false" ');
   const isActive  = tag.status !== "inactive";
@@ -193,11 +208,11 @@ function vehicleCard(tag, idx) {
   <div class="pt-vlc-main" role="link" tabindex="0"
        onclick="location.href='${detailUrl}'"
        onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();location.href='${detailUrl}'}"
-       aria-label="${label}, ${plate}, ${isActive ? "active" : "inactive"}">
+       aria-label="${labelSafe}, ${plateSafe}, ${isActive ? "active" : "inactive"}">
     <div class="pt-vlc-icon" style="background:${color.bg};color:${color.accent}">${svg}</div>
     <div class="pt-vlc-body">
-      <p class="pt-vlc-name">${label}</p>
-      <p class="pt-vlc-plate">${plate}</p>
+      <p class="pt-vlc-name">${labelSafe}</p>
+      <p class="pt-vlc-plate">${plateSafe}</p>
     </div>
     <div class="pt-vlc-meta">
       <span class="pt-vlc-pill ${pillClass}">${pill}</span>
@@ -368,8 +383,8 @@ ${_nbFilter ? `
 <div class="pt-ov-row">
   <span class="pt-ov-dot ${on ? "on" : "off"}"></span>
   <div class="pt-ov-body">
-    <p class="pt-ov-plate">${plate}</p>
-    <p class="pt-ov-vtype">${vtype} · ${on ? "Active" : "Inactive"}</p>
+    <p class="pt-ov-plate">${esc(plate)}</p>
+    <p class="pt-ov-vtype">${esc(vtype)} · ${on ? "Active" : "Inactive"}</p>
   </div>
   <span class="pt-ov-badge ${bc}">${badge}</span>
 </div>`;
@@ -472,8 +487,8 @@ function renderActivity(requests) {
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.62 3.38 2 2 0 0 1 3.6 1.17h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.86a16 16 0 0 0 6 6l.91-.91a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" stroke="currentColor" stroke-width="1.8"/></svg>
     </div>
     <div class="pt-act-body">
-      <p class="pt-act-who">${masked} contacted you</p>
-      <p class="pt-act-det">${plate} · Call</p>
+      <p class="pt-act-who">${esc(masked)} contacted you</p>
+      <p class="pt-act-det">${esc(plate)} · Call</p>
       <p class="pt-act-time">${formatTimeAgo(ageMs)}</p>
     </div>
     ${cta}
@@ -550,8 +565,8 @@ function renderActivity(requests) {
 <div class="pt-act-card ${cardCls}">
   <div class="pt-act-ic" style="background:${icBg};color:${icCol}">${isCall ? callSvg : waSvg}</div>
   <div class="pt-act-body">
-    <p class="pt-act-who">${masked} contacted you</p>
-    <p class="pt-act-det">${plate} · ${isCall ? "Call" : "WhatsApp"} ${resultBadge}</p>
+    <p class="pt-act-who">${esc(masked)} contacted you</p>
+    <p class="pt-act-det">${esc(plate)} · ${isCall ? "Call" : "WhatsApp"} ${resultBadge}</p>
     <p class="pt-act-time">${formatTimeAgo(ageMs)}</p>
   </div>
   ${cta}
@@ -1013,7 +1028,7 @@ function _fillMenu() {
         const activeStyle = i === _selIdx
           ? `background:${c.accent};border-color:${c.accent};color:#fff`
           : "";
-        return `<button class="pt-mchip${i === _selIdx ? " active" : ""}" style="${activeStyle}" onclick="selectV(${i})">${p}</button>`;
+        return `<button class="pt-mchip${i === _selIdx ? " active" : ""}" style="${activeStyle}" onclick="selectV(${i})">${esc(p)}</button>`;
       }).join("");
     } else {
       chips.style.display = "none";

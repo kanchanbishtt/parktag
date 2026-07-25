@@ -33,6 +33,19 @@ export function createSecureToken() {
   return crypto.randomBytes(32).toString("hex");
 }
 
+// Guard against NoSQL injection: any value that is about to be used as a
+// MongoDB query filter value (e.g. `{ email }`, `{ token }`) MUST be a plain
+// string first. Fastify parses JSON bodies, so a client can send
+// `{ "email": { "$ne": null } }` — if that object reaches `findOne({ email })`
+// unchecked, Mongo interprets it as a query operator instead of a literal
+// value and can match an arbitrary, attacker-uncontrolled document (e.g. the
+// first row in `passwordResetTokens` — a full account-takeover primitive).
+// Every route that takes a client-supplied identifier into a Mongo filter
+// must validate it with this first.
+export function isNonEmptyString(value) {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
 // Constant-time string compare to avoid timing side-channels on verification.
 export function safeEqual(a, b) {
   const bufA = Buffer.from(String(a));
@@ -71,4 +84,62 @@ export function maskPlateNumber(plateNumber) {
 export function getPlateLastFour(plateNumber) {
   if (!plateNumber) return null;
   return plateNumber.replace(/\s+/g, "").toUpperCase().slice(-4);
+}
+
+// ── Log-safe PII masking ────────────────────────────────────────────────
+// Never write a raw email, phone number, or OTP-carrying identifier to logs
+// (including local dev console output). These helpers keep just enough of
+// the value to be useful for debugging without exposing the full PII.
+
+export function maskEmail(email) {
+  const value = String(email || "");
+  const at = value.indexOf("@");
+  if (at <= 0) return "***";
+  const local = value.slice(0, at);
+  const domain = value.slice(at + 1);
+  const visible = local.slice(0, 2);
+  return `${visible}${"*".repeat(Math.max(local.length - visible.length, 1))}@${domain}`;
+}
+
+// Mask an owner-supplied identifier (email or mobile) for safe logging.
+export function maskIdentifier(identifier) {
+  const value = String(identifier || "");
+  if (value.includes("@")) return maskEmail(value);
+  const digits = value.replace(/\D/g, "");
+  if (digits.length < 4) return "****";
+  return `${"*".repeat(Math.max(digits.length - 4, 3))}${digits.slice(-4)}`;
+}
+
+// Mask any phone-like digit runs embedded in free text (e.g. third-party
+// provider error messages) so logs and stored error details never carry a
+// full phone number.
+export function maskPhoneLikeText(input) {
+  if (input === null || input === undefined) return input;
+  const raw = typeof input === "string" ? input : JSON.stringify(input);
+  return raw.replace(/\+?\d[\d -]{5,}\d/g, (match) => {
+    const digits = match.replace(/\D/g, "");
+    if (digits.length < 7) return match;
+    return `${"*".repeat(Math.max(digits.length - 4, 3))}${digits.slice(-4)}`;
+  });
+}
+
+const EMAIL_PATTERN = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+
+// General-purpose redactor for free-form text that may embed PII (third-party
+// error messages, exception text, etc.) — masks both emails and phone-like
+// digit runs. Safe to use before writing to console/logger or persisting a
+// provider error detail.
+export function redactText(input) {
+  if (input === null || input === undefined) return input;
+  const raw =
+    typeof input === "string"
+      ? input
+      : (() => {
+          try {
+            return JSON.stringify(input);
+          } catch {
+            return String(input);
+          }
+        })();
+  return maskPhoneLikeText(raw).replace(EMAIL_PATTERN, (m) => maskEmail(m));
 }

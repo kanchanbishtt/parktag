@@ -1,6 +1,7 @@
 import { ObjectId } from "mongodb";
 
 import { requireSession } from "../../lib/auth/auth.js";
+import { isNonEmptyString } from "../../lib/auth/security.js";
 import { getCollections } from "../../lib/db/repositories.js";
 import {
   buildIssuedTagOutput,
@@ -483,7 +484,7 @@ export function registerAdminRoutes(app, env) {
 
     const { email, password, displayName } = request.body || {};
 
-    if (!email || !password || !displayName) {
+    if (!isNonEmptyString(email) || !isNonEmptyString(password) || !isNonEmptyString(displayName)) {
       reply.code(400);
       return {
         ok: false,
@@ -491,6 +492,8 @@ export function registerAdminRoutes(app, env) {
       };
     }
 
+    // `email` is used as a raw Mongo filter value just below — reject non-string
+    // input above (defense in depth; this route is already admin-authenticated).
     const collections = await getCollections(env);
     const existing = await collections.admins.findOne({ email });
 

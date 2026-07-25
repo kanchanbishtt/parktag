@@ -18,7 +18,7 @@ export function registerShopRoutes(app, env) {
   // expired free-trial vehicle card, this is the free tag to replace. On a
   // successful payment (verify-payment) we mint a new premium tag for that
   // vehicle and soft-remove the old free tag. Missing/invalid → plain order.
-  app.post("/api/shop/create-order", async (request, reply) => {
+  app.post("/api/shop/create-order", { config: { rateLimit: { max: 20, timeWindow: "1 minute" } } }, async (request, reply) => {
     const blocked = await requireSession(app, "owner")(request, reply);
     if (blocked) return blocked;
     const ownerId = toObjectId(request.session.userId);
@@ -73,8 +73,9 @@ export function registerShopRoutes(app, env) {
 
       return { ok: true, orderId: order.id, amount: order.amount, currency: order.currency };
     } catch (err) {
+      request.log.error({ err }, "Razorpay order creation failed");
       reply.code(500);
-      return { ok: false, error: err.message || "Failed to create order." };
+      return { ok: false, error: "Failed to create order. Please try again." };
     }
   });
 
@@ -112,6 +113,15 @@ export function registerShopRoutes(app, env) {
       const order = await collections.shopOrders.findOne({ orderId: razorpay_order_id });
       if (!order) {
         reply.code(400); return { ok: false, error: "No matching order." };
+      }
+      // Bind the order to the session that created it. Razorpay order ids are
+      // not secret by design (Razorpay's own checkout lets anyone complete a
+      // payment for a known order id) — without this check, a signature that
+      // is valid for *someone else's* order would still be accepted here as
+      // long as the caller is logged in as *any* owner, letting an attacker's
+      // session flip another owner's order to "paid" out from under them.
+      if (String(order.ownerId) !== String(ownerId)) {
+        reply.code(403); return { ok: false, error: "This order does not belong to your account." };
       }
       const product = getShopProduct(order.productId);
       const expectedPaise = product ? Math.round(product.amount * 100) : null;

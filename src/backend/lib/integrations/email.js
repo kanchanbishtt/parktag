@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { maskIdentifier } from "../auth/security.js";
 
 export function isEmailConfigured(env) {
   return !!(env.emailSmtpHost && env.emailSmtpUser && env.emailSmtpPass);
@@ -19,7 +20,9 @@ function createTransport(env) {
 export async function sendOtpEmail(env, { to, code }) {
   if (!isEmailConfigured(env)) {
     if (env.runtimeMode !== "production") {
-      console.log(`\n[ParkTag] OTP for ${to}: ${code}\n`);
+      // Dev-only fallback so the flow is testable without SMTP configured.
+      // Identifier is masked — only the OTP itself needs to be readable here.
+      console.log(`\n[ParkTag] Dev OTP for ${maskIdentifier(to)}: ${code}\n`);
       return;
     }
     throw new Error("Email is not configured on this server.");
@@ -56,7 +59,9 @@ export async function sendOtpEmail(env, { to, code }) {
 export async function sendPasswordResetEmail(env, { to, resetUrl }) {
   if (!isEmailConfigured(env)) {
     if (env.runtimeMode !== "production") {
-      console.log(`\n[ParkTag] Password reset link for ${to}:\n${resetUrl}\n`);
+      // Dev-only fallback so the flow is testable without SMTP configured.
+      // Identifier is masked; the link itself must stay intact to be usable.
+      console.log(`\n[ParkTag] Dev password reset link for ${maskIdentifier(to)}:\n${resetUrl}\n`);
       return;
     }
     throw new Error("Email is not configured on this server. Contact support.");
@@ -76,7 +81,7 @@ export async function sendPasswordResetEmail(env, { to, resetUrl }) {
           </div>
         </div>
         <h2 style="color:#111;margin-bottom:8px">Reset your password</h2>
-        <p style="color:#555;line-height:1.6">You requested a password reset for your ParkTag owner account. Click the button below to set a new password. This link expires in <strong>1 hour</strong>.</p>
+        <p style="color:#555;line-height:1.6">You requested a password reset for your ParkTag owner account. Click the button below to set a new password. This link expires in <strong>15 minutes</strong>.</p>
         <div style="text-align:center;margin:28px 0">
           <a href="${resetUrl}" style="background:#F5A623;color:#fff;text-decoration:none;padding:14px 28px;border-radius:8px;font-weight:700;font-size:1rem;display:inline-block">Reset Password</a>
         </div>

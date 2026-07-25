@@ -149,6 +149,13 @@ function svgFor(type) {
   return VEHICLE_SVGS[type] || VEHICLE_SVGS.car;
 }
 
+// HTML-escape any value before interpolating it into innerHTML — v.number is
+// free-text the visitor just typed, rendered back via innerHTML below.
+function esc(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
 function renderList() {
   const list = document.getElementById("vehicle-list");
   if (!list) return;
@@ -157,8 +164,8 @@ function renderList() {
     <div class="av-item">
       <div class="av-item-icon">${svgFor(v.type)}</div>
       <div class="av-item-info">
-        <p class="av-item-type">${VEHICLE_LABELS[v.type] || v.type}</p>
-        <p class="av-item-num">${v.number}</p>
+        <p class="av-item-type">${esc(VEHICLE_LABELS[v.type] || v.type)}</p>
+        <p class="av-item-num">${esc(v.number)}</p>
       </div>
       <button class="av-item-del" data-idx="${i}" aria-label="Remove">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none">

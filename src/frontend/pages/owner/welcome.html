@@ -1184,6 +1184,20 @@
       </div></div>
     </div>
 
+    <!-- My Orders (physical sticker shipping status) -->
+    <div class="pt-mi" data-key="orders">
+      <div class="pt-mi-r" onclick="toggleMI(this.parentElement); loadOrdersOnce();">
+        <div class="pt-mi-ic" style="background:#EFF6FF;color:#2563EB">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="1" y="3" width="15" height="13" rx="1.5" stroke="currentColor" stroke-width="1.8"/><path d="M16 8h4l3 3v5h-7V8Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="6" cy="19" r="1.8" stroke="currentColor" stroke-width="1.6"/><circle cx="18.5" cy="19" r="1.8" stroke="currentColor" stroke-width="1.6"/></svg>
+        </div>
+        <span class="pt-mi-lb">My Orders</span>
+        <span class="pt-mi-ar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>
+      </div>
+      <div class="pt-mi-s"><div class="pt-mi-si">
+        <div id="ordersList"><p class="pt-snote">Loading…</p></div>
+      </div></div>
+    </div>
+
     <!-- Call Masking -->
     <div class="pt-mi" data-key="masking">
       <div class="pt-mi-r" onclick="toggleMI(this.parentElement)">

@@ -3,6 +3,7 @@ import { getCollections } from "../../lib/db/repositories.js";
 import { requireSession, toObjectId } from "../../lib/auth/auth.js";
 import { addressToNotes } from "../../lib/core/address.js";
 import { createPremiumTagForVehicle } from "../../lib/core/tag-issuance.js";
+import { createShipment, isDelhiveryConfigured } from "../../lib/integrations/delhivery.js";
 
 // Shippable subset of an address DB doc.
 function shapeAddress(doc) {
@@ -178,6 +179,31 @@ export function registerShopRoutes(app, env) {
           await collections.shopOrders.updateOne(
             { orderId: razorpay_order_id },
             { $set: { mintedTagId: newTagId } }
+          );
+        }
+      }
+
+      // Auto-book the Delhivery shipment for the physical item. Best-effort:
+      // the payment has already succeeded and (if applicable) the tag has
+      // already been minted by this point, so a booking failure here must
+      // never turn into a failed response — it goes on the order for retry
+      // instead. Only runs once, on the actual created→paid transition.
+      if (firstTime && isDelhiveryConfigured(env) && order.shippingAddress) {
+        try {
+          const { waybill } = await createShipment(env, {
+            orderId: razorpay_order_id,
+            address: order.shippingAddress,
+            productName: order.productName
+          });
+          await collections.shopOrders.updateOne(
+            { orderId: razorpay_order_id },
+            { $set: { waybill, shipmentBookedAt: new Date().toISOString() }, $unset: { shipmentError: "" } }
+          );
+        } catch (err) {
+          request.log.error({ err, orderId: razorpay_order_id }, "Delhivery shipment booking failed");
+          await collections.shopOrders.updateOne(
+            { orderId: razorpay_order_id },
+            { $set: { shipmentError: err instanceof Error ? err.message : "Unknown error" } }
           );
         }
       }

@@ -1319,6 +1319,54 @@ async function deleteAccount() {
 }
 window.deleteAccount = deleteAccount;
 
+var _ordersLoaded = false;
+var ORDER_STATUS_LABELS = {
+  processing: "Preparing to ship",
+  booking_failed: "Couldn't book courier yet — we'll retry",
+  booked: "Booked with courier"
+};
+
+function humanizeOrderStatus(status) {
+  if (ORDER_STATUS_LABELS[status]) return ORDER_STATUS_LABELS[status];
+  // Anything else is a raw Delhivery status string (e.g. "Manifested",
+  // "In Transit", "Delivered") — show it as-is, lightly formatted.
+  return String(status || "Processing").replace(/_/g, " ");
+}
+
+async function loadOrdersOnce() {
+  if (_ordersLoaded) return;
+  _ordersLoaded = true;
+  var el = document.getElementById("ordersList");
+  if (!el) return;
+  try {
+    var res = await fetch("/api/owner/orders");
+    if (!res.ok) throw new Error();
+    var data = await res.json();
+    var orders = (data && data.orders) || [];
+    if (!orders.length) {
+      el.innerHTML = '<p class="pt-snote">No orders yet.</p>';
+      return;
+    }
+    el.innerHTML = orders.map(function (o) {
+      var amount = typeof o.amount === "number" ? "₹" + (o.amount / 100).toFixed(0) : "";
+      var date = o.paidAt ? new Date(o.paidAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "";
+      return '<div class="pt-irow" style="flex-direction:column;align-items:flex-start;gap:2px;padding:10px 0">' +
+        '<div style="display:flex;justify-content:space-between;width:100%">' +
+        '<span style="font-weight:700;color:#0e1220">' + esc(o.productName || "ParkTag order") + '</span>' +
+        '<span style="color:#6b7280;font-size:.78rem">' + esc(amount) + '</span>' +
+        '</div>' +
+        '<span style="font-size:.78rem;color:#374151">' + esc(humanizeOrderStatus(o.shippingStatus)) + '</span>' +
+        (o.waybill ? '<span style="font-size:.72rem;color:#9ca3af">Waybill: ' + esc(o.waybill) + '</span>' : '') +
+        (date ? '<span style="font-size:.7rem;color:#9ca3af">Ordered ' + esc(date) + '</span>' : '') +
+        '</div>';
+    }).join("");
+  } catch {
+    _ordersLoaded = false; // allow retry on next open
+    el.innerHTML = '<p class="pt-snote">Couldn\'t load orders. Try again later.</p>';
+  }
+}
+window.loadOrdersOnce = loadOrdersOnce;
+
 function _toast(msg, tone) {
   const existing = document.getElementById("pt-toast");
   if (existing) existing.remove();

@@ -115,7 +115,22 @@ export function getEnv() {
     // that wipes every owners/admins/tags/contact_requests document and
     // reseeds a well-known admin/owner login (admin@wavetag.local / demo1234).
     // When this secret is set, it is also required on every seed call.
-    demoSeedSecret: process.env.DEMO_SEED_SECRET || ""
+    demoSeedSecret: process.env.DEMO_SEED_SECRET || "",
+    // ── Delhivery (physical sticker fulfilment) ─────────────────────────
+    delhiveryApiKey: process.env.DELHIVERY_API_KEY || "",
+    // Explicit override wins; otherwise staging in dev, production in prod —
+    // never default to live shipment creation from a dev environment.
+    delhiveryBaseUrl:
+      process.env.DELHIVERY_BASE_URL ||
+      (runtimeMode === "production"
+        ? "https://track.delhivery.com"
+        : "https://staging-express.delhivery.com"),
+    // Must exactly match (case-sensitive) a warehouse/pickup location already
+    // registered on the Delhivery account — created once via their dashboard
+    // or account manager, not something this app creates programmatically.
+    delhiveryPickupLocation: process.env.DELHIVERY_PICKUP_LOCATION || "",
+    delhiverySellerGstTin: process.env.DELHIVERY_SELLER_GST_TIN || "",
+    delhiveryHsnCode: process.env.DELHIVERY_HSN_CODE || ""
   };
 
   validateEnv(env, runtimeMode);

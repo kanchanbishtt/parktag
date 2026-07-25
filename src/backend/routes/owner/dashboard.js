@@ -5,6 +5,7 @@ import { getCollections, ensurePendingCallsIndexes } from "../../lib/db/reposito
 import { createQrDataUrl, createPrintQrDataUrl } from "../../lib/core/qr-output.js";
 import { createEtagForVehicle, buildTagScanUrl, VEHICLE_LABELS, etagIdFor } from "../../lib/core/tag-issuance.js";
 import { validateAddress } from "../../lib/core/address.js";
+import { checkPincodeServiceability, trackShipment } from "../../lib/integrations/delhivery.js";
 
 // Strip an address DB doc down to the shippable fields (no _id/ownerId/timestamps).
 function shapeAddress(doc) {
@@ -233,6 +234,14 @@ export function registerOwnerRoutes(app, env) {
     const result = validateAddress(request.body);
     if (!result.ok) { reply.code(400); return { ok: false, error: result.error }; }
 
+    // Fail OPEN on a Delhivery outage (serviceable === null) — only an
+    // explicit "not serviceable" answer blocks saving the address.
+    const { serviceable } = await checkPincodeServiceability(env, result.address.pincode);
+    if (serviceable === false) {
+      reply.code(400);
+      return { ok: false, error: `Sorry, we can't currently deliver to PIN code ${result.address.pincode}.` };
+    }
+
     const ownerId = toObjectId(request.session.userId);
     const now = new Date().toISOString();
     await collections.addresses.updateOne(
@@ -242,6 +251,45 @@ export function registerOwnerRoutes(app, env) {
     );
 
     return { ok: true, address: result.address };
+  });
+
+  // Paid shop orders for this owner, with a best-effort live tracking status
+  // for any order that already has a Delhivery waybill. Tracking lookups run
+  // in parallel and never throw (see trackShipment) — a Delhivery hiccup
+  // shows "status unavailable" for that order, not a broken endpoint.
+  app.get("/api/owner/orders", async (request, reply) => {
+    const blocked = await requireSession(app, "owner")(request, reply);
+    if (blocked) return blocked;
+
+    const collections = await getCollections(env);
+    if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
+
+    const ownerId = toObjectId(request.session.userId);
+    const orders = await collections.shopOrders
+      .find({ ownerId, status: "paid" })
+      .sort({ paidAt: -1 })
+      .limit(20)
+      .toArray();
+
+    const withTracking = await Promise.all(orders.map(async (order) => {
+      const tracking = order.waybill ? await trackShipment(env, order.waybill) : null;
+      return {
+        id: String(order._id),
+        productName: order.productName,
+        amount: order.amount,
+        currency: order.currency,
+        paidAt: order.paidAt,
+        waybill: order.waybill || null,
+        shippingStatus: order.shipmentError
+          ? "booking_failed"
+          : order.waybill
+            ? (tracking?.status || "booked")
+            : "processing",
+        trackingInstructions: tracking?.instructions || null
+      };
+    }));
+
+    return { ok: true, orders: withTracking };
   });
 
   // The old in-place ₹199 premium-upgrade endpoints (purchase-order /

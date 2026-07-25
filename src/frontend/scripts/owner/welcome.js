@@ -1296,6 +1296,29 @@ async function signOut() {
 }
 window.signOut = signOut;
 
+async function deleteAccount() {
+  if (!confirm("Permanently delete your account? This removes your account, all vehicles, tags, and history. This cannot be undone.")) return;
+  const password = prompt("Enter your password to confirm account deletion:");
+  if (password === null) return; // cancelled
+  try {
+    const res = await fetch("/api/owner/account", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.ok) {
+      sessionStorage.clear();
+      window.location.href = "/owner-login";
+      return;
+    }
+    _toast(data.error || "Couldn't delete account. Try again.", "err");
+  } catch {
+    _toast("Couldn't delete account. Try again.", "err");
+  }
+}
+window.deleteAccount = deleteAccount;
+
 function _toast(msg, tone) {
   const existing = document.getElementById("pt-toast");
   if (existing) existing.remove();

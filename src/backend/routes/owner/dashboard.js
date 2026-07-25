@@ -1,5 +1,6 @@
 import { requireSession, toObjectId } from "../../lib/auth/auth.js";
-import { createPasswordHash } from "../../lib/auth/security.js";
+import { createPasswordHash, verifyPassword, isNonEmptyString } from "../../lib/auth/security.js";
+import { clearSession } from "../../lib/auth/session.js";
 import { getCollections, ensurePendingCallsIndexes } from "../../lib/db/repositories.js";
 import { createQrDataUrl, createPrintQrDataUrl } from "../../lib/core/qr-output.js";
 import { createEtagForVehicle, buildTagScanUrl, VEHICLE_LABELS, etagIdFor } from "../../lib/core/tag-issuance.js";
@@ -363,6 +364,57 @@ export function registerOwnerRoutes(app, env) {
     );
     return { ok: true };
   });
+
+  // Permanently delete the owner's account and every record tied to it.
+  // Accounts with a password must re-enter it first — this is the most
+  // destructive action in the app, so a hijacked/stale session cookie alone
+  // isn't enough. Social/OTP-only accounts (Google, Firebase phone auth) have
+  // no passwordHash to check, so those fall back to session auth alone,
+  // consistent with how the rest of the app treats those accounts.
+  app.delete(
+    "/api/owner/account",
+    { config: { rateLimit: { max: 5, timeWindow: "1 minute" } } },
+    async (request, reply) => {
+      const blocked = await requireSession(app, "owner")(request, reply);
+      if (blocked) return blocked;
+
+      const collections = await getCollections(env);
+      if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
+
+      const ownerId = toObjectId(request.session.userId);
+      const owner = await collections.owners.findOne({ _id: ownerId });
+      if (!owner) {
+        reply.code(404);
+        return { ok: false, error: "Account not found." };
+      }
+
+      if (owner.passwordHash) {
+        const { password } = request.body || {};
+        if (!isNonEmptyString(password)) {
+          reply.code(400);
+          return { ok: false, error: "Password is required." };
+        }
+
+        const { valid } = await verifyPassword(password, owner.passwordHash);
+        if (!valid) {
+          reply.code(401);
+          return { ok: false, error: "Incorrect password." };
+        }
+      }
+
+      await Promise.all([
+        collections.tags.deleteMany({ ownerId }),
+        collections.contactRequests.deleteMany({ ownerId }),
+        collections.shopOrders.deleteMany({ ownerId }),
+        collections.addresses.deleteMany({ ownerId }),
+        collections.pendingCalls.deleteMany({ ownerId })
+      ]);
+      await collections.owners.deleteOne({ _id: ownerId });
+
+      clearSession(app, request, reply);
+      return { ok: true };
+    }
+  );
 
   // Owner calls back the most recent scanner who contacted them within 60 minutes.
   // No phone input — owner's phone comes from their profile (owner.mobile).

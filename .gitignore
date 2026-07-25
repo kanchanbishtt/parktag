@@ -1,5 +1,10 @@
 node_modules/
 .env
+.env.local
+.env.*.local
+.env.production
+.env.development
+!.env.example
 npm-debug.log*
 Archieve/
 .playwright-cli/

@@ -1,15 +1,12 @@
 // Delhivery integration for physical sticker fulfilment: pincode
 // serviceability, shipment/waybill creation after payment, and tracking.
 //
-// API confidence notes (checked against https://delhivery-express-api-doc.readme.io):
-//   - Pincode serviceability request/response: confirmed.
-//   - Tracking request/response: confirmed.
-//   - Order creation request payload (core required fields): confirmed from docs.
-//   - Order creation RESPONSE shape (the `packages[].status/waybill` fields
-//     this file reads): could not be confirmed from Delhivery's public docs —
-//     built from the widely-used real-world shape. Test against the staging
-//     environment (the default outside production) before relying on this
-//     in production, and check the raw response logged on first real bookings.
+// Every request/response shape in this file (pincode serviceability, order
+// creation success + failure, and tracking) was verified against Delhivery's
+// live production API with a real booked-then-cancelled test shipment
+// (waybill 59470510000022, 2026-07-25) — not just docs. This account has no
+// staging sandbox (staging-express.delhivery.com 401s for this key), so
+// production is genuinely the only environment available to test against.
 
 export function isDelhiveryConfigured(env) {
   return Boolean(env.delhiveryApiKey && env.delhiveryPickupLocation);

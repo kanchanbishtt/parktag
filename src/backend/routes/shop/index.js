@@ -334,19 +334,21 @@ export function registerShopRoutes(app, env) {
     const shipping = addressDoc ? shapeAddress(addressDoc) : null;
     if (!shipping) { reply.code(400); return { error: "Please add a delivery address before ordering." }; }
 
-    // COD anti-fraud: the cash order's delivery phone must be OTP-verified before
-    // we accept it. We skip the code only when it matches the owner's account
-    // mobile (already proven by an OTP at login); any other number needs a fresh
-    // WhatsApp OTP. The phone is read from the saved address server-side — never
-    // trusted from the client — so the send and the check share one source.
+    // COD anti-fraud: the delivery phone must be proven by an OTP sent to that
+    // exact number. We skip re-verifying ONLY when this owner has already
+    // OTP-verified this same number for a prior COD (owner.codVerifiedPhone) —
+    // never based on owner.mobile, which can be set WITHOUT an OTP via the
+    // profile (POST /api/owner/mobile); trusting it would let an unverified
+    // (even someone else's) number through. The phone is read from the saved
+    // address server-side, so the send and the check share one source of truth.
     const owner = await collections.owners.findOne({ _id: ownerId });
     const deliveryPhone = shipping.phone;
     if (!deliveryPhone || !isMobileIdentifier(deliveryPhone)) {
       reply.code(400);
       return { error: "A valid delivery phone number is required for Cash on Delivery." };
     }
-    const phoneTrusted = owner && owner.mobile &&
-      normalizeIdentifier(deliveryPhone) === normalizeIdentifier(owner.mobile);
+    const normDelivery = normalizeIdentifier(deliveryPhone);
+    const phoneTrusted = owner && owner.codVerifiedPhone && owner.codVerifiedPhone === normDelivery;
     if (!phoneTrusted) {
       // No code yet → tell the client to run the OTP step (200, not an error).
       if (!otp) return { ok: false, needsOtp: true };
@@ -356,6 +358,12 @@ export function registerShopRoutes(app, env) {
         reply.code(400);
         return { ok: false, error: err && err.message ? err.message : "Invalid verification code." };
       }
+      // Remember this OTP-proven number so the same delivery phone isn't
+      // re-challenged on this owner's future COD orders.
+      await collections.owners.updateOne(
+        { _id: ownerId },
+        { $set: { codVerifiedPhone: normDelivery } }
+      );
     }
 
     let validReplaceTagId = null;

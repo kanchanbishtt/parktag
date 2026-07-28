@@ -61,7 +61,7 @@ export async function sendOtpEmail(env, { to, code }) {
 // your parcel"). `amountPaise` is the amount in paise; `cod` toggles the COD vs
 // prepaid copy. Callers must treat a throw as non-fatal (the order already
 // exists) — mirrors how the OTP mail never blocks its flow.
-export async function sendOrderConfirmationEmail(env, { to, orderNumber, productName, amountPaise, cod }) {
+export async function sendOrderConfirmationEmail(env, { to, orderNumber, productName, amountPaise, cod, trackingUrl }) {
   const rupees = `₹${(Math.round(Number(amountPaise) || 0) / 100).toLocaleString("en-IN")}`;
 
   if (!isEmailConfigured(env)) {
@@ -81,6 +81,12 @@ export async function sendOrderConfirmationEmail(env, { to, orderNumber, product
          <p style="margin:0;color:#065F46;font-weight:700">Payment received — ${rupees}</p>
          <p style="margin:6px 0 0;color:#065F46;line-height:1.6;font-size:.9rem">Your order is confirmed and will be shipped shortly.</p>
        </div>`;
+
+  const trackBlock = trackingUrl
+    ? `<div style="text-align:center;margin:22px 0">
+         <a href="${trackingUrl}" style="background:#03162D;color:#fff;text-decoration:none;padding:12px 28px;border-radius:10px;font-weight:700;font-size:.95rem;display:inline-block">Track your order</a>
+       </div>`
+    : "";
 
   const transporter = createTransport(env);
 
@@ -103,6 +109,7 @@ export async function sendOrderConfirmationEmail(env, { to, orderNumber, product
           <p style="margin:0;color:#111"><strong>Amount:</strong> ${rupees}</p>
         </div>
         ${codBlock}
+        ${trackBlock}
         <hr style="border:none;border-top:1px solid #eee;margin:24px 0" />
         <p style="color:#ccc;font-size:0.75rem;margin-top:8px">ParkTag · parktag.me</p>
       </div>

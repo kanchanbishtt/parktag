@@ -5,7 +5,7 @@ import { getCollections, ensurePendingCallsIndexes } from "../../lib/db/reposito
 import { createQrDataUrl, createPrintQrDataUrl } from "../../lib/core/qr-output.js";
 import { createEtagForVehicle, buildTagScanUrl, VEHICLE_LABELS, etagIdFor } from "../../lib/core/tag-issuance.js";
 import { validateAddress } from "../../lib/core/address.js";
-import { checkPincodeServiceability, trackShipment } from "../../lib/integrations/delhivery.js";
+import { checkPincodeServiceability, trackShipment, trackingUrl } from "../../lib/integrations/delhivery.js";
 
 // Strip an address DB doc down to the shippable fields (no _id/ownerId/timestamps).
 function shapeAddress(doc) {
@@ -286,6 +286,7 @@ export function registerOwnerRoutes(app, env) {
         // COD orders have no paidAt — fall back to when the order was placed.
         orderedAt: order.paidAt || order.createdAt || null,
         waybill: order.waybill || null,
+        trackingUrl: order.waybill ? trackingUrl(order.waybill) : null,
         shippingStatus: order.shipmentError
           ? "booking_failed"
           : order.waybill

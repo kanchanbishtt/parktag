@@ -1368,7 +1368,9 @@ async function loadOrdersOnce() {
         '</div>' +
         '<span style="font-size:.78rem;color:#374151">' + esc(humanizeOrderStatus(o.shippingStatus)) + '</span>' +
         (o.orderNumber ? '<span style="font-size:.72rem;color:#9ca3af">Order ' + esc(o.orderNumber) + '</span>' : '') +
-        (o.waybill ? '<span style="font-size:.72rem;color:#9ca3af">Waybill: ' + esc(o.waybill) + '</span>' : '') +
+        (o.trackingUrl
+          ? '<a href="' + esc(o.trackingUrl) + '" target="_blank" rel="noopener" style="font-size:.74rem;color:#FF2700;font-weight:700;text-decoration:none">Track order →</a>'
+          : (o.waybill ? '<span style="font-size:.72rem;color:#9ca3af">Waybill: ' + esc(o.waybill) + '</span>' : '')) +
         (date ? '<span style="font-size:.7rem;color:#9ca3af">Ordered ' + esc(date) + '</span>' : '') +
         '</div>';
     }).join("");

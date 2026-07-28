@@ -3,13 +3,21 @@ import { getCollections } from "../../lib/db/repositories.js";
 import { requireSession, toObjectId } from "../../lib/auth/auth.js";
 import { addressToNotes } from "../../lib/core/address.js";
 import { createPremiumTagForVehicle } from "../../lib/core/tag-issuance.js";
-import { createShipment, isDelhiveryConfigured } from "../../lib/integrations/delhivery.js";
+import { createShipment, isDelhiveryConfigured, updateShipmentToPrepaid, trackingUrl } from "../../lib/integrations/delhivery.js";
 import { sendOrderConfirmationEmail } from "../../lib/integrations/email.js";
+import { isMetaWhatsappConfigured, sendMetaWhatsappOrderUpdate } from "../../lib/integrations/meta.js";
 import { sendOtp, verifyOtp, isMobileIdentifier, normalizeIdentifier } from "../../lib/auth/otp.js";
 
 // Flash-offer discount for converting a COD order to prepaid (paise). Kept
 // server-side so the ₹50 saving can't be inflated by a tampered client.
 const FLASH_DISCOUNT_PAISE = 5000;
+
+// COD carries a matching +₹50 handling surcharge on top of the catalog price.
+// Paying online — directly, or via the flash offer which subtracts the same
+// ₹50 — removes it, so the online price always equals the catalog price. Must
+// stay equal to FLASH_DISCOUNT_PAISE, or the flash-prepaid amount won't land
+// back exactly on the catalog price (e.g. catalog ₹499 → COD ₹549 → online ₹499).
+const COD_SURCHARGE_PAISE = FLASH_DISCOUNT_PAISE;
 
 // Genuine order reference shown on the confirmation screen: a date prefix plus a
 // real, monotonically increasing sequence — like a standard e-commerce order id
@@ -45,10 +53,30 @@ function shapeAddress(doc) {
 async function sendOrderConfirmation(env, collections, ownerId, details, log) {
   try {
     const owner = await collections.owners.findOne({ _id: ownerId });
-    if (!owner || !owner.email) return;
-    await sendOrderConfirmationEmail(env, { to: owner.email, ...details });
+    const track = details.waybill ? trackingUrl(details.waybill) : null;
+    const payload = {
+      orderNumber: details.orderNumber,
+      productName: details.productName,
+      amountPaise: details.amountPaise,
+      cod: details.cod,
+      trackingUrl: track
+    };
+    if (owner && owner.email) {
+      await sendOrderConfirmationEmail(env, { to: owner.email, ...payload });
+      return;
+    }
+    // No e-mail on file → WhatsApp the delivery contact instead. Needs the
+    // approved `parktag_order_update` template; best-effort like the e-mail.
+    if (details.deliveryPhone && isMetaWhatsappConfigured(env)) {
+      await sendMetaWhatsappOrderUpdate(env, {
+        to: details.deliveryPhone,
+        name: (owner && (owner.displayName || owner.name)) || "there",
+        orderNumber: details.orderNumber,
+        trackingUrl: track || ""
+      });
+    }
   } catch (err) {
-    log?.error?.({ err }, "Order confirmation email failed");
+    log?.error?.({ err }, "Order confirmation notification failed");
   }
 }
 
@@ -222,13 +250,6 @@ export function registerShopRoutes(app, env) {
       );
       const firstTime = paidTransition.modifiedCount === 1;
 
-      // Best-effort confirmation e-mail on the first created→paid transition.
-      if (firstTime) {
-        await sendOrderConfirmation(env, collections, ownerId, {
-          orderNumber: order.orderNumber, productName: order.productName, amountPaise: order.amount, cod: false
-        }, request.log);
-      }
-
       // Tag replacement (M18): mint a new premium tag for the vehicle and
       // soft-remove the spent free-trial tag. Only on the first paid transition
       // and only when this order carried a valid replace-context.
@@ -263,6 +284,7 @@ export function registerShopRoutes(app, env) {
       // already been minted by this point, so a booking failure here must
       // never turn into a failed response — it goes on the order for retry
       // instead. Only runs once, on the actual created→paid transition.
+      let bookedWaybill = null;
       if (firstTime && isDelhiveryConfigured(env) && order.shippingAddress) {
         try {
           const { waybill } = await createShipment(env, {
@@ -270,6 +292,7 @@ export function registerShopRoutes(app, env) {
             address: order.shippingAddress,
             productName: order.productName
           });
+          bookedWaybill = waybill;
           await collections.shopOrders.updateOne(
             { orderId: razorpay_order_id },
             { $set: { waybill, shipmentBookedAt: new Date().toISOString() }, $unset: { shipmentError: "" } }
@@ -281,6 +304,15 @@ export function registerShopRoutes(app, env) {
             { $set: { shipmentError: err instanceof Error ? err.message : "Unknown error" } }
           );
         }
+      }
+
+      // Best-effort confirmation (e-mail, or WhatsApp when no e-mail) — sent
+      // after booking so it can carry the tracking link when a waybill exists.
+      if (firstTime) {
+        await sendOrderConfirmation(env, collections, ownerId, {
+          orderNumber: order.orderNumber, productName: order.productName, amountPaise: order.amount, cod: false,
+          waybill: bookedWaybill, deliveryPhone: order.shippingAddress && order.shippingAddress.phone
+        }, request.log);
       }
     }
 
@@ -377,7 +409,8 @@ export function registerShopRoutes(app, env) {
     }
 
     const orderNumber = await generateOrderNumber(collections);
-    const amountPaise = Math.round(product.amount * 100);
+    // COD amount = catalog price + ₹50 COD surcharge (the courier collects this).
+    const amountPaise = Math.round(product.amount * 100) + COD_SURCHARGE_PAISE;
     await collections.shopOrders.insertOne({
       orderNumber,
       paymentMethod: "cod",
@@ -392,9 +425,38 @@ export function registerShopRoutes(app, env) {
       createdAt: new Date().toISOString()
     });
 
-    // Best-effort confirmation e-mail; for COD it carries the acceptance reminder.
+    // Best-effort COD shipment booking: gives the buyer a waybill + live
+    // tracking in My Orders and tells the courier to collect the cash on
+    // delivery. Never blocks the order — it's already placed; a booking failure
+    // is recorded on the order for retry, exactly like the prepaid path.
+    let bookedWaybill = null;
+    if (isDelhiveryConfigured(env)) {
+      try {
+        const { waybill } = await createShipment(env, {
+          orderId: orderNumber,
+          address: shipping,
+          productName: product.name,
+          codAmountPaise: amountPaise
+        });
+        bookedWaybill = waybill;
+        await collections.shopOrders.updateOne(
+          { orderNumber },
+          { $set: { waybill, shipmentBookedAt: new Date().toISOString() }, $unset: { shipmentError: "" } }
+        );
+      } catch (err) {
+        request.log.error({ err, orderNumber }, "Delhivery COD shipment booking failed");
+        await collections.shopOrders.updateOne(
+          { orderNumber },
+          { $set: { shipmentError: err instanceof Error ? err.message : "Unknown error" } }
+        );
+      }
+    }
+
+    // Best-effort confirmation (e-mail, or WhatsApp when no e-mail); for COD it
+    // carries the acceptance reminder + a tracking link once a waybill exists.
     await sendOrderConfirmation(env, collections, ownerId, {
-      orderNumber, productName: product.name, amountPaise, cod: true
+      orderNumber, productName: product.name, amountPaise, cod: true,
+      waybill: bookedWaybill, deliveryPhone: shipping.phone
     }, request.log);
 
     return { ok: true, orderNumber, amount: amountPaise, productName: product.name };
@@ -479,11 +541,27 @@ export function registerShopRoutes(app, env) {
     );
     const firstTime = transition.modifiedCount === 1;
 
-    // Best-effort confirmation e-mail — the COD order is now prepaid/online.
+    // Best-effort confirmation (e-mail, or WhatsApp when no e-mail) — the COD
+    // order is now prepaid/online; carries the tracking link if a waybill exists.
     if (firstTime) {
       await sendOrderConfirmation(env, collections, ownerId, {
-        orderNumber, productName: order.productName, amountPaise: order.prepayAmount, cod: false
+        orderNumber, productName: order.productName, amountPaise: order.prepayAmount, cod: false,
+        waybill: order.waybill, deliveryPhone: order.shippingAddress && order.shippingAddress.phone
       }, request.log);
+    }
+
+    // If a COD shipment was already booked at order time, stop the courier from
+    // collecting cash now that the order is prepaid. Best-effort: the payment
+    // already succeeded, so a failed conversion is recorded on the order for
+    // manual correction rather than surfaced as an error to the buyer.
+    if (firstTime && order.waybill) {
+      const converted = await updateShipmentToPrepaid(env, order.waybill);
+      await collections.shopOrders.updateOne(
+        { orderNumber, ownerId },
+        converted
+          ? { $set: { shipmentPaymentMode: "Prepaid", shipmentConvertedAt: new Date().toISOString() }, $unset: { codConversionError: "" } }
+          : { $set: { codConversionError: "Could not switch COD shipment to Prepaid — verify with courier." } }
+      );
     }
 
     let replaced = false, newTagId = null;

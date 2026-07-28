@@ -802,6 +802,15 @@ async function load() {
       _owner       = data.owner;
       _ownerMobile = data.owner.mobile || null;
       _userId = id || String(data.owner._id || "");
+      // Expose the logged-in owner's contact for the shop checkout (inline script
+      // in welcome.html runs in a separate scope and can only read via window).
+      // Razorpay prefills from this so the sheet shows the CURRENT user, not a
+      // stale cached number.
+      window.__ptOwner = {
+        name: (rawName && !isEmail) ? rawName : firstName,
+        email: data.owner.email || "",
+        contact: data.owner.mobile || ""
+      };
       const mName = document.getElementById("menuName");
       const mId   = document.getElementById("menuId");
       const mAv   = document.getElementById("menuAvatar");

@@ -17,6 +17,10 @@ export async function getCollections(env) {
     admins: db.collection(withPrefix(prefix, "admins")),
     owners: db.collection(withPrefix(prefix, "owners")),
     tags: db.collection(withPrefix(prefix, "tags")),
+    // Login sessions — persisted so admins/owners stay logged in across server
+    // restarts/deploys and across multiple instances (not just one process's
+    // memory). Auto-expired by a TTL index on expiresAt.
+    sessions: db.collection(withPrefix(prefix, "sessions")),
     contactRequests: db.collection(withPrefix(prefix, "contact_requests")),
     passwordResetTokens: db.collection(withPrefix(prefix, "password_reset_tokens")),
     otpTokens: db.collection(withPrefix(prefix, "otp_tokens")),
@@ -29,7 +33,10 @@ export async function getCollections(env) {
     shopOrders: db.collection(withPrefix(prefix, "shop_orders")),
     // Delivery addresses for physical sticker fulfilment — one active doc per
     // owner (upserted on ownerId), snapshotted onto each order at purchase time.
-    addresses: db.collection(withPrefix(prefix, "addresses"))
+    addresses: db.collection(withPrefix(prefix, "addresses")),
+    // Atomic sequence counters (e.g. the running shop order number). Each doc is
+    // { _id: <name>, seq: <n> }, incremented with findOneAndUpdate($inc).
+    counters: db.collection(withPrefix(prefix, "counters"))
   };
 }
 

@@ -10,7 +10,7 @@ import QRCode from "qrcode";
 
 import { getEnv } from "./lib/env.js";
 import { clientErrorMessage } from "./lib/errors.js";
-import { readSession, loadSessions } from "./lib/auth/session.js";
+import { readSession } from "./lib/auth/session.js";
 import { registerAdminRoutes } from "./routes/admin/index.js";
 import { registerAuthRoutes } from "./routes/auth/credentials.js";
 import { registerDemoRoutes } from "./routes/system/demo.js";
@@ -82,9 +82,10 @@ export async function buildApp() {
     trustProxy: true
   });
 
+  // In-process cache in front of the MongoDB-backed session store (see
+  // lib/auth/session.js). Sessions themselves live in Mongo, so a restart or a
+  // second instance no longer logs users out — this Map is just a fast path.
   app.decorate("sessions", new Map());
-  // Dev only: restore sessions persisted before the last nodemon restart.
-  loadSessions(app);
   // Server-side OAuth state store — avoids SameSite cookie blocking on Google callback
   app.decorate("oauthStates", new Map());
 
@@ -232,7 +233,7 @@ export async function buildApp() {
   });
 
   app.get("/owner", async (request, reply) => {
-    const session = readSession(app, request);
+    const session = await readSession(app, request);
     if (!session || session.role !== "owner") {
       return reply.redirect("/owner-login");
     }
@@ -252,7 +253,7 @@ export async function buildApp() {
   });
 
   app.get("/owner-welcome", async (request, reply) => {
-    const session = readSession(app, request);
+    const session = await readSession(app, request);
     if (!session || session.role !== "owner") {
       return reply.redirect("/owner-login");
     }
@@ -280,7 +281,7 @@ export async function buildApp() {
   });
 
   app.get("/admin", async (request, reply) => {
-    const session = readSession(app, request);
+    const session = await readSession(app, request);
 
     if (session && session.role === "admin") {
       reply.redirect("/admin/overview");
@@ -293,7 +294,7 @@ export async function buildApp() {
   });
 
   async function guardAdmin(request, reply, pagePath) {
-    const session = readSession(app, request);
+    const session = await readSession(app, request);
 
     if (!session || session.role !== "admin") {
       reply.redirect("/admin");
@@ -337,7 +338,7 @@ export async function buildApp() {
   // tag's OWN scannable QR overlaid (encodes the pinned production scan URL, so
   // printed stickers never point at localhost/whatever host generated them).
   app.get("/admin/sticker/:token([A-Za-z0-9]{6,80})", async (request, reply) => {
-    const session = readSession(app, request);
+    const session = await readSession(app, request);
     if (!session || session.role !== "admin") {
       reply.redirect("/admin");
       return;

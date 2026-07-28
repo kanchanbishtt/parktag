@@ -848,6 +848,16 @@ pre {
   margin-bottom: 4px;
 }
 
+/* Tokens are long unbroken 64-char strings and claim URLs are long too; let
+   them wrap inside the card so they never overflow the row on narrow / mobile
+   screens. */
+.queue-row strong,
+.queue-row a,
+.queue-row span {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .monitor-card p,
 .queue-row span,
 .qr-card span,
@@ -2931,11 +2941,10 @@ html:has(body.pt-hub-body) {
   gap: 10px;
 }
 
-.pt-admin-brand-name {
-  font-size: 1rem;
-  font-weight: 900;
-  color: #323232;
-  margin: 0;
+.pt-admin-brand-logo {
+  height: 26px;
+  width: auto;
+  display: block;
 }
 
 .pt-admin-brand-role {

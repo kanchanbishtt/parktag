@@ -33,7 +33,10 @@ export async function getCollections(env) {
     shopOrders: db.collection(withPrefix(prefix, "shop_orders")),
     // Delivery addresses for physical sticker fulfilment — one active doc per
     // owner (upserted on ownerId), snapshotted onto each order at purchase time.
-    addresses: db.collection(withPrefix(prefix, "addresses"))
+    addresses: db.collection(withPrefix(prefix, "addresses")),
+    // Atomic sequence counters (e.g. the running shop order number). Each doc is
+    // { _id: <name>, seq: <n> }, incremented with findOneAndUpdate($inc).
+    counters: db.collection(withPrefix(prefix, "counters"))
   };
 }
 

@@ -1,4 +1,3 @@
-import crypto from "node:crypto";
 import { createRazorpayOrder, verifyRazorpaySignature, isRazorpayConfigured, getShopProduct } from "../../lib/integrations/payments.js";
 import { getCollections } from "../../lib/db/repositories.js";
 import { requireSession, toObjectId } from "../../lib/auth/auth.js";
@@ -9,12 +8,24 @@ import { createPremiumTagForVehicle } from "../../lib/core/tag-issuance.js";
 // server-side so the ₹50 saving can't be inflated by a tampered client.
 const FLASH_DISCOUNT_PAISE = 5000;
 
-// Compact, human-readable order reference (not security-sensitive). Used for
-// COD orders (which have no Razorpay id) and shown on the confirmation screen.
-function generateOrderNumber() {
-  const ts = Date.now().toString().slice(-10);
-  const rand = crypto.randomInt(1000, 10000);
-  return `PT${ts}${rand}`;
+// Genuine order reference shown on the confirmation screen: a date prefix plus a
+// real, monotonically increasing sequence — like a standard e-commerce order id
+// (e.g. PT-260728-00042), never a random blob. The sequence comes from an atomic
+// per-collection counter so every order gets the next number with no collisions.
+async function generateOrderNumber(collections) {
+  const now = new Date();
+  const datePart =
+    String(now.getFullYear()).slice(-2) +
+    String(now.getMonth() + 1).padStart(2, "0") +
+    String(now.getDate()).padStart(2, "0");
+  const res = await collections.counters.findOneAndUpdate(
+    { _id: "shopOrder" },
+    { $inc: { seq: 1 } },
+    { upsert: true, returnDocument: "after" }
+  );
+  // The v6 driver returns the doc directly; older behaviour wraps it in `.value`.
+  const seq = (res && (res.seq ?? (res.value && res.value.seq))) || 1;
+  return `PT-${datePart}-${String(seq).padStart(5, "0")}`;
 }
 
 // Shippable subset of an address DB doc.
@@ -110,7 +121,7 @@ export function registerShopRoutes(app, env) {
       // Persist the server-created order so verify-payment can prove the payment
       // maps to a real order at the catalog price (M15 Step 5). Amount is stored
       // in paise, exactly as Razorpay recorded it.
-      const orderNumber = generateOrderNumber();
+      const orderNumber = await generateOrderNumber(collections);
       {
         await collections.shopOrders.insertOne({
           orderId: order.id,
@@ -247,7 +258,7 @@ export function registerShopRoutes(app, env) {
       if (oldTag && !oldTag.premium) validReplaceTagId = String(oldTag._id);
     }
 
-    const orderNumber = generateOrderNumber();
+    const orderNumber = await generateOrderNumber(collections);
     const amountPaise = Math.round(product.amount * 100);
     await collections.shopOrders.insertOne({
       orderNumber,

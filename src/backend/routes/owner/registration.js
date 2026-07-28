@@ -44,6 +44,16 @@ export function registerRegistrationRoutes(app, env) {
       };
     }
 
+    // Match the password-reset flow's minimum so a weak password can't be set
+    // at registration but blocked on reset.
+    if (password.length < 8) {
+      reply.code(400);
+      return {
+        ok: false,
+        error: "Password must be at least 8 characters"
+      };
+    }
+
     // `email` is used as a raw Mongo filter value just below — reject non-string
     // input above so a crafted body can't be interpreted as a query operator.
     const existingOwner = await collections.owners.findOne({ email });

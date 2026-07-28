@@ -416,6 +416,161 @@
       margin: 10px 0 0; font-weight: 600;
     }
 
+    /* ── Choose-your-pack sheet ──────────────────────────── */
+    .pt-pack-title { font-size: 1.3rem; font-weight: 900; color: #03162D; margin: 2px 0 6px; }
+    .pt-pack-sub { font-size: .85rem; color: #6B7280; margin: 0 0 20px; line-height: 1.45; }
+    .pt-pack-sec {
+      font-size: .95rem; font-weight: 800; color: #03162D;
+      margin: 18px 0 10px; display: flex; align-items: center; gap: 6px;
+    }
+    .pt-pack-sec em { font-style: normal; font-weight: 600; color: #9CA3AF; font-size: .82rem; }
+    .pt-pack-opt, .pt-pack-addon {
+      width: 100%; display: flex; align-items: center; gap: 12px; text-align: left;
+      padding: 13px 14px; margin-bottom: 10px; border-radius: 14px;
+      border: 1.5px solid #E5E7EB; background: #fff; cursor: pointer;
+      font-family: inherit; transition: border-color .15s, box-shadow .15s, background .15s;
+    }
+    .pt-pack-opt.active { border-color: #03162D; box-shadow: inset 0 0 0 1px #03162D; }
+    .pt-pack-addon.active { border-color: #03162D; background: #F8FAFC; box-shadow: inset 0 0 0 1px #03162D; }
+    .pt-pack-radio {
+      width: 20px; height: 20px; border-radius: 50%; border: 2px solid #CBD5E1;
+      flex-shrink: 0; position: relative; transition: border-color .15s;
+    }
+    .pt-pack-opt.active .pt-pack-radio { border-color: #03162D; }
+    .pt-pack-opt.active .pt-pack-radio::after {
+      content: ""; position: absolute; inset: 3px; border-radius: 50%; background: #03162D;
+    }
+    .pt-pack-check {
+      width: 20px; height: 20px; border-radius: 6px; border: 2px solid #CBD5E1;
+      flex-shrink: 0; position: relative; transition: all .15s;
+    }
+    .pt-pack-addon.active .pt-pack-check { border-color: #03162D; background: #03162D; }
+    .pt-pack-addon.active .pt-pack-check::after {
+      content: ""; position: absolute; left: 5px; top: 1px; width: 6px; height: 11px;
+      border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg);
+    }
+    .pt-pack-ico {
+      width: 42px; height: 42px; border-radius: 11px; background: #F3F4F6;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .pt-pack-txt { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
+    .pt-pack-name {
+      font-size: .95rem; font-weight: 800; color: #03162D;
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    }
+    .pt-pack-desc { font-size: .8rem; color: #9CA3AF; }
+    .pt-pack-price { font-size: 1.02rem; font-weight: 900; color: #03162D; flex-shrink: 0; white-space: nowrap; }
+    .pt-pack-badge {
+      font-size: .6rem; font-weight: 800; color: #0F9D58; background: #E6F4EA;
+      padding: 2px 7px; border-radius: 20px; letter-spacing: .05em;
+    }
+    .pt-pack-total {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px; border-radius: 14px; background: #F9FAFB;
+      border: 1px solid #EEF0F2; margin: 10px 0 16px;
+    }
+    .pt-pack-total-lbl { font-size: .95rem; font-weight: 700; color: #374151; }
+    .pt-pack-total-amt { font-size: 1.45rem; font-weight: 900; color: #03162D; }
+    .pt-pack-proceed {
+      width: 100%; padding: 16px; border-radius: 16px; border: none;
+      background: #FF2700; color: #fff; font-size: 1rem; font-weight: 800;
+      cursor: pointer; font-family: inherit; letter-spacing: .02em; transition: background .15s;
+    }
+    .pt-pack-proceed:hover { background: #D92200; }
+    .pt-pack-proceed:disabled { opacity: .6; cursor: default; }
+    .pt-pack-foot { text-align: center; font-size: .76rem; color: #9CA3AF; margin: 12px 0 0; font-weight: 600; }
+    .pt-pack-actions { display: flex; flex-direction: column; gap: 10px; }
+    .pt-pack-cod {
+      width: 100%; padding: 15px; border-radius: 16px; border: 1.5px solid #D1D5DB;
+      background: #fff; color: #03162D; font-size: .98rem; font-weight: 800;
+      cursor: pointer; font-family: inherit; transition: background .15s, border-color .15s;
+    }
+    .pt-pack-cod:hover { background: #F9FAFB; border-color: #9CA3AF; }
+    .pt-pack-cod:disabled { opacity: .55; cursor: default; }
+
+    /* ── Shared flow header (same navy + dark logo as the dashboard) ─── */
+    .pt-fhead {
+      position: sticky; top: 0; z-index: 3;
+      background: linear-gradient(155deg, #010D1A 0%, #03162D 28%, #0A2040 58%, #162F60 100%);
+      padding: 16px 22px; display: flex; align-items: center;
+      box-shadow: 0 2px 14px rgba(0,18,48,0.22);
+    }
+    .pt-fhead::after {
+      content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 2px; pointer-events: none;
+      background: linear-gradient(90deg, transparent 0%, rgba(255,39,0,0.45) 25%, rgba(255,39,0,0.70) 50%, rgba(255,39,0,0.45) 75%, transparent 100%);
+    }
+    .pt-fhead-logo { height: 42px; width: auto; mix-blend-mode: lighten; }
+    .pt-fhead-sheet { border-radius: 22px 22px 0 0; }
+
+    /* ── Order confirmation screen ───────────────────────── */
+    .pt-conf-ov {
+      position: fixed; inset: 0; z-index: 500; background: #EDF7F1;
+      overflow-y: auto; -webkit-overflow-scrolling: touch; display: none;
+    }
+    .pt-conf-ov.open { display: block; }
+    .pt-conf-wrap { max-width: 480px; margin: 0 auto; padding: 30px 20px 40px; }
+    .pt-conf-ordno { text-align: center; color: #6B7280; font-size: .9rem; font-weight: 600; margin: 0 0 4px; }
+    .pt-conf-hi { text-align: center; font-size: 1.35rem; font-weight: 900; color: #03162D; margin: 0 0 22px; }
+    .pt-conf-card { background: #fff; border-radius: 20px; padding: 30px 24px; box-shadow: 0 4px 22px rgba(0,0,0,.05); }
+    .pt-conf-check {
+      width: 76px; height: 76px; border-radius: 50%; background: #16A34A;
+      display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;
+    }
+    .pt-conf-title { font-size: 1.5rem; font-weight: 900; color: #03162D; margin: 0 0 6px; text-align: center; }
+    .pt-conf-ship { font-size: .88rem; color: #6B7280; margin: 0 0 22px; text-align: center; }
+    .pt-conf-benes { list-style: none; padding: 0; margin: 0; }
+    .pt-conf-benes li { display: flex; align-items: center; gap: 12px; padding: 7px 0; font-size: .95rem; color: #1F2937; font-weight: 500; }
+    .pt-conf-bico { width: 24px; height: 24px; border-radius: 50%; background: #DCFCE7; color: #16A34A; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+
+    .pt-flash { background: linear-gradient(180deg,#FFFDF7,#FFF6E9); border: 1.5px solid #FBD89F; border-radius: 20px; padding: 20px; margin-top: 20px; }
+    .pt-flash-badge { display: inline-block; background: #FEF3C7; color: #B45309; font-size: .68rem; font-weight: 800; letter-spacing: .06em; padding: 5px 11px; border-radius: 7px; margin-bottom: 12px; }
+    .pt-flash-lead { font-size: .9rem; color: #6B7280; margin: 0 0 4px; }
+    .pt-flash-head { font-size: 1.28rem; font-weight: 900; color: #03162D; margin: 0 0 16px; }
+    .pt-flash-head b { color: #EA580C; }
+    .pt-flash-timer { background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 12px; padding: 11px; text-align: center; margin-bottom: 16px; }
+    .pt-flash-timer-lbl { display: block; font-size: .72rem; font-weight: 700; letter-spacing: .1em; color: #A87F49; margin-bottom: 2px; }
+    .pt-flash-timer-val { font-size: 1.85rem; font-weight: 900; color: #EA580C; font-variant-numeric: tabular-nums; }
+    .pt-flash-cmp { display: flex; gap: 10px; margin-bottom: 14px; }
+    .pt-flash-box { flex: 1; border: 1.5px solid #E5E7EB; border-radius: 14px; padding: 12px; text-align: center; background: #fff; }
+    .pt-flash-box.save { border-color: #86EFAC; background: #F0FDF4; }
+    .pt-flash-box span { display: block; font-size: .76rem; color: #6B7280; margin-bottom: 3px; }
+    .pt-flash-box b { font-size: 1.18rem; font-weight: 900; color: #03162D; }
+    .pt-flash-box.save em { display: block; font-style: normal; font-size: .72rem; font-weight: 800; color: #16A34A; margin-top: 3px; }
+    .pt-flash-benes { list-style: none; padding: 0; margin: 0 0 16px; }
+    .pt-flash-benes li { display: flex; align-items: center; gap: 8px; font-size: .83rem; color: #4B5563; padding: 3px 0; }
+    .pt-flash-benes li::before { content: "✓"; color: #16A34A; font-weight: 900; }
+    .pt-flash-btn { width: 100%; padding: 15px; border: none; border-radius: 14px; background: #FF2700; color: #fff; font-size: 1rem; font-weight: 800; cursor: pointer; font-family: inherit; transition: background .15s; }
+    .pt-flash-btn:hover { background: #D92200; }
+    .pt-flash-btn:disabled { opacity: .6; cursor: default; }
+    .pt-flash-note { text-align: center; font-size: .76rem; color: #9CA3AF; margin: 10px 0 0; }
+    .pt-conf-paid { background: #DCFCE7; color: #166534; text-align: center; font-weight: 800; padding: 14px; border-radius: 14px; margin-top: 20px; font-size: .92rem; }
+    .pt-conf-done { width: 100%; padding: 15px; margin-top: 18px; border: 1.5px solid #D1D5DB; border-radius: 14px; background: #fff; color: #374151; font-size: .95rem; font-weight: 700; cursor: pointer; font-family: inherit; }
+    .pt-conf-done:hover { background: #F9FAFB; }
+
+    /* ── How-to-activate guide (on the confirmation screen) ─── */
+    .pt-howto { background: #fff; border-radius: 20px; padding: 22px; margin-top: 20px; box-shadow: 0 4px 22px rgba(0,0,0,.05); }
+    .pt-howto-title { display: flex; align-items: center; gap: 10px; font-size: 1.15rem; font-weight: 900; color: #03162D; margin: 0 0 6px; }
+    .pt-howto-step { display: flex; align-items: center; gap: 14px; padding: 14px 0; }
+    .pt-howto-step + .pt-howto-step { border-top: 1px solid #F0F1F3; }
+    .pt-howto-sico { width: 42px; height: 42px; border-radius: 11px; background: #F3F4F6; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .pt-howto-txt { font-size: .95rem; color: #4B5563; line-height: 1.45; }
+    .pt-howto-txt b { color: #03162D; font-weight: 800; }
+    .pt-conf-next { width: 100%; padding: 16px; margin-top: 20px; border: none; border-radius: 16px; background: #FF2700; color: #fff; font-size: 1rem; font-weight: 800; cursor: pointer; font-family: inherit; transition: background .15s; }
+    .pt-conf-next:hover { background: #D92200; }
+    .pt-howto-scan { width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 16px; margin-top: 20px; border: none; border-radius: 16px; background: #FF2700; color: #fff; font-size: 1rem; font-weight: 800; cursor: pointer; font-family: inherit; transition: background .15s; }
+    .pt-howto-scan:hover { background: #D92200; }
+    .pt-howto-hint { text-align: center; font-size: .8rem; color: #6B7280; margin: 12px 4px 0; line-height: 1.45; }
+
+    /* ── Camera QR scanner ─────────────────────────────────── */
+    .pt-scan-ov { position: fixed; inset: 0; z-index: 600; background: #0B0F16; display: none; flex-direction: column; }
+    .pt-scan-ov.open { display: flex; }
+    .pt-scan-head { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px; color: #fff; font-size: 1.05rem; font-weight: 800; }
+    .pt-scan-x { background: rgba(255,255,255,.14); border: none; color: #fff; width: 34px; height: 34px; border-radius: 50%; font-size: 1rem; cursor: pointer; line-height: 1; }
+    .pt-scan-stage { position: relative; flex: 1; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+    .pt-scan-stage video { width: 100%; height: 100%; object-fit: cover; background: #000; }
+    .pt-scan-frame { position: absolute; width: 62vw; max-width: 280px; aspect-ratio: 1; border: 3px solid rgba(255,255,255,.9); border-radius: 22px; box-shadow: 0 0 0 100vmax rgba(0,0,0,.45); }
+    .pt-scan-status { color: #E5E7EB; text-align: center; font-size: .9rem; font-weight: 600; padding: 20px 24px calc(20px + env(safe-area-inset-bottom)); margin: 0; }
+
     /* ── Burger menu ─────────────────────────────────────── */
     .pt-menu-bk {
       position: fixed; inset: 0; background: rgba(0,0,0,.50);
@@ -1029,6 +1184,103 @@
   <div class="pt-sheet-body" id="ptSheetBody"></div>
 </div>
 
+<!-- ── Choose-your-pack sheet (shown after Buy Now for car tags) ── -->
+<div class="pt-backdrop" id="ptPackBackdrop" onclick="closePackSheet()"></div>
+<div class="pt-sheet" id="ptPackSheet">
+  <div class="pt-fhead pt-fhead-sheet"><img class="pt-fhead-logo" src="/images/dark-logo.png" alt="ParkTag"></div>
+  <div class="pt-sheet-body" id="ptPackSheetBody"></div>
+</div>
+
+<!-- ── Order confirmation screen (online = no offer, COD = flash offer) ── -->
+<div class="pt-conf-ov" id="ptConfOv">
+  <div class="pt-fhead"><img class="pt-fhead-logo" src="/images/dark-logo.png" alt="ParkTag"></div>
+  <div class="pt-conf-wrap">
+    <p class="pt-conf-ordno" id="ptConfOrdNo">Order #—</p>
+    <p class="pt-conf-hi">Hi! ❤️</p>
+
+    <div class="pt-conf-card">
+      <div class="pt-conf-check">
+        <svg width="38" height="38" viewBox="0 0 24 24" fill="none"><path d="m5 12.5 4.5 4.5L19 7.5" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <h3 class="pt-conf-title">Order confirmed</h3>
+      <p class="pt-conf-ship" id="ptConfShip">Ships in ~24 hours</p>
+      <ul class="pt-conf-benes">
+        <li><span class="pt-conf-bico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="m5 12.5 4.5 4.5L19 7.5" stroke="#16A34A" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Edit your ParkTag anytime</li>
+        <li><span class="pt-conf-bico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="m5 12.5 4.5 4.5L19 7.5" stroke="#16A34A" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Masked calls · WhatsApp · Emergency contact</li>
+        <li><span class="pt-conf-bico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="m5 12.5 4.5 4.5L19 7.5" stroke="#16A34A" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>One-time payment, no subscription</li>
+      </ul>
+    </div>
+
+    <!-- Flash offer: COD orders only -->
+    <div class="pt-flash" id="ptFlash" style="display:none">
+      <span class="pt-flash-badge">FLASH OFFER</span>
+      <p class="pt-flash-lead">Your COD order is confirmed — pay now to save</p>
+      <h4 class="pt-flash-head">Pay in the next 60 sec &amp; save <b>₹50</b></h4>
+      <div class="pt-flash-timer">
+        <span class="pt-flash-timer-lbl">OFFER ENDS IN</span>
+        <span class="pt-flash-timer-val" id="ptFlashTimer">1:00</span>
+      </div>
+      <div class="pt-flash-cmp">
+        <div class="pt-flash-box"><span>COD (now)</span><b id="ptFlashCod">₹—</b></div>
+        <div class="pt-flash-box save"><span>Pay online</span><b id="ptFlashOnline">₹—</b><em>Save ₹50</em></div>
+      </div>
+      <ul class="pt-flash-benes">
+        <li>Faster dispatch &amp; priority handling</li>
+        <li>Secure UPI, card, or net banking</li>
+      </ul>
+      <button type="button" class="pt-flash-btn" id="ptFlashBtn" onclick="codPrepay()">Pay online now</button>
+      <p class="pt-flash-note">One tap — your order updates instantly.</p>
+    </div>
+
+    <button type="button" class="pt-conf-next" onclick="goToHowto()">Continue →</button>
+  </div>
+</div>
+
+<!-- ── How to activate (next screen after confirmation) ── -->
+<div class="pt-conf-ov" id="ptHowtoOv">
+  <div class="pt-fhead"><img class="pt-fhead-logo" src="/images/dark-logo.png" alt="ParkTag"></div>
+  <div class="pt-conf-wrap">
+    <div class="pt-howto">
+      <p class="pt-howto-title">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9.5" stroke="#03162D" stroke-width="1.8"/><path d="M12 11v5" stroke="#03162D" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="7.6" r="1.1" fill="#03162D"/></svg>
+        How to activate
+      </p>
+      <div class="pt-howto-step">
+        <span class="pt-howto-sico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4z" stroke="#03162D" stroke-width="1.7" stroke-linejoin="round"/><path d="M14 14h3v3h-3zM19 19h1v1h-1zM14 19h1v1h-1zM19 14h1v1h-1z" fill="#03162D"/></svg></span>
+        <span class="pt-howto-txt">Scan each tag with the <b>ParkTag QR</b> or any QR reader</span>
+      </div>
+      <div class="pt-howto-step">
+        <span class="pt-howto-sico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="7" y="3" width="10" height="18" rx="2.2" stroke="#03162D" stroke-width="1.7"/><path d="M11 18h2" stroke="#03162D" stroke-width="1.7" stroke-linecap="round"/></svg></span>
+        <span class="pt-howto-txt">Enter your <b>phone</b>, <b>vehicle number</b> and <b>OTP</b></span>
+      </div>
+      <div class="pt-howto-step">
+        <span class="pt-howto-sico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L2 12V2h10l8.6 8.6a2 2 0 0 1 0 2.8z" stroke="#03162D" stroke-width="1.7" stroke-linejoin="round"/><circle cx="7" cy="7" r="1.3" fill="#03162D"/></svg></span>
+        <span class="pt-howto-txt">Activate <b>every tag</b> — each one is unique</span>
+      </div>
+    </div>
+
+    <button type="button" class="pt-howto-scan" onclick="openScanner()">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4z" stroke="#fff" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 14h3v3h-3zM19 19h1v1h-1zM14 19h1v1h-1zM19 14h1v1h-1z" fill="#fff"/></svg>
+      Scan a tag
+    </button>
+    <p class="pt-howto-hint">You'll scan each tag once it's delivered. Point your camera at the tag's QR to open its activation page.</p>
+    <button type="button" class="pt-conf-done" onclick="closeHowto()">Done</button>
+  </div>
+</div>
+
+<!-- ── Camera QR scanner ── -->
+<div class="pt-scan-ov" id="ptScanOv">
+  <div class="pt-scan-head">
+    <span>Scan your tag</span>
+    <button type="button" class="pt-scan-x" onclick="closeScanner()" aria-label="Close">✕</button>
+  </div>
+  <div class="pt-scan-stage">
+    <video id="ptScanVideo" playsinline muted></video>
+    <div class="pt-scan-frame"></div>
+  </div>
+  <p class="pt-scan-status" id="ptScanStatus">Starting camera…</p>
+</div>
+
 <!-- ── Bottom nav ──────────────────────────── -->
 <nav class="pt-bottom-nav">
   <div class="pt-bottom-nav-inner">
@@ -1543,14 +1795,21 @@ function renderSheet() {
 async function handleBuyNow() {
   const p = PRODUCTS[_activeProduct];
   const variant = p.variants[_activeVariant];
-  const btn = document.querySelector(".pt-buy-btn");
-
-  // Collect a delivery address before payment — the physical tag ships home.
+  // Collect the delivery address FIRST (the physical tag ships home), then open
+  // the "Choose your pack" step so the user configures their tags before paying.
   if (typeof window.ptCollectAddress === "function") {
     const haveAddress = await window.ptCollectAddress();
     if (!haveAddress) return; // user backed out of the address step
   }
+  openPackSheet(p.id, variant);
+}
 
+// Shared checkout: create the server order for `productId`, then open Razorpay.
+// Used by the direct Buy Now (bike/combo) and by the pack step's Proceed to
+// payment. Price is resolved server-side from the catalog (M15).
+async function startPayment(productId, variant, label, btn) {
+  // Delivery address is already collected before the pack step (handleBuyNow),
+  // so this goes straight to creating the order and opening Razorpay.
   if (btn) { btn.disabled = true; btn.classList.add("pt-btn-loading"); }
 
   try {
@@ -1564,7 +1823,7 @@ async function handleBuyNow() {
     const orderRes = await fetch("/api/shop/create-order", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ productId: p.id, variant, replaceTagId })
+      body: JSON.stringify({ productId, variant, replaceTagId })
     });
     const orderData = await orderRes.json();
     if (!orderRes.ok || !orderData.orderId) throw new Error(orderData.error || "Order creation failed.");
@@ -1581,9 +1840,24 @@ async function handleBuyNow() {
       amount: orderData.amount,
       currency: orderData.currency,
       order_id: orderData.orderId,
-      name: "ParkTag",
-      description: `${p.name} (${variant})`,
-      image: "/icons/icon-192.png",
+      // Show ONLY our logo in the checkout header. Razorpay always renders a
+      // merchant name beside the image, and an empty string makes it fall back
+      // to the account business name ("Edit Tree"). A zero-width space is
+      // non-empty (so no fallback) yet renders nothing — leaving just the logo.
+      name: "​",
+      description: `${label} (${variant})`,
+      // Square, navy-filled version of the logo. Razorpay frames the header
+      // image in a fixed square container; a wide logo leaves white bars around
+      // it. This tile fills the container edge-to-edge (navy = brand #03162D),
+      // so no white box shows — just the ParkTag logo.
+      image: "/images/parktag-checkout-logo.png",
+      // Prefill the logged-in owner's contact (exposed by welcome.js) so the
+      // sheet shows the CURRENT user instead of Razorpay's stale cached number.
+      prefill: {
+        name: (window.__ptOwner && window.__ptOwner.name) || "",
+        email: (window.__ptOwner && window.__ptOwner.email) || "",
+        contact: (window.__ptOwner && window.__ptOwner.contact) || ""
+      },
       theme: { color: "#FF2700" },
       handler: async function (response) {
         // 4. Verify on backend
@@ -1598,15 +1872,11 @@ async function handleBuyNow() {
         });
         const verifyData = await verifyRes.json();
         closeProduct();
+        closePackSheet();
         window._replaceTagId = null; // consume the replace-context either way
         if (verifyData.ok) {
-          showToast(
-            verifyData.replaced
-              ? "Payment successful! Your premium tag is ready — download the new E-Tag."
-              : "Payment successful! We'll process your order shortly.",
-            "success"
-          );
-          if (typeof window._reloadDashboard === "function") window._reloadDashboard();
+          // Online = already paid → confirmation WITHOUT the flash offer.
+          showConfirmation({ orderNumber: orderData.orderNumber, amountPaise: orderData.amount, cod: false });
         } else {
           showToast("Payment verification failed. Contact support.", "error");
         }
@@ -1621,6 +1891,329 @@ async function handleBuyNow() {
   } catch (err) {
     if (btn) { btn.disabled = false; btn.classList.remove("pt-btn-loading"); }
     showToast(err.message || "Something went wrong. Please try again.", "error");
+  }
+}
+
+// ── Choose-your-pack step ─────────────────────────────────────
+// Prices here are DISPLAY-ONLY (backend catalog is the source of truth). The
+// selected tier + add-on resolve to one catalog SKU, sent to create-order.
+const PACK_PRICES = { "pt-car-1": 299, "pt-car-2": 499, "pt-car-4": 899, bike: 299 };
+const PACK_NAMES = {
+  "pt-car-1": "ParkTag Car Tag (Pack of 1)",
+  "pt-car-2": "ParkTag Car Tag (Pack of 2)",
+  "pt-car-4": "ParkTag Car Tag (2 Cars · Pack of 4)",
+  "pt-bike-1": "ParkTag Bike Tag"
+};
+// Solid car/bike artwork (inline SVG — scalable, theme-coloured, no extra request).
+const PACK_CAR_ICON = `<svg width="27" height="27" viewBox="0 0 512 512" aria-hidden="true"><path fill="#03162D" d="M256 92c-71.6 0-110 6.4-125.9 20.6-13.8 12.3-24.6 42.4-37.9 96.4-6.3 3.7-12.4 9.2-18.6 17C58.7 244.8 46.5 271.6 46.5 300.4v112.2c0 15.9 12.9 28.8 28.8 28.8h41c15.9 0 28.8-12.9 28.8-28.8v-25.2c41.9 3.9 90.3 5.6 111.9 5.6s70-1.7 111.9-5.6v25.2c0 15.9 12.9 28.8 28.8 28.8h41c15.9 0 28.8-12.9 28.8-28.8V300.4c0-28.8-12.2-55.6-27.1-74.4-6.2-7.8-12.3-13.3-18.6-17-13.3-54-24.1-84.1-37.9-96.4C366 98.4 327.6 92 256 92z"/><path fill="#fff" d="M256 130c-53.7 0-84.4 4.3-94.7 14.2-8.4 8-16.6 31.4-25.2 65.6-2 8 2.6 13.9 12.4 13 31.1-2.9 68.2-4.1 107.5-4.1s76.4 1.2 107.5 4.1c9.8.9 14.4-5 12.4-13-8.6-34.2-16.8-57.6-25.2-65.6C340.4 134.3 309.7 130 256 130z"/><circle fill="#fff" cx="148" cy="332" r="35"/><circle fill="#fff" cx="364" cy="332" r="35"/><rect fill="#fff" x="196" y="315" width="120" height="46" rx="23"/></svg>`;
+const PACK_BIKE_ICON = `<img src="/images/bike-tag.svg" alt="Bike" width="30" height="30" style="display:block;object-fit:contain" aria-hidden="true">`;
+const PACK_TAG_ICON = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L2 12V2h10l8.6 8.6a2 2 0 0 1 0 2.8z" stroke="#03162D" stroke-width="1.8" stroke-linejoin="round"/><circle cx="7" cy="7" r="1.4" fill="#03162D"/></svg>`;
+// Car pack tiers rendered in order. `badge` is optional.
+const PACK_TIERS = [
+  { id: "pt-car-1", name: "1 Tag",  desc: "Front of car",              ico: PACK_TAG_ICON },
+  { id: "pt-car-2", name: "1 Car",  desc: "2 tags · front &amp; back", ico: PACK_CAR_ICON, badge: "POPULAR" },
+  { id: "pt-car-4", name: "2 Cars", desc: "4 tags · both cars",        ico: PACK_CAR_ICON }
+];
+let _packTier = null;          // a PACK_TIERS id, or null for "no car tag"
+let _packBike = false;         // bike tag selected?
+let _packVariant = "Car";      // carried over from the tapped product
+
+// Both car tags and the bike tag are optional here; the tapped card just sets a
+// sensible starting selection. The user can change any of it before paying.
+function openPackSheet(preselectId, variant) {
+  if (preselectId === "pt-bike-1") { _packTier = null; _packBike = true; }
+  else if (preselectId === "pt-combo") { _packTier = "pt-car-2"; _packBike = true; }
+  else if (PACK_PRICES[preselectId]) { _packTier = preselectId; _packBike = false; }
+  else { _packTier = "pt-car-2"; _packBike = false; }
+  _packVariant = variant || "Car";
+  renderPackSheet();
+  closeProduct(); // leave the product sheet; show the pack step
+  document.getElementById("ptPackBackdrop").classList.add("open");
+  document.getElementById("ptPackSheet").classList.add("open");
+  document.body.style.overflow = "hidden";
+}
+
+function closePackSheet() {
+  document.getElementById("ptPackBackdrop").classList.remove("open");
+  document.getElementById("ptPackSheet").classList.remove("open");
+  document.body.style.overflow = "";
+}
+
+// Car tier acts like a deselectable radio: tapping the selected one clears it.
+function selectPackTier(id) { _packTier = _packTier === id ? null : id; renderPackSheet(); }
+function togglePackBike() { _packBike = !_packBike; renderPackSheet(); }
+
+// Map the current selection → the single catalog SKU the backend prices.
+// car+bike → combined SKU, car only → car SKU, bike only → pt-bike-1, none → null.
+function resolvePackSku() {
+  if (_packTier && _packBike) return _packTier + "-bike";
+  if (_packTier) return _packTier;
+  if (_packBike) return "pt-bike-1";
+  return null;
+}
+
+function packProceed() {
+  const sku = resolvePackSku();
+  if (!sku) return; // nothing selected — proceed button is disabled anyway
+  let label;
+  if (_packTier && _packBike) label = PACK_NAMES[_packTier] + " + Bike Tag";
+  else if (_packTier) label = PACK_NAMES[_packTier];
+  else label = PACK_NAMES["pt-bike-1"];
+  startPayment(sku, _packVariant, label, document.querySelector(".pt-pack-proceed"));
+}
+
+function renderPackSheet() {
+  const total = (_packTier ? PACK_PRICES[_packTier] : 0) + (_packBike ? PACK_PRICES.bike : 0);
+  const empty = total === 0;
+  const tiers = PACK_TIERS.map((t) => `
+    <button type="button" class="pt-pack-opt${_packTier === t.id ? " active" : ""}" onclick="selectPackTier('${t.id}')">
+      <span class="pt-pack-radio"></span>
+      <span class="pt-pack-ico">${t.ico}</span>
+      <span class="pt-pack-txt"><span class="pt-pack-name">${t.name}${t.badge ? ` <span class="pt-pack-badge">${t.badge}</span>` : ""}</span><span class="pt-pack-desc">${t.desc}</span></span>
+      <span class="pt-pack-price">₹${PACK_PRICES[t.id]}</span>
+    </button>`).join("");
+  document.getElementById("ptPackSheetBody").innerHTML = `
+    <h3 class="pt-pack-title">Choose your pack</h3>
+    <p class="pt-pack-sub">Pick the tags you need — car, bike, or both — then proceed to payment.</p>
+
+    <p class="pt-pack-sec">Car tags 🚗 <em>(optional)</em></p>
+    ${tiers}
+
+    <p class="pt-pack-sec">Bike tag 🏍 <em>(optional)</em></p>
+    <button type="button" class="pt-pack-addon${_packBike ? " active" : ""}" onclick="togglePackBike()">
+      <span class="pt-pack-check"></span>
+      <span class="pt-pack-ico">${PACK_BIKE_ICON}</span>
+      <span class="pt-pack-txt"><span class="pt-pack-name">Bike tag</span><span class="pt-pack-desc">Front &amp; back · two-wheeler</span></span>
+      <span class="pt-pack-price">₹299</span>
+    </button>
+
+    <div class="pt-pack-total">
+      <span class="pt-pack-total-lbl">Order total</span>
+      <span class="pt-pack-total-amt">₹${total}</span>
+    </div>
+    <div class="pt-pack-actions">
+      <button type="button" class="pt-pack-proceed" onclick="packProceed()"${empty ? " disabled" : ""}>Pay online now</button>
+      <button type="button" class="pt-pack-cod" onclick="packPlaceCod()"${empty ? " disabled" : ""}>Cash on Delivery</button>
+    </div>
+    <p class="pt-pack-foot">${empty ? "Select at least one tag to continue." : "Free delivery on all orders. No extra charge for COD."}</p>
+  `;
+}
+
+// ── Order confirmation + COD flash offer ──────────────────────
+let _confState = null;   // { orderNumber, amountPaise }
+let _flashTimer = null;
+const FLASH_DISCOUNT_PAISE = 5000; // ₹50 (display only; backend enforces it)
+
+function rupees(paise) { return "₹" + Math.round(paise / 100); }
+
+// Place a Cash-on-Delivery order (no payment now), then show the confirmation
+// with the flash offer.
+async function packPlaceCod() {
+  const sku = resolvePackSku();
+  if (!sku) return;
+  const btn = document.querySelector(".pt-pack-cod");
+  if (btn) { btn.disabled = true; btn.textContent = "Placing order…"; }
+  try {
+    const res = await fetch("/api/shop/place-cod", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ productId: sku, replaceTagId: window._replaceTagId || null })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.error || "Could not place order.");
+    window._replaceTagId = null;
+    closePackSheet();
+    showConfirmation({ orderNumber: data.orderNumber, amountPaise: data.amount, cod: true });
+  } catch (err) {
+    showToast(err.message || "Could not place order. Please try again.", "error");
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "Cash on Delivery"; }
+  }
+}
+
+// Show the confirmation screen. COD orders get the flash offer + 60s timer;
+// already-paid online orders do not.
+function showConfirmation({ orderNumber, amountPaise, cod }) {
+  _confState = { orderNumber, amountPaise };
+  document.getElementById("ptConfOrdNo").textContent = "Order #" + orderNumber;
+  document.getElementById("ptConfShip").textContent = "Ships in ~24 hours · #" + orderNumber;
+  const flash = document.getElementById("ptFlash");
+  if (cod) {
+    const online = Math.max(amountPaise - FLASH_DISCOUNT_PAISE, 100);
+    document.getElementById("ptFlashCod").textContent = rupees(amountPaise);
+    document.getElementById("ptFlashOnline").textContent = rupees(online);
+    const fbtn = document.getElementById("ptFlashBtn");
+    fbtn.textContent = "Pay " + rupees(online) + " online now";
+    fbtn.disabled = false;
+    flash.style.display = "";
+    startFlashTimer(60);
+  } else {
+    flash.style.display = "none";
+  }
+  document.getElementById("ptConfOv").classList.add("open");
+  document.body.style.overflow = "hidden";
+  window.scrollTo(0, 0);
+}
+
+function startFlashTimer(seconds) {
+  clearInterval(_flashTimer);
+  let remaining = seconds;
+  const el = document.getElementById("ptFlashTimer");
+  const paint = () => {
+    const m = Math.floor(remaining / 60);
+    const s = remaining % 60;
+    el.textContent = m + ":" + String(s).padStart(2, "0");
+  };
+  paint();
+  _flashTimer = setInterval(() => {
+    remaining -= 1;
+    if (remaining <= 0) {
+      clearInterval(_flashTimer);
+      _flashTimer = null;
+      // Window closed — hide the offer; the order stays COD at full price.
+      document.getElementById("ptFlash").style.display = "none";
+      return;
+    }
+    paint();
+  }, 1000);
+}
+
+// Confirmation → the "How to activate" screen (next flow).
+function goToHowto() {
+  clearInterval(_flashTimer);
+  _flashTimer = null;
+  document.getElementById("ptConfOv").classList.remove("open");
+  document.getElementById("ptHowtoOv").classList.add("open");
+  document.body.style.overflow = "hidden";
+  window.scrollTo(0, 0);
+}
+
+// Finish the whole post-purchase flow and return to the dashboard.
+function closeHowto() {
+  document.getElementById("ptHowtoOv").classList.remove("open");
+  document.body.style.overflow = "";
+  _confState = null;
+  if (typeof window._reloadDashboard === "function") window._reloadDashboard();
+}
+
+// ── Camera QR scanner (tag activation) ────────────────────────
+let _scanStream = null;
+let _scanTimer = null;
+let _barcodeDetector = null;
+
+async function openScanner() {
+  const ov = document.getElementById("ptScanOv");
+  const video = document.getElementById("ptScanVideo");
+  const status = document.getElementById("ptScanStatus");
+  ov.classList.add("open");
+  status.textContent = "Starting camera…";
+  const supported = ("BarcodeDetector" in window) && navigator.mediaDevices && navigator.mediaDevices.getUserMedia;
+  if (!supported) {
+    status.textContent = "Live scanning isn't supported on this browser. Open your phone's camera and point it at the tag's QR to activate.";
+    return;
+  }
+  try {
+    _barcodeDetector = new window.BarcodeDetector({ formats: ["qr_code"] });
+    _scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } } });
+    video.srcObject = _scanStream;
+    await video.play();
+    status.textContent = "Point the camera at your tag's QR";
+    _scanTimer = setInterval(async () => {
+      if (!_barcodeDetector || !_scanStream) return;
+      try {
+        const codes = await _barcodeDetector.detect(video);
+        if (codes && codes.length) {
+          const url = resolveTagUrl(codes[0].rawValue || "");
+          if (url) { stopScanStream(); window.location.href = url; }
+          else { status.textContent = "That QR isn't a ParkTag — try another."; }
+        }
+      } catch (_) { /* frame not ready yet */ }
+    }, 350);
+  } catch (err) {
+    status.textContent = "Couldn't access the camera. Allow camera access, or scan the tag's QR with your phone camera.";
+  }
+}
+
+// Turn a scanned QR value into the tag's activation URL, or null if not ours.
+function resolveTagUrl(raw) {
+  const v = String(raw || "").trim();
+  if (/\/(tag|vehicle)\/[A-Za-z0-9]{12,64}\b/.test(v)) {
+    if (/^https?:\/\//i.test(v)) return v;    // full URL → open as-is
+    return v.startsWith("/") ? v : "/" + v;   // path → make absolute
+  }
+  if (/^[A-Za-z0-9]{12,64}$/.test(v)) return "/tag/" + v; // bare token
+  return null;
+}
+
+function stopScanStream() {
+  if (_scanTimer) { clearInterval(_scanTimer); _scanTimer = null; }
+  if (_scanStream) { _scanStream.getTracks().forEach((t) => t.stop()); _scanStream = null; }
+  const video = document.getElementById("ptScanVideo");
+  if (video) video.srcObject = null;
+}
+
+function closeScanner() {
+  stopScanStream();
+  document.getElementById("ptScanOv").classList.remove("open");
+}
+
+// Flash offer: convert this COD order to prepaid (−₹50) via Razorpay.
+async function codPrepay() {
+  if (!_confState) return;
+  const btn = document.getElementById("ptFlashBtn");
+  const orderNumber = _confState.orderNumber;
+  if (btn) btn.disabled = true;
+  try {
+    const res = await fetch("/api/shop/cod-prepay-order", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ orderNumber })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok || !data.orderId) throw new Error(data.error || "Could not start payment.");
+    const rzp = new Razorpay({
+      key: data.keyId,
+      amount: data.amount,
+      currency: data.currency,
+      order_id: data.orderId,
+      name: "​",
+      description: "ParkTag order " + orderNumber + " (prepaid)",
+      image: "/images/parktag-checkout-logo.png",
+      prefill: {
+        name: (window.__ptOwner && window.__ptOwner.name) || "",
+        email: (window.__ptOwner && window.__ptOwner.email) || "",
+        contact: (window.__ptOwner && window.__ptOwner.contact) || ""
+      },
+      theme: { color: "#FF2700" },
+      handler: async function (response) {
+        const vr = await fetch("/api/shop/cod-prepay-verify", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            orderNumber,
+            razorpay_order_id: response.razorpay_order_id,
+            razorpay_payment_id: response.razorpay_payment_id,
+            razorpay_signature: response.razorpay_signature
+          })
+        });
+        const vd = await vr.json();
+        if (vd.ok) {
+          clearInterval(_flashTimer); _flashTimer = null;
+          showToast("Paid online — you saved ₹50! 🎉", "success");
+          // Paid online now → skip the flash offer AND the confirmation window,
+          // take the user straight to the "How to activate" guide.
+          goToHowto();
+        } else {
+          showToast("Payment verification failed. Contact support.", "error");
+          if (btn) btn.disabled = false;
+        }
+      },
+      modal: { ondismiss: function () { if (btn) btn.disabled = false; } }
+    });
+    rzp.open();
+  } catch (err) {
+    showToast(err.message || "Could not start payment.", "error");
+    if (btn) btn.disabled = false;
   }
 }
 

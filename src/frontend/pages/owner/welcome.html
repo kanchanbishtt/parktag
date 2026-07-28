@@ -1191,6 +1191,23 @@
   <div class="pt-sheet-body" id="ptPackSheetBody"></div>
 </div>
 
+<!-- ── COD phone verification (Sampark-style anti-fraud before a cash order) ── -->
+<div class="pt-conf-ov" id="ptCodOtpOv">
+  <div class="pt-fhead"><img class="pt-fhead-logo" src="/images/dark-logo.png" alt="ParkTag"></div>
+  <div class="pt-conf-wrap">
+    <div class="pt-conf-card" style="text-align:center">
+      <h3 class="pt-conf-title">Verify your phone</h3>
+      <p class="pt-conf-ship" id="ptCodOtpHint">Sending a code to your delivery number…</p>
+      <input id="ptCodOtpInput" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="Enter 6-digit code"
+             style="width:100%;box-sizing:border-box;margin:16px 0 6px;padding:14px;border:2px solid #E5E7EB;border-radius:12px;font-size:1.3rem;text-align:center;letter-spacing:.3em;font-weight:700" />
+      <p id="ptCodOtpErr" style="min-height:18px;margin:0 0 8px;color:#DC2626;font-size:.8rem;font-weight:600"></p>
+      <button type="button" class="pt-conf-next" id="ptCodOtpSubmit" onclick="submitCodOtp()">Verify &amp; place order</button>
+      <button type="button" onclick="sendCodOtp()" style="margin-top:10px;background:none;border:none;color:#03162D;font-weight:600;font-size:.85rem;cursor:pointer;text-decoration:underline">Resend code</button>
+      <button type="button" onclick="closeCodOtp()" style="display:block;margin:12px auto 0;background:none;border:none;color:#6B7280;font-size:.8rem;cursor:pointer">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── Order confirmation screen (online = no offer, COD = flash offer) ── -->
 <div class="pt-conf-ov" id="ptConfOv">
   <div class="pt-fhead"><img class="pt-fhead-logo" src="/images/dark-logo.png" alt="ParkTag"></div>
@@ -1209,6 +1226,10 @@
         <li><span class="pt-conf-bico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="m5 12.5 4.5 4.5L19 7.5" stroke="#16A34A" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Masked calls · WhatsApp · Emergency contact</li>
         <li><span class="pt-conf-bico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="m5 12.5 4.5 4.5L19 7.5" stroke="#16A34A" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>1-year subscription included per premium tag</li>
       </ul>
+      <!-- COD-only: cash + parcel-acceptance reminder (toggled in showConfirmation) -->
+      <div id="ptCodRemind" style="display:none;margin-top:14px;padding:12px 14px;background:#FFF7ED;border:1px solid #FED7AA;border-radius:12px;text-align:left">
+        <p style="margin:0;color:#9A3412;font-size:.82rem;font-weight:600;line-height:1.5">📦 Keep <b id="ptCodRemindAmt">the cash</b> ready and please <b>accept your parcel</b> when the delivery agent arrives.</p>
+      </div>
     </div>
 
     <!-- Flash offer: COD orders only -->
@@ -1258,6 +1279,8 @@
         <span class="pt-howto-txt">Activate <b>every tag</b> — each one is unique</span>
       </div>
     </div>
+
+    <p class="pt-howto-hint" style="margin-top:0">📦 Please accept your parcel when the delivery agent arrives.</p>
 
     <button type="button" class="pt-howto-scan" onclick="openScanner()">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4z" stroke="#fff" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 14h3v3h-3zM19 19h1v1h-1zM14 19h1v1h-1zM19 14h1v1h-1z" fill="#fff"/></svg>
@@ -2025,26 +2048,93 @@ function rupees(paise) { return "₹" + Math.round(paise / 100); }
 
 // Place a Cash-on-Delivery order (no payment now), then show the confirmation
 // with the flash offer.
+// COD placement gates on delivery-phone verification. The first attempt sends no
+// OTP; if the server needs one (the delivery phone isn't the owner's verified
+// account mobile) it replies { needsOtp:true }, we run the OTP step, then retry
+// place-cod with the code. The phone itself lives server-side (saved address).
+let _codSku = null;
+
+async function placeCodRequest(sku, otp) {
+  const res = await fetch("/api/shop/place-cod", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ productId: sku, replaceTagId: window._replaceTagId || null, otp: otp || undefined })
+  });
+  const data = await res.json().catch(() => ({}));
+  return { res, data };
+}
+
+function finishCod(data) {
+  window._replaceTagId = null;
+  closeCodOtp();
+  closePackSheet();
+  showConfirmation({ orderNumber: data.orderNumber, amountPaise: data.amount, cod: true });
+}
+
 async function packPlaceCod() {
   const sku = resolvePackSku();
   if (!sku) return;
   const btn = document.querySelector(".pt-pack-cod");
   if (btn) { btn.disabled = true; btn.textContent = "Placing order…"; }
   try {
-    const res = await fetch("/api/shop/place-cod", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ productId: sku, replaceTagId: window._replaceTagId || null })
-    });
-    const data = await res.json();
+    const { res, data } = await placeCodRequest(sku, null);
+    if (data && data.needsOtp) { openCodOtp(sku); return; }
     if (!res.ok || !data.ok) throw new Error(data.error || "Could not place order.");
-    window._replaceTagId = null;
-    closePackSheet();
-    showConfirmation({ orderNumber: data.orderNumber, amountPaise: data.amount, cod: true });
+    finishCod(data);
   } catch (err) {
     showToast(err.message || "Could not place order. Please try again.", "error");
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = "Cash on Delivery"; }
+  }
+}
+
+// COD phone-verification overlay: opens, sends the OTP to the saved delivery
+// phone (server picks the number), then verifies + places the order on submit.
+function openCodOtp(sku) {
+  _codSku = sku;
+  document.getElementById("ptCodOtpInput").value = "";
+  document.getElementById("ptCodOtpErr").textContent = "";
+  document.getElementById("ptCodOtpOv").classList.add("open");
+  document.body.style.overflow = "hidden";
+  window.scrollTo(0, 0);
+  sendCodOtp();
+}
+
+function closeCodOtp() {
+  document.getElementById("ptCodOtpOv").classList.remove("open");
+}
+
+async function sendCodOtp() {
+  const hint = document.getElementById("ptCodOtpHint");
+  hint.textContent = "Sending a code to your delivery number…";
+  try {
+    const res = await fetch("/api/shop/cod-otp/send", {
+      method: "POST", headers: { "content-type": "application/json" }, body: "{}"
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) throw new Error(data.error || "Could not send the code.");
+    hint.textContent = "Enter the 6-digit code sent to " + (data.phoneHint || "your phone") + " on WhatsApp";
+  } catch (err) {
+    hint.textContent = err.message || "Could not send the code. Tap resend.";
+  }
+}
+
+async function submitCodOtp() {
+  const code = (document.getElementById("ptCodOtpInput").value || "").trim();
+  const err = document.getElementById("ptCodOtpErr");
+  if (!/^\d{6}$/.test(code)) { err.textContent = "Enter the 6-digit code."; return; }
+  err.textContent = "";
+  const b = document.getElementById("ptCodOtpSubmit");
+  b.disabled = true; b.textContent = "Verifying…";
+  try {
+    const { res, data } = await placeCodRequest(_codSku, code);
+    if (data && data.needsOtp) { err.textContent = "Please enter the code we sent."; return; }
+    if (!res.ok || !data.ok) { err.textContent = data.error || "Invalid code. Try again."; return; }
+    finishCod(data);
+  } catch (e) {
+    err.textContent = e.message || "Something went wrong. Try again.";
+  } finally {
+    b.disabled = false; b.textContent = "Verify & place order";
   }
 }
 
@@ -2063,9 +2153,12 @@ function showConfirmation({ orderNumber, amountPaise, cod }) {
     fbtn.textContent = "Pay " + rupees(online) + " online now";
     fbtn.disabled = false;
     flash.style.display = "";
+    document.getElementById("ptCodRemindAmt").textContent = rupees(amountPaise) + " in cash";
+    document.getElementById("ptCodRemind").style.display = "";
     startFlashTimer(60);
   } else {
     flash.style.display = "none";
+    document.getElementById("ptCodRemind").style.display = "none";
   }
   document.getElementById("ptConfOv").classList.add("open");
   document.body.style.overflow = "hidden";

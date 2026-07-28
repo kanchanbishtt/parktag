@@ -4,6 +4,8 @@ import { requireSession, toObjectId } from "../../lib/auth/auth.js";
 import { addressToNotes } from "../../lib/core/address.js";
 import { createPremiumTagForVehicle } from "../../lib/core/tag-issuance.js";
 import { createShipment, isDelhiveryConfigured } from "../../lib/integrations/delhivery.js";
+import { sendOrderConfirmationEmail } from "../../lib/integrations/email.js";
+import { sendOtp, verifyOtp, isMobileIdentifier, normalizeIdentifier } from "../../lib/auth/otp.js";
 
 // Flash-offer discount for converting a COD order to prepaid (paise). Kept
 // server-side so the ₹50 saving can't be inflated by a tampered client.
@@ -33,6 +35,21 @@ async function generateOrderNumber(collections) {
 function shapeAddress(doc) {
   const { fullName, phone, line1, line2, landmark, city, state, pincode } = doc;
   return { fullName, phone, line1, line2, landmark, city, state, pincode };
+}
+
+// Fire the order-confirmation e-mail without ever blocking the order response —
+// the order already exists, so a mail failure must never turn into a failed
+// checkout. Owners who signed in with a mobile OTP may have no e-mail on file;
+// we skip silently in that case (a WhatsApp confirmation would need its own
+// approved Meta template before it can be wired in here).
+async function sendOrderConfirmation(env, collections, ownerId, details, log) {
+  try {
+    const owner = await collections.owners.findOne({ _id: ownerId });
+    if (!owner || !owner.email) return;
+    await sendOrderConfirmationEmail(env, { to: owner.email, ...details });
+  } catch (err) {
+    log?.error?.({ err }, "Order confirmation email failed");
+  }
 }
 
 // Mint the replacement premium tag for an M18 replace-order and soft-remove the
@@ -205,6 +222,13 @@ export function registerShopRoutes(app, env) {
       );
       const firstTime = paidTransition.modifiedCount === 1;
 
+      // Best-effort confirmation e-mail on the first created→paid transition.
+      if (firstTime) {
+        await sendOrderConfirmation(env, collections, ownerId, {
+          orderNumber: order.orderNumber, productName: order.productName, amountPaise: order.amount, cod: false
+        }, request.log);
+      }
+
       // Tag replacement (M18): mint a new premium tag for the vehicle and
       // soft-remove the spent free-trial tag. Only on the first paid transition
       // and only when this order carried a valid replace-context.
@@ -263,6 +287,32 @@ export function registerShopRoutes(app, env) {
     return { ok: true, paymentId: razorpay_payment_id, replaced, newTagId };
   });
 
+  // Send an OTP to the saved delivery phone so a COD order can be phone-verified
+  // (Sampark-style anti-fraud that cuts fake cash orders / RTO). The number comes
+  // from the saved address server-side, never the client, and rides the same
+  // WhatsApp OTP channel as login. Rate-limited to curb SMS/WhatsApp abuse.
+  app.post("/api/shop/cod-otp/send", { config: { rateLimit: { max: 5, timeWindow: "5 minutes" } } }, async (request, reply) => {
+    const blocked = await requireSession(app, "owner")(request, reply);
+    if (blocked) return blocked;
+    const ownerId = toObjectId(request.session.userId);
+
+    const collections = await getCollections(env);
+    if (!collections) { reply.code(500); return { error: "Database not configured." }; }
+
+    const addressDoc = await collections.addresses.findOne({ ownerId });
+    const phone = addressDoc && addressDoc.phone;
+    if (!phone || !isMobileIdentifier(phone)) {
+      reply.code(400); return { error: "Add a valid delivery phone number first." };
+    }
+    try {
+      await sendOtp(env, phone);
+      return { ok: true, phoneHint: "••••" + String(phone).slice(-4) };
+    } catch (err) {
+      request.log.error({ err }, "COD OTP send failed");
+      reply.code(500); return { ok: false, error: "Could not send the verification code. Please try again." };
+    }
+  });
+
   // Place a Cash-on-Delivery order — no payment now, ships and is paid on
   // delivery. Price is resolved server-side from the catalog (same as online),
   // and we mint our own order number since there's no Razorpay order.
@@ -271,7 +321,7 @@ export function registerShopRoutes(app, env) {
     if (blocked) return blocked;
     const ownerId = toObjectId(request.session.userId);
 
-    const { productId, replaceTagId } = request.body || {};
+    const { productId, replaceTagId, otp } = request.body || {};
     if (!productId) { reply.code(400); return { error: "productId required." }; }
 
     const product = getShopProduct(productId);
@@ -283,6 +333,30 @@ export function registerShopRoutes(app, env) {
     const addressDoc = await collections.addresses.findOne({ ownerId });
     const shipping = addressDoc ? shapeAddress(addressDoc) : null;
     if (!shipping) { reply.code(400); return { error: "Please add a delivery address before ordering." }; }
+
+    // COD anti-fraud: the cash order's delivery phone must be OTP-verified before
+    // we accept it. We skip the code only when it matches the owner's account
+    // mobile (already proven by an OTP at login); any other number needs a fresh
+    // WhatsApp OTP. The phone is read from the saved address server-side — never
+    // trusted from the client — so the send and the check share one source.
+    const owner = await collections.owners.findOne({ _id: ownerId });
+    const deliveryPhone = shipping.phone;
+    if (!deliveryPhone || !isMobileIdentifier(deliveryPhone)) {
+      reply.code(400);
+      return { error: "A valid delivery phone number is required for Cash on Delivery." };
+    }
+    const phoneTrusted = owner && owner.mobile &&
+      normalizeIdentifier(deliveryPhone) === normalizeIdentifier(owner.mobile);
+    if (!phoneTrusted) {
+      // No code yet → tell the client to run the OTP step (200, not an error).
+      if (!otp) return { ok: false, needsOtp: true };
+      try {
+        await verifyOtp(env, deliveryPhone, String(otp));
+      } catch (err) {
+        reply.code(400);
+        return { ok: false, error: err && err.message ? err.message : "Invalid verification code." };
+      }
+    }
 
     let validReplaceTagId = null;
     if (replaceTagId) {
@@ -309,6 +383,11 @@ export function registerShopRoutes(app, env) {
       replaceTagId: validReplaceTagId,
       createdAt: new Date().toISOString()
     });
+
+    // Best-effort confirmation e-mail; for COD it carries the acceptance reminder.
+    await sendOrderConfirmation(env, collections, ownerId, {
+      orderNumber, productName: product.name, amountPaise, cod: true
+    }, request.log);
 
     return { ok: true, orderNumber, amount: amountPaise, productName: product.name };
   });
@@ -391,6 +470,13 @@ export function registerShopRoutes(app, env) {
       } }
     );
     const firstTime = transition.modifiedCount === 1;
+
+    // Best-effort confirmation e-mail — the COD order is now prepaid/online.
+    if (firstTime) {
+      await sendOrderConfirmation(env, collections, ownerId, {
+        orderNumber, productName: order.productName, amountPaise: order.prepayAmount, cod: false
+      }, request.log);
+    }
 
     let replaced = false, newTagId = null;
     if (firstTime) {

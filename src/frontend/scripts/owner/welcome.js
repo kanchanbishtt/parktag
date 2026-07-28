@@ -1331,6 +1331,7 @@ window.deleteAccount = deleteAccount;
 var _ordersLoaded = false;
 var ORDER_STATUS_LABELS = {
   processing: "Preparing to ship",
+  cod_confirmed: "Confirmed · Cash on delivery",
   booking_failed: "Couldn't book courier yet — we'll retry",
   booked: "Booked with courier"
 };
@@ -1358,13 +1359,15 @@ async function loadOrdersOnce() {
     }
     el.innerHTML = orders.map(function (o) {
       var amount = typeof o.amount === "number" ? "₹" + (o.amount / 100).toFixed(0) : "";
-      var date = o.paidAt ? new Date(o.paidAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "";
+      if (amount && o.paymentMethod === "cod") amount += " · COD";
+      var date = o.orderedAt ? new Date(o.orderedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "";
       return '<div class="pt-irow" style="flex-direction:column;align-items:flex-start;gap:2px;padding:10px 0">' +
         '<div style="display:flex;justify-content:space-between;width:100%">' +
         '<span style="font-weight:700;color:#0e1220">' + esc(o.productName || "ParkTag order") + '</span>' +
         '<span style="color:#6b7280;font-size:.78rem">' + esc(amount) + '</span>' +
         '</div>' +
         '<span style="font-size:.78rem;color:#374151">' + esc(humanizeOrderStatus(o.shippingStatus)) + '</span>' +
+        (o.orderNumber ? '<span style="font-size:.72rem;color:#9ca3af">Order ' + esc(o.orderNumber) + '</span>' : '') +
         (o.waybill ? '<span style="font-size:.72rem;color:#9ca3af">Waybill: ' + esc(o.waybill) + '</span>' : '') +
         (date ? '<span style="font-size:.7rem;color:#9ca3af">Ordered ' + esc(date) + '</span>' : '') +
         '</div>';

@@ -271,13 +271,15 @@ export function registerAdminRoutes(app, env) {
       premiumBatch
     });
 
-    const output = await Promise.all(
-      tags.map((tag) => buildIssuedTagOutput(request, tag))
-    );
-
+    // Return only a lightweight summary — do NOT render a QR image per tag here.
+    // Rendering thousands of QR PNGs into a single response is what timed out the
+    // gateway ("upstream error"). The print-ready images are generated on demand,
+    // in bounded chunks, by the Print Queue export flow instead.
     return {
       ok: true,
-      tags: output
+      count: tags.length,
+      batchNumber: batchNumber || null,
+      batchLabel: batchLabel || null
     };
   });
 
@@ -312,15 +314,28 @@ export function registerAdminRoutes(app, env) {
     };
   });
 
-  app.get("/api/admin/print-queue/export", async (request, reply) => {
+  app.post("/api/admin/print-queue/export", async (request, reply) => {
     const blocked = await requireSession(app, "admin")(request, reply);
     if (blocked) return blocked;
 
+    // Render QR images only for the specific tags requested, and cap how many a
+    // single request will render. The old version rendered a QR for EVERY
+    // unprinted tag (thousands) and let the client filter — which timed out the
+    // gateway. The client now sends its selection in bounded chunks.
+    const MAX_PER_REQUEST = 250;
+    const ids = (Array.isArray(request.body?.ids) ? request.body.ids : [])
+      .filter((id) => typeof id === "string" && /^[a-f0-9]{24}$/i.test(id))
+      .slice(0, MAX_PER_REQUEST)
+      .map((id) => new ObjectId(id));
+
+    if (!ids.length) {
+      return { ok: true, tags: [] };
+    }
+
     const collections = await getCollections(env);
-    // Export the sheet of tags that still need printing (not already-printed ones).
+    // Only export tags that are still unclaimed and not already printed.
     const tags = await collections.tags
-      .find({ status: "unclaimed", printStatus: { $ne: "printed" } })
-      .sort({ createdAt: -1 })
+      .find({ _id: { $in: ids }, status: "unclaimed", printStatus: { $ne: "printed" } })
       .toArray();
 
     const output = await Promise.all(tags.map((tag) => buildIssuedTagOutput(request, tag)));

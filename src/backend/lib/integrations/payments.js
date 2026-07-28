@@ -13,7 +13,15 @@ export const SHOP_PRODUCTS = {
   "pt-car-1": { name: "ParkTag Car Tag (Pack of 1)", amount: 299 },
   "pt-car-2": { name: "ParkTag Car Tag (Pack of 2)", amount: 499 },
   "pt-bike-1": { name: "ParkTag Bike Tag", amount: 299 },
-  "pt-combo": { name: "ParkTag Combo Pack", amount: 499 }
+  "pt-combo": { name: "ParkTag Combo Pack", amount: 499 },
+  // "2 Cars" tier for the pack step: 4 car tags (both cars, front & back).
+  "pt-car-4": { name: "ParkTag Car Tag (2 Cars · Pack of 4)", amount: 899 },
+  // Combined SKUs for the "Choose your pack" step: a car pack + the optional
+  // bike-tag add-on (+₹299). Prices are the sum of the parts and stay
+  // server-authoritative — the client sends only the SKU id, never a total.
+  "pt-car-1-bike": { name: "ParkTag Car Tag (Pack of 1) + Bike Tag", amount: 598 },
+  "pt-car-2-bike": { name: "ParkTag Car Tag (Pack of 2) + Bike Tag", amount: 798 },
+  "pt-car-4-bike": { name: "ParkTag Car Tag (2 Cars · Pack of 4) + Bike Tag", amount: 1198 }
 };
 
 // Look up a shop product by id. Returns { id, name, amount } or null for an

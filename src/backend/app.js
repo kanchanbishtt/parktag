@@ -139,6 +139,13 @@ export async function buildApp() {
           "https://accounts.google.com",
           "https://checkout.razorpay.com"
         ],
+        // The owner/admin pages wire controls with inline onclick handlers.
+        // Helmet defaults script-src-attr to 'none', which blocks ALL inline
+        // event handlers — breaking the hamburger menu, Shop/Tags tabs,
+        // "Continue with Google", Buy Now, etc. Allow inline handlers so those
+        // controls work. (scriptSrc's 'unsafe-inline' does NOT cover event
+        // handler attributes — script-src-attr is a separate directive.)
+        scriptSrcAttr: ["'unsafe-inline'"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
         imgSrc: ["'self'", "data:", "https://api.qrserver.com"],

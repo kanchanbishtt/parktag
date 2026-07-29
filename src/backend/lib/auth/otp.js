@@ -4,7 +4,7 @@ import { getCollections } from "../db/repositories.js";
 import { sendOtpEmail } from "../integrations/email.js";
 import { isMetaWhatsappConfigured, sendMetaWhatsappOtp } from "../integrations/meta.js";
 import { clientError } from "../errors.js";
-import { maskIdentifier, redactText } from "./security.js";
+import { maskIdentifier, redactText, safeEqual } from "./security.js";
 
 const OTP_EXPIRY_MS = 10 * 60 * 1000;
 const RATE_LIMIT_MS = 2 * 60 * 1000;
@@ -139,7 +139,9 @@ export async function verifyOtp(env, identifier, code) {
     throw clientError("Too many incorrect attempts. Please request a new code.");
   }
 
-  if (record.code !== code) {
+  // Constant-time compare so the correct code can't be recovered digit-by-digit
+  // by timing responses. safeEqual returns false on any length mismatch too.
+  if (!safeEqual(record.code, code)) {
     await collections.otpTokens.updateOne(
       { _id: record._id },
       { $inc: { attempts: 1 } }

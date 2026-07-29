@@ -9,6 +9,16 @@ import { maskIdentifier, redactText } from "./security.js";
 const OTP_EXPIRY_MS = 10 * 60 * 1000;
 const RATE_LIMIT_MS = 2 * 60 * 1000;
 const MAX_VERIFY_ATTEMPTS = 5;
+// Hard cap on how many codes a single destination (phone/email) can be sent in a
+// rolling window, regardless of source IP. The per-route @fastify/rate-limit
+// configs are keyed on the caller's IP, so an attacker rotating IPs could still
+// bomb one victim's phone with SMS/WhatsApp (harassment + real per-message cost).
+// This cap is enforced in the DB against the destination itself, so it holds no
+// matter how many IPs the requests come from. Sits above the 2-min reuse
+// throttle below: legit resends within 2 min reuse the existing code and never
+// reach this counter, so a normal login/verify flow stays well under the cap.
+const MAX_SENDS_PER_WINDOW = 5;
+const SEND_WINDOW_MS = 60 * 60 * 1000;
 
 function generateOtp() {
   return String(crypto.randomInt(100000, 1000000));
@@ -48,6 +58,21 @@ export async function sendOtp(env, identifier) {
   });
 
   if (recent) return { ok: true };
+
+  // Per-destination flood cap (see MAX_SENDS_PER_WINDOW). Count actual sends —
+  // each real send inserts exactly one token, and reuse hits above return before
+  // inserting — so this equals the number of messages dispatched to this
+  // destination in the window, across every IP.
+  const windowStart = new Date(Date.now() - SEND_WINDOW_MS).toISOString();
+  const sentInWindow = await collections.otpTokens.countDocuments({
+    identifier: normalized,
+    createdAt: { $gt: windowStart }
+  });
+  if (sentInWindow >= MAX_SENDS_PER_WINDOW) {
+    throw clientError(
+      "Too many verification codes requested. Please wait a while before trying again."
+    );
+  }
 
   const code = generateOtp();
   const now = new Date();

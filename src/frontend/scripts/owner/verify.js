@@ -1,3 +1,5 @@
+import { getCaptchaToken } from "../recaptcha.js";
+
 function byId(id) { return document.getElementById(id); }
 
 function setStatus(message, tone = "info") {
@@ -77,10 +79,11 @@ async function resend() {
   const btn = byId("resend-button");
   if (btn) { btn.disabled = true; btn.classList.add("pt-btn-loading"); }
   try {
+    const recaptchaToken = await getCaptchaToken("send_otp");
     await fetchJson("/api/auth/send-otp", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ identifier })
+      body: JSON.stringify({ identifier, recaptchaToken })
     });
     setStatus("A new code has been sent.", "success");
   } catch (error) {

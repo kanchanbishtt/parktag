@@ -189,7 +189,11 @@ export async function buildApp() {
           "'self'",
           "'unsafe-inline'",
           "https://accounts.google.com",
-          "https://checkout.razorpay.com"
+          "https://checkout.razorpay.com",
+          // Google reCAPTCHA v3 loader + its runtime assets (invisible bot check
+          // on the OTP-send flow). Inert unless RECAPTCHA_SITE_KEY is set.
+          "https://www.google.com",
+          "https://www.gstatic.com"
         ],
         // The owner/admin pages wire controls with inline onclick handlers.
         // Helmet defaults script-src-attr to 'none', which blocks ALL inline
@@ -201,8 +205,8 @@ export async function buildApp() {
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
         imgSrc: ["'self'", "data:", "https://api.qrserver.com"],
-        connectSrc: ["'self'"],
-        frameSrc: ["https://accounts.google.com", "https://*.razorpay.com"],
+        connectSrc: ["'self'", "https://www.google.com"],
+        frameSrc: ["https://accounts.google.com", "https://*.razorpay.com", "https://www.google.com"],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
         formAction: ["'self'"],

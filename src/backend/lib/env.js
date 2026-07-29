@@ -107,6 +107,12 @@ export function getEnv() {
     googleCallbackUrl: process.env.GOOGLE_CALLBACK_URL || "http://127.0.0.1:4000/api/auth/google/callback",
     firebaseApiKey: process.env.FIREBASE_API_KEY || "",
     firebaseProjectId: process.env.FIREBASE_PROJECT_ID || "",
+    // Optional Google reCAPTCHA v3 (invisible bot score). BOTH must be set for
+    // it to activate; unset → the OTP-send flow behaves exactly as before, so
+    // local/dev and any deploy that hasn't configured keys stay fully working.
+    // Site key is public (shipped to the browser); secret stays server-side.
+    recaptchaSiteKey: process.env.RECAPTCHA_SITE_KEY || "",
+    recaptchaSecret: process.env.RECAPTCHA_SECRET || "",
     razorpayKeyId: process.env.RAZORPAY_KEY_ID || "",
     razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET || "",
     superAdminBootstrapKey: process.env.SUPER_ADMIN_BOOTSTRAP_KEY || "",

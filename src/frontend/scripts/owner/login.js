@@ -445,6 +445,7 @@ if (urlError && hasEl("owner-auth-status")) {
     google_cancelled: "Google sign-in was cancelled.",
     auth_failed: "Google sign-in failed. Please try again.",
     no_email: "Google account has no email address.",
+    email_unverified: "Your Google email isn't verified. Verify it with Google, then try again.",
     no_account: "No ParkTag account found for this Google account. Please register first.",
     invalid_state: "Security check failed (state mismatch). Please try again.",
     token_exchange_failed: "Failed to exchange token with Google. Please try again.",

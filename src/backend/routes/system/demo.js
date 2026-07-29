@@ -12,23 +12,34 @@ export function registerDemoRoutes(app, env) {
   });
 
   // Destructive (wipes owners/admins/tags/contact_requests, then reseeds a
-  // well-known admin/owner login) and, until now, protected ONLY by the
+  // well-known admin/owner login). It was protected ONLY by the
   // `runtimeMode !== "production"` check above — a single env-var string
-  // comparison. If a real deployment ever forgot to set APP_ENV=production,
-  // this endpoint would be a fully unauthenticated, unrated-limited full
-  // data wipe + backdoor-admin-account creator. Add a second, independent
-  // layer: when DEMO_SEED_SECRET is configured, it must be supplied and
-  // match. Rate-limited too so it can't be hammered.
+  // comparison — and, when DEMO_SEED_SECRET was unset, the secret check below
+  // was SKIPPED (fail-open). So a deployment that forgot APP_ENV=production and
+  // had no DEMO_SEED_SECRET would expose a fully unauthenticated data wipe +
+  // backdoor-admin creator.
+  //
+  // Now fail CLOSED: DEMO_SEED_SECRET must be configured AND supplied, as a
+  // second layer independent of APP_ENV. Rate-limited too so it can't be
+  // hammered.
   app.post(
     "/api/demo/seed",
     { config: { rateLimit: { max: 5, timeWindow: "1 minute" } } },
     async (request, reply) => {
-      if (env.demoSeedSecret) {
-        const supplied = (request.body || {}).secret;
-        if (!isNonEmptyString(supplied) || !safeEqual(supplied, env.demoSeedSecret)) {
-          reply.code(403);
-          return { ok: false, error: "Forbidden" };
-        }
+      // No secret configured → seeding is disabled entirely. This is the
+      // backstop for a mis-set APP_ENV: never allow the wipe without a secret.
+      if (!isNonEmptyString(env.demoSeedSecret)) {
+        reply.code(403);
+        return {
+          ok: false,
+          error: "Demo seeding is disabled (set DEMO_SEED_SECRET to enable)."
+        };
+      }
+
+      const supplied = (request.body || {}).secret;
+      if (!isNonEmptyString(supplied) || !safeEqual(supplied, env.demoSeedSecret)) {
+        reply.code(403);
+        return { ok: false, error: "Forbidden" };
       }
 
       try {

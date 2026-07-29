@@ -7,6 +7,18 @@ const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo";
 
+// Accepted `iss` values for a Google-issued ID token (One Tap credential).
+const GOOGLE_ISSUERS = new Set(["accounts.google.com", "https://accounts.google.com"]);
+
+// We look an owner up by email, so a Google account whose `email` is set but NOT
+// verified would otherwise let someone sign in as a victim by putting the
+// victim's address on an attacker-controlled Google account. Require the claim
+// to be true before trusting the email. tokeninfo returns it as the string
+// "true"; the OIDC userinfo endpoint returns a real boolean — accept both.
+function isEmailVerified(value) {
+  return value === true || value === "true";
+}
+
 export function registerGoogleAuthRoutes(app, env) {
   if (!env.googleClientId) return;
 
@@ -97,6 +109,11 @@ export function registerGoogleAuthRoutes(app, env) {
         reply.redirect("/owner?error=no_email");
         return;
       }
+      if (!isEmailVerified(userInfo.email_verified)) {
+        const base = role === "admin" ? "/admin" : "/owner-login";
+        reply.redirect(`${base}?error=email_unverified`);
+        return;
+      }
 
       const collections = await getCollections(env);
       if (!collections) {
@@ -171,13 +188,19 @@ export function registerGoogleAuthRoutes(app, env) {
       );
       const info = await verifyRes.json();
 
-      if (!verifyRes.ok || info.aud !== env.googleClientId) {
+      // Validate the token is genuinely ours and genuinely from Google:
+      // - aud: minted for THIS client (not some other app's token replayed here)
+      // - iss: issued by Google's token service
+      if (!verifyRes.ok || info.aud !== env.googleClientId || !GOOGLE_ISSUERS.has(info.iss)) {
         return reply.code(401).send({ error: "invalid_token" });
       }
 
       const email = info.email?.toLowerCase();
       const displayName = info.name || email;
       if (!email) return reply.code(400).send({ error: "no_email" });
+      if (!isEmailVerified(info.email_verified)) {
+        return reply.code(403).send({ error: "email_unverified" });
+      }
 
       const collections = await getCollections(env);
       if (!collections) return reply.code(503).send({ error: "db_unavailable" });
@@ -239,6 +262,9 @@ export function registerGoogleAuthRoutes(app, env) {
       const email = userInfo.email?.toLowerCase();
       const displayName = userInfo.name || email;
       if (!email) return reply.code(400).send({ error: "no_email" });
+      if (!isEmailVerified(userInfo.email_verified)) {
+        return reply.code(403).send({ error: "email_unverified" });
+      }
 
       const collections = await getCollections(env);
       if (!collections) return reply.code(503).send({ error: "db_unavailable" });

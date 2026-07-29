@@ -1,3 +1,4 @@
+import { getCaptchaToken } from "../recaptcha.js";
 
 let _currentPhone = null;
 
@@ -21,10 +22,11 @@ async function sendWhatsappOtp(raw) {
   const phone = normalizePhoneE164(raw);
   _currentPhone = phone;
 
+  const recaptchaToken = await getCaptchaToken("send_otp");
   await fetchJson("/api/auth/send-otp", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ identifier: phone })
+    body: JSON.stringify({ identifier: phone, recaptchaToken })
   });
 
   byId("phone-step2").style.display = "";
@@ -317,10 +319,11 @@ async function loginOwner() {
   }
 
   try {
+    const recaptchaToken = await getCaptchaToken("send_otp");
     await fetchJson("/api/auth/send-otp", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ identifier: raw })
+      body: JSON.stringify({ identifier: raw, recaptchaToken })
     });
     sessionStorage.setItem("pt_otp_identifier", raw);
     window.location.href = "/owner-verify";
@@ -335,10 +338,11 @@ async function resendWhatsappOtp() {
   const btn = byId("phone-resend-btn");
   if (btn) { btn.disabled = true; btn.classList.add("pt-btn-loading"); }
   try {
+    const recaptchaToken = await getCaptchaToken("send_otp");
     await fetchJson("/api/auth/send-otp", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ identifier: _currentPhone })
+      body: JSON.stringify({ identifier: _currentPhone, recaptchaToken })
     });
     setStatus("A new code has been sent to your WhatsApp.", "success");
   } catch (error) {
@@ -441,6 +445,7 @@ if (urlError && hasEl("owner-auth-status")) {
     google_cancelled: "Google sign-in was cancelled.",
     auth_failed: "Google sign-in failed. Please try again.",
     no_email: "Google account has no email address.",
+    email_unverified: "Your Google email isn't verified. Verify it with Google, then try again.",
     no_account: "No ParkTag account found for this Google account. Please register first.",
     invalid_state: "Security check failed (state mismatch). Please try again.",
     token_exchange_failed: "Failed to exchange token with Google. Please try again.",

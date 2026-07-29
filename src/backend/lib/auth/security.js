@@ -16,7 +16,8 @@ export async function createPasswordHash(password) {
 export async function verifyPassword(password, hash) {
   if (isSha256Hash(hash)) {
     const sha256 = crypto.createHash("sha256").update(password).digest("hex");
-    const valid = sha256 === hash;
+    // Constant-time compare so a legacy-hash login can't be timing-probed.
+    const valid = safeEqual(sha256, hash);
     return { valid, needsUpgrade: valid };
   }
   const valid = await bcrypt.compare(password, hash);

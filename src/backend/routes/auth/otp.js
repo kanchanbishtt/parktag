@@ -3,14 +3,37 @@ import { sendOtp, verifyOtp, isMobileIdentifier, normalizeIdentifier } from "../
 import { createSession, writeSessionCookie } from "../../lib/auth/session.js";
 import { getCollections } from "../../lib/db/repositories.js";
 import { clientErrorMessage } from "../../lib/errors.js";
+import { verifyRecaptcha } from "../../lib/integrations/recaptcha.js";
 
 export function registerOtpAuthRoutes(app, env) {
+  // Public: lets the browser fetch the reCAPTCHA site key (safe to expose). Empty
+  // when unconfigured, in which case the frontend loads no reCAPTCHA at all.
+  app.get("/api/auth/recaptcha/config", async (_request, reply) => {
+    reply.send({ siteKey: env.recaptchaSiteKey || "" });
+  });
+
   app.post("/api/auth/send-otp", { config: { rateLimit: { max: 5, timeWindow: "1 minute" } } }, async (request, reply) => {
-    const { identifier } = request.body || {};
+    const { identifier, recaptchaToken } = request.body || {};
 
     if (!identifier) {
       reply.code(400);
       return { ok: false, error: "Email or mobile number is required" };
+    }
+
+    // Bot check on the public OTP-send endpoint (no-op unless reCAPTCHA is
+    // configured). Blocks scripted SMS/WhatsApp flooding that per-IP limits miss
+    // when the attacker rotates IPs; the per-destination cap in sendOtp backs it.
+    const captcha = await verifyRecaptcha(env, recaptchaToken, {
+      remoteIp: request.ip,
+      expectedAction: "send_otp"
+    });
+    if (!captcha.ok) {
+      request.log.warn({ reason: captcha.reason, score: captcha.score }, "reCAPTCHA rejected send-otp");
+      reply.code(400);
+      return {
+        ok: false,
+        error: "We couldn't verify this request. Please refresh the page and try again."
+      };
     }
 
     try {

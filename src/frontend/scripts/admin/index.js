@@ -38,6 +38,21 @@ function esc(value) {
   ));
 }
 
+// Safe for a value placed inside a single-quoted JS string within an inline
+// handler attribute, e.g. onclick="fn('${jsAttr(x)}')". esc() is NOT enough
+// there: the browser HTML-decodes the attribute first, so an esc()'d quote
+// (&#39;) becomes a real ' and breaks out of the JS string. Encoding every
+// non-alphanumeric as a \xHH / \uHHHH escape leaves no HTML- or JS-special
+// character intact, so neither layer can be broken out of.
+function jsAttr(value) {
+  return String(value == null ? "" : value).replace(/[^a-zA-Z0-9]/g, (c) => {
+    const code = c.charCodeAt(0);
+    return code < 256
+      ? "\\x" + code.toString(16).padStart(2, "0")
+      : "\\u" + code.toString(16).padStart(4, "0");
+  });
+}
+
 function byId(id) {
   return document.getElementById(id);
 }
@@ -318,7 +333,7 @@ function renderPrintQueue(data) {
             <input type="checkbox" class="pq-select-all" data-ids="${esc(batchIdsCsv)}" ${allSelected ? "checked" : ""} onchange="togglePqSelectBatch('${esc(batchIdsCsv)}', this.checked)" style="width:16px;height:16px;cursor:pointer" />
             ${batchTitle} <span style="font-weight:400;color:#6B7280">(${batch.tags.length} tags)</span>
           </label>
-          ${batch.batchNumber ? `<button class="action small" style="color:#DC2626;background:#FEF2F2;border-color:#FECACA" onclick="deleteBatch('${esc(batch.batchNumber)}')">Delete batch</button>` : ""}
+          ${batch.batchNumber ? `<button class="action small" style="color:#DC2626;background:#FEF2F2;border-color:#FECACA" onclick="deleteBatch('${jsAttr(batch.batchNumber)}')">Delete batch</button>` : ""}
         </div>
         ${batch.tags.map(tag => `
           <article class="queue-row">
@@ -328,7 +343,7 @@ function renderPrintQueue(data) {
               : `<span style="display:inline-block;background:#F1F1F0;color:#6B7280;font-size:0.62rem;font-weight:700;letter-spacing:.04em;padding:2px 7px;border-radius:20px;vertical-align:middle;margin-left:4px">FREE</span>`}</strong>
             <span>Print status: <strong>${esc(tag.printStatus)}</strong></span>
             <a href="${esc(tag.claimUrl)}" target="_blank" rel="noreferrer" style="word-break:break-all;font-size:0.82rem">${esc(tag.claimUrl)}</a>
-            ${tag.printStatus !== "printed" ? `<button class="action small" onclick="markPrinted('${esc(tag.id)}')">Mark as printed</button>` : `<span style="color:#FF2700;font-weight:700">✓ Printed</span>`}
+            ${tag.printStatus !== "printed" ? `<button class="action small" onclick="markPrinted('${jsAttr(tag.id)}')">Mark as printed</button>` : `<span style="color:#FF2700;font-weight:700">✓ Printed</span>`}
           </article>
         `).join("")}
       </div>
@@ -714,7 +729,7 @@ async function loadAdmins() {
           <p class="pt-admin-row-meta">${esc(a.email)} &middot; Added ${esc(new Date(a.createdAt).toLocaleString())}</p>
         </div>
         ${a.email !== myEmail ? `
-          <button onclick="deleteAdmin('${esc(a.id)}')"
+          <button onclick="deleteAdmin('${jsAttr(a.id)}')"
             style="flex-shrink:0;background:none;border:1.5px solid #FCA5A5;color:#DC2626;
                    border-radius:8px;padding:6px 14px;font-size:0.78rem;font-weight:700;
                    cursor:pointer;font-family:inherit;transition:background 150ms"

@@ -189,7 +189,11 @@ export async function buildApp() {
           "'self'",
           "'unsafe-inline'",
           "https://accounts.google.com",
-          "https://checkout.razorpay.com"
+          "https://checkout.razorpay.com",
+          // Google reCAPTCHA v3 loader + its runtime assets (invisible bot check
+          // on the OTP-send flow). Inert unless RECAPTCHA_SITE_KEY is set.
+          "https://www.google.com",
+          "https://www.gstatic.com"
         ],
         // The owner/admin pages wire controls with inline onclick handlers.
         // Helmet defaults script-src-attr to 'none', which blocks ALL inline
@@ -201,8 +205,8 @@ export async function buildApp() {
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
         imgSrc: ["'self'", "data:", "https://api.qrserver.com"],
-        connectSrc: ["'self'"],
-        frameSrc: ["https://accounts.google.com", "https://*.razorpay.com"],
+        connectSrc: ["'self'", "https://www.google.com"],
+        frameSrc: ["https://accounts.google.com", "https://*.razorpay.com", "https://www.google.com"],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
         formAction: ["'self'"],
@@ -397,10 +401,16 @@ export async function buildApp() {
 
     const token = request.params.token;
     // Use the pinned scan domain if configured, else the current host
-    // (local→local, production→production).
-    const proto = request.headers["x-forwarded-proto"] || request.protocol || "http";
-    const host = request.headers.host;
-    const base = env.scanBaseUrl || `${proto}://${host}`;
+    // (local→local, production→production). Both the proto and Host header are
+    // client-controlled and get reflected into the returned HTML via
+    // __SCAN_URL__, so constrain them to safe characters: an attacker can't
+    // then smuggle markup through a crafted Host header (reflected XSS). If the
+    // Host looks malformed, fall back to the configured app base URL.
+    const rawProto = request.headers["x-forwarded-proto"] || request.protocol || "http";
+    const proto = rawProto === "https" ? "https" : "http";
+    const rawHost = request.headers.host || "";
+    const host = /^[A-Za-z0-9.\-:]+$/.test(rawHost) ? rawHost : "";
+    const base = env.scanBaseUrl || (host ? `${proto}://${host}` : env.appBaseUrl);
     const scanUrl = `${base}/tag/${token}`;
     const qrSvg = await QRCode.toString(scanUrl, {
       type: "svg",

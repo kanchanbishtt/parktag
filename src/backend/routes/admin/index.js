@@ -389,6 +389,10 @@ export function registerAdminRoutes(app, env) {
     if (blocked) return blocked;
 
     const { ObjectId } = await import("mongodb");
+    if (!ObjectId.isValid(request.params.tagId)) {
+      reply.code(400);
+      return { ok: false, error: "Bad id" };
+    }
     const collections = await getCollections(env);
     const tagId = new ObjectId(request.params.tagId);
 
@@ -542,6 +546,11 @@ export function registerAdminRoutes(app, env) {
     if (id === request.session.userId) {
       reply.code(400);
       return { ok: false, error: "You cannot remove your own admin account" };
+    }
+
+    if (!ObjectId.isValid(id)) {
+      reply.code(400);
+      return { ok: false, error: "Bad id" };
     }
 
     const collections = await getCollections(env);

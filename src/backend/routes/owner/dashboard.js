@@ -1,4 +1,4 @@
-import { requireSession, toObjectId } from "../../lib/auth/auth.js";
+import { requireSession, toObjectId, tryObjectId } from "../../lib/auth/auth.js";
 import { createPasswordHash, verifyPassword, isNonEmptyString } from "../../lib/auth/security.js";
 import { clearSession } from "../../lib/auth/session.js";
 import { sendOtp, verifyOtp, isMobileIdentifier, normalizeIdentifier } from "../../lib/auth/otp.js";
@@ -357,7 +357,8 @@ export function registerOwnerRoutes(app, env) {
 
     const collections = await getCollections(env);
     const ownerId = toObjectId(request.session.userId);
-    const tagId = toObjectId(request.params.tagId);
+    const tagId = tryObjectId(request.params.tagId);
+    if (!tagId) { reply.code(400); return { ok: false, error: "Invalid tag id" }; }
 
     const result = await collections.tags.findOneAndUpdate(
       { _id: tagId, ownerId },
@@ -392,7 +393,8 @@ export function registerOwnerRoutes(app, env) {
 
     const collections = await getCollections(env);
     const ownerId = toObjectId(request.session.userId);
-    const tagId = toObjectId(request.params.tagId);
+    const tagId = tryObjectId(request.params.tagId);
+    if (!tagId) { reply.code(400); return { ok: false, error: "Invalid tag id" }; }
 
     const result = await collections.tags.findOneAndUpdate(
       {
@@ -432,7 +434,8 @@ export function registerOwnerRoutes(app, env) {
 
     const collections = await getCollections(env);
     const ownerId = toObjectId(request.session.userId);
-    const tagId = toObjectId(request.params.tagId);
+    const tagId = tryObjectId(request.params.tagId);
+    if (!tagId) { reply.code(400); return { ok: false, error: "Invalid tag id" }; }
 
     const result = await collections.tags.findOneAndUpdate(
       { _id: tagId, ownerId, deletedAt: { $in: [null, undefined] } },

@@ -31,9 +31,18 @@ export function registerMetaWebhookRoutes(app, env) {
         reply.code(401);
         return { ok: false, error: "Invalid signature" };
       }
+    } else if (env.runtimeMode === "production") {
+      // No app secret in production — fail CLOSED. Anyone could otherwise POST
+      // forged delivery statuses. (Production also refuses to boot without this
+      // secret — see REQUIRED_IN_PRODUCTION in lib/env.js; this is the backstop
+      // in case APP_ENV is misconfigured.)
+      request.log.error(
+        "[meta webhook] META_APP_SECRET is not configured in production — rejecting unauthenticated webhook."
+      );
+      reply.code(401);
+      return { ok: false, error: "Webhook not configured" };
     } else {
-      // No app secret configured — log loudly rather than silently accepting
-      // unauthenticated writes forever. Set META_APP_SECRET to close this.
+      // Dev only — log loudly rather than silently accepting unverified writes.
       request.log.warn(
         "[meta webhook] META_APP_SECRET is not configured — webhook signature is NOT being verified."
       );

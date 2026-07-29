@@ -53,6 +53,34 @@ const ownerVehicleDetailPage = path.join(pagesRoot, "owner/vehicle-detail.html")
 const scannerAssetVersion = "parktag-ui-1";
 const hubAssetVersion = "hub-shell-1";
 
+// Every request is logged with its URL, and several sensitive values travel in
+// the query string: the Exotel webhook secret (?token=), the inbound caller's
+// phone (?CallFrom=), the Meta verify token (?hub.verify_token=), the
+// password-reset token (?token=), and the OAuth auth code (?code=). Redact the
+// VALUE of any query param whose name looks sensitive before it reaches the
+// logs, keeping the rest of the URL intact for debugging. Matches on the
+// param name only, so it never has to parse the (secret) value itself.
+const SENSITIVE_QS_SUBSTRING = /(token|secret|password|passwd|otp|phone|mobile|signature|api[_-]?key)/i;
+const SENSITIVE_QS_EXACT = new Set(["code", "state", "callfrom", "caller", "callto", "callerid"]);
+
+function isSensitiveQueryKey(key) {
+  const k = String(key);
+  return SENSITIVE_QS_SUBSTRING.test(k) || SENSITIVE_QS_EXACT.has(k.toLowerCase());
+}
+
+function sanitizeLogUrl(url) {
+  if (typeof url !== "string") return url;
+  const q = url.indexOf("?");
+  if (q === -1) return url;
+  const path = url.slice(0, q);
+  const query = url.slice(q + 1);
+  const sanitized = query.replace(
+    /([^&=?#]+)=([^&#]*)/g,
+    (match, key) => (isSensitiveQueryKey(key) ? `${key}=[REDACTED]` : match)
+  );
+  return `${path}?${sanitized}`;
+}
+
 function setScannerNoCache(reply) {
   reply.header(
     "Cache-Control",
@@ -65,7 +93,21 @@ function setScannerNoCache(reply) {
 export async function buildApp() {
   const env = getEnv();
   const app = Fastify({
-    logger: true,
+    logger: {
+      // Redact sensitive query-string values (webhook secret, caller phone,
+      // verify/reset tokens, OAuth code) from the URL in every request log.
+      serializers: {
+        req(request) {
+          return {
+            method: request.method,
+            url: sanitizeLogUrl(request.url),
+            hostname: request.hostname,
+            remoteAddress: request.ip,
+            remotePort: request.socket ? request.socket.remotePort : undefined
+          };
+        }
+      }
+    },
     // The app runs behind a single reverse proxy hop in every real deployment
     // (Render's edge network, and any other PaaS/CDN in front of it). Without
     // this, Fastify's `request.ip` is the proxy's own socket address — the
@@ -76,10 +118,19 @@ export async function buildApp() {
     // /forgot-password, etc.) would exhaust that bucket and lock the
     // corresponding action out for every real visitor for the rest of the
     // window — a trivial, cheap denial-of-service against a payments app.
-    // `trustProxy: true` makes Fastify parse `X-Forwarded-For` and populate
-    // `request.ip` with the real client IP instead, restoring per-visitor
-    // rate limiting.
-    trustProxy: true
+    // Parsing `X-Forwarded-For` populates `request.ip` with the real client IP
+    // instead, restoring per-visitor rate limiting.
+    //
+    // Use `1` (trust exactly one proxy hop), NOT `true`. `true` trusts the
+    // ENTIRE forwarded chain, so an attacker can prepend a spoofed
+    // `X-Forwarded-For` and get a brand-new `request.ip` — hence a fresh
+    // rate-limit bucket — on every request, defeating the 5/min login/OTP
+    // limits and the plate last-4 lockout. `1` trusts only the single reverse
+    // proxy actually in front of the app (Railway's edge), so `request.ip` is
+    // the IP that proxy observed and any client-supplied XFF entries are
+    // ignored. If the deployment ever gains another proxy hop (e.g. a CDN in
+    // front of Railway), bump this to match the real number of trusted hops.
+    trustProxy: 1
   });
 
   // In-process cache in front of the MongoDB-backed session store (see

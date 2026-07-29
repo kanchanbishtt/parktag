@@ -12,7 +12,13 @@ import { safeEqual } from "../../lib/auth/security.js";
 // webhook lets anyone overwrite the status/recording/duration of an arbitrary
 // contact-request record just by guessing or knowing its Mongo _id / CallSid.
 function isAuthorizedExotelRequest(env, request) {
-  if (!env.exotelWebhookSecret) return true; // see startup warning below
+  if (!env.exotelWebhookSecret) {
+    // No secret configured. Fail CLOSED in production so a mis-secured deploy
+    // can't leak private phone numbers; fail open only in dev so local testing
+    // works without Exotel credentials. (Production also refuses to boot at all
+    // without this secret — see REQUIRED_IN_PRODUCTION in lib/env.js.)
+    return env.runtimeMode !== "production";
+  }
   const supplied = request.query?.token || request.headers["x-exotel-webhook-secret"];
   return typeof supplied === "string" && safeEqual(supplied, env.exotelWebhookSecret);
 }

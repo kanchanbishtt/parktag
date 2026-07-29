@@ -5,6 +5,13 @@ import { getCollections } from "../db/repositories.js";
 
 const SESSION_COOKIE = "wavetag_session";
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+// How long a cached session may be served before readSession re-checks it
+// against Mongo. This bounds how long a REVOKED session can keep working from
+// an instance's in-memory cache — e.g. after a password reset (which deletes
+// the user's session docs) or a logout on a different instance. Without it, a
+// cached session would be honored until its 7-day expiry even though it no
+// longer exists in Mongo.
+const CACHE_REVALIDATE_MS = 30 * 1000; // 30 seconds
 
 // Sessions are persisted in MongoDB (the `sessions` collection) so they survive
 // server restarts/deploys and are shared across multiple instances — an
@@ -78,6 +85,7 @@ export async function createSession(app, user) {
     // Fall back to the in-memory cache only.
   }
 
+  session.cachedAt = now.getTime();
   app.sessions.set(sessionId, session);
   return sessionId;
 }
@@ -88,11 +96,19 @@ export async function readSession(app, request) {
 
   const now = Date.now();
 
-  // Fast path: in-process cache.
+  // Fast path: in-process cache. Only serve from cache for a short window, then
+  // fall through to Mongo so revoked sessions (password reset / logout on
+  // another instance) stop being honored within CACHE_REVALIDATE_MS instead of
+  // surviving until their 7-day expiry. The Mongo fallback below returns null
+  // when the session doc is gone, which is exactly the revoked case.
   const cached = app.sessions.get(sessionId);
   if (cached) {
-    if (isLive(cached, now)) return cached;
-    app.sessions.delete(sessionId); // expired
+    if (!isLive(cached, now)) {
+      app.sessions.delete(sessionId); // expired
+    } else if (now - (cached.cachedAt || 0) < CACHE_REVALIDATE_MS) {
+      return cached;
+    }
+    // live but stale → fall through to re-validate against Mongo
   }
 
   // Fallback: Mongo (survives restarts and is shared across instances).
@@ -120,7 +136,8 @@ export async function readSession(app, request) {
     email: doc.email,
     displayName: doc.displayName || null,
     createdAt: doc.createdAt,
-    expiresAt: doc.expiresAt
+    expiresAt: doc.expiresAt,
+    cachedAt: now // reset the revalidation window now that Mongo confirmed it
   };
   app.sessions.set(sessionId, session); // warm the cache
   return session;

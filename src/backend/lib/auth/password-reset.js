@@ -110,6 +110,17 @@ export async function resetPassword(env, token, newPassword) {
     { $set: { passwordHash: await createPasswordHash(newPassword) } }
   );
 
+  // Revoke every existing session for this account. A password reset is the
+  // standard response to a suspected compromise, so any session that was stolen
+  // (or is still open on a device the user no longer controls) must stop
+  // working — otherwise it would survive for up to its 7-day TTL. Sessions are
+  // keyed by userId = String(owner._id) across every login method. In-memory
+  // caches on running instances drop these within CACHE_REVALIDATE_MS (see
+  // session.js), since the docs no longer exist in Mongo to re-validate against.
+  await collections.sessions
+    .deleteMany({ userId: String(owner._id) })
+    .catch(() => {});
+
   await collections.passwordResetTokens.updateOne(
     { _id: record._id },
     { $set: { used: true, usedAt: new Date().toISOString() } }

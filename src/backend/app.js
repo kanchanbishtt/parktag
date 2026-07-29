@@ -76,10 +76,19 @@ export async function buildApp() {
     // /forgot-password, etc.) would exhaust that bucket and lock the
     // corresponding action out for every real visitor for the rest of the
     // window — a trivial, cheap denial-of-service against a payments app.
-    // `trustProxy: true` makes Fastify parse `X-Forwarded-For` and populate
-    // `request.ip` with the real client IP instead, restoring per-visitor
-    // rate limiting.
-    trustProxy: true
+    // Parsing `X-Forwarded-For` populates `request.ip` with the real client IP
+    // instead, restoring per-visitor rate limiting.
+    //
+    // Use `1` (trust exactly one proxy hop), NOT `true`. `true` trusts the
+    // ENTIRE forwarded chain, so an attacker can prepend a spoofed
+    // `X-Forwarded-For` and get a brand-new `request.ip` — hence a fresh
+    // rate-limit bucket — on every request, defeating the 5/min login/OTP
+    // limits and the plate last-4 lockout. `1` trusts only the single reverse
+    // proxy actually in front of the app (Railway's edge), so `request.ip` is
+    // the IP that proxy observed and any client-supplied XFF entries are
+    // ignored. If the deployment ever gains another proxy hop (e.g. a CDN in
+    // front of Railway), bump this to match the real number of trusted hops.
+    trustProxy: 1
   });
 
   // In-process cache in front of the MongoDB-backed session store (see

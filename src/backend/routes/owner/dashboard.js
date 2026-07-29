@@ -6,7 +6,7 @@ import { getCollections, ensurePendingCallsIndexes } from "../../lib/db/reposito
 import { createQrDataUrl, createPrintQrDataUrl } from "../../lib/core/qr-output.js";
 import { createEtagForVehicle, buildTagScanUrl, VEHICLE_LABELS, etagIdFor } from "../../lib/core/tag-issuance.js";
 import { validateAddress } from "../../lib/core/address.js";
-import { checkPincodeServiceability, trackShipment } from "../../lib/integrations/delhivery.js";
+import { checkPincodeServiceability, trackShipment, trackingUrl } from "../../lib/integrations/delhivery.js";
 
 // Strip an address DB doc down to the shippable fields (no _id/ownerId/timestamps).
 function shapeAddress(doc) {
@@ -300,10 +300,12 @@ export function registerOwnerRoutes(app, env) {
     return { ok: true, address: result.address };
   });
 
-  // Paid shop orders for this owner, with a best-effort live tracking status
-  // for any order that already has a Delhivery waybill. Tracking lookups run
-  // in parallel and never throw (see trackShipment) — a Delhivery hiccup
-  // shows "status unavailable" for that order, not a broken endpoint.
+  // Shop orders for this owner — both prepaid ("paid") and Cash-on-Delivery
+  // ("cod"), so a COD buyer can see and track the order they just placed.
+  // Best-effort live tracking status for any order that already has a Delhivery
+  // waybill. Tracking lookups run in parallel and never throw (see
+  // trackShipment) — a Delhivery hiccup shows "status unavailable" for that
+  // order, not a broken endpoint.
   app.get("/api/owner/orders", async (request, reply) => {
     const blocked = await requireSession(app, "owner")(request, reply);
     if (blocked) return blocked;
@@ -313,25 +315,30 @@ export function registerOwnerRoutes(app, env) {
 
     const ownerId = toObjectId(request.session.userId);
     const orders = await collections.shopOrders
-      .find({ ownerId, status: "paid" })
-      .sort({ paidAt: -1 })
+      .find({ ownerId, status: { $in: ["paid", "cod"] } })
+      .sort({ createdAt: -1 })
       .limit(20)
       .toArray();
 
     const withTracking = await Promise.all(orders.map(async (order) => {
       const tracking = order.waybill ? await trackShipment(env, order.waybill) : null;
+      const isCod = order.status === "cod";
       return {
         id: String(order._id),
+        orderNumber: order.orderNumber || null,
         productName: order.productName,
         amount: order.amount,
         currency: order.currency,
-        paidAt: order.paidAt,
+        paymentMethod: isCod ? "cod" : "paid",
+        // COD orders have no paidAt — fall back to when the order was placed.
+        orderedAt: order.paidAt || order.createdAt || null,
         waybill: order.waybill || null,
+        trackingUrl: order.waybill ? trackingUrl(order.waybill) : null,
         shippingStatus: order.shipmentError
           ? "booking_failed"
           : order.waybill
             ? (tracking?.status || "booked")
-            : "processing",
+            : (isCod ? "cod_confirmed" : "processing"),
         trackingInstructions: tracking?.instructions || null
       };
     }));

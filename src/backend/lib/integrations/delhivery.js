@@ -55,15 +55,26 @@ export async function checkPincodeServiceability(env, pincode) {
   }
 }
 
-// Creates a single-piece Prepaid shipment (payment already collected via
-// Razorpay before this runs) and returns the assigned waybill. Throws on
-// failure — the caller decides how to handle a booking failure that happens
-// after payment has already succeeded (see shop/index.js).
-export async function createShipment(env, { orderId, address, productName }) {
+// Public consumer tracking URL for a waybill — surfaced in My Orders and order
+// notifications so buyers can follow the parcel without logging into Delhivery.
+// Returns null for a missing waybill. NOTE: verify this resolves for your
+// account — Delhivery has used both /track/package/ and /track-v2/package/.
+export function trackingUrl(waybill) {
+  return waybill ? `https://www.delhivery.com/track/package/${encodeURIComponent(waybill)}` : null;
+}
+
+// Creates a single-piece shipment and returns the assigned waybill. Defaults to
+// Prepaid (payment already collected via Razorpay before this runs); pass
+// codAmountPaise > 0 to book it as COD so the courier collects that cash on
+// delivery. Throws on failure — the caller decides how to handle a booking
+// failure (see shop/index.js).
+export async function createShipment(env, { orderId, address, productName, codAmountPaise }) {
   if (!isDelhiveryConfigured(env)) {
     throw new Error("Delhivery is not configured");
   }
 
+  // Delhivery wants the COD amount in rupees, not paise.
+  const isCod = Number(codAmountPaise) > 0;
   const payload = {
     pickup_location: { name: env.delhiveryPickupLocation },
     shipments: [
@@ -76,7 +87,8 @@ export async function createShipment(env, { orderId, address, productName }) {
         country: "India",
         phone: address.phone,
         pin: address.pincode,
-        payment_mode: "Prepaid",
+        payment_mode: isCod ? "COD" : "Prepaid",
+        ...(isCod ? { cod_amount: String(Math.round(Number(codAmountPaise) / 100)) } : {}),
         products_desc: productName || "ParkTag sticker",
         quantity: "1",
         // A printed sticker + card mailer — small, light, fixed dimensions
@@ -122,6 +134,30 @@ export async function createShipment(env, { orderId, address, productName }) {
   }
 
   return { waybill, refnum: pkg.refnum || orderId, raw: data };
+}
+
+// Convert an already-booked COD shipment to Prepaid so the courier stops
+// collecting cash — used when a COD order is prepaid (flash offer) before it
+// ships. Best-effort: returns true on success, false otherwise, and never
+// throws (the payment has already succeeded by the time this runs).
+// NOTE: Delhivery's edit endpoint field names can differ by account version;
+// verify against your Delhivery API docs if a conversion ever fails — the
+// failure is recorded on the order for manual correction, never lost.
+export async function updateShipmentToPrepaid(env, waybill) {
+  if (!isDelhiveryConfigured(env) || !waybill) return false;
+  try {
+    const response = await fetch(`${env.delhiveryBaseUrl}/api/p/edit`, {
+      method: "POST",
+      headers: { ...authHeaders(env), "content-type": "application/json" },
+      body: JSON.stringify({ waybill, pt: "Pre-paid", cod: "0" })
+    });
+    const text = await response.text();
+    let data = null;
+    try { data = JSON.parse(text); } catch { data = { raw: text }; }
+    return Boolean(response.ok && (data?.success === true || data?.status === "Success"));
+  } catch {
+    return false;
+  }
 }
 
 // Best-effort tracking lookup for dashboard display. Never throws — a

@@ -92,12 +92,16 @@ export async function verifyOtp(env, identifier, code) {
   const normalized = normalizeIdentifier(identifier);
   const isMobile = isMobileIdentifier(identifier);
 
-  // Find the token without the code first so we can count failed attempts
+  // Find the token without the code first so we can count failed attempts.
+  // Always verify against the MOST RECENT unused code: a user who taps "resend"
+  // after the send rate-limit window can hold more than one valid token at once,
+  // and an unsorted findOne returns the oldest — so the freshly-sent code would
+  // be checked against a stale token and wrongly rejected as invalid.
   const record = await collections.otpTokens.findOne({
     identifier: normalized,
     used: false,
     expiresAt: { $gt: new Date().toISOString() }
-  });
+  }, { sort: { createdAt: -1 } });
 
   if (!record) throw clientError("Invalid or expired code. Please try again.");
 

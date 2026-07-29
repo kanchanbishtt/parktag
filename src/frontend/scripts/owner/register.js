@@ -319,23 +319,11 @@ function savePendingVehicles() {
   } catch (_) {}
 }
 
-async function saveMobile(mobile) {
-  const digits = mobile.replace(/[^\d]/g, "");
-  const normalized = digits.length === 10 ? `+91${digits}` : `+${digits}`;
-  try {
-    await fetch("/api/owner/mobile", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ mobile: normalized })
-    });
-  } catch (_) {}
-}
-
 async function saveVehicles() {
-  const mobile = (document.getElementById("mobile-number")?.value || "").trim();
-  if (mobile && !document.getElementById("mobile-number")?.readOnly) {
-    await saveMobile(mobile);
-  }
+  // The callback mobile is no longer saved here: it can only be stored after an
+  // OTP sent to that number (see POST /api/owner/mobile), which the owner
+  // completes from the dashboard. Setting it unverified at registration would
+  // let a bad number (or someone else's) become the masked-call dial target.
   for (const v of vehicles) {
     try {
       const res = await fetch("/api/owner/local-vehicle", {

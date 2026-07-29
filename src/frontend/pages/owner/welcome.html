@@ -1360,7 +1360,11 @@
               </span>
               <input id="mi-mobile-input" type="tel" inputmode="tel" class="pt-input pt-input-phone" placeholder="Enter mobile number" style="font-size:.82rem;padding:8px 10px" />
             </div>
-            <button onclick="saveMobile()" style="background:#FF2700;color:#fff;border:none;border-radius:10px;padding:0 14px;font-size:.78rem;font-weight:700;cursor:pointer;white-space:nowrap">Save</button>
+            <button id="mi-mobile-send" onclick="saveMobile()" style="background:#FF2700;color:#fff;border:none;border-radius:10px;padding:0 14px;font-size:.78rem;font-weight:700;cursor:pointer;white-space:nowrap">Send code</button>
+          </div>
+          <div id="mi-mobile-otp-row" style="display:none;gap:8px;width:100%">
+            <input id="mi-mobile-otp-input" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" class="pt-input" placeholder="6-digit code" style="flex:1;font-size:.82rem;padding:8px 10px;letter-spacing:.15em" />
+            <button onclick="verifyMobileOtp()" style="background:#16A34A;color:#fff;border:none;border-radius:10px;padding:0 14px;font-size:.78rem;font-weight:700;cursor:pointer;white-space:nowrap">Verify &amp; save</button>
           </div>
           <p id="mi-mobile-status" style="font-size:.73rem;margin:0;display:none"></p>
         </div>

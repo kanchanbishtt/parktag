@@ -602,44 +602,89 @@ async function callBack(btnId = "cbBtn") {
 }
 window.callBack = callBack;
 
-async function saveMobile() {
-  const input  = document.getElementById("mi-mobile-input");
+// The callback mobile is the number the masked-call feature dials, so it can't
+// be saved on trust — the owner must prove control of it with an OTP. Step 1
+// (saveMobile) sends the code; step 2 (verifyMobileOtp) verifies it and saves.
+function _miMobileFromInput() {
+  const raw = (document.getElementById("mi-mobile-input")?.value || "").trim().replace(/\D/g, "");
+  if (!raw || raw.length < 10) return null;
+  return raw.length === 10 ? `+91${raw}` : `+${raw}`;
+}
+function _miStatus(msg, color) {
   const status = document.getElementById("mi-mobile-status");
-  const raw    = (input?.value || "").trim().replace(/\D/g, "");
+  if (status) { status.textContent = msg; status.style.color = color; status.style.display = "block"; }
+}
 
-  if (!raw || raw.length < 10) {
-    if (status) { status.textContent = "Enter a valid 10-digit number."; status.style.color = "#DC2626"; status.style.display = "block"; }
-    return;
-  }
+// Number being verified — set when the code is sent, so the verify step uses
+// the exact same number the OTP was sent to.
+let _miPendingMobile = null;
 
-  const mobile = raw.length === 10 ? `+91${raw}` : `+${raw}`;
+async function saveMobile() {
+  const mobile = _miMobileFromInput();
+  if (!mobile) { _miStatus("Enter a valid 10-digit number.", "#DC2626"); return; }
 
+  const btn = document.getElementById("mi-mobile-send");
+  if (btn) { btn.disabled = true; btn.textContent = "Sending…"; }
   try {
-    const res  = await fetch("/api/owner/mobile", {
+    const res  = await fetch("/api/owner/mobile/send-otp", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ mobile })
     });
     const data = await res.json();
     if (data.ok) {
-      _ownerMobile = mobile;
-      const mobileEl = document.getElementById("mi-mobile");
-      if (mobileEl) { mobileEl.textContent = mobile; mobileEl.style.color = "#03162D"; }
-      const mobileEdit = document.getElementById("mi-mobile-edit");
-      if (mobileEdit) mobileEdit.style.display = "none";
-      const mobileAlert = document.getElementById("mobile-missing-alert");
-      if (mobileAlert) mobileAlert.style.display = "none";
-      if (status) { status.textContent = "Phone number saved."; status.style.color = "#16A34A"; status.style.display = "block"; }
-      _toast("Phone number saved. Call Back is now enabled.", "ok");
-      renderActivity(allRequests);
+      _miPendingMobile = mobile;
+      const otpRow = document.getElementById("mi-mobile-otp-row");
+      if (otpRow) otpRow.style.display = "flex";
+      document.getElementById("mi-mobile-otp-input")?.focus();
+      _miStatus(`Code sent to ${mobile}. Enter it below to confirm.`, "#16A34A");
     } else {
-      if (status) { status.textContent = data.error || "Failed to save."; status.style.color = "#DC2626"; status.style.display = "block"; }
+      _miStatus(data.error || "Could not send the code.", "#DC2626");
     }
   } catch {
-    if (status) { status.textContent = "Network error. Try again."; status.style.color = "#DC2626"; status.style.display = "block"; }
+    _miStatus("Network error. Try again.", "#DC2626");
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "Send code"; }
   }
 }
 window.saveMobile = saveMobile;
+
+async function verifyMobileOtp() {
+  const otp = (document.getElementById("mi-mobile-otp-input")?.value || "").trim();
+  const mobile = _miPendingMobile || _miMobileFromInput();
+  if (!mobile) { _miStatus("Enter a valid 10-digit number.", "#DC2626"); return; }
+  if (!/^\d{6}$/.test(otp)) { _miStatus("Enter the 6-digit code.", "#DC2626"); return; }
+
+  try {
+    const res  = await fetch("/api/owner/mobile", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ mobile, otp })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      const saved = data.mobile || mobile;
+      _ownerMobile = saved;
+      _miPendingMobile = null;
+      const mobileEl = document.getElementById("mi-mobile");
+      if (mobileEl) { mobileEl.textContent = saved; mobileEl.style.color = "#03162D"; }
+      const mobileEdit = document.getElementById("mi-mobile-edit");
+      if (mobileEdit) mobileEdit.style.display = "none";
+      const otpRow = document.getElementById("mi-mobile-otp-row");
+      if (otpRow) otpRow.style.display = "none";
+      const mobileAlert = document.getElementById("mobile-missing-alert");
+      if (mobileAlert) mobileAlert.style.display = "none";
+      _miStatus("Phone number verified and saved.", "#16A34A");
+      _toast("Phone number verified. Call Back is now enabled.", "ok");
+      renderActivity(allRequests);
+    } else {
+      _miStatus(data.error || "Invalid code. Try again.", "#DC2626");
+    }
+  } catch {
+    _miStatus("Network error. Try again.", "#DC2626");
+  }
+}
+window.verifyMobileOtp = verifyMobileOtp;
 
 // ── Notice board KPI filter ───────────────────────────────────────
 function applyNbFilter(key) {

@@ -1,6 +1,7 @@
 import { requireSession, toObjectId } from "../../lib/auth/auth.js";
 import { createPasswordHash, verifyPassword, isNonEmptyString } from "../../lib/auth/security.js";
 import { clearSession } from "../../lib/auth/session.js";
+import { sendOtp, verifyOtp, isMobileIdentifier, normalizeIdentifier } from "../../lib/auth/otp.js";
 import { getCollections, ensurePendingCallsIndexes } from "../../lib/db/repositories.js";
 import { createQrDataUrl, createPrintQrDataUrl } from "../../lib/core/qr-output.js";
 import { createEtagForVehicle, buildTagScanUrl, VEHICLE_LABELS, etagIdFor } from "../../lib/core/tag-issuance.js";
@@ -107,25 +108,71 @@ export function registerOwnerRoutes(app, env) {
     };
   });
 
+  // Send an OTP to the number the owner wants to save as their callback mobile.
+  // The number becomes the phone the masked-call feature dials, so it must be
+  // proven with an OTP before it can be stored — otherwise an owner could point
+  // it at a victim's number and make the system call them (harassment), or save
+  // unvalidated junk. Same gate the COD flow uses (codVerifiedPhone).
+  app.post(
+    "/api/owner/mobile/send-otp",
+    { config: { rateLimit: { max: 5, timeWindow: "5 minutes" } } },
+    async (request, reply) => {
+      const blocked = await requireSession(app, "owner")(request, reply);
+      if (blocked) return blocked;
+
+      const { mobile } = request.body || {};
+      if (!mobile || !isMobileIdentifier(mobile)) {
+        reply.code(400);
+        return { ok: false, error: "Enter a valid mobile number." };
+      }
+
+      const collections = await getCollections(env);
+      if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
+
+      try {
+        await sendOtp(env, mobile);
+        return { ok: true, phoneHint: "••••" + String(normalizeIdentifier(mobile)).slice(-4) };
+      } catch (err) {
+        request.log.error({ err }, "owner mobile OTP send failed");
+        reply.code(500);
+        return { ok: false, error: "Could not send the verification code. Please try again." };
+      }
+    }
+  );
+
   app.post("/api/owner/mobile", async (request, reply) => {
     const blocked = await requireSession(app, "owner")(request, reply);
     if (blocked) return blocked;
 
-    const { mobile } = request.body || {};
-    if (!mobile) {
+    const { mobile, otp } = request.body || {};
+    if (!mobile || !isMobileIdentifier(mobile)) {
       reply.code(400);
-      return { ok: false, error: "Mobile is required." };
+      return { ok: false, error: "Enter a valid mobile number." };
+    }
+    // No code supplied yet → tell the client to run the OTP step (not an error).
+    if (!otp) {
+      return { ok: false, needsOtp: true };
     }
 
     const collections = await getCollections(env);
     if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
 
+    // Prove control of the number before saving it. verifyOtp throws a
+    // client-safe message on a bad/expired/rate-limited code.
+    try {
+      await verifyOtp(env, mobile, String(otp));
+    } catch (err) {
+      reply.code(400);
+      return { ok: false, error: err && err.message ? err.message : "Invalid verification code." };
+    }
+
+    const normalized = normalizeIdentifier(mobile);
     const ownerId = toObjectId(request.session.userId);
     await collections.owners.updateOne(
       { _id: ownerId },
-      { $set: { mobile } }
+      { $set: { mobile: normalized, mobileVerified: true } }
     );
-    return { ok: true };
+    return { ok: true, mobile: normalized };
   });
 
   // Generate (or fetch existing) a real, scannable E-Tag for a vehicle.

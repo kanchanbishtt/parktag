@@ -53,6 +53,34 @@ const ownerVehicleDetailPage = path.join(pagesRoot, "owner/vehicle-detail.html")
 const scannerAssetVersion = "parktag-ui-1";
 const hubAssetVersion = "hub-shell-1";
 
+// Every request is logged with its URL, and several sensitive values travel in
+// the query string: the Exotel webhook secret (?token=), the inbound caller's
+// phone (?CallFrom=), the Meta verify token (?hub.verify_token=), the
+// password-reset token (?token=), and the OAuth auth code (?code=). Redact the
+// VALUE of any query param whose name looks sensitive before it reaches the
+// logs, keeping the rest of the URL intact for debugging. Matches on the
+// param name only, so it never has to parse the (secret) value itself.
+const SENSITIVE_QS_SUBSTRING = /(token|secret|password|passwd|otp|phone|mobile|signature|api[_-]?key)/i;
+const SENSITIVE_QS_EXACT = new Set(["code", "state", "callfrom", "caller", "callto", "callerid"]);
+
+function isSensitiveQueryKey(key) {
+  const k = String(key);
+  return SENSITIVE_QS_SUBSTRING.test(k) || SENSITIVE_QS_EXACT.has(k.toLowerCase());
+}
+
+function sanitizeLogUrl(url) {
+  if (typeof url !== "string") return url;
+  const q = url.indexOf("?");
+  if (q === -1) return url;
+  const path = url.slice(0, q);
+  const query = url.slice(q + 1);
+  const sanitized = query.replace(
+    /([^&=?#]+)=([^&#]*)/g,
+    (match, key) => (isSensitiveQueryKey(key) ? `${key}=[REDACTED]` : match)
+  );
+  return `${path}?${sanitized}`;
+}
+
 function setScannerNoCache(reply) {
   reply.header(
     "Cache-Control",
@@ -65,7 +93,21 @@ function setScannerNoCache(reply) {
 export async function buildApp() {
   const env = getEnv();
   const app = Fastify({
-    logger: true,
+    logger: {
+      // Redact sensitive query-string values (webhook secret, caller phone,
+      // verify/reset tokens, OAuth code) from the URL in every request log.
+      serializers: {
+        req(request) {
+          return {
+            method: request.method,
+            url: sanitizeLogUrl(request.url),
+            hostname: request.hostname,
+            remoteAddress: request.ip,
+            remotePort: request.socket ? request.socket.remotePort : undefined
+          };
+        }
+      }
+    },
     // The app runs behind a single reverse proxy hop in every real deployment
     // (Render's edge network, and any other PaaS/CDN in front of it). Without
     // this, Fastify's `request.ip` is the proxy's own socket address — the

@@ -33,7 +33,13 @@ function readRuntimeMode(value) {
 const REQUIRED_IN_PRODUCTION = [
   ["MONGODB_URI", "mongoUri"],
   ["RAZORPAY_KEY_ID", "razorpayKeyId"],
-  ["RAZORPAY_KEY_SECRET", "razorpayKeySecret"]
+  ["RAZORPAY_KEY_SECRET", "razorpayKeySecret"],
+  // Webhook auth secrets: without these the Exotel/Meta webhooks fall back to
+  // accepting unauthenticated requests (see routes/webhooks/*). Requiring them
+  // in production means the app refuses to boot mis-secured rather than leaking
+  // private phone numbers / allowing forged status writes.
+  ["EXOTEL_WEBHOOK_SECRET", "exotelWebhookSecret"],
+  ["META_APP_SECRET", "metaAppSecret"]
 ];
 
 function validateEnv(env, runtimeMode) {

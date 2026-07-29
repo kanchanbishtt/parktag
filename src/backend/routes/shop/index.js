@@ -1,6 +1,6 @@
 import { createRazorpayOrder, verifyRazorpaySignature, isRazorpayConfigured, getShopProduct } from "../../lib/integrations/payments.js";
 import { getCollections } from "../../lib/db/repositories.js";
-import { requireSession, toObjectId } from "../../lib/auth/auth.js";
+import { requireSession, toObjectId, tryObjectId } from "../../lib/auth/auth.js";
 import { addressToNotes } from "../../lib/core/address.js";
 import { createPremiumTagForVehicle } from "../../lib/core/tag-issuance.js";
 import { createShipment, isDelhiveryConfigured, updateShipmentToPrepaid, trackingUrl } from "../../lib/integrations/delhivery.js";
@@ -146,9 +146,10 @@ export function registerShopRoutes(app, env) {
     // Validate the replace-context tag (scoped to this owner, still a live,
     // non-premium tag). Invalid or absent → treat as a plain physical order.
     let validReplaceTagId = null;
-    if (replaceTagId) {
+    const replaceOid = replaceTagId ? tryObjectId(replaceTagId) : null;
+    if (replaceOid) {
       const oldTag = await collections.tags.findOne({
-        _id: toObjectId(replaceTagId),
+        _id: replaceOid,
         ownerId,
         deletedAt: { $in: [null, undefined] }
       });
@@ -399,9 +400,10 @@ export function registerShopRoutes(app, env) {
     }
 
     let validReplaceTagId = null;
-    if (replaceTagId) {
+    const replaceOid = replaceTagId ? tryObjectId(replaceTagId) : null;
+    if (replaceOid) {
       const oldTag = await collections.tags.findOne({
-        _id: toObjectId(replaceTagId),
+        _id: replaceOid,
         ownerId,
         deletedAt: { $in: [null, undefined] }
       });

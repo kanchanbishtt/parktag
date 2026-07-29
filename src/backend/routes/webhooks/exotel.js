@@ -126,8 +126,11 @@ export function registerProviderRoutes(app, env) {
 
     if (body.RecordingUrl) set.recordingUrl = body.RecordingUrl;
 
-    if (customField) {
+    if (customField && ObjectId.isValid(customField)) {
       // Outbound call path — CustomField holds the contactRequest _id directly.
+      // Validate first: new ObjectId() on a malformed value throws SYNCHRONOUSLY
+      // (before the promise), so the trailing .catch wouldn't swallow it and the
+      // handler would 500 instead of quietly ignoring a junk CustomField.
       await collections.contactRequests.updateOne(
         { _id: new ObjectId(customField) },
         { $set: set }

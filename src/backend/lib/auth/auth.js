@@ -76,3 +76,11 @@ export function requireSession(app, role) {
 export function toObjectId(id) {
   return new ObjectId(id);
 }
+
+// Like toObjectId but returns null instead of throwing on a malformed id. Use
+// for client-supplied route params / body ids so a garbage value yields a clean
+// 400 instead of an unhandled throw (HTTP 500). Trusted ids (e.g. our own
+// session userId) can keep using toObjectId.
+export function tryObjectId(id) {
+  return ObjectId.isValid(id) ? new ObjectId(id) : null;
+}

@@ -401,10 +401,16 @@ export async function buildApp() {
 
     const token = request.params.token;
     // Use the pinned scan domain if configured, else the current host
-    // (local→local, production→production).
-    const proto = request.headers["x-forwarded-proto"] || request.protocol || "http";
-    const host = request.headers.host;
-    const base = env.scanBaseUrl || `${proto}://${host}`;
+    // (local→local, production→production). Both the proto and Host header are
+    // client-controlled and get reflected into the returned HTML via
+    // __SCAN_URL__, so constrain them to safe characters: an attacker can't
+    // then smuggle markup through a crafted Host header (reflected XSS). If the
+    // Host looks malformed, fall back to the configured app base URL.
+    const rawProto = request.headers["x-forwarded-proto"] || request.protocol || "http";
+    const proto = rawProto === "https" ? "https" : "http";
+    const rawHost = request.headers.host || "";
+    const host = /^[A-Za-z0-9.\-:]+$/.test(rawHost) ? rawHost : "";
+    const base = env.scanBaseUrl || (host ? `${proto}://${host}` : env.appBaseUrl);
     const scanUrl = `${base}/tag/${token}`;
     const qrSvg = await QRCode.toString(scanUrl, {
       type: "svg",

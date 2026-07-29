@@ -252,7 +252,14 @@
     els.cardName.textContent = addr.fullName || "";
     els.cardStreet.textContent = street;
     els.cardRegion.textContent = region;
-    els.cardPhone.innerHTML = addr.phone ? IC.phone + "<span>" + addr.phone + "</span>" : "";
+    // IC.phone is a static developer-defined icon (safe as HTML); addr.phone is
+    // user input, so set it via textContent rather than concatenating into innerHTML.
+    if (addr.phone) {
+      els.cardPhone.innerHTML = IC.phone + "<span></span>";
+      els.cardPhone.querySelector("span").textContent = addr.phone;
+    } else {
+      els.cardPhone.textContent = "";
+    }
     els.title.textContent = "Confirm delivery address";
     els.sub.textContent = "We'll ship your ParkTag sticker here.";
     els.form.classList.add("pt-hide");

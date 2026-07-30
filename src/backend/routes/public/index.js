@@ -2,8 +2,11 @@ import { ObjectId } from "mongodb";
 
 import { createContactAction } from "../../lib/core/contact-actions.js";
 import { createPasswordHash, createSecureToken, safeEqual, hashIp, minutesFromNow, getClientIp, maskPlateNumber, getPlateLastFour, isNonEmptyString } from "../../lib/auth/security.js";
+import { createSession, writeSessionCookie } from "../../lib/auth/session.js";
+import { isMobileIdentifier, normalizeIdentifier, verifyOtp } from "../../lib/auth/otp.js";
 import { getCollections, ensureVerificationIndexes, ensurePendingCallsIndexes } from "../../lib/db/repositories.js";
 import { VEHICLE_LABELS } from "../../lib/core/tag-issuance.js";
+import { clientErrorMessage } from "../../lib/errors.js";
 
 // Verification security parameters (spec: 3 attempts, then temporary lockout).
 const MAX_VERIFY_ATTEMPTS = 3;
@@ -49,7 +52,10 @@ export function registerPublicRoutes(app, env) {
         callPreviewNumber:
           tag.status === "active" ? env.exotelCallerId || null : null,
         claimable: ["unclaimed", "inactive"].includes(tag.status)
-      }
+      },
+      // Public support handle for the activation wizard's help card. Null when
+      // unconfigured, in which case the card is not rendered at all.
+      supportWhatsapp: env.supportWhatsappNumber || null
     };
   });
 
@@ -278,6 +284,142 @@ export function registerPublicRoutes(app, env) {
         status: "active",
         vehicleLabel: vehicleLabel || tag.vehicleLabel,
         maskedPlateNumber: maskPlateNumber(plateNumber)
+      }
+    };
+  });
+
+  // Activation used by the scanner's step wizard (plate → mobile → OTP code).
+  // Unlike /claim above it sets no password and takes no email: the owner is
+  // identified by the WhatsApp-verified mobile — the same identity the OTP login
+  // uses — so they can sign in later from /owner-login without ever setting one.
+  // The OTP is the ONLY proof of identity here, so it is verified before any
+  // write and its own attempt/expiry limits back the per-IP rate limit.
+  app.post("/api/tags/:token/activate", { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } }, async (request, reply) => {
+    const collections = await getCollections(env);
+
+    if (!collections) {
+      reply.code(500);
+      return { ok: false, error: "MongoDB is not configured" };
+    }
+
+    const { displayName, phone, code, plateNumber, vehicleLabel } = request.body || {};
+
+    if (
+      !isNonEmptyString(displayName) ||
+      !isNonEmptyString(phone) ||
+      !isNonEmptyString(code) ||
+      !isNonEmptyString(plateNumber)
+    ) {
+      reply.code(400);
+      return {
+        ok: false,
+        error: "displayName, phone, plateNumber, and code are required"
+      };
+    }
+
+    if (!isMobileIdentifier(phone)) {
+      reply.code(400);
+      return { ok: false, error: "Enter a valid mobile number." };
+    }
+
+    // Store the plate the same shape the mask/last-four helpers read it back in,
+    // so last-4 verification behaves identically to admin-issued plates.
+    const normalizedPlate = plateNumber.replace(/\s+/g, "").toUpperCase();
+
+    if (!/^[A-Z0-9-]{4,16}$/.test(normalizedPlate)) {
+      reply.code(400);
+      return { ok: false, error: "Enter a valid number plate." };
+    }
+
+    const tag = await collections.tags.findOne({ token: request.params.token });
+
+    if (!tag) {
+      reply.code(404);
+      return { ok: false, error: "Tag not found" };
+    }
+
+    if (!["unclaimed", "inactive"].includes(tag.status)) {
+      reply.code(400);
+      return { ok: false, error: "Tag is not claimable" };
+    }
+
+    try {
+      await verifyOtp(env, phone, String(code).trim());
+    } catch (error) {
+      const isExposable = error && error.expose === true;
+      reply.code(isExposable ? 400 : 500);
+      return {
+        ok: false,
+        error: clientErrorMessage(
+          error,
+          "We couldn't verify your code right now. Please try again in a moment.",
+          app.log
+        )
+      };
+    }
+
+    const mobile = normalizeIdentifier(phone);
+    const ownerName = displayName.trim();
+
+    let owner = await collections.owners.findOne({ mobile });
+    let isNewOwner = false;
+
+    if (owner) {
+      // Returning owner activating another sticker — only fill in a name if the
+      // account is still using its auto-generated placeholder (the raw number).
+      if (!owner.displayName || owner.displayName === mobile) {
+        await collections.owners.updateOne(
+          { _id: owner._id },
+          { $set: { displayName: ownerName } }
+        );
+        owner.displayName = ownerName;
+      }
+    } else {
+      isNewOwner = true;
+      owner = {
+        _id: new ObjectId(),
+        displayName: ownerName,
+        // `mobile` is the OTP-login identity; `phone` is what the contact flow
+        // dials. Same number, both fields written so neither path has to guess.
+        mobile,
+        phone: mobile,
+        credits: 0,
+        role: "owner",
+        createdAt: new Date().toISOString()
+      };
+      await collections.owners.insertOne(owner);
+    }
+
+    await collections.tags.updateOne(
+      { _id: tag._id },
+      {
+        $set: {
+          ownerId: owner._id,
+          status: "active",
+          vehicleLabel: vehicleLabel || tag.vehicleLabel,
+          plateNumber: normalizedPlate
+        }
+      }
+    );
+
+    // Log them straight in so the success screen can hand off to the dashboard.
+    const sessionId = await createSession(app, {
+      id: String(owner._id),
+      role: "owner",
+      email: owner.email || owner.mobile || mobile,
+      displayName: owner.displayName
+    });
+    writeSessionCookie(reply, sessionId, env.runtimeMode === "production");
+
+    return {
+      ok: true,
+      isNewOwner,
+      owner: { displayName: owner.displayName },
+      tag: {
+        token: tag.token,
+        status: "active",
+        vehicleLabel: vehicleLabel || tag.vehicleLabel,
+        maskedPlateNumber: maskPlateNumber(normalizedPlate)
       }
     };
   });

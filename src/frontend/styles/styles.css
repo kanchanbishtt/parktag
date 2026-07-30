@@ -1268,28 +1268,14 @@ pre {
   gap: 16px;
 }
 
-/* ── Laptop / desktop: 2-column registration form ── */
+/* ── Laptop / desktop ── */
 @media (min-width: 700px) {
   .pt-main { max-width: 780px; padding: 28px 24px 56px; }
 
-  #registration-shell { max-width: 100%; }
-
-  /* Hero icon slightly smaller on desktop — form dominates */
-  .pt-reg-hero-icon { width: 50px; height: 50px; }
-  .pt-reg-hero { padding: 28px 32px 22px; }
-
-  /* Each section becomes a 2-col grid */
-  #claim-form .pt-form-section {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px 20px;
-  }
-
-  /* Section label always spans the full row */
-  #claim-form .pt-form-section-label { grid-column: 1 / -1; }
-
-  /* Fields marked wide (e.g. email) span both columns */
-  #claim-form .pt-field-wide { grid-column: 1 / -1; }
+  /* The activation wizard is one short question per step — it reads better as a
+     narrow column than stretched across the wider desktop main. */
+  #registration-shell,
+  #act-help-card { max-width: 460px; width: 100%; margin: 0 auto; }
 }
 
 /* Card */
@@ -3294,3 +3280,161 @@ html:has(body.pt-hub-body) {
 .pt-buy-btn.pt-btn-loading::after { border-top-color: #03162D; }
 /* Spinner color for dark buttons */
 .pt-btn-dark.pt-btn-loading::after { border-top-color: #fff; }
+
+/* ============================================================
+   STICKER ACTIVATION WIZARD (scanner /tag/<token>, /vehicle/<token>)
+   One question per step — intro → plate → mobile → OTP code.
+   ============================================================ */
+
+.pt-step-card {
+  padding: 26px 22px 22px;
+}
+
+/* Step progress dots */
+.pt-step-track {
+  display: flex;
+  justify-content: center;
+  gap: 7px;
+  margin-bottom: 22px;
+}
+
+.pt-step-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--pt-border);
+  transition: width 180ms ease, background 180ms ease;
+}
+
+.pt-step-dot[data-state="done"] { background: rgba(255, 39, 0, 0.38); }
+.pt-step-dot[data-state="current"] { width: 22px; background: var(--pt-amber); }
+
+/* A single step panel */
+.pt-step {
+  display: grid;
+  gap: 16px;
+  margin: 0;
+}
+
+.pt-step-center { justify-items: center; text-align: center; }
+
+.pt-step-icon {
+  width: 54px;
+  height: 54px;
+  border-radius: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--pt-amber-bg);
+  color: var(--pt-amber);
+  border: 1.5px solid rgba(255, 39, 0, 0.18);
+}
+
+.pt-step-icon-done {
+  background: rgba(37, 211, 102, 0.12);
+  color: var(--pt-green-dark);
+  border-color: rgba(37, 211, 102, 0.28);
+}
+
+.pt-step-title {
+  font-size: 1.22rem;
+  font-weight: 800;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  color: var(--pt-ink);
+  margin: 0;
+}
+
+.pt-step-noun { text-decoration-thickness: 2px; text-underline-offset: 3px; }
+
+.pt-step-eg {
+  font-weight: 600;
+  color: var(--pt-sub);
+  white-space: nowrap;
+}
+
+.pt-step-sub {
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: var(--pt-sub);
+  margin: -4px 0 0;
+}
+
+/* Country code + phone number sit on one row, code sized to its label */
+.pt-step-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  gap: 10px;
+}
+
+/* Full-width pill CTA */
+.pt-btn-step {
+  flex-direction: row;
+  gap: 8px;
+  width: 100%;
+  padding: 16px 20px;
+  border-radius: 999px;
+  font-size: 1.02rem;
+  font-weight: 800;
+  background: var(--pt-amber);
+  color: #fff;
+  box-shadow: 0 6px 20px rgba(255, 39, 0, 0.28);
+  margin-top: 4px;
+}
+
+.pt-btn-step:hover:not(:disabled) {
+  background: var(--pt-amber-dark);
+  box-shadow: 0 8px 26px rgba(255, 39, 0, 0.36);
+}
+
+.pt-btn-step-link { text-decoration: none; }
+
+/* Secondary step navigation */
+.pt-step-back,
+.pt-step-resend {
+  justify-self: start;
+  background: none;
+  border: none;
+  padding: 2px 0;
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--pt-sub);
+  cursor: pointer;
+}
+
+.pt-step-back:hover,
+.pt-step-resend:hover { color: var(--pt-ink); }
+
+.pt-step-back:disabled,
+.pt-step-resend:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.pt-step-resend { justify-self: end; color: var(--pt-amber-dark); }
+
+.pt-step-links {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* "Need help? WhatsApp support" card */
+.pt-help-card {
+  background: var(--pt-white);
+  border-radius: 20px;
+  border: 1px solid rgba(0, 25, 53, 0.07);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04), 0 12px 36px rgba(0, 25, 53, 0.09);
+}
+
+.pt-help-card a {
+  display: block;
+  padding: 20px 18px;
+  text-align: center;
+  text-decoration: none;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--pt-ink);
+}
+
+.pt-help-card a span { color: var(--pt-sub); font-weight: 600; }
+.pt-help-card a:hover { color: var(--pt-amber-dark); }

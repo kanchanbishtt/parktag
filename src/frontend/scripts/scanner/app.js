@@ -1,3 +1,5 @@
+import { getCaptchaToken } from "../recaptcha.js";
+
 const DEFAULT_MESSAGE =
   "Hi, your vehicle is blocking my way. Please move it when possible.";
 
@@ -17,6 +19,23 @@ let contactGrant = "";
 let contactAvailable = true;
 // Optional reason selected via the chips; the message itself is built server-side.
 let selectedReason = "";
+
+// ── Activation wizard state ──────────────────────────────────────────────
+// The unactivated-sticker flow is one question per step: intro → plate →
+// name + mobile → WhatsApp code. Answers are collected here and only sent to
+// the server on the final step, together with the OTP that authorises them.
+const ACT_STEP_IDS = {
+  1: "act-step-1",
+  2: "act-step-2",
+  3: "act-step-3",
+  4: "act-step-4",
+  done: "act-step-done"
+};
+
+const activation = { plate: "", name: "", phone: "" };
+let resendTimer = null;
+// wa.me link for the help card; empty when no support number is configured.
+let supportWhatsappHref = "";
 
 function byId(id) {
   return document.getElementById(id);
@@ -100,6 +119,13 @@ function showOnly(sectionId) {
   for (const id of ids) {
     setHidden(id, id !== sectionId);
   }
+
+  // The help card only accompanies the activation wizard, and only when a
+  // support number is actually configured.
+  setHidden(
+    "act-help-card",
+    sectionId !== "registration-shell" || !supportWhatsappHref
+  );
 }
 
 function resetActionState() {
@@ -208,8 +234,6 @@ async function loadScannerView() {
 
     setSummaryForTag(tag);
     setValue("request-token", tag.token);
-    setValue("claim-vehicle-label", tag.vehicleLabel || "");
-    setValue("claim-plate-number", "");
     setText("plate-mask-preview", tag.maskedPlateNumber || "••••");
 
     if (registrationState) {
@@ -217,15 +241,16 @@ async function loadScannerView() {
       setText(
         "registration-title",
         tag.status === "inactive"
-          ? "Activate this WaveTag for owner contact"
-          : "Register this WaveTag"
+          ? "You are about to reactivate the tag"
+          : "You are about to activate the tag"
       );
       setText(
         "registration-copy",
         tag.status === "inactive"
-          ? "This tag is currently inactive. Fill in the owner registration details below to activate it on WaveTag."
-          : "This sticker has not been activated yet. Complete the owner registration details below to activate it on WaveTag."
+          ? "This tag is currently inactive. Reactivate it to start receiving alerts again."
+          : "Please activate all your tags — each one is unique."
       );
+      setupActivationWizard(tag, data.supportWhatsapp);
       showOnly("registration-shell");
       return;
     }
@@ -487,81 +512,259 @@ function handleContactNumberSubmit() {
   }
 }
 
-function togglePw(inputId, btn) {
-  const input = byId(inputId);
-  if (!input) return;
-  const isHidden = input.type === "password";
-  input.type = isHidden ? "text" : "password";
-  btn.setAttribute("aria-label", isHidden ? "Hide password" : "Show password");
-  const svg = btn.querySelector("svg");
-  if (svg) {
-    svg.innerHTML = isHidden
-      ? '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>'
-      : '<path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/>';
+// ── Activation wizard ────────────────────────────────────────────────────
+
+function setBtnLoading(id, loading) {
+  const btn = byId(id);
+
+  if (!btn) {
+    return;
+  }
+
+  btn.disabled = loading;
+  btn.classList.toggle("pt-btn-loading", loading);
+}
+
+function normalizePlate(raw) {
+  return String(raw || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
+function showActStep(step) {
+  for (const id of Object.values(ACT_STEP_IDS)) {
+    setHidden(id, id !== ACT_STEP_IDS[step]);
+  }
+
+  // Progress dots: everything before the current step reads as done. The
+  // success screen has no step of its own, so all four settle as done.
+  const position = step === "done" ? 5 : step;
+  document.querySelectorAll("#act-progress .pt-step-dot").forEach((dot) => {
+    const n = Number(dot.dataset.step);
+    dot.dataset.state = n === position ? "current" : n < position ? "done" : "pending";
+  });
+  setHidden("act-progress", step === "done");
+
+  setRequestStatus("claim-status", "", "info");
+
+  // Step 1 and the success screen have no input — focusing there would pop the
+  // mobile keyboard for nothing.
+  if (step !== 1 && step !== "done") {
+    byId(ACT_STEP_IDS[step])?.querySelector("input")?.focus();
   }
 }
-window.togglePw = togglePw;
 
-async function handleClaim(event) {
+function setupActivationWizard(tag, supportWhatsapp) {
+  activation.plate = "";
+  activation.name = "";
+  activation.phone = "";
+  setValue("act-plate", "");
+  setValue("act-name", "");
+  setValue("act-phone", "");
+  setValue("act-otp", "");
+  clearResendCooldown();
+
+  // "Car" / "Bike" / … so the copy names the actual vehicle like the sticker does.
+  const noun = tag.vehicleLabel || "vehicle";
+  document.querySelectorAll("[data-vehicle-noun]").forEach((el) => {
+    el.textContent = noun;
+  });
+
+  const digits = String(supportWhatsapp || "").replace(/\D/g, "");
+  supportWhatsappHref = digits
+    ? `https://wa.me/${digits}?text=${encodeURIComponent(
+        `Hi, I need help activating my ParkTag sticker (${tag.token}).`
+      )}`
+    : "";
+  const helpLink = byId("act-help-link");
+  if (helpLink && supportWhatsappHref) {
+    helpLink.href = supportWhatsappHref;
+  }
+
+  showActStep(1);
+}
+
+function handleActPlate(event) {
   event.preventDefault();
 
-  const token = getTokenFromUrl();
-  const displayName = byId("claim-display-name")?.value.trim();
-  const email = byId("claim-email")?.value.trim();
-  const phone = byId("claim-phone")?.value.trim();
-  const password = byId("claim-password")?.value.trim();
-  const confirmPassword = byId("claim-confirm-password")?.value.trim();
-  const vehicleLabel = byId("claim-vehicle-label")?.value.trim();
-  const plateNumber = byId("claim-plate-number")?.value.trim();
+  const plate = normalizePlate(byId("act-plate")?.value);
 
-  if (!displayName || !email || !phone || !password || !plateNumber) {
+  if (plate.length < 4 || plate.length > 16) {
     setRequestStatus(
       "claim-status",
-      "Enter your name, email, phone number, password, and vehicle number.",
+      "Enter the full number plate exactly as printed on the vehicle.",
       "error"
     );
     return;
   }
 
-  if (password !== confirmPassword) {
-    setRequestStatus("claim-status", "Passwords do not match. Please re-enter.", "error");
-    byId("claim-confirm-password")?.focus();
+  // Scanners unlock contact by entering the plate's last 4 digits, so a plate
+  // that doesn't end in 4 digits would leave this tag permanently unverifiable.
+  if (!/\d{4}$/.test(plate)) {
+    setRequestStatus(
+      "claim-status",
+      "That doesn't look complete — a full plate ends with 4 digits (e.g. DL8CX55665).",
+      "error"
+    );
     return;
   }
 
-  if (password.length < 8) {
-    setRequestStatus("claim-status", "Password must be at least 8 characters.", "error");
+  activation.plate = plate;
+  setValue("act-plate", plate);
+  showActStep(3);
+}
+
+async function sendActivationOtp() {
+  const recaptchaToken = await getCaptchaToken("send_otp");
+
+  await fetchJson("/api/auth/send-otp", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ identifier: activation.phone, recaptchaToken })
+  });
+}
+
+async function handleActMobile(event) {
+  event.preventDefault();
+
+  const name = byId("act-name")?.value.trim() || "";
+  const dialCode = byId("act-dial")?.value || "91";
+  const digits = (byId("act-phone")?.value || "").replace(/\D/g, "");
+
+  if (name.length < 2) {
+    setRequestStatus("claim-status", "Enter your full name.", "error");
+    byId("act-name")?.focus();
     return;
   }
 
-  setRequestStatus("claim-status", "Activating your WaveTag...", "info");
+  if (digits.length < 6 || digits.length > 14) {
+    setRequestStatus("claim-status", "Enter a valid mobile number.", "error");
+    byId("act-phone")?.focus();
+    return;
+  }
+
+  activation.name = name;
+  activation.phone = `+${dialCode}${digits}`;
+
+  setBtnLoading("act-send-otp-btn", true);
+  setRequestStatus("claim-status", "Sending your code on WhatsApp…", "info");
 
   try {
-    await fetchJson(`/api/tags/${token}/claim`, {
+    await sendActivationOtp();
+  } catch (error) {
+    setBtnLoading("act-send-otp-btn", false);
+    setRequestStatus(
+      "claim-status",
+      error instanceof Error ? error.message : "Could not send the code. Please try again.",
+      "error"
+    );
+    return;
+  }
+
+  setBtnLoading("act-send-otp-btn", false);
+  setText("act-phone-echo", activation.phone);
+  showActStep(4);
+  startResendCooldown();
+}
+
+function clearResendCooldown() {
+  if (resendTimer) {
+    clearInterval(resendTimer);
+    resendTimer = null;
+  }
+
+  const btn = byId("act-resend-btn");
+  if (btn) {
+    btn.disabled = false;
+    btn.textContent = "Resend code";
+  }
+}
+
+function startResendCooldown(seconds = 30) {
+  const btn = byId("act-resend-btn");
+
+  if (!btn) {
+    return;
+  }
+
+  clearResendCooldown();
+
+  let remaining = seconds;
+  btn.disabled = true;
+  btn.textContent = `Resend in ${remaining}s`;
+
+  resendTimer = setInterval(() => {
+    remaining -= 1;
+
+    if (remaining <= 0) {
+      clearResendCooldown();
+      return;
+    }
+
+    btn.textContent = `Resend in ${remaining}s`;
+  }, 1000);
+}
+
+async function handleActResend() {
+  if (!activation.phone) {
+    showActStep(3);
+    return;
+  }
+
+  setRequestStatus("claim-status", "Sending a new code…", "info");
+  startResendCooldown();
+
+  try {
+    await sendActivationOtp();
+    setRequestStatus("claim-status", "New code sent on WhatsApp.", "success");
+  } catch (error) {
+    clearResendCooldown();
+    setRequestStatus(
+      "claim-status",
+      error instanceof Error ? error.message : "Could not resend the code.",
+      "error"
+    );
+  }
+}
+
+async function handleActVerify(event) {
+  event.preventDefault();
+
+  const token = getTokenFromUrl();
+  const code = (byId("act-otp")?.value || "").replace(/\D/g, "");
+
+  if (code.length !== 6) {
+    setRequestStatus("claim-status", "Enter the 6-digit code.", "error");
+    return;
+  }
+
+  setBtnLoading("act-verify-btn", true);
+  setRequestStatus("claim-status", "Activating your tag…", "info");
+
+  try {
+    const data = await fetchJson(`/api/tags/${token}/activate`, {
       method: "POST",
-      headers: {
-        "content-type": "application/json"
-      },
+      headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        displayName,
-        email,
-        phone,
-        password,
-        vehicleLabel,
-        plateNumber
+        displayName: activation.name,
+        phone: activation.phone,
+        code,
+        plateNumber: activation.plate
       })
     });
 
-    setRequestStatus(
-      "claim-status",
-      "Tag activated successfully. You can now sign in from /owner.",
-      "success"
+    clearResendCooldown();
+    setBtnLoading("act-verify-btn", false);
+
+    const label = (data?.tag?.vehicleLabel || "vehicle").toLowerCase();
+    setText(
+      "act-done-copy",
+      `Your ${label} sticker is live. Anyone who scans it can reach you privately — your number stays hidden.`
     );
-    await loadScannerView();
+    showActStep("done");
   } catch (error) {
+    setBtnLoading("act-verify-btn", false);
     setRequestStatus(
       "claim-status",
-      error instanceof Error ? error.message : "Failed to claim the tag",
+      error instanceof Error ? error.message : "Could not activate the tag.",
       "error"
     );
   }
@@ -574,29 +777,24 @@ byId("call-owner-button")?.addEventListener("click", () => requestContactNumber(
 byId("send-whatsapp-button")?.addEventListener("click", handleWhatsAppNotify);
 byId("contact-number-submit")?.addEventListener("click", handleContactNumberSubmit);
 byId("final-call-button")?.addEventListener("click", handleFinalCallAction);
-byId("claim-form")?.addEventListener("submit", handleClaim);
 
-// Confirm password real-time feedback on blur
-byId("claim-confirm-password")?.addEventListener("blur", () => {
-  const pw      = byId("claim-password")?.value || "";
-  const confirm = byId("claim-confirm-password")?.value || "";
-  const hint    = byId("confirm-pw-hint");
-  if (!hint || !confirm) return;
-  if (pw !== confirm) {
-    hint.textContent = "Passwords do not match.";
-    hint.style.display = "block";
-  } else {
-    hint.style.display = "none";
-  }
+// Activation wizard
+byId("act-start-btn")?.addEventListener("click", () => showActStep(2));
+byId("act-step-2")?.addEventListener("submit", handleActPlate);
+byId("act-step-3")?.addEventListener("submit", handleActMobile);
+byId("act-step-4")?.addEventListener("submit", handleActVerify);
+byId("act-resend-btn")?.addEventListener("click", handleActResend);
+
+document.querySelectorAll(".pt-step-back").forEach((btn) => {
+  btn.addEventListener("click", () => showActStep(Number(btn.dataset.goto)));
 });
 
-// Clear hint as the user corrects the confirm field
-byId("claim-confirm-password")?.addEventListener("input", () => {
-  const pw      = byId("claim-password")?.value || "";
-  const confirm = byId("claim-confirm-password")?.value || "";
-  const hint    = byId("confirm-pw-hint");
-  if (!hint || hint.style.display === "none") return;
-  if (pw === confirm) hint.style.display = "none";
+// Keep the plate field uppercase as it's typed so what's shown matches what's stored.
+byId("act-plate")?.addEventListener("input", (event) => {
+  const input = event.target;
+  const caret = input.selectionStart;
+  input.value = input.value.toUpperCase();
+  input.setSelectionRange(caret, caret);
 });
 
 // Reason chips — select an optional reason (the message itself is server-built).

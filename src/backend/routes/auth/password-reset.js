@@ -1,7 +1,7 @@
 import { requestPasswordReset, resetPassword } from "../../lib/auth/password-reset.js";
 
 export function registerPasswordResetRoutes(app, env) {
-  app.post("/api/auth/forgot-password", { config: { rateLimit: { max: 5, timeWindow: "1 minute" } } }, async (request, reply) => {
+  app.post("/api/auth/forgot-password", { config: { rateLimit: { max: 3, timeWindow: "1 hour" } } }, async (request, reply) => {
     const { email } = request.body || {};
 
     if (!email) {
@@ -24,7 +24,7 @@ export function registerPasswordResetRoutes(app, env) {
     }
   });
 
-  app.post("/api/auth/reset-password", async (request, reply) => {
+  app.post("/api/auth/reset-password", { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } }, async (request, reply) => {
     const { token, password } = request.body || {};
 
     if (!token || !password) {

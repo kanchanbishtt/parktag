@@ -1,7 +1,7 @@
 import { ObjectId } from "mongodb";
 
 import { getCollections } from "../db/repositories.js";
-import { verifyPassword, createPasswordHash } from "./security.js";
+import { verifyPassword, createPasswordHash, isNonEmptyString } from "./security.js";
 import { readSession } from "./session.js";
 
 export async function findUserByEmail(env, role, email) {
@@ -11,11 +11,18 @@ export async function findUserByEmail(env, role, email) {
     throw new Error("MongoDB is not configured");
   }
 
+  // `email` reaches Mongo as a raw filter value — reject anything that isn't
+  // a plain string so a crafted body (e.g. `{ "$ne": null }`) can never be
+  // interpreted as a query operator (NoSQL injection / auth bypass).
+  if (!isNonEmptyString(email)) return null;
+
   const collection = role === "admin" ? collections.admins : collections.owners;
   return collection.findOne({ email });
 }
 
 export async function loginUser(env, role, email, password) {
+  if (!isNonEmptyString(password)) return null;
+
   const collections = await getCollections(env);
   const user = await findUserByEmail(env, role, email);
 
@@ -68,4 +75,12 @@ export function requireSession(app, role) {
 
 export function toObjectId(id) {
   return new ObjectId(id);
+}
+
+// Like toObjectId but returns null instead of throwing on a malformed id. Use
+// for client-supplied route params / body ids so a garbage value yields a clean
+// 400 instead of an unhandled throw (HTTP 500). Trusted ids (e.g. our own
+// session userId) can keep using toObjectId.
+export function tryObjectId(id) {
+  return ObjectId.isValid(id) ? new ObjectId(id) : null;
 }

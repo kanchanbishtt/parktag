@@ -135,6 +135,16 @@ const VEHICLE_SVGS = {
   </svg>`,
 };
 
+// HTML-escape any value before interpolating it into innerHTML. vehicleLabel
+// and plateNumber are owner-supplied free text (from registration/claim/add-
+// vehicle) with no character allowlist on the backend, so they can contain
+// `<`, `"`, etc. They're rendered here via innerHTML (not textContent), so an
+// unescaped value would execute as HTML/script in this owner's own dashboard.
+function esc(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
 function iconFor(tag) {
   // tag.vehicleType from API, or tag.type from localStorage pending vehicles
   const t = tag.vehicleType || tag.type || "car";
@@ -161,6 +171,11 @@ function vehicleCard(tag, idx) {
   const label     = tag.vehicleLabel || VEHICLE_LABELS[tag.type] || "Vehicle";
   const plate     = tag.plateNumber  || tag.number || tag.token || "—";
   const type      = tag.vehicleType  || tag.type   || "car";
+  // Owner-supplied free text, HTML-escaped before it's placed inside markup
+  // below (the raw `label`/`plate` are still used for URLSearchParams, which
+  // does its own percent-encoding — escaping there would double-encode it).
+  const labelSafe = esc(label);
+  const plateSafe = esc(plate);
   const params    = new URLSearchParams({ number: plate, type, label, id: tag.id || "", token: tag.token || "" }).toString();
   const svg       = iconFor(tag).replace(/width="\d+"/, 'width="22"').replace(/height="\d+"/, 'height="22"').replace("<svg ", '<svg aria-hidden="true" focusable="false" ');
   const isActive  = tag.status !== "inactive";
@@ -193,11 +208,11 @@ function vehicleCard(tag, idx) {
   <div class="pt-vlc-main" role="link" tabindex="0"
        onclick="location.href='${detailUrl}'"
        onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();location.href='${detailUrl}'}"
-       aria-label="${label}, ${plate}, ${isActive ? "active" : "inactive"}">
+       aria-label="${labelSafe}, ${plateSafe}, ${isActive ? "active" : "inactive"}">
     <div class="pt-vlc-icon" style="background:${color.bg};color:${color.accent}">${svg}</div>
     <div class="pt-vlc-body">
-      <p class="pt-vlc-name">${label}</p>
-      <p class="pt-vlc-plate">${plate}</p>
+      <p class="pt-vlc-name">${labelSafe}</p>
+      <p class="pt-vlc-plate">${plateSafe}</p>
     </div>
     <div class="pt-vlc-meta">
       <span class="pt-vlc-pill ${pillClass}">${pill}</span>
@@ -368,8 +383,8 @@ ${_nbFilter ? `
 <div class="pt-ov-row">
   <span class="pt-ov-dot ${on ? "on" : "off"}"></span>
   <div class="pt-ov-body">
-    <p class="pt-ov-plate">${plate}</p>
-    <p class="pt-ov-vtype">${vtype} · ${on ? "Active" : "Inactive"}</p>
+    <p class="pt-ov-plate">${esc(plate)}</p>
+    <p class="pt-ov-vtype">${esc(vtype)} · ${on ? "Active" : "Inactive"}</p>
   </div>
   <span class="pt-ov-badge ${bc}">${badge}</span>
 </div>`;
@@ -472,8 +487,8 @@ function renderActivity(requests) {
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.62 3.38 2 2 0 0 1 3.6 1.17h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.86a16 16 0 0 0 6 6l.91-.91a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" stroke="currentColor" stroke-width="1.8"/></svg>
     </div>
     <div class="pt-act-body">
-      <p class="pt-act-who">${masked} contacted you</p>
-      <p class="pt-act-det">${plate} · Call</p>
+      <p class="pt-act-who">${esc(masked)} contacted you</p>
+      <p class="pt-act-det">${esc(plate)} · Call</p>
       <p class="pt-act-time">${formatTimeAgo(ageMs)}</p>
     </div>
     ${cta}
@@ -550,8 +565,8 @@ function renderActivity(requests) {
 <div class="pt-act-card ${cardCls}">
   <div class="pt-act-ic" style="background:${icBg};color:${icCol}">${isCall ? callSvg : waSvg}</div>
   <div class="pt-act-body">
-    <p class="pt-act-who">${masked} contacted you</p>
-    <p class="pt-act-det">${plate} · ${isCall ? "Call" : "WhatsApp"} ${resultBadge}</p>
+    <p class="pt-act-who">${esc(masked)} contacted you</p>
+    <p class="pt-act-det">${esc(plate)} · ${isCall ? "Call" : "WhatsApp"} ${resultBadge}</p>
     <p class="pt-act-time">${formatTimeAgo(ageMs)}</p>
   </div>
   ${cta}
@@ -587,44 +602,89 @@ async function callBack(btnId = "cbBtn") {
 }
 window.callBack = callBack;
 
-async function saveMobile() {
-  const input  = document.getElementById("mi-mobile-input");
+// The callback mobile is the number the masked-call feature dials, so it can't
+// be saved on trust — the owner must prove control of it with an OTP. Step 1
+// (saveMobile) sends the code; step 2 (verifyMobileOtp) verifies it and saves.
+function _miMobileFromInput() {
+  const raw = (document.getElementById("mi-mobile-input")?.value || "").trim().replace(/\D/g, "");
+  if (!raw || raw.length < 10) return null;
+  return raw.length === 10 ? `+91${raw}` : `+${raw}`;
+}
+function _miStatus(msg, color) {
   const status = document.getElementById("mi-mobile-status");
-  const raw    = (input?.value || "").trim().replace(/\D/g, "");
+  if (status) { status.textContent = msg; status.style.color = color; status.style.display = "block"; }
+}
 
-  if (!raw || raw.length < 10) {
-    if (status) { status.textContent = "Enter a valid 10-digit number."; status.style.color = "#DC2626"; status.style.display = "block"; }
-    return;
-  }
+// Number being verified — set when the code is sent, so the verify step uses
+// the exact same number the OTP was sent to.
+let _miPendingMobile = null;
 
-  const mobile = raw.length === 10 ? `+91${raw}` : `+${raw}`;
+async function saveMobile() {
+  const mobile = _miMobileFromInput();
+  if (!mobile) { _miStatus("Enter a valid 10-digit number.", "#DC2626"); return; }
 
+  const btn = document.getElementById("mi-mobile-send");
+  if (btn) { btn.disabled = true; btn.textContent = "Sending…"; }
   try {
-    const res  = await fetch("/api/owner/mobile", {
+    const res  = await fetch("/api/owner/mobile/send-otp", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ mobile })
     });
     const data = await res.json();
     if (data.ok) {
-      _ownerMobile = mobile;
-      const mobileEl = document.getElementById("mi-mobile");
-      if (mobileEl) { mobileEl.textContent = mobile; mobileEl.style.color = "#03162D"; }
-      const mobileEdit = document.getElementById("mi-mobile-edit");
-      if (mobileEdit) mobileEdit.style.display = "none";
-      const mobileAlert = document.getElementById("mobile-missing-alert");
-      if (mobileAlert) mobileAlert.style.display = "none";
-      if (status) { status.textContent = "Phone number saved."; status.style.color = "#16A34A"; status.style.display = "block"; }
-      _toast("Phone number saved. Call Back is now enabled.", "ok");
-      renderActivity(allRequests);
+      _miPendingMobile = mobile;
+      const otpRow = document.getElementById("mi-mobile-otp-row");
+      if (otpRow) otpRow.style.display = "flex";
+      document.getElementById("mi-mobile-otp-input")?.focus();
+      _miStatus(`Code sent to ${mobile}. Enter it below to confirm.`, "#16A34A");
     } else {
-      if (status) { status.textContent = data.error || "Failed to save."; status.style.color = "#DC2626"; status.style.display = "block"; }
+      _miStatus(data.error || "Could not send the code.", "#DC2626");
     }
   } catch {
-    if (status) { status.textContent = "Network error. Try again."; status.style.color = "#DC2626"; status.style.display = "block"; }
+    _miStatus("Network error. Try again.", "#DC2626");
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "Send code"; }
   }
 }
 window.saveMobile = saveMobile;
+
+async function verifyMobileOtp() {
+  const otp = (document.getElementById("mi-mobile-otp-input")?.value || "").trim();
+  const mobile = _miPendingMobile || _miMobileFromInput();
+  if (!mobile) { _miStatus("Enter a valid 10-digit number.", "#DC2626"); return; }
+  if (!/^\d{6}$/.test(otp)) { _miStatus("Enter the 6-digit code.", "#DC2626"); return; }
+
+  try {
+    const res  = await fetch("/api/owner/mobile", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ mobile, otp })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      const saved = data.mobile || mobile;
+      _ownerMobile = saved;
+      _miPendingMobile = null;
+      const mobileEl = document.getElementById("mi-mobile");
+      if (mobileEl) { mobileEl.textContent = saved; mobileEl.style.color = "#03162D"; }
+      const mobileEdit = document.getElementById("mi-mobile-edit");
+      if (mobileEdit) mobileEdit.style.display = "none";
+      const otpRow = document.getElementById("mi-mobile-otp-row");
+      if (otpRow) otpRow.style.display = "none";
+      const mobileAlert = document.getElementById("mobile-missing-alert");
+      if (mobileAlert) mobileAlert.style.display = "none";
+      _miStatus("Phone number verified and saved.", "#16A34A");
+      _toast("Phone number verified. Call Back is now enabled.", "ok");
+      renderActivity(allRequests);
+    } else {
+      _miStatus(data.error || "Invalid code. Try again.", "#DC2626");
+    }
+  } catch {
+    _miStatus("Network error. Try again.", "#DC2626");
+  }
+}
+window.verifyMobileOtp = verifyMobileOtp;
 
 // ── Notice board KPI filter ───────────────────────────────────────
 function applyNbFilter(key) {
@@ -1022,7 +1082,7 @@ function _fillMenu() {
         const activeStyle = i === _selIdx
           ? `background:${c.accent};border-color:${c.accent};color:#fff`
           : "";
-        return `<button class="pt-mchip${i === _selIdx ? " active" : ""}" style="${activeStyle}" onclick="selectV(${i})">${p}</button>`;
+        return `<button class="pt-mchip${i === _selIdx ? " active" : ""}" style="${activeStyle}" onclick="selectV(${i})">${esc(p)}</button>`;
       }).join("");
     } else {
       chips.style.display = "none";
@@ -1289,6 +1349,82 @@ async function signOut() {
   window.location.href = "/owner-login";
 }
 window.signOut = signOut;
+
+async function deleteAccount() {
+  if (!confirm("Permanently delete your account? This removes your account, all vehicles, tags, and history. This cannot be undone.")) return;
+  const password = prompt("Enter your password to confirm account deletion:");
+  if (password === null) return; // cancelled
+  try {
+    const res = await fetch("/api/owner/account", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.ok) {
+      sessionStorage.clear();
+      window.location.href = "/owner-login";
+      return;
+    }
+    _toast(data.error || "Couldn't delete account. Try again.", "err");
+  } catch {
+    _toast("Couldn't delete account. Try again.", "err");
+  }
+}
+window.deleteAccount = deleteAccount;
+
+var _ordersLoaded = false;
+var ORDER_STATUS_LABELS = {
+  processing: "Preparing to ship",
+  cod_confirmed: "Confirmed · Cash on delivery",
+  booking_failed: "Couldn't book courier yet — we'll retry",
+  booked: "Booked with courier"
+};
+
+function humanizeOrderStatus(status) {
+  if (ORDER_STATUS_LABELS[status]) return ORDER_STATUS_LABELS[status];
+  // Anything else is a raw Delhivery status string (e.g. "Manifested",
+  // "In Transit", "Delivered") — show it as-is, lightly formatted.
+  return String(status || "Processing").replace(/_/g, " ");
+}
+
+async function loadOrdersOnce() {
+  if (_ordersLoaded) return;
+  _ordersLoaded = true;
+  var el = document.getElementById("ordersList");
+  if (!el) return;
+  try {
+    var res = await fetch("/api/owner/orders");
+    if (!res.ok) throw new Error();
+    var data = await res.json();
+    var orders = (data && data.orders) || [];
+    if (!orders.length) {
+      el.innerHTML = '<p class="pt-snote">No orders yet.</p>';
+      return;
+    }
+    el.innerHTML = orders.map(function (o) {
+      var amount = typeof o.amount === "number" ? "₹" + (o.amount / 100).toFixed(0) : "";
+      if (amount && o.paymentMethod === "cod") amount += " · COD";
+      var date = o.orderedAt ? new Date(o.orderedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "";
+      return '<div class="pt-irow" style="flex-direction:column;align-items:flex-start;gap:2px;padding:10px 0">' +
+        '<div style="display:flex;justify-content:space-between;width:100%">' +
+        '<span style="font-weight:700;color:#0e1220">' + esc(o.productName || "ParkTag order") + '</span>' +
+        '<span style="color:#6b7280;font-size:.78rem">' + esc(amount) + '</span>' +
+        '</div>' +
+        '<span style="font-size:.78rem;color:#374151">' + esc(humanizeOrderStatus(o.shippingStatus)) + '</span>' +
+        (o.orderNumber ? '<span style="font-size:.72rem;color:#9ca3af">Order ' + esc(o.orderNumber) + '</span>' : '') +
+        (o.trackingUrl
+          ? '<a href="' + esc(o.trackingUrl) + '" target="_blank" rel="noopener" style="font-size:.74rem;color:#FF2700;font-weight:700;text-decoration:none">Track order →</a>'
+          : (o.waybill ? '<span style="font-size:.72rem;color:#9ca3af">Waybill: ' + esc(o.waybill) + '</span>' : '')) +
+        (date ? '<span style="font-size:.7rem;color:#9ca3af">Ordered ' + esc(date) + '</span>' : '') +
+        '</div>';
+    }).join("");
+  } catch {
+    _ordersLoaded = false; // allow retry on next open
+    el.innerHTML = '<p class="pt-snote">Couldn\'t load orders. Try again later.</p>';
+  }
+}
+window.loadOrdersOnce = loadOrdersOnce;
 
 function _toast(msg, tone) {
   const existing = document.getElementById("pt-toast");

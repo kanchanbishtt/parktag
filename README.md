@@ -210,53 +210,15 @@ npm install
 Then create a root `.env` (see the next section), and run `npm start`.
 
 ---
-<!-- 
+
 ## Environment variables
 
-Create a `.env` at the repo root. Everything is read in one place — `src/backend/lib/env.js`.
+Create a `.env` at the repo root (never commit it — it's gitignored). Copy `.env.example`
+as a starting point; it lists every variable the app reads, with placeholder values only.
+Everything is loaded in one place — `src/backend/lib/env.js`.
 
-```env
-# ── Core ─────────────────────────────────────────────
-PORT=3000
-APP_ENV=dev                       # dev | production
-APP_BASE_URL=http://localhost:3000
-MONGODB_URI=mongodb://127.0.0.1:27017
-MONGODB_DB_NAME=parktag
-MONGODB_COLLECTION_PREFIX=dev_    # dev_ locally; set prod_ (or empty) in production
-
-# ── Calls: Exotel ────────────────────────────────────
-EXOTEL_API_BASE_URL=https://api.in.exotel.com
-EXOTEL_ACCOUNT_SID=
-EXOTEL_API_KEY=
-EXOTEL_API_TOKEN=
-EXOTEL_CALLER_ID=                 # the virtual ExoPhone number
-EXOTEL_STATUS_CALLBACK_URL=https://<public-host>/api/provider/exotel/webhook
-
-# ── Messaging: Meta WhatsApp Cloud API ───────────────
-META_WHATSAPP_PHONE_NUMBER_ID=
-META_WHATSAPP_ACCESS_TOKEN=
-WHATSAPP_BUSINESS_ACCOUNT_ID=
-WHATSAPP_WEBHOOK_VERIFY_TOKEN=   # any random string; must match the value set in Meta
-
-# ── Payments: Razorpay ───────────────────────────────
-RAZORPAY_KEY_ID=
-RAZORPAY_KEY_SECRET=
-
-# ── Auth: Google OAuth ───────────────────────────────
-GOOGLE_CLIENT_ID=
-GOOGLE_CLIENT_SECRET=
-GOOGLE_CALLBACK_URL=http://127.0.0.1:3000/api/auth/google/callback
-
-# ── Email / OTP (SMTP) ───────────────────────────────
-EMAIL_SMTP_HOST=
-EMAIL_SMTP_PORT=587
-EMAIL_SMTP_USER=
-EMAIL_SMTP_PASS=
-EMAIL_FROM=noreply@parktag.me
-
-# ── Misc ─────────────────────────────────────────────
-SUPER_ADMIN_BOOTSTRAP_KEY=        # one-time admin bootstrap (legacy)
-```
+The `landing/` Next.js app has its own `landing/.env.example` — only variables prefixed
+`NEXT_PUBLIC_` there are safe to use, since Next.js bundles those into client-side JS.
 
 > **Keep host/port consistent.** If you change `PORT`, update `APP_BASE_URL` and
 > `GOOGLE_CALLBACK_URL` to match — Google OAuth requires the callback URL to be
@@ -265,7 +227,19 @@ SUPER_ADMIN_BOOTSTRAP_KEY=        # one-time admin bootstrap (legacy)
 Only `MONGODB_URI` is truly required to boot. Provider blocks are optional; missing creds
 make just that feature unavailable.
 
---- -->
+> **Security note — rotate if you had cloned this repo before 2026-07-25:** `test.js` at
+> the repo root previously contained a hardcoded, live-looking Exotel `apiKey`/`apiToken`/
+> `accountSid` committed directly to git (added in commit `97caa7e`). It has since been
+> rewritten to read `EXOTEL_API_KEY` / `EXOTEL_API_TOKEN` / `EXOTEL_ACCOUNT_SID` from the
+> environment instead. If those credentials were real, rotate them in the Exotel dashboard
+> immediately — anyone with read access to git history can still see the old values.
+> Separately, an unrelated Firebase Web API key was hardcoded in earlier commits before
+> Firebase phone auth was removed (commit `295dc74`); it's no longer used anywhere in the
+> current codebase. Firebase web API keys aren't meant to be secret, but if this project
+> ID is still in use, double-check its key restrictions and Firebase Auth domain allow-list
+> in the Firebase console.
+
+---
 
 ## Dev vs production collections
 

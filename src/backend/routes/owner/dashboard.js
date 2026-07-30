@@ -1,9 +1,12 @@
-import { requireSession, toObjectId } from "../../lib/auth/auth.js";
-import { createPasswordHash } from "../../lib/auth/security.js";
+import { requireSession, toObjectId, tryObjectId } from "../../lib/auth/auth.js";
+import { createPasswordHash, verifyPassword, isNonEmptyString } from "../../lib/auth/security.js";
+import { clearSession } from "../../lib/auth/session.js";
+import { sendOtp, verifyOtp, isMobileIdentifier, normalizeIdentifier } from "../../lib/auth/otp.js";
 import { getCollections, ensurePendingCallsIndexes } from "../../lib/db/repositories.js";
 import { createQrDataUrl, createPrintQrDataUrl } from "../../lib/core/qr-output.js";
 import { createEtagForVehicle, buildTagScanUrl, VEHICLE_LABELS, etagIdFor } from "../../lib/core/tag-issuance.js";
 import { validateAddress } from "../../lib/core/address.js";
+import { checkPincodeServiceability, trackShipment, trackingUrl } from "../../lib/integrations/delhivery.js";
 
 // Strip an address DB doc down to the shippable fields (no _id/ownerId/timestamps).
 function shapeAddress(doc) {
@@ -105,25 +108,71 @@ export function registerOwnerRoutes(app, env) {
     };
   });
 
+  // Send an OTP to the number the owner wants to save as their callback mobile.
+  // The number becomes the phone the masked-call feature dials, so it must be
+  // proven with an OTP before it can be stored — otherwise an owner could point
+  // it at a victim's number and make the system call them (harassment), or save
+  // unvalidated junk. Same gate the COD flow uses (codVerifiedPhone).
+  app.post(
+    "/api/owner/mobile/send-otp",
+    { config: { rateLimit: { max: 5, timeWindow: "5 minutes" } } },
+    async (request, reply) => {
+      const blocked = await requireSession(app, "owner")(request, reply);
+      if (blocked) return blocked;
+
+      const { mobile } = request.body || {};
+      if (!mobile || !isMobileIdentifier(mobile)) {
+        reply.code(400);
+        return { ok: false, error: "Enter a valid mobile number." };
+      }
+
+      const collections = await getCollections(env);
+      if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
+
+      try {
+        await sendOtp(env, mobile);
+        return { ok: true, phoneHint: "••••" + String(normalizeIdentifier(mobile)).slice(-4) };
+      } catch (err) {
+        request.log.error({ err }, "owner mobile OTP send failed");
+        reply.code(500);
+        return { ok: false, error: "Could not send the verification code. Please try again." };
+      }
+    }
+  );
+
   app.post("/api/owner/mobile", async (request, reply) => {
     const blocked = await requireSession(app, "owner")(request, reply);
     if (blocked) return blocked;
 
-    const { mobile } = request.body || {};
-    if (!mobile) {
+    const { mobile, otp } = request.body || {};
+    if (!mobile || !isMobileIdentifier(mobile)) {
       reply.code(400);
-      return { ok: false, error: "Mobile is required." };
+      return { ok: false, error: "Enter a valid mobile number." };
+    }
+    // No code supplied yet → tell the client to run the OTP step (not an error).
+    if (!otp) {
+      return { ok: false, needsOtp: true };
     }
 
     const collections = await getCollections(env);
     if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
 
+    // Prove control of the number before saving it. verifyOtp throws a
+    // client-safe message on a bad/expired/rate-limited code.
+    try {
+      await verifyOtp(env, mobile, String(otp));
+    } catch (err) {
+      reply.code(400);
+      return { ok: false, error: err && err.message ? err.message : "Invalid verification code." };
+    }
+
+    const normalized = normalizeIdentifier(mobile);
     const ownerId = toObjectId(request.session.userId);
     await collections.owners.updateOne(
       { _id: ownerId },
-      { $set: { mobile } }
+      { $set: { mobile: normalized, mobileVerified: true } }
     );
-    return { ok: true };
+    return { ok: true, mobile: normalized };
   });
 
   // Generate (or fetch existing) a real, scannable E-Tag for a vehicle.
@@ -232,6 +281,14 @@ export function registerOwnerRoutes(app, env) {
     const result = validateAddress(request.body);
     if (!result.ok) { reply.code(400); return { ok: false, error: result.error }; }
 
+    // Fail OPEN on a Delhivery outage (serviceable === null) — only an
+    // explicit "not serviceable" answer blocks saving the address.
+    const { serviceable } = await checkPincodeServiceability(env, result.address.pincode);
+    if (serviceable === false) {
+      reply.code(400);
+      return { ok: false, error: `Sorry, we can't currently deliver to PIN code ${result.address.pincode}.` };
+    }
+
     const ownerId = toObjectId(request.session.userId);
     const now = new Date().toISOString();
     await collections.addresses.updateOne(
@@ -241,6 +298,52 @@ export function registerOwnerRoutes(app, env) {
     );
 
     return { ok: true, address: result.address };
+  });
+
+  // Shop orders for this owner — both prepaid ("paid") and Cash-on-Delivery
+  // ("cod"), so a COD buyer can see and track the order they just placed.
+  // Best-effort live tracking status for any order that already has a Delhivery
+  // waybill. Tracking lookups run in parallel and never throw (see
+  // trackShipment) — a Delhivery hiccup shows "status unavailable" for that
+  // order, not a broken endpoint.
+  app.get("/api/owner/orders", async (request, reply) => {
+    const blocked = await requireSession(app, "owner")(request, reply);
+    if (blocked) return blocked;
+
+    const collections = await getCollections(env);
+    if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
+
+    const ownerId = toObjectId(request.session.userId);
+    const orders = await collections.shopOrders
+      .find({ ownerId, status: { $in: ["paid", "cod"] } })
+      .sort({ createdAt: -1 })
+      .limit(20)
+      .toArray();
+
+    const withTracking = await Promise.all(orders.map(async (order) => {
+      const tracking = order.waybill ? await trackShipment(env, order.waybill) : null;
+      const isCod = order.status === "cod";
+      return {
+        id: String(order._id),
+        orderNumber: order.orderNumber || null,
+        productName: order.productName,
+        amount: order.amount,
+        currency: order.currency,
+        paymentMethod: isCod ? "cod" : "paid",
+        // COD orders have no paidAt — fall back to when the order was placed.
+        orderedAt: order.paidAt || order.createdAt || null,
+        waybill: order.waybill || null,
+        trackingUrl: order.waybill ? trackingUrl(order.waybill) : null,
+        shippingStatus: order.shipmentError
+          ? "booking_failed"
+          : order.waybill
+            ? (tracking?.status || "booked")
+            : (isCod ? "cod_confirmed" : "processing"),
+        trackingInstructions: tracking?.instructions || null
+      };
+    }));
+
+    return { ok: true, orders: withTracking };
   });
 
   // The old in-place ₹199 premium-upgrade endpoints (purchase-order /
@@ -254,7 +357,8 @@ export function registerOwnerRoutes(app, env) {
 
     const collections = await getCollections(env);
     const ownerId = toObjectId(request.session.userId);
-    const tagId = toObjectId(request.params.tagId);
+    const tagId = tryObjectId(request.params.tagId);
+    if (!tagId) { reply.code(400); return { ok: false, error: "Invalid tag id" }; }
 
     const result = await collections.tags.findOneAndUpdate(
       { _id: tagId, ownerId },
@@ -289,7 +393,8 @@ export function registerOwnerRoutes(app, env) {
 
     const collections = await getCollections(env);
     const ownerId = toObjectId(request.session.userId);
-    const tagId = toObjectId(request.params.tagId);
+    const tagId = tryObjectId(request.params.tagId);
+    if (!tagId) { reply.code(400); return { ok: false, error: "Invalid tag id" }; }
 
     const result = await collections.tags.findOneAndUpdate(
       {
@@ -329,7 +434,8 @@ export function registerOwnerRoutes(app, env) {
 
     const collections = await getCollections(env);
     const ownerId = toObjectId(request.session.userId);
-    const tagId = toObjectId(request.params.tagId);
+    const tagId = tryObjectId(request.params.tagId);
+    if (!tagId) { reply.code(400); return { ok: false, error: "Invalid tag id" }; }
 
     const result = await collections.tags.findOneAndUpdate(
       { _id: tagId, ownerId, deletedAt: { $in: [null, undefined] } },
@@ -363,6 +469,57 @@ export function registerOwnerRoutes(app, env) {
     );
     return { ok: true };
   });
+
+  // Permanently delete the owner's account and every record tied to it.
+  // Accounts with a password must re-enter it first — this is the most
+  // destructive action in the app, so a hijacked/stale session cookie alone
+  // isn't enough. Social/OTP-only accounts (Google, Firebase phone auth) have
+  // no passwordHash to check, so those fall back to session auth alone,
+  // consistent with how the rest of the app treats those accounts.
+  app.delete(
+    "/api/owner/account",
+    { config: { rateLimit: { max: 5, timeWindow: "1 minute" } } },
+    async (request, reply) => {
+      const blocked = await requireSession(app, "owner")(request, reply);
+      if (blocked) return blocked;
+
+      const collections = await getCollections(env);
+      if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
+
+      const ownerId = toObjectId(request.session.userId);
+      const owner = await collections.owners.findOne({ _id: ownerId });
+      if (!owner) {
+        reply.code(404);
+        return { ok: false, error: "Account not found." };
+      }
+
+      if (owner.passwordHash) {
+        const { password } = request.body || {};
+        if (!isNonEmptyString(password)) {
+          reply.code(400);
+          return { ok: false, error: "Password is required." };
+        }
+
+        const { valid } = await verifyPassword(password, owner.passwordHash);
+        if (!valid) {
+          reply.code(401);
+          return { ok: false, error: "Incorrect password." };
+        }
+      }
+
+      await Promise.all([
+        collections.tags.deleteMany({ ownerId }),
+        collections.contactRequests.deleteMany({ ownerId }),
+        collections.shopOrders.deleteMany({ ownerId }),
+        collections.addresses.deleteMany({ ownerId }),
+        collections.pendingCalls.deleteMany({ ownerId })
+      ]);
+      await collections.owners.deleteOne({ _id: ownerId });
+
+      clearSession(app, request, reply);
+      return { ok: true };
+    }
+  );
 
   // Owner calls back the most recent scanner who contacted them within 60 minutes.
   // No phone input — owner's phone comes from their profile (owner.mobile).

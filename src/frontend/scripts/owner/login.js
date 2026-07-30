@@ -1,5 +1,14 @@
+import { getCaptchaToken } from "../recaptcha.js";
 
 let _currentPhone = null;
+
+// HTML-escape any value before interpolating it into innerHTML. tag.plateNumber
+// / tag.vehicleLabel are owner-supplied free text with no character allowlist
+// on the backend, so an unescaped value would execute as HTML/script here.
+function esc(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
 
 function normalizePhoneE164(raw) {
   const digits = raw.replace(/[^\d+]/g, "");
@@ -13,10 +22,11 @@ async function sendWhatsappOtp(raw) {
   const phone = normalizePhoneE164(raw);
   _currentPhone = phone;
 
+  const recaptchaToken = await getCaptchaToken("send_otp");
   await fetchJson("/api/auth/send-otp", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ identifier: phone })
+    body: JSON.stringify({ identifier: phone, recaptchaToken })
   });
 
   byId("phone-step2").style.display = "";
@@ -100,7 +110,7 @@ function renderDashboard(data) {
         <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--pt-border)">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="2" y="8" width="20" height="10" rx="2" stroke="currentColor" stroke-width="2"/><path d="M5 8l2-4h10l2 4" stroke="currentColor" stroke-width="2"/><circle cx="7" cy="18" r="1.5" fill="currentColor"/><circle cx="17" cy="18" r="1.5" fill="currentColor"/></svg>
           <span style="font-weight:600">Plate Number</span>
-          <span style="margin-left:auto;font-weight:800;letter-spacing:0.06em">${tag.plateNumber || "—"}</span>
+          <span style="margin-left:auto;font-weight:800;letter-spacing:0.06em">${esc(tag.plateNumber || "—")}</span>
         </div>
         <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--pt-border)">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="14" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="3" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><path d="M14 14h2v2h-2zM18 14h3M14 18v3M18 18h3v3h-3z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
@@ -110,7 +120,7 @@ function renderDashboard(data) {
         <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--pt-border)">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="2"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
           <span style="font-weight:600">Vehicle Nickname</span>
-          <span style="margin-left:auto;font-weight:700">${tag.vehicleLabel || "—"}</span>
+          <span style="margin-left:auto;font-weight:700">${esc(tag.vehicleLabel || "—")}</span>
         </div>
         <div style="display:flex;align-items:center;gap:10px;padding:8px 0">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M12 7v5l3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
@@ -136,7 +146,7 @@ function renderDashboard(data) {
   const controls = byId("owner-tag-controls");
   if (select && tags.length > 0) {
     select.innerHTML = tags.map(t =>
-      `<option value="${t.id}">${t.vehicleLabel || "Vehicle"} · ${t.status}</option>`
+      `<option value="${t.id}">${esc(t.vehicleLabel || "Vehicle")} · ${esc(t.status)}</option>`
     ).join("");
     if (controls) controls.hidden = false;
   }
@@ -175,7 +185,7 @@ function renderDashboard(data) {
               <span style="font-weight:700;font-size:0.9rem">${channel} request</span>
               <span style="font-size:0.75rem;color:var(--pt-sub)">${new Date(r.createdAt).toLocaleDateString()}</span>
             </div>
-            ${r.message ? `<p style="font-size:0.85rem;color:var(--pt-sub);margin:0">"${r.message}"</p>` : ""}
+            ${r.message ? `<p style="font-size:0.85rem;color:var(--pt-sub);margin:0">"${esc(r.message)}"</p>` : ""}
             <span style="font-size:0.75rem;color:var(--pt-sub)">Status: ${r.status}</span>
             ${callBackBtn}
           </div>`;
@@ -309,10 +319,11 @@ async function loginOwner() {
   }
 
   try {
+    const recaptchaToken = await getCaptchaToken("send_otp");
     await fetchJson("/api/auth/send-otp", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ identifier: raw })
+      body: JSON.stringify({ identifier: raw, recaptchaToken })
     });
     sessionStorage.setItem("pt_otp_identifier", raw);
     window.location.href = "/owner-verify";
@@ -327,10 +338,11 @@ async function resendWhatsappOtp() {
   const btn = byId("phone-resend-btn");
   if (btn) { btn.disabled = true; btn.classList.add("pt-btn-loading"); }
   try {
+    const recaptchaToken = await getCaptchaToken("send_otp");
     await fetchJson("/api/auth/send-otp", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ identifier: _currentPhone })
+      body: JSON.stringify({ identifier: _currentPhone, recaptchaToken })
     });
     setStatus("A new code has been sent to your WhatsApp.", "success");
   } catch (error) {
@@ -433,6 +445,7 @@ if (urlError && hasEl("owner-auth-status")) {
     google_cancelled: "Google sign-in was cancelled.",
     auth_failed: "Google sign-in failed. Please try again.",
     no_email: "Google account has no email address.",
+    email_unverified: "Your Google email isn't verified. Verify it with Google, then try again.",
     no_account: "No ParkTag account found for this Google account. Please register first.",
     invalid_state: "Security check failed (state mismatch). Please try again.",
     token_exchange_failed: "Failed to exchange token with Google. Please try again.",

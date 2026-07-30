@@ -8,6 +8,12 @@ function esc(s) {
   return String(s == null ? "" : s).replace(/[&<>"]/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 }
+// Only allow http(s) links in an href. esc() neutralises markup but NOT the URL
+// scheme, so a `javascript:`/`data:` recordingUrl would still execute on click.
+function safeUrl(u) {
+  const s = String(u == null ? "" : u).trim();
+  return /^https?:\/\//i.test(s) ? s : "";
+}
 function fmtDate(s) {
   if (!s) return "—";
   try { return new Date(s).toLocaleString(); } catch { return s; }
@@ -121,10 +127,11 @@ async function openLogs(id) {
     const kind = l.action === "message" ? `WhatsApp${l.reason ? " · " + esc(l.reason) : ""}` : "Call";
     const dur = l.callDuration != null ? ` · ${l.callDuration}s` : "";
     const result = l.callResult ? ` · ${esc(l.callResult)}` : "";
+    const rec = safeUrl(l.recordingUrl);
     return `<div class="log">
       <b>${kind}</b> · ${esc(l.status)}${dur}${result}<br>
       <span class="muted">${fmtDate(l.createdAt)}${l.ipAddress ? " · IP " + esc(l.ipAddress) : ""}</span>
-      ${l.recordingUrl ? `<br><a href="${esc(l.recordingUrl)}" target="_blank" rel="noopener">Recording</a>` : ""}
+      ${rec ? `<br><a href="${esc(rec)}" target="_blank" rel="noopener">Recording</a>` : ""}
     </div>`;
   }).join("");
 }

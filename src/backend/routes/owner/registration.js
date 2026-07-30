@@ -1,6 +1,6 @@
 import { ObjectId } from "mongodb";
 
-import { createPasswordHash } from "../../lib/auth/security.js";
+import { createPasswordHash, isNonEmptyString } from "../../lib/auth/security.js";
 import { getCollections } from "../../lib/db/repositories.js";
 import {
   buildIssuedTagOutput,
@@ -8,7 +8,7 @@ import {
 } from "../../lib/core/tag-issuance.js";
 
 export function registerRegistrationRoutes(app, env) {
-  app.post("/api/register-owner", async (request, reply) => {
+  app.post("/api/register-owner", { config: { rateLimit: { max: 5, timeWindow: "1 minute" } } }, async (request, reply) => {
     const collections = await getCollections(env);
 
     if (!collections) {
@@ -29,7 +29,13 @@ export function registerRegistrationRoutes(app, env) {
       stickerRequested
     } = request.body || {};
 
-    if (!displayName || !email || !password || !phone || !plateNumber) {
+    if (
+      !isNonEmptyString(displayName) ||
+      !isNonEmptyString(email) ||
+      !isNonEmptyString(password) ||
+      !isNonEmptyString(phone) ||
+      !isNonEmptyString(plateNumber)
+    ) {
       reply.code(400);
       return {
         ok: false,
@@ -38,13 +44,36 @@ export function registerRegistrationRoutes(app, env) {
       };
     }
 
-    const existingOwner = await collections.owners.findOne({ email });
-
-    if (existingOwner) {
+    // Match the password-reset flow's minimum so a weak password can't be set
+    // at registration but blocked on reset.
+    if (password.length < 8) {
       reply.code(400);
       return {
         ok: false,
-        error: "Owner email already exists"
+        error: "Password must be at least 8 characters"
+      };
+    }
+
+    // Hash the password BEFORE the existence check so a duplicate email and a
+    // fresh one take about the same time (bcrypt dominates the request). Doing
+    // the check first would let a duplicate return early and measurably faster,
+    // re-enabling account enumeration by timing despite the generic message.
+    const passwordHash = await createPasswordHash(password);
+
+    // `email` is used as a raw Mongo filter value just below — reject non-string
+    // input above so a crafted body can't be interpreted as a query operator.
+    const existingOwner = await collections.owners.findOne({ email });
+
+    if (existingOwner) {
+      // Don't confirm the email is already registered — an explicit "email
+      // already exists" turns this into an account-enumeration oracle. Return a
+      // generic message (the forgot-password flow is likewise non-committal),
+      // backed by the 5/min rate limit on this route.
+      reply.code(400);
+      return {
+        ok: false,
+        error:
+          "We couldn't complete your registration. If you already have an account, please sign in or reset your password."
       };
     }
 
@@ -52,7 +81,7 @@ export function registerRegistrationRoutes(app, env) {
     const owner = {
       _id: ownerId,
       email,
-      passwordHash: await createPasswordHash(password),
+      passwordHash,
       displayName,
       phone,
       credits: 0,

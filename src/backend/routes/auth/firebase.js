@@ -109,11 +109,12 @@ export function registerFirebasePhoneAuthRoute(app, env) {
         email: owner.email || owner.mobile || phoneE164,
         displayName: owner.displayName
       });
-      writeSessionCookie(reply, sessionId);
+      writeSessionCookie(reply, sessionId, env.runtimeMode === "production");
       return { ok: true, isNew };
     } catch (err) {
+      request.log.error({ err }, "Firebase token verification failed");
       reply.code(400);
-      return { ok: false, error: err.message };
+      return { ok: false, error: "Invalid or expired token. Please try again." };
     }
   });
 
@@ -154,8 +155,9 @@ export function registerFirebasePhoneAuthRoute(app, env) {
       });
       return { ok: true, sessionInfo: data.sessionInfo };
     } catch (err) {
+      request.log.error({ err }, "Firebase send-code failed");
       reply.code(400);
-      return { ok: false, error: err.message };
+      return { ok: false, error: "Could not send verification code. Please check the number and try again." };
     }
   });
 
@@ -202,12 +204,13 @@ export function registerFirebasePhoneAuthRoute(app, env) {
         email: owner.email || owner.mobile || phoneE164,
         displayName: owner.displayName
       });
-      writeSessionCookie(reply, sessionId);
+      writeSessionCookie(reply, sessionId, env.runtimeMode === "production");
 
       return { ok: true, isNew };
     } catch (err) {
+      request.log.error({ err }, "Firebase verify-code failed");
       reply.code(400);
-      return { ok: false, error: err.message };
+      return { ok: false, error: "Invalid or expired code. Please try again." };
     }
   });
 }

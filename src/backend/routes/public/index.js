@@ -1,7 +1,7 @@
 import { ObjectId } from "mongodb";
 
 import { createContactAction } from "../../lib/core/contact-actions.js";
-import { createPasswordHash, createSecureToken, safeEqual, hashIp, minutesFromNow, getClientIp, maskPlateNumber, getPlateLastFour } from "../../lib/auth/security.js";
+import { createPasswordHash, createSecureToken, safeEqual, hashIp, minutesFromNow, getClientIp, maskPlateNumber, getPlateLastFour, isNonEmptyString } from "../../lib/auth/security.js";
 import { getCollections, ensureVerificationIndexes, ensurePendingCallsIndexes } from "../../lib/db/repositories.js";
 import { VEHICLE_LABELS } from "../../lib/core/tag-issuance.js";
 
@@ -181,7 +181,11 @@ export function registerPublicRoutes(app, env) {
     };
   });
 
-  app.post("/api/tags/:token/claim", async (request, reply) => {
+  // Unauthenticated and creates a new owner account (bcrypt hash + insert) on
+  // every call, same abuse shape as /api/register-owner — rate-limit it the
+  // same way so it can't be used to flood the DB with accounts or to burn
+  // CPU on repeated bcrypt hashing.
+  app.post("/api/tags/:token/claim", { config: { rateLimit: { max: 5, timeWindow: "1 minute" } } }, async (request, reply) => {
     const collections = await getCollections(env);
 
     if (!collections) {
@@ -195,7 +199,13 @@ export function registerPublicRoutes(app, env) {
     const { email, password, displayName, phone, vehicleLabel, plateNumber } =
       request.body || {};
 
-    if (!email || !password || !displayName || !phone || !plateNumber) {
+    if (
+      !isNonEmptyString(email) ||
+      !isNonEmptyString(password) ||
+      !isNonEmptyString(displayName) ||
+      !isNonEmptyString(phone) ||
+      !isNonEmptyString(plateNumber)
+    ) {
       reply.code(400);
       return {
         ok: false,
@@ -286,14 +296,20 @@ export function registerPublicRoutes(app, env) {
     const { token, phone, action, messageChannel, reason, grant } = request.body || {};
     const resolvedAction = action || "call";
 
-    if (!token) {
+    // `token` and `grant` are used as raw Mongo filter values below
+    // (`findOne({ token, grantId: grant, ... })` / `findOne({ token })`).
+    // They must be plain strings — otherwise a crafted body such as
+    // `{ "token": { "$ne": null } }` would be interpreted by Mongo as a query
+    // operator instead of a literal match, letting a request match an
+    // arbitrary tag/session instead of the one the caller actually verified.
+    if (!isNonEmptyString(token)) {
       reply.code(400);
       return { ok: false, error: "token is required" };
     }
 
     // A call needs the scanner's number (to masked-call them). A WhatsApp
     // notification goes to the owner, so the scanner's number is not required.
-    if (resolvedAction === "call" && !phone) {
+    if (resolvedAction === "call" && !isNonEmptyString(phone)) {
       reply.code(400);
       return { ok: false, error: "phone is required for a call" };
     }
@@ -301,7 +317,7 @@ export function registerPublicRoutes(app, env) {
     // Enforce verification server-side: a valid, unexpired grant is mandatory.
     // The grant is only issued by /verify after the correct last-4 was entered,
     // so the contact flow cannot be triggered by calling this API directly.
-    if (!grant) {
+    if (!isNonEmptyString(grant)) {
       reply.code(403);
       return { ok: false, error: "Verify the vehicle before contacting the owner." };
     }
@@ -362,9 +378,15 @@ export function registerPublicRoutes(app, env) {
     }
 
     try {
+      // Normalize to digits-only E.164 before persisting — this is a free-text
+      // body field on a public, unauthenticated endpoint, and the raw value
+      // used to be stored verbatim (only later fixed on the *output* side with
+      // HTML-escaping in the admin dashboard). Constraining the input format
+      // here removes the underlying bad data at the source too.
+      const normalizedPhone = isNonEmptyString(phone) ? toE164(phone) : null;
       return await createContactAction(env, {
         token,
-        phone: phone || null,
+        phone: normalizedPhone,
         action: resolvedAction,
         messageChannel: resolvedAction === "message" ? (messageChannel || "whatsapp") : null,
         reason: reason || null,
@@ -372,10 +394,16 @@ export function registerPublicRoutes(app, env) {
         userAgent: request.headers["user-agent"] || null
       });
     } catch (error) {
+      // Public, unauthenticated endpoint — never echo raw error.message here.
+      // Known validation failures (bad token, missing owner, provider errors)
+      // already use short, deliberately-safe strings, but this catch also
+      // covers unexpected exceptions (DB, network), so default to a generic
+      // message and keep the real detail server-side only.
+      request.log.error({ err: error }, "Contact action failed");
       reply.code(400);
       return {
         ok: false,
-        error: error instanceof Error ? error.message : "Contact action failed"
+        error: "Could not complete this request. Please try again."
       };
     }
   });
@@ -386,11 +414,12 @@ export function registerPublicRoutes(app, env) {
   app.post("/api/tags/:token/register-call", { config: { rateLimit: { max: 5, timeWindow: "1 minute" } } }, async (request, reply) => {
     const { phone, grant } = request.body || {};
 
-    if (!phone) {
+    if (!isNonEmptyString(phone)) {
       reply.code(400);
       return { ok: false, error: "phone is required" };
     }
-    if (!grant) {
+    // `grant` is used as a raw Mongo filter value below — must be a string.
+    if (!isNonEmptyString(grant)) {
       reply.code(403);
       return { ok: false, error: "Verify the vehicle before contacting the owner." };
     }

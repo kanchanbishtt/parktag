@@ -4,10 +4,21 @@ import { getCollections } from "../db/repositories.js";
 import { sendOtpEmail } from "../integrations/email.js";
 import { isMetaWhatsappConfigured, sendMetaWhatsappOtp } from "../integrations/meta.js";
 import { clientError } from "../errors.js";
+import { maskIdentifier, redactText, safeEqual } from "./security.js";
 
 const OTP_EXPIRY_MS = 10 * 60 * 1000;
 const RATE_LIMIT_MS = 2 * 60 * 1000;
 const MAX_VERIFY_ATTEMPTS = 5;
+// Hard cap on how many codes a single destination (phone/email) can be sent in a
+// rolling window, regardless of source IP. The per-route @fastify/rate-limit
+// configs are keyed on the caller's IP, so an attacker rotating IPs could still
+// bomb one victim's phone with SMS/WhatsApp (harassment + real per-message cost).
+// This cap is enforced in the DB against the destination itself, so it holds no
+// matter how many IPs the requests come from. Sits above the 2-min reuse
+// throttle below: legit resends within 2 min reuse the existing code and never
+// reach this counter, so a normal login/verify flow stays well under the cap.
+const MAX_SENDS_PER_WINDOW = 5;
+const SEND_WINDOW_MS = 60 * 60 * 1000;
 
 function generateOtp() {
   return String(crypto.randomInt(100000, 1000000));
@@ -48,6 +59,21 @@ export async function sendOtp(env, identifier) {
 
   if (recent) return { ok: true };
 
+  // Per-destination flood cap (see MAX_SENDS_PER_WINDOW). Count actual sends —
+  // each real send inserts exactly one token, and reuse hits above return before
+  // inserting — so this equals the number of messages dispatched to this
+  // destination in the window, across every IP.
+  const windowStart = new Date(Date.now() - SEND_WINDOW_MS).toISOString();
+  const sentInWindow = await collections.otpTokens.countDocuments({
+    identifier: normalized,
+    createdAt: { $gt: windowStart }
+  });
+  if (sentInWindow >= MAX_SENDS_PER_WINDOW) {
+    throw clientError(
+      "Too many verification codes requested. Please wait a while before trying again."
+    );
+  }
+
   const code = generateOtp();
   const now = new Date();
 
@@ -70,13 +96,15 @@ export async function sendOtp(env, identifier) {
         throw clientError("Could not send WhatsApp OTP. Please try again.");
       }
     } else if (env.runtimeMode !== "production") {
-      console.log(`\n[ParkTag] OTP for ${normalized}: ${code}\n`);
+      // Dev-only fallback so the flow is testable without WhatsApp configured.
+      // Identifier is masked — only the OTP itself needs to be readable here.
+      console.log(`\n[ParkTag] Dev OTP for ${maskIdentifier(normalized)}: ${code}\n`);
     } else {
       throw clientError("WhatsApp OTP is not configured on this server.");
     }
   } else {
     sendOtpEmail(env, { to: normalized, code })
-      .catch(err => console.error("[OTP] Email send failed:", err));
+      .catch(err => console.error("[OTP] Email send failed:", redactText(err?.message || String(err))));
   }
 
   return { ok: true };
@@ -89,12 +117,16 @@ export async function verifyOtp(env, identifier, code) {
   const normalized = normalizeIdentifier(identifier);
   const isMobile = isMobileIdentifier(identifier);
 
-  // Find the token without the code first so we can count failed attempts
+  // Find the token without the code first so we can count failed attempts.
+  // Always verify against the MOST RECENT unused code: a user who taps "resend"
+  // after the send rate-limit window can hold more than one valid token at once,
+  // and an unsorted findOne returns the oldest — so the freshly-sent code would
+  // be checked against a stale token and wrongly rejected as invalid.
   const record = await collections.otpTokens.findOne({
     identifier: normalized,
     used: false,
     expiresAt: { $gt: new Date().toISOString() }
-  });
+  }, { sort: { createdAt: -1 } });
 
   if (!record) throw clientError("Invalid or expired code. Please try again.");
 
@@ -107,7 +139,9 @@ export async function verifyOtp(env, identifier, code) {
     throw clientError("Too many incorrect attempts. Please request a new code.");
   }
 
-  if (record.code !== code) {
+  // Constant-time compare so the correct code can't be recovered digit-by-digit
+  // by timing responses. safeEqual returns false on any length mismatch too.
+  if (!safeEqual(record.code, code)) {
     await collections.otpTokens.updateOne(
       { _id: record._id },
       { $inc: { attempts: 1 } }

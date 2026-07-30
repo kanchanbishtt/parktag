@@ -24,6 +24,35 @@ async function fetchJson(url, options) {
   return data;
 }
 
+// HTML-escape any value before interpolating it into innerHTML. Most fields
+// rendered on this page (owner displayName/email/phone, contact-request
+// phone/message, vehicle labels, provider error text, ...) originate from
+// unauthenticated or self-service input (owner registration, the public scan
+// page's /api/contact-requests). Without escaping, a malicious value stored
+// in Mongo would execute as script in the admin's authenticated session the
+// next time this dashboard renders it — a stored XSS that could act on the
+// admin's behalf (e.g. call /api/admin/admins to mint a rogue admin account).
+function esc(value) {
+  return String(value == null ? "" : value).replace(/[&<>"']/g, (c) => (
+    { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+  ));
+}
+
+// Safe for a value placed inside a single-quoted JS string within an inline
+// handler attribute, e.g. onclick="fn('${jsAttr(x)}')". esc() is NOT enough
+// there: the browser HTML-decodes the attribute first, so an esc()'d quote
+// (&#39;) becomes a real ' and breaks out of the JS string. Encoding every
+// non-alphanumeric as a \xHH / \uHHHH escape leaves no HTML- or JS-special
+// character intact, so neither layer can be broken out of.
+function jsAttr(value) {
+  return String(value == null ? "" : value).replace(/[^a-zA-Z0-9]/g, (c) => {
+    const code = c.charCodeAt(0);
+    return code < 256
+      ? "\\x" + code.toString(16).padStart(2, "0")
+      : "\\u" + code.toString(16).padStart(4, "0");
+  });
+}
+
 function byId(id) {
   return document.getElementById(id);
 }
@@ -113,14 +142,14 @@ function renderOwners(owners) {
       (owner) => `
         <article class="monitor-card">
           <div>
-            <strong>${owner.displayName}</strong>
-            <p>${owner.email}</p>
+            <strong>${esc(owner.displayName)}</strong>
+            <p>${esc(owner.email)}</p>
           </div>
           <div class="monitor-meta">
-            <span>Credits: ${owner.credits}</span>
-            <span>Tags: ${owner.tags}</span>
-            <span>Active: ${owner.activeTags}</span>
-            ${owner.latestTagToken ? `<span>Latest tag: ${owner.latestTagToken}</span>` : ""}
+            <span>Credits: ${esc(owner.credits)}</span>
+            <span>Tags: ${esc(owner.tags)}</span>
+            <span>Active: ${esc(owner.activeTags)}</span>
+            ${owner.latestTagToken ? `<span>Latest tag: ${esc(owner.latestTagToken)}</span>` : ""}
           </div>
         </article>
       `
@@ -144,12 +173,12 @@ function renderRegistrations(registrations) {
     .map(
       (item) => `
         <article class="queue-row">
-          <strong>${item.displayName}</strong>
-          <span>${item.email}</span>
-          <span>Tags: ${item.tags}</span>
-          <span>Active: ${item.activeTags}</span>
-          ${item.latestTagToken ? `<span>Latest tag: ${item.latestTagToken}</span>` : ""}
-          <span>Created: ${new Date(item.createdAt).toLocaleString()}</span>
+          <strong>${esc(item.displayName)}</strong>
+          <span>${esc(item.email)}</span>
+          <span>Tags: ${esc(item.tags)}</span>
+          <span>Active: ${esc(item.activeTags)}</span>
+          ${item.latestTagToken ? `<span>Latest tag: ${esc(item.latestTagToken)}</span>` : ""}
+          <span>Created: ${esc(new Date(item.createdAt).toLocaleString())}</span>
         </article>
       `
     )
@@ -172,16 +201,16 @@ function renderRequests(requests) {
     .map(
       (item) => `
         <article class="queue-row">
-          <strong>${item.token}</strong>
-          <span>Phone: ${item.phone}</span>
-          <span>Action: ${item.action}${item.messageChannel ? ` (${item.messageChannel})` : ""}</span>
-          <span>Status: ${item.status}</span>
-          ${item.provider ? `<span>Provider: ${item.provider}</span>` : ""}
-          ${item.providerWebhookStatus ? `<span>Provider status: ${item.providerWebhookStatus}</span>` : ""}
-          ${item.providerStatusCode ? `<span>Provider code: ${item.providerStatusCode}</span>` : ""}
-          ${item.providerError ? `<span>Provider error: ${item.providerError}</span>` : ""}
-          ${item.providerErrorDetail ? `<span>Provider detail: ${item.providerErrorDetail}</span>` : ""}
-          <span>Created: ${new Date(item.createdAt).toLocaleString()}</span>
+          <strong>${esc(item.token)}</strong>
+          <span>Phone: ${esc(item.phone)}</span>
+          <span>Action: ${esc(item.action)}${item.messageChannel ? ` (${esc(item.messageChannel)})` : ""}</span>
+          <span>Status: ${esc(item.status)}</span>
+          ${item.provider ? `<span>Provider: ${esc(item.provider)}</span>` : ""}
+          ${item.providerWebhookStatus ? `<span>Provider status: ${esc(item.providerWebhookStatus)}</span>` : ""}
+          ${item.providerStatusCode ? `<span>Provider code: ${esc(item.providerStatusCode)}</span>` : ""}
+          ${item.providerError ? `<span>Provider error: ${esc(item.providerError)}</span>` : ""}
+          ${item.providerErrorDetail ? `<span>Provider detail: ${esc(item.providerErrorDetail)}</span>` : ""}
+          <span>Created: ${esc(new Date(item.createdAt).toLocaleString())}</span>
         </article>
       `
     )
@@ -292,7 +321,7 @@ function renderPrintQueue(data) {
   target.innerHTML = Object.values(batches).map(batch => {
     const batchKey = batch.batchNumber || "__no_batch__";
     const batchTitle = batch.batchNumber
-      ? `Batch ${batch.batchNumber}${batch.batchLabel ? ` · ${batch.batchLabel}` : ""}`
+      ? `Batch ${esc(batch.batchNumber)}${batch.batchLabel ? ` · ${esc(batch.batchLabel)}` : ""}`
       : "No batch assigned";
     const batchIds = batch.tags.map((t) => t.id);
     const batchIdsCsv = batchIds.join(",");
@@ -301,20 +330,20 @@ function renderPrintQueue(data) {
       <div style="margin-bottom:20px">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding:8px 12px;background:#F1F1F0;border-radius:8px;border:1px solid #E5E7EB">
           <label style="display:flex;align-items:center;gap:8px;font-weight:700;font-size:0.9rem;cursor:pointer">
-            <input type="checkbox" class="pq-select-all" data-ids="${batchIdsCsv}" ${allSelected ? "checked" : ""} onchange="togglePqSelectBatch('${batchIdsCsv}', this.checked)" style="width:16px;height:16px;cursor:pointer" />
+            <input type="checkbox" class="pq-select-all" data-ids="${esc(batchIdsCsv)}" ${allSelected ? "checked" : ""} onchange="togglePqSelectBatch('${esc(batchIdsCsv)}', this.checked)" style="width:16px;height:16px;cursor:pointer" />
             ${batchTitle} <span style="font-weight:400;color:#6B7280">(${batch.tags.length} tags)</span>
           </label>
-          ${batch.batchNumber ? `<button class="action small" style="color:#DC2626;background:#FEF2F2;border-color:#FECACA" onclick="deleteBatch('${batch.batchNumber}')">Delete batch</button>` : ""}
+          ${batch.batchNumber ? `<button class="action small" style="color:#DC2626;background:#FEF2F2;border-color:#FECACA" onclick="deleteBatch('${jsAttr(batch.batchNumber)}')">Delete batch</button>` : ""}
         </div>
         ${batch.tags.map(tag => `
           <article class="queue-row">
-            <input type="checkbox" class="pq-select" data-id="${tag.id}" ${_pqSelected.has(tag.id) ? "checked" : ""} onchange="togglePqSelect('${tag.id}', this.checked)" style="width:16px;height:16px;cursor:pointer;flex:0 0 auto" />
-            <strong>${tag.token} ${tag.premium
+            <input type="checkbox" class="pq-select" data-id="${esc(tag.id)}" ${_pqSelected.has(tag.id) ? "checked" : ""} onchange="togglePqSelect('${esc(tag.id)}', this.checked)" style="width:16px;height:16px;cursor:pointer;flex:0 0 auto" />
+            <strong>${esc(tag.token)} ${tag.premium
               ? `<span style="display:inline-block;background:#FF2700;color:#fff;font-size:0.62rem;font-weight:800;letter-spacing:.04em;padding:2px 7px;border-radius:20px;vertical-align:middle;margin-left:4px">PREMIUM</span>`
               : `<span style="display:inline-block;background:#F1F1F0;color:#6B7280;font-size:0.62rem;font-weight:700;letter-spacing:.04em;padding:2px 7px;border-radius:20px;vertical-align:middle;margin-left:4px">FREE</span>`}</strong>
-            <span>Print status: <strong>${tag.printStatus}</strong></span>
-            <a href="${tag.claimUrl}" target="_blank" rel="noreferrer" style="word-break:break-all;font-size:0.82rem">${tag.claimUrl}</a>
-            ${tag.printStatus !== "printed" ? `<button class="action small" onclick="markPrinted('${tag.id}')">Mark as printed</button>` : `<span style="color:#FF2700;font-weight:700">✓ Printed</span>`}
+            <span>Print status: <strong>${esc(tag.printStatus)}</strong></span>
+            <a href="${esc(tag.claimUrl)}" target="_blank" rel="noreferrer" style="word-break:break-all;font-size:0.82rem">${esc(tag.claimUrl)}</a>
+            ${tag.printStatus !== "printed" ? `<button class="action small" onclick="markPrinted('${jsAttr(tag.id)}')">Mark as printed</button>` : `<span style="color:#FF2700;font-weight:700">✓ Printed</span>`}
           </article>
         `).join("")}
       </div>
@@ -636,16 +665,16 @@ async function loadOwners() {
     target.innerHTML = data.owners.map((owner) => `
       <article class="monitor-card">
         <div>
-          <strong>${owner.displayName}</strong>
-          <p>${owner.email}</p>
-          <p>${owner.phone || ""}</p>
+          <strong>${esc(owner.displayName)}</strong>
+          <p>${esc(owner.email)}</p>
+          <p>${esc(owner.phone || "")}</p>
         </div>
         <div class="monitor-meta">
-          <span>Credits: ${owner.credits}</span>
-          <span>Tags: ${owner.tags}</span>
-          <span>Active: ${owner.activeTags}</span>
-          ${owner.tagTokens?.map(t => `<span>Token: ${t}</span>`).join("") || ""}
-          <span>Joined: ${new Date(owner.createdAt).toLocaleString()}</span>
+          <span>Credits: ${esc(owner.credits)}</span>
+          <span>Tags: ${esc(owner.tags)}</span>
+          <span>Active: ${esc(owner.activeTags)}</span>
+          ${owner.tagTokens?.map(t => `<span>Token: ${esc(t)}</span>`).join("") || ""}
+          <span>Joined: ${esc(new Date(owner.createdAt).toLocaleString())}</span>
         </div>
       </article>`).join("");
   } catch (error) {
@@ -664,14 +693,14 @@ async function loadActivity() {
     }
     target.innerHTML = data.activity.map((item) => `
       <article class="queue-row">
-        <strong>${item.vehicleLabel}</strong>
-        <span>Token: ${item.token}</span>
-        <span>Phone: ${item.phone}</span>
-        <span>Action: ${item.action}${item.messageChannel ? ` (${item.messageChannel})` : ""}</span>
-        ${item.message ? `<span>Message: ${item.message}</span>` : ""}
-        <span class="status-badge" data-tone="${item.status === "provider_started" ? "success" : item.status === "provider_failed" ? "error" : "info"}">${item.status}</span>
-        ${item.providerError ? `<span class="error-note">${item.providerError}</span>` : ""}
-        <span>${new Date(item.createdAt).toLocaleString()}</span>
+        <strong>${esc(item.vehicleLabel)}</strong>
+        <span>Token: ${esc(item.token)}</span>
+        <span>Phone: ${esc(item.phone)}</span>
+        <span>Action: ${esc(item.action)}${item.messageChannel ? ` (${esc(item.messageChannel)})` : ""}</span>
+        ${item.message ? `<span>Message: ${esc(item.message)}</span>` : ""}
+        <span class="status-badge" data-tone="${item.status === "provider_started" ? "success" : item.status === "provider_failed" ? "error" : "info"}">${esc(item.status)}</span>
+        ${item.providerError ? `<span class="error-note">${esc(item.providerError)}</span>` : ""}
+        <span>${esc(new Date(item.createdAt).toLocaleString())}</span>
       </article>`).join("");
   } catch (error) {
     if (target) target.innerHTML = `<p class="empty-copy">Failed to load activity.</p>`;
@@ -696,11 +725,11 @@ async function loadAdmins() {
     target.innerHTML = data.admins.map((a) => `
       <div class="pt-admin-row" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
         <div>
-          <p class="pt-admin-row-title">${a.displayName}</p>
-          <p class="pt-admin-row-meta">${a.email} &middot; Added ${new Date(a.createdAt).toLocaleString()}</p>
+          <p class="pt-admin-row-title">${esc(a.displayName)}</p>
+          <p class="pt-admin-row-meta">${esc(a.email)} &middot; Added ${esc(new Date(a.createdAt).toLocaleString())}</p>
         </div>
         ${a.email !== myEmail ? `
-          <button onclick="deleteAdmin('${a.id}')"
+          <button onclick="deleteAdmin('${jsAttr(a.id)}')"
             style="flex-shrink:0;background:none;border:1.5px solid #FCA5A5;color:#DC2626;
                    border-radius:8px;padding:6px 14px;font-size:0.78rem;font-weight:700;
                    cursor:pointer;font-family:inherit;transition:background 150ms"

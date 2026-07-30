@@ -75,11 +75,18 @@ export async function getMongoStatus(env) {
       database: env.mongoDbName
     };
   } catch (error) {
+    // Never surface the raw driver error to callers of this status endpoint —
+    // connection-string parse failures can echo the full mongoUri (including
+    // the embedded username/password) back in error.message. Log it
+    // server-side only and return a generic status to any API consumer.
+    // eslint-disable-next-line no-console
+    console.error("[mongo] connection check failed:", error);
+
     return {
       configured: true,
       connected: false,
       database: env.mongoDbName,
-      error: error instanceof Error ? error.message : "Unknown MongoDB error"
+      error: "MongoDB connection failed"
     };
   }
 }

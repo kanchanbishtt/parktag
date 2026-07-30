@@ -1,18 +1,52 @@
 import { ObjectId } from "mongodb";
 
 import { getCollections } from "../../lib/db/repositories.js";
+import { safeEqual } from "../../lib/auth/security.js";
+
+// Exotel has no request-signing scheme for callbacks (unlike Twilio/Meta), so
+// the mitigation is a shared secret embedded in the callback URLs configured
+// in the Exotel dashboard, e.g. `.../api/exotel/dial-whom?token=<secret>`.
+// Without this, both endpoints below are fully unauthenticated: dial-whom
+// resolves ANY caller-supplied phone number to the private target number of a
+// pending call (bypassing the whole point of the masked-number flow), and the
+// webhook lets anyone overwrite the status/recording/duration of an arbitrary
+// contact-request record just by guessing or knowing its Mongo _id / CallSid.
+function isAuthorizedExotelRequest(env, request) {
+  if (!env.exotelWebhookSecret) {
+    // No secret configured. Fail CLOSED in production so a mis-secured deploy
+    // can't leak private phone numbers; fail open only in dev so local testing
+    // works without Exotel credentials. (Production also refuses to boot at all
+    // without this secret — see REQUIRED_IN_PRODUCTION in lib/env.js.)
+    return env.runtimeMode !== "production";
+  }
+  const supplied = request.query?.token || request.headers["x-exotel-webhook-secret"];
+  return typeof supplied === "string" && safeEqual(supplied, env.exotelWebhookSecret);
+}
 
 export function registerProviderRoutes(app, env) {
+  if (!env.exotelWebhookSecret) {
+    app.log.warn(
+      "[exotel webhooks] EXOTEL_WEBHOOK_SECRET is not configured — /api/exotel/dial-whom and " +
+      "/api/provider/exotel/webhook are accepting UNAUTHENTICATED requests. Set EXOTEL_WEBHOOK_SECRET " +
+      "and add `?token=<secret>` to both callback URLs configured in the Exotel dashboard."
+    );
+  }
+
   // Dial Whom webhook — Exotel hits this GET when a call arrives on the virtual
   // number. We look up the pre-registered pending call by the caller's A-party
   // number and return the B-party (target) phone as plain text.
   // Non-200 or empty body = Exotel plays busy tone to the caller.
   app.get("/api/exotel/dial-whom", async (request, reply) => {
+    reply.type("text/plain");
+
+    if (!isAuthorizedExotelRequest(env, request)) {
+      reply.code(401);
+      return reply.send("");
+    }
+
     const collections = await getCollections(env);
     const callSid  = request.query.CallSid  || null;
     const rawCaller = request.query.CallFrom || request.query.Callfrom || request.query.caller || null;
-
-    reply.type("text/plain");
 
     if (!collections || !rawCaller) {
       return reply.send("");
@@ -44,7 +78,12 @@ export function registerProviderRoutes(app, env) {
     return reply.send(toE164(record.targetPhone));
   });
 
-  app.post("/api/provider/exotel/webhook", async (request) => {
+  app.post("/api/provider/exotel/webhook", async (request, reply) => {
+    if (!isAuthorizedExotelRequest(env, request)) {
+      reply.code(401);
+      return { ok: false };
+    }
+
     const collections = await getCollections(env);
 
     if (!collections) {
@@ -87,8 +126,11 @@ export function registerProviderRoutes(app, env) {
 
     if (body.RecordingUrl) set.recordingUrl = body.RecordingUrl;
 
-    if (customField) {
+    if (customField && ObjectId.isValid(customField)) {
       // Outbound call path — CustomField holds the contactRequest _id directly.
+      // Validate first: new ObjectId() on a malformed value throws SYNCHRONOUSLY
+      // (before the promise), so the trailing .catch wouldn't swallow it and the
+      // handler would 500 instead of quietly ignoring a junk CustomField.
       await collections.contactRequests.updateOne(
         { _id: new ObjectId(customField) },
         { $set: set }

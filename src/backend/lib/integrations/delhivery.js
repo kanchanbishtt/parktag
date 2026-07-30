@@ -162,21 +162,38 @@ export async function updateShipmentToPrepaid(env, waybill) {
 
 // Best-effort tracking lookup for dashboard display. Never throws — a
 // tracking failure shouldn't break the owner dashboard, it should just show
-// "status unavailable".
+// "status unavailable". Returns the current status plus `scans`: the full
+// checkpoint history (most-recent first) used to render the in-app timeline.
 export async function trackShipment(env, waybill) {
-  if (!isDelhiveryConfigured(env) || !waybill) return { status: null };
+  if (!isDelhiveryConfigured(env) || !waybill) return { status: null, scans: [] };
 
   try {
     const url = `${env.delhiveryBaseUrl}/api/v1/packages/json/?waybill=${encodeURIComponent(waybill)}`;
     const { ok, data } = await getJson(url, authHeaders(env));
     const shipment = data?.ShipmentData?.[0]?.Shipment;
-    if (!ok || !shipment) return { status: null };
+    if (!ok || !shipment) return { status: null, scans: [] };
+
+    // Delhivery wraps each checkpoint as { ScanDetail: {...} }. Normalise to a
+    // small, stable shape and order newest-first so the timeline reads top-down.
+    const rawScans = Array.isArray(shipment.Scans) ? shipment.Scans : [];
+    const scans = rawScans
+      .map((s) => s?.ScanDetail || {})
+      .map((d) => ({
+        status: d.Scan || d.ScanType || null,
+        dateTime: d.ScanDateTime || d.StatusDateTime || null,
+        location: d.ScannedLocation || null,
+        instructions: d.Instructions || null
+      }))
+      .filter((s) => s.status || s.dateTime)
+      .sort((a, b) => new Date(b.dateTime || 0) - new Date(a.dateTime || 0));
+
     return {
       status: shipment.Status?.Status || null,
       statusDateTime: shipment.Status?.StatusDateTime || null,
-      instructions: shipment.Status?.Instructions || null
+      instructions: shipment.Status?.Instructions || null,
+      scans
     };
   } catch (err) {
-    return { status: null, error: err.message };
+    return { status: null, scans: [], error: err.message };
   }
 }

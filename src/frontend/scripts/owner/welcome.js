@@ -1413,8 +1413,8 @@ async function loadOrdersOnce() {
         '</div>' +
         '<span style="font-size:.78rem;color:#374151">' + esc(humanizeOrderStatus(o.shippingStatus)) + '</span>' +
         (o.orderNumber ? '<span style="font-size:.72rem;color:#9ca3af">Order ' + esc(o.orderNumber) + '</span>' : '') +
-        (o.trackingUrl
-          ? '<a href="' + esc(o.trackingUrl) + '" target="_blank" rel="noopener" style="font-size:.74rem;color:#FF2700;font-weight:700;text-decoration:none">Track order →</a>'
+        (o.trackable
+          ? '<button type="button" onclick="openTracking(\'' + esc(o.id) + '\')" style="font-size:.74rem;color:#FF2700;font-weight:700;background:none;border:none;padding:0;cursor:pointer;font-family:inherit">Track order →</button>'
           : (o.waybill ? '<span style="font-size:.72rem;color:#9ca3af">Waybill: ' + esc(o.waybill) + '</span>' : '')) +
         (date ? '<span style="font-size:.7rem;color:#9ca3af">Ordered ' + esc(date) + '</span>' : '') +
         '</div>';
@@ -1425,6 +1425,86 @@ async function loadOrdersOnce() {
   }
 }
 window.loadOrdersOnce = loadOrdersOnce;
+
+// ── In-app Delhivery tracking timeline ───────────────────────────────
+function _trackFmt(dt) {
+  if (!dt) return "";
+  var d = new Date(dt);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true });
+}
+
+function openTracking(orderId) {
+  var bd = document.getElementById("ptTrackBackdrop");
+  var sh = document.getElementById("ptTrackSheet");
+  var body = document.getElementById("ptTrackBody");
+  if (!bd || !sh || !body) return;
+  body.innerHTML = '<p class="pt-snote" style="padding:24px 0;text-align:center">Loading tracking…</p>';
+  bd.classList.add("open");
+  sh.classList.add("open");
+  document.body.style.overflow = "hidden";
+
+  fetch("/api/owner/orders/" + encodeURIComponent(orderId) + "/track")
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (!d || !d.ok) { body.innerHTML = '<p class="pt-snote" style="padding:24px 0;text-align:center">Couldn\'t load tracking. Try again later.</p>'; return; }
+      body.innerHTML = renderTrackTimeline(d);
+    })
+    .catch(function () {
+      body.innerHTML = '<p class="pt-snote" style="padding:24px 0;text-align:center">Couldn\'t load tracking. Try again later.</p>';
+    });
+}
+window.openTracking = openTracking;
+
+function closeTracking() {
+  var bd = document.getElementById("ptTrackBackdrop");
+  var sh = document.getElementById("ptTrackSheet");
+  if (bd) bd.classList.remove("open");
+  if (sh) sh.classList.remove("open");
+  document.body.style.overflow = "";
+}
+window.closeTracking = closeTracking;
+
+function renderTrackTimeline(d) {
+  var head =
+    '<div style="margin-bottom:14px">' +
+      '<h3 style="margin:0 0 3px;font-size:1.05rem;font-weight:800;color:#03162D">Track order</h3>' +
+      (d.orderNumber ? '<p style="margin:0;font-size:.8rem;color:#6b7280">' + esc(d.orderNumber) + (d.productName ? ' · ' + esc(d.productName) : '') + '</p>' : '') +
+    '</div>';
+
+  var current =
+    '<div style="background:#F9FAFB;border:1px solid #EEF0F3;border-radius:12px;padding:12px 14px;margin-bottom:16px">' +
+      '<div style="font-size:.68rem;color:#9ca3af;font-weight:700;letter-spacing:.04em;text-transform:uppercase">Current status</div>' +
+      '<div style="font-size:.95rem;font-weight:800;color:#03162D;margin-top:2px">' + esc(humanizeOrderStatus(d.status)) + '</div>' +
+      (d.statusDateTime ? '<div style="font-size:.74rem;color:#6b7280;margin-top:1px">' + esc(_trackFmt(d.statusDateTime)) + '</div>' : '') +
+    '</div>';
+
+  var scans = Array.isArray(d.scans) ? d.scans : [];
+  var timeline;
+  if (!scans.length) {
+    timeline = '<p class="pt-snote" style="text-align:center;padding:8px 0">No tracking updates yet. We\'ll show each step here once the courier scans your parcel.</p>';
+  } else {
+    timeline = '<div style="position:relative;padding-left:22px">' +
+      '<div style="position:absolute;left:5px;top:6px;bottom:10px;width:2px;background:#E5E7EB"></div>' +
+      scans.map(function (s, i) {
+        var isLatest = i === 0;
+        var dot = isLatest ? "#FF2700" : "#C9CDD3";
+        return '<div style="position:relative;padding:0 0 16px 0">' +
+          '<span style="position:absolute;left:-22px;top:2px;width:11px;height:11px;border-radius:50%;background:' + dot + ';box-shadow:0 0 0 3px #fff"></span>' +
+          '<div style="font-size:.86rem;font-weight:' + (isLatest ? "800" : "600") + ';color:#03162D">' + esc(humanizeOrderStatus(s.status)) + '</div>' +
+          (s.location ? '<div style="font-size:.76rem;color:#6b7280">' + esc(s.location) + '</div>' : '') +
+          (s.dateTime ? '<div style="font-size:.72rem;color:#9ca3af">' + esc(_trackFmt(s.dateTime)) + '</div>' : '') +
+        '</div>';
+      }).join("") +
+      '</div>';
+  }
+
+  var footer = d.trackingUrl
+    ? '<a href="' + esc(d.trackingUrl) + '" target="_blank" rel="noopener" style="display:inline-block;margin-top:6px;font-size:.76rem;color:#6b7280;text-decoration:underline">Open on Delhivery ↗</a>'
+    : '';
+
+  return head + current + timeline + footer;
+}
 
 function _toast(msg, tone) {
   const existing = document.getElementById("pt-toast");

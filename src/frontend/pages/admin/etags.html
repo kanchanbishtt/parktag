@@ -6,7 +6,10 @@
   <title>ParkTag Admin | E-Tags</title>
   <style>
     * { box-sizing: border-box; }
-    body { margin: 0; font-family: "Segoe UI", Tahoma, sans-serif; background: #F1F1F0; color: #03162D; }
+    /* This page does not link /styles/styles.css, so it carries its own copy of
+       the inherited overflow guard: E-Tag tokens, emails and ids have no space
+       to break at and would otherwise push a card past the viewport. */
+    body { margin: 0; font-family: "Segoe UI", Tahoma, sans-serif; background: #F1F1F0; color: #03162D; overflow-wrap: break-word; }
     .wrap { max-width: 1180px; margin: 0 auto; padding: 22px 18px 60px; }
     .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
     .title { font-size: 1.5rem; font-weight: 900; margin: 0; }
@@ -45,6 +48,46 @@
     .log { border: 1px solid #EEF0F2; border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; font-size: .8rem; }
     .log b { font-weight: 800; }
     .closex { float: right; border: none; background: #F3F4F6; border-radius: 8px; width: 30px; height: 30px; cursor: pointer; font-size: 1rem; }
+
+    /* ── Narrow screens: stack each row into a labelled card ──
+       This table is the widest in the admin (min-width: 860px), so on a phone
+       it was a single sideways-scrolling strip. Same treatment activations.html
+       already uses; the breakpoint sits just above that 860px min-width so the
+       swap happens exactly where the table would start to overflow. The
+       `data-label` on each cell is emitted by scripts/admin/etags.js. ── */
+    @media (max-width: 900px) {
+      .wrap { padding: 16px 14px 60px; }
+      .title { font-size: 1.28rem; }
+      .bar input, .bar select { height: 44px; font-size: 16px; } /* >=16px: no iOS zoom-on-focus */
+      .bar input { min-width: 0; flex: 1 1 100%; }
+
+      .card { background: transparent; border: none; overflow: visible; border-radius: 0; }
+      table, tbody, tr, td { display: block; width: 100%; }
+      table { min-width: 0; }
+      thead { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+      tr { background: #fff; border: 1px solid #E5E7EB; border-radius: 14px; margin-bottom: 12px; padding: 6px 14px 10px; box-shadow: 0 1px 2px rgba(3,22,45,.04); }
+      td { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding: 9px 0; border-bottom: 1px solid #F4F5F6; white-space: normal; text-align: right; }
+      td::before { content: attr(data-label); flex: 0 0 38%; text-align: left; font-size: .68rem; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: #9CA3AF; }
+      td .muted { display: block; font-weight: 500; margin-top: 2px; }
+      /* First cell is the card title — the E-Tag ID is a long unbroken token,
+         so it gets the full width and is allowed to wrap. */
+      tr td:first-child { text-align: left; font-size: .98rem; padding: 4px 0 10px; border-bottom: 1.5px solid #EEF0F2; margin-bottom: 2px; overflow-wrap: anywhere; }
+      tr td:first-child::before { display: none; }
+      tr td:last-child { border-bottom: none; padding-bottom: 2px; }
+      .act { justify-content: flex-end; flex-wrap: wrap; }
+      .act button { padding: 8px 13px; }
+      .empty, .err { text-align: center; }
+
+      /* Modal gets the screen edges back. */
+      .overlay { padding: 10px; }
+      .modal { padding: 16px; max-height: 90vh; }
+    }
+    /* ── Small phones: labels sit above values for breathing room. ── */
+    @media (max-width: 420px) {
+      td { flex-direction: column; align-items: stretch; gap: 3px; text-align: left; }
+      td::before { flex-basis: auto; }
+      .act { justify-content: flex-start; }
+    }
   </style>
 </head>
 <body>

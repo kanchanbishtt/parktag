@@ -1680,7 +1680,9 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
 .pt-chip-alert {
   grid-column: span 2;
   color: #D92200;
-  border-color: #FCA5A5;
+  /* Its text and hover already sit in the brand-red family; the border was the
+     last rose value on the page. */
+  border-color: #FFB6A8;
   background: #FFEDEA;
 }
 
@@ -1765,9 +1767,11 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
 .pt-sos-block {
   margin: 0 22px 20px;
   padding: 15px 16px;
-  border: 1.5px solid #FCA5A5;
+  /* Tints derived from --pt-amber (#FF2700) rather than the rose family, so
+     the block reads as the same red as the button inside it. */
+  border: 1.5px solid #FFB6A8;
   border-radius: 16px;
-  background: linear-gradient(180deg, #FFF5F3 0%, #FFECE8 100%);
+  background: linear-gradient(180deg, #FFF6F4 0%, #FFEDEA 100%);
   display: grid;
   gap: 11px;
   justify-items: stretch;
@@ -1777,14 +1781,16 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
   margin: 0;
   font-size: 0.86rem;
   line-height: 1.5;
-  color: #7F1D1D;
+  color: #B31C00;
   font-weight: 600;
 }
 
 .pt-btn-sos {
   flex-direction: row;
   gap: 8px;
-  background: #E11D48;
+  /* Brand red — the same --pt-amber token every other primary action uses,
+     rather than a separate rose. */
+  background: var(--pt-amber);
   color: #fff;
   padding: 12px 20px;
   border-radius: 14px;
@@ -1794,18 +1800,18 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
   min-height: 50px;
   white-space: nowrap;
   overflow-wrap: normal;
-  box-shadow: 0 4px 14px rgba(225, 29, 72, 0.32);
+  box-shadow: 0 4px 14px rgba(255, 39, 0, 0.32);
 }
 
 .pt-btn-sos svg { flex: 0 0 auto; }
 
 .pt-btn-sos:hover:not(:disabled) {
-  background: #BE123C;
-  box-shadow: 0 6px 18px rgba(225, 29, 72, 0.42);
+  background: var(--pt-amber-dark);
+  box-shadow: 0 6px 18px rgba(255, 39, 0, 0.42);
 }
 
 .pt-panel-sos {
-  background: #FFF7F6;
+  background: #FFF6F4;
 }
 
 .pt-sos-cancel {

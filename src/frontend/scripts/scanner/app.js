@@ -562,12 +562,6 @@ function setupActivationWizard(tag, supportWhatsapp) {
   setValue("act-otp", "");
   clearResendCooldown();
 
-  // "Car" / "Bike" / … so the copy names the actual vehicle like the sticker does.
-  const noun = tag.vehicleLabel || "vehicle";
-  document.querySelectorAll("[data-vehicle-noun]").forEach((el) => {
-    el.textContent = noun;
-  });
-
   const digits = String(supportWhatsapp || "").replace(/\D/g, "");
   supportWhatsappHref = digits
     ? `https://wa.me/${digits}?text=${encodeURIComponent(
@@ -754,10 +748,9 @@ async function handleActVerify(event) {
     clearResendCooldown();
     setBtnLoading("act-verify-btn", false);
 
-    const label = (data?.tag?.vehicleLabel || "vehicle").toLowerCase();
     setText(
       "act-done-copy",
-      `Your ${label} sticker is live. Anyone who scans it can reach you privately — your number stays hidden.`
+      "Your vehicle sticker is live. Anyone who scans it can reach you privately — your number stays hidden."
     );
     showActStep("done");
   } catch (error) {

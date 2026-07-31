@@ -117,6 +117,10 @@ export function registerOwnerRoutes(app, env) {
           premium: tag.premium || false,
           purchaseStatus: tag.purchaseStatus || "none",
           freeContactUsed: tag.freeContactUsed || false,
+          // Returned in full (not masked) because this is the owner's own
+          // session reading back a number they typed, so the SOS field can
+          // prefill on any device instead of only where it was first saved.
+          emergencyContact: tag.emergencyContact || null,
           scanUrl,
           qrDataUrl
         };
@@ -495,6 +499,61 @@ export function registerOwnerRoutes(app, env) {
         status: result.status
       }
     };
+  });
+
+  // ── Emergency / SOS contact ───────────────────────────────────────────
+  // The owner's next of kin for this vehicle. Stored per TAG, not per owner,
+  // because a household can tag several vehicles and want a different person
+  // reachable for each. Send an empty string to clear it.
+  //
+  // Until now this number only ever lived in the browser's localStorage, so it
+  // existed on exactly one device and the server could not dial it. Persisting
+  // it here is what makes the scanner-side SOS button able to connect anyone.
+  app.post("/api/owner/tags/:tagId/emergency-contact", async (request, reply) => {
+    const blocked = await requireSession(app, "owner")(request, reply);
+    if (blocked) return blocked;
+
+    const raw = String((request.body || {}).emergencyContact ?? "").trim();
+    const digits = raw.replace(/\D/g, "");
+
+    // Empty clears the contact; otherwise demand something that can actually be
+    // dialled. 7-15 digits covers every E.164 national number.
+    if (raw && (digits.length < 7 || digits.length > 15)) {
+      reply.code(400);
+      return { ok: false, error: "Enter a valid emergency contact number." };
+    }
+
+    const collections = await getCollections(env);
+    const ownerId = toObjectId(request.session.userId);
+    const tagId = tryObjectId(request.params.tagId);
+    if (!tagId) { reply.code(400); return { ok: false, error: "Invalid tag id" }; }
+
+    const emergencyContact = raw ? toE164(raw) : null;
+
+    // Guard against an owner pointing the SOS at the tag's own masked-call
+    // number or at their own mobile — in an accident that reaches nobody new.
+    const owner = await collections.owners.findOne({ _id: ownerId });
+    const ownerPhone = owner ? toE164(owner.mobile || owner.phone || "") : null;
+    if (emergencyContact && ownerPhone && emergencyContact === ownerPhone) {
+      reply.code(400);
+      return {
+        ok: false,
+        error: "Use a number other than your own — this is who we call when you cannot answer."
+      };
+    }
+
+    const result = await collections.tags.findOneAndUpdate(
+      { _id: tagId, ownerId, deletedAt: { $in: [null, undefined] } },
+      { $set: { emergencyContact, updatedAt: new Date().toISOString() } },
+      { returnDocument: "after" }
+    );
+
+    if (!result) {
+      reply.code(404);
+      return { ok: false, error: "Tag not found" };
+    }
+
+    return { ok: true, emergencyContact: result.emergencyContact || null };
   });
 
   app.delete("/api/owner/tags/:tagId", async (request, reply) => {

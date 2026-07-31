@@ -1013,11 +1013,35 @@ function saveSw(el, key) {
 }
 window.saveSw = saveSw;
 
-function saveSos() {
+async function saveSos() {
   const tag = allTags[_selIdx];
   const num = (document.getElementById("sos-inp")?.value || "").trim();
   if (!num) { _toast("Please enter an emergency contact number.", "err"); return; }
-  if (tag) localStorage.setItem(_sosKey(tag), num);
+  if (!tag) { _toast("Select a vehicle first.", "err"); return; }
+
+  // Persist on the tag so the scanner-side Emergency button can actually dial
+  // it. localStorage alone only ever reached this one browser.
+  if (tag.id) {
+    try {
+      const res = await fetch(`/api/owner/tags/${tag.id}/emergency-contact`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ emergencyContact: num })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { _toast(data.error || "Could not save the emergency contact.", "err"); return; }
+      tag.emergencyContact = data.emergencyContact || null;
+      const el = document.getElementById("sos-inp");
+      if (el && data.emergencyContact) el.value = data.emergencyContact;
+    } catch {
+      _toast("Network error — emergency contact not saved.", "err");
+      return;
+    }
+  } else {
+    // Local-only vehicle with no server tag to attach to yet.
+    localStorage.setItem(_sosKey(tag), num);
+  }
+
   _toast("Emergency contact saved.", "ok");
 }
 window.saveSos = saveSos;
@@ -1143,8 +1167,9 @@ function _fillMenu() {
   const dlLbl = document.getElementById("mi-download-lb");
   if (dlLbl) dlLbl.textContent = tag.premium ? "Download Premium Tag" : "Download E-Tag";
 
-  // SOS number — same key as vehicle-detail.js (plain string, not JSON)
-  const sosVal = localStorage.getItem(_sosKey(tag)) || "";
+  // SOS number — server value wins; the localStorage key (same one
+  // vehicle-detail.js uses) is only a fallback for local, unsaved vehicles.
+  const sosVal = tag.emergencyContact || localStorage.getItem(_sosKey(tag)) || "";
   const sosEl = document.getElementById("sos-inp");
   if (sosEl) sosEl.value = sosVal;
 }

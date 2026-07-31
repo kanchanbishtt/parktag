@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>ParkTag Admin | Tag Activations</title>
+  <style>
+    * { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
+    /* This page does not link /styles/styles.css, so it carries its own copy of
+       the inherited overflow guard: order ids, emails and tokens have no space
+       to break at and would otherwise push a card past the viewport. */
+    body { margin: 0; font-family: "Segoe UI", Tahoma, sans-serif; background: #F1F1F0; color: #03162D; overflow-x: hidden; overflow-wrap: break-word; }
+    .wrap { max-width: 1180px; margin: 0 auto; padding: clamp(14px, 3vw, 24px) clamp(12px, 3vw, 20px) 60px; }
+    .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+    .title { font-size: clamp(1.2rem, 4.5vw, 1.5rem); font-weight: 900; margin: 0; }
+    .title span { color: #FF2700; }
+    a.back { text-decoration: none; color: #6B7280; font-weight: 700; font-size: .85rem; border: 1.5px solid #E5E7EB; padding: 8px 14px; border-radius: 10px; background: #fff; white-space: nowrap; }
+
+    /* Search sticks to the top so it stays reachable while scrolling long lists. */
+    .bar { display: flex; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; position: sticky; top: 0; z-index: 5; background: #F1F1F0; padding: 8px 0; }
+    .bar input { height: 44px; width: 100%; border: 1.5px solid #E5E7EB; border-radius: 10px; padding: 0 12px; font-size: 16px; font-family: inherit; outline: none; }
+    .bar input:focus { border-color: #FF2700; }
+
+    .section { margin-bottom: 28px; }
+    .section-head { display: flex; align-items: baseline; gap: 10px; margin: 0 0 6px; flex-wrap: wrap; }
+    .section-head h2 { font-size: clamp(1rem, 3.5vw, 1.1rem); font-weight: 900; margin: 0; }
+    .count { font-size: .74rem; font-weight: 800; padding: 3px 10px; border-radius: 20px; white-space: nowrap; }
+    .count.ok { background: #DCFCE7; color: #166534; }
+    .count.warn { background: #FEF3C7; color: #92400E; }
+    .section-sub { font-size: .82rem; color: #6B7280; margin: 0 0 12px; }
+
+    .card { background: #fff; border: 1px solid #E5E7EB; border-radius: 14px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    table { width: 100%; border-collapse: collapse; font-size: .84rem; min-width: 700px; }
+    th, td { text-align: left; padding: 11px 12px; border-bottom: 1px solid #F1F2F4; white-space: nowrap; vertical-align: middle; }
+    th { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; color: #9CA3AF; background: #FAFBFC; }
+    tr:last-child td { border-bottom: none; }
+    .plate { font-weight: 800; letter-spacing: .04em; }
+    .muted { color: #6B7280; }
+    .pill { display: inline-block; font-size: .68rem; font-weight: 800; padding: 2px 9px; border-radius: 20px; }
+    .pill.active { background: #FFE3DD; color: #B31C00; }
+    .pill.inactive { background: #FEE2E2; color: #B91C1C; }
+    .pill.premium { background: #FEF3C7; color: #92400E; }
+    .pill.cod { background: #E0E7FF; color: #3730A3; }
+    .pill.prepaid { background: #DCFCE7; color: #166534; }
+    a.tel { text-decoration: none; color: #03162D; font-weight: 700; }
+    a.tel:hover { color: #FF2700; }
+    .remind { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+    .remind a { text-decoration: none; border: 1.5px solid #E5E7EB; background: #fff; border-radius: 8px; padding: 6px 12px; font-size: .75rem; font-weight: 700; color: #374151; }
+    .remind a.wa { color: #128C7E; border-color: #A7E5D8; }
+    .remind a:hover { background: #F1F1F0; }
+    .empty, .err { text-align: center; padding: 34px 16px; color: #6B7280; white-space: normal; }
+
+    /* ── Tablet / narrow: stack each row into a labelled card so the table never
+       forces a sideways scroll. Kicks in exactly where the widest table (700px)
+       would otherwise overflow. ── */
+    @media (max-width: 760px) {
+      .card { background: transparent; border: none; overflow: visible; border-radius: 0; }
+      table, tbody, tr, td { display: block; width: 100%; }
+      thead { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+      table { min-width: 0; }
+      tr { background: #fff; border: 1px solid #E5E7EB; border-radius: 14px; margin-bottom: 12px; padding: 6px 14px 10px; box-shadow: 0 1px 2px rgba(3,22,45,.04); }
+      td { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding: 9px 0; border-bottom: 1px solid #F4F5F6; white-space: normal; text-align: right; word-break: break-word; }
+      td::before { content: attr(data-label); flex: 0 0 40%; text-align: left; font-size: .68rem; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: #9CA3AF; }
+      td .muted { display: block; font-weight: 500; margin-top: 2px; }
+      /* First cell becomes the card's title row — bigger, no label. */
+      tr td:first-child { text-align: left; font-size: 1.02rem; padding: 4px 0 10px; border-bottom: 1.5px solid #EEF0F2; margin-bottom: 2px; }
+      tr td:first-child::before { display: none; }
+      tr td:last-child { border-bottom: none; padding-bottom: 2px; }
+      .remind { justify-content: flex-end; }
+      .remind a { padding: 9px 14px; }
+    }
+    /* ── Small phones: labels sit above values for breathing room. ── */
+    @media (max-width: 420px) {
+      td { flex-direction: column; align-items: stretch; gap: 3px; text-align: left; }
+      td::before { flex-basis: auto; }
+      .remind { justify-content: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <h1 class="title">Park<span>Tag</span> · Tag Activations</h1>
+      <a class="back" href="/admin/overview">← Back to Admin</a>
+    </div>
+
+    <div class="bar">
+      <input id="q" type="search" placeholder="Search by vehicle number, owner, mobile, order #…" autocomplete="off"/>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        <h2>Activated Premium Tags</h2>
+        <span class="count ok" id="activatedCount">…</span>
+      </div>
+      <p class="section-sub">Owners who have activated a premium tag — who and when.</p>
+      <div class="card">
+        <table>
+          <thead>
+            <tr><th>E-Tag ID</th><th>Vehicle</th><th>Owner</th><th>Mobile</th><th>Activated On</th><th>Status</th></tr>
+          </thead>
+          <tbody id="activatedRows"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        <h2>Sold · Awaiting Activation</h2>
+        <span class="count warn" id="unactivatedCount">…</span>
+      </div>
+      <p class="section-sub">Tags bought/shipped but not activated yet — send an activation reminder.</p>
+      <div class="card">
+        <table>
+          <thead>
+            <tr><th>Order #</th><th>Product</th><th>Owner</th><th>Mobile</th><th>Payment</th><th>Placed On</th><th>Remind</th></tr>
+          </thead>
+          <tbody id="unactivatedRows"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="/scripts/admin/activations.js"></script>
+</body>
+</html>

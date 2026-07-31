@@ -168,6 +168,104 @@ export function registerAdminRoutes(app, env) {
     return { ok: true };
   });
 
+  // ── Tag activations dashboard ─────────────────────────────────────
+  // Two lists for the admin: premium tags that have been ACTIVATED (who + when),
+  // and shop orders that are SOLD but not yet activated — the reminder targets.
+  app.get("/api/admin/activations", async (request, reply) => {
+    const blocked = await requireSession(app, "admin")(request, reply);
+    if (blocked) return blocked;
+
+    const collections = await getCollections(env);
+    const owners = await collections.owners.find({}).toArray();
+    const ownerMap = Object.fromEntries(owners.map((o) => [String(o._id), o]));
+
+    // ACTIVATED = live premium tags. `premium: true` is the single source of
+    // truth for "this is an activated premium tag" — it is only ever stamped by
+    // real premium activation (the paid upgrade that mints the tag). We surface
+    // ALL premium tags and label each by whether it is live (status active) or
+    // sitting inactive, so the list is accurate to the tag data, not inferred.
+    const premiumTags = await collections.tags
+      .find({ premium: true, deletedAt: { $in: [null, undefined] } })
+      .sort({ premiumSince: -1, createdAt: -1 })
+      .toArray();
+    const activated = premiumTags.map((t) => {
+      const o = ownerMap[String(t.ownerId)] || {};
+      return {
+        id: String(t._id),
+        etagId: etagIdFor(t._id),
+        plateNumber: t.plateNumber || null,
+        vehicleLabel: t.vehicleLabel || t.vehicleType || null,
+        status: t.status,
+        ownerName: o.displayName || null,
+        ownerEmail: o.email || null,
+        ownerMobile: o.mobile || o.phone || null,
+        activatedAt: t.premiumSince || t.createdAt || null
+      };
+    });
+
+    // Owners who already hold at least one LIVE premium tag have demonstrably
+    // activated — so a sold order from them is fulfilled and must NOT appear as a
+    // reminder. This is the accurate cross-check, because in the real data most
+    // orders are physical-tag packs that carry no mintedTagId/replaceTagId link
+    // to the tag they eventually activate; the owner→premium-tag relationship is
+    // the reliable signal that activation happened.
+    const ownersWithActivePremium = new Set(
+      premiumTags
+        .filter((t) => t.status === "active" && t.ownerId)
+        .map((t) => String(t.ownerId))
+    );
+
+    // UNACTIVATED = genuinely SOLD orders (paid = prepaid completed, or cod = real
+    // COD order — never "created", an abandoned checkout) whose buyer has NOT yet
+    // ended up with a live premium tag. An order counts as activated when it
+    // minted a premium tag (mintedTagId), its replace-target free tag was upgraded
+    // away, OR the owner now holds a live premium tag.
+    const orders = await collections.shopOrders
+      .find({ status: { $in: ["paid", "cod"] }, deletedAt: { $in: [null, undefined] } })
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    const unactivated = [];
+    for (const ord of orders) {
+      const ownerKey = ord.ownerId ? String(ord.ownerId) : null;
+      let isActivated = Boolean(ord.mintedTagId) ||
+        (ownerKey ? ownersWithActivePremium.has(ownerKey) : false);
+      if (!isActivated && ord.replaceTagId) {
+        let rtId = null;
+        try { rtId = new ObjectId(String(ord.replaceTagId)); } catch { rtId = null; }
+        const rt = rtId ? await collections.tags.findOne({ _id: rtId }) : null;
+        // The free tag is gone or now premium ⇒ this order was fulfilled.
+        if (!rt || rt.deletedAt || rt.premium) isActivated = true;
+      }
+      if (isActivated) continue;
+
+      const o = ownerMap[ownerKey] || {};
+      const ship = ord.shippingAddress || {};
+      const mobile = ship.phone || o.mobile || o.phone || null;
+      // Skip pure junk rows (no owner AND no contact number = un-actionable).
+      if (!ownerKey && !mobile) continue;
+      unactivated.push({
+        id: String(ord._id),
+        orderNumber: ord.orderNumber || ord.orderId || null,
+        productName: ord.productName || null,
+        paymentMethod: ord.paymentMethod || (ord.status === "cod" ? "cod" : "prepaid"),
+        orderStatus: ord.status || null,
+        waybill: ord.waybill || null,
+        ownerName: o.displayName || ship.name || null,
+        ownerEmail: o.email || null,
+        ownerMobile: mobile,
+        placedAt: ord.createdAt || null
+      });
+    }
+
+    return {
+      ok: true,
+      counts: { activated: activated.length, unactivated: unactivated.length },
+      activated,
+      unactivated
+    };
+  });
+
   app.get("/api/admin/overview", async (request, reply) => {
     const blocked = await requireSession(app, "admin")(request, reply);
 

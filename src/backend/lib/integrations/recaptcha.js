@@ -21,6 +21,16 @@ export async function verifyRecaptcha(env, token, { remoteIp, expectedAction } =
   if (!isRecaptchaConfigured(env)) return { ok: true, skipped: true };
 
   if (!token || typeof token !== "string") {
+    // A v3 site key is registered per-domain, so on a local dev host Google
+    // refuses to mint a token and getCaptchaToken() resolves to "". Failing
+    // closed there makes every OTP-gated flow (owner login, sticker activation)
+    // impossible to test locally against a .env copied from production.
+    // Outside production, treat a missing token like the unreachable-verifier
+    // case below — pass, and lean on the per-IP and per-destination OTP rate
+    // limits, which apply either way. Production still rejects.
+    if (env.runtimeMode !== "production") {
+      return { ok: true, skipped: true, reason: "missing-token-dev" };
+    }
     return { ok: false, reason: "missing-token" };
   }
 

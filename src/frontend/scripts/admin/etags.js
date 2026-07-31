@@ -62,15 +62,17 @@ async function load() {
       : `<button data-act="logs" data-id="${t.id}">Logs</button>
          <button data-act="status" data-id="${t.id}" data-to="${toggleTo}">${toggleLabel}</button>
          <button class="danger" data-act="delete" data-id="${t.id}">Delete</button>`;
+    // data-label feeds the `td::before` labels the narrow-screen card layout
+    // renders once the header row is hidden (see the @media block in etags.html).
     return `<tr>
-      <td><b>${esc(t.etagId)}</b></td>
-      <td><span class="plate">${esc(t.plateNumber || "—")}</span><br><span class="muted">${esc(t.vehicleLabel || t.vehicleType || "")}</span></td>
-      <td>${esc(t.ownerName || "—")}<br><span class="muted">${esc(t.ownerEmail || t.ownerMobile || "")}</span></td>
-      <td>${statusPill}</td>
-      <td>${planPill}</td>
-      <td>${t.contactCount}</td>
-      <td class="muted">${fmtDate(t.createdAt)}</td>
-      <td><div class="act">${actions}</div></td>
+      <td data-label="E-Tag ID"><b>${esc(t.etagId)}</b></td>
+      <td data-label="Vehicle"><span class="plate">${esc(t.plateNumber || "—")}</span><br><span class="muted">${esc(t.vehicleLabel || t.vehicleType || "")}</span></td>
+      <td data-label="Owner">${esc(t.ownerName || "—")}<br><span class="muted">${esc(t.ownerEmail || t.ownerMobile || "")}</span></td>
+      <td data-label="Status">${statusPill}</td>
+      <td data-label="Plan">${planPill}</td>
+      <td data-label="Contacts">${t.contactCount}</td>
+      <td data-label="Created" class="muted">${fmtDate(t.createdAt)}</td>
+      <td data-label="Actions"><div class="act">${actions}</div></td>
     </tr>`;
   }).join("");
 }

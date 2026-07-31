@@ -36,6 +36,7 @@ const verifyPage = path.join(pagesRoot, "scanner/verify.html");
 const adminPage = path.join(pagesRoot, "admin/index.html");
 const adminOverviewPage = path.join(pagesRoot, "admin/overview.html");
 const adminEtagsPage = path.join(pagesRoot, "admin/etags.html");
+const adminActivationsPage = path.join(pagesRoot, "admin/activations.html");
 const adminIssuancePage = path.join(pagesRoot, "admin/issuance.html");
 const adminPrintQueuePage = path.join(pagesRoot, "admin/print-queue.html");
 const adminOwnersPage = path.join(pagesRoot, "admin/owners.html");
@@ -367,6 +368,10 @@ export async function buildApp() {
 
   app.get("/admin/etags", async (request, reply) => {
     return guardAdmin(request, reply, adminEtagsPage);
+  });
+
+  app.get("/admin/activations", async (request, reply) => {
+    return guardAdmin(request, reply, adminActivationsPage);
   });
 
   app.get("/admin/issuance", async (request, reply) => {

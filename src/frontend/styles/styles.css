@@ -36,6 +36,16 @@ body {
   margin: 0;
   background: #F1F1F0;
   color: var(--ink);
+  /* Overflow safety net. Values like the 64-char tag token, an owner email,
+     an order id or a URL contain no space, so they have no break opportunity
+     and shove their container past the viewport on a phone. `overflow-wrap`
+     is inherited, so this one line reaches every descendant.
+     `break-word` (not `anywhere`) is deliberate: it breaks a word only when
+     it cannot fit on a line of its own, and it leaves intrinsic min-content
+     sizing untouched — so it cannot re-flow any existing flex/grid layout.
+     Fields that must break inside a shrinkable flex/grid item opt up to
+     `overflow-wrap: anywhere` individually. */
+  overflow-wrap: break-word;
 }
 
 .scanner-body {
@@ -295,7 +305,10 @@ h1 {
 .grid {
   display: grid;
   gap: 18px;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  /* A bare minmax(280px, 1fr) floor is not responsive: on a viewport narrower
+     than the floor the track stays 280px and overflows. min() lets it collapse
+     to the container width; behaviour above 280px is unchanged. */
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
   margin-top: 22px;
 }
 
@@ -3438,3 +3451,222 @@ html:has(body.pt-hub-body) {
 
 .pt-help-card a span { color: var(--pt-sub); font-weight: 600; }
 .pt-help-card a:hover { color: var(--pt-amber-dark); }
+
+/* ============================================================
+   SCANNER / ACTIVATION — RESPONSIVE LAYOUT & MOBILE POLISH
+   Scoped to `.scanner-body` so nothing here leaks into the owner
+   or admin pages that share .pt-card / .pt-input / .pt-btn.
+
+   Two ideas drive the whole block:
+
+   1. OPTICAL CENTRING. Every screen in this flow (verify, the four
+      wizard steps, the done panel, the error card) is short, so
+      top-aligning it leaves a dead gap underneath on a tall phone.
+      The body becomes a flex column, .pt-main takes the leftover
+      height, and its rows centre inside it. A block centred by pure
+      maths reads as sitting slightly LOW, so the bottom padding
+      carries an extra 2x --pt-optical-lift; with centred alignment
+      that lifts the card by exactly 1x lift. Not top, not low.
+
+   2. ONE SPACING RATIO. Card padding, step gap and radius are all
+      derived from the same clamp scale, so the proportions hold
+      from a 320px phone to desktop instead of drifting per breakpoint.
+   ============================================================ */
+
+.scanner-body {
+  /* dvh tracks the mobile URL bar; the vh line is the fallback. */
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.scanner-body .pt-header {
+  flex: 0 0 auto;
+  /* viewport-fit=cover is set on this page — keep the logo out of the notch. */
+  padding-top: calc(12px + env(safe-area-inset-top, 0px));
+  padding-left: calc(20px + env(safe-area-inset-left, 0px));
+  padding-right: calc(20px + env(safe-area-inset-right, 0px));
+}
+
+.scanner-body .pt-main {
+  --pt-pad-x: clamp(14px, 4.5vw, 20px);
+  --pt-pad-y: clamp(16px, 3.5vh, 28px);
+  --pt-optical-lift: clamp(8px, 3vh, 24px);
+
+  flex: 1 1 auto;
+  /* `safe` degrades to top-alignment when a screen is taller than the
+     viewport (the action card, or a phone in landscape), so tall content
+     is never clipped above the scroll origin. */
+  align-content: center;
+  align-content: safe center;
+
+  padding-block: var(--pt-pad-y)
+    calc(var(--pt-pad-y) + (var(--pt-optical-lift) * 2) + env(safe-area-inset-bottom, 0px));
+  padding-inline: calc(var(--pt-pad-x) + env(safe-area-inset-left, 0px))
+    calc(var(--pt-pad-x) + env(safe-area-inset-right, 0px));
+  gap: clamp(12px, 3vw, 16px);
+}
+
+/* ── Cards: one radius/padding ratio across the whole flow ── */
+.scanner-body .pt-card,
+.scanner-body .pt-help-card {
+  border-radius: clamp(18px, 5vw, 24px);
+}
+
+.scanner-body .pt-card {
+  padding: clamp(20px, 5.5vw, 26px);
+}
+
+.scanner-body .pt-action-card {
+  padding: 0;
+}
+
+.scanner-body .pt-step-card {
+  padding: clamp(22px, 6vw, 30px) clamp(18px, 5vw, 26px) clamp(20px, 5vw, 26px);
+}
+
+.scanner-body .pt-step {
+  gap: clamp(13px, 3.4vw, 17px);
+}
+
+.scanner-body .pt-step-track {
+  margin-bottom: clamp(16px, 4.5vw, 22px);
+}
+
+/* ── Type scales with the viewport instead of stepping at breakpoints ── */
+.scanner-body .pt-step-title {
+  font-size: clamp(1.1rem, 4.8vw, 1.3rem);
+}
+
+.scanner-body .pt-step-sub {
+  font-size: clamp(0.9rem, 3.6vw, 0.97rem);
+}
+
+.scanner-body .pt-card-title {
+  font-size: clamp(1.18rem, 5.2vw, 1.35rem);
+}
+
+.scanner-body .pt-step-icon {
+  width: clamp(48px, 13vw, 56px);
+  height: clamp(48px, 13vw, 56px);
+  border-radius: clamp(16px, 4.4vw, 19px);
+  flex-shrink: 0;
+}
+
+/* ── Inputs ──
+   16px is the threshold below which iOS Safari zooms the page on focus
+   and never zooms back out — every field in this flow must clear it. */
+.scanner-body .pt-input,
+.scanner-body .pt-select {
+  font-size: 16px;
+  min-height: 50px;
+  padding: 13px 15px;
+  border-radius: 13px;
+}
+
+.scanner-body .pt-select {
+  padding-right: 36px;
+}
+
+.scanner-body .pt-input-plate {
+  font-size: clamp(1.02rem, 4.6vw, 1.18rem);
+  text-align: center;
+}
+
+.scanner-body .pt-input-lg {
+  font-size: clamp(1.25rem, 6.4vw, 1.55rem);
+  min-height: 60px;
+  letter-spacing: 0.22em;
+  /* Tracking is added after the last glyph too, which pushes a centred
+     value visibly left — pull it back by half a step. */
+  text-indent: 0.22em;
+}
+
+/* Country code + number: the code keeps just enough room for its longest
+   label, the number gets the rest. Stays one row down to 320px — stacking
+   would make the step taller and fight the centring. */
+.scanner-body .pt-step-row {
+  grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+  gap: clamp(8px, 2.4vw, 10px);
+}
+
+/* ── Tap targets: 44px minimum on the secondary actions ── */
+.scanner-body .pt-btn-step {
+  min-height: 54px;
+}
+
+.scanner-body .pt-step-back,
+.scanner-body .pt-step-resend {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 2px;
+}
+
+.scanner-body .pt-step-links {
+  margin-top: -2px;
+}
+
+/* ── Small phones (<=400px) ── */
+@media (max-width: 400px) {
+  /* "(e.g. DL8CX55665)" is nowrap by design; on a 320-360px screen it can
+     push the heading past the card, so give it its own line instead. */
+  .scanner-body .pt-step-eg {
+    display: block;
+    margin-top: 3px;
+    font-size: 0.86em;
+  }
+
+  .scanner-body .pt-input-lg {
+    letter-spacing: 0.16em;
+    text-indent: 0.16em;
+  }
+}
+
+/* ── Short viewports (landscape phones, split view) ──
+   Below ~560px tall the card cannot both centre and breathe, so drop the
+   optical lift, tighten the vertical rhythm and let it scroll from the top. */
+@media (max-height: 560px) {
+  .scanner-body .pt-main {
+    --pt-pad-y: 14px;
+    --pt-optical-lift: 0px;
+  }
+
+  .scanner-body .pt-step-card {
+    padding: 18px 20px 18px;
+  }
+
+  .scanner-body .pt-step-track {
+    margin-bottom: 12px;
+  }
+
+  .scanner-body .pt-step-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 14px;
+  }
+
+  .scanner-body .pt-btn-step {
+    min-height: 48px;
+    padding: 12px 20px;
+  }
+}
+
+/* ── Tablet and up ──
+   .pt-main widens to 780px for the action card, but the single-question
+   screens (verify, wizard, error) read badly stretched that far. Hold them
+   to the same 460px column the wizard already uses so all of them share
+   one width and stay centred. ── */
+@media (min-width: 700px) {
+  .scanner-body .pt-main {
+    --pt-optical-lift: clamp(10px, 2.4vh, 22px);
+  }
+
+  .scanner-body #scanner-verification-shell,
+  .scanner-body #error-card {
+    max-width: 460px;
+    width: 100%;
+    margin: 0 auto;
+  }
+}

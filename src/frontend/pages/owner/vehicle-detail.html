@@ -149,6 +149,12 @@
     .vd-tagid {
       font-size: 0.78rem; color: var(--ink-4);
       font-family: "SF Mono", "Fira Code", monospace; letter-spacing: .04em;
+      /* The real tag id is a 64-char hex token with no spaces, so it has no
+         break opportunity of its own and pushes the card past the viewport.
+         `anywhere` also lets the flex/grid parent shrink to fit (unlike
+         `break-word`, which leaves min-content at the full token width). */
+      overflow-wrap: anywhere;
+      line-height: 1.45;
     }
 
     /* ── Demo banner ─────────────────────────────────────── */

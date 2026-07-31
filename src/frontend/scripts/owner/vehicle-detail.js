@@ -160,27 +160,85 @@ function initToggles() {
 setTimeout(initToggles, 600);
 
 // ── SOS save ─────────────────────────────────────────────────
-document.getElementById("sos-save-btn")?.addEventListener("click", () => {
+// This number used to live only in localStorage, which meant it existed on
+// exactly one browser and the server could never dial it. It now persists on
+// the tag, which is what lets the scanner-side Emergency button connect a
+// caller to this contact. localStorage is kept only as a prefill for local
+// (unsaved) vehicles, which have no tag id to save against.
+document.getElementById("sos-save-btn")?.addEventListener("click", async () => {
   const num = (document.getElementById("sos-number")?.value || "").trim();
   if (!num) { alert("Please enter an emergency contact number."); return; }
-  try { localStorage.setItem("pt_sos_" + plate, num); } catch {}
+
   const btn = document.getElementById("sos-save-btn");
+  const restore = () => setTimeout(() => {
+    btn.textContent = "Save Emergency Contact";
+    btn.style.background = "";
+    btn.style.color = "";
+  }, 2000);
+
+  btn.disabled = true;
+  btn.textContent = "Saving…";
+
+  if (realId) {
+    try {
+      const res = await fetch(`/api/owner/tags/${realId}/emergency-contact`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ emergencyContact: num })
+      });
+      const data = await res.json().catch(() => ({}));
+      btn.disabled = false;
+      if (!res.ok) {
+        btn.textContent = "Save Emergency Contact";
+        alert(data.error || "Could not save the emergency contact.");
+        return;
+      }
+      // Mirror the normalised value the server stored.
+      const inp = document.getElementById("sos-number");
+      if (inp && data.emergencyContact) inp.value = data.emergencyContact;
+    } catch {
+      btn.disabled = false;
+      btn.textContent = "Save Emergency Contact";
+      alert("Network error — the emergency contact was not saved.");
+      return;
+    }
+  } else {
+    // Local-only vehicle: nothing on the server to attach it to yet.
+    try { localStorage.setItem("pt_sos_" + plate, num); } catch {}
+    btn.disabled = false;
+  }
+
   btn.textContent = "Saved!";
   btn.style.background = "#FFE3DD";
   btn.style.color = "#B31C00";
-  setTimeout(() => { btn.textContent = "Save Emergency Contact"; btn.style.background = ""; btn.style.color = ""; }, 2000);
+  restore();
 });
 
 document.getElementById("sos-test-btn")?.addEventListener("click", () => {
-  alert("SOS test alert sent! (Demo mode)");
+  const num = (document.getElementById("sos-number")?.value || "").trim();
+  if (!num) { alert("Save an emergency contact first."); return; }
+  alert(
+    "Emergency contact is set to " + num + ".\n\n" +
+    "To test the live call, scan this vehicle's QR, verify the plate, then use " +
+    "the Emergency button on the contact page — that places a real masked call."
+  );
 });
 
-setTimeout(() => {
-  const saved = localStorage.getItem("pt_sos_" + plate);
-  if (saved) {
-    const inp = document.getElementById("sos-number");
-    if (inp) inp.value = saved;
+setTimeout(async () => {
+  const inp = document.getElementById("sos-number");
+  if (!inp) return;
+
+  if (realId) {
+    try {
+      const res = await fetch("/api/owner/dashboard");
+      const data = res.ok ? await res.json() : null;
+      const tag = data?.tags?.find(t => t.id === realId);
+      if (tag?.emergencyContact) { inp.value = tag.emergencyContact; return; }
+    } catch {}
   }
+
+  const saved = localStorage.getItem("pt_sos_" + plate);
+  if (saved) inp.value = saved;
 }, 600);
 
 // ── Remove Vehicle ────────────────────────────────────────────

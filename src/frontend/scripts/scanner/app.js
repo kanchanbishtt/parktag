@@ -17,6 +17,9 @@ let pendingAction = null;
 let contactGrant = "";
 // Whether this E-Tag still has its free contact available (server-authoritative).
 let contactAvailable = true;
+// Whether the owner has set an emergency contact for this tag. The number is
+// never sent to the browser — this is only a flag telling us to offer SOS.
+let emergencyAvailable = false;
 // Optional reason selected via the chips; the message itself is built server-side.
 let selectedReason = "";
 
@@ -150,6 +153,10 @@ function resetActionState() {
   setDisabled("submit-message-button", false);
   setDisabled("contact-number-submit", false);
   setDisabled("final-call-button", false);
+  setHidden("pt-sos-block", true);
+  closeSosPanels();
+  setValue("sos-phone", "");
+  setDisabled("sos-final-call-button", false);
   setContactAvailability(true);
 }
 
@@ -168,6 +175,118 @@ function setContactAvailability(available) {
     setHidden("message-panel", true);
     setHidden("call-popup", true);
   }
+
+  // The SOS block is deliberately NOT gated on `available`. A used-up free
+  // contact must not be able to block an accident call to the owner's next of
+  // kin — the emergency path is billed to nobody and is judged only on whether
+  // the owner actually nominated someone.
+  setHidden("pt-sos-block", !emergencyAvailable);
+}
+
+// ── Emergency / SOS ──────────────────────────────────────────────────────
+// Same two-step shape as the owner call (capture number → dial the masked
+// virtual number), but pointed at /register-emergency-call so the Dial Whom
+// webhook resolves the owner's emergency contact instead of the owner.
+function closeSosPanels() {
+  setHidden("sos-number-panel", true);
+  setHidden("sos-dial-panel", true);
+  setHidden("sos-dial-number-block", true);
+}
+
+function openSosPanel() {
+  // Close the ordinary contact panels so only one flow is ever live.
+  setHidden("contact-number-panel", true);
+  setHidden("dial-panel", true);
+  setHidden("message-panel", true);
+  setHidden("call-popup", true);
+  setHidden("request-confirmation", true);
+
+  setHidden("sos-dial-panel", true);
+  setHidden("sos-number-panel", false);
+  setValue("sos-phone", "");
+  setRequestStatus(
+    "request-status",
+    "Emergency: enter your number and we will connect you to the owner's emergency contact.",
+    "info"
+  );
+  byId("sos-phone")?.focus();
+}
+
+function handleSosNumberSubmit() {
+  const phone = byId("sos-phone")?.value.trim();
+
+  if (!phone || phone.replace(/\D/g, "").length < 7) {
+    setRequestStatus("request-status", "Enter a valid phone number so we can call you back.", "error");
+    return;
+  }
+
+  setHidden("sos-number-panel", true);
+  setHidden("sos-dial-panel", false);
+  setRequestStatus("request-status", "Tap Call Now to connect the emergency contact.", "info");
+}
+
+async function handleSosCall() {
+  if (actionLocked) return;
+
+  const token = byId("request-token")?.value.trim();
+  const phone = byId("sos-phone")?.value.trim();
+
+  if (!token || !phone) {
+    setRequestStatus("request-status", "Enter your number before starting the emergency call.", "error");
+    return;
+  }
+
+  actionLocked = true;
+  setDisabled("sos-final-call-button", true);
+  setRequestStatus("request-status", "Connecting the emergency contact…", "info");
+
+  let virtualNumber = "";
+  try {
+    const res = await fetch(`/api/tags/${token}/register-emergency-call`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ phone, grant: contactGrant })
+    });
+    const data = await res.json().catch(() => ({}));
+
+    if (data.code === "NO_EMERGENCY_CONTACT") {
+      // The owner cleared it between page load and the tap — stop offering SOS.
+      emergencyAvailable = false;
+      setHidden("pt-sos-block", true);
+      closeSosPanels();
+      actionLocked = false;
+      setDisabled("sos-final-call-button", false);
+      setRequestStatus("request-status", data.error || "No emergency contact is set for this vehicle.", "error");
+      return;
+    }
+    if (!res.ok) throw new Error(data.error || "Could not start the emergency call.");
+    virtualNumber = data.virtualNumber || "";
+  } catch (error) {
+    actionLocked = false;
+    setDisabled("sos-final-call-button", false);
+    setRequestStatus(
+      "request-status",
+      error instanceof Error ? error.message : "Could not start the emergency call.",
+      "error"
+    );
+    return;
+  }
+
+  if (virtualNumber) {
+    setText("sos-virtual-number", virtualNumber);
+    setHidden("sos-dial-number-block", false);
+    window.location.href = `tel:${virtualNumber}`;
+  }
+
+  // Leave a manual retry in case the dialer did not open on its own.
+  const btn = byId("sos-final-call-button");
+  if (btn && virtualNumber) {
+    btn.disabled = false;
+    btn.textContent = "Tap to Call";
+    btn.onclick = () => { window.location.href = `tel:${virtualNumber}`; };
+  }
+
+  setRequestStatus("request-status", "Your phone dialer should open now.", "success");
 }
 
 function setSummaryForTag(tag) {
@@ -235,6 +354,7 @@ async function loadScannerView() {
     setSummaryForTag(tag);
     setValue("request-token", tag.token);
     setText("plate-mask-preview", tag.maskedPlateNumber || "••••");
+    emergencyAvailable = tag.emergencyAvailable === true;
 
     if (registrationState) {
       setText("scanner-load-status", "This WaveTag needs owner registration before contact can be enabled.");
@@ -321,7 +441,7 @@ async function handlePlateVerification(event) {
   setRequestStatus(
     "request-status",
     data.contactAvailable !== false
-      ? "Verified ✓ Choose Call Owner or Leave WhatsApp message."
+      ? "Verified ✓ Choose WhatsApp or Call to reach the owner."
       : "Verified ✓",
     "success"
   );
@@ -770,6 +890,15 @@ byId("call-owner-button")?.addEventListener("click", () => requestContactNumber(
 byId("send-whatsapp-button")?.addEventListener("click", handleWhatsAppNotify);
 byId("contact-number-submit")?.addEventListener("click", handleContactNumberSubmit);
 byId("final-call-button")?.addEventListener("click", handleFinalCallAction);
+
+// Emergency / SOS
+byId("sos-button")?.addEventListener("click", openSosPanel);
+byId("sos-number-submit")?.addEventListener("click", handleSosNumberSubmit);
+byId("sos-final-call-button")?.addEventListener("click", handleSosCall);
+byId("sos-cancel")?.addEventListener("click", () => {
+  closeSosPanels();
+  setRequestStatus("request-status", "", "info");
+});
 
 // Activation wizard
 byId("act-start-btn")?.addEventListener("click", () => showActStep(2));

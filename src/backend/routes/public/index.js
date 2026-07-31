@@ -51,6 +51,12 @@ export function registerPublicRoutes(app, env) {
           tag.status === "active" ? maskPlateNumber(tag.plateNumber) : null,
         callPreviewNumber:
           tag.status === "active" ? env.exotelCallerId || null : null,
+        // Whether an emergency contact exists — a boolean ONLY. The number
+        // itself must never reach the scanner; the SOS call is masked through
+        // Exotel exactly like the owner call, so the client only ever learns
+        // that the button is worth showing.
+        emergencyAvailable:
+          tag.status === "active" && isNonEmptyString(tag.emergencyContact),
         claimable: ["unclaimed", "inactive"].includes(tag.status)
       },
       // Public support handle for the activation wizard's help card. Null when
@@ -646,6 +652,122 @@ export function registerPublicRoutes(app, env) {
       createdAt: now.toISOString(),
       expiresAt: new Date(now.getTime() + 10 * 60 * 1000)
     });
+
+    return { ok: true, virtualNumber: env.exotelCallerId };
+  });
+
+  // ── Emergency / SOS call ──────────────────────────────────────────────
+  // Same masked-call mechanism as /register-call, but the pendingCalls record
+  // targets the owner's EMERGENCY contact (next of kin) instead of the owner.
+  // The Dial Whom webhook resolves whatever targetPhone it finds for the
+  // caller, so no webhook change is needed for this second call type.
+  //
+  // Two deliberate differences from the ordinary owner call:
+  //
+  //  1. It does NOT consume, and is NOT blocked by, the free contact. This is
+  //     the accident path — refusing to connect next of kin because a stranger
+  //     already used the tag's one free contact would be indefensible. Abuse is
+  //     bounded instead by the plate-verification grant (below), the rate limit,
+  //     and the fact that the call only ever reaches a number the owner chose.
+  //
+  //  2. It still REQUIRES a valid grant. Without it, anyone enumerating tokens
+  //     could ring a stranger's next of kin, so plate possession stays the
+  //     price of entry — the scanner is standing at the vehicle either way.
+  app.post("/api/tags/:token/register-emergency-call", { config: { rateLimit: { max: 5, timeWindow: "1 minute" } } }, async (request, reply) => {
+    const { phone, grant } = request.body || {};
+
+    if (!isNonEmptyString(phone)) {
+      reply.code(400);
+      return { ok: false, error: "phone is required" };
+    }
+    // `grant` is used as a raw Mongo filter value below — must be a string.
+    if (!isNonEmptyString(grant)) {
+      reply.code(403);
+      return { ok: false, error: "Verify the vehicle before using the emergency call." };
+    }
+
+    const collections = await getCollections(env);
+    if (!collections) {
+      reply.code(500);
+      return { ok: false, error: "MongoDB is not configured" };
+    }
+
+    await ensurePendingCallsIndexes(collections);
+
+    const { token } = request.params;
+
+    const grantSession = await collections.verificationSessions.findOne({
+      token,
+      grantId: grant,
+      verified: true
+    });
+    if (!grantSession || new Date(grantSession.grantExpiresAt) <= new Date()) {
+      reply.code(403);
+      return { ok: false, error: "Your verification expired. Please verify the vehicle again." };
+    }
+
+    const tag = await collections.tags.findOne({ token });
+    if (!tag || tag.status !== "active") {
+      reply.code(404);
+      return { ok: false, error: "Tag not found or not active" };
+    }
+
+    if (!env.exotelCallerId) {
+      reply.code(503);
+      return { ok: false, error: "Call service is not configured." };
+    }
+
+    if (!isNonEmptyString(tag.emergencyContact)) {
+      reply.code(422);
+      return {
+        ok: false,
+        code: "NO_EMERGENCY_CONTACT",
+        error: "This vehicle's owner has not set an emergency contact."
+      };
+    }
+
+    const callerPhone = toE164(phone);
+    const targetPhone = toE164(tag.emergencyContact);
+    const now = new Date();
+
+    const { insertedId: requestId } = await collections.contactRequests.insertOne({
+      token,
+      ownerId: tag.ownerId || null,
+      phone: callerPhone,
+      action: "emergency_call",
+      status: "initiated",
+      provider: "exotel",
+      ipAddress: getClientIp(request),
+      userAgent: request.headers["user-agent"] || null,
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString()
+    });
+
+    // Note the absence of a tags.freeContactUsed write here — see (1) above.
+    await collections.tags.updateOne(
+      { _id: tag._id },
+      {
+        $set: { lastEmergencyAt: now.toISOString(), updatedAt: now.toISOString() },
+        $inc: { emergencyAttempts: 1 }
+      }
+    );
+
+    await collections.pendingCalls.insertOne({
+      callerPhone,
+      targetPhone,
+      token,
+      ownerId: tag.ownerId || null,
+      requestId,
+      type: "scanner_to_emergency",
+      consumed: false,
+      createdAt: now.toISOString(),
+      expiresAt: new Date(now.getTime() + 10 * 60 * 1000)
+    });
+
+    request.log.info(
+      { event: "emergency-call-registered", token, requestId: String(requestId) },
+      "[emergency] pending SOS call registered"
+    );
 
     return { ok: true, virtualNumber: env.exotelCallerId };
   });

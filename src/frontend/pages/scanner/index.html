@@ -189,23 +189,70 @@
           </button>
         </div>
 
+        <!-- Two peer actions, side by side: neither is a fallback for the other. -->
         <div class="pt-contact-actions" id="scanner-contact-actions">
-          <button id="send-whatsapp-button" class="pt-btn pt-btn-whatsapp pt-btn-full" type="button">
-            <svg width="20" height="20" viewBox="0 0 32 32" fill="currentColor">
-              <path d="M27 15.6c0 6.1-5 11.1-11.1 11.1-1.9 0-3.7-.5-5.3-1.4L5 27l1.8-5.2a11 11 0 0 1-2-6.2C4.8 9.5 9.8 4.5 15.9 4.5S27 9.5 27 15.6Z"/>
-              <path d="M12.7 10.8c-.2-.5-.4-.5-.6-.5h-.6c-.2 0-.6.1-.9.5-.3.3-1.1 1.1-1.1 2.7s1.1 3.1 1.2 3.3c.2.2 2.2 3.6 5.4 4.9 2.6 1 3.1.8 3.7.8.6-.1 1.8-.7 2-1.4.3-.7.3-1.4.2-1.5-.1-.1-.4-.2-.9-.5s-1.8-.9-2-.9c-.3-.1-.5-.1-.7.2-.2.3-.8.9-1 .9-.2 0-.4 0-.8-.2-.4-.2-1.5-.6-2.8-2-.8-.9-1.4-2-1.5-2.3-.2-.3 0-.4.1-.6.2-.2.3-.4.5-.6.2-.2.2-.3.3-.5.1-.2 0-.4 0-.6-.1-.1-.7-1.7-1-2.3Z" fill="#fff"/>
-            </svg>
-            Message WhatsApp
-            <span class="pt-btn-sub">Private · Recommended</span>
+          <button id="send-whatsapp-button" class="pt-btn pt-btn-whatsapp" type="button">
+            <span class="pt-btn-line">
+              <svg width="19" height="19" viewBox="0 0 32 32" fill="currentColor" aria-hidden="true">
+                <path d="M27 15.6c0 6.1-5 11.1-11.1 11.1-1.9 0-3.7-.5-5.3-1.4L5 27l1.8-5.2a11 11 0 0 1-2-6.2C4.8 9.5 9.8 4.5 15.9 4.5S27 9.5 27 15.6Z"/>
+                <path d="M12.7 10.8c-.2-.5-.4-.5-.6-.5h-.6c-.2 0-.6.1-.9.5-.3.3-1.1 1.1-1.1 2.7s1.1 3.1 1.2 3.3c.2.2 2.2 3.6 5.4 4.9 2.6 1 3.1.8 3.7.8.6-.1 1.8-.7 2-1.4.3-.7.3-1.4.2-1.5-.1-.1-.4-.2-.9-.5s-1.8-.9-2-.9c-.3-.1-.5-.1-.7.2-.2.3-.8.9-1 .9-.2 0-.4 0-.8-.2-.4-.2-1.5-.6-2.8-2-.8-.9-1.4-2-1.5-2.3-.2-.3 0-.4.1-.6.2-.2.3-.4.5-.6.2-.2.2-.3.3-.5.1-.2 0-.4 0-.6-.1-.1-.7-1.7-1-2.3Z" fill="#fff"/>
+              </svg>
+              <span>WhatsApp</span>
+            </span>
+            <span class="pt-btn-sub">Message the owner privately</span>
           </button>
 
-          <button id="call-owner-button" class="pt-btn pt-btn-call pt-btn-full" type="button">
-            <svg width="18" height="18" viewBox="0 0 32 32" fill="currentColor">
-              <path d="M10.6 5.7c-.7-.8-1.8-1-2.6-.5-1.4.8-2.5 2.7-2.4 4.5.1 2.9 1.4 6.2 4 8.8 2.6 2.6 5.9 3.9 8.8 4 1.8.1 3.7-1 4.5-2.4.5-.9.3-1.9-.5-2.6l-2.8-2.5c-.7-.6-1.7-.7-2.5-.2l-1.8 1.1c-.4.3-1 .2-1.4-.2l-2.8-2.8c-.4-.4-.5-1-.2-1.4l1.1-1.8c.5-.8.4-1.8-.2-2.5l-2.5-2.8Z"/>
-            </svg>
-            Private Call
+          <button id="call-owner-button" class="pt-btn pt-btn-call" type="button">
+            <span class="pt-btn-line">
+              <svg width="17" height="17" viewBox="0 0 32 32" fill="currentColor" aria-hidden="true">
+                <path d="M10.6 5.7c-.7-.8-1.8-1-2.6-.5-1.4.8-2.5 2.7-2.4 4.5.1 2.9 1.4 6.2 4 8.8 2.6 2.6 5.9 3.9 8.8 4 1.8.1 3.7-1 4.5-2.4.5-.9.3-1.9-.5-2.6l-2.8-2.5c-.7-.6-1.7-.7-2.5-.2l-1.8 1.1c-.4.3-1 .2-1.4-.2l-2.8-2.8c-.4-.4-.5-1-.2-1.4l1.1-1.8c.5-.8.4-1.8-.2-2.5l-2.5-2.8Z"/>
+              </svg>
+              <span>Private Call</span>
+            </span>
             <span class="pt-btn-sub">Call the owner privately</span>
           </button>
+        </div>
+
+        <!-- Emergency / SOS — only rendered when the owner has set a next-of-kin
+             number (tag.emergencyAvailable). Deliberately separated from the two
+             routine actions above so it cannot be tapped by reflex. -->
+        <div class="pt-sos-block" id="pt-sos-block" hidden>
+          <p class="pt-sos-copy">
+            Do you think the vehicle has had an accident and the owner's family or
+            emergency contact needs to be reached?
+          </p>
+          <button id="sos-button" class="pt-btn pt-btn-sos" type="button">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M12 3.2 2.6 19.4a1 1 0 0 0 .87 1.5h17.06a1 1 0 0 0 .87-1.5L12 3.2Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+              <path d="M12 9.6v4.2M12 17.1h.01" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+            </svg>
+            Emergency
+          </button>
+        </div>
+
+        <!-- SOS phone capture — mirrors the owner-call panel, separate ids so the
+             two flows never share state. -->
+        <div id="sos-number-panel" class="pt-panel pt-panel-sos" hidden>
+          <p class="pt-panel-label">Emergency call — your phone number</p>
+          <p class="pt-panel-sub">
+            We connect you to the owner's emergency contact. Both numbers stay hidden.
+            Use this only for a genuine accident or emergency.
+          </p>
+          <label class="pt-field">
+            <input id="sos-phone" type="tel" autocomplete="tel" inputmode="tel" placeholder="+91 99999 99999" class="pt-input" />
+          </label>
+          <button id="sos-number-submit" class="pt-btn pt-btn-sos pt-btn-full" type="button">Connect emergency call</button>
+          <button type="button" class="pt-sos-cancel" id="sos-cancel">Cancel</button>
+        </div>
+
+        <!-- SOS dial panel -->
+        <div id="sos-dial-panel" class="pt-panel pt-panel-sos" hidden>
+          <div id="sos-dial-number-block" hidden>
+            <p class="pt-panel-label">Emergency number: dial this if your phone doesn't open automatically</p>
+            <p class="pt-dial-number" id="sos-virtual-number"></p>
+          </div>
+          <p class="pt-panel-sub">Connecting you to the owner's emergency contact. Your number stays private.</p>
+          <button id="sos-final-call-button" class="pt-btn pt-btn-sos pt-btn-full" type="button">Call Now</button>
         </div>
 
         <!-- Free-contact-used CTA (replaces the buttons once the free contact is used) -->

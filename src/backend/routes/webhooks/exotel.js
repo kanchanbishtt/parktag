@@ -20,7 +20,15 @@ function isAuthorizedExotelRequest(env, request) {
     return env.runtimeMode !== "production";
   }
   const supplied = request.query?.token || request.headers["x-exotel-webhook-secret"];
-  return typeof supplied === "string" && safeEqual(supplied, env.exotelWebhookSecret);
+  // Trim both sides: env vars pasted into Railway/Exotel frequently pick up a
+  // trailing newline or space, which would fail the length-sensitive
+  // constant-time compare even when the secret is otherwise correct. No
+  // legitimate secret has leading/trailing whitespace, so this only removes a
+  // footgun — it does not weaken the check.
+  return (
+    typeof supplied === "string" &&
+    safeEqual(supplied.trim(), String(env.exotelWebhookSecret).trim())
+  );
 }
 
 export function registerProviderRoutes(app, env) {
@@ -40,6 +48,18 @@ export function registerProviderRoutes(app, env) {
     reply.type("text/plain");
 
     if (!isAuthorizedExotelRequest(env, request)) {
+      // Diagnostic (no PII): reveals WHY auth failed so a mis-configured Exotel
+      // callback URL is obvious from the logs — token absent vs length mismatch
+      // (URL-encoding/typo) vs equal-length value mismatch (wrong secret).
+      const supplied = request.query?.token || request.headers["x-exotel-webhook-secret"];
+      request.log.warn({
+        event: "dial-whom-auth-failed",
+        tokenSupplied: typeof supplied === "string",
+        suppliedLen: typeof supplied === "string" ? supplied.length : 0,
+        expectedLen: (env.exotelWebhookSecret || "").length,
+        secretConfigured: !!env.exotelWebhookSecret,
+        runtimeMode: env.runtimeMode
+      }, "[dial-whom] rejected: auth failed (check ?token= on the Exotel Dial-Whom URL)");
       reply.code(401);
       return reply.send("");
     }
@@ -49,6 +69,11 @@ export function registerProviderRoutes(app, env) {
     const rawCaller = request.query.CallFrom || request.query.Callfrom || request.query.caller || null;
 
     if (!collections || !rawCaller) {
+      request.log.warn({
+        event: "dial-whom-no-caller",
+        hasCollections: !!collections,
+        queryKeys: Object.keys(request.query || {})
+      }, "[dial-whom] no caller number in request (Exotel did not send CallFrom)");
       return reply.send("");
     }
 
@@ -62,9 +87,24 @@ export function registerProviderRoutes(app, env) {
     );
 
     if (!record) {
-      console.warn("[dial-whom] unmatched inbound call — no pending record found for this caller");
+      // Distinguish "never registered / caller-number mismatch" from "already
+      // consumed" and "expired" — the three ways a match can miss.
+      const any = await collections.pendingCalls.findOne({ callerPhone });
+      request.log.warn({
+        event: "dial-whom-no-match",
+        callerPhone: maskPhone(callerPhone),
+        anyRecordForCaller: !!any,
+        alreadyConsumed: any ? !!any.consumed : null,
+        expired: any ? new Date(any.expiresAt) <= now : null
+      }, "[dial-whom] no pending call matched this caller");
       return reply.send("");
     }
+
+    request.log.info({
+      event: "dial-whom-connect",
+      caller: maskPhone(callerPhone),
+      target: maskPhone(toE164(record.targetPhone))
+    }, "[dial-whom] matched — returning owner number to Exotel");
 
     // Store the CallSid on the contactRequest so the status callback can link
     // back to it after the call ends (inbound calls have no CustomField).
@@ -154,4 +194,11 @@ function toE164(input) {
   if (digits.length === 11 && digits.startsWith("0")) return `+91${digits.slice(1)}`;
   if (digits.length === 12 && digits.startsWith("91")) return `+${digits}`;
   return `+${digits}`;
+}
+
+// Log-safe phone mask: keep the country/prefix and last 4, hide the middle.
+function maskPhone(input) {
+  const s = String(input || "");
+  if (s.length <= 6) return s;
+  return `${s.slice(0, 3)}***${s.slice(-4)}`;
 }

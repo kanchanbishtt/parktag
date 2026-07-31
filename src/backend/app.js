@@ -50,7 +50,7 @@ const resetPasswordPage = path.join(pagesRoot, "owner/reset-password.html");
 const ownerVerifyPage = path.join(pagesRoot, "owner/verify.html");
 const ownerWelcomePage = path.join(pagesRoot, "owner/welcome.html");
 const ownerVehicleDetailPage = path.join(pagesRoot, "owner/vehicle-detail.html");
-const scannerAssetVersion = "parktag-ui-1";
+const scannerAssetVersion = "parktag-ui-4";
 const hubAssetVersion = "hub-shell-1";
 
 // Every request is logged with its URL, and several sensitive values travel in

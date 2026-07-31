@@ -8,6 +8,39 @@ import { createEtagForVehicle, buildTagScanUrl, VEHICLE_LABELS, etagIdFor } from
 import { validateAddress } from "../../lib/core/address.js";
 import { checkPincodeServiceability, trackShipment, trackingUrl } from "../../lib/integrations/delhivery.js";
 
+// How long a persisted Delhivery tracking snapshot stays fresh before we call
+// their API again. Every dashboard open would otherwise hit Delhivery once per
+// order (up to 20 in parallel); a short cache keeps status live without
+// hammering them or risking rate limits. Delivered is terminal, so a slightly
+// stale snapshot is harmless.
+const TRACKING_TTL_MS = 15 * 60 * 1000;
+
+// Return a tracking snapshot for one order, cached on the order document. Uses
+// the cache when fresh; otherwise refreshes from Delhivery and persists it.
+// Never throws (trackShipment is best-effort) and never overwrites a good cached
+// status with a transient null from a Delhivery hiccup.
+async function getOrderTracking(collections, env, order) {
+  if (!order.waybill) return null;
+
+  const cache = order.trackingCache;
+  if (cache && cache.fetchedAt &&
+      Date.now() - new Date(cache.fetchedAt).getTime() < TRACKING_TTL_MS) {
+    return cache;
+  }
+
+  const fresh = await trackShipment(env, order.waybill);
+  if (fresh && fresh.status) {
+    const snapshot = { ...fresh, fetchedAt: new Date().toISOString() };
+    await collections.shopOrders
+      .updateOne({ _id: order._id }, { $set: { trackingCache: snapshot } })
+      .catch(() => {});
+    return snapshot;
+  }
+
+  // Delhivery gave us nothing usable — prefer the last good cache over a null.
+  return cache || fresh;
+}
+
 // Strip an address DB doc down to the shippable fields (no _id/ownerId/timestamps).
 function shapeAddress(doc) {
   const { fullName, phone, line1, line2, landmark, city, state, pincode } = doc;
@@ -321,7 +354,7 @@ export function registerOwnerRoutes(app, env) {
       .toArray();
 
     const withTracking = await Promise.all(orders.map(async (order) => {
-      const tracking = order.waybill ? await trackShipment(env, order.waybill) : null;
+      const tracking = await getOrderTracking(collections, env, order);
       const isCod = order.status === "cod";
       return {
         id: String(order._id),
@@ -339,11 +372,47 @@ export function registerOwnerRoutes(app, env) {
           : order.waybill
             ? (tracking?.status || "booked")
             : (isCod ? "cod_confirmed" : "processing"),
-        trackingInstructions: tracking?.instructions || null
+        trackingInstructions: tracking?.instructions || null,
+        // Whether an in-app timeline is worth opening (has a waybill).
+        trackable: Boolean(order.waybill)
       };
     }));
 
     return { ok: true, orders: withTracking };
+  });
+
+  // Full in-app tracking timeline for a single order — the checkpoint history
+  // (Manifested → Picked up → In Transit → Out for delivery → Delivered) so the
+  // buyer can follow the parcel without leaving the app. Cached per order (see
+  // getOrderTracking); best-effort, so a Delhivery hiccup yields an empty
+  // timeline rather than an error.
+  app.get("/api/owner/orders/:id/track", async (request, reply) => {
+    const blocked = await requireSession(app, "owner")(request, reply);
+    if (blocked) return blocked;
+
+    const orderId = tryObjectId(request.params.id);
+    if (!orderId) { reply.code(400); return { ok: false, error: "Invalid order id" }; }
+
+    const collections = await getCollections(env);
+    if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
+
+    const ownerId = toObjectId(request.session.userId);
+    // Scope to this owner — never let one owner read another's order/waybill.
+    const order = await collections.shopOrders.findOne({ _id: orderId, ownerId });
+    if (!order) { reply.code(404); return { ok: false, error: "Order not found." }; }
+
+    const tracking = await getOrderTracking(collections, env, order);
+
+    return {
+      ok: true,
+      orderNumber: order.orderNumber || null,
+      productName: order.productName || null,
+      waybill: order.waybill || null,
+      trackingUrl: order.waybill ? trackingUrl(order.waybill) : null,
+      status: tracking?.status || (order.waybill ? "booked" : null),
+      statusDateTime: tracking?.statusDateTime || null,
+      scans: Array.isArray(tracking?.scans) ? tracking.scans : []
+    };
   });
 
   // The old in-place ₹199 premium-upgrade endpoints (purchase-order /

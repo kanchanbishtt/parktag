@@ -102,6 +102,10 @@ export function getEnv() {
     // production→production). Set SCAN_BASE_URL=https://app.parktag.me in prod
     // if you ever generate stickers from a non-canonical host.
     scanBaseUrl: (process.env.SCAN_BASE_URL || "").replace(/\/+$/, ""),
+    // Public support handle shown on the sticker activation wizard ("Need help?
+    // WhatsApp support"). Digits with country code, no "+" needed — e.g.
+    // 919999999999. Unset → the help card is not rendered.
+    supportWhatsappNumber: (process.env.SUPPORT_WHATSAPP_NUMBER || "").replace(/[^\d]/g, ""),
     googleClientId: process.env.GOOGLE_CLIENT_ID || "",
     googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
     googleCallbackUrl: process.env.GOOGLE_CALLBACK_URL || "http://127.0.0.1:4000/api/auth/google/callback",

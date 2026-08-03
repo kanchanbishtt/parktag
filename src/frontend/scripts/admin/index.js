@@ -395,9 +395,9 @@ async function exportQrsForPrint() {
 
     if (countLabel) countLabel.textContent = `${tags.length} tag${tags.length !== 1 ? "s" : ""} to print`;
 
-    // Group into landscape sheets of 4 (2x2) so the on-screen preview matches
-    // the printed page and each page holds exactly four stickers.
-    const perSheet = 4;
+    // One sticker per portrait page. Each .pt-sheet is a page, so the on-screen
+    // preview matches the print exactly.
+    const perSheet = 1;
     let sheetsHtml = "";
     for (let i = 0; i < tags.length; i += perSheet) {
       const cells = tags.slice(i, i + perSheet).map(etagPrintPageHtml).join("");

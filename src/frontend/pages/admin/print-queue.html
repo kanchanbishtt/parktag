@@ -82,17 +82,18 @@
         </div>
 
         <style>
-          /* Export sheet: 4 stickers per landscape A4 page (2x2), each the exact
-             Figma card (1500x902) cropped from the SVG. Stickers are grouped into
-             .pt-sheet blocks of 4 so the on-screen preview matches the print. */
+          /* Export sheet: one sticker per portrait A4 page, centred. Each
+             .pt-sheet is exactly one page, so the on-screen preview matches the
+             print. The sticker is 105mm wide (its real die-cut size), which is
+             half the 210mm page — hence the 50% width in the preview. */
           #qr-export-grid { display: block; }
           #qr-export-grid .pt-sheet {
-            display: grid; grid-template-columns: repeat(2, 1fr); gap: 6%;
-            align-content: start; aspect-ratio: 297 / 210; box-sizing: border-box;
+            display: flex; align-items: center; justify-content: center;
+            aspect-ratio: 210 / 297; box-sizing: border-box;
             padding: 4%; margin: 0 auto 22px; background: #fff;
             border: 1px solid #E5E7EB; border-radius: 6px; box-shadow: 0 2px 12px rgba(0,0,0,.08);
           }
-          #qr-export-grid .pt-page { width: 100%; margin: 0; break-inside: avoid; page-break-inside: avoid; }
+          #qr-export-grid .pt-page { width: 50%; margin: 0; break-inside: avoid; page-break-inside: avoid; }
           #qr-export-grid .pt-wrap { font-family: 'Inter','Segoe UI',Arial,sans-serif; color: #03162D; }
           #qr-export-grid .pt-instr { font-size: 11px; line-height: 1.8; margin-bottom: 18px; color: #323232; }
           #qr-export-grid .pt-instr .pt-instr-h { display: block; font-size: 12.5px; font-weight: 800; margin: 3px 0 2px; color: #03162D; }
@@ -143,16 +144,22 @@
             #qr-export-overlay { display: block !important; position: static !important; overflow: visible !important; padding: 0 !important; }
             #qr-export-overlay > div:first-child { display: none !important; }
             #qr-export-overlay, #qr-export-overlay * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-            /* Landscape A4: each .pt-sheet is one page holding a 2x2 grid of
-               four stickers. Never split a sticker across a page break. */
-            @page { margin: 1cm; size: A4 landscape; }
+            /* Portrait A4, one sticker per page, centred on the sheet. Zero page
+               margin so .pt-sheet can be exactly 297mm tall — that is what
+               centres the sticker on the page; if the margin changes, this
+               height must change with it. The sticker prints at its true
+               105mm x 63mm die-cut size, so it can be cut out and used as is. */
+            @page { margin: 0; size: A4 portrait; }
             #qr-export-grid { max-width: none !important; }
             #qr-export-grid .pt-sheet {
-              aspect-ratio: auto !important; padding: 0 !important; margin: 0 !important;
-              gap: 8mm !important; border: none !important; box-shadow: none !important;
+              display: flex !important; align-items: center !important; justify-content: center !important;
+              aspect-ratio: auto !important; height: 297mm !important;
+              padding: 0 !important; margin: 0 !important;
+              border: none !important; box-shadow: none !important;
               border-radius: 0 !important; background: transparent !important;
               break-after: page; page-break-after: always;
             }
+            #qr-export-grid .pt-page { width: 105mm !important; }
             #qr-export-grid .pt-sheet:last-child { break-after: auto; page-break-after: auto; }
             #qr-export-grid .pt-page { break-inside: avoid; page-break-inside: avoid; }
           }

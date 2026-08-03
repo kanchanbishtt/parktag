@@ -33,6 +33,9 @@ setTimeout(async () => {
         if (idEl && tag.etagId) idEl.textContent = String(tag.etagId).replace(/^PT-/, "");
         const stEl = document.getElementById("print-status");
         if (stEl) stEl.textContent = tag.status === "inactive" ? "Inactive" : "Active";
+        // Sticker serial, printed on the sticker face itself (not the sheet).
+        const serialEl = document.getElementById("print-figma-serial");
+        if (serialEl) serialEl.textContent = tag.serial || "";
       }
     } catch {}
   }

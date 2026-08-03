@@ -11,6 +11,8 @@ import QRCode from "qrcode";
 import { getEnv } from "./lib/env.js";
 import { clientErrorMessage } from "./lib/errors.js";
 import { readSession } from "./lib/auth/session.js";
+import { getCollections } from "./lib/db/repositories.js";
+import { stickerSerialFor } from "./lib/core/tag-issuance.js";
 import { registerAdminRoutes } from "./routes/admin/index.js";
 import { registerAuthRoutes } from "./routes/auth/credentials.js";
 import { registerDemoRoutes } from "./routes/system/demo.js";
@@ -427,9 +429,18 @@ export async function buildApp() {
       errorCorrectionLevel: "M"
     });
 
+    // Serial printed on the sticker face. stickerSerialFor reduces both halves
+    // to digits, so the value can only be [A-Z0-9-] — nothing to escape here.
+    const collections = await getCollections(env);
+    const tag = await collections.tags.findOne({ token });
+    const serial = tag ? stickerSerialFor(tag) : "";
+
     const html = await fs.readFile(stickerPrintPage, "utf8");
     reply.type("text/html");
-    return html.replaceAll("__SCAN_URL__", scanUrl).replace("<!--QR-->", qrSvg);
+    return html
+      .replaceAll("__SCAN_URL__", scanUrl)
+      .replaceAll("__SERIAL__", serial)
+      .replace("<!--QR-->", qrSvg);
   });
 
   // Public scan landing page. Accepts both the new 256-bit hex tokens (64 chars)

@@ -9,6 +9,30 @@ export function etagIdFor(id) {
   return `PT-${String(id).slice(-8).toUpperCase()}`;
 }
 
+// Batch half of a sticker serial, normalised to two digits. Shared by the serial
+// formatter and the issuance counter so both always agree on which batch a tag
+// belongs to ("B12", "12" and 12 all resolve to "12").
+export function batchKeyFor(batchNumber) {
+  return String(batchNumber ?? 0).replace(/\D/g, "").padStart(2, "0");
+}
+
+// Human-readable serial printed on the physical premium sticker: PT-<batch>-<unit>,
+// e.g. PT-01-000001 for the first tag of batch 01. Both halves are reduced to
+// digits, so the result only ever contains [A-Z0-9-] and is safe to interpolate
+// into printed HTML.
+//
+// Returns "" for a tag with no serialNumber rather than inventing one. Tags
+// issued before serials existed have none until the backfill script has run
+// (npm run backfill:tag-serials) — printing a made-up number would be worse
+// than printing none, because the whole point is that it maps to a record.
+export function stickerSerialFor(tag) {
+  if (tag?.serialNumber == null) {
+    return "";
+  }
+  const unit = String(tag.serialNumber).replace(/\D/g, "").padStart(6, "0");
+  return `PT-${batchKeyFor(tag.batchNumber)}-${unit}`;
+}
+
 export const VEHICLE_LABELS = {
   car: "Car", bike: "Bike", scooter: "Scooter", auto_rickshaw: "Auto Rickshaw",
   truck: "Truck", bus: "Bus", bicycle: "Bicycle", e_scooter: "E-Scooter"
@@ -56,6 +80,20 @@ export function tagLifecycleDefaults() {
 
 export async function createUnclaimedTags(collections, input) {
   const quantity = Math.max(1, Number(input.quantity || 1));
+
+  // Reserve this run's sticker serials in one atomic bump, so two admins issuing
+  // into the same batch can never be handed the same number. Same counters
+  // collection and $inc pattern the shop order number uses.
+  const batch = batchKeyFor(input.batchNumber);
+  const res = await collections.counters.findOneAndUpdate(
+    { _id: `tagSerial:${batch}` },
+    { $inc: { seq: quantity } },
+    { upsert: true, returnDocument: "after" }
+  );
+  // The v6 driver returns the doc directly; older behaviour wraps it in `.value`.
+  const seqEnd = (res && (res.seq ?? (res.value && res.value.seq))) || quantity;
+  const seqStart = seqEnd - quantity + 1;
+
   const tags = [];
 
   for (let index = 0; index < quantity; index += 1) {
@@ -69,6 +107,8 @@ export async function createUnclaimedTags(collections, input) {
       status: "unclaimed",
       batchNumber: input.batchNumber || null,
       batchLabel: input.batchLabel || null,
+      // Sequential within the batch: PT-<batch>-<serialNumber>.
+      serialNumber: seqStart + index,
       printStatus: "pending_print",
       stickerRequested: Boolean(input.stickerRequested),
       createdAt: new Date().toISOString(),
@@ -97,6 +137,7 @@ export async function buildIssuedTagOutput(request, tag) {
   return {
     id: String(tag._id),
     token: tag.token,
+    serial: stickerSerialFor(tag),
     status: tag.status,
     batchNumber: tag.batchNumber,
     batchLabel: tag.batchLabel || null,

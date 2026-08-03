@@ -243,6 +243,7 @@ function etagPrintPageHtml(tag) {
         <div class="pt-figma-sticker">
           <img class="pt-figma-bg" src="/images/org-parktag-sticker.svg" alt="ParkTag sticker"/>
           <img class="pt-figma-qr" src="${tag.qrDataUrl}" alt="QR ${tag.token}"/>
+          <div class="pt-figma-serial">${tag.serial || ""}</div>
         </div>
       </div>
     </div>

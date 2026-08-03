@@ -234,7 +234,7 @@ export default function Home() {
                 ["Any Vehicle Type", <svg key="car" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 17H3v-5l2-5h14l2 5v5h-2"/><circle cx="7.5" cy="17.5" r="1.5"/><circle cx="16.5" cy="17.5" r="1.5"/><path d="M5 12h14"/></svg>],
                 ["Share Your ETA", <svg key="loc" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>],
                 ["Waterproof Tag", <svg key="drop" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>],
-                ["One-Time Payment", <svg key="pay" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>],
+                ["1 Year Included", <svg key="pay" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>],
               ] as [string, React.ReactNode][]).map(([label, icon]) => (
                 <div key={label} className="flex flex-col items-center gap-2.5 text-center group">
                   <div className="text-[#495B7B] group-hover:text-[#FF2700] transition-colors duration-200">{icon}</div>
@@ -429,8 +429,8 @@ export default function Home() {
 
             <AnimateIn>
               <p className="text-xs font-bold text-[#FF2700] tracking-widest uppercase mb-3">Pricing</p>
-              <h2 className="text-3xl sm:text-4xl font-extrabold text-[#03162D] mb-2 tracking-tight">One tag. One payment.</h2>
-              <p className="text-[#495B7B] mb-12">No subscription. No renewal. Pay once, it works forever.</p>
+              <h2 className="text-3xl sm:text-4xl font-extrabold text-[#03162D] mb-2 tracking-tight">One tag. One year.</h2>
+              <p className="text-[#495B7B] mb-12">Every premium tag includes a 1-year subscription. Shipped across India.</p>
             </AnimateIn>
 
             <div className="grid sm:grid-cols-2 gap-5 mb-5">
@@ -440,14 +440,15 @@ export default function Home() {
                 <div className="border border-gray-200 rounded-2xl p-8 flex flex-col h-full hover:border-gray-300 transition-colors">
                   <div className="text-xs font-bold tracking-widest uppercase text-[#495B7B] mb-5">Solo Tag</div>
                   <div className="flex items-end gap-2 mb-1">
-                    <span className="text-5xl font-extrabold text-[#03162D] tracking-tight leading-none">₹199</span>
-                    <span className="text-sm text-[#495B7B] mb-1">one-time</span>
+                    <span className="text-5xl font-extrabold text-[#03162D] tracking-tight leading-none">₹299</span>
+                    <span className="text-sm text-[#495B7B] mb-1">1 year included</span>
                   </div>
-                  <div className="text-xs text-[#495B7B] mb-8">1 vehicle · ₹199 per tag</div>
+                  <div className="text-xs text-[#495B7B] mb-8">1 vehicle · ₹299 per tag</div>
 
                   <ul className="space-y-3 mb-10 flex-1">
                     {[
                       "1 waterproof QR tag, delivered to your door",
+                      "1-year subscription included",
                       "Instant alert every time your tag is scanned",
                       "Anonymous call + WhatsApp routing",
                       "Owner dashboard: toggle tag on / off",
@@ -478,16 +479,17 @@ export default function Home() {
 
                   <div className="text-xs font-bold tracking-widest uppercase text-white/40 mb-5">Duo Pack</div>
                   <div className="flex items-end gap-2 mb-1">
-                    <span className="text-5xl font-extrabold text-white tracking-tight leading-none">₹349</span>
-                    <span className="text-sm text-white/40 mb-1">one-time</span>
+                    <span className="text-5xl font-extrabold text-white tracking-tight leading-none">₹499</span>
+                    <span className="text-sm text-white/40 mb-1">1 year included</span>
                   </div>
-                  <div className="text-xs text-white/40 mb-8">2 vehicles · ₹174 per tag · saves ₹49</div>
+                  <div className="text-xs text-white/40 mb-8">1 car · front &amp; back · ₹249.50 per tag · saves ₹99</div>
 
                   <ul className="space-y-3 mb-10 flex-1">
                     {[
                       "2 waterproof QR tags, shipped together",
-                      "Everything in Solo, for both vehicles",
-                      "₹49 cheaper than buying two Solo tags",
+                      "Everything in Solo, front and back of your car",
+                      "₹99 cheaper than buying two Solo tags",
+                      "1-year subscription included",
                       "Priority support",
                     ].map((f) => (
                       <li key={f} className="flex items-start gap-3 text-sm text-white/60">
@@ -554,7 +556,7 @@ export default function Home() {
               <a href={`${APP_URL}/register-owner`} className="inline-block bg-[#FF2700] hover:bg-[#D92200] text-white font-bold px-8 py-4 rounded-xl transition-colors text-base">
                 Get Your ParkTag →
               </a>
-              <p className="text-white/25 text-sm mt-4">Starting at ₹199 · Ships across India · No subscription</p>
+              <p className="text-white/25 text-sm mt-4">Starting at ₹299 · Ships across India · 1-year subscription included</p>
             </AnimateIn>
           </div>
         </section>

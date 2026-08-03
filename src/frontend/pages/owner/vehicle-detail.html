@@ -336,12 +336,13 @@
     .pt-freebox b { color: #B31C00; }
 
     .pt-cut { border: 1.5px dashed #b6bcc6; border-radius: 16px; padding: 14px; display: block; page-break-inside: avoid; }
-    /* Official premium sticker (real Figma artwork, cropped to its 1500x902
-       card). Hidden by default; shown ONLY for premium tags via
-       #etag-print.is-premium, which then hides the generated .pt-sticker. */
-    .pt-figma-sticker { position: relative; width: 100%; aspect-ratio: 1500 / 902; overflow: hidden; display: none; }
-    .pt-figma-bg { position: absolute; top: 0; left: 0; width: calc(100% * 1585 / 1500); height: auto; transform: translate(-1.83%, -3.44%); display: block; }
-    .pt-figma-qr { position: absolute; left: 65.6%; top: 12.08%; width: 27.67%; aspect-ratio: 1; display: block; }
+    /* Official premium sticker (real Figma artwork; the 1000x600 canvas is the
+       full-bleed card, so no crop is needed). Hidden by default; shown ONLY for
+       premium tags via #etag-print.is-premium, which then hides the generated
+       .pt-sticker. */
+    .pt-figma-sticker { position: relative; width: 100%; aspect-ratio: 1000 / 600; overflow: hidden; display: none; }
+    .pt-figma-bg { position: absolute; top: 0; left: 0; width: 100%; height: auto; display: block; }
+    .pt-figma-qr { position: absolute; left: 62.49%; top: 10.55%; width: 32%; aspect-ratio: 1; display: block; }
     #etag-print.is-premium .pt-sticker { display: none; }
     #etag-print.is-premium .pt-figma-sticker { display: block; }
     .pt-sticker { display: flex; width: 100%; border-radius: 18px; overflow: hidden; border: 2px solid #03162D; }
@@ -726,7 +727,7 @@
       </div>
       <!-- Official premium sticker (real Figma artwork); shown only for premium tags -->
       <div class="pt-figma-sticker">
-        <img class="pt-figma-bg" src="/images/org-premium-bg.svg" alt="ParkTag sticker"/>
+        <img class="pt-figma-bg" src="/images/official-parktag-sticker.svg" alt="ParkTag sticker"/>
         <img class="pt-figma-qr" id="print-figma-qr-img"
           src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=https://parktag.me"
           alt="QR Code"/>

@@ -417,9 +417,13 @@ export async function buildApp() {
     const host = /^[A-Za-z0-9.\-:]+$/.test(rawHost) ? rawHost : "";
     const base = env.scanBaseUrl || (host ? `${proto}://${host}` : env.appBaseUrl);
     const scanUrl = `${base}/tag/${token}`;
+    // margin 2 keeps a quiet zone inside the QR image itself, which matters now
+    // that the overlay fills the artwork's placeholder box edge to edge — with
+    // margin 0 the modules would butt straight up against the box's black
+    // keyline and scanners lose the finder patterns. Matches createPrintQrDataUrl.
     const qrSvg = await QRCode.toString(scanUrl, {
       type: "svg",
-      margin: 0,
+      margin: 2,
       errorCorrectionLevel: "M"
     });
 

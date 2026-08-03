@@ -963,13 +963,16 @@
   .wl-pt-freebox { margin-top: 10px; padding: 9px 12px; background: #FFF1EF; border: 1px solid #FFD8D0; border-radius: 9px; font-size: 10px; color: #03162D; line-height: 1.55; }
   .wl-pt-freebox b { color: #B31C00; }
   .wl-pt-cut { border: 1.5px dashed #b6bcc6; border-radius: 16px; padding: 14px; display: block; page-break-inside: avoid; }
-  /* Official premium sticker: the real Figma artwork (org-premium-bg.svg)
-     cropped to its exact 1500x902 card, with the tag's QR overlaid in the
-     blank square — a 1:1 match of the physical sticker. Same crop math as the
-     admin print sheet (SVG canvas is 1585x987 with transparent margin/shadow). */
-  .wl-pt-figma-sticker { position: relative; width: 100%; aspect-ratio: 1500 / 902; overflow: hidden; }
-  .wl-pt-figma-bg { position: absolute; top: 0; left: 0; width: calc(100% * 1585 / 1500); height: auto; transform: translate(-1.83%, -3.44%); display: block; }
-  .wl-pt-figma-qr { position: absolute; left: 65.6%; top: 12.08%; width: 27.67%; aspect-ratio: 1; display: block; }
+  /* Official premium sticker: the real Figma artwork
+     (official-parktag-sticker.svg), with the tag's QR overlaid in the blank
+     square — a 1:1 match of the physical sticker. The artwork is full-bleed:
+     its 1000x600 canvas IS the card, with no transparent margin, so it needs
+     no crop. The QR fills the artwork's placeholder box (623.547,60.072
+     322.71x326.451, inset by its 2.664 keyline) — see the admin print sheet
+     for the same numbers. */
+  .wl-pt-figma-sticker { position: relative; width: 100%; aspect-ratio: 1000 / 600; overflow: hidden; }
+  .wl-pt-figma-bg { position: absolute; top: 0; left: 0; width: 100%; height: auto; display: block; }
+  .wl-pt-figma-qr { position: absolute; left: 62.49%; top: 10.55%; width: 32%; aspect-ratio: 1; display: block; }
   .wl-pt-sticker { display: flex; width: 100%; border-radius: 18px; overflow: hidden; border: 2px solid #03162D; }
   .wl-pt-left { flex: 0 0 60%; background: #fff; padding: 22px; display: flex; flex-direction: column; justify-content: space-between; }
   .wl-pt-logo { height: 26px; width: auto; display: block; }
@@ -1657,7 +1660,7 @@
     <div class="wl-pt-cut">
       <!-- Official ParkTag premium sticker (real Figma artwork) with this tag's QR -->
       <div class="wl-pt-figma-sticker">
-        <img class="wl-pt-figma-bg" src="/images/org-premium-bg.svg" alt="ParkTag sticker"/>
+        <img class="wl-pt-figma-bg" src="/images/official-parktag-sticker.svg" alt="ParkTag sticker"/>
         <img class="wl-pt-figma-qr" id="wl-print-qr-img"
           src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=https://parktag.me"
           alt="QR Code"/>

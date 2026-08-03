@@ -6,7 +6,7 @@ const ITEMS = [
   "Works on any phone",
   "Waterproof QR tag",
   "Ships in 24 hours",
-  "One-time payment",
+  "1-year subscription included",
   "Any vehicle type",
   "Anonymous messaging",
   "Instant notifications",

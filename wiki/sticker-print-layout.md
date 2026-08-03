@@ -17,8 +17,8 @@ Current behaviour:
 |-----------|--------|
 | **Selection required** | Clicking Export with nothing ticked does **not** export the whole queue — it shows *"Select the tag(s) you want to export first."* |
 | **Sticker only** | Each sticker is just the two-panel card (white panel + red QR panel). No instruction / how-to text is printed. |
-| **Packed layout** | Stickers pack several per A4 page (≈4/page) to reduce paper waste, instead of one per page. A sticker is never split across two pages. |
-| **Page reference** | The overlay header shows e.g. *"9 tags · ~3 pages (4/page)"*, and screen-only *"Page N of M"* dividers mark page boundaries in the preview (they are hidden in the actual print). |
+| **One per page** | Each sticker gets its own **portrait A4** page, centred, printed at its real **105mm × 63mm** die-cut size so it can be cut out and used as is. One `.pt-sheet` = one page. |
+| **Page reference** | The overlay header shows e.g. *"9 tags to print"* — with one sticker per page that is also the page count. |
 
 ---
 

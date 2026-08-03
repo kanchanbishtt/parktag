@@ -4,7 +4,7 @@ import { clearSession } from "../../lib/auth/session.js";
 import { sendOtp, verifyOtp, isMobileIdentifier, normalizeIdentifier } from "../../lib/auth/otp.js";
 import { getCollections, ensurePendingCallsIndexes } from "../../lib/db/repositories.js";
 import { createQrDataUrl, createPrintQrDataUrl } from "../../lib/core/qr-output.js";
-import { createEtagForVehicle, buildTagScanUrl, VEHICLE_LABELS, etagIdFor } from "../../lib/core/tag-issuance.js";
+import { createEtagForVehicle, buildTagScanUrl, VEHICLE_LABELS, etagIdFor, stickerSerialFor } from "../../lib/core/tag-issuance.js";
 import { validateAddress } from "../../lib/core/address.js";
 import { checkPincodeServiceability, trackShipment, trackingUrl } from "../../lib/integrations/delhivery.js";
 
@@ -108,6 +108,7 @@ export function registerOwnerRoutes(app, env) {
           id: String(tag._id),
           token: tag.token,
           etagId: etagIdFor(tag._id),
+          serial: stickerSerialFor(tag),
           status: tag.status,
           vehicleType: tag.vehicleType || null,
           vehicleLabel: VEHICLE_LABELS[tag.vehicleType] || tag.vehicleLabel || "Vehicle",
@@ -248,6 +249,7 @@ export function registerOwnerRoutes(app, env) {
         id: String(tag._id),
         token: tag.token,
         etagId: etagIdFor(tag._id),
+        serial: stickerSerialFor(tag),
         vehicleType: tag.vehicleType || type || null,
         plateNumber: tag.plateNumber,
         status: tag.status,

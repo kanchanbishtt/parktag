@@ -241,8 +241,9 @@ function etagPrintPageHtml(tag) {
     <div class="pt-wrap">
       <div class="pt-cut">
         <div class="pt-figma-sticker">
-          <img class="pt-figma-bg" src="/images/org-premium-bg.svg" alt="ParkTag sticker"/>
+          <img class="pt-figma-bg" src="/images/org-parktag-sticker.svg" alt="ParkTag sticker"/>
           <img class="pt-figma-qr" src="${tag.qrDataUrl}" alt="QR ${tag.token}"/>
+          <div class="pt-figma-serial">${tag.serial || ""}</div>
         </div>
       </div>
     </div>
@@ -394,9 +395,9 @@ async function exportQrsForPrint() {
 
     if (countLabel) countLabel.textContent = `${tags.length} tag${tags.length !== 1 ? "s" : ""} to print`;
 
-    // Group into landscape sheets of 4 (2x2) so the on-screen preview matches
-    // the printed page and each page holds exactly four stickers.
-    const perSheet = 4;
+    // One sticker per portrait page. Each .pt-sheet is a page, so the on-screen
+    // preview matches the print exactly.
+    const perSheet = 1;
     let sheetsHtml = "";
     for (let i = 0; i < tags.length; i += perSheet) {
       const cells = tags.slice(i, i + perSheet).map(etagPrintPageHtml).join("");

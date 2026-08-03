@@ -7,6 +7,7 @@
     "dev": "nodemon src/backend/server.js",
     "start": "node src/backend/server.js",
     "seed:demo": "node src/backend/scripts/seed-demo.js",
+    "backfill:tag-serials": "node src/backend/scripts/backfill-tag-serials.js",
     "verify:admin-registration": "node src/backend/scripts/verify-admin-registration-visibility.js",
     "verify:exotel-call": "node src/backend/scripts/verify-exotel-call.js",
     "verify:exotel-whatsapp": "node src/backend/scripts/verify-exotel-whatsapp.js",

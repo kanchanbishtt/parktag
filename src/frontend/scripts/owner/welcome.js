@@ -1282,11 +1282,14 @@ function downloadETag() {
   const idEl  = document.getElementById("wl-print-etag-id");
   const stEl  = document.getElementById("wl-print-status");
   const qrEl  = document.getElementById("wl-print-qr-img");
+  // Sticker serial, printed on the sticker face itself (not the sheet).
+  const serEl = document.getElementById("wl-print-serial");
 
   if (numEl) numEl.textContent = plate;
   if (idEl)  idEl.textContent  = etagId;
   if (stEl)  stEl.textContent  = status;
   if (qrEl)  qrEl.src          = qr;
+  if (serEl) serEl.textContent = tag.serial || "";
 
   setTimeout(() => window.print(), 80);
 }
@@ -1306,11 +1309,14 @@ function downloadETagFor(tagId) {
   const idEl  = document.getElementById("wl-print-etag-id");
   const stEl  = document.getElementById("wl-print-status");
   const qrEl  = document.getElementById("wl-print-qr-img");
+  // Sticker serial, printed on the sticker face itself (not the sheet).
+  const serEl = document.getElementById("wl-print-serial");
 
   if (numEl) numEl.textContent = plate;
   if (idEl)  idEl.textContent  = etagId;
   if (stEl)  stEl.textContent  = status;
   if (qrEl)  qrEl.src          = qr;
+  if (serEl) serEl.textContent = tag.serial || "";
 
   setTimeout(() => window.print(), 80);
 }

@@ -199,7 +199,7 @@ export default function Home() {
                 <div className="relative w-full max-w-lg">
                   <div className="absolute inset-0 bg-[#FF2700]/10 blur-3xl rounded-full scale-90" />
                   <img
-                    src="/final-sticker.png"
+                    src="/final-landing-sticker.png"
                     alt="ParkTag brand sticker"
                     className="relative w-full drop-shadow-2xl rounded-3xl"
                   />

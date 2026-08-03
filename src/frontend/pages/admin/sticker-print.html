@@ -30,11 +30,13 @@
       aspect-ratio: 1000 / 600;
     }
     .sticker .bg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-    /* QR overlay — % of the artwork box so it scales with the sticker */
+    /* QR overlay — % of the artwork box so it scales with the sticker. Matches
+       the artwork's own image slot (631.4,68.16 306.4x312.09), squared off and
+       centred in it. */
     .sticker .qr {
       position: absolute;
-      left: 62.49%; top: 10.55%;
-      width: 32%; aspect-ratio: 1;
+      left: 63.14%; top: 11.83%;
+      width: 30.64%; aspect-ratio: 1;
     }
     .sticker .qr svg, .sticker .qr img { width: 100%; height: 100%; display: block; }
 
@@ -56,7 +58,7 @@
   </div>
   <div class="sheet">
     <div class="sticker">
-      <img class="bg" src="/images/official-parktag-sticker.svg" alt="ParkTag sticker">
+      <img class="bg" src="/images/org-parktag-sticker.svg" alt="ParkTag sticker">
       <div class="qr"><!--QR--></div>
     </div>
   </div>

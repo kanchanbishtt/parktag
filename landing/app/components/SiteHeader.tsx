@@ -332,7 +332,7 @@ export function SiteHeader({ defaultDark = true }: { defaultDark?: boolean }) {
               <a
                 href={`${APP_URL}/owner-login`}
                 onClick={navigateSmoothly(`${APP_URL}/owner-login`)}
-                className="bg-[#FF2700] hover:bg-[#D92200] text-white text-sm font-bold px-4 py-2 rounded-lg transition-colors"
+                className="bg-[#FF2700] hover:bg-[var(--red-hover)] text-white text-sm font-bold px-4 py-2 rounded-lg transition-colors"
               >
                 Login
               </a>
@@ -385,7 +385,7 @@ export function SiteHeader({ defaultDark = true }: { defaultDark?: boolean }) {
 
             <div className="mt-5 flex flex-col gap-3">
               <a href={`${APP_URL}/owner-login`} onClick={navigateSmoothly(`${APP_URL}/owner-login`)} className="text-center py-3 rounded-xl border-2 border-[#03162D] text-[#03162D] font-bold text-sm hover:bg-[#03162D] hover:text-white transition-colors">Login</a>
-              <a href={`${APP_URL}/register-owner`} onClick={closeAll} className="text-center py-3 rounded-xl bg-[#FF2700] text-white font-bold text-sm hover:bg-[#D92200] transition-colors">Order Now</a>
+              <a href={`${APP_URL}/register-owner`} onClick={closeAll} className="text-center py-3 rounded-xl bg-[#FF2700] text-white font-bold text-sm hover:bg-[var(--red-hover)] transition-colors">Order Now</a>
             </div>
           </nav>
         </div>

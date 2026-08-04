@@ -429,7 +429,7 @@ export default function Home() {
 
             <AnimateIn>
               <p className="text-xs font-bold text-[#FF2700] tracking-widest uppercase mb-3">Pricing</p>
-              <h2 className="text-3xl sm:text-4xl font-extrabold text-[#03162D] mb-2 tracking-tight">One tag. One year.</h2>
+              <h2 className="text-3xl sm:text-4xl font-extrabold text-[#03162D] mb-2 tracking-tight">Buy your ParkTag</h2>
               <p className="text-[#495B7B] mb-12">Every premium tag includes a 1-year subscription. Shipped across India.</p>
             </AnimateIn>
 
@@ -437,7 +437,14 @@ export default function Home() {
 
               {/* Solo */}
               <AnimateIn delay={60}>
-                <div className="border border-gray-200 rounded-2xl p-8 flex flex-col h-full hover:border-gray-300 transition-colors">
+                {/* Hover lift. `transition` (not `transition-colors`) so the
+                    shadow and transform animate too, and the movement is behind
+                    motion-safe: a lift is decorative, so it is dropped for
+                    anyone who asked the OS for reduced motion — they still get
+                    the border/shadow feedback. The lift lives on the CARD, not
+                    on the AnimateIn wrapper, whose inline transform drives the
+                    scroll-in animation and would otherwise be overwritten. */}
+                <div className="border border-gray-200 rounded-2xl p-8 flex flex-col h-full hover:border-gray-300 hover:shadow-xl motion-safe:hover:-translate-y-1 transition duration-300 ease-out">
                   <div className="text-xs font-bold tracking-widest uppercase text-[#495B7B] mb-5">Solo Tag</div>
                   <div className="flex items-end gap-2 mb-1">
                     <span className="text-5xl font-extrabold text-[#03162D] tracking-tight leading-none">₹299</span>
@@ -471,7 +478,9 @@ export default function Home() {
 
               {/* Duo — recommended */}
               <AnimateIn delay={120}>
-                <div className="bg-[#03162D] rounded-2xl p-8 flex flex-col h-full relative overflow-hidden">
+                {/* Same lift as Solo. A heavier shadow because this card is
+                    dark on white, where a lighter one barely reads. */}
+                <div className="bg-[#03162D] rounded-2xl p-8 flex flex-col h-full relative overflow-hidden hover:shadow-2xl motion-safe:hover:-translate-y-1 transition duration-300 ease-out">
                   {/* Most Popular badge */}
                   <div className="absolute top-5 right-5 bg-[#FF2700] text-white text-[10px] font-bold tracking-widest uppercase px-3 py-1 rounded-full">
                     Best Value
@@ -523,9 +532,13 @@ export default function Home() {
                     <p className="text-sm text-[#495B7B] mt-1">Bulk pricing, fleet dashboard, batch tag issuance, dedicated account support.</p>
                   </div>
                 </div>
-                <a href="mailto:support@parktag.me" className="flex-shrink-0 text-sm font-bold text-[#03162D] border-2 border-[#03162D] px-6 py-2.5 rounded-xl hover:bg-[#03162D] hover:text-white transition-colors whitespace-nowrap text-center">
+                {/* Was a mailto:, which on a machine with no mail client
+                    configured silently does nothing. Routed to the contact page
+                    instead, via next/link so it prefetches and navigates
+                    client-side like every other internal link on the site. */}
+                <Link href="/contact" className="flex-shrink-0 text-sm font-bold text-[#03162D] border-2 border-[#03162D] px-6 py-2.5 rounded-xl hover:bg-[#03162D] hover:text-white transition-colors whitespace-nowrap text-center">
                   Talk to us
-                </a>
+                </Link>
               </div>
             </AnimateIn>
 

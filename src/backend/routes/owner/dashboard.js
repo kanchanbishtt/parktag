@@ -581,24 +581,77 @@ export function registerOwnerRoutes(app, env) {
     return { ok: true };
   });
 
-  app.post("/api/owner/set-password", async (request, reply) => {
-    const blocked = await requireSession(app, "owner")(request, reply);
-    if (blocked) return blocked;
+  // Set or change the account password.
+  //
+  // Two properties this must hold, neither of which it used to:
+  //
+  //  1. CHANGING an existing password requires proving the current one. Without
+  //     that check a session alone was enough to overwrite it, so anyone who got
+  //     hold of a cookie could lock the real owner out and convert temporary
+  //     access into permanent credentials. Accounts with no password yet
+  //     (mobile-OTP or Google sign-ups) are SETTING one for the first time, so
+  //     there is nothing to prove — the session is the only credential they have
+  //     and demanding a password they never had would lock them out of the
+  //     feature entirely.
+  //  2. A successful change revokes every OTHER session, which is what makes
+  //     "change your password" an effective response to a suspected compromise.
+  //     resetPassword() already did this; this route did not, so the attacker's
+  //     session survived the very action taken to evict them. The CURRENT
+  //     session is deliberately kept alive so the owner isn't logged out of the
+  //     tab they just used.
+  app.post(
+    "/api/owner/set-password",
+    { config: { rateLimit: { max: 5, timeWindow: "5 minutes" } } },
+    async (request, reply) => {
+      const blocked = await requireSession(app, "owner")(request, reply);
+      if (blocked) return blocked;
 
-    const { password } = request.body || {};
-    if (!password || password.length < 8) {
-      reply.code(400);
-      return { ok: false, error: "Password must be at least 8 characters" };
+      const { password, currentPassword } = request.body || {};
+      if (!isNonEmptyString(password) || password.length < 8) {
+        reply.code(400);
+        return { ok: false, error: "Password must be at least 8 characters" };
+      }
+
+      const collections = await getCollections(env);
+      if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
+
+      const ownerId = toObjectId(request.session.userId);
+      const owner = await collections.owners.findOne({ _id: ownerId });
+      if (!owner) {
+        reply.code(404);
+        return { ok: false, error: "Account not found." };
+      }
+
+      if (owner.passwordHash) {
+        if (!isNonEmptyString(currentPassword)) {
+          reply.code(400);
+          return {
+            ok: false,
+            code: "CURRENT_PASSWORD_REQUIRED",
+            error: "Enter your current password to change it."
+          };
+        }
+        const { valid } = await verifyPassword(currentPassword, owner.passwordHash);
+        if (!valid) {
+          reply.code(401);
+          return { ok: false, error: "Incorrect current password." };
+        }
+      }
+
+      const hash = await createPasswordHash(password);
+      await collections.owners.updateOne(
+        { _id: ownerId },
+        { $set: { passwordHash: hash } }
+      );
+
+      // Evict every other session for this account (see note 2 above).
+      await collections.sessions
+        .deleteMany({ userId: String(ownerId), _id: { $ne: request.session.id } })
+        .catch(() => {});
+
+      return { ok: true };
     }
-
-    const collections = await getCollections(env);
-    const hash = await createPasswordHash(password);
-    await collections.owners.updateOne(
-      { _id: toObjectId(request.session.userId) },
-      { $set: { passwordHash: hash } }
-    );
-    return { ok: true };
-  });
+  );
 
   // Permanently delete the owner's account and every record tied to it.
   // Accounts with a password must re-enter it first — this is the most
@@ -646,7 +699,11 @@ export function registerOwnerRoutes(app, env) {
       ]);
       await collections.owners.deleteOne({ _id: ownerId });
 
-      clearSession(app, request, reply);
+      // Must be awaited. clearSession only reaches `reply.clearCookie` after an
+      // `await` on the session collection, so firing it off unawaited let the
+      // response serialise first and the Set-Cookie header never made it out —
+      // the browser kept a cookie for a deleted account.
+      await clearSession(app, request, reply);
       return { ok: true };
     }
   );

@@ -1,7 +1,9 @@
 import { ObjectId } from "mongodb";
 
 import { createPasswordHash, isNonEmptyString } from "../../lib/auth/security.js";
+import { isMobileIdentifier, normalizeIdentifier, verifyOtp } from "../../lib/auth/otp.js";
 import { getCollections } from "../../lib/db/repositories.js";
+import { clientErrorMessage } from "../../lib/errors.js";
 import {
   buildIssuedTagOutput,
   createRegisteredOwnerTag
@@ -26,7 +28,8 @@ export function registerRegistrationRoutes(app, env) {
       phone,
       vehicleLabel,
       plateNumber,
-      stickerRequested
+      stickerRequested,
+      otp
     } = request.body || {};
 
     if (
@@ -54,6 +57,31 @@ export function registerRegistrationRoutes(app, env) {
       };
     }
 
+    if (!isMobileIdentifier(phone)) {
+      reply.code(400);
+      return { ok: false, error: "Enter a valid mobile number." };
+    }
+
+    // `phone` lands on the owner record, and register-call dials
+    // `owner.mobile || owner.phone` — so accepting it unverified was a way to
+    // make ParkTag ring a number whose owner never agreed to it. Require the
+    // same OTP the rest of the app uses. Callers fetch the code from
+    // POST /api/auth/send-otp first; omitting it returns needsOtp so a client
+    // can drive the two-step flow (same contract as /api/owner/mobile).
+    if (!isNonEmptyString(otp)) {
+      return { ok: false, needsOtp: true };
+    }
+
+    try {
+      await verifyOtp(env, phone, String(otp).trim());
+    } catch (error) {
+      reply.code(400);
+      return {
+        ok: false,
+        error: clientErrorMessage(error, "Invalid verification code.", app.log)
+      };
+    }
+
     // Hash the password BEFORE the existence check so a duplicate email and a
     // fresh one take about the same time (bcrypt dominates the request). Doing
     // the check first would let a duplicate return early and measurably faster,
@@ -78,12 +106,21 @@ export function registerRegistrationRoutes(app, env) {
     }
 
     const ownerId = new ObjectId();
+    const verifiedMobile = normalizeIdentifier(phone);
     const owner = {
       _id: ownerId,
       email,
       passwordHash,
       displayName,
-      phone,
+      // Store the OTP-proven number in BOTH fields, canonicalised to +91 form.
+      // `mobile` is the OTP-login identity, `phone` is what the contact flow
+      // dials. Writing only `phone` (as this route used to) left a dialable
+      // number that no login path could match, so signing in later by mobile
+      // OTP silently created a SECOND account and split the owner's vehicles
+      // and orders across the two.
+      mobile: verifiedMobile,
+      phone: verifiedMobile,
+      mobileVerified: true,
       credits: 0,
       role: "owner",
       createdAt: new Date().toISOString()

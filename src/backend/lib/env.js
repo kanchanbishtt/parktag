@@ -39,7 +39,13 @@ const REQUIRED_IN_PRODUCTION = [
   // in production means the app refuses to boot mis-secured rather than leaking
   // private phone numbers / allowing forged status writes.
   ["EXOTEL_WEBHOOK_SECRET", "exotelWebhookSecret"],
-  ["META_APP_SECRET", "metaAppSecret"]
+  ["META_APP_SECRET", "metaAppSecret"],
+  // Meta's GET verification handshake compares this against the caller's
+  // `hub.verify_token`. Unset it defaults to "", which used to compare equal to
+  // an empty token supplied by anyone — so the handshake passed for arbitrary
+  // callers. The route now fails closed when it's missing; requiring it here
+  // means a production deploy can't quietly reach that state at all.
+  ["WHATSAPP_WEBHOOK_VERIFY_TOKEN", "metaWhatsappWebhookVerifyToken"]
 ];
 
 function validateEnv(env, runtimeMode) {

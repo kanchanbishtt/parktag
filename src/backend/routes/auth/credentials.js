@@ -9,12 +9,31 @@ import {
 } from "../../lib/auth/session.js";
 
 export function registerAuthRoutes(app, env) {
+  // Whoami for the current cookie. Returns only what a page needs to render
+  // signed-in chrome.
+  //
+  // It must NEVER return `session.id`. That value IS the wavetag_session cookie,
+  // so echoing it handed any script on the page the bearer token the httpOnly
+  // flag exists to keep out of reach — one XSS (and the CSP still runs
+  // 'unsafe-inline' for both script-src and script-src-attr) turned into a
+  // stolen 7-day session replayable from anywhere. `userId` is dropped for the
+  // same reason: it is the ObjectId every /api/owner/* route keys off, and no
+  // client needs it.
   app.get("/api/session", async (request) => {
     const session = await readSession(app, request);
 
+    if (!session) {
+      return { ok: true, session: null };
+    }
+
     return {
       ok: true,
-      session
+      session: {
+        role: session.role,
+        email: session.email,
+        displayName: session.displayName || null,
+        expiresAt: session.expiresAt
+      }
     };
   });
 

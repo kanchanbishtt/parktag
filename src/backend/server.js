@@ -1,9 +1,21 @@
 import { buildApp } from "./app.js";
 import { getEnv } from "./lib/env.js";
 import { closeMongoConnection } from "./lib/db/mongo.js";
+import { getCollections, ensureCoreIndexes } from "./lib/db/repositories.js";
 
 const env = getEnv();
 const app = await buildApp();
+
+// Create the indexes the hot query paths depend on (tags.token, owners.email /
+// owners.mobile, the contact-request lookups, and TTLs on the collections that
+// hold live secrets). Idempotent, backgrounded, and non-fatal: a failure here
+// degrades performance but must never stop the service from starting.
+try {
+  const collections = await getCollections(env);
+  await ensureCoreIndexes(collections, app.log);
+} catch (error) {
+  app.log.warn({ err: error }, "[indexes] core index setup skipped");
+}
 
 async function shutdown(signal) {
   app.log.info({ signal }, "Shutting down WaveTag backend");

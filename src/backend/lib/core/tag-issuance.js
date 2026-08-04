@@ -78,9 +78,40 @@ export function tagLifecycleDefaults() {
   };
 }
 
-export async function createUnclaimedTags(collections, input) {
-  const quantity = Math.max(1, Number(input.quantity || 1));
+// Upper bound on a single issuance request. Without one, `quantity` went
+// straight into a loop that materialises an object per tag, so a mistyped
+// 10000000 would build ten million documents in memory and take the process
+// down before a single write. 20k is far above any real print run (the largest
+// batches in use are in the low thousands) while keeping the peak allocation
+// bounded.
+const MAX_ISSUE_QUANTITY = 20000;
 
+export async function createUnclaimedTags(collections, input) {
+  const requested = Number(input.quantity ?? 1);
+
+  // `Number("abc")` is NaN, and `Math.max(1, NaN)` is NaN — which made the loop
+  // below run zero times and the endpoint answer `{ ok: true, count: 0 }`. A
+  // batch that silently doesn't exist is worse than a rejected one, so a
+  // non-numeric quantity is now an explicit error.
+  if (!Number.isFinite(requested)) {
+    throw new Error("Quantity must be a number");
+  }
+
+  const quantity = Math.floor(requested);
+
+  if (quantity < 1) {
+    throw new Error("Quantity must be at least 1");
+  }
+
+  if (quantity > MAX_ISSUE_QUANTITY) {
+    throw new Error(`Quantity cannot exceed ${MAX_ISSUE_QUANTITY} tags in one batch`);
+  }
+
+  // Validation deliberately runs BEFORE the serial reservation below. The
+  // counter bump is atomic and irreversible, so validating afterwards would let
+  // a rejected batch (bad quantity) still consume a block of sticker serials and
+  // leave a permanent gap in the printed sequence.
+  //
   // Reserve this run's sticker serials in one atomic bump, so two admins issuing
   // into the same batch can never be handed the same number. Same counters
   // collection and $inc pattern the shop order number uses.

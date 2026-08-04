@@ -3,7 +3,12 @@ import { ObjectId } from "mongodb";
 import { createContactAction } from "../../lib/core/contact-actions.js";
 import { createPasswordHash, createSecureToken, safeEqual, hashIp, minutesFromNow, getClientIp, maskPlateNumber, getPlateLastFour, isNonEmptyString } from "../../lib/auth/security.js";
 import { createSession, writeSessionCookie } from "../../lib/auth/session.js";
-import { isMobileIdentifier, normalizeIdentifier, verifyOtp } from "../../lib/auth/otp.js";
+import {
+  isMobileIdentifier,
+  normalizeIdentifier,
+  verifyOtp,
+  resolveOwnerByVerifiedMobile
+} from "../../lib/auth/otp.js";
 import { getCollections, ensureVerificationIndexes, ensurePendingCallsIndexes } from "../../lib/db/repositories.js";
 import { VEHICLE_LABELS } from "../../lib/core/tag-issuance.js";
 import { clientErrorMessage } from "../../lib/errors.js";
@@ -37,6 +42,23 @@ const SESSION_TTL_MINUTES = 30;
 const MAX_TAG_ATTEMPTS_PER_WINDOW = 30;
 const TAG_WINDOW_MINUTES = 60;
 const TAG_LOCKOUT_MINUTES = 15;
+
+// ── SOS abuse ceiling ─────────────────────────────────────────────────────
+// The emergency contact is a THIRD party's number (next of kin) that the owner
+// types in without proving that person consented, and the SOS call is
+// deliberately exempt from the one-free-contact rule. Together that is an
+// amplification path: an owner could point SOS at someone else's number and
+// then ring it by scanning their own tag.
+//
+// The number stays un-OTP'd on purpose — demanding a code from the next of kin
+// would make the feature unusable in the case it exists for. Bound the abuse
+// instead: a hard per-tag daily ceiling, plus an ownerId on every SOS record so
+// a pattern is attributable and bannable.
+//
+// 5/day is well above real use (an incident draws one or two callers) and caps
+// what a determined abuser can inflict, without risking a refusal to connect
+// next of kin during an actual emergency.
+const MAX_EMERGENCY_CALLS_PER_DAY = 5;
 // Sentinel `ipHash` marking the per-tag bucket. Real values are 64-char SHA-256
 // hex, so "*" can never collide with a per-IP row, and reusing this collection
 // means the existing { token, ipHash } index and TTL cleanup already cover it.
@@ -287,7 +309,7 @@ export function registerPublicRoutes(app, env) {
       };
     }
 
-    const { email, password, displayName, phone, vehicleLabel, plateNumber } =
+    const { email, password, displayName, phone, vehicleLabel, plateNumber, otp } =
       request.body || {};
 
     if (
@@ -301,6 +323,37 @@ export function registerPublicRoutes(app, env) {
       return {
         ok: false,
         error: "email, password, displayName, phone, and plateNumber are required"
+      };
+    }
+
+    if (password.length < 8) {
+      reply.code(400);
+      return { ok: false, error: "Password must be at least 8 characters" };
+    }
+
+    if (!isMobileIdentifier(phone)) {
+      reply.code(400);
+      return { ok: false, error: "Enter a valid mobile number." };
+    }
+
+    // `phone` is written to the owner record, and register-call dials
+    // `owner.mobile || owner.phone` — so an unverified value here is a way to
+    // make ParkTag ring a number its owner never consented to. Prove control of
+    // it with the same OTP the rest of the app uses before storing it. Callers
+    // get the code from POST /api/auth/send-otp first; omitting it returns
+    // needsOtp so a client can drive the two-step flow, matching
+    // /api/owner/mobile and /api/shop/place-cod.
+    if (!isNonEmptyString(otp)) {
+      return { ok: false, needsOtp: true };
+    }
+
+    try {
+      await verifyOtp(env, phone, String(otp).trim());
+    } catch (error) {
+      reply.code(400);
+      return {
+        ok: false,
+        error: clientErrorMessage(error, "Invalid verification code.", app.log)
       };
     }
 
@@ -333,12 +386,20 @@ export function registerPublicRoutes(app, env) {
     }
 
     const ownerId = new ObjectId();
+    const verifiedMobile = normalizeIdentifier(phone);
     const owner = {
       _id: ownerId,
       email,
       passwordHash: await createPasswordHash(password),
       displayName,
-      phone,
+      // The OTP above proved this number, so store it in BOTH fields in the
+      // canonical +91 form: `mobile` is the OTP-login identity, `phone` is what
+      // the contact flow dials. Writing only `phone` (as this route used to)
+      // left a dialable number that no login path could ever match, which is
+      // how the same person ended up with two accounts.
+      mobile: verifiedMobile,
+      phone: verifiedMobile,
+      mobileVerified: true,
       credits: 0,
       role: "owner",
       createdAt: new Date().toISOString()
@@ -446,7 +507,23 @@ export function registerPublicRoutes(app, env) {
     const mobile = normalizeIdentifier(phone);
     const ownerName = displayName.trim();
 
-    let owner = await collections.owners.findOne({ mobile });
+    // Shared resolver (see lib/auth/otp.js): matches on the verified `mobile`,
+    // and also reunites older accounts that only ever stored this number in
+    // `phone`, so activating a sticker doesn't strand the owner's existing
+    // vehicles on a duplicate account.
+    const resolved = await resolveOwnerByVerifiedMobile(collections, mobile);
+
+    if (resolved.conflict) {
+      reply.code(409);
+      return {
+        ok: false,
+        code: "ACCOUNT_EXISTS",
+        error:
+          "This number is already on an account you can sign in to with your email or Google. Please sign in that way, then activate this tag from your dashboard."
+      };
+    }
+
+    let owner = resolved.owner;
     let isNewOwner = false;
 
     if (owner) {
@@ -468,6 +545,8 @@ export function registerPublicRoutes(app, env) {
         // dials. Same number, both fields written so neither path has to guess.
         mobile,
         phone: mobile,
+        // The OTP above proved this number, so it is safe for the dialer.
+        mobileVerified: true,
         credits: 0,
         role: "owner",
         createdAt: new Date().toISOString()
@@ -805,6 +884,34 @@ export function registerPublicRoutes(app, env) {
       };
     }
 
+    // Daily ceiling (see MAX_EMERGENCY_CALLS_PER_DAY). Counted per tag over a
+    // rolling 24h so it cannot be reset by rotating source addresses.
+    const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const emergencyToday = await collections.contactRequests.countDocuments({
+      token,
+      action: "emergency_call",
+      createdAt: { $gte: dayAgo }
+    });
+
+    if (emergencyToday >= MAX_EMERGENCY_CALLS_PER_DAY) {
+      request.log.warn(
+        {
+          event: "emergency-call-cap-hit",
+          token,
+          ownerId: tag.ownerId ? String(tag.ownerId) : null,
+          count: emergencyToday
+        },
+        "[emergency] per-tag daily SOS ceiling reached — refusing further calls"
+      );
+      reply.code(429);
+      return {
+        ok: false,
+        code: "EMERGENCY_LIMIT",
+        error:
+          "This vehicle's emergency contact has already been called several times today. If this is a real emergency, please call 112."
+      };
+    }
+
     const callerPhone = toE164(phone);
     const targetPhone = toE164(tag.emergencyContact);
     const now = new Date();
@@ -843,8 +950,19 @@ export function registerPublicRoutes(app, env) {
       expiresAt: new Date(now.getTime() + 10 * 60 * 1000)
     });
 
+    // ownerId is recorded deliberately: the owner chose the number this dials,
+    // so if SOS is ever used to harass someone, this is the line that says who
+    // pointed it there. `usedToday` makes a ramping pattern visible in the logs
+    // before the ceiling is hit.
     request.log.info(
-      { event: "emergency-call-registered", token, requestId: String(requestId) },
+      {
+        event: "emergency-call-registered",
+        token,
+        requestId: String(requestId),
+        ownerId: tag.ownerId ? String(tag.ownerId) : null,
+        usedToday: emergencyToday + 1,
+        dailyCap: MAX_EMERGENCY_CALLS_PER_DAY
+      },
       "[emergency] pending SOS call registered"
     );
 

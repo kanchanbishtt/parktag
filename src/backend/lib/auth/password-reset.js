@@ -1,7 +1,8 @@
 import crypto from "node:crypto";
 
 import { getCollections } from "../db/repositories.js";
-import { createPasswordHash, isNonEmptyString } from "./security.js";
+import { createPasswordHash, isNonEmptyString, redactText } from "./security.js";
+import { clientError } from "../errors.js";
 import { sendPasswordResetEmail } from "../integrations/email.js";
 
 const TOKEN_EXPIRY_MS = 15 * 60 * 1000;   // 15 minutes — keep the reset window short-lived
@@ -58,7 +59,15 @@ export async function requestPasswordReset(env, email) {
 
   const resetUrl = `${env.appBaseUrl}/reset-password?token=${token}`;
 
-  await sendPasswordResetEmail(env, { to: email, resetUrl });
+  // Dispatched WITHOUT await, deliberately — same pattern as sendOtpEmail. An
+  // awaited send made a known address measurably slower than an unknown one
+  // (which returns before this point), so response latency answered "does this
+  // address have an account?" regardless of how careful the message copy was.
+  // Detaching it makes both paths finish in the same time. Delivery problems are
+  // a server-side concern and are logged, never surfaced to the caller.
+  sendPasswordResetEmail(env, { to: email, resetUrl }).catch((err) => {
+    console.error("[password-reset] email send failed:", redactText(err?.message || String(err)));
+  });
 
   return { ok: true };
 }
@@ -72,11 +81,11 @@ export async function resetPassword(env, token, newPassword) {
   // belonging to a different user, letting the attacker take over that
   // account without ever seeing the email. Reject non-string tokens outright.
   if (!isNonEmptyString(token) || !isNonEmptyString(newPassword)) {
-    throw new Error("Token and new password are required");
+    throw clientError("Token and new password are required");
   }
 
   if (newPassword.length < 8) {
-    throw new Error("Password must be at least 8 characters");
+    throw clientError("Password must be at least 8 characters");
   }
 
   const collections = await getCollections(env);
@@ -88,21 +97,21 @@ export async function resetPassword(env, token, newPassword) {
   const record = await collections.passwordResetTokens.findOne({ token });
 
   if (!record) {
-    throw new Error("Invalid or expired reset link. Please request a new one.");
+    throw clientError("Invalid or expired reset link. Please request a new one.");
   }
 
   if (record.used) {
-    throw new Error("This reset link has already been used. Please request a new one.");
+    throw clientError("This reset link has already been used. Please request a new one.");
   }
 
   if (new Date(record.expiresAt) < new Date()) {
-    throw new Error("This reset link has expired. Please request a new one.");
+    throw clientError("This reset link has expired. Please request a new one.");
   }
 
   const owner = await collections.owners.findOne({ email: record.email });
 
   if (!owner) {
-    throw new Error("Account not found.");
+    throw clientError("Account not found.");
   }
 
   await collections.owners.updateOne(

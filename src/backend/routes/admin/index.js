@@ -361,13 +361,25 @@ export function registerAdminRoutes(app, env) {
       request.body || {};
 
     const collections = await getCollections(env);
-    const tags = await createUnclaimedTags(collections, {
-      batchNumber,
-      batchLabel,
-      quantity,
-      stickerRequested,
-      premiumBatch
-    });
+    let tags;
+    try {
+      tags = await createUnclaimedTags(collections, {
+        batchNumber,
+        batchLabel,
+        quantity,
+        stickerRequested,
+        premiumBatch
+      });
+    } catch (error) {
+      // Quantity validation (non-numeric, < 1, or over the per-batch ceiling)
+      // — surface it so the operator sees why nothing was issued instead of a
+      // silent zero-tag "success".
+      reply.code(400);
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : "Could not issue tags."
+      };
+    }
 
     // Return only a lightweight summary — do NOT render a QR image per tag here.
     // Rendering thousands of QR PNGs into a single response is what timed out the
@@ -595,7 +607,10 @@ export function registerAdminRoutes(app, env) {
     };
   });
 
-  app.post("/api/admin/admins", async (request, reply) => {
+  app.post(
+    "/api/admin/admins",
+    { config: { rateLimit: { max: 5, timeWindow: "1 minute" } } },
+    async (request, reply) => {
     const blocked = await requireSession(app, "admin")(request, reply);
     if (blocked) return blocked;
 
@@ -606,6 +621,17 @@ export function registerAdminRoutes(app, env) {
       return {
         ok: false,
         error: "email, password, and displayName are required"
+      };
+    }
+
+    // Admin accounts hold the most powerful role in the product, yet this route
+    // accepted any non-empty string as a password while owners have required 8+
+    // characters since the last audit. Hold admins to at least the same bar.
+    if (password.length < 8) {
+      reply.code(400);
+      return {
+        ok: false,
+        error: "Password must be at least 8 characters"
       };
     }
 
@@ -633,7 +659,8 @@ export function registerAdminRoutes(app, env) {
     });
 
     return { ok: true };
-  });
+    }
+  );
 
   app.delete("/api/admin/admins/:id", async (request, reply) => {
     const blocked = await requireSession(app, "admin")(request, reply);
@@ -652,6 +679,20 @@ export function registerAdminRoutes(app, env) {
     }
 
     const collections = await getCollections(env);
+
+    // Refuse to remove the last admin — every admin route is role-guarded, so
+    // deleting the final one locks the console permanently and leaves no
+    // in-app way back in. (The self-delete guard above doesn't cover this: two
+    // admins can delete each other down to zero.)
+    const adminCount = await collections.admins.countDocuments();
+    if (adminCount <= 1) {
+      reply.code(400);
+      return {
+        ok: false,
+        error: "You cannot remove the last admin account. Create another admin first."
+      };
+    }
+
     const result = await collections.admins.deleteOne({ _id: new ObjectId(id) });
 
     if (result.deletedCount === 0) {

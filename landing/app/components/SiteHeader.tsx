@@ -18,7 +18,10 @@ const DROPDOWNS = {
     items: [
       { label: "Solo Tag · ₹299", sub: "1 vehicle", href: `${APP_URL}/register-owner`, internal: false },
       { label: "Duo Pack · ₹499", sub: "1 car · front & back · saves ₹99", href: `${APP_URL}/register-owner`, internal: false },
-      { label: "Fleet", sub: "5+ vehicles · custom pricing", href: "mailto:support@parktag.me", internal: false },
+      // Routes to the contact page rather than a mailto:, which does nothing at
+      // all on a machine with no mail client configured. internal:true so it
+      // renders as a next/link and prefetches, like the other in-site entries.
+      { label: "Fleet", sub: "5+ vehicles · custom pricing", href: "/contact", internal: true },
     ],
   },
   more: {
@@ -375,7 +378,7 @@ export function SiteHeader({ defaultDark = true }: { defaultDark?: boolean }) {
             <div className="text-[10px] font-bold text-[#495B7B]/40 tracking-widest uppercase mt-4 mb-2">Products</div>
             <a href={`${APP_URL}/register-owner`} onClick={closeAll} className="py-2.5 text-[#03162D] font-medium text-sm hover:text-[#FF2700] transition-colors">Solo Tag · ₹299</a>
             <a href={`${APP_URL}/register-owner`} onClick={closeAll} className="py-2.5 text-[#03162D] font-medium text-sm hover:text-[#FF2700] transition-colors">Duo Pack · ₹499</a>
-            <a href="mailto:support@parktag.me" onClick={closeAll} className="py-2.5 text-[#03162D] font-medium text-sm hover:text-[#FF2700] transition-colors">Fleet</a>
+            <Link href="/contact" onClick={closeAll} className="py-2.5 text-[#03162D] font-medium text-sm hover:text-[#FF2700] transition-colors">Fleet</Link>
 
             <div className="text-[10px] font-bold text-[#495B7B]/40 tracking-widest uppercase mt-4 mb-2">More</div>
             <a href="#how-it-works" onClick={closeAll} className="py-2.5 text-[#03162D] font-medium text-sm hover:text-[#FF2700] transition-colors">How it works</a>

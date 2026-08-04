@@ -374,7 +374,9 @@
 
 <!-- Header -->
 <div class="vd-header">
-  <a href="/owner-welcome" class="vd-back" aria-label="Back">
+  <!-- data-back: see scripts/owner/smart-back.js — returns to the previous page
+       rather than always forcing the dashboard. href is the no-history fallback. -->
+  <a href="/owner-welcome" class="vd-back" aria-label="Back" data-back>
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
       <path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
     </svg>
@@ -743,6 +745,7 @@
 
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 <script src="/scripts/owner/address-step.js"></script>
+<script src="/scripts/owner/smart-back.js"></script>
 <script type="module" src="/scripts/owner/vehicle-detail.js"></script>
 </body>
 </html>

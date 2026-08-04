@@ -1444,8 +1444,14 @@ async function loadOrdersOnce() {
         '</div>' +
         '<span style="font-size:.78rem;color:#374151">' + esc(humanizeOrderStatus(o.shippingStatus)) + '</span>' +
         (o.orderNumber ? '<span style="font-size:.72rem;color:#9ca3af">Order ' + esc(o.orderNumber) + '</span>' : '') +
-        (o.trackable
-          ? '<button type="button" onclick="openTracking(\'' + esc(o.id) + '\')" style="font-size:.74rem;color:#FF2700;font-weight:700;background:none;border:none;padding:0;cursor:pointer;font-family:inherit">Track order →</button>'
+        // esc() is an HTML escaper and is NOT safe inside a JS string literal:
+        // it turns ' into &#39;, which the HTML parser decodes back to a real
+        // quote before the JS is parsed — so an apostrophe would break straight
+        // out of the argument. `o.id` is a server-generated ObjectId so this
+        // isn't reachable today, but rather than rely on that, require the value
+        // to actually look like one before embedding it.
+        (o.trackable && /^[a-f0-9]{24}$/i.test(String(o.id || ""))
+          ? '<button type="button" onclick="openTracking(\'' + o.id + '\')" style="font-size:.74rem;color:#FF2700;font-weight:700;background:none;border:none;padding:0;cursor:pointer;font-family:inherit">Track order →</button>'
           : (o.waybill ? '<span style="font-size:.72rem;color:#9ca3af">Waybill: ' + esc(o.waybill) + '</span>' : '')) +
         (date ? '<span style="font-size:.7rem;color:#9ca3af">Ordered ' + esc(date) + '</span>' : '') +
         '</div>';

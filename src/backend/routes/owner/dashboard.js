@@ -178,7 +178,7 @@ export function registerOwnerRoutes(app, env) {
     }
   );
 
-  app.post("/api/owner/mobile", async (request, reply) => {
+  app.post("/api/owner/mobile", { config: { rateLimit: { max: 10, timeWindow: "5 minutes" } } }, async (request, reply) => {
     const blocked = await requireSession(app, "owner")(request, reply);
     if (blocked) return blocked;
 
@@ -216,7 +216,7 @@ export function registerOwnerRoutes(app, env) {
   // Generate (or fetch existing) a real, scannable E-Tag for a vehicle.
   // Returns a high-resolution QR linked to a 256-bit secure token. This is what
   // the print/PDF flow now uses instead of the old demo QR placeholder.
-  app.post("/api/owner/etag/generate", async (request, reply) => {
+  app.post("/api/owner/etag/generate", { config: { rateLimit: { max: 20, timeWindow: "5 minutes" } } }, async (request, reply) => {
     const blocked = await requireSession(app, "owner")(request, reply);
     if (blocked) return blocked;
 
@@ -264,7 +264,7 @@ export function registerOwnerRoutes(app, env) {
   // own unique 256-bit secure token + QR (single source of truth in `tags`).
   // Kept at this path for frontend compatibility. Idempotent: re-adding the same
   // plate returns 409 (the existing E-Tag is reused, never duplicated).
-  app.post("/api/owner/local-vehicle", async (request, reply) => {
+  app.post("/api/owner/local-vehicle", { config: { rateLimit: { max: 20, timeWindow: "5 minutes" } } }, async (request, reply) => {
     const blocked = await requireSession(app, "owner")(request, reply);
     if (blocked) return blocked;
 
@@ -511,7 +511,7 @@ export function registerOwnerRoutes(app, env) {
   // Until now this number only ever lived in the browser's localStorage, so it
   // existed on exactly one device and the server could not dial it. Persisting
   // it here is what makes the scanner-side SOS button able to connect anyone.
-  app.post("/api/owner/tags/:tagId/emergency-contact", async (request, reply) => {
+  app.post("/api/owner/tags/:tagId/emergency-contact", { config: { rateLimit: { max: 10, timeWindow: "5 minutes" } } }, async (request, reply) => {
     const blocked = await requireSession(app, "owner")(request, reply);
     if (blocked) return blocked;
 
@@ -710,7 +710,7 @@ export function registerOwnerRoutes(app, env) {
 
   // Owner calls back the most recent scanner who contacted them within 60 minutes.
   // No phone input — owner's phone comes from their profile (owner.mobile).
-  app.post("/api/owner/callback/register-call", async (request, reply) => {
+  app.post("/api/owner/callback/register-call", { config: { rateLimit: { max: 5, timeWindow: "5 minutes" } } }, async (request, reply) => {
     const blocked = await requireSession(app, "owner")(request, reply);
     if (blocked) return blocked;
 

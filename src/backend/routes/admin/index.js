@@ -500,7 +500,7 @@ export function registerAdminRoutes(app, env) {
     };
   });
 
-  app.post("/api/admin/print-queue/export", async (request, reply) => {
+  app.post("/api/admin/print-queue/export", { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } }, async (request, reply) => {
     const blocked = await requireSession(app, "admin")(request, reply);
     if (blocked) return blocked;
 

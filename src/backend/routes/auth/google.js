@@ -219,7 +219,7 @@ export function registerGoogleAuthRoutes(app, env) {
   });
 
   // ── One Tap: verify ID token from GSI credential callback ────────
-  app.post("/api/auth/google/credential", async (request, reply) => {
+  app.post("/api/auth/google/credential", { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } }, async (request, reply) => {
     const { credential } = request.body || {};
     if (!credential) return reply.code(400).send({ error: "missing_credential" });
 
@@ -274,7 +274,7 @@ export function registerGoogleAuthRoutes(app, env) {
   });
 
   // ── Popup fallback: exchange auth code from popup flow ───────────
-  app.post("/api/auth/google/popup", async (request, reply) => {
+  app.post("/api/auth/google/popup", { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } }, async (request, reply) => {
     const { code } = request.body || {};
     if (!code) return reply.code(400).send({ error: "missing_code" });
 

@@ -502,7 +502,7 @@ export default function Home() {
                     ))}
                   </ul>
 
-                  <a href={`${APP_URL}/register-owner`} className="block text-center bg-[#FF2700] hover:bg-[#D92200] text-white font-bold py-3 rounded-xl transition-colors text-sm">
+                  <a href={`${APP_URL}/register-owner`} className="block text-center bg-[#FF2700] hover:bg-[var(--red-hover)] text-white font-bold py-3 rounded-xl transition-colors text-sm">
                     Get Duo Pack
                   </a>
                 </div>
@@ -553,7 +553,7 @@ export default function Home() {
                 Never miss a call about<br />your parked vehicle again.
               </h2>
               <p className="text-white/50 mb-8">Join vehicle owners across India who park with confidence.</p>
-              <a href={`${APP_URL}/register-owner`} className="inline-block bg-[#FF2700] hover:bg-[#D92200] text-white font-bold px-8 py-4 rounded-xl transition-colors text-base">
+              <a href={`${APP_URL}/register-owner`} className="inline-block bg-[#FF2700] hover:bg-[var(--red-hover)] text-white font-bold px-8 py-4 rounded-xl transition-colors text-base">
                 Get Your ParkTag →
               </a>
               <p className="text-white/25 text-sm mt-4">Starting at ₹299 · Ships across India · 1-year subscription included</p>

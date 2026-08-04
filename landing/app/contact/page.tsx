@@ -80,7 +80,7 @@ export default function ContactPage() {
               </p>
               <a
                 href="mailto:support@parktag.me?subject=Fleet Enquiry"
-                className="inline-block text-xs font-bold bg-[#FF2700] hover:bg-[#D92200] text-white px-4 py-2 rounded-lg transition-colors"
+                className="inline-block text-xs font-bold bg-[#FF2700] hover:bg-[var(--red-hover)] text-white px-4 py-2 rounded-lg transition-colors"
               >
                 Get Fleet Pricing
               </a>

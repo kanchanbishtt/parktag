@@ -11,6 +11,7 @@ import QRCode from "qrcode";
 import { getEnv } from "./lib/env.js";
 import { clientError, clientErrorMessage } from "./lib/errors.js";
 import { readSession } from "./lib/auth/session.js";
+import { createSharedRateLimitStore } from "./lib/auth/rate-limit-store.js";
 import { getCollections } from "./lib/db/repositories.js";
 import { stickerSerialFor } from "./lib/core/tag-issuance.js";
 import { registerAdminRoutes } from "./routes/admin/index.js";
@@ -232,6 +233,21 @@ export async function buildApp() {
   await app.register(fastifyRateLimit, {
     max: 200,
     timeWindow: "1 minute",
+    // Counters live in MongoDB so they hold ACROSS REPLICAS. The default store
+    // counts in process memory, and this service runs several replicas on
+    // Railway, so every declared limit was really `max × replicaCount`:
+    // /api/auth/forgot-password is declared at 3/hour, but six consecutive
+    // requests to production all returned 200 because no single replica saw
+    // more than two of them. Only the per-route limits pay the round-trip —
+    // the coarse 200/min guard below stays in memory. See rate-limit-store.js.
+    store: createSharedRateLimitStore({
+      // Resolved per request (lazily) rather than captured here: buildApp()
+      // runs before the Mongo connection exists, and getCollections() returns
+      // null when Mongo isn't configured at all, which the store treats as
+      // "fall back to in-memory counting".
+      getCollection: async () => (await getCollections(env))?.rateLimits ?? null,
+      log: () => app.log
+    }),
     // @fastify/rate-limit does `throw errorResponseBuilder(req, ctx)` — it
     // THROWS whatever this returns rather than sending it, so the value lands
     // in setErrorHandler below and must satisfy that handler's contract:

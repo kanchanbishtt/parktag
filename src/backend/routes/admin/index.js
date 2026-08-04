@@ -22,17 +22,77 @@ export function registerAdminRoutes(app, env) {
     const statusFilter = String(request.query.status || "");
     const includeDeleted = request.query.includeDeleted === "1";
 
-    const tags = await collections.tags
-      .find({ ownerId: { $ne: null } })
-      .sort({ createdAt: -1 })
-      .toArray();
-    const owners = await collections.owners.find({}).toArray();
-    const ownerMap = Object.fromEntries(owners.map((o) => [String(o._id), o]));
-    const requests = await collections.contactRequests.find({}).toArray();
-    const countsByToken = {};
-    for (const r of requests) countsByToken[r.token] = (countsByToken[r.token] || 0) + 1;
+    // This endpoint used to pull EVERY tag, EVERY owner and EVERY contact
+    // request into memory and filter in JavaScript. contact_requests grows
+    // fastest of the three — one document per scan — so that load was the first
+    // thing here that would exhaust the process. Filtering now happens in Mongo
+    // (against the indexes added in repositories.js), the owner join is limited
+    // to the owners actually referenced by the returned page, and contact
+    // counts come from an aggregation over only the tokens on that page.
+    const filter = { ownerId: { $ne: null } };
+    if (!includeDeleted) filter.deletedAt = { $in: [null, undefined] };
+    if (statusFilter) filter.status = statusFilter;
 
-    let list = tags.map((t) => {
+    if (q) {
+      // Escape the user's text before it becomes a regex — otherwise a search
+      // for something like "a(" throws, and a crafted pattern could be made
+      // pathologically slow (ReDoS) against every document scanned.
+      const safe = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const rx = new RegExp(safe, "i");
+      // Owner-side matches resolve to ids first so the tag query stays a single
+      // indexed lookup rather than a per-document join.
+      const matchingOwnerIds = (
+        await collections.owners
+          .find({ $or: [{ email: rx }, { mobile: rx }, { phone: rx }] }, { projection: { _id: 1 } })
+          .limit(500)
+          .toArray()
+      ).map((o) => o._id);
+
+      filter.$or = [{ plateNumber: rx }, { token: rx }];
+      if (matchingOwnerIds.length) filter.$or.push({ ownerId: { $in: matchingOwnerIds } });
+
+      // E-Tag IDs are derived (PT- + the last 8 hex of the ObjectId), so they
+      // aren't a stored field and can't be indexed. Only run the $expr suffix
+      // match when the query actually looks like one, so the ordinary searches
+      // above stay index-backed and this scan is the rare case.
+      const etagQuery = q.replace(/^pt-/i, "");
+      if (/^[0-9a-f]{4,8}$/i.test(etagQuery)) {
+        filter.$or.push({
+          $expr: {
+            $regexMatch: { input: { $toString: "$_id" }, regex: `${etagQuery}$`, options: "i" }
+          }
+        });
+      }
+    }
+
+    const total = await collections.tags.countDocuments(filter);
+    const tags = await collections.tags
+      .find(filter)
+      .sort({ createdAt: -1 })
+      .limit(300)
+      .toArray();
+
+    const ownerIds = [...new Set(tags.map((t) => String(t.ownerId)))]
+      .filter((id) => id && id !== "null")
+      .map((id) => new ObjectId(id));
+    const owners = ownerIds.length
+      ? await collections.owners.find({ _id: { $in: ownerIds } }).toArray()
+      : [];
+    const ownerMap = Object.fromEntries(owners.map((o) => [String(o._id), o]));
+
+    const tokens = tags.map((t) => t.token).filter(Boolean);
+    const countsByToken = {};
+    if (tokens.length) {
+      const counts = await collections.contactRequests
+        .aggregate([
+          { $match: { token: { $in: tokens } } },
+          { $group: { _id: "$token", n: { $sum: 1 } } }
+        ])
+        .toArray();
+      for (const c of counts) countsByToken[c._id] = c.n;
+    }
+
+    const list = tags.map((t) => {
       const owner = ownerMap[String(t.ownerId)] || {};
       return {
         id: String(t._id),
@@ -55,21 +115,10 @@ export function registerAdminRoutes(app, env) {
       };
     });
 
-    if (!includeDeleted) list = list.filter((t) => !t.deletedAt);
-    if (statusFilter) list = list.filter((t) => t.status === statusFilter);
-    if (q) {
-      list = list.filter(
-        (t) =>
-          (t.plateNumber || "").toLowerCase().includes(q) ||
-          (t.etagId || "").toLowerCase().includes(q) ||
-          (t.token || "").toLowerCase().includes(q) ||
-          (t.ownerEmail || "").toLowerCase().includes(q) ||
-          (t.ownerMobile || "").toLowerCase().includes(q)
-      );
-    }
-
-    const total = list.length;
-    return { ok: true, total, etags: list.slice(0, 300) };
+    // `total` is the count of everything matching the filter; `etags` is the
+    // first page of it. The response cap was always 300 — it is just applied in
+    // the query now instead of after loading the whole collection.
+    return { ok: true, total, etags: list, limit: 300 };
   });
 
   // E-Tag detail with full contact / call / WhatsApp logs.
@@ -274,12 +323,43 @@ export function registerAdminRoutes(app, env) {
     }
 
     const collections = await getCollections(env);
-    const owners = await collections.owners.find({}).toArray();
-    const tags = await collections.tags.find({}).toArray();
+    // Headline counts come from the server, not from measuring arrays we had to
+    // load first. `requests` in particular used to report the length of a
+    // 20-item page as if it were the total.
+    const [ownerCount, tagCount, requestCount] = await Promise.all([
+      collections.owners.countDocuments(),
+      collections.tags.countDocuments(),
+      collections.contactRequests.countDocuments()
+    ]);
+
+    const owners = await collections.owners
+      .find({})
+      .sort({ createdAt: -1 })
+      .limit(500)
+      .toArray();
+    // Only this page's owners, and only the fields the summary needs — rather
+    // than every tag in the system.
+    const ownerObjectIds = owners.map((o) => o._id);
+    const tags = await collections.tags
+      .find(
+        { ownerId: { $in: ownerObjectIds } },
+        { projection: { ownerId: 1, status: 1, deletedAt: 1, token: 1, createdAt: 1 } }
+      )
+      .toArray();
     const requests = await collections.contactRequests
       .find({})
       .sort({ createdAt: -1 })
       .limit(20)
+      .toArray();
+
+    const pendingPrint = await collections.tags.countDocuments({
+      status: "unclaimed",
+      printStatus: { $ne: "printed" }
+    });
+    const pendingPrintTags = await collections.tags
+      .find({ status: "unclaimed", printStatus: { $ne: "printed" } })
+      .sort({ createdAt: -1 })
+      .limit(500)
       .toArray();
 
     const ownerSummaries = owners
@@ -314,12 +394,10 @@ export function registerAdminRoutes(app, env) {
     return {
       ok: true,
       counts: {
-        owners: owners.length,
-        tags: tags.length,
-        requests: requests.length,
-        pendingPrint: tags.filter(
-          (tag) => tag.status === "unclaimed" && tag.printStatus !== "printed"
-        ).length
+        owners: ownerCount,
+        tags: tagCount,
+        requests: requestCount,
+        pendingPrint
       },
       owners: ownerSummaries,
       recentRequests: requests.map((item) => ({
@@ -338,15 +416,13 @@ export function registerAdminRoutes(app, env) {
         createdAt: item.createdAt
       })),
       recentRegistrations,
-      pendingPrintTags: tags
-        .filter((tag) => tag.status === "unclaimed" && tag.printStatus !== "printed")
-        .map((tag) => ({
-          id: String(tag._id),
-          token: tag.token,
-          batchNumber: tag.batchNumber || null,
-          printStatus: tag.printStatus || "pending_print",
-          createdAt: tag.createdAt
-        }))
+      pendingPrintTags: pendingPrintTags.map((tag) => ({
+        id: String(tag._id),
+        token: tag.token,
+        batchNumber: tag.batchNumber || null,
+        printStatus: tag.printStatus || "pending_print",
+        createdAt: tag.createdAt
+      }))
     };
   });
 
@@ -361,13 +437,25 @@ export function registerAdminRoutes(app, env) {
       request.body || {};
 
     const collections = await getCollections(env);
-    const tags = await createUnclaimedTags(collections, {
-      batchNumber,
-      batchLabel,
-      quantity,
-      stickerRequested,
-      premiumBatch
-    });
+    let tags;
+    try {
+      tags = await createUnclaimedTags(collections, {
+        batchNumber,
+        batchLabel,
+        quantity,
+        stickerRequested,
+        premiumBatch
+      });
+    } catch (error) {
+      // Quantity validation (non-numeric, < 1, or over the per-batch ceiling)
+      // — surface it so the operator sees why nothing was issued instead of a
+      // silent zero-tag "success".
+      reply.code(400);
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : "Could not issue tags."
+      };
+    }
 
     // Return only a lightweight summary — do NOT render a QR image per tag here.
     // Rendering thousands of QR PNGs into a single response is what timed out the
@@ -412,7 +500,7 @@ export function registerAdminRoutes(app, env) {
     };
   });
 
-  app.post("/api/admin/print-queue/export", async (request, reply) => {
+  app.post("/api/admin/print-queue/export", { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } }, async (request, reply) => {
     const blocked = await requireSession(app, "admin")(request, reply);
     if (blocked) return blocked;
 
@@ -535,7 +623,8 @@ export function registerAdminRoutes(app, env) {
     const blocked = await requireSession(app, "admin")(request, reply);
     if (blocked) return blocked;
 
-    const limit = Math.min(parseInt(request.query.limit || "50", 10), 200);
+    const parsedLimit = parseInt(request.query.limit || "50", 10);
+    const limit = Math.min(Number.isFinite(parsedLimit) && parsedLimit > 0 ? parsedLimit : 50, 200);
     const collections = await getCollections(env);
 
     const requests = await collections.contactRequests
@@ -544,7 +633,14 @@ export function registerAdminRoutes(app, env) {
       .limit(limit)
       .toArray();
 
-    const tags = await collections.tags.find({}).toArray();
+    // Only look up labels for the tokens on this page. This used to load the
+    // ENTIRE tags collection to build a lookup map for at most 200 rows.
+    const pageTokens = [...new Set(requests.map((r) => r.token).filter(Boolean))];
+    const tags = pageTokens.length
+      ? await collections.tags
+          .find({ token: { $in: pageTokens } }, { projection: { token: 1, vehicleLabel: 1 } })
+          .toArray()
+      : [];
     const tokenToLabel = Object.fromEntries(
       tags.map((t) => [t.token, t.vehicleLabel || t.token])
     );
@@ -595,7 +691,10 @@ export function registerAdminRoutes(app, env) {
     };
   });
 
-  app.post("/api/admin/admins", async (request, reply) => {
+  app.post(
+    "/api/admin/admins",
+    { config: { rateLimit: { max: 5, timeWindow: "1 minute" } } },
+    async (request, reply) => {
     const blocked = await requireSession(app, "admin")(request, reply);
     if (blocked) return blocked;
 
@@ -606,6 +705,17 @@ export function registerAdminRoutes(app, env) {
       return {
         ok: false,
         error: "email, password, and displayName are required"
+      };
+    }
+
+    // Admin accounts hold the most powerful role in the product, yet this route
+    // accepted any non-empty string as a password while owners have required 8+
+    // characters since the last audit. Hold admins to at least the same bar.
+    if (password.length < 8) {
+      reply.code(400);
+      return {
+        ok: false,
+        error: "Password must be at least 8 characters"
       };
     }
 
@@ -633,7 +743,8 @@ export function registerAdminRoutes(app, env) {
     });
 
     return { ok: true };
-  });
+    }
+  );
 
   app.delete("/api/admin/admins/:id", async (request, reply) => {
     const blocked = await requireSession(app, "admin")(request, reply);
@@ -652,6 +763,20 @@ export function registerAdminRoutes(app, env) {
     }
 
     const collections = await getCollections(env);
+
+    // Refuse to remove the last admin — every admin route is role-guarded, so
+    // deleting the final one locks the console permanently and leaves no
+    // in-app way back in. (The self-delete guard above doesn't cover this: two
+    // admins can delete each other down to zero.)
+    const adminCount = await collections.admins.countDocuments();
+    if (adminCount <= 1) {
+      reply.code(400);
+      return {
+        ok: false,
+        error: "You cannot remove the last admin account. Create another admin first."
+      };
+    }
+
     const result = await collections.admins.deleteOne({ _id: new ObjectId(id) });
 
     if (result.deletedCount === 0) {

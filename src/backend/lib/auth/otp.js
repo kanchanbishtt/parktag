@@ -110,6 +110,106 @@ export async function sendOtp(env, identifier) {
   return { ok: true };
 }
 
+// Resolve the owner account behind a mobile number whose control has JUST been
+// proven by an OTP.
+//
+// The problem this solves: `mobile` is the OTP-login identity, but older
+// accounts were created by paths that wrote only `phone` (registration, tag
+// claim). A plain findOne({ mobile }) missed those, so an owner who signed up
+// with email + password + phone and later signed in with a mobile OTP got a
+// brand-new EMPTY second account, silently splitting their vehicles and orders.
+//
+// Matching those accounts by `phone` is only safe when the phone is real
+// evidence of ownership. On legacy records it is an unverified free-text claim
+// — someone could have typed a stranger's number at signup — so adopting one
+// that still has a password or a linked Google account would hand the person
+// holding the OTP an account that somebody else can also sign into (and vice
+// versa). Hence three outcomes:
+//
+//   • matched  — a genuine `mobile` match, or a legacy `phone` match on an
+//                account with NO other credential (nothing else can open it,
+//                so proving the number proves ownership). Legacy hits are
+//                upgraded in place so this only happens once.
+//   • conflict — legacy `phone` match on an account that DOES have another way
+//                in. Neither forking a duplicate nor silently adopting is
+//                right; the caller tells the user to sign in the way they
+//                already can and link the number from Settings, which is what
+//                the OTP-gated POST /api/owner/mobile is for.
+//   • null     — nobody owns this number yet; the caller creates a new owner.
+export async function resolveOwnerByVerifiedMobile(collections, normalizedMobile) {
+  const owner = await collections.owners.findOne({ mobile: normalizedMobile });
+  if (owner) return { owner, adopted: false, conflict: false };
+
+  const digits = String(normalizedMobile).replace(/\D/g, "");
+  const last10 = digits.slice(-10);
+  // Legacy `phone` values were never normalised, so match the stored variants.
+  const legacy = await collections.owners.findOne({
+    mobile: { $in: [null, ""] },
+    phone: { $in: [normalizedMobile, digits, last10, `+${digits}`] }
+  });
+
+  if (!legacy) return { owner: null, adopted: false, conflict: false };
+
+  if (legacy.passwordHash || legacy.googleId) {
+    return { owner: null, adopted: false, conflict: true };
+  }
+
+  await collections.owners.updateOne(
+    { _id: legacy._id },
+    { $set: { mobile: normalizedMobile, phone: normalizedMobile, mobileVerified: true } }
+  );
+
+  return {
+    owner: { ...legacy, mobile: normalizedMobile, phone: normalizedMobile, mobileVerified: true },
+    adopted: true,
+    conflict: false
+  };
+}
+
+// Charge one OTP send against a destination's budget WITHOUT this app being the
+// sender — used by the Firebase phone-auth path, where Firebase dispatches the
+// SMS itself and so never reaches sendOtp()'s per-destination cap above. Left
+// unmetered, that route was an unauthenticated way to have SMS sent to any
+// number on demand, which is exactly the abuse MAX_SENDS_PER_WINDOW exists to
+// stop on the WhatsApp path.
+//
+// The marker is written into otpTokens so both channels share ONE budget per
+// destination (a victim can't be given twice the messages by alternating
+// channels). It is stored `used: true` with no code, so neither verifyOtp's
+// lookup nor sendOtp's reuse check can ever mistake it for a live code, while
+// sendOtp's window count — which filters on identifier and createdAt only —
+// still counts it.
+export async function chargeExternalOtpSend(env, identifier) {
+  const collections = await getCollections(env);
+  if (!collections) throw new Error("MongoDB is not configured");
+
+  const normalized = normalizeIdentifier(identifier);
+  const windowStart = new Date(Date.now() - SEND_WINDOW_MS).toISOString();
+  const sentInWindow = await collections.otpTokens.countDocuments({
+    identifier: normalized,
+    createdAt: { $gt: windowStart }
+  });
+
+  if (sentInWindow >= MAX_SENDS_PER_WINDOW) {
+    throw clientError(
+      "Too many verification codes requested. Please wait a while before trying again."
+    );
+  }
+
+  const now = new Date();
+  await collections.otpTokens.insertOne({
+    identifier: normalized,
+    code: null,
+    channel: "firebase",
+    used: true,
+    attempts: 0,
+    createdAt: now.toISOString(),
+    expiresAt: new Date(now.getTime() + OTP_EXPIRY_MS).toISOString()
+  });
+
+  return { ok: true };
+}
+
 export async function verifyOtp(env, identifier, code) {
   const collections = await getCollections(env);
   if (!collections) throw new Error("MongoDB is not configured");

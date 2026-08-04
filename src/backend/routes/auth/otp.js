@@ -1,5 +1,11 @@
 import { ObjectId } from "mongodb";
-import { sendOtp, verifyOtp, isMobileIdentifier, normalizeIdentifier } from "../../lib/auth/otp.js";
+import {
+  sendOtp,
+  verifyOtp,
+  isMobileIdentifier,
+  normalizeIdentifier,
+  resolveOwnerByVerifiedMobile
+} from "../../lib/auth/otp.js";
 import { createSession, writeSessionCookie } from "../../lib/auth/session.js";
 import { getCollections } from "../../lib/db/repositories.js";
 import { clientErrorMessage } from "../../lib/errors.js";
@@ -64,12 +70,44 @@ export function registerOtpAuthRoutes(app, env) {
       const result = await verifyOtp(env, identifier, code);
 
       let owner = result.owner;
-      const isNewUser = result.isNewUser;
+      let isNewUser = result.isNewUser;
+      const collections = await getCollections(env);
+      const normalized = normalizeIdentifier(identifier);
+      const isMobile = isMobileIdentifier(identifier);
+
+      // For a mobile sign-in, re-resolve through the shared helper so an older
+      // account that only ever stored this number in `phone` is reunited with
+      // its owner instead of being shadowed by a fresh empty duplicate.
+      if (isMobile && isNewUser) {
+        const resolved = await resolveOwnerByVerifiedMobile(collections, normalized);
+
+        if (resolved.conflict) {
+          request.log.warn(
+            { event: "otp-login-conflict" },
+            "[auth] OTP number belongs to an account with another sign-in method — refusing to fork a duplicate"
+          );
+          reply.code(409);
+          return {
+            ok: false,
+            code: "ACCOUNT_EXISTS",
+            error:
+              "This number is already on an account you can sign in to with your email or Google. Please sign in that way, then add this number from Settings."
+          };
+        }
+
+        if (resolved.owner) {
+          owner = resolved.owner;
+          isNewUser = false;
+          if (resolved.adopted) {
+            request.log.info(
+              { event: "otp-login-adopted-legacy-account", ownerId: String(owner._id) },
+              "[auth] linked a legacy phone-only account to its verified mobile"
+            );
+          }
+        }
+      }
 
       if (isNewUser) {
-        const collections = await getCollections(env);
-        const normalized = normalizeIdentifier(identifier);
-        const isMobile = isMobileIdentifier(identifier);
         const ownerId = new ObjectId();
         owner = {
           _id: ownerId,
@@ -80,6 +118,8 @@ export function registerOtpAuthRoutes(app, env) {
         };
         if (isMobile) {
           owner.mobile = normalized;
+          owner.phone = normalized;
+          owner.mobileVerified = true;
         } else {
           owner.email = normalized;
         }

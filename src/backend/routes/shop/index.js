@@ -195,7 +195,7 @@ export function registerShopRoutes(app, env) {
   });
 
   // Verify payment signature
-  app.post("/api/shop/verify-payment", async (request, reply) => {
+  app.post("/api/shop/verify-payment", { config: { rateLimit: { max: 20, timeWindow: "1 minute" } } }, async (request, reply) => {
     const blocked = await requireSession(app, "owner")(request, reply);
     if (blocked) return blocked;
     const ownerId = toObjectId(request.session.userId);
@@ -349,7 +349,7 @@ export function registerShopRoutes(app, env) {
   // Place a Cash-on-Delivery order — no payment now, ships and is paid on
   // delivery. Price is resolved server-side from the catalog (same as online),
   // and we mint our own order number since there's no Razorpay order.
-  app.post("/api/shop/place-cod", async (request, reply) => {
+  app.post("/api/shop/place-cod", { config: { rateLimit: { max: 10, timeWindow: "5 minutes" } } }, async (request, reply) => {
     const blocked = await requireSession(app, "owner")(request, reply);
     if (blocked) return blocked;
     const ownerId = toObjectId(request.session.userId);
@@ -466,7 +466,7 @@ export function registerShopRoutes(app, env) {
 
   // Flash offer: create a discounted (−₹50) Razorpay order to convert an
   // existing COD order to prepaid. The discount is applied here, server-side.
-  app.post("/api/shop/cod-prepay-order", async (request, reply) => {
+  app.post("/api/shop/cod-prepay-order", { config: { rateLimit: { max: 20, timeWindow: "1 minute" } } }, async (request, reply) => {
     const blocked = await requireSession(app, "owner")(request, reply);
     if (blocked) return blocked;
     const ownerId = toObjectId(request.session.userId);
@@ -501,7 +501,7 @@ export function registerShopRoutes(app, env) {
   });
 
   // Verify the flash-prepay payment and convert the COD order to paid/online.
-  app.post("/api/shop/cod-prepay-verify", async (request, reply) => {
+  app.post("/api/shop/cod-prepay-verify", { config: { rateLimit: { max: 20, timeWindow: "1 minute" } } }, async (request, reply) => {
     const blocked = await requireSession(app, "owner")(request, reply);
     if (blocked) return blocked;
     const ownerId = toObjectId(request.session.userId);

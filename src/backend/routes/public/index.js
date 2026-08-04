@@ -3,7 +3,12 @@ import { ObjectId } from "mongodb";
 import { createContactAction } from "../../lib/core/contact-actions.js";
 import { createPasswordHash, createSecureToken, safeEqual, hashIp, minutesFromNow, getClientIp, maskPlateNumber, getPlateLastFour, isNonEmptyString } from "../../lib/auth/security.js";
 import { createSession, writeSessionCookie } from "../../lib/auth/session.js";
-import { isMobileIdentifier, normalizeIdentifier, verifyOtp } from "../../lib/auth/otp.js";
+import {
+  isMobileIdentifier,
+  normalizeIdentifier,
+  verifyOtp,
+  resolveOwnerByVerifiedMobile
+} from "../../lib/auth/otp.js";
 import { getCollections, ensureVerificationIndexes, ensurePendingCallsIndexes } from "../../lib/db/repositories.js";
 import { VEHICLE_LABELS } from "../../lib/core/tag-issuance.js";
 import { clientErrorMessage } from "../../lib/errors.js";
@@ -13,6 +18,51 @@ const MAX_VERIFY_ATTEMPTS = 3;
 const LOCKOUT_MINUTES = 15;
 const GRANT_TTL_MINUTES = 15;
 const SESSION_TTL_MINUTES = 30;
+
+// ── Per-TAG brute-force ceiling (IP-independent) ──────────────────────────
+// The per-IP lockout above is the primary control, but it is only as sound as
+// `trustProxy` in app.js being set to the real number of proxy hops: too high
+// and `request.ip` becomes client-settable again, too low and every visitor
+// shares one bucket. Because this single check is what stands between a
+// stranger and a masked call, the owner's SOS contact, and the plate, it must
+// not rest on one integer staying correct through future infra changes (a CDN
+// added in front of Railway would change that hop count).
+//
+// So we ALSO cap failures per tag across every IP. No header, proxy topology,
+// or address rotation can widen this bucket — the tag token is the key, and the
+// attacker is by definition brute-forcing one specific tag.
+//
+// Sizing is deliberately generous: a legitimate finder is standing at the
+// vehicle reading the plate off it, so genuine failures are near zero. 30
+// failures/hour still reduces an exhaustive search of the 10,000-combination
+// space to ~14 days per tag, while making an accidental lockout of a real
+// scanner effectively impossible. The 15-minute lockout is kept short on
+// purpose: a longer one would be a cheap way for an abuser to keep a vehicle's
+// emergency contact unreachable.
+const MAX_TAG_ATTEMPTS_PER_WINDOW = 30;
+const TAG_WINDOW_MINUTES = 60;
+const TAG_LOCKOUT_MINUTES = 15;
+
+// ── SOS abuse ceiling ─────────────────────────────────────────────────────
+// The emergency contact is a THIRD party's number (next of kin) that the owner
+// types in without proving that person consented, and the SOS call is
+// deliberately exempt from the one-free-contact rule. Together that is an
+// amplification path: an owner could point SOS at someone else's number and
+// then ring it by scanning their own tag.
+//
+// The number stays un-OTP'd on purpose — demanding a code from the next of kin
+// would make the feature unusable in the case it exists for. Bound the abuse
+// instead: a hard per-tag daily ceiling, plus an ownerId on every SOS record so
+// a pattern is attributable and bannable.
+//
+// 5/day is well above real use (an incident draws one or two callers) and caps
+// what a determined abuser can inflict, without risking a refusal to connect
+// next of kin during an actual emergency.
+const MAX_EMERGENCY_CALLS_PER_DAY = 5;
+// Sentinel `ipHash` marking the per-tag bucket. Real values are 64-char SHA-256
+// hex, so "*" can never collide with a per-IP row, and reusing this collection
+// means the existing { token, ipHash } index and TTL cleanup already cover it.
+const TAG_BUCKET_KEY = "*";
 
 export function registerPublicRoutes(app, env) {
   app.get("/api/tags/:token", async (request, reply) => {
@@ -93,12 +143,22 @@ export function registerPublicRoutes(app, env) {
     const now = new Date();
 
     let session = await collections.verificationSessions.findOne({ token, ipHash });
+    const tagBucket = await collections.verificationSessions.findOne({
+      token,
+      ipHash: TAG_BUCKET_KEY
+    });
 
-    // Honour an active lockout.
-    if (session?.lockedUntil && new Date(session.lockedUntil) > now) {
-      const remainingMin = Math.ceil(
-        (new Date(session.lockedUntil).getTime() - now.getTime()) / 60000
-      );
+    const lockedUntil =
+      [session?.lockedUntil, tagBucket?.lockedUntil]
+        .filter(Boolean)
+        .map((value) => new Date(value))
+        .filter((date) => date > now)
+        .sort((a, b) => b - a)[0] || null;
+
+    // Honour an active lockout — whichever of the two buckets (this IP, or this
+    // tag across all IPs) is still locked, and for the longer of the two.
+    if (lockedUntil) {
+      const remainingMin = Math.ceil((lockedUntil.getTime() - now.getTime()) / 60000);
       reply.code(423);
       return {
         ok: false,
@@ -148,12 +208,43 @@ export function registerPublicRoutes(app, env) {
         }
       );
 
-      if (willLock) {
+      // Per-tag ceiling, counted across every IP (see MAX_TAG_ATTEMPTS_PER_WINDOW).
+      // The window rolls: once it has elapsed the count restarts, so a slow
+      // trickle of genuine mistakes never accumulates into a lockout.
+      const windowStart = tagBucket && tagBucket.windowStart ? new Date(tagBucket.windowStart) : null;
+      const windowLive = windowStart && now - windowStart < TAG_WINDOW_MINUTES * 60 * 1000;
+      const tagAttempts = (windowLive ? tagBucket.attempts || 0 : 0) + 1;
+      const tagWillLock = tagAttempts >= MAX_TAG_ATTEMPTS_PER_WINDOW;
+
+      await collections.verificationSessions.updateOne(
+        { token, ipHash: TAG_BUCKET_KEY },
+        {
+          $set: {
+            attempts: tagWillLock ? 0 : tagAttempts,
+            windowStart: (windowLive ? windowStart : now).toISOString(),
+            lockedUntil: tagWillLock ? minutesFromNow(TAG_LOCKOUT_MINUTES).toISOString() : null,
+            updatedAt: now.toISOString(),
+            expiresAt: minutesFromNow(TAG_WINDOW_MINUTES + TAG_LOCKOUT_MINUTES)
+          },
+          $setOnInsert: { token, ipHash: TAG_BUCKET_KEY, verified: false, grantId: null }
+        },
+        { upsert: true }
+      );
+
+      if (tagWillLock) {
+        request.log.warn(
+          { event: "tag-verify-bruteforce", token },
+          "[verify] per-tag attempt ceiling hit — tag locked across all IPs"
+        );
+      }
+
+      if (willLock || tagWillLock) {
+        const minutes = tagWillLock ? TAG_LOCKOUT_MINUTES : LOCKOUT_MINUTES;
         reply.code(423);
         return {
           ok: false,
           locked: true,
-          error: `Too many incorrect attempts. Try again in ${LOCKOUT_MINUTES} minutes.`
+          error: `Too many incorrect attempts. Try again in ${minutes} minutes.`
         };
       }
 
@@ -182,6 +273,16 @@ export function registerPublicRoutes(app, env) {
       }
     );
 
+    // A correct answer proves a real scanner is at the vehicle, so clear the
+    // per-tag failure count — otherwise unrelated earlier fumbles could still
+    // tip a legitimately-used tag into a lockout later in the window.
+    if (tagBucket && (tagBucket.attempts || 0) > 0) {
+      await collections.verificationSessions.updateOne(
+        { token, ipHash: TAG_BUCKET_KEY },
+        { $set: { attempts: 0, windowStart: now.toISOString(), lockedUntil: null } }
+      );
+    }
+
     return {
       ok: true,
       grant: grantId,
@@ -208,7 +309,7 @@ export function registerPublicRoutes(app, env) {
       };
     }
 
-    const { email, password, displayName, phone, vehicleLabel, plateNumber } =
+    const { email, password, displayName, phone, vehicleLabel, plateNumber, otp } =
       request.body || {};
 
     if (
@@ -222,6 +323,37 @@ export function registerPublicRoutes(app, env) {
       return {
         ok: false,
         error: "email, password, displayName, phone, and plateNumber are required"
+      };
+    }
+
+    if (password.length < 8) {
+      reply.code(400);
+      return { ok: false, error: "Password must be at least 8 characters" };
+    }
+
+    if (!isMobileIdentifier(phone)) {
+      reply.code(400);
+      return { ok: false, error: "Enter a valid mobile number." };
+    }
+
+    // `phone` is written to the owner record, and register-call dials
+    // `owner.mobile || owner.phone` — so an unverified value here is a way to
+    // make ParkTag ring a number its owner never consented to. Prove control of
+    // it with the same OTP the rest of the app uses before storing it. Callers
+    // get the code from POST /api/auth/send-otp first; omitting it returns
+    // needsOtp so a client can drive the two-step flow, matching
+    // /api/owner/mobile and /api/shop/place-cod.
+    if (!isNonEmptyString(otp)) {
+      return { ok: false, needsOtp: true };
+    }
+
+    try {
+      await verifyOtp(env, phone, String(otp).trim());
+    } catch (error) {
+      reply.code(400);
+      return {
+        ok: false,
+        error: clientErrorMessage(error, "Invalid verification code.", app.log)
       };
     }
 
@@ -254,12 +386,20 @@ export function registerPublicRoutes(app, env) {
     }
 
     const ownerId = new ObjectId();
+    const verifiedMobile = normalizeIdentifier(phone);
     const owner = {
       _id: ownerId,
       email,
       passwordHash: await createPasswordHash(password),
       displayName,
-      phone,
+      // The OTP above proved this number, so store it in BOTH fields in the
+      // canonical +91 form: `mobile` is the OTP-login identity, `phone` is what
+      // the contact flow dials. Writing only `phone` (as this route used to)
+      // left a dialable number that no login path could ever match, which is
+      // how the same person ended up with two accounts.
+      mobile: verifiedMobile,
+      phone: verifiedMobile,
+      mobileVerified: true,
       credits: 0,
       role: "owner",
       createdAt: new Date().toISOString()
@@ -367,7 +507,23 @@ export function registerPublicRoutes(app, env) {
     const mobile = normalizeIdentifier(phone);
     const ownerName = displayName.trim();
 
-    let owner = await collections.owners.findOne({ mobile });
+    // Shared resolver (see lib/auth/otp.js): matches on the verified `mobile`,
+    // and also reunites older accounts that only ever stored this number in
+    // `phone`, so activating a sticker doesn't strand the owner's existing
+    // vehicles on a duplicate account.
+    const resolved = await resolveOwnerByVerifiedMobile(collections, mobile);
+
+    if (resolved.conflict) {
+      reply.code(409);
+      return {
+        ok: false,
+        code: "ACCOUNT_EXISTS",
+        error:
+          "This number is already on an account you can sign in to with your email or Google. Please sign in that way, then activate this tag from your dashboard."
+      };
+    }
+
+    let owner = resolved.owner;
     let isNewOwner = false;
 
     if (owner) {
@@ -389,6 +545,8 @@ export function registerPublicRoutes(app, env) {
         // dials. Same number, both fields written so neither path has to guess.
         mobile,
         phone: mobile,
+        // The OTP above proved this number, so it is safe for the dialer.
+        mobileVerified: true,
         credits: 0,
         role: "owner",
         createdAt: new Date().toISOString()
@@ -726,6 +884,34 @@ export function registerPublicRoutes(app, env) {
       };
     }
 
+    // Daily ceiling (see MAX_EMERGENCY_CALLS_PER_DAY). Counted per tag over a
+    // rolling 24h so it cannot be reset by rotating source addresses.
+    const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const emergencyToday = await collections.contactRequests.countDocuments({
+      token,
+      action: "emergency_call",
+      createdAt: { $gte: dayAgo }
+    });
+
+    if (emergencyToday >= MAX_EMERGENCY_CALLS_PER_DAY) {
+      request.log.warn(
+        {
+          event: "emergency-call-cap-hit",
+          token,
+          ownerId: tag.ownerId ? String(tag.ownerId) : null,
+          count: emergencyToday
+        },
+        "[emergency] per-tag daily SOS ceiling reached — refusing further calls"
+      );
+      reply.code(429);
+      return {
+        ok: false,
+        code: "EMERGENCY_LIMIT",
+        error:
+          "This vehicle's emergency contact has already been called several times today. If this is a real emergency, please call 112."
+      };
+    }
+
     const callerPhone = toE164(phone);
     const targetPhone = toE164(tag.emergencyContact);
     const now = new Date();
@@ -764,8 +950,19 @@ export function registerPublicRoutes(app, env) {
       expiresAt: new Date(now.getTime() + 10 * 60 * 1000)
     });
 
+    // ownerId is recorded deliberately: the owner chose the number this dials,
+    // so if SOS is ever used to harass someone, this is the line that says who
+    // pointed it there. `usedToday` makes a ramping pattern visible in the logs
+    // before the ceiling is hit.
     request.log.info(
-      { event: "emergency-call-registered", token, requestId: String(requestId) },
+      {
+        event: "emergency-call-registered",
+        token,
+        requestId: String(requestId),
+        ownerId: tag.ownerId ? String(tag.ownerId) : null,
+        usedToday: emergencyToday + 1,
+        dailyCap: MAX_EMERGENCY_CALLS_PER_DAY
+      },
       "[emergency] pending SOS call registered"
     );
 

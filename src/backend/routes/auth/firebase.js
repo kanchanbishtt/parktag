@@ -1,6 +1,9 @@
 import { ObjectId } from "mongodb";
 import { getCollections } from "../../lib/db/repositories.js";
 import { createSession, writeSessionCookie } from "../../lib/auth/session.js";
+import { isNonEmptyString } from "../../lib/auth/security.js";
+import { chargeExternalOtpSend } from "../../lib/auth/otp.js";
+import { clientErrorMessage } from "../../lib/errors.js";
 
 const FIREBASE_API_BASE = "https://identitytoolkit.googleapis.com/v1/accounts";
 
@@ -76,7 +79,7 @@ export function registerFirebasePhoneAuthRoute(app, env) {
   });
 
   // Verify a Firebase ID token (from client SDK) and create a session
-  app.post("/api/auth/firebase-phone/verify-token", async (request, reply) => {
+  app.post("/api/auth/firebase-phone/verify-token", { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } }, async (request, reply) => {
     const { idToken } = request.body || {};
     if (!idToken) { reply.code(400); return { ok: false, error: "ID token required." }; }
 
@@ -133,11 +136,32 @@ export function registerFirebasePhoneAuthRoute(app, env) {
   });
 
   // Step 1 — send OTP via Firebase REST API (invisible reCAPTCHA token from client)
-  app.post("/api/auth/firebase-phone/send", async (request, reply) => {
+  //
+  // Unauthenticated, and it causes a real SMS to be sent to any number the
+  // caller names — the same abuse shape as /api/auth/send-otp: harassment of a
+  // victim's handset plus a per-message cost. It previously had NO rate limit,
+  // treated the reCAPTCHA token as optional, and — because Firebase dispatches
+  // the message itself — never reached the per-destination cap that protects
+  // the WhatsApp path. Three controls now apply:
+  //   1. a per-IP route limit (cheap first line);
+  //   2. a MANDATORY reCAPTCHA token, so a script with no real browser is
+  //      turned away before Firebase is called at all;
+  //   3. the shared per-destination budget in chargeExternalOtpSend, keyed on
+  //      the victim's number — the only one of the three that still holds when
+  //      the caller rotates IPs.
+  app.post("/api/auth/firebase-phone/send", { config: { rateLimit: { max: 5, timeWindow: "5 minutes" } } }, async (request, reply) => {
     const { phone, recaptchaToken } = request.body || {};
     if (!phone) {
       reply.code(400);
       return { ok: false, error: "Phone number required." };
+    }
+
+    if (!isNonEmptyString(recaptchaToken)) {
+      reply.code(400);
+      return {
+        ok: false,
+        error: "We couldn't verify this request. Please refresh the page and try again."
+      };
     }
 
     const apiKey = env.firebaseApiKey;
@@ -148,10 +172,26 @@ export function registerFirebasePhoneAuthRoute(app, env) {
 
     const phoneE164 = normalizeE164(phone);
 
+    // Charge the destination budget BEFORE calling Firebase, so a number that is
+    // already over its limit costs nothing and receives nothing.
+    try {
+      await chargeExternalOtpSend(env, phoneE164);
+    } catch (err) {
+      reply.code(429);
+      return {
+        ok: false,
+        error: clientErrorMessage(
+          err,
+          "Too many verification codes requested. Please wait a while before trying again.",
+          request.log
+        )
+      };
+    }
+
     try {
       const data = await firebasePost("sendVerificationCode", apiKey, {
         phoneNumber: phoneE164,
-        ...(recaptchaToken ? { recaptchaToken } : {})
+        recaptchaToken
       });
       return { ok: true, sessionInfo: data.sessionInfo };
     } catch (err) {
@@ -162,7 +202,7 @@ export function registerFirebasePhoneAuthRoute(app, env) {
   });
 
   // Step 2 — verify OTP, sign in via Firebase REST API, create session
-  app.post("/api/auth/firebase-phone/verify", async (request, reply) => {
+  app.post("/api/auth/firebase-phone/verify", { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } }, async (request, reply) => {
     const { sessionInfo, code } = request.body || {};
     if (!sessionInfo || !code) {
       reply.code(400);

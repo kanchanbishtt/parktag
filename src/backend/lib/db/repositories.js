@@ -41,7 +41,15 @@ export async function getCollections(env) {
     // held in process memory so a deploy or restart mid-login doesn't fail the
     // callback with invalid_state, and so the flow still works if the service
     // ever runs more than one instance. TTL-expired.
-    oauthStates: db.collection(withPrefix(prefix, "oauth_states"))
+    oauthStates: db.collection(withPrefix(prefix, "oauth_states")),
+    // Cross-replica counters for the per-route rate limits. @fastify/rate-limit
+    // counts in process memory by default, so with several replicas every
+    // declared limit was really `max × replicas` — see lib/auth/rate-limit-store.js.
+    // TTL-expired the moment a window closes.
+    rateLimits: db.collection(withPrefix(prefix, "rate_limits")),
+    // Failed sign-in counters and lockouts, keyed per ACCOUNT rather than per
+    // IP so the control still applies when an attacker rotates addresses.
+    loginAttempts: db.collection(withPrefix(prefix, "login_attempts"))
   };
 }
 
@@ -85,7 +93,15 @@ const CORE_INDEXES = [
   // TTL cleanup for the two collections that store live secrets.
   ["otpTokens", { expiresAt: 1 }, { expireAfterSeconds: 86400, name: "ttl" }],
   ["passwordResetTokens", { expiresAt: 1 }, { expireAfterSeconds: 86400, name: "ttl" }],
-  ["oauthStates", { createdAt: 1 }, { expireAfterSeconds: 900, name: "ttl" }]
+  ["oauthStates", { createdAt: 1 }, { expireAfterSeconds: 900, name: "ttl" }],
+  // Rate-limit counters are read and written on every request to a limited
+  // route, always by _id, so no extra lookup index is needed — only the TTL,
+  // which drops each bucket as its window closes (expireAfterSeconds: 0 means
+  // "expire AT the date in this field", not "expire immediately").
+  ["rateLimits", { resetAt: 1 }, { expireAfterSeconds: 0, name: "ttl" }],
+  // Lockout records refresh updatedAt on every failure, so an active lock is
+  // never near expiry; a week is just garbage collection for stale counters.
+  ["loginAttempts", { updatedAt: 1 }, { expireAfterSeconds: 604800, name: "ttl" }]
 ];
 
 let coreIndexesEnsured = false;

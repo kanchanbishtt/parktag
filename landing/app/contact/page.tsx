@@ -33,7 +33,7 @@ export default function ContactPage() {
                 </svg>
               </div>
               <div>
-                <p className="text-sm font-semibold text-[#03162D] mb-0.5">Email</p>
+                <p className="text-sm font-semibold text-[#03162D] mb-0.5">Email Us</p>
                 <a href="mailto:support@parktag.me" className="text-[#FF2700] hover:underline text-sm font-medium">
                   support@parktag.me
                 </a>
@@ -49,7 +49,7 @@ export default function ContactPage() {
                 </svg>
               </div>
               <div>
-                <p className="text-sm font-semibold text-[#03162D] mb-0.5">Phone</p>
+                <p className="text-sm font-semibold text-[#03162D] mb-0.5">Connect via Call</p>
                 <a href="tel:+918791638854" className="text-[#03162D] font-medium text-sm hover:text-[#FF2700] transition-colors">
                   +91 87916 38854
                 </a>
@@ -66,24 +66,10 @@ export default function ContactPage() {
                 </svg>
               </div>
               <div>
-                <p className="text-sm font-semibold text-[#03162D] mb-0.5">Office</p>
+                <p className="text-sm font-semibold text-[#03162D] mb-0.5">In-Person Consultation</p>
                 <p className="text-sm text-[#495B7B]">32/11, Wave One, Sector 18</p>
                 <p className="text-sm text-[#495B7B]">Noida, UP 201301</p>
               </div>
-            </div>
-
-            {/* Fleet enquiry */}
-            <div className="mt-4 p-5 rounded-2xl bg-[#03162D] text-white">
-              <p className="text-sm font-semibold mb-1">Fleet &amp; Business Enquiries</p>
-              <p className="text-xs text-white/60 mb-3">
-                Managing 5+ vehicles? We offer custom pricing, bulk tags, and a dedicated account manager.
-              </p>
-              <a
-                href="mailto:support@parktag.me?subject=Fleet Enquiry"
-                className="inline-block text-xs font-bold bg-[#FF2700] hover:bg-[var(--red-hover)] text-white px-4 py-2 rounded-lg transition-colors"
-              >
-                Get Fleet Pricing
-              </a>
             </div>
 
           </div>

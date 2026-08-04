@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 import QRCode from "qrcode";
 
 import { getEnv } from "./lib/env.js";
-import { clientErrorMessage } from "./lib/errors.js";
+import { clientError, clientErrorMessage } from "./lib/errors.js";
 import { readSession } from "./lib/auth/session.js";
 import { getCollections } from "./lib/db/repositories.js";
 import { stickerSerialFor } from "./lib/core/tag-issuance.js";
@@ -232,10 +232,23 @@ export async function buildApp() {
   await app.register(fastifyRateLimit, {
     max: 200,
     timeWindow: "1 minute",
-    errorResponseBuilder: () => ({
-      ok: false,
-      error: "Too many requests. Please slow down."
-    })
+    // @fastify/rate-limit does `throw errorResponseBuilder(req, ctx)` — it
+    // THROWS whatever this returns rather than sending it, so the value lands
+    // in setErrorHandler below and must satisfy that handler's contract:
+    //   • `statusCode` — or the handler falls through to its 500 branch;
+    //   • `expose: true` + a string `message` — or clientErrorMessage()
+    //     collapses it into the generic "Something went wrong" fallback.
+    // A plain `{ ok, error }` object (what this used to return) satisfies
+    // NEITHER, so every rate limit in the app — login, OTP send/verify, plate
+    // verify, contact, register, forgot-password, COD OTP — answered a routine
+    // throttle with HTTP 500 and an outage-shaped message. That also buried
+    // genuine 500s in the metrics and left no 429 for clients to branch on.
+    // ClientError already carries `expose: true`, so reuse it.
+    errorResponseBuilder: () => {
+      const error = clientError("Too many requests. Please slow down.");
+      error.statusCode = 429;
+      return error;
+    }
   });
 
   // Catch-all for any error not already turned into a response by a route

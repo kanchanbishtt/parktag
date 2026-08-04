@@ -14,6 +14,34 @@ const LOCKOUT_MINUTES = 15;
 const GRANT_TTL_MINUTES = 15;
 const SESSION_TTL_MINUTES = 30;
 
+// ── Per-TAG brute-force ceiling (IP-independent) ──────────────────────────
+// The per-IP lockout above is the primary control, but it is only as sound as
+// `trustProxy` in app.js being set to the real number of proxy hops: too high
+// and `request.ip` becomes client-settable again, too low and every visitor
+// shares one bucket. Because this single check is what stands between a
+// stranger and a masked call, the owner's SOS contact, and the plate, it must
+// not rest on one integer staying correct through future infra changes (a CDN
+// added in front of Railway would change that hop count).
+//
+// So we ALSO cap failures per tag across every IP. No header, proxy topology,
+// or address rotation can widen this bucket — the tag token is the key, and the
+// attacker is by definition brute-forcing one specific tag.
+//
+// Sizing is deliberately generous: a legitimate finder is standing at the
+// vehicle reading the plate off it, so genuine failures are near zero. 30
+// failures/hour still reduces an exhaustive search of the 10,000-combination
+// space to ~14 days per tag, while making an accidental lockout of a real
+// scanner effectively impossible. The 15-minute lockout is kept short on
+// purpose: a longer one would be a cheap way for an abuser to keep a vehicle's
+// emergency contact unreachable.
+const MAX_TAG_ATTEMPTS_PER_WINDOW = 30;
+const TAG_WINDOW_MINUTES = 60;
+const TAG_LOCKOUT_MINUTES = 15;
+// Sentinel `ipHash` marking the per-tag bucket. Real values are 64-char SHA-256
+// hex, so "*" can never collide with a per-IP row, and reusing this collection
+// means the existing { token, ipHash } index and TTL cleanup already cover it.
+const TAG_BUCKET_KEY = "*";
+
 export function registerPublicRoutes(app, env) {
   app.get("/api/tags/:token", async (request, reply) => {
     const collections = await getCollections(env);
@@ -93,12 +121,22 @@ export function registerPublicRoutes(app, env) {
     const now = new Date();
 
     let session = await collections.verificationSessions.findOne({ token, ipHash });
+    const tagBucket = await collections.verificationSessions.findOne({
+      token,
+      ipHash: TAG_BUCKET_KEY
+    });
 
-    // Honour an active lockout.
-    if (session?.lockedUntil && new Date(session.lockedUntil) > now) {
-      const remainingMin = Math.ceil(
-        (new Date(session.lockedUntil).getTime() - now.getTime()) / 60000
-      );
+    const lockedUntil =
+      [session?.lockedUntil, tagBucket?.lockedUntil]
+        .filter(Boolean)
+        .map((value) => new Date(value))
+        .filter((date) => date > now)
+        .sort((a, b) => b - a)[0] || null;
+
+    // Honour an active lockout — whichever of the two buckets (this IP, or this
+    // tag across all IPs) is still locked, and for the longer of the two.
+    if (lockedUntil) {
+      const remainingMin = Math.ceil((lockedUntil.getTime() - now.getTime()) / 60000);
       reply.code(423);
       return {
         ok: false,
@@ -148,12 +186,43 @@ export function registerPublicRoutes(app, env) {
         }
       );
 
-      if (willLock) {
+      // Per-tag ceiling, counted across every IP (see MAX_TAG_ATTEMPTS_PER_WINDOW).
+      // The window rolls: once it has elapsed the count restarts, so a slow
+      // trickle of genuine mistakes never accumulates into a lockout.
+      const windowStart = tagBucket && tagBucket.windowStart ? new Date(tagBucket.windowStart) : null;
+      const windowLive = windowStart && now - windowStart < TAG_WINDOW_MINUTES * 60 * 1000;
+      const tagAttempts = (windowLive ? tagBucket.attempts || 0 : 0) + 1;
+      const tagWillLock = tagAttempts >= MAX_TAG_ATTEMPTS_PER_WINDOW;
+
+      await collections.verificationSessions.updateOne(
+        { token, ipHash: TAG_BUCKET_KEY },
+        {
+          $set: {
+            attempts: tagWillLock ? 0 : tagAttempts,
+            windowStart: (windowLive ? windowStart : now).toISOString(),
+            lockedUntil: tagWillLock ? minutesFromNow(TAG_LOCKOUT_MINUTES).toISOString() : null,
+            updatedAt: now.toISOString(),
+            expiresAt: minutesFromNow(TAG_WINDOW_MINUTES + TAG_LOCKOUT_MINUTES)
+          },
+          $setOnInsert: { token, ipHash: TAG_BUCKET_KEY, verified: false, grantId: null }
+        },
+        { upsert: true }
+      );
+
+      if (tagWillLock) {
+        request.log.warn(
+          { event: "tag-verify-bruteforce", token },
+          "[verify] per-tag attempt ceiling hit — tag locked across all IPs"
+        );
+      }
+
+      if (willLock || tagWillLock) {
+        const minutes = tagWillLock ? TAG_LOCKOUT_MINUTES : LOCKOUT_MINUTES;
         reply.code(423);
         return {
           ok: false,
           locked: true,
-          error: `Too many incorrect attempts. Try again in ${LOCKOUT_MINUTES} minutes.`
+          error: `Too many incorrect attempts. Try again in ${minutes} minutes.`
         };
       }
 
@@ -181,6 +250,16 @@ export function registerPublicRoutes(app, env) {
         }
       }
     );
+
+    // A correct answer proves a real scanner is at the vehicle, so clear the
+    // per-tag failure count — otherwise unrelated earlier fumbles could still
+    // tip a legitimately-used tag into a lockout later in the window.
+    if (tagBucket && (tagBucket.attempts || 0) > 0) {
+      await collections.verificationSessions.updateOne(
+        { token, ipHash: TAG_BUCKET_KEY },
+        { $set: { attempts: 0, windowStart: now.toISOString(), lockedUntil: null } }
+      );
+    }
 
     return {
       ok: true,

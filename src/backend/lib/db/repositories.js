@@ -1,3 +1,5 @@
+import { GridFSBucket } from "mongodb";
+
 import { getMongoDb } from "./mongo.js";
 
 function withPrefix(prefix, name) {
@@ -49,8 +51,28 @@ export async function getCollections(env) {
     rateLimits: db.collection(withPrefix(prefix, "rate_limits")),
     // Failed sign-in counters and lockouts, keyed per ACCOUNT rather than per
     // IP so the control still applies when an attacker rotates addresses.
-    loginAttempts: db.collection(withPrefix(prefix, "login_attempts"))
+    loginAttempts: db.collection(withPrefix(prefix, "login_attempts")),
+    // Metadata for the owner's private document vault (RC, insurance, PUC,
+    // licence). The FILES live in GridFS — see getVaultBucket below — and this
+    // holds only the descriptive record plus the GridFS id that points at them,
+    // so a listing never has to touch file bytes.
+    vaultDocuments: db.collection(withPrefix(prefix, "vault_documents")),
+    // Short-lived proof that the owner re-entered their vault PIN, keyed by
+    // session id. Kept server-side and out of the session document on purpose:
+    // readSession serves from an in-process cache for up to 30s, so an unlock
+    // written onto the session would not be visible to the very next request.
+    vaultGrants: db.collection(withPrefix(prefix, "vault_grants"))
   };
+}
+
+// GridFS bucket holding the vault's file bytes. Prefixed like every other
+// collection, so it becomes `<prefix>vault.files` / `<prefix>vault.chunks` and
+// a dev run can never read or overwrite production documents.
+export async function getVaultBucket(env) {
+  const db = await getMongoDb(env);
+  if (!db) return null;
+  const prefix = env.mongoCollectionPrefix || "";
+  return new GridFSBucket(db, { bucketName: withPrefix(prefix, "vault") });
 }
 
 // ── Core indexes ──────────────────────────────────────────────────────────
@@ -101,7 +123,14 @@ const CORE_INDEXES = [
   ["rateLimits", { resetAt: 1 }, { expireAfterSeconds: 0, name: "ttl" }],
   // Lockout records refresh updatedAt on every failure, so an active lock is
   // never near expiry; a week is just garbage collection for stale counters.
-  ["loginAttempts", { updatedAt: 1 }, { expireAfterSeconds: 604800, name: "ttl" }]
+  ["loginAttempts", { updatedAt: 1 }, { expireAfterSeconds: 604800, name: "ttl" }],
+  // Every vault read is scoped to one owner and usually one vehicle, and the
+  // per-owner storage quota sums this collection on each upload.
+  ["vaultDocuments", { ownerId: 1, tagId: 1, createdAt: -1 }, { name: "owner_vehicle" }],
+  ["vaultDocuments", { ownerId: 1 }, { name: "owner" }],
+  // A vault unlock is deliberately short-lived; the TTL is what actually
+  // re-locks it, so this index is load-bearing rather than housekeeping.
+  ["vaultGrants", { expiresAt: 1 }, { expireAfterSeconds: 0, name: "ttl" }]
 ];
 
 let coreIndexesEnsured = false;

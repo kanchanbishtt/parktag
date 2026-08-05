@@ -361,7 +361,16 @@ async function exportQrsForPrint() {
   if (!overlay || !grid) return;
 
   // Require an explicit selection — never default to exporting the whole sheet.
-  const selectedIds = [..._pqSelected];
+  //
+  // Exported in the order the queue displays (serial ascending within a batch),
+  // not the order the boxes happened to be ticked, so each chunk sent below is a
+  // contiguous block of serials and the sheets print in one countable run.
+  // Anything selected but no longer visible still goes, at the end.
+  const visible = new Set(_pqVisibleIds);
+  const selectedIds = [
+    ..._pqVisibleIds.filter((id) => _pqSelected.has(id)),
+    ...[..._pqSelected].filter((id) => !visible.has(id))
+  ];
   if (selectedIds.length === 0) {
     setStatus("Select the tag(s) you want to export first.", "info");
     return;

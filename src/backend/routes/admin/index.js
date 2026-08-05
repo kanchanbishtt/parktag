@@ -10,6 +10,55 @@ import {
   etagIdFor
 } from "../../lib/core/tag-issuance.js";
 
+// Order the print queue the way the sheets should come off the printer: newest
+// batch first, and inside a batch ascending by the serial printed on the sticker.
+//
+// Sorting on createdAt alone is not enough, which is what the queue used to do.
+// A batch is inserted in one burst — a 1000-tag run lands on about seven distinct
+// millisecond timestamps — so a descending createdAt sort reversed the run AND
+// left the tags sharing a millisecond in whatever order the server returned them.
+// The queue opened somewhere in the middle of the batch (PT-01-000840 rather than
+// PT-01-000001), which makes a printed run impossible to count against a serial
+// range.
+function orderForPrinting(tags) {
+  // Rank batches by their newest tag, so a batch always stays together and the
+  // most recently issued one still sits at the top of the queue.
+  const newestByBatch = new Map();
+  for (const tag of tags) {
+    const key = tag.batchNumber || "";
+    const at = String(tag.createdAt || "");
+    if (at > (newestByBatch.get(key) || "")) {
+      newestByBatch.set(key, at);
+    }
+  }
+
+  return tags.sort((a, b) => {
+    const aBatch = a.batchNumber || "";
+    const bBatch = b.batchNumber || "";
+
+    if (aBatch !== bBatch) {
+      const aNewest = newestByBatch.get(aBatch);
+      const bNewest = newestByBatch.get(bBatch);
+      if (aNewest !== bNewest) return aNewest < bNewest ? 1 : -1;
+      return aBatch < bBatch ? -1 : 1;
+    }
+
+    // Tags issued before serials existed have none. Keep them after the numbered
+    // ones in issue order rather than letting NaN scramble the comparison.
+    const aSerial = Number(a.serialNumber);
+    const bSerial = Number(b.serialNumber);
+    const aNumbered = Number.isFinite(aSerial);
+    const bNumbered = Number.isFinite(bSerial);
+    if (aNumbered && bNumbered) return aSerial - bSerial;
+    if (aNumbered !== bNumbered) return aNumbered ? -1 : 1;
+
+    const aAt = String(a.createdAt || "");
+    const bAt = String(b.createdAt || "");
+    if (aAt !== bAt) return aAt < bAt ? -1 : 1;
+    return String(a._id) < String(b._id) ? -1 : 1;
+  });
+}
+
 export function registerAdminRoutes(app, env) {
   // ── E-Tag management (spec §10) ───────────────────────────────────
   // List / search all owner E-Tags with purchase + contact summary.
@@ -477,13 +526,14 @@ export function registerAdminRoutes(app, env) {
     // ?printed=1 → unclaimed tags already printed (awaiting owner claim).
     // default    → unclaimed tags still waiting to be printed (the print queue).
     const printedOnly = request.query.printed === "1";
-    const tags = await collections.tags
-      .find({
-        status: "unclaimed",
-        printStatus: printedOnly ? "printed" : { $ne: "printed" }
-      })
-      .sort({ createdAt: -1 })
-      .toArray();
+    const tags = orderForPrinting(
+      await collections.tags
+        .find({
+          status: "unclaimed",
+          printStatus: printedOnly ? "printed" : { $ne: "printed" }
+        })
+        .toArray()
+    );
 
     return {
       ok: true,
@@ -520,8 +570,17 @@ export function registerAdminRoutes(app, env) {
 
     const collections = await getCollections(env);
     // Only export tags that are still unclaimed and not already printed.
+    //
+    // Sorted by serial, not left to natural order: `$in` returns documents in
+    // whatever order the index walk produces, ignoring the order the ids were
+    // sent in, so the sheets came out shuffled inside every chunk. The client
+    // sends the queue's order in contiguous chunks, so sorting each chunk here
+    // makes the whole export run 000001, 000002, 000003… Legacy tags with no
+    // serial sort first (a missing field is lowest in Mongo) and fall back to
+    // _id, which is issue order.
     const tags = await collections.tags
       .find({ _id: { $in: ids }, status: "unclaimed", printStatus: { $ne: "printed" } })
+      .sort({ serialNumber: 1, _id: 1 })
       .toArray();
 
     const output = await Promise.all(tags.map((tag) => buildIssuedTagOutput(request, tag)));

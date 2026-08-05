@@ -930,9 +930,18 @@ window._reloadDashboard = load;
 
 // Deep-link from the vehicle-detail page: /owner-welcome?shop=1&replace=<tagId>
 // opens the shop with the trial tag remembered as the replace-context (M18).
+//
+// The same opener finishes the public buying route. Someone who clicked "Order
+// your tag" on the marketing site went /shop → /owner-login?next=shop, which
+// parked the intent in sessionStorage; whichever way they then signed in, they
+// land here with no query string to speak of, so the parked intent is what
+// carries them the last step into the shop. Read once and deleted, so a later
+// visit to the dashboard opens on the vehicles tab as usual.
 (function openShopFromQuery() {
   const q = new URLSearchParams(location.search);
-  if (q.get("shop") === "1") {
+  const afterLogin = sessionStorage.getItem("pt_after_login");
+  sessionStorage.removeItem("pt_after_login");
+  if (q.get("shop") === "1" || afterLogin === "shop") {
     window._replaceTagId = q.get("replace") || null;
     // Defer until the shop tab wiring is ready.
     setTimeout(() => { if (typeof switchTab === "function") switchTab("shop"); }, 0);

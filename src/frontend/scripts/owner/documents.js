@@ -58,6 +58,10 @@ function fmtDate(iso) {
   return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString();
 }
 
+function fileUrl(docId) {
+  return `/api/owner/vault/documents/${encodeURIComponent(docId)}/file`;
+}
+
 function showError(message) {
   els.err.textContent = message || "";
   els.err.classList.toggle("dv-show", Boolean(message));
@@ -164,9 +168,21 @@ function renderUnlock() {
 // ── Document grid ──────────────────────────────────────────────────────────
 
 function docCard(d) {
-  const preview = d.thumb
-    ? `<img src="${esc(d.thumb)}" alt="">`
-    : ICON_DOC;
+  // Preference order, best to worst:
+  //  1. the stored thumbnail — a few KB, what new uploads always carry
+  //  2. the document itself, lazily — for images with no thumbnail: ones added
+  //     before thumbnails existed, or where the browser could not make one.
+  //     Heavier, but showing the actual document beats a generic icon, and the
+  //     per-vehicle cap bounds how much a screen can pull.
+  //  3. an icon — PDFs, which have no bitmap to show without a PDF renderer.
+  let preview;
+  if (d.thumb) {
+    preview = `<img src="${esc(d.thumb)}" alt="">`;
+  } else if (d.viewable) {
+    preview = `<img src="${fileUrl(d.id)}" alt="" loading="lazy" decoding="async" data-full>`;
+  } else {
+    preview = ICON_DOC;
+  }
   return `
     <div class="dv-doc">
       <div class="dv-doc-media">
@@ -222,6 +238,13 @@ function renderList(usedBytes) {
       });
     }
   });
+  // A full-size preview that will not decode (a truncated upload, a file the
+  // browser cannot read) would otherwise leave a broken-image glyph on the
+  // card. Swap in the icon instead — wired here rather than as an inline
+  // onerror so the page carries no inline script.
+  els.body.querySelectorAll("img[data-full]").forEach((img) =>
+    img.addEventListener("error", () => { img.outerHTML = ICON_DOC; }, { once: true }));
+
   els.body.querySelectorAll("[data-edit]").forEach((n) =>
     n.addEventListener("click", () => openEditor(n.getAttribute("data-edit"))));
   els.body.querySelectorAll("[data-del]").forEach((n) =>
@@ -262,7 +285,7 @@ function openOverlay(title, html) {
 function openViewer(docId) {
   const d = documents.find((x) => x.id === docId);
   if (!d) return;
-  const url = `/api/owner/vault/documents/${encodeURIComponent(d.id)}/file`;
+  const url = fileUrl(d.id);
 
   // Images render here at full size. PDFs deliberately do not: the app's CSP
   // has no `frame-src 'self'`, so a browser would refuse to paint one in an

@@ -20,6 +20,16 @@ import {
 // The queue opened somewhere in the middle of the batch (PT-01-000840 rather than
 // PT-01-000001), which makes a printed run impossible to count against a serial
 // range.
+// A tag's serial as a number, or null when it has none. Deliberately mirrors
+// stickerSerialFor's `== null` test rather than leaning on Number(), which turns
+// both null and "" into 0 — a tag the sticker prints no serial for would
+// otherwise sort as serial zero, ahead of the whole batch.
+function serialOrNull(tag) {
+  if (tag.serialNumber == null || tag.serialNumber === "") return null;
+  const value = Number(tag.serialNumber);
+  return Number.isFinite(value) ? value : null;
+}
+
 function orderForPrinting(tags) {
   // Rank batches by their newest tag, so a batch always stays together and the
   // most recently issued one still sits at the top of the queue.
@@ -45,12 +55,10 @@ function orderForPrinting(tags) {
 
     // Tags issued before serials existed have none. Keep them after the numbered
     // ones in issue order rather than letting NaN scramble the comparison.
-    const aSerial = Number(a.serialNumber);
-    const bSerial = Number(b.serialNumber);
-    const aNumbered = Number.isFinite(aSerial);
-    const bNumbered = Number.isFinite(bSerial);
-    if (aNumbered && bNumbered) return aSerial - bSerial;
-    if (aNumbered !== bNumbered) return aNumbered ? -1 : 1;
+    const aSerial = serialOrNull(a);
+    const bSerial = serialOrNull(b);
+    if (aSerial !== null && bSerial !== null) return aSerial - bSerial;
+    if ((aSerial === null) !== (bSerial === null)) return aSerial === null ? 1 : -1;
 
     const aAt = String(a.createdAt || "");
     const bAt = String(b.createdAt || "");

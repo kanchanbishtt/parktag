@@ -82,6 +82,7 @@ async function api(path, options) {
 
 const ICON_DOC = '<svg class="dv-fallback" viewBox="0 0 24 24" fill="none"><path d="M14 3v5h5" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M19 8v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>';
 const ICON_LOCK = '<svg viewBox="0 0 24 24" fill="none"><rect x="5" y="10.5" width="14" height="9.5" rx="2.2" stroke="currentColor" stroke-width="1.7"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" stroke="currentColor" stroke-width="1.7"/></svg>';
+const ICON_PENCIL = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m14.5 5.5 4 4M4 20l.9-3.6a2 2 0 0 1 .5-.9l10-10a2 2 0 0 1 2.8 0l.8.8a2 2 0 0 1 0 2.8l-10 10a2 2 0 0 1-.9.5L4 20Z" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/></svg>';
 
 // ── PIN states ─────────────────────────────────────────────────────────────
 
@@ -168,15 +169,18 @@ function docCard(d) {
     : ICON_DOC;
   return `
     <div class="dv-doc">
-      <div class="dv-doc-thumb" data-view="${esc(d.id)}" role="button" tabindex="0" aria-label="View ${esc(d.label)}">
-        <span class="dv-chip">${esc(d.docType)}</span>
-        ${preview}
+      <div class="dv-doc-media">
+        <div class="dv-doc-thumb" data-view="${esc(d.id)}" role="button" tabindex="0" aria-label="View ${esc(d.label)}">
+          <span class="dv-chip">${esc(d.docType)}</span>
+          ${preview}
+        </div>
+        <button class="dv-edit-fab" data-edit="${esc(d.id)}" aria-label="Rename ${esc(d.label)}" title="Edit">${ICON_PENCIL}</button>
       </div>
       <div class="dv-doc-body">
         <p class="dv-doc-name" title="${esc(d.label)}">${esc(d.label)}</p>
         <p class="dv-doc-meta">${fmtSize(d.size)} &middot; ${fmtDate(d.createdAt)}</p>
         <div class="dv-doc-acts">
-          <button class="dv-act" data-edit="${esc(d.id)}">Edit</button>
+          <button class="dv-act" data-view="${esc(d.id)}">View</button>
           <button class="dv-act dv-danger" data-del="${esc(d.id)}">Delete</button>
         </div>
       </div>
@@ -205,10 +209,18 @@ function renderList(usedBytes) {
     </div>
     <p class="dv-quota">Using ${fmtSize(usedBytes)} of ${quotaMb} MB &middot; up to ${limits ? limits.maxDocsPerVehicle : 6} documents per vehicle</p>`;
 
+  // Two things open the viewer: the preview itself and the View button. Only
+  // the preview needs the keyboard handler — it is a div playing the part of a
+  // button, whereas a real <button> already fires click on Enter and Space, and
+  // handling both there would open the viewer twice per keypress.
   els.body.querySelectorAll("[data-view]").forEach((n) => {
     const open = () => openViewer(n.getAttribute("data-view"));
     n.addEventListener("click", open);
-    n.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } });
+    if (n.tagName !== "BUTTON") {
+      n.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); }
+      });
+    }
   });
   els.body.querySelectorAll("[data-edit]").forEach((n) =>
     n.addEventListener("click", () => openEditor(n.getAttribute("data-edit"))));

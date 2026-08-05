@@ -123,11 +123,24 @@
       box-shadow: 0 1px 3px rgba(0,0,0,.06), 0 4px 14px rgba(0,0,0,.04);
       display: flex; flex-direction: column;
     }
+    /* Wraps the preview so the edit pencil can sit over it as a SIBLING of the
+       tap-to-view area rather than nested inside it — a button inside another
+       button is neither valid nor reachable by a screen reader. */
+    .dv-doc-media { position: relative; }
     .dv-doc-thumb {
       aspect-ratio: 4 / 3; background: #f3f4f6;
       display: flex; align-items: center; justify-content: center;
       overflow: hidden; position: relative; cursor: pointer;
     }
+    .dv-edit-fab {
+      position: absolute; top: 7px; right: 7px; z-index: 2;
+      width: 30px; height: 30px; border-radius: 50%; padding: 6px;
+      border: none; background: rgba(255,255,255,.94); color: var(--ink-2);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; box-shadow: 0 1px 5px rgba(0,0,0,.2);
+    }
+    .dv-edit-fab svg { width: 100%; height: 100%; }
+    .dv-edit-fab:active { background: #fff; color: var(--amber); }
     .dv-doc-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
     .dv-doc-thumb .dv-fallback { width: 42px; height: 42px; color: var(--amber); }
     .dv-chip {

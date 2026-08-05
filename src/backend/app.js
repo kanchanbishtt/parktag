@@ -327,6 +327,22 @@ export async function buildApp() {
     return reply.redirect("/owner-welcome");
   });
 
+  // Public "buy a tag" entry point. Every order CTA on the marketing site aims
+  // here instead of at /register-owner, so buying starts the way people expect
+  // a shop to start — sign in, then browse — rather than by demanding vehicle
+  // details from someone who has not bought anything yet.
+  //
+  // Signed in → straight to the dashboard with the Shop tab open. Signed out →
+  // the login screen, flagged so it can hand the shop intent on to the
+  // dashboard once the visitor is through (see owner/login.js).
+  app.get("/shop", async (request, reply) => {
+    const session = await readSession(app, request);
+    if (!session || session.role !== "owner") {
+      return reply.redirect("/owner-login?next=shop");
+    }
+    return reply.redirect("/owner-welcome?shop=1");
+  });
+
   app.get("/register-owner", async (_request, reply) => {
     const html = await fs.readFile(registerOwnerPage, "utf8");
     reply.type("text/html");

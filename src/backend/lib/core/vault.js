@@ -59,6 +59,28 @@ const ALLOWED_MIME = new Map([
 
 export const DOC_TYPES = ["rc", "insurance", "puc", "licence", "other"];
 
+// Card previews on the documents page come from a small thumbnail the browser
+// renders at upload time, NOT from the document itself. Six full-size photos is
+// up to 30MB of image to paint a single list — unusable on mobile data — and
+// generating thumbnails server-side would mean pulling in an image library.
+// A canvas-scaled JPEG is a few KB, so the whole page costs less than one photo.
+//
+// It is client-supplied and therefore untrusted: it is capped hard, must be a
+// JPEG data URI, and is only ever rendered as an <img>. The real document is
+// stored and served separately, so a junk thumbnail costs a wrong picture on a
+// card and nothing else.
+const MAX_THUMB_CHARS = 40 * 1024;
+const THUMB_PREFIX = "data:image/jpeg;base64,";
+
+export function cleanThumbnail(raw) {
+  const value = String(raw || "");
+  if (!value.startsWith(THUMB_PREFIX)) return null;
+  if (value.length > MAX_THUMB_CHARS) return null;
+  const body = value.slice(THUMB_PREFIX.length);
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(body)) return null;
+  return value;
+}
+
 export function isAllowedMime(mime) {
   return ALLOWED_MIME.has(String(mime || "").toLowerCase());
 }

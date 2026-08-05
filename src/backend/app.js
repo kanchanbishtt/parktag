@@ -57,6 +57,7 @@ const resetPasswordPage = path.join(pagesRoot, "owner/reset-password.html");
 const ownerVerifyPage = path.join(pagesRoot, "owner/verify.html");
 const ownerWelcomePage = path.join(pagesRoot, "owner/welcome.html");
 const ownerVehicleDetailPage = path.join(pagesRoot, "owner/vehicle-detail.html");
+const ownerDocumentsPage = path.join(pagesRoot, "owner/documents.html");
 const scannerAssetVersion = "parktag-ui-5";
 const hubAssetVersion = "hub-shell-1";
 
@@ -379,6 +380,20 @@ export async function buildApp() {
 
   app.get("/owner-vehicle-detail", async (_request, reply) => {
     const html = await fs.readFile(ownerVehicleDetailPage, "utf8");
+    reply.type("text/html");
+    return html;
+  });
+
+  // The document vault. Session-gated like the dashboard rather than served
+  // to anyone with the URL — the page itself reveals which vehicle is being
+  // looked at, and the PIN prompt on it should be the second gate, not the
+  // first. The documents themselves need the PIN on top of this.
+  app.get("/owner-documents", async (request, reply) => {
+    const session = await readSession(app, request);
+    if (!session || session.role !== "owner") {
+      return reply.redirect("/owner-login");
+    }
+    const html = await fs.readFile(ownerDocumentsPage, "utf8");
     reply.type("text/html");
     return html;
   });

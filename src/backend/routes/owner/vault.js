@@ -10,6 +10,7 @@ import {
   MAX_FILE_BYTES,
   checkQuota,
   cleanLabel,
+  cleanThumbnail,
   extensionForMime,
   grantVaultAccess,
   hasVaultPin,
@@ -36,7 +37,9 @@ function shapeDocument(doc) {
     mimeType: doc.mimeType,
     size: doc.size,
     viewable: isInlineViewable(doc.mimeType),
-    createdAt: doc.createdAt
+    thumb: doc.thumb || null,
+    createdAt: doc.createdAt,
+    updatedAt: doc.updatedAt || null
   };
 }
 
@@ -208,8 +211,8 @@ export function registerVaultRoutes(app, env) {
   //
   // The text fields must be sent BEFORE the file part: @fastify/multipart
   // streams parts in order, so `data.fields` only contains what arrived ahead
-  // of the file. The client in scripts/owner/vault-sheet.js appends them in
-  // that order for exactly this reason.
+  // of the file. The client in scripts/owner/documents.js appends them in that
+  // order for exactly this reason.
   app.post("/api/owner/vault/documents", { config: { rateLimit: { max: 20, timeWindow: "5 minutes" } } }, async (request, reply) => {
     const ctx = await requireUnlockedVault(request, reply);
     if (ctx.blocked) return ctx.blocked;
@@ -308,12 +311,45 @@ export function registerVaultRoutes(app, env) {
       label: cleanLabel(field("label"), docType.toUpperCase()),
       mimeType: data.mimetype,
       size,
+      // Null for PDFs and for any image the browser could not render — the
+      // page falls back to a type icon, so a missing thumbnail is cosmetic.
+      thumb: isInlineViewable(data.mimetype) ? cleanThumbnail(field("thumb")) : null,
       fileId: uploadStream.id,
       createdAt: new Date().toISOString()
     };
     await collections.vaultDocuments.insertOne(record);
 
     return { ok: true, document: shapeDocument(record) };
+  });
+
+  // Rename or re-file a document. Only the label and type are editable — the
+  // bytes are not, because "editing" a stored RC would mean the record no
+  // longer matches what was uploaded. Replacing a document is delete + upload.
+  app.patch("/api/owner/vault/documents/:docId", async (request, reply) => {
+    const ctx = await requireUnlockedVault(request, reply);
+    if (ctx.blocked) return ctx.blocked;
+    const { collections, ownerId } = ctx;
+
+    const doc = await collections.vaultDocuments.findOne({
+      docId: String(request.params.docId || ""),
+      ownerId
+    });
+    if (!doc) { reply.code(404); return { ok: false, error: "Document not found." }; }
+
+    const body = request.body || {};
+    const update = { updatedAt: new Date().toISOString() };
+
+    if (body.docType !== undefined) {
+      const docType = String(body.docType).toLowerCase();
+      if (!isValidDocType(docType)) { reply.code(400); return { ok: false, error: "Choose a document type." }; }
+      update.docType = docType;
+    }
+    if (body.label !== undefined) {
+      update.label = cleanLabel(body.label, (update.docType || doc.docType).toUpperCase());
+    }
+
+    await collections.vaultDocuments.updateOne({ _id: doc._id }, { $set: update });
+    return { ok: true, document: shapeDocument({ ...doc, ...update }) };
   });
 
   // Stream one document back. Scoped to the owner in the query itself, so a

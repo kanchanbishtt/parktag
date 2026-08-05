@@ -667,6 +667,20 @@
         </div>
       </div>
 
+      <!-- 4. Vehicle documents — a link to its own page, not an accordion
+           sub-panel: the vault is somewhere owners come to look things up, so
+           it wants a back button, a URL they can return to, and room to show a
+           document big enough to read. id is filled in by vehicle-detail.js. -->
+      <a class="vd-menu-item" id="documents-link" href="/owner-documents" style="display:block;text-decoration:none;color:inherit">
+        <div class="vd-menu-row">
+          <div class="vd-menu-icon" style="background:#FFE3DD;color:#FF2700">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M14 3v5h5" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M19 8v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+          </div>
+          <span class="vd-menu-label">Vehicle Documents</span>
+          <span class="vd-menu-arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+        </div>
+      </a>
+
       <!-- Remove Vehicle -->
       <div style="margin-top:8px;padding:0 2px">
         <button id="remove-vehicle-btn" class="vd-btn-danger" style="width:100%">

@@ -1,6 +1,7 @@
 import Fastify from "fastify";
 import fastifyCookie from "@fastify/cookie";
 import fastifyHelmet from "@fastify/helmet";
+import fastifyMultipart from "@fastify/multipart";
 import fastifyRateLimit from "@fastify/rate-limit";
 import fastifyStatic from "@fastify/static";
 import path from "node:path";
@@ -18,6 +19,8 @@ import { registerAdminRoutes } from "./routes/admin/index.js";
 import { registerAuthRoutes } from "./routes/auth/credentials.js";
 import { registerDemoRoutes } from "./routes/system/demo.js";
 import { registerOwnerRoutes } from "./routes/owner/dashboard.js";
+import { registerVaultRoutes } from "./routes/owner/vault.js";
+import { MAX_FILE_BYTES } from "./lib/core/vault.js";
 import { registerProviderRoutes } from "./routes/webhooks/exotel.js";
 import { registerMetaWebhookRoutes } from "./routes/webhooks/meta.js";
 import { registerPublicRoutes } from "./routes/public/index.js";
@@ -54,6 +57,7 @@ const resetPasswordPage = path.join(pagesRoot, "owner/reset-password.html");
 const ownerVerifyPage = path.join(pagesRoot, "owner/verify.html");
 const ownerWelcomePage = path.join(pagesRoot, "owner/welcome.html");
 const ownerVehicleDetailPage = path.join(pagesRoot, "owner/vehicle-detail.html");
+const ownerDocumentsPage = path.join(pagesRoot, "owner/documents.html");
 const scannerAssetVersion = "parktag-ui-5";
 const hubAssetVersion = "hub-shell-1";
 
@@ -230,6 +234,15 @@ export async function buildApp() {
     crossOriginEmbedderPolicy: false
   });
 
+  // Multipart bodies, used only by the document vault upload. The file cap is
+  // enforced here at the parser rather than after the fact, so an oversized
+  // upload stops arriving instead of being read into memory and rejected later;
+  // the route still checks `truncated`, because hitting this limit flags the
+  // stream rather than throwing. `files: 1` keeps one request to one document.
+  await app.register(fastifyMultipart, {
+    limits: { fileSize: MAX_FILE_BYTES, files: 1, fields: 10 }
+  });
+
   await app.register(fastifyRateLimit, {
     max: 200,
     timeWindow: "1 minute",
@@ -367,6 +380,20 @@ export async function buildApp() {
 
   app.get("/owner-vehicle-detail", async (_request, reply) => {
     const html = await fs.readFile(ownerVehicleDetailPage, "utf8");
+    reply.type("text/html");
+    return html;
+  });
+
+  // The document vault. Session-gated like the dashboard rather than served
+  // to anyone with the URL — the page itself reveals which vehicle is being
+  // looked at, and the PIN prompt on it should be the second gate, not the
+  // first. The documents themselves need the PIN on top of this.
+  app.get("/owner-documents", async (request, reply) => {
+    const session = await readSession(app, request);
+    if (!session || session.role !== "owner") {
+      return reply.redirect("/owner-login");
+    }
+    const html = await fs.readFile(ownerDocumentsPage, "utf8");
     reply.type("text/html");
     return html;
   });
@@ -520,6 +547,7 @@ export async function buildApp() {
   registerPasswordResetRoutes(app, env);
   registerShopRoutes(app, env);
   registerOwnerRoutes(app, env);
+  registerVaultRoutes(app, env);
   registerAdminRoutes(app, env);
 
   return app;

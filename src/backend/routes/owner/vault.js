@@ -1,0 +1,416 @@
+import { pipeline } from "node:stream/promises";
+
+import { requireSession, toObjectId, tryObjectId } from "../../lib/auth/auth.js";
+import { getCollections, getVaultBucket } from "../../lib/db/repositories.js";
+import { getSessionCookieName } from "../../lib/auth/session.js";
+import {
+  DOC_TYPES,
+  MAX_BYTES_PER_OWNER,
+  MAX_DOCS_PER_VEHICLE,
+  MAX_FILE_BYTES,
+  checkQuota,
+  cleanLabel,
+  cleanThumbnail,
+  extensionForMime,
+  grantVaultAccess,
+  hasVaultPin,
+  isAllowedMime,
+  isInlineViewable,
+  isValidDocType,
+  isValidPin,
+  newDocumentId,
+  pinRequirementMessage,
+  readVaultGrant,
+  revokeVaultAccess,
+  setVaultPin,
+  verifyVaultPin
+} from "../../lib/core/vault.js";
+
+// Shape sent to the client. The GridFS id never leaves the server — see
+// newDocumentId in lib/core/vault.js for why.
+function shapeDocument(doc) {
+  return {
+    id: doc.docId,
+    tagId: doc.tagId,
+    docType: doc.docType,
+    label: doc.label,
+    mimeType: doc.mimeType,
+    size: doc.size,
+    viewable: isInlineViewable(doc.mimeType),
+    thumb: doc.thumb || null,
+    createdAt: doc.createdAt,
+    updatedAt: doc.updatedAt || null
+  };
+}
+
+export function registerVaultRoutes(app, env) {
+  // Owner session + a live PIN grant. Returns the resolved context on success,
+  // or null once it has already written the failure response.
+  //
+  // The 423 on a missing grant is load-bearing: the client uses it to know it
+  // should show the PIN prompt, as distinct from a 401 (session gone, go and
+  // sign in again). Collapsing the two would make an expired vault look like an
+  // expired login and bounce the owner out of the app.
+  async function requireUnlockedVault(request, reply) {
+    const blocked = await requireSession(app, "owner")(request, reply);
+    if (blocked) return { blocked };
+
+    const collections = await getCollections(env);
+    if (!collections) {
+      reply.code(500);
+      return { blocked: { ok: false, error: "Database not configured." } };
+    }
+
+    const ownerId = toObjectId(request.session.userId);
+    const sessionId = request.cookies[getSessionCookieName()];
+    const grant = await readVaultGrant(collections, sessionId, ownerId);
+    if (!grant) {
+      reply.code(423);
+      return { blocked: { ok: false, locked: true, error: "Enter your vault PIN to continue." } };
+    }
+
+    return { collections, ownerId, sessionId };
+  }
+
+  // Confirm a tag really belongs to this owner before anything is filed under
+  // it. Without this an owner could attach documents to — or read them from —
+  // another owner's vehicle by passing its id.
+  async function ownedTag(collections, ownerId, rawTagId) {
+    const oid = tryObjectId(rawTagId);
+    if (!oid) return null;
+    return collections.tags.findOne({
+      _id: oid,
+      ownerId,
+      deletedAt: { $in: [null, undefined] }
+    });
+  }
+
+  // Does this owner have a vault PIN yet, and is it currently unlocked? Drives
+  // whether the sheet opens on "create a PIN", "enter your PIN", or the list.
+  app.get("/api/owner/vault/status", async (request, reply) => {
+    const blocked = await requireSession(app, "owner")(request, reply);
+    if (blocked) return blocked;
+
+    const collections = await getCollections(env);
+    if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
+
+    const ownerId = toObjectId(request.session.userId);
+    const sessionId = request.cookies[getSessionCookieName()];
+    const [pinSet, grant] = await Promise.all([
+      hasVaultPin(collections, ownerId),
+      readVaultGrant(collections, sessionId, ownerId)
+    ]);
+
+    return {
+      ok: true,
+      hasPin: pinSet,
+      unlocked: Boolean(grant),
+      limits: {
+        maxFileBytes: MAX_FILE_BYTES,
+        maxDocsPerVehicle: MAX_DOCS_PER_VEHICLE,
+        maxBytesPerOwner: MAX_BYTES_PER_OWNER,
+        docTypes: DOC_TYPES
+      }
+    };
+  });
+
+  // Create the PIN, or change an existing one. Changing REQUIRES the current
+  // PIN — otherwise anyone holding an unlocked phone could simply overwrite it
+  // and read everything, which would make the whole second factor decorative.
+  app.post("/api/owner/vault/pin", { config: { rateLimit: { max: 10, timeWindow: "5 minutes" } } }, async (request, reply) => {
+    const blocked = await requireSession(app, "owner")(request, reply);
+    if (blocked) return blocked;
+
+    const collections = await getCollections(env);
+    if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
+
+    const ownerId = toObjectId(request.session.userId);
+    const { pin, currentPin } = request.body || {};
+
+    if (!isValidPin(pin)) { reply.code(400); return { ok: false, error: pinRequirementMessage() }; }
+
+    if (await hasVaultPin(collections, ownerId)) {
+      const check = await verifyVaultPin(collections, ownerId, currentPin);
+      if (check.locked) {
+        reply.code(429);
+        return { ok: false, error: "Too many incorrect PIN attempts. Try again later.", retryAfterSeconds: check.retryAfterSeconds };
+      }
+      if (!check.ok) { reply.code(400); return { ok: false, error: "Current PIN is incorrect." }; }
+    }
+
+    await setVaultPin(collections, ownerId, pin);
+
+    // Setting a PIN proves you know it, so open the vault straight away rather
+    // than asking for it again one screen later.
+    const sessionId = request.cookies[getSessionCookieName()];
+    await grantVaultAccess(collections, sessionId, ownerId);
+
+    return { ok: true, unlocked: true };
+  });
+
+  app.post("/api/owner/vault/unlock", { config: { rateLimit: { max: 15, timeWindow: "5 minutes" } } }, async (request, reply) => {
+    const blocked = await requireSession(app, "owner")(request, reply);
+    if (blocked) return blocked;
+
+    const collections = await getCollections(env);
+    if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
+
+    const ownerId = toObjectId(request.session.userId);
+    const result = await verifyVaultPin(collections, ownerId, (request.body || {}).pin);
+
+    if (result.locked) {
+      reply.code(429);
+      return { ok: false, error: "Too many incorrect PIN attempts. Try again later.", retryAfterSeconds: result.retryAfterSeconds };
+    }
+    if (result.noPin) { reply.code(400); return { ok: false, error: "Set a vault PIN first." }; }
+    if (!result.ok) { reply.code(401); return { ok: false, error: "Incorrect PIN." }; }
+
+    const sessionId = request.cookies[getSessionCookieName()];
+    const expiresAt = await grantVaultAccess(collections, sessionId, ownerId);
+    return { ok: true, unlocked: true, expiresAt: expiresAt.toISOString() };
+  });
+
+  // Explicit re-lock, for the "Lock vault" button and for closing the sheet.
+  app.post("/api/owner/vault/lock", async (request, reply) => {
+    const blocked = await requireSession(app, "owner")(request, reply);
+    if (blocked) return blocked;
+
+    const collections = await getCollections(env);
+    if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
+
+    await revokeVaultAccess(collections, request.cookies[getSessionCookieName()]);
+    return { ok: true, unlocked: false };
+  });
+
+  // Documents for one vehicle. Metadata only — bytes come from the file route.
+  app.get("/api/owner/vault/documents", async (request, reply) => {
+    const ctx = await requireUnlockedVault(request, reply);
+    if (ctx.blocked) return ctx.blocked;
+    const { collections, ownerId } = ctx;
+
+    const tag = await ownedTag(collections, ownerId, (request.query || {}).tagId);
+    if (!tag) { reply.code(404); return { ok: false, error: "Vehicle not found." }; }
+
+    const docs = await collections.vaultDocuments
+      .find({ ownerId, tagId: String(tag._id) })
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    const totals = await collections.vaultDocuments
+      .aggregate([{ $match: { ownerId } }, { $group: { _id: null, bytes: { $sum: "$size" } } }])
+      .toArray();
+
+    return {
+      ok: true,
+      documents: docs.map(shapeDocument),
+      usedBytes: (totals[0] && totals[0].bytes) || 0
+    };
+  });
+
+  // Upload. Multipart, ONE file per request.
+  //
+  // The text fields must be sent BEFORE the file part: @fastify/multipart
+  // streams parts in order, so `data.fields` only contains what arrived ahead
+  // of the file. The client in scripts/owner/documents.js appends them in that
+  // order for exactly this reason.
+  app.post("/api/owner/vault/documents", { config: { rateLimit: { max: 20, timeWindow: "5 minutes" } } }, async (request, reply) => {
+    const ctx = await requireUnlockedVault(request, reply);
+    if (ctx.blocked) return ctx.blocked;
+    const { collections, ownerId } = ctx;
+
+    if (!request.isMultipart()) {
+      reply.code(400);
+      return { ok: false, error: "Upload the document as a file." };
+    }
+
+    let data;
+    try {
+      data = await request.file();
+    } catch (err) {
+      request.log.error({ err }, "Vault upload could not be read");
+      reply.code(400);
+      return { ok: false, error: "Could not read the uploaded file." };
+    }
+    if (!data) { reply.code(400); return { ok: false, error: "No file received." }; }
+
+    const field = (name) => {
+      const f = data.fields && data.fields[name];
+      return f && typeof f.value === "string" ? f.value : "";
+    };
+
+    const tag = await ownedTag(collections, ownerId, field("tagId"));
+    if (!tag) {
+      await data.file.resume(); // drain, or the connection hangs
+      reply.code(404);
+      return { ok: false, error: "Vehicle not found." };
+    }
+
+    const docType = field("docType").toLowerCase();
+    if (!isValidDocType(docType)) {
+      await data.file.resume();
+      reply.code(400);
+      return { ok: false, error: "Choose a document type." };
+    }
+
+    if (!isAllowedMime(data.mimetype)) {
+      await data.file.resume();
+      reply.code(415);
+      return { ok: false, error: "Only PDF, JPG, PNG or WEBP files can be stored." };
+    }
+
+    const quota = await checkQuota(collections, ownerId, String(tag._id));
+    if (!quota.ok) {
+      await data.file.resume();
+      reply.code(409);
+      return { ok: false, error: quota.error };
+    }
+
+    const bucket = await getVaultBucket(env);
+    if (!bucket) {
+      await data.file.resume();
+      reply.code(500);
+      return { ok: false, error: "Document storage is not available." };
+    }
+
+    const docId = newDocumentId();
+    const storedName = `${docType}-${docId}.${extensionForMime(data.mimetype)}`;
+    const uploadStream = bucket.openUploadStream(storedName, {
+      contentType: data.mimetype,
+      metadata: { ownerId: String(ownerId), tagId: String(tag._id), docId }
+    });
+
+    try {
+      await pipeline(data.file, uploadStream);
+    } catch (err) {
+      request.log.error({ err }, "Vault upload failed while writing to storage");
+      await bucket.delete(uploadStream.id).catch(() => {});
+      reply.code(500);
+      return { ok: false, error: "Could not save the document. Please try again." };
+    }
+
+    // @fastify/multipart stops at the configured limit and flags the stream
+    // rather than throwing, so a file over the cap arrives here as a SILENTLY
+    // TRUNCATED upload. Without this check we would store a corrupt half-file
+    // and tell the owner it saved fine.
+    if (data.file.truncated) {
+      await bucket.delete(uploadStream.id).catch(() => {});
+      reply.code(413);
+      return { ok: false, error: `Each document must be under ${Math.floor(MAX_FILE_BYTES / (1024 * 1024))}MB.` };
+    }
+
+    // Trust the byte count storage actually recorded, never a client-declared
+    // size — the per-owner quota is summed from these values.
+    const stored = await bucket.find({ _id: uploadStream.id }).next();
+    const size = (stored && stored.length) || 0;
+
+    const record = {
+      docId,
+      ownerId,
+      tagId: String(tag._id),
+      docType,
+      label: cleanLabel(field("label"), docType.toUpperCase()),
+      mimeType: data.mimetype,
+      size,
+      // Null for PDFs and for any image the browser could not render — the
+      // page falls back to a type icon, so a missing thumbnail is cosmetic.
+      thumb: isInlineViewable(data.mimetype) ? cleanThumbnail(field("thumb")) : null,
+      fileId: uploadStream.id,
+      createdAt: new Date().toISOString()
+    };
+    await collections.vaultDocuments.insertOne(record);
+
+    return { ok: true, document: shapeDocument(record) };
+  });
+
+  // Rename or re-file a document. Only the label and type are editable — the
+  // bytes are not, because "editing" a stored RC would mean the record no
+  // longer matches what was uploaded. Replacing a document is delete + upload.
+  app.patch("/api/owner/vault/documents/:docId", async (request, reply) => {
+    const ctx = await requireUnlockedVault(request, reply);
+    if (ctx.blocked) return ctx.blocked;
+    const { collections, ownerId } = ctx;
+
+    const doc = await collections.vaultDocuments.findOne({
+      docId: String(request.params.docId || ""),
+      ownerId
+    });
+    if (!doc) { reply.code(404); return { ok: false, error: "Document not found." }; }
+
+    const body = request.body || {};
+    const update = { updatedAt: new Date().toISOString() };
+
+    if (body.docType !== undefined) {
+      const docType = String(body.docType).toLowerCase();
+      if (!isValidDocType(docType)) { reply.code(400); return { ok: false, error: "Choose a document type." }; }
+      update.docType = docType;
+    }
+    if (body.label !== undefined) {
+      update.label = cleanLabel(body.label, (update.docType || doc.docType).toUpperCase());
+    }
+
+    await collections.vaultDocuments.updateOne({ _id: doc._id }, { $set: update });
+    return { ok: true, document: shapeDocument({ ...doc, ...update }) };
+  });
+
+  // Stream one document back. Scoped to the owner in the query itself, so a
+  // guessed id belonging to somebody else is a 404 rather than a leak.
+  app.get("/api/owner/vault/documents/:docId/file", async (request, reply) => {
+    const ctx = await requireUnlockedVault(request, reply);
+    if (ctx.blocked) return ctx.blocked;
+    const { collections, ownerId } = ctx;
+
+    const doc = await collections.vaultDocuments.findOne({
+      docId: String(request.params.docId || ""),
+      ownerId
+    });
+    if (!doc) { reply.code(404); return { ok: false, error: "Document not found." }; }
+
+    const bucket = await getVaultBucket(env);
+    if (!bucket) { reply.code(500); return { ok: false, error: "Document storage is not available." }; }
+
+    const filename = `${doc.docType}-${doc.docId}.${extensionForMime(doc.mimeType)}`;
+
+    reply.header("Content-Type", doc.mimeType);
+    reply.header("Content-Length", doc.size);
+    // Identity documents must never sit in a shared or disk cache.
+    reply.header("Cache-Control", "private, no-store");
+    // Images render in the sheet; PDFs download, because the CSP has no
+    // frame-src 'self' and a browser would refuse to paint one in an iframe.
+    reply.header(
+      "Content-Disposition",
+      `${isInlineViewable(doc.mimeType) ? "inline" : "attachment"}; filename="${filename}"`
+    );
+
+    return reply.send(bucket.openDownloadStream(doc.fileId));
+  });
+
+  app.delete("/api/owner/vault/documents/:docId", async (request, reply) => {
+    const ctx = await requireUnlockedVault(request, reply);
+    if (ctx.blocked) return ctx.blocked;
+    const { collections, ownerId } = ctx;
+
+    const doc = await collections.vaultDocuments.findOne({
+      docId: String(request.params.docId || ""),
+      ownerId
+    });
+    if (!doc) { reply.code(404); return { ok: false, error: "Document not found." }; }
+
+    // Metadata first: if the bucket delete then fails, the owner sees the
+    // document gone (which is what they asked for) and we are left with an
+    // orphaned blob to sweep, rather than a listed document whose bytes have
+    // already vanished.
+    await collections.vaultDocuments.deleteOne({ _id: doc._id });
+    try {
+      await bucketDelete(env, doc.fileId);
+    } catch (err) {
+      request.log.error({ err, docId: doc.docId }, "Vault blob delete failed — metadata already removed");
+    }
+
+    return { ok: true };
+  });
+}
+
+async function bucketDelete(env, fileId) {
+  const bucket = await getVaultBucket(env);
+  if (bucket) await bucket.delete(fileId);
+}

@@ -82,25 +82,46 @@
         </div>
 
         <style>
-          /* Export sheet: one sticker per portrait A4 page, centred. Each
-             .pt-sheet is exactly one page, so the on-screen preview matches the
-             print. The sticker is 105mm wide (its real die-cut size), which is
-             half the 210mm page — hence the 50% width in the preview. */
+          /* Export sheet: one sticker per A6 landscape page, centred. Each
+             .pt-sheet is exactly one page and is drawn at its true physical
+             size in millimetres, so the on-screen preview is 1:1 with the
+             print rather than a scaled approximation.
+
+             A6 landscape (148 x 105mm) is the smallest ISO size the sticker
+             plus its cut margin fits on: the dashed box is 121.5 x 79.5mm,
+             leaving ~13mm of paper to hold on every side. A4 wasted three
+             quarters of the sheet on one sticker. */
           #qr-export-grid { display: block; }
           #qr-export-grid .pt-sheet {
             display: flex; align-items: center; justify-content: center;
-            aspect-ratio: 210 / 297; box-sizing: border-box;
-            padding: 4%; margin: 0 auto 22px; background: #fff;
+            width: 148mm; height: 105mm; box-sizing: border-box;
+            margin: 0 auto 22px; background: #fff;
             border: 1px solid #E5E7EB; border-radius: 6px; box-shadow: 0 2px 12px rgba(0,0,0,.08);
           }
-          #qr-export-grid .pt-page { width: 50%; margin: 0; break-inside: avoid; page-break-inside: avoid; }
+          /* Shrink-to-fit around the cut box, which carries the real width. */
+          #qr-export-grid .pt-page { width: auto; margin: 0; break-inside: avoid; page-break-inside: avoid; }
           #qr-export-grid .pt-wrap { font-family: 'Inter','Segoe UI',Arial,sans-serif; color: #03162D; }
           #qr-export-grid .pt-instr { font-size: 11px; line-height: 1.8; margin-bottom: 18px; color: #323232; }
           #qr-export-grid .pt-instr .pt-instr-h { display: block; font-size: 12.5px; font-weight: 800; margin: 3px 0 2px; color: #03162D; }
           #qr-export-grid .pt-instr ol { margin: 5px 0 0; padding-left: 18px; }
           #qr-export-grid .pt-freebox { margin-top: 10px; padding: 9px 12px; background: #FFF1EF; border: 1px solid #FFD8D0; border-radius: 9px; font-size: 10px; color: #03162D; line-height: 1.55; }
           #qr-export-grid .pt-freebox b { color: #B31C00; }
-          #qr-export-grid .pt-cut { border: 1px dashed #b6bcc6; border-radius: 10px; padding: 7px; display: block; break-inside: avoid; page-break-inside: avoid; }
+          /* The cut guide. Square corners, because the sticker it guides is a
+             rectangular die-cut — a rounded guide told the cutter to round
+             corners the sticker does not have. 8mm (0.8cm) of clearance on
+             every side: close enough to read as one unit, far enough that a
+             hand-cut on the line cannot bite into the artwork.
+
+             content-box is what makes this exact. `width` here sizes the
+             STICKER, not the box, so the 8mm padding and the 1px rule sit
+             OUTSIDE the 105mm die-cut width. Under the global border-box the
+             padding ate into the sticker instead, which is why it was printing
+             at ~100.8mm rather than the 105mm this file claimed. */
+          #qr-export-grid .pt-cut {
+            border: 1px dashed #b6bcc6; border-radius: 0;
+            box-sizing: content-box; width: 105mm; padding: 8mm;
+            display: block; break-inside: avoid; page-break-inside: avoid;
+          }
           /* Figma SVG sticker. The exported artwork is full-bleed — its
              1000x600 canvas IS the card, with no transparent margin or shadow
              bleed — so it fills the box directly with no crop or distortion.
@@ -144,22 +165,34 @@
             #qr-export-overlay { display: block !important; position: static !important; overflow: visible !important; padding: 0 !important; }
             #qr-export-overlay > div:first-child { display: none !important; }
             #qr-export-overlay, #qr-export-overlay * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-            /* Portrait A4, one sticker per page, centred on the sheet. Zero page
-               margin so .pt-sheet can be exactly 297mm tall — that is what
-               centres the sticker on the page; if the margin changes, this
-               height must change with it. The sticker prints at its true
-               105mm x 63mm die-cut size, so it can be cut out and used as is. */
-            @page { margin: 0; size: A4 portrait; }
+            /* A6 landscape (148 x 105mm), one sticker per page, centred. Zero
+               page margin so .pt-sheet can be exactly the full 148 x 105mm —
+               that is what centres the sticker; if the margin changes, these
+               dimensions must change with it. The sticker prints at its true
+               105mm x 63mm die-cut size, so it can be cut out and used as is.
+
+               PRINT AT 100% / ACTUAL SIZE. "Fit to page" on A4 paper scales
+               the sheet up and the sticker stops being 105mm wide, which
+               defeats the point of a die-cut size.
+
+               Written as explicit millimetres, NOT `A6 landscape`. Chrome only
+               recognises A3/A4/A5/B4/B5/Letter/Legal/Ledger as size keywords;
+               `A6` is not among them, and an unrecognised keyword makes it
+               discard the whole declaration and fall back to the default paper
+               (US Letter here) — bigger than the A4 this replaced. Verified by
+               rendering through printToPDF: the keyword form produced a
+               215.9 x 279.4mm page, this form produces 148 x 105mm. */
+            @page { margin: 0; size: 148mm 105mm; }
             #qr-export-grid { max-width: none !important; }
             #qr-export-grid .pt-sheet {
               display: flex !important; align-items: center !important; justify-content: center !important;
-              aspect-ratio: auto !important; height: 297mm !important;
+              width: 148mm !important; height: 105mm !important;
               padding: 0 !important; margin: 0 !important;
               border: none !important; box-shadow: none !important;
               border-radius: 0 !important; background: transparent !important;
               break-after: page; page-break-after: always;
             }
-            #qr-export-grid .pt-page { width: 105mm !important; }
+            #qr-export-grid .pt-page { width: auto !important; }
             #qr-export-grid .pt-sheet:last-child { break-after: auto; page-break-after: auto; }
             #qr-export-grid .pt-page { break-inside: avoid; page-break-inside: avoid; }
           }

@@ -87,10 +87,10 @@
              size in millimetres, so the on-screen preview is 1:1 with the
              print rather than a scaled approximation.
 
-             A6 landscape (148 x 105mm) is the smallest ISO size the sticker
-             plus its cut margin fits on: the dashed box is 121.5 x 79.5mm,
-             leaving ~13mm of paper to hold on every side. A4 wasted three
-             quarters of the sheet on one sticker. */
+             A6 landscape (148 x 105mm) is the smallest ISO size Chrome will
+             actually honour that the sticker fits on with room to handle it:
+             the dashed box is 107.2 x 65.2mm, leaving ~20mm of paper on every
+             side. A4 wasted three quarters of the sheet on one sticker. */
           #qr-export-grid { display: block; }
           #qr-export-grid .pt-sheet {
             display: flex; align-items: center; justify-content: center;
@@ -108,18 +108,18 @@
           #qr-export-grid .pt-freebox b { color: #B31C00; }
           /* The cut guide. Square corners, because the sticker it guides is a
              rectangular die-cut — a rounded guide told the cutter to round
-             corners the sticker does not have. 8mm (0.8cm) of clearance on
-             every side: close enough to read as one unit, far enough that a
-             hand-cut on the line cannot bite into the artwork.
+             corners the sticker does not have. 1mm of clearance, so the line
+             reads as the sticker's own edge and the trimmed result is the
+             artwork plus a hairline rather than a visible white border.
 
              content-box is what makes this exact. `width` here sizes the
-             STICKER, not the box, so the 8mm padding and the 1px rule sit
+             STICKER, not the box, so the 1mm padding and the 1px rule sit
              OUTSIDE the 105mm die-cut width. Under the global border-box the
              padding ate into the sticker instead, which is why it was printing
              at ~100.8mm rather than the 105mm this file claimed. */
           #qr-export-grid .pt-cut {
             border: 1px dashed #b6bcc6; border-radius: 0;
-            box-sizing: content-box; width: 105mm; padding: 8mm;
+            box-sizing: content-box; width: 105mm; padding: 1mm;
             display: block; break-inside: avoid; page-break-inside: avoid;
           }
           /* Figma SVG sticker. The exported artwork is full-bleed — its

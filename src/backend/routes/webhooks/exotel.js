@@ -80,10 +80,17 @@ export function registerProviderRoutes(app, env) {
     const callerPhone = toE164(rawCaller);
     const now = new Date();
 
+    // Newest registration wins. Without the sort Mongo returns whichever
+    // unconsumed row the scan reaches first — in practice the OLDEST — so a
+    // scanner who tried Private Call, got no answer, then tapped Emergency was
+    // reconnected to the owner's own (unanswered) phone instead of the next of
+    // kin. That is precisely the accident case SOS exists for.
+    // _id is the tiebreak because it is monotonic: two registrations can share
+    // a createdAt millisecond, and a tie would put us back to arbitrary order.
     const record = await collections.pendingCalls.findOneAndUpdate(
       { callerPhone, consumed: false, expiresAt: { $gt: now } },
       { $set: { consumed: true, consumedAt: now.toISOString() } },
-      { returnDocument: "after" }
+      { returnDocument: "after", sort: { createdAt: -1, _id: -1 } }
     );
 
     if (!record) {

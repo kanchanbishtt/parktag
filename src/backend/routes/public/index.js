@@ -59,6 +59,75 @@ const TAG_LOCKOUT_MINUTES = 15;
 // what a determined abuser can inflict, without risking a refusal to connect
 // next of kin during an actual emergency.
 const MAX_EMERGENCY_CALLS_PER_DAY = 5;
+
+// Retire this caller's live pending call FOR THIS VEHICLE before registering a
+// new one, so one sticker never has two routes waiting at once.
+//
+// The Dial Whom webhook matches on callerPhone alone. A scanner who tried
+// Private Call, got no answer and then tapped Emergency therefore left two
+// unconsumed rows behind, and the webhook could pick the older one — dialling
+// the owner's unanswered phone instead of the next of kin. The webhook now
+// sorts newest-first as well; this keeps the stale row from surviving to be
+// matched by a later redial, which the sort alone would not prevent.
+//
+// Scoped by token on purpose. Retiring every row for the caller also threw away
+// registrations for OTHER vehicles: scan car A, scan car B, then dial, and A's
+// route was silently gone with no way back but re-scanning A. Exotel only tells
+// us the caller's number, never which sticker they scanned, so the webhook
+// cannot disambiguate — but leaving each vehicle's row intact means a second
+// dial still reaches the earlier one instead of nothing.
+//
+// `consumed: true` is what the webhook filters on, so that is what retires a
+// row; supersededAt records why, to keep it distinguishable from a real answer.
+async function supersedePendingCalls(collections, callerPhone, token, now) {
+  await collections.pendingCalls.updateMany(
+    { callerPhone, token, consumed: false },
+    { $set: { consumed: true, supersededAt: now.toISOString() } }
+  );
+}
+
+// A grant authorises a scanner, not a plate-reading.
+//
+// /verify issues the grant before any phone number is known, so it cannot be
+// bound at issue time. Previously that left one verification able to register
+// masked calls for unlimited, arbitrary numbers — and the caller's number is
+// the one Exotel rings, so that is a route to making a stranger's phone ring on
+// demand.
+//
+// Bound rather than pinned to the first number: there is no validation on the
+// caller's number (a typo registers happily), so pinning would lock a scanner
+// out of their own correction and force a re-verify mid-incident. Three
+// distinct numbers absorbs a fumbled digit while still ending "any number".
+// The same number re-registering is always fine — escalating Private Call ->
+// Emergency must never need a re-verify.
+//
+// One atomic findOneAndUpdate rather than read-then-write: two registrations
+// racing with different numbers would both pass a plain read, and only the
+// conditional filter can make exactly one of them win.
+const MAX_PHONES_PER_GRANT = 3;
+
+async function claimGrantForPhone(collections, grantSession, callerPhone) {
+  const claimed = await collections.verificationSessions.findOneAndUpdate(
+    {
+      _id: grantSession._id,
+      $or: [
+        // Already this number — always allowed.
+        { grantPhones: callerPhone },
+        // Never used yet.
+        { grantPhones: { $exists: false } },
+        { grantPhones: { $size: 0 } },
+        // Still under the ceiling: index MAX-1 absent means fewer than MAX.
+        { [`grantPhones.${MAX_PHONES_PER_GRANT - 1}`]: { $exists: false } }
+      ]
+    },
+    {
+      $addToSet: { grantPhones: callerPhone },
+      $set: { grantPhoneAt: new Date().toISOString() }
+    },
+    { returnDocument: "after" }
+  );
+  return Boolean(claimed);
+}
 // Sentinel `ipHash` marking the per-tag bucket. Real values are 64-char SHA-256
 // hex, so "*" can never collide with a per-IP row, and reusing this collection
 // means the existing { token, ipHash } index and TTL cleanup already cover it.
@@ -267,6 +336,12 @@ export function registerPublicRoutes(app, env) {
           verified: true,
           grantId,
           grantExpiresAt: minutesFromNow(GRANT_TTL_MINUTES).toISOString(),
+          // A fresh grant starts with a clean set of caller numbers. The session
+          // document is keyed by { token, ipHash } and reused across verifies,
+          // so without this the numbers claimed under claimGrantForPhone would
+          // accumulate for the life of the session and a scanner who re-verified
+          // would find their new grant already exhausted.
+          grantPhones: [],
           updatedAt: now.toISOString(),
           expiresAt: minutesFromNow(SESSION_TTL_MINUTES)
         }
@@ -750,6 +825,15 @@ export function registerPublicRoutes(app, env) {
       return { ok: false, error: "Your verification expired. Please verify the vehicle again." };
     }
 
+    if (!(await claimGrantForPhone(collections, grantSession, toE164(phone)))) {
+      reply.code(403);
+      return {
+        ok: false,
+        code: "GRANT_IN_USE",
+        error: "This verification is already in use by another number. Please verify the vehicle again."
+      };
+    }
+
     const tag = await collections.tags.findOne({ token });
     if (!tag || tag.status !== "active") {
       reply.code(404);
@@ -798,6 +882,8 @@ export function registerPublicRoutes(app, env) {
       { _id: tag._id },
       { $set: { freeContactUsed: true, freeContactUsedAt: now.toISOString(), updatedAt: now.toISOString() } }
     );
+
+    await supersedePendingCalls(collections, callerPhone, token, now);
 
     await collections.pendingCalls.insertOne({
       callerPhone,
@@ -862,6 +948,15 @@ export function registerPublicRoutes(app, env) {
     if (!grantSession || new Date(grantSession.grantExpiresAt) <= new Date()) {
       reply.code(403);
       return { ok: false, error: "Your verification expired. Please verify the vehicle again." };
+    }
+
+    if (!(await claimGrantForPhone(collections, grantSession, toE164(phone)))) {
+      reply.code(403);
+      return {
+        ok: false,
+        code: "GRANT_IN_USE",
+        error: "This verification is already in use by another number. Please verify the vehicle again."
+      };
     }
 
     const tag = await collections.tags.findOne({ token });
@@ -937,6 +1032,8 @@ export function registerPublicRoutes(app, env) {
         $inc: { emergencyAttempts: 1 }
       }
     );
+
+    await supersedePendingCalls(collections, callerPhone, token, now);
 
     await collections.pendingCalls.insertOne({
       callerPhone,

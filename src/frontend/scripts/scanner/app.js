@@ -203,6 +203,11 @@ function openSosPanel() {
 
   setHidden("sos-dial-panel", true);
   setHidden("sos-number-panel", false);
+  // Take the emergency block's own place, the same way the Private Call panel
+  // does. #sos-number-panel is the next sibling, so closing the block lands this
+  // panel directly under the two action buttons instead of below the prompt that
+  // launched it. sos-cancel puts the block back.
+  setHidden("pt-sos-block", true);
   setValue("sos-phone", "");
   setRequestStatus(
     "request-status",
@@ -904,6 +909,10 @@ byId("sos-number-submit")?.addEventListener("click", handleSosNumberSubmit);
 byId("sos-final-call-button")?.addEventListener("click", handleSosCall);
 byId("sos-cancel")?.addEventListener("click", () => {
   closeSosPanels();
+  // openSosPanel closed the block to take its place — bring it back, but only
+  // if the owner actually has an emergency contact, so cancelling can't surface
+  // an Emergency button on a vehicle that never offered one.
+  setHidden("pt-sos-block", !emergencyAvailable);
   setRequestStatus("request-status", "", "info");
 });
 

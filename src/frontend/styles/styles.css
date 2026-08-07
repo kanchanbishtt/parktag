@@ -3638,6 +3638,19 @@ html:has(body.pt-hub-body) {
   max-width: 520px;
 }
 
+/* .pt-main is a flex item of .scanner-body with `margin: 0 auto`, and auto
+   cross-axis margins switch a flex item off `stretch` — so it sizes to its
+   widest content rather than to its column. The SOS copy was the widest text in
+   the action card, so closing that block on the Private Call tap collapsed the
+   card from 480px to ~389px.
+   Scoped with :has() to the screen that actually has the problem: applying it to
+   .pt-main outright also stretched the activation wizard (398px -> 460px), which
+   is meant to stay narrow. Browsers without :has() simply keep today's
+   behaviour. */
+.scanner-body:has(#scanner-action-shell:not([hidden])) .pt-main {
+  width: 100%;
+}
+
 .scanner-body .pt-vehicle-block {
   padding: 22px 26px 18px;
 }

@@ -1904,6 +1904,19 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
   margin-top: 8px;
 }
 
+/* ...except in the action card, which is itself padding:0 so that each child
+   supplies its own 24px inset. The reset above left the status line flush
+   against the card edge, sitting further left than every sibling.
+   Centred to match the .pt-privacy-note directly beneath it — the two read as
+   one footer block under the action buttons. The 24px padding still matters
+   once the sentence wraps, so a long status stays inside the card's margins
+   rather than running edge to edge. Same specificity as the rule above, so this
+   has to stay after it. */
+.pt-action-card .pt-status {
+  padding: 0 24px 12px;
+  text-align: center;
+}
+
 /* Trust / privacy notes */
 .pt-trust-note {
   display: flex;

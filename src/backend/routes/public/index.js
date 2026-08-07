@@ -59,6 +59,25 @@ const TAG_LOCKOUT_MINUTES = 15;
 // what a determined abuser can inflict, without risking a refusal to connect
 // next of kin during an actual emergency.
 const MAX_EMERGENCY_CALLS_PER_DAY = 5;
+
+// Retire any live pending call for this caller before registering a new one, so
+// a number never has two routes waiting at once.
+//
+// The Dial Whom webhook matches on callerPhone alone. A scanner who tried
+// Private Call, got no answer and then tapped Emergency therefore left two
+// unconsumed rows behind, and the webhook could pick the older one — dialling
+// the owner's unanswered phone instead of the next of kin. The webhook now
+// sorts newest-first as well; this keeps the stale row from surviving to be
+// matched by a later redial, which the sort alone would not prevent.
+//
+// `consumed: true` is what the webhook filters on, so that is what retires a
+// row; supersededAt records why, to keep it distinguishable from a real answer.
+async function supersedePendingCalls(collections, callerPhone, now) {
+  await collections.pendingCalls.updateMany(
+    { callerPhone, consumed: false },
+    { $set: { consumed: true, supersededAt: now.toISOString() } }
+  );
+}
 // Sentinel `ipHash` marking the per-tag bucket. Real values are 64-char SHA-256
 // hex, so "*" can never collide with a per-IP row, and reusing this collection
 // means the existing { token, ipHash } index and TTL cleanup already cover it.
@@ -799,6 +818,8 @@ export function registerPublicRoutes(app, env) {
       { $set: { freeContactUsed: true, freeContactUsedAt: now.toISOString(), updatedAt: now.toISOString() } }
     );
 
+    await supersedePendingCalls(collections, callerPhone, now);
+
     await collections.pendingCalls.insertOne({
       callerPhone,
       targetPhone: ownerPhone,
@@ -937,6 +958,8 @@ export function registerPublicRoutes(app, env) {
         $inc: { emergencyAttempts: 1 }
       }
     );
+
+    await supersedePendingCalls(collections, callerPhone, now);
 
     await collections.pendingCalls.insertOne({
       callerPhone,

@@ -227,12 +227,21 @@ function openSosConfirm() {
   dialog.showModal();
 }
 
-// The owner nominated nobody, so there is no masked call to set up — only the
+// The masked call is not available — either the owner nominated nobody, or the
+// tag's daily emergency ceiling has refused it. Either way the answer is the
 // public numbers, dialled directly. Nothing is registered server-side here:
 // 112 is not ours to route, and a helpline must not depend on our backend
 // being up.
-function openSosHelplines() {
+const HELPLINE_NOTE_NO_CONTACT =
+  "No emergency contact added for this tag. Use the All India helplines below.";
+
+function openSosHelplines(note) {
   const dialog = byId("sos-helplines");
+
+  // The note says why the helplines are being offered. It must be set every
+  // time, not only when a caller passes one, or the previous reason survives
+  // into a visit where it is untrue.
+  setText("sos-helplines-note", note || HELPLINE_NOTE_NO_CONTACT);
 
   if (!dialog || typeof dialog.showModal !== "function") {
     return;
@@ -312,6 +321,21 @@ async function handleSosCall() {
       setDisabled("sos-final-call-button", false);
       setRequestStatus("request-status", "", "info");
       openSosHelplines();
+      return;
+    }
+    if (data.code === "EMERGENCY_LIMIT") {
+      // The daily ceiling has refused this masked call. The server's own message
+      // already tells the scanner to ring 112 — so hand them a 112 they can
+      // actually tap instead of a number to memorise. The refusal is per tag and
+      // final for today, so this is not a retry the scanner can win.
+      closeSosPanels();
+      actionLocked = false;
+      setDisabled("sos-final-call-button", false);
+      setRequestStatus("request-status", "", "info");
+      openSosHelplines(
+        data.error ||
+          "This vehicle's emergency contact has already been called several times today. Use the All India helplines below."
+      );
       return;
     }
     if (!res.ok) throw new Error(data.error || "Could not start the emergency call.");

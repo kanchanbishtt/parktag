@@ -3775,13 +3775,12 @@ html:has(body.pt-hub-body) {
 .pt-verify-media {
   display: block;
   width: 100%;
-  /* 20:7, a wide strip rather than the usual 16:9. Measured off the reference:
-     at a 720px-wide screen the artwork there is ~562x197 device px. A 16:9 box
-     at the same width stands ~124px taller, which pushed the field the scanner
-     came here to fill below the fold on a short phone. */
-  aspect-ratio: 20 / 7;
+  /* The artwork's own ratio (1134x496), so it is shown whole — nothing cropped,
+     nothing stretched — while the box still reserves the exact height before
+     the image lands, which stops everything below it jumping on load. Update
+     this alongside the file if the artwork is ever re-cut. */
+  aspect-ratio: 1134 / 496;
   object-fit: cover;
-  border-radius: 14px;
   /* Painted behind the image so a slow or failed load leaves a neutral block
      rather than a collapsed gap that shifts everything below it. */
   background: #EEF1F5;
@@ -3790,16 +3789,20 @@ html:has(body.pt-hub-body) {
 
 .pt-verify-title {
   margin: 0;
-  font-size: clamp(1.05rem, 4.6vw, 1.22rem);
+  font-size: clamp(0.95rem, 3.9vw, 1.05rem);
   font-weight: 800;
-  line-height: 1.35;
+  line-height: 1.32;
   color: var(--pt-ink);
 }
 
+/* var(--pt-border) is tuned for input outlines against white and all but
+   vanishes as a standalone rule. This one is doing a job — separating the
+   picture from the question, and the question from the answer — so it is
+   darkened until it reads as a divider on a phone held at a windscreen. */
 .pt-verify-rule {
   border: 0;
-  border-top: 1px solid var(--pt-border);
-  margin: 16px 0;
+  border-top: 1px solid #CBD5E1;
+  margin: 14px 0;
 }
 
 .pt-verify-form {
@@ -3809,8 +3812,8 @@ html:has(body.pt-hub-body) {
 
 .pt-verify-label {
   margin: 0;
-  font-size: clamp(0.95rem, 3.9vw, 1.04rem);
-  line-height: 1.45;
+  font-size: clamp(0.88rem, 3.5vw, 0.95rem);
+  line-height: 1.4;
   color: var(--pt-ink);
 }
 
@@ -3831,9 +3834,9 @@ html:has(body.pt-hub-body) {
 
 .pt-verify-plate {
   font-family: "Courier New", monospace;
-  font-size: clamp(1.02rem, 4.6vw, 1.22rem);
+  font-size: clamp(0.95rem, 4vw, 1.05rem);
   font-weight: 800;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
   color: var(--pt-ink);
   white-space: nowrap;
 }

@@ -3775,7 +3775,11 @@ html:has(body.pt-hub-body) {
 .pt-verify-media {
   display: block;
   width: 100%;
-  aspect-ratio: 16 / 9;
+  /* 20:7, a wide strip rather than the usual 16:9. Measured off the reference:
+     at a 720px-wide screen the artwork there is ~562x197 device px. A 16:9 box
+     at the same width stands ~124px taller, which pushed the field the scanner
+     came here to fill below the fold on a short phone. */
+  aspect-ratio: 20 / 7;
   object-fit: cover;
   border-radius: 14px;
   /* Painted behind the image so a slow or failed load leaves a neutral block

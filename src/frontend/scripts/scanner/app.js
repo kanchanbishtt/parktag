@@ -303,10 +303,14 @@ async function handleSosCall() {
 function setSummaryForTag(tag) {
   const isRegistrationState = ["unclaimed", "inactive"].includes(tag.status);
 
+  // The chip now carries one message only: this tag still needs registering.
+  // An active tag no longer says "✓ Active" — the card already shows the plate
+  // and its Verified badge, so the header was repeating what was on screen.
   const chip = byId("tag-chip");
   if (chip) {
-    chip.textContent = isRegistrationState ? "Register to activate" : "✓ Active";
-    chip.dataset.tone = isRegistrationState ? "warn" : "success";
+    chip.textContent = isRegistrationState ? "Register to activate" : "";
+    chip.dataset.tone = "warn";
+    chip.hidden = !isRegistrationState;
   }
 
   // Populate action shell vehicle display

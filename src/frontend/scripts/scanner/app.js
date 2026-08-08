@@ -182,11 +182,12 @@ function setContactAvailability(available) {
     setHidden("call-popup", true);
   }
 
-  // The SOS block is deliberately NOT gated on `available`. A used-up free
-  // contact must not be able to block an accident call to the owner's next of
-  // kin — the emergency path is billed to nobody and is judged only on whether
-  // the owner actually nominated someone.
-  setHidden("pt-sos-block", !emergencyAvailable);
+  // The SOS block is gated on nothing at all. A used-up free contact must not
+  // block an accident call, and neither must an owner who never nominated
+  // anyone: `emergencyAvailable` now decides which screen the button leads to
+  // — the owner's next of kin, or the public helplines — not whether a scanner
+  // standing at a crash is offered help in the first place.
+  setHidden("pt-sos-block", false);
 }
 
 // ── Emergency / SOS ──────────────────────────────────────────────────────
@@ -214,10 +215,26 @@ function openSosConfirm() {
 
   // No <dialog> support (older in-app browsers) would mean the Emergency button
   // silently does nothing, which is the worst possible failure here. Fall
-  // straight through to the panel instead — the gate is a deterrent, not a
-  // security control.
+  // straight through to where the gate would have sent them — the gate is a
+  // deterrent, not a security control.
   if (!dialog || typeof dialog.showModal !== "function") {
-    openSosPanel();
+    if (emergencyAvailable) {
+      openSosPanel();
+    }
+    return;
+  }
+
+  dialog.showModal();
+}
+
+// The owner nominated nobody, so there is no masked call to set up — only the
+// public numbers, dialled directly. Nothing is registered server-side here:
+// 112 is not ours to route, and a helpline must not depend on our backend
+// being up.
+function openSosHelplines() {
+  const dialog = byId("sos-helplines");
+
+  if (!dialog || typeof dialog.showModal !== "function") {
     return;
   }
 
@@ -286,13 +303,15 @@ async function handleSosCall() {
     const data = await res.json().catch(() => ({}));
 
     if (data.code === "NO_EMERGENCY_CONTACT") {
-      // The owner cleared it between page load and the tap — stop offering SOS.
+      // The owner cleared it between page load and the tap. The block stays —
+      // the scanner is mid-emergency and has already confirmed — but it now
+      // leads to the helplines, which is where this call has to go instead.
       emergencyAvailable = false;
-      setHidden("pt-sos-block", true);
       closeSosPanels();
       actionLocked = false;
       setDisabled("sos-final-call-button", false);
-      setRequestStatus("request-status", data.error || "No emergency contact is set for this vehicle.", "error");
+      setRequestStatus("request-status", "", "info");
+      openSosHelplines();
       return;
     }
     if (!res.ok) throw new Error(data.error || "Could not start the emergency call.");
@@ -990,16 +1009,32 @@ byId("sos-confirm-continue")?.addEventListener("click", () => {
     return;
   }
   byId("sos-confirm")?.close();
-  openSosPanel();
+
+  // Where the confirmed tap actually goes: the owner's nominated contact if
+  // there is one, otherwise the public helplines. The branch is here rather
+  // than on the Emergency button so the warning is read either way — the
+  // offence it names applies to dialling 112 for a prank just as much.
+  if (emergencyAvailable) {
+    openSosPanel();
+    return;
+  }
+  openSosHelplines();
+});
+
+byId("sos-helplines-close")?.addEventListener("click", () => {
+  byId("sos-helplines")?.close();
+});
+byId("sos-helplines-back")?.addEventListener("click", () => {
+  byId("sos-helplines")?.close();
 });
 byId("sos-number-submit")?.addEventListener("click", handleSosNumberSubmit);
 byId("sos-final-call-button")?.addEventListener("click", handleSosCall);
 byId("sos-cancel")?.addEventListener("click", () => {
   closeSosPanels();
-  // openSosPanel closed the block to take its place — bring it back, but only
-  // if the owner actually has an emergency contact, so cancelling can't surface
-  // an Emergency button on a vehicle that never offered one.
-  setHidden("pt-sos-block", !emergencyAvailable);
+  // openSosPanel closed the block to take its place — bring it back. It is no
+  // longer conditional: every active tag offers the button, and what it leads
+  // to is decided at the gate.
+  setHidden("pt-sos-block", false);
   setRequestStatus("request-status", "", "info");
 });
 

@@ -1907,6 +1907,99 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
   cursor: pointer;
 }
 
+/* ── Emergency helplines ── */
+.pt-note-box {
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--pt-bg);
+  font-size: clamp(0.88rem, 3.5vw, 0.95rem);
+  line-height: 1.5;
+  color: var(--pt-sub);
+}
+
+.pt-helpline-card {
+  padding: 16px;
+  border-radius: 14px;
+  background: var(--pt-bg);
+}
+
+.pt-helpline-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: clamp(0.97rem, 3.9vw, 1.04rem);
+  font-weight: 800;
+  color: var(--pt-ink);
+}
+
+.pt-helpline-title svg {
+  flex: 0 0 auto;
+  color: var(--pt-amber);
+}
+
+.pt-helpline-sub {
+  margin: 6px 0 0;
+  font-size: clamp(0.84rem, 3.3vw, 0.9rem);
+  line-height: 1.45;
+  color: var(--pt-sub);
+}
+
+.pt-helpline-list {
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Hairlines between rows, none under the last — a trailing rule with nothing
+   below it reads as a missing sixth number. */
+.pt-helpline-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 11px 0;
+  border-bottom: 1px solid #DDE3EC;
+}
+
+.pt-helpline-list li:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.pt-helpline-list span {
+  font-size: clamp(0.9rem, 3.6vw, 0.97rem);
+  font-weight: 700;
+  color: var(--pt-ink);
+}
+
+/* The number is the thing being reached for, so it carries the weight and the
+   brand red. Padded on the left so the tap target reaches past the digits
+   without pushing the label around. */
+.pt-helpline-list a {
+  padding: 4px 0 4px 16px;
+  font-size: clamp(1.15rem, 4.8vw, 1.3rem);
+  font-weight: 800;
+  color: var(--pt-amber);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.pt-dialog-back {
+  justify-self: start;
+  min-height: 44px;
+  padding: 10px 22px;
+  border: 1px solid var(--pt-border);
+  border-radius: 12px;
+  background: var(--pt-bg);
+  color: var(--pt-sub);
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 .pt-sos-cancel {
   justify-self: center;
   background: none;

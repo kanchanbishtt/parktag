@@ -365,7 +365,14 @@ export function registerPublicRoutes(app, env) {
       maskedPlateNumber: maskPlateNumber(tag.plateNumber),
       // Free-usage state for the UI (authoritative check is still server-side
       // on the contact endpoint). Premium tags always have contact available.
-      contactAvailable: Boolean(tag.premium) || !tag.freeContactUsed
+      contactAvailable: Boolean(tag.premium) || !tag.freeContactUsed,
+      // Whether contact is unlimited — i.e. whether ONE action is all this
+      // scanner gets. `contactAvailable` only answers "may you act right now",
+      // which is true for both products before the first action, so the client
+      // could not tell them apart afterwards and locked the paid tag like a
+      // free one. The client uses this for nothing but re-enabling the call
+      // button; every actual permission check stays server-side below.
+      unlimitedContact: Boolean(tag.premium)
     };
   });
 

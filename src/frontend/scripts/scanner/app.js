@@ -17,6 +17,11 @@ let pendingAction = null;
 let contactGrant = "";
 // Whether this E-Tag still has its free contact available (server-authoritative).
 let contactAvailable = true;
+// Premium tags are paid for and have no contact limit, so an action must not
+// consume the scanner's only turn. Defaults to false so a tag is treated as
+// one-shot unless /verify positively says otherwise — a missing or malformed
+// response can never unlock an E-Tag.
+let unlimitedContact = false;
 // Whether the owner has set an emergency contact for this tag. The number is
 // never sent to the browser — this is only a flag telling us to offer SOS.
 let emergencyAvailable = false;
@@ -146,6 +151,7 @@ function resetActionState() {
   expectedPlateLastFour = "";
   contactGrant = "";
   contactAvailable = true;
+  unlimitedContact = false;
   selectedReason = "";
   pendingAction = null;
   setDisabled("call-owner-button", false);
@@ -437,6 +443,7 @@ async function handlePlateVerification(event) {
   }
 
   contactGrant = data.grant || "";
+  unlimitedContact = data.unlimitedContact === true;
   verifiedPlateLastFour = entered;
   setDisabled("plate-verify-submit", false);
   setRequestStatus("plate-verify-status", "", "info");
@@ -579,6 +586,22 @@ async function handleWhatsAppNotify() {
       "We've sent a WhatsApp alert to the vehicle owner. Your details stay completely private."
     );
     setRequestStatus("request-status", "WhatsApp alert sent to the owner.", "success");
+
+    // A premium tag is paid for and has no contact limit, so notifying the
+    // owner must not cost the scanner their call. `actionLocked` is released
+    // because it also guards the number-submit and dial handlers further down
+    // the call path, not just this button.
+    // Only the call button comes back: an E-Tag has genuinely spent its one
+    // contact here, and for premium the WhatsApp button stays down so a single
+    // scanner cannot sit on the page repeating alerts at the owner.
+    if (unlimitedContact) {
+      actionLocked = false;
+      setDisabled("call-owner-button", false);
+      setText(
+        "confirmation-copy",
+        "We've sent a WhatsApp alert to the vehicle owner. You can still call the owner privately — your details stay completely private."
+      );
+    }
   } catch (error) {
     actionLocked = false;
     setDisabled("call-owner-button", false);
@@ -596,6 +619,10 @@ async function handleWhatsAppNotify() {
 
 function requestContactNumber(action) {
   pendingAction = action;
+  // Clear the previous action's receipt. On a premium tag the WhatsApp
+  // confirmation is still on screen when the call is started, and leaving it
+  // above the number field reads as if the call had already been placed.
+  setHidden("request-confirmation", true);
   setHidden("contact-number-panel", false);
   // Take the emergency block's place rather than stacking underneath it. Every
   // element between the action buttons and this panel is hidden at this point,

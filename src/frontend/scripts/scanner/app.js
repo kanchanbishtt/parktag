@@ -934,6 +934,20 @@ byId("send-whatsapp-button")?.addEventListener("click", handleWhatsAppNotify);
 byId("contact-number-submit")?.addEventListener("click", handleContactNumberSubmit);
 byId("final-call-button")?.addEventListener("click", handleFinalCallAction);
 
+// Backs out of the number panel and puts the card back the way the tap found
+// it. The mirror of requestContactNumber: that took the emergency block's
+// place, so cancelling has to hand it back — and only when the owner nominated
+// someone, so backing out can never surface an Emergency button on a vehicle
+// that never offered one. The typed number is left alone: on a premium tag the
+// scanner may be coming straight back, and retyping it is the only cost of a
+// mis-tap.
+byId("contact-number-cancel")?.addEventListener("click", () => {
+  setHidden("contact-number-panel", true);
+  setHidden("pt-sos-block", !emergencyAvailable);
+  pendingAction = null;
+  setRequestStatus("request-status", "", "info");
+});
+
 // Emergency / SOS
 byId("sos-button")?.addEventListener("click", openSosPanel);
 byId("sos-number-submit")?.addEventListener("click", handleSosNumberSubmit);

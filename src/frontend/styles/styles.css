@@ -3768,6 +3768,122 @@ html:has(body.pt-hub-body) {
   text-indent: 0.22em;
 }
 
+/* ── Verification card ──
+   Reads top to bottom as one instruction: see what to look for, then answer
+   it. Left-aligned throughout, unlike the centred cards elsewhere, because
+   every line here is prose the scanner reads rather than a status to admire. */
+.pt-verify-media {
+  display: block;
+  width: 100%;
+  /* The artwork's own ratio (1134x496), so it is shown whole — nothing cropped,
+     nothing stretched — while the box still reserves the exact height before
+     the image lands, which stops everything below it jumping on load. Update
+     this alongside the file if the artwork is ever re-cut. */
+  aspect-ratio: 1134 / 496;
+  object-fit: cover;
+  /* Painted behind the image so a slow or failed load leaves a neutral block
+     rather than a collapsed gap that shifts everything below it. */
+  background: #EEF1F5;
+  margin-bottom: 16px;
+}
+
+.pt-verify-title {
+  margin: 0;
+  font-size: clamp(0.95rem, 3.9vw, 1.05rem);
+  font-weight: 800;
+  line-height: 1.32;
+  color: var(--pt-ink);
+}
+
+/* var(--pt-border) is tuned for input outlines against white and all but
+   vanishes as a standalone rule. This one is doing a job — separating the
+   picture from the question, and the question from the answer — so it is
+   darkened until it reads as a divider on a phone held at a windscreen. */
+.pt-verify-rule {
+  border: 0;
+  border-top: 1px solid #CBD5E1;
+  margin: 14px 0;
+}
+
+.pt-verify-form {
+  display: grid;
+  gap: 14px;
+}
+
+.pt-verify-label {
+  margin: 0;
+  font-size: clamp(0.88rem, 3.5vw, 0.95rem);
+  line-height: 1.4;
+  color: var(--pt-ink);
+}
+
+.pt-verify-label strong {
+  font-weight: 800;
+}
+
+/* The masked plate is the label for the field beside it: the scanner reads
+   "UK15D####", looks at the vehicle, and fills in what the hashes hide.
+   `auto` for the plate so a long registration keeps its own width and the
+   input gives way, rather than the plate wrapping mid-registration. */
+.pt-verify-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(10px, 3vw, 14px);
+}
+
+.pt-verify-plate {
+  font-family: "Courier New", monospace;
+  font-size: clamp(0.95rem, 4vw, 1.05rem);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--pt-ink);
+  white-space: nowrap;
+}
+
+.pt-verify-input {
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.pt-verify-input::placeholder {
+  font-weight: 500;
+  letter-spacing: normal;
+}
+
+/* Shared by the verification card and the contact card's number panel, so the
+   two ways out of this flow look and measure the same. Deliberately quiet:
+   next to a red primary button it must read as the way back, not a rival. */
+.pt-cancel-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* 44px is the minimum comfortable tap target, and this one sits close to
+     nothing else, so it does not need to be any bigger. */
+  min-height: 44px;
+  padding: 10px 22px;
+  border: 1px solid var(--pt-border);
+  border-radius: 12px;
+  background: var(--pt-bg);
+  color: var(--pt-sub);
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-decoration: none;
+  /* As a <button> it would otherwise inherit the UA font, not Inter. */
+  font-family: inherit;
+  cursor: pointer;
+}
+
+/* .pt-panel is a grid, whose items stretch to the full column by default —
+   which would blow this up to the width of "Continue to call" and turn the way
+   back into a second, competing button. Sized to its text and pinned left, so
+   it reads exactly as it does on the verification card. */
+.pt-panel .pt-cancel-action {
+  justify-self: start;
+  width: fit-content;
+  margin-top: 2px;
+}
+
 /* Country code + number: the code keeps just enough room for its longest
    label, the number gets the rest. Stays one row down to 320px — stacking
    would make the step taller and fight the centring. */

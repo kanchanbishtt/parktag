@@ -38,28 +38,37 @@
     <main class="pt-main">
 
       <!-- Verification shell -->
-      <article class="pt-card" id="scanner-verification-shell" hidden>
-        <div class="pt-card-icon pt-icon-lock">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-            <rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" stroke-width="2"/>
-            <path d="M8 11V7a4 4 0 0 1 8 0v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          </svg>
-        </div>
-        <h1 class="pt-card-title">Verify the vehicle</h1>
-        <p class="pt-card-sub">Enter the last 4 digits of the plate number to unlock contact options.</p>
+      <article class="pt-card pt-verify-card" id="scanner-verification-shell" hidden>
+        <!-- Decorative: the heading and label below say the same thing in words,
+             so a screen reader gains nothing from describing the picture again. -->
+        <img class="pt-verify-media" src="/images/verify-vehicle.svg" alt="" />
 
-        <div class="pt-plate-preview" id="plate-mask-preview">••••</div>
+        <h1 class="pt-verify-title">Please verify the plate number of the vehicle.</h1>
 
-        <form id="plate-verify-form" class="pt-form">
+        <hr class="pt-verify-rule" />
+
+        <form id="plate-verify-form" class="pt-verify-form">
           <input id="request-token" type="hidden" />
-          <label class="pt-field">
-            <span>Last 4 digits on the plate</span>
-            <input id="plate-last-four-input" maxlength="4" inputmode="numeric" autocomplete="off" placeholder="e.g. 1234" class="pt-input pt-input-lg" />
-          </label>
+          <p class="pt-verify-label">
+            Please enter the<br />
+            <strong>last 4 digits of vehicle plate number</strong>
+          </p>
+          <div class="pt-verify-row">
+            <span class="pt-verify-plate" id="plate-mask-preview">••••</span>
+            <!-- No <label> wrapper: the plate sits where the label would, so the
+                 field carries its own accessible name instead. -->
+            <input id="plate-last-four-input" maxlength="4" inputmode="numeric" autocomplete="off"
+                   placeholder="Last 4 Digits" class="pt-input pt-verify-input"
+                   aria-label="Last 4 digits of the vehicle plate number" />
+          </div>
           <button id="plate-verify-submit" class="pt-btn pt-btn-primary pt-btn-full" type="submit">Verify &amp; Continue</button>
         </form>
 
         <p id="plate-verify-status" class="pt-status" data-tone="info">Enter the last 4 digits shown on the vehicle plate.</p>
+
+        <hr class="pt-verify-rule" />
+
+        <a class="pt-cancel-action" href="https://parktag.me">Cancel</a>
       </article>
 
       <!-- Activation wizard: intro → plate → mobile → OTP code -->
@@ -276,6 +285,7 @@
             <input id="contact-phone" type="tel" autocomplete="tel" inputmode="tel" placeholder="+91 99999 99999" class="pt-input" />
           </label>
           <button id="contact-number-submit" class="pt-btn pt-btn-primary pt-btn-full" type="button">Continue to call</button>
+          <button id="contact-number-cancel" class="pt-cancel-action" type="button">Cancel</button>
         </div>
 
         <!-- Call popup -->

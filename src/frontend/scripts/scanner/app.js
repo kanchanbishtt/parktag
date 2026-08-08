@@ -182,11 +182,12 @@ function setContactAvailability(available) {
     setHidden("call-popup", true);
   }
 
-  // The SOS block is deliberately NOT gated on `available`. A used-up free
-  // contact must not be able to block an accident call to the owner's next of
-  // kin — the emergency path is billed to nobody and is judged only on whether
-  // the owner actually nominated someone.
-  setHidden("pt-sos-block", !emergencyAvailable);
+  // The SOS block is gated on nothing at all. A used-up free contact must not
+  // block an accident call, and neither must an owner who never nominated
+  // anyone: `emergencyAvailable` now decides which screen the button leads to
+  // — the owner's next of kin, or the public helplines — not whether a scanner
+  // standing at a crash is offered help in the first place.
+  setHidden("pt-sos-block", false);
 }
 
 // ── Emergency / SOS ──────────────────────────────────────────────────────
@@ -197,6 +198,56 @@ function closeSosPanels() {
   setHidden("sos-number-panel", true);
   setHidden("sos-dial-panel", true);
   setHidden("sos-dial-number-block", true);
+}
+
+// The SOS call rings a third party the owner nominated — someone who never
+// opted in — so the tap has to be deliberate before their phone goes off. The
+// gate is re-armed on every open rather than remembered for the visit: a
+// confirmation that carries over is one someone made for a different tap.
+function openSosConfirm() {
+  const dialog = byId("sos-confirm");
+  const check = byId("sos-confirm-check");
+
+  if (check) {
+    check.checked = false;
+  }
+  setDisabled("sos-confirm-continue", true);
+
+  // No <dialog> support (older in-app browsers) would mean the Emergency button
+  // silently does nothing, which is the worst possible failure here. Fall
+  // straight through to where the gate would have sent them — the gate is a
+  // deterrent, not a security control.
+  if (!dialog || typeof dialog.showModal !== "function") {
+    if (emergencyAvailable) {
+      openSosPanel();
+    }
+    return;
+  }
+
+  dialog.showModal();
+}
+
+// The masked call is not available — either the owner nominated nobody, or the
+// tag's daily emergency ceiling has refused it. Either way the answer is the
+// public numbers, dialled directly. Nothing is registered server-side here:
+// 112 is not ours to route, and a helpline must not depend on our backend
+// being up.
+const HELPLINE_NOTE_NO_CONTACT =
+  "No emergency contact added for this tag. Use the All India helplines below.";
+
+function openSosHelplines(note) {
+  const dialog = byId("sos-helplines");
+
+  // The note says why the helplines are being offered. It must be set every
+  // time, not only when a caller passes one, or the previous reason survives
+  // into a visit where it is untrue.
+  setText("sos-helplines-note", note || HELPLINE_NOTE_NO_CONTACT);
+
+  if (!dialog || typeof dialog.showModal !== "function") {
+    return;
+  }
+
+  dialog.showModal();
 }
 
 function openSosPanel() {
@@ -261,13 +312,30 @@ async function handleSosCall() {
     const data = await res.json().catch(() => ({}));
 
     if (data.code === "NO_EMERGENCY_CONTACT") {
-      // The owner cleared it between page load and the tap — stop offering SOS.
+      // The owner cleared it between page load and the tap. The block stays —
+      // the scanner is mid-emergency and has already confirmed — but it now
+      // leads to the helplines, which is where this call has to go instead.
       emergencyAvailable = false;
-      setHidden("pt-sos-block", true);
       closeSosPanels();
       actionLocked = false;
       setDisabled("sos-final-call-button", false);
-      setRequestStatus("request-status", data.error || "No emergency contact is set for this vehicle.", "error");
+      setRequestStatus("request-status", "", "info");
+      openSosHelplines();
+      return;
+    }
+    if (data.code === "EMERGENCY_LIMIT") {
+      // The daily ceiling has refused this masked call. The server's own message
+      // already tells the scanner to ring 112 — so hand them a 112 they can
+      // actually tap instead of a number to memorise. The refusal is per tag and
+      // final for today, so this is not a retry the scanner can win.
+      closeSosPanels();
+      actionLocked = false;
+      setDisabled("sos-final-call-button", false);
+      setRequestStatus("request-status", "", "info");
+      openSosHelplines(
+        data.error ||
+          "This vehicle's emergency contact has already been called several times today. Use the All India helplines below."
+      );
       return;
     }
     if (!res.ok) throw new Error(data.error || "Could not start the emergency call.");
@@ -936,28 +1004,62 @@ byId("final-call-button")?.addEventListener("click", handleFinalCallAction);
 
 // Backs out of the number panel and puts the card back the way the tap found
 // it. The mirror of requestContactNumber: that took the emergency block's
-// place, so cancelling has to hand it back — and only when the owner nominated
-// someone, so backing out can never surface an Emergency button on a vehicle
-// that never offered one. The typed number is left alone: on a premium tag the
-// scanner may be coming straight back, and retyping it is the only cost of a
-// mis-tap.
+// place, so cancelling has to hand it back. Unconditional, like every other
+// restore now that the button is offered on every active tag — leaving the old
+// `!emergencyAvailable` here would have made cancelling a Private Call the one
+// way to lose an Emergency button the card had been showing all along. The
+// typed number is left alone: on a premium tag the scanner may be coming
+// straight back, and retyping it is the only cost of a mis-tap.
 byId("contact-number-cancel")?.addEventListener("click", () => {
   setHidden("contact-number-panel", true);
-  setHidden("pt-sos-block", !emergencyAvailable);
+  setHidden("pt-sos-block", false);
   pendingAction = null;
   setRequestStatus("request-status", "", "info");
 });
 
-// Emergency / SOS
-byId("sos-button")?.addEventListener("click", openSosPanel);
+// Emergency / SOS — the button opens the confirmation gate, which is the only
+// thing that opens the panel.
+byId("sos-button")?.addEventListener("click", openSosConfirm);
+byId("sos-confirm-check")?.addEventListener("change", (event) => {
+  setDisabled("sos-confirm-continue", !event.target.checked);
+});
+byId("sos-confirm-close")?.addEventListener("click", () => {
+  byId("sos-confirm")?.close();
+});
+byId("sos-confirm-continue")?.addEventListener("click", () => {
+  // Re-read the box rather than trusting the button's own disabled state: the
+  // two are set in different places, and this is the last point before a
+  // stranger's phone rings.
+  if (!byId("sos-confirm-check")?.checked) {
+    return;
+  }
+  byId("sos-confirm")?.close();
+
+  // Where the confirmed tap actually goes: the owner's nominated contact if
+  // there is one, otherwise the public helplines. The branch is here rather
+  // than on the Emergency button so the warning is read either way — the
+  // offence it names applies to dialling 112 for a prank just as much.
+  if (emergencyAvailable) {
+    openSosPanel();
+    return;
+  }
+  openSosHelplines();
+});
+
+byId("sos-helplines-close")?.addEventListener("click", () => {
+  byId("sos-helplines")?.close();
+});
+byId("sos-helplines-back")?.addEventListener("click", () => {
+  byId("sos-helplines")?.close();
+});
 byId("sos-number-submit")?.addEventListener("click", handleSosNumberSubmit);
 byId("sos-final-call-button")?.addEventListener("click", handleSosCall);
 byId("sos-cancel")?.addEventListener("click", () => {
   closeSosPanels();
-  // openSosPanel closed the block to take its place — bring it back, but only
-  // if the owner actually has an emergency contact, so cancelling can't surface
-  // an Emergency button on a vehicle that never offered one.
-  setHidden("pt-sos-block", !emergencyAvailable);
+  // openSosPanel closed the block to take its place — bring it back. It is no
+  // longer conditional: every active tag offers the button, and what it leads
+  // to is decided at the gate.
+  setHidden("pt-sos-block", false);
   setRequestStatus("request-status", "", "info");
 });
 

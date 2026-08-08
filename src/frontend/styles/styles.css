@@ -1814,6 +1814,192 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
   background: #FFF6F4;
 }
 
+/* ── Emergency confirmation dialog ──
+   Proportioned off .pt-card rather than invented: same 20px radius, same 24px
+   inset, same type scale, so it reads as this product asking a question rather
+   than as a browser alert. Capped at the card's own 480px and at 92vw, so it
+   never reaches the screen edge on a phone. */
+.pt-dialog {
+  width: min(92vw, 480px);
+  padding: 0;
+  border: 1px solid rgba(0, 25, 53, 0.07);
+  border-radius: 20px;
+  background: var(--pt-white);
+  color: var(--pt-ink);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04), 0 18px 48px rgba(0, 25, 53, 0.22);
+  overflow: hidden;
+}
+
+.pt-dialog::backdrop {
+  background: rgba(3, 22, 45, 0.55);
+}
+
+.pt-dialog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 24px;
+  border-bottom: 1px solid #CBD5E1;
+}
+
+.pt-dialog-title {
+  margin: 0;
+  font-size: clamp(1.05rem, 4.4vw, 1.18rem);
+  font-weight: 800;
+  color: var(--pt-ink);
+}
+
+/* A rounded square rather than a circle, to sit with the card's rounded
+   rectangles. 40px is a comfortable tap target without competing with the
+   title beside it. */
+.pt-dialog-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 12px;
+  background: var(--pt-bg);
+  color: var(--pt-sub);
+  cursor: pointer;
+}
+
+.pt-dialog-close:hover {
+  background: #E4E8EF;
+}
+
+.pt-dialog-body {
+  display: grid;
+  gap: 16px;
+  padding: 20px 24px 24px;
+}
+
+.pt-dialog-copy {
+  margin: 0;
+  font-size: clamp(0.9rem, 3.6vw, 0.97rem);
+  line-height: 1.55;
+  color: var(--pt-sub);
+}
+
+/* Aligned to `start`, not `center`: the label runs to three lines on a phone,
+   and a centred box would float to the middle of the paragraph. */
+.pt-dialog-check {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  font-size: clamp(0.88rem, 3.5vw, 0.94rem);
+  line-height: 1.45;
+  color: var(--pt-ink);
+  cursor: pointer;
+}
+
+.pt-dialog-check input {
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  /* Sits on the first line's baseline rather than its ascender. */
+  margin-top: 1px;
+  accent-color: var(--pt-amber);
+  cursor: pointer;
+}
+
+/* ── Emergency helplines ── */
+.pt-note-box {
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--pt-bg);
+  font-size: clamp(0.88rem, 3.5vw, 0.95rem);
+  line-height: 1.5;
+  color: var(--pt-sub);
+}
+
+.pt-helpline-card {
+  padding: 16px;
+  border-radius: 14px;
+  background: var(--pt-bg);
+}
+
+.pt-helpline-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: clamp(0.97rem, 3.9vw, 1.04rem);
+  font-weight: 800;
+  color: var(--pt-ink);
+}
+
+.pt-helpline-title svg {
+  flex: 0 0 auto;
+  color: var(--pt-amber);
+}
+
+.pt-helpline-sub {
+  margin: 6px 0 0;
+  font-size: clamp(0.84rem, 3.3vw, 0.9rem);
+  line-height: 1.45;
+  color: var(--pt-sub);
+}
+
+.pt-helpline-list {
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Hairlines between rows, none under the last — a trailing rule with nothing
+   below it reads as a missing sixth number. */
+.pt-helpline-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 11px 0;
+  border-bottom: 1px solid #DDE3EC;
+}
+
+.pt-helpline-list li:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.pt-helpline-list span {
+  font-size: clamp(0.9rem, 3.6vw, 0.97rem);
+  font-weight: 700;
+  color: var(--pt-ink);
+}
+
+/* The number is the thing being reached for, so it carries the weight and the
+   brand red. Padded on the left so the tap target reaches past the digits
+   without pushing the label around. */
+.pt-helpline-list a {
+  padding: 4px 0 4px 16px;
+  font-size: clamp(1.15rem, 4.8vw, 1.3rem);
+  font-weight: 800;
+  color: var(--pt-amber);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.pt-dialog-back {
+  justify-self: start;
+  min-height: 44px;
+  padding: 10px 22px;
+  border: 1px solid var(--pt-border);
+  border-radius: 12px;
+  background: var(--pt-bg);
+  color: var(--pt-sub);
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 .pt-sos-cancel {
   justify-self: center;
   background: none;

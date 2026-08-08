@@ -30,7 +30,9 @@
       <div class="pt-logo">
         <a href="https://parktag.me" aria-label="ParkTag home" style="display:inline-flex;align-items:center;text-decoration:none"><img src="/images/dark-logo.png" alt="ParkTag" style="height:42px;width:auto;mix-blend-mode:lighten;"></a>
       </div>
-      <div class="pt-header-badge" id="tag-chip">Checking…</div>
+      <!-- Shown only for a tag that still needs registering. Starts hidden and
+           empty so an active tag never flashes "Checking…" before it clears. -->
+      <div class="pt-header-badge" id="tag-chip" hidden></div>
     </header>
 
     <main class="pt-main">

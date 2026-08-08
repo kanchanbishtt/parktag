@@ -3848,7 +3848,10 @@ html:has(body.pt-hub-body) {
   letter-spacing: normal;
 }
 
-.pt-verify-cancel {
+/* Shared by the verification card and the contact card's number panel, so the
+   two ways out of this flow look and measure the same. Deliberately quiet:
+   next to a red primary button it must read as the way back, not a rival. */
+.pt-cancel-action {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -3863,6 +3866,19 @@ html:has(body.pt-hub-body) {
   font-size: 0.95rem;
   font-weight: 600;
   text-decoration: none;
+  /* As a <button> it would otherwise inherit the UA font, not Inter. */
+  font-family: inherit;
+  cursor: pointer;
+}
+
+/* .pt-panel is a grid, whose items stretch to the full column by default —
+   which would blow this up to the width of "Continue to call" and turn the way
+   back into a second, competing button. Sized to its text and pinned left, so
+   it reads exactly as it does on the verification card. */
+.pt-panel .pt-cancel-action {
+  justify-self: start;
+  width: fit-content;
+  margin-top: 2px;
 }
 
 /* Country code + number: the code keeps just enough room for its longest

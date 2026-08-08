@@ -241,6 +241,36 @@
           </button>
         </div>
 
+        <!-- Emergency gate. The SOS call reaches a third party the owner
+             nominated — someone who never opted in — so the tap has to be
+             deliberate before their phone rings. A <dialog> rather than an
+             inline panel: it takes focus, traps it, and closes on Escape,
+             which is what makes this a decision rather than a step. -->
+        <dialog class="pt-dialog" id="sos-confirm" aria-labelledby="sos-confirm-title">
+          <div class="pt-dialog-head">
+            <h2 class="pt-dialog-title" id="sos-confirm-title">Emergency</h2>
+            <button type="button" class="pt-dialog-close" id="sos-confirm-close" aria-label="Close">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+              </svg>
+            </button>
+          </div>
+          <div class="pt-dialog-body">
+            <p class="pt-dialog-copy">
+              Using emergency info for spam or prank is a punishable offence. Please use
+              this only in case of a real emergency (e.g. accident, medical need, or to
+              reach the vehicle owner's family).
+            </p>
+            <label class="pt-dialog-check">
+              <input type="checkbox" id="sos-confirm-check" />
+              <span>I confirm this is a genuine emergency and I need to contact the owner or emergency services.</span>
+            </label>
+            <button type="button" id="sos-confirm-continue" class="pt-btn pt-btn-sos pt-btn-full" disabled>
+              View emergency contacts
+            </button>
+          </div>
+        </dialog>
+
         <!-- SOS phone capture — mirrors the owner-call panel, separate ids so the
              two flows never share state. -->
         <div id="sos-number-panel" class="pt-panel pt-panel-sos" hidden>

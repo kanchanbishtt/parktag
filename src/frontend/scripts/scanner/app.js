@@ -199,6 +199,31 @@ function closeSosPanels() {
   setHidden("sos-dial-number-block", true);
 }
 
+// The SOS call rings a third party the owner nominated — someone who never
+// opted in — so the tap has to be deliberate before their phone goes off. The
+// gate is re-armed on every open rather than remembered for the visit: a
+// confirmation that carries over is one someone made for a different tap.
+function openSosConfirm() {
+  const dialog = byId("sos-confirm");
+  const check = byId("sos-confirm-check");
+
+  if (check) {
+    check.checked = false;
+  }
+  setDisabled("sos-confirm-continue", true);
+
+  // No <dialog> support (older in-app browsers) would mean the Emergency button
+  // silently does nothing, which is the worst possible failure here. Fall
+  // straight through to the panel instead — the gate is a deterrent, not a
+  // security control.
+  if (!dialog || typeof dialog.showModal !== "function") {
+    openSosPanel();
+    return;
+  }
+
+  dialog.showModal();
+}
+
 function openSosPanel() {
   // Close the ordinary contact panels so only one flow is ever live.
   setHidden("contact-number-panel", true);
@@ -948,8 +973,25 @@ byId("contact-number-cancel")?.addEventListener("click", () => {
   setRequestStatus("request-status", "", "info");
 });
 
-// Emergency / SOS
-byId("sos-button")?.addEventListener("click", openSosPanel);
+// Emergency / SOS — the button opens the confirmation gate, which is the only
+// thing that opens the panel.
+byId("sos-button")?.addEventListener("click", openSosConfirm);
+byId("sos-confirm-check")?.addEventListener("change", (event) => {
+  setDisabled("sos-confirm-continue", !event.target.checked);
+});
+byId("sos-confirm-close")?.addEventListener("click", () => {
+  byId("sos-confirm")?.close();
+});
+byId("sos-confirm-continue")?.addEventListener("click", () => {
+  // Re-read the box rather than trusting the button's own disabled state: the
+  // two are set in different places, and this is the last point before a
+  // stranger's phone rings.
+  if (!byId("sos-confirm-check")?.checked) {
+    return;
+  }
+  byId("sos-confirm")?.close();
+  openSosPanel();
+});
 byId("sos-number-submit")?.addEventListener("click", handleSosNumberSubmit);
 byId("sos-final-call-button")?.addEventListener("click", handleSosCall);
 byId("sos-cancel")?.addEventListener("click", () => {

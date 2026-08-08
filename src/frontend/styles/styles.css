@@ -1814,6 +1814,99 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
   background: #FFF6F4;
 }
 
+/* ── Emergency confirmation dialog ──
+   Proportioned off .pt-card rather than invented: same 20px radius, same 24px
+   inset, same type scale, so it reads as this product asking a question rather
+   than as a browser alert. Capped at the card's own 480px and at 92vw, so it
+   never reaches the screen edge on a phone. */
+.pt-dialog {
+  width: min(92vw, 480px);
+  padding: 0;
+  border: 1px solid rgba(0, 25, 53, 0.07);
+  border-radius: 20px;
+  background: var(--pt-white);
+  color: var(--pt-ink);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04), 0 18px 48px rgba(0, 25, 53, 0.22);
+  overflow: hidden;
+}
+
+.pt-dialog::backdrop {
+  background: rgba(3, 22, 45, 0.55);
+}
+
+.pt-dialog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 24px;
+  border-bottom: 1px solid #CBD5E1;
+}
+
+.pt-dialog-title {
+  margin: 0;
+  font-size: clamp(1.05rem, 4.4vw, 1.18rem);
+  font-weight: 800;
+  color: var(--pt-ink);
+}
+
+/* A rounded square rather than a circle, to sit with the card's rounded
+   rectangles. 40px is a comfortable tap target without competing with the
+   title beside it. */
+.pt-dialog-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 12px;
+  background: var(--pt-bg);
+  color: var(--pt-sub);
+  cursor: pointer;
+}
+
+.pt-dialog-close:hover {
+  background: #E4E8EF;
+}
+
+.pt-dialog-body {
+  display: grid;
+  gap: 16px;
+  padding: 20px 24px 24px;
+}
+
+.pt-dialog-copy {
+  margin: 0;
+  font-size: clamp(0.9rem, 3.6vw, 0.97rem);
+  line-height: 1.55;
+  color: var(--pt-sub);
+}
+
+/* Aligned to `start`, not `center`: the label runs to three lines on a phone,
+   and a centred box would float to the middle of the paragraph. */
+.pt-dialog-check {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  font-size: clamp(0.88rem, 3.5vw, 0.94rem);
+  line-height: 1.45;
+  color: var(--pt-ink);
+  cursor: pointer;
+}
+
+.pt-dialog-check input {
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  /* Sits on the first line's baseline rather than its ascender. */
+  margin-top: 1px;
+  accent-color: var(--pt-amber);
+  cursor: pointer;
+}
+
 .pt-sos-cancel {
   justify-self: center;
   background: none;

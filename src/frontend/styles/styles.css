@@ -7,9 +7,6 @@
   --line: #E2E8F0;
   --accent: #FF2700;
   --accent-dark: #D92200;
-  /* The yellow the printed sticker artwork already uses — the brand's second
-     colour, and what the slide-out menu accents with. */
-  --pt-yellow: #FEE600;
   --success: #FF2700;
   --error: #DC2626;
   --shadow: 0 20px 40px rgba(0, 25, 53, 0.08);
@@ -4280,7 +4277,7 @@ html:has(body.pt-hub-body) {
 .pt-nav-brand {
   background: #FFFFFF;
   border: 1px solid #EDEFF3;
-  border-left: 5px solid var(--pt-yellow);
+  border-left: 5px solid var(--pt-navy);
   border-radius: 12px;
   padding: 11px 15px;
 }
@@ -4364,8 +4361,8 @@ html:has(body.pt-hub-body) {
   transition: background .18s ease, color .18s ease;
 }
 .pt-nav-tab[aria-selected="true"] {
-  background: var(--pt-yellow);
-  color: #0F172A;
+  background: var(--pt-navy);
+  color: #FFFFFF;
   font-weight: 700;
 }
 
@@ -4394,11 +4391,11 @@ html:has(body.pt-hub-body) {
 /* The first row of each section is the one we want tapped — tinted, and
    outlined in the brand yellow rather than the neutral hairline. */
 .pt-nav-item-lead {
-  background: #FFFEF3;
-  border: 2px solid var(--pt-yellow);
+  background: #F5F8FC;
+  border: 2px solid var(--pt-navy);
   padding: 11px 13px;
 }
-.pt-nav-item-lead:hover { border-color: #EBD500; }
+.pt-nav-item-lead:hover { border-color: #0B2244; }
 
 .pt-nav-item-ic {
   display: inline-flex;
@@ -4412,8 +4409,8 @@ html:has(body.pt-hub-body) {
   color: #334155;
 }
 .pt-nav-item-ic[data-tone="brand"] {
-  background: var(--pt-yellow);
-  color: #0F172A;
+  background: var(--pt-navy);
+  color: #FFFFFF;
 }
 
 .pt-nav-item-tx { min-width: 0; display: block; }

@@ -7,6 +7,9 @@
   --line: #E2E8F0;
   --accent: #FF2700;
   --accent-dark: #D92200;
+  /* The yellow the printed sticker artwork already uses — the brand's second
+     colour, and what the slide-out menu accents with. */
+  --pt-yellow: #FEE600;
   --success: #FF2700;
   --error: #DC2626;
   --shadow: 0 20px 40px rgba(0, 25, 53, 0.08);
@@ -4156,4 +4159,346 @@ html:has(body.pt-hub-body) {
     width: 100%;
     margin: 0 auto;
   }
+}
+
+/* ============================================================
+   SLIDE-OUT MENU (scan page header burger)
+   ============================================================ */
+
+/* The header is `justify-content: space-between`, so the badge and the burger
+   share one right-hand slot instead of fighting the logo for it. */
+.pt-header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.pt-burger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border-radius: 11px;
+  border: 1px solid rgba(255,255,255,0.16);
+  background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.92);
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease;
+}
+.pt-burger:hover { background: rgba(255,255,255,0.14); }
+.pt-burger:active { background: rgba(255,255,255,0.2); }
+
+/* Scrim */
+.pt-nav-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  background: rgba(3,22,45,0.42);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity .26s ease, visibility 0s linear .26s;
+}
+.pt-nav-scrim.is-open {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity .26s ease;
+}
+
+/* Drawer shell */
+.pt-nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  z-index: 71;
+  width: 88%;
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  background: #FBFAF4;
+  border-radius: 0 18px 18px 0;
+  box-shadow: 0 20px 60px rgba(3,22,45,0.30);
+  transform: translateX(-104%);
+  visibility: hidden;
+  transition: transform .28s cubic-bezier(.2,.7,.3,1), visibility 0s linear .28s;
+  font-family: 'Inter', 'Roboto', "Segoe UI", sans-serif;
+}
+.pt-nav.is-open {
+  transform: none;
+  visibility: visible;
+  transition: transform .28s cubic-bezier(.2,.7,.3,1);
+}
+
+/* Drawer header — white, so it carries the light logo, not the dark one. */
+.pt-nav-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #FFFFFF;
+  border-radius: 0 18px 0 0;
+  border-bottom: 1px solid #EDEFF3;
+  padding: 14px 16px 14px calc(18px + env(safe-area-inset-left, 0px));
+  padding-top: calc(14px + env(safe-area-inset-top, 0px));
+}
+
+.pt-nav-logo-link { display: inline-flex; align-items: center; text-decoration: none; }
+.pt-nav-logo { height: 26px; width: auto; display: block; }
+
+.pt-nav-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 35px;
+  height: 34px;
+  padding: 0;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 10px;
+  background: #EEF1F6;
+  color: #64748B;
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease;
+}
+.pt-nav-close:hover { background: #E3E8F0; color: #334155; }
+
+/* Scrolling body */
+.pt-nav-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: 14px 16px calc(18px + env(safe-area-inset-bottom, 0px));
+  padding-left: calc(16px + env(safe-area-inset-left, 0px));
+}
+
+/* Brand card */
+.pt-nav-brand {
+  background: #FFFFFF;
+  border: 1px solid #EDEFF3;
+  border-left: 5px solid var(--pt-yellow);
+  border-radius: 12px;
+  padding: 11px 15px;
+}
+.pt-nav-brand-name {
+  margin: 0;
+  font-size: 1.06rem;
+  font-weight: 800;
+  color: #0F172A;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+}
+.pt-nav-brand-sub {
+  margin: 3px 0 0;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: #94A3B8;
+  line-height: 1.35;
+}
+
+/* Three quick tiles */
+.pt-nav-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 9px;
+  margin-top: 13px;
+}
+.pt-nav-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 65px;
+  padding: 9px 4px;
+  background: #FFFFFF;
+  border: 1px solid #E6E9EF;
+  border-radius: 12px;
+  color: #0F172A;
+  text-decoration: none;
+  transition: border-color .15s ease, background .15s ease;
+}
+.pt-nav-tile:hover { border-color: #CBD5E1; background: #FDFDFB; }
+.pt-nav-tile span {
+  font-size: 0.79rem;
+  font-weight: 600;
+  color: #0F172A;
+  text-align: center;
+  line-height: 1.2;
+}
+
+/* "MENU" eyebrow */
+.pt-nav-eyebrow {
+  margin: 18px 0 10px;
+  font-size: 0.70rem;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: #94A3B8;
+}
+
+/* Segmented tabs */
+.pt-nav-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+  padding: 3px;
+  background: #EEF1F6;
+  border-radius: 999px;
+}
+.pt-nav-tab {
+  padding: 5px 4px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: #64748B;
+  font-family: inherit;
+  font-size: 0.845rem;
+  font-weight: 600;
+  line-height: 1.15;
+  cursor: pointer;
+  transition: background .18s ease, color .18s ease;
+}
+.pt-nav-tab[aria-selected="true"] {
+  background: var(--pt-yellow);
+  color: #0F172A;
+  font-weight: 700;
+}
+
+/* Menu lists */
+.pt-nav-list {
+  display: grid;
+  gap: 9px;
+  margin-top: 13px;
+}
+.pt-nav-list[hidden] { display: none; }
+
+.pt-nav-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: #FFFFFF;
+  border: 1px solid #E6E9EF;
+  border-radius: 12px;
+  text-decoration: none;
+  transition: border-color .15s ease, background .15s ease;
+}
+.pt-nav-item:hover { border-color: #CBD5E1; }
+
+/* The first row of each section is the one we want tapped — tinted, and
+   outlined in the brand yellow rather than the neutral hairline. */
+.pt-nav-item-lead {
+  background: #FFFEF3;
+  border: 2px solid var(--pt-yellow);
+  padding: 11px 13px;
+}
+.pt-nav-item-lead:hover { border-color: #EBD500; }
+
+.pt-nav-item-ic {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 35px;
+  height: 35px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  background: #EEF2F7;
+  color: #334155;
+}
+.pt-nav-item-ic[data-tone="brand"] {
+  background: var(--pt-yellow);
+  color: #0F172A;
+}
+
+.pt-nav-item-tx { min-width: 0; display: block; }
+.pt-nav-item-t {
+  display: block;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #0F172A;
+  line-height: 1.3;
+}
+.pt-nav-item-s {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.775rem;
+  font-weight: 500;
+  color: #94A3B8;
+  line-height: 1.3;
+}
+.pt-nav-item-ar {
+  display: inline-flex;
+  align-items: center;
+  color: #94A3B8;
+  flex-shrink: 0;
+}
+
+/* Need help */
+.pt-nav-help {
+  margin-top: 14px;
+  padding: 15px;
+  background: #FFFFFF;
+  border: 1px solid #EDEFF3;
+  border-radius: 12px;
+}
+.pt-nav-help-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
+  color: #0F172A;
+  line-height: 1.25;
+}
+.pt-nav-help-copy {
+  margin: 5px 0 13px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: #94A3B8;
+  line-height: 1.45;
+}
+.pt-nav-whatsapp {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 13px 14px;
+  border-radius: 11px;
+  background: #22A94F;
+  color: #FFFFFF;
+  font-size: 0.94rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: background .15s ease;
+}
+.pt-nav-whatsapp:hover { background: #1D9445; }
+
+/* Footer */
+.pt-nav-foot {
+  margin-top: 16px;
+  text-align: center;
+}
+.pt-nav-foot-made,
+.pt-nav-foot-links {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #94A3B8;
+  line-height: 1.6;
+}
+.pt-nav-foot-links a {
+  color: #94A3B8;
+  text-decoration: none;
+}
+.pt-nav-foot-links a:hover { color: #64748B; text-decoration: underline; }
+
+/* Freeze the page behind the drawer so a scroll gesture moves the menu. */
+body.pt-nav-open { overflow: hidden; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pt-nav, .pt-nav-scrim { transition: none; }
 }

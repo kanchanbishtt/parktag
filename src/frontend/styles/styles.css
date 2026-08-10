@@ -4499,3 +4499,14 @@ body.pt-nav-open { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) {
   .pt-nav, .pt-nav-scrim { transition: none; }
 }
+
+/* The wordmark's image box includes the p/g descenders, so its geometric
+   middle sits ~2.5px below where the eye reads the middle — the midpoint
+   between cap-top and baseline. Centring the burger on the box therefore
+   leaves it looking low next to the logo. Lift it onto the wordmark's
+   optical centre instead. Measured off dark-logo.png: cap-top 64, baseline
+   183 of 280 natural rows, rendered at 42px. A transform keeps the layout
+   and the tap target where they are. */
+.scanner-body .pt-burger {
+  transform: translateY(-2.5px);
+}

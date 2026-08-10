@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>ParkTag | Track your order</title>
+    <link rel="stylesheet" href="/styles/styles.css?v=__SCANNER_ASSET_VERSION__" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+      @keyframes pt-pop { from { opacity: 0; transform: translateY(10px) scale(.985); } to { opacity: 1; transform: none; } }
+      #track-result:not([hidden]) { animation: pt-pop .3s cubic-bezier(.2,.7,.3,1) both; }
+      @media (prefers-reduced-motion: reduce) {
+        #track-result:not([hidden]) { animation: none; }
+      }
+    </style>
+  </head>
+  <body class="scanner-body">
+
+    <header class="pt-header">
+      <div class="pt-logo">
+        <a href="https://parktag.me" aria-label="ParkTag home" style="display:inline-flex;align-items:center;text-decoration:none"><img src="/images/dark-logo.png" alt="ParkTag" style="height:42px;width:auto;mix-blend-mode:lighten;"></a>
+      </div>
+      <div class="pt-header-right">
+        <!-- Goes back to wherever the buyer came from (usually the scan page
+             drawer), falling back to the shop for a direct visit or a link
+             opened fresh. -->
+        <a class="pt-burger" id="track-back" href="/shop" aria-label="Go back">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </a>
+      </div>
+    </header>
+
+    <main class="pt-main">
+
+      <article class="pt-card">
+        <div class="pt-track-intro">
+          <h1 class="pt-card-title">Manage your order</h1>
+          <p class="pt-card-sub">Enter your order ID to check status and details.</p>
+        </div>
+
+        <!-- Neither field carries a `name`, deliberately. The lookup is done by
+             fetch from track-order.js, which reads them by id; a name would
+             only matter if the browser ever performed a NATIVE submit — while
+             the module is still loading, or if it failed to load at all — and
+             that submit would put the order ID and the phone digits into the
+             URL, the address bar and history. Nameless fields are omitted from
+             the form data, so the fallback navigation is a bare reload. -->
+        <form id="track-form" class="pt-track-form" novalidate>
+          <label class="pt-track-label" for="track-order-id">Order ID</label>
+          <input id="track-order-id" class="pt-input" type="text"
+                 placeholder="e.g. PT-260728-00042" autocomplete="off"
+                 autocapitalize="characters" spellcheck="false" />
+
+          <label class="pt-track-label" for="track-last-four">Last 4 digits of the delivery phone number</label>
+          <input id="track-last-four" class="pt-input" type="text"
+                 maxlength="4" inputmode="numeric" autocomplete="off"
+                 placeholder="1234" />
+
+          <button id="track-submit" class="pt-btn pt-btn-primary pt-btn-full pt-track-submit" type="submit">Find my order</button>
+        </form>
+
+        <p id="track-status" class="pt-status" data-tone="info">Your order ID is on the confirmation we sent you.</p>
+      </article>
+
+      <!-- Filled in from /api/shop/track-order. Everything here describes the
+           parcel; no name, phone or address is ever returned to this page. -->
+      <article class="pt-card" id="track-result" hidden>
+        <div class="pt-track-head">
+          <h2 class="pt-track-order-no" id="track-result-number"></h2>
+          <p class="pt-track-meta" id="track-result-meta"></p>
+        </div>
+
+        <div class="pt-track-current">
+          <span class="pt-track-current-eyebrow">Current status</span>
+          <span class="pt-track-current-status" id="track-result-status"></span>
+          <span class="pt-track-current-time" id="track-result-time" hidden></span>
+        </div>
+
+        <div id="track-timeline"></div>
+
+        <a id="track-courier-link" class="pt-track-courier" target="_blank" rel="noopener noreferrer" hidden>Open on Delhivery &#8599;</a>
+
+        <hr class="pt-verify-rule" />
+
+        <button type="button" id="track-reset" class="pt-cancel-action">Track another order</button>
+      </article>
+
+    </main>
+
+    <script type="module" src="/scripts/scanner/track-order.js?v=__SCANNER_ASSET_VERSION__"></script>
+    <script src="/scripts/ux-feedback.js"></script>
+  </body>
+</html>

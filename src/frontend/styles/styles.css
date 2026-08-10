@@ -4239,12 +4239,18 @@ html:has(body.pt-hub-body) {
   background: #FFFFFF;
   border-radius: 0 18px 0 0;
   border-bottom: 1px solid #EDEFF3;
-  padding: 14px 16px 14px calc(18px + env(safe-area-inset-left, 0px));
-  padding-top: calc(14px + env(safe-area-inset-top, 0px));
+  min-height: 64px;
+  /* 10px at the bottom, not 11: this bar carries a 1px border the page
+     header does not, so the shorter pad keeps both bars at 64px and the
+     logo dead-centre in each. */
+  padding: 11px 16px 10px calc(14px + env(safe-area-inset-left, 0px));
+  padding-top: calc(11px + env(safe-area-inset-top, 0px));
 }
 
 .pt-nav-logo-link { display: inline-flex; align-items: center; text-decoration: none; }
-.pt-nav-logo { height: 26px; width: auto; display: block; }
+/* Same 42px as dark-logo.png on the page behind — the two files share a
+   745x280 frame, so equal heights render identically. */
+.pt-nav-logo { height: 42px; width: auto; display: block; }
 
 .pt-nav-close {
   display: inline-flex;

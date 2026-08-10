@@ -30,9 +30,17 @@
       <div class="pt-logo">
         <a href="https://parktag.me" aria-label="ParkTag home" style="display:inline-flex;align-items:center;text-decoration:none"><img src="/images/dark-logo.png" alt="ParkTag" style="height:42px;width:auto;mix-blend-mode:lighten;"></a>
       </div>
-      <!-- Shown only for a tag that still needs registering. Starts hidden and
-           empty so an active tag never flashes "Checking…" before it clears. -->
-      <div class="pt-header-badge" id="tag-chip" hidden></div>
+      <div class="pt-header-right">
+        <!-- Shown only for a tag that still needs registering. Starts hidden and
+             empty so an active tag never flashes "Checking…" before it clears. -->
+        <div class="pt-header-badge" id="tag-chip" hidden></div>
+        <button type="button" class="pt-burger" id="pt-nav-open"
+                aria-label="Open menu" aria-controls="pt-nav" aria-expanded="false">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
     </header>
 
     <main class="pt-main">
@@ -428,7 +436,226 @@
 
     </main>
 
+    <!-- ── Slide-out menu, opened from the header burger ──────────────────
+         Everything here points off the scan flow, so it lives outside <main>
+         and stays inert until opened (see scripts/scanner/menu.js). -->
+    <div class="pt-nav-scrim" id="pt-nav-scrim"></div>
+
+    <nav class="pt-nav" id="pt-nav" aria-label="Menu" inert>
+
+      <div class="pt-nav-head">
+        <a class="pt-nav-logo-link" href="https://parktag.me" aria-label="ParkTag home">
+          <img class="pt-nav-logo" src="/images/light-logo.png" alt="ParkTag" />
+        </a>
+        <button type="button" class="pt-nav-close" id="pt-nav-close" aria-label="Close menu">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="pt-nav-body">
+
+        <div class="pt-nav-brand">
+          <p class="pt-nav-brand-name">ParkTag</p>
+          <p class="pt-nav-brand-sub">Smart tags for cars, bikes &amp; fleets.</p>
+        </div>
+
+        <div class="pt-nav-tiles">
+          <a class="pt-nav-tile" href="/shop">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M4 8h16l-1.2 11a2 2 0 0 1-2 1.8H7.2a2 2 0 0 1-2-1.8L4 8Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+              <path d="M9 8V6a3 3 0 0 1 6 0v2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            </svg>
+            <span>Shop</span>
+          </a>
+          <a class="pt-nav-tile" href="/register-owner">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <rect x="3" y="3" width="7" height="7" rx="1.4" stroke="currentColor" stroke-width="1.8"/>
+              <rect x="14" y="3" width="7" height="7" rx="1.4" stroke="currentColor" stroke-width="1.8"/>
+              <rect x="3" y="14" width="7" height="7" rx="1.4" stroke="currentColor" stroke-width="1.8"/>
+              <path d="M14 14h3v3h-3zM20 14h1M14 20h3M20 17v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            </svg>
+            <span>Free eTag</span>
+          </a>
+          <a class="pt-nav-tile" href="/owner">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M3 11.5 11.2 3.3a2 2 0 0 1 1.4-.6H19a2 2 0 0 1 2 2v6.4a2 2 0 0 1-.6 1.4L12.2 21a1.6 1.6 0 0 1-2.3 0L3 14.1a1.8 1.8 0 0 1 0-2.6Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+              <circle cx="16.3" cy="7.7" r="1.5" fill="currentColor"/>
+            </svg>
+            <span>My Tags</span>
+          </a>
+        </div>
+
+        <p class="pt-nav-eyebrow">Menu</p>
+
+        <div class="pt-nav-tabs" role="tablist" aria-label="Menu sections">
+          <button type="button" class="pt-nav-tab" role="tab" id="pt-nav-tab-utility"
+                  aria-selected="true" aria-controls="pt-nav-panel-utility">Utility</button>
+          <button type="button" class="pt-nav-tab" role="tab" id="pt-nav-tab-business"
+                  aria-selected="false" aria-controls="pt-nav-panel-business" tabindex="-1">Business</button>
+          <button type="button" class="pt-nav-tab" role="tab" id="pt-nav-tab-more"
+                  aria-selected="false" aria-controls="pt-nav-panel-more" tabindex="-1">More</button>
+        </div>
+
+        <div class="pt-nav-list" id="pt-nav-panel-utility" role="tabpanel" aria-labelledby="pt-nav-tab-utility">
+          <a class="pt-nav-item pt-nav-item-lead" href="/shop">
+            <span class="pt-nav-item-ic" data-tone="brand">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M4 8h16l-1.2 11a2 2 0 0 1-2 1.8H7.2a2 2 0 0 1-2-1.8L4 8Z" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/>
+                <path d="M9 8V6a3 3 0 0 1 6 0v2" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+              </svg>
+            </span>
+            <span class="pt-nav-item-tx">
+              <span class="pt-nav-item-t">Shop all products</span>
+              <span class="pt-nav-item-s">Car tags, bike tags &amp; combo packs</span>
+            </span>
+            <span class="pt-nav-item-ar" aria-hidden="true">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+          </a>
+          <a class="pt-nav-item" href="/shop">
+            <span class="pt-nav-item-ic">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <rect x="2.5" y="9" width="19" height="8.5" rx="2" stroke="currentColor" stroke-width="1.9"/>
+                <path d="M5.5 9 7.4 5.2A1.6 1.6 0 0 1 8.8 4.3h6.4a1.6 1.6 0 0 1 1.4.9L18.5 9" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/>
+                <circle cx="7" cy="17.5" r="1.4" fill="currentColor"/><circle cx="17" cy="17.5" r="1.4" fill="currentColor"/>
+              </svg>
+            </span>
+            <span class="pt-nav-item-tx">
+              <span class="pt-nav-item-t">Car ParkTag</span>
+              <span class="pt-nav-item-s">Parking &amp; emergencies</span>
+            </span>
+            <span class="pt-nav-item-ar" aria-hidden="true">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+          </a>
+          <a class="pt-nav-item" href="/shop">
+            <span class="pt-nav-item-ic">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="5.5" cy="16.5" r="3.4" stroke="currentColor" stroke-width="1.8"/>
+                <circle cx="18.5" cy="16.5" r="3.4" stroke="currentColor" stroke-width="1.8"/>
+                <path d="M5.5 16.5 9 8h5l4 8.5M9 8h6.5M12.5 8l2 4.5H8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
+            <span class="pt-nav-item-tx">
+              <span class="pt-nav-item-t">Bike ParkTag</span>
+              <span class="pt-nav-item-s">Built for two-wheelers</span>
+            </span>
+            <span class="pt-nav-item-ar" aria-hidden="true">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+          </a>
+        </div>
+
+        <div class="pt-nav-list" id="pt-nav-panel-business" role="tabpanel" aria-labelledby="pt-nav-tab-business" hidden>
+          <a class="pt-nav-item pt-nav-item-lead" href="https://parktag.me/#pricing">
+            <span class="pt-nav-item-ic" data-tone="brand">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <rect x="2.5" y="10.5" width="9" height="7" rx="1.6" stroke="currentColor" stroke-width="1.9"/>
+                <rect x="12.5" y="6.5" width="9" height="11" rx="1.6" stroke="currentColor" stroke-width="1.9"/>
+                <path d="M4.5 20h15" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+              </svg>
+            </span>
+            <span class="pt-nav-item-tx">
+              <span class="pt-nav-item-t">Fleet &amp; bulk tags</span>
+              <span class="pt-nav-item-s">Bulk pricing for 10+ vehicles</span>
+            </span>
+            <span class="pt-nav-item-ar" aria-hidden="true">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+          </a>
+          <a class="pt-nav-item" href="https://parktag.me/contact">
+            <span class="pt-nav-item-ic">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M21 15.9v2.7a1.9 1.9 0 0 1-2.1 1.9 18.8 18.8 0 0 1-8.2-2.9 18.5 18.5 0 0 1-5.7-5.7A18.8 18.8 0 0 1 2.1 3.7 1.9 1.9 0 0 1 4 1.6h2.7a1.9 1.9 0 0 1 1.9 1.6c.12.9.34 1.8.66 2.6a1.9 1.9 0 0 1-.43 2L7.7 9.1a15.2 15.2 0 0 0 5.7 5.7l1.3-1.1a1.9 1.9 0 0 1 2-.43c.85.32 1.74.54 2.65.66A1.9 1.9 0 0 1 21 15.9Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+              </svg>
+            </span>
+            <span class="pt-nav-item-tx">
+              <span class="pt-nav-item-t">Talk to sales</span>
+              <span class="pt-nav-item-s">Get a quote for your fleet</span>
+            </span>
+            <span class="pt-nav-item-ar" aria-hidden="true">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+          </a>
+        </div>
+
+        <div class="pt-nav-list" id="pt-nav-panel-more" role="tabpanel" aria-labelledby="pt-nav-tab-more" hidden>
+          <a class="pt-nav-item pt-nav-item-lead" href="/owner">
+            <span class="pt-nav-item-ic" data-tone="brand">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="12" cy="8" r="3.6" stroke="currentColor" stroke-width="1.9"/>
+                <path d="M4.5 20c0-3.8 3.4-6.5 7.5-6.5s7.5 2.7 7.5 6.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+              </svg>
+            </span>
+            <span class="pt-nav-item-tx">
+              <span class="pt-nav-item-t">Owner dashboard</span>
+              <span class="pt-nav-item-s">Manage tags &amp; contact requests</span>
+            </span>
+            <span class="pt-nav-item-ar" aria-hidden="true">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+          </a>
+          <a class="pt-nav-item" href="/register-owner">
+            <span class="pt-nav-item-ic">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.9"/>
+                <path d="M12 8v8M8 12h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+            </span>
+            <span class="pt-nav-item-tx">
+              <span class="pt-nav-item-t">Register a tag</span>
+              <span class="pt-nav-item-s">Activate a new ParkTag sticker</span>
+            </span>
+            <span class="pt-nav-item-ar" aria-hidden="true">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+          </a>
+          <a class="pt-nav-item" href="https://parktag.me/about">
+            <span class="pt-nav-item-ic">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.9"/>
+                <path d="M12 16v-4.5M12 8h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+            </span>
+            <span class="pt-nav-item-tx">
+              <span class="pt-nav-item-t">About ParkTag</span>
+              <span class="pt-nav-item-s">How it works &amp; who we are</span>
+            </span>
+            <span class="pt-nav-item-ar" aria-hidden="true">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+          </a>
+        </div>
+
+        <section class="pt-nav-help">
+          <h2 class="pt-nav-help-title">Need help?</h2>
+          <p class="pt-nav-help-copy">Read our activation guide or chat with us on WhatsApp.</p>
+          <a class="pt-nav-whatsapp" href="https://wa.me/918791638854" target="_blank" rel="noopener noreferrer">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M17.5 14.4c-.3-.15-1.75-.86-2-.96-.27-.1-.47-.15-.66.15-.2.3-.76.95-.93 1.15-.17.2-.34.22-.63.07-.3-.15-1.25-.46-2.38-1.47-.88-.78-1.47-1.75-1.64-2.05-.17-.3-.02-.46.13-.6.14-.14.3-.35.45-.53.15-.18.2-.3.3-.5.1-.2.05-.38-.02-.53-.08-.15-.66-1.6-.9-2.19-.24-.57-.48-.5-.66-.5h-.56c-.2 0-.5.07-.77.37-.26.3-1 .98-1 2.4s1.03 2.78 1.17 2.98c.15.2 2.02 3.08 4.9 4.32.68.3 1.22.47 1.64.6.69.22 1.31.19 1.81.11.55-.08 1.75-.71 2-1.4.24-.69.24-1.28.17-1.4-.07-.13-.27-.2-.56-.35ZM12.05 21.3h-.02a9.2 9.2 0 0 1-4.68-1.28l-.34-.2-3.48.91.93-3.4-.22-.35a9.19 9.19 0 0 1-1.4-4.9c0-5.07 4.13-9.2 9.22-9.2a9.15 9.15 0 0 1 9.19 9.21c0 5.07-4.13 9.2-9.2 9.2ZM12.05 1.05C5.9 1.05.9 6.05.9 12.19c0 1.96.51 3.88 1.49 5.57L.8 23.2l5.58-1.46a11.1 11.1 0 0 0 5.66 1.51h.01c6.14 0 11.14-5 11.14-11.14 0-2.98-1.16-5.78-3.26-7.88a11.06 11.06 0 0 0-7.88-3.18Z"/>
+            </svg>
+            Chat on WhatsApp
+          </a>
+        </section>
+
+        <footer class="pt-nav-foot">
+          <p class="pt-nav-foot-made">Made in India · ParkTag</p>
+          <p class="pt-nav-foot-links">
+            <a href="https://parktag.me/terms">Terms</a>
+            <span aria-hidden="true">·</span>
+            <a href="https://parktag.me/privacy">Privacy</a>
+            <span aria-hidden="true">·</span>
+            <a href="https://parktag.me/refund">Refund</a>
+          </p>
+        </footer>
+
+      </div>
+    </nav>
+
     <script type="module" src="/scripts/scanner/app.js?v=__SCANNER_ASSET_VERSION__"></script>
+    <script type="module" src="/scripts/scanner/menu.js?v=__SCANNER_ASSET_VERSION__"></script>
     <script src="/scripts/ux-feedback.js"></script>
 </body>
 </html>

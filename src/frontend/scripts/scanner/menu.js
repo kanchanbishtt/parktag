@@ -13,6 +13,17 @@ if (drawer && scrim && openButton && closeButton) {
   // Focus returns here on close, so a keyboard user lands back where they were.
   let lastFocused = null;
 
+  // The open menu gets its own history entry. Two things fall out of that: the
+  // Android back gesture closes the menu instead of leaving the page, and
+  // following a link out of the menu then pressing Back returns to the OPEN
+  // menu rather than the scan card behind it.
+  //
+  // The entry's state is what carries the menu across that round trip, not a
+  // restored DOM — this page is served `no-store`, which disables bfcache, so
+  // coming back is always a fresh load.
+  const NAV_STATE = "ptNavOpen";
+  const isNavEntry = () => Boolean(history.state && history.state[NAV_STATE]);
+
   const FOCUSABLE =
     'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
@@ -26,7 +37,7 @@ if (drawer && scrim && openButton && closeButton) {
     return drawer.classList.contains("is-open");
   }
 
-  function openMenu() {
+  function openMenu({ restoring = false } = {}) {
     if (isOpen()) return;
     lastFocused = document.activeElement;
     // `inert` is what actually keeps the links out of the tab order and off the
@@ -37,9 +48,14 @@ if (drawer && scrim && openButton && closeButton) {
     document.body.classList.add("pt-nav-open");
     openButton.setAttribute("aria-expanded", "true");
     closeButton.focus();
+    // Restoring means we are already standing on the menu's entry; pushing
+    // again would stack a second one and take two Backs to escape.
+    if (!restoring) {
+      history.pushState({ [NAV_STATE]: true, tab: selectedTabId() }, "");
+    }
   }
 
-  function closeMenu() {
+  function closeMenu({ fromHistory = false } = {}) {
     if (!isOpen()) return;
     drawer.classList.remove("is-open");
     scrim.classList.remove("is-open");
@@ -55,11 +71,22 @@ if (drawer && scrim && openButton && closeButton) {
         : openButton;
     returnTo.focus();
     drawer.setAttribute("inert", "");
+    // Drop the entry we pushed, or a later Back would walk into the menu the
+    // visitor has already dismissed. Skipped when history is what closed us —
+    // by then the entry is gone already.
+    if (!fromHistory && isNavEntry()) history.back();
   }
 
-  openButton.addEventListener("click", openMenu);
-  closeButton.addEventListener("click", closeMenu);
-  scrim.addEventListener("click", closeMenu);
+  openButton.addEventListener("click", () => openMenu());
+  closeButton.addEventListener("click", () => closeMenu());
+  scrim.addEventListener("click", () => closeMenu());
+
+  // Back/forward: the entry decides. Landing on the menu's entry opens it,
+  // stepping off it closes it.
+  window.addEventListener("popstate", () => {
+    if (isNavEntry()) openMenu({ restoring: true });
+    else closeMenu({ fromHistory: true });
+  });
 
   document.addEventListener("keydown", (event) => {
     if (!isOpen()) return;
@@ -90,6 +117,11 @@ if (drawer && scrim && openButton && closeButton) {
   // ── Utility / Business / More ──────────────────────────────────────────
   const tabs = Array.from(drawer.querySelectorAll(".pt-nav-tab"));
 
+  function selectedTabId() {
+    const current = tabs.find((t) => t.getAttribute("aria-selected") === "true");
+    return current ? current.id : null;
+  }
+
   function selectTab(tab) {
     for (const other of tabs) {
       const selected = other === tab;
@@ -97,6 +129,11 @@ if (drawer && scrim && openButton && closeButton) {
       other.tabIndex = selected ? 0 : -1;
       const panel = document.getElementById(other.getAttribute("aria-controls"));
       if (panel) panel.hidden = !selected;
+    }
+    // Remember which section is showing, so coming back from a link opens the
+    // menu on the tab it was followed from rather than resetting to Utility.
+    if (isNavEntry()) {
+      history.replaceState({ ...history.state, tab: tab.id }, "");
     }
   }
 
@@ -113,4 +150,12 @@ if (drawer && scrim && openButton && closeButton) {
       next.focus();
     });
   });
+
+  // Arriving on the menu's own history entry — the visitor followed a link out
+  // and came back. Put the menu back the way they left it, on the same tab.
+  if (isNavEntry()) {
+    const previous = history.state.tab && document.getElementById(history.state.tab);
+    if (previous) selectTab(previous);
+    openMenu({ restoring: true });
+  }
 }

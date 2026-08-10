@@ -4178,15 +4178,19 @@ html:has(body.pt-hub-body) {
   width: 38px;
   height: 38px;
   padding: 0;
-  border-radius: 11px;
-  border: 1px solid rgba(255,255,255,0.16);
-  background: rgba(255,255,255,0.08);
+  /* Pull the box past the header padding so the GLYPH lines up 20px off the
+     edge, matching the logo's inset — the tap target keeps its slack. */
+  margin-right: -9px;
+  /* Bare glyph — no chip. The 38px box stays for the tap target, so the
+     icon keeps a comfortable target without drawing one. */
+  border: none;
+  background: none;
   color: rgba(255,255,255,0.92);
   cursor: pointer;
-  transition: background .15s ease, border-color .15s ease;
+  transition: color .15s ease, opacity .15s ease;
 }
-.pt-burger:hover { background: rgba(255,255,255,0.14); }
-.pt-burger:active { background: rgba(255,255,255,0.2); }
+.pt-burger:hover { color: #FFFFFF; }
+.pt-burger:active { opacity: 0.6; }
 
 /* Scrim */
 .pt-nav-scrim {

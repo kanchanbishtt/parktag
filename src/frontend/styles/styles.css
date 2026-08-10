@@ -4540,14 +4540,11 @@ body.pt-nav-open { overflow: hidden; }
   text-align: center;
 }
 
+/* The ring is an SVG circle now, not a border — a border cannot be drawn on. */
 .pt-alert-mark {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 78px;
-  height: 78px;
-  border-radius: 50%;
-  border: 3px solid var(--pt-amber);
   color: var(--pt-amber);
 }
 
@@ -4571,4 +4568,88 @@ body.pt-nav-open { overflow: hidden; }
   margin-top: 24px;
   min-width: 150px;
   width: auto;
+}
+
+/* ── Alert mark, drawn on open ────────────────────────────────
+   The dialog is display:none while closed, so every showModal() restarts
+   these from the beginning — no JS needed to replay them.
+
+   Dash lengths are the shapes' own: the ring is 2πr at r=36 (226.2), each
+   stroke is the diagonal of a 24x24 box (33.9). Rounded up so no sliver is
+   left behind by sub-pixel rounding. */
+.pt-alert-ring,
+.pt-alert-x1,
+.pt-alert-x2 {
+  stroke: var(--pt-amber);
+  stroke-width: 3;
+  stroke-linecap: round;
+  fill: none;
+}
+
+.pt-alert-ring {
+  stroke-dasharray: 227;
+  stroke-dashoffset: 0;
+  /* Start the sweep at 12 o'clock rather than 3, which is where a circle's
+     path begins. */
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+}
+
+.pt-alert-x1,
+.pt-alert-x2 {
+  stroke-dasharray: 34;
+  stroke-dashoffset: 0;
+}
+
+@keyframes pt-alert-ring-draw {
+  from { stroke-dashoffset: 227; }
+  to   { stroke-dashoffset: 0; }
+}
+
+@keyframes pt-alert-stroke-draw {
+  from { stroke-dashoffset: 34; }
+  to   { stroke-dashoffset: 0; }
+}
+
+@keyframes pt-alert-in {
+  from { opacity: 0; transform: translateY(10px) scale(.96); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes pt-alert-backdrop-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* The ring sweeps first, then the two strokes cross in behind it. */
+.pt-alert[open] .pt-alert-ring {
+  animation: pt-alert-ring-draw .52s cubic-bezier(.35, 0, .25, 1) both;
+}
+
+.pt-alert[open] .pt-alert-x1 {
+  animation: pt-alert-stroke-draw .2s cubic-bezier(.4, 0, .3, 1) .34s both;
+}
+
+.pt-alert[open] .pt-alert-x2 {
+  animation: pt-alert-stroke-draw .2s cubic-bezier(.4, 0, .3, 1) .48s both;
+}
+
+.pt-alert[open] {
+  animation: pt-alert-in .24s cubic-bezier(.2, .7, .3, 1) both;
+}
+
+.pt-alert[open]::backdrop {
+  animation: pt-alert-backdrop-in .24s ease both;
+}
+
+/* Everything lands in its finished state — the mark is the error, so it has
+   to be legible whether or not it was allowed to draw itself. */
+@media (prefers-reduced-motion: reduce) {
+  .pt-alert[open],
+  .pt-alert[open]::backdrop,
+  .pt-alert[open] .pt-alert-ring,
+  .pt-alert[open] .pt-alert-x1,
+  .pt-alert[open] .pt-alert-x2 {
+    animation: none;
+  }
 }

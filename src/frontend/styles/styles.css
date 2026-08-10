@@ -4524,3 +4524,51 @@ body.pt-nav-open { overflow: hidden; }
 .scanner-body .pt-burger {
   transform: translateY(-2.5px);
 }
+
+/* ── Alert dialog ────────────────────────────────────────────
+   Shares .pt-dialog's shell (radius, backdrop, shadow) and only restyles the
+   inside: no header bar, everything stacked and centred under the mark. */
+.pt-alert {
+  width: min(88vw, 380px);
+}
+
+.pt-alert-body {
+  display: grid;
+  justify-items: center;
+  gap: 0;
+  padding: 30px 26px 26px;
+  text-align: center;
+}
+
+.pt-alert-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 78px;
+  height: 78px;
+  border-radius: 50%;
+  border: 3px solid var(--pt-amber);
+  color: var(--pt-amber);
+}
+
+.pt-alert-title {
+  margin: 22px 0 0;
+  font-size: clamp(1.15rem, 4.6vw, 1.3rem);
+  font-weight: 800;
+  color: var(--pt-ink);
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.pt-alert-copy {
+  margin: 12px 0 0;
+  font-size: clamp(0.9rem, 3.6vw, 0.97rem);
+  line-height: 1.55;
+  color: var(--pt-sub);
+}
+
+.pt-alert-ok {
+  margin-top: 24px;
+  min-width: 150px;
+  width: auto;
+}

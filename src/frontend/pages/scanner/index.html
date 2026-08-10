@@ -249,6 +249,26 @@
           </button>
         </div>
 
+        <!-- Raised when an action needs something the scanner has not given
+             yet — today, a contact reason. Its own dialog rather than a status
+             line, because the status line sits below the fold on a phone once
+             the chips are on screen, and a message nobody sees reads as a
+             button that did nothing. -->
+        <dialog class="pt-dialog pt-alert" id="contact-alert" aria-labelledby="contact-alert-title">
+          <div class="pt-alert-body">
+            <span class="pt-alert-mark" aria-hidden="true">
+              <svg width="34" height="34" viewBox="0 0 24 24" fill="none">
+                <path d="M17 7 7 17M7 7l10 10" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+              </svg>
+            </span>
+            <h2 class="pt-alert-title" id="contact-alert-title">Alert</h2>
+            <p class="pt-alert-copy" id="contact-alert-copy">
+              Please select a reason why do you want to contact the owner.
+            </p>
+            <button type="button" id="contact-alert-ok" class="pt-btn pt-btn-primary pt-alert-ok">OK</button>
+          </div>
+        </dialog>
+
         <!-- Emergency gate. The SOS call reaches a third party the owner
              nominated — someone who never opted in — so the tap has to be
              deliberate before their phone rings. A <dialog> rather than an

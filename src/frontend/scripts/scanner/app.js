@@ -628,11 +628,42 @@ function handleTemplateSelection(event) {
   );
 }
 
+// Raises the alert dialog. Falls back to the status line where <dialog> is
+// unsupported, so the tap still says something rather than nothing.
+function showContactAlert(message) {
+  setText("contact-alert-copy", message);
+
+  const dialog = byId("contact-alert");
+  if (!dialog || typeof dialog.showModal !== "function") {
+    setRequestStatus("request-status", message, "warn");
+    return;
+  }
+
+  if (!dialog.open) {
+    dialog.showModal();
+  }
+}
+
+// The reason is what the owner actually reads — the server builds the WhatsApp
+// message from it, so an alert sent without one says a vehicle needs attention
+// and nothing else. Gate the send rather than deliver an empty one.
+function hasContactReason() {
+  if (selectedReason) {
+    return true;
+  }
+  showContactAlert("Please select a reason why do you want to contact the owner.");
+  return false;
+}
+
 // WhatsApp = notify the owner with a SERVER-BUILT message (spec §6). The scanner
 // never authors the message and never needs to share their own number — the
-// alert goes one-way to the owner. We only pass the optional reason key.
+// alert goes one-way to the owner. We only pass the reason key.
 async function handleWhatsAppNotify() {
   if (actionLocked) {
+    return;
+  }
+
+  if (!hasContactReason()) {
     return;
   }
 
@@ -999,6 +1030,7 @@ await loadScannerView();
 byId("plate-verify-form")?.addEventListener("submit", handlePlateVerification);
 byId("call-owner-button")?.addEventListener("click", () => requestContactNumber("call"));
 byId("send-whatsapp-button")?.addEventListener("click", handleWhatsAppNotify);
+byId("contact-alert-ok")?.addEventListener("click", () => byId("contact-alert")?.close());
 byId("contact-number-submit")?.addEventListener("click", handleContactNumberSubmit);
 byId("final-call-button")?.addEventListener("click", handleFinalCallAction);
 

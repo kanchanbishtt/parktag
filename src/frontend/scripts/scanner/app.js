@@ -28,6 +28,14 @@ let emergencyAvailable = false;
 // Optional reason selected via the chips; the message itself is built server-side.
 let selectedReason = "";
 
+// Says "digits", not "characters": the field is `inputmode="numeric"` and the
+// server matches on /^\d{4}$/, so telling someone to type letters would send
+// them down a road that cannot succeed.
+const PLATE_MISMATCH_MESSAGE =
+  "The plate number does not match, Please check you are entering the right " +
+  "plate number. You need to enter the last 4 digits of the plate number " +
+  "without any space.";
+
 // ── Activation wizard state ──────────────────────────────────────────────
 // The unactivated-sticker flow is one question per step: intro → plate →
 // name + mobile → WhatsApp code. Answers are collected here and only sent to
@@ -511,6 +519,15 @@ async function handlePlateVerification(event) {
       msg += ` ${data.attemptsRemaining} attempt(s) left.`;
     }
     setRequestStatus("plate-verify-status", msg, "error");
+
+    // A wrong plate (401) is the one failure the scanner can fix by re-reading
+    // the vehicle, so it gets the dialog and says what "last 4" means. A
+    // lockout (423) or a server fault has nothing to correct, so those stay on
+    // the status line. The line keeps the attempts count either way — it is
+    // the warning before the lockout, and the dialog copy does not carry it.
+    if (response.status === 401) {
+      showAlert(PLATE_MISMATCH_MESSAGE, "plate-verify-status");
+    }
     return;
   }
 
@@ -628,14 +645,14 @@ function handleTemplateSelection(event) {
   );
 }
 
-// Raises the alert dialog. Falls back to the status line where <dialog> is
-// unsupported, so the tap still says something rather than nothing.
-function showContactAlert(message) {
-  setText("contact-alert-copy", message);
+// Raises the alert dialog. Falls back to the caller's own status line where
+// <dialog> is unsupported, so the tap still says something rather than nothing.
+function showAlert(message, fallbackStatusId = "request-status") {
+  setText("pt-alert-copy", message);
 
-  const dialog = byId("contact-alert");
+  const dialog = byId("pt-alert");
   if (!dialog || typeof dialog.showModal !== "function") {
-    setRequestStatus("request-status", message, "warn");
+    setRequestStatus(fallbackStatusId, message, "error");
     return;
   }
 
@@ -651,7 +668,7 @@ function hasContactReason() {
   if (selectedReason) {
     return true;
   }
-  showContactAlert("Please select a reason why do you want to contact the owner.");
+  showAlert("Please select a reason why do you want to contact the owner.");
   return false;
 }
 
@@ -1030,7 +1047,7 @@ await loadScannerView();
 byId("plate-verify-form")?.addEventListener("submit", handlePlateVerification);
 byId("call-owner-button")?.addEventListener("click", () => requestContactNumber("call"));
 byId("send-whatsapp-button")?.addEventListener("click", handleWhatsAppNotify);
-byId("contact-alert-ok")?.addEventListener("click", () => byId("contact-alert")?.close());
+byId("pt-alert-ok")?.addEventListener("click", () => byId("pt-alert")?.close());
 byId("contact-number-submit")?.addEventListener("click", handleContactNumberSubmit);
 byId("final-call-button")?.addEventListener("click", handleFinalCallAction);
 

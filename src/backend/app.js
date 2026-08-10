@@ -39,6 +39,7 @@ const frontendRoot = path.resolve(currentDir, "../frontend");
 const pagesRoot = path.join(frontendRoot, "pages");
 const scannerPage = path.join(pagesRoot, "scanner/index.html");
 const verifyPage = path.join(pagesRoot, "scanner/verify.html");
+const trackOrderPage = path.join(pagesRoot, "scanner/track-order.html");
 const adminPage = path.join(pagesRoot, "admin/index.html");
 const adminOverviewPage = path.join(pagesRoot, "admin/overview.html");
 const adminEtagsPage = path.join(pagesRoot, "admin/etags.html");
@@ -58,7 +59,7 @@ const ownerVerifyPage = path.join(pagesRoot, "owner/verify.html");
 const ownerWelcomePage = path.join(pagesRoot, "owner/welcome.html");
 const ownerVehicleDetailPage = path.join(pagesRoot, "owner/vehicle-detail.html");
 const ownerDocumentsPage = path.join(pagesRoot, "owner/documents.html");
-const scannerAssetVersion = "parktag-ui-6";
+const scannerAssetVersion = "parktag-ui-7";
 const hubAssetVersion = "hub-shell-1";
 
 // Every request is logged with its URL, and several sensitive values travel in
@@ -324,6 +325,16 @@ export async function buildApp() {
     const html = await fs.readFile(verifyPage, "utf8");
     reply.type("text/html");
     return html;
+  });
+
+  // Public order lookup. Deliberately outside every auth check: a buyer who
+  // picked a tag up in a shop, or checked out before creating an account, still
+  // needs to be able to follow the parcel. The endpoint behind it is what
+  // proves who is asking (order number + last 4 of the delivery phone).
+  app.get("/track-order", async (_request, reply) => {
+    const html = await fs.readFile(trackOrderPage, "utf8");
+    reply.type("text/html");
+    return html.replaceAll("__SCANNER_ASSET_VERSION__", scannerAssetVersion);
   });
 
   app.get("/owner-login", async (_request, reply) => {

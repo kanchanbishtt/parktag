@@ -588,7 +588,11 @@
                being about the visitor's own account. -->
           <hr class="pt-nav-rule" />
 
-          <a class="pt-nav-item" href="/owner">
+          <!-- The public lookup, not the owner dashboard. Most people who open
+               this menu are scanning a stranger's tag and are not signed in,
+               and a buyer whose tag came from a shop may have no account at
+               all — /owner bounced both to a login they can't get past. -->
+          <a class="pt-nav-item" href="/track-order">
             <span class="pt-nav-item-ic">
               <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                 <path d="M12 21.5s7-6.2 7-11.2a7 7 0 1 0-14 0c0 5 7 11.2 7 11.2Z" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/>

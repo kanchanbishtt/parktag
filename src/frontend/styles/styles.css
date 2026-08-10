@@ -4653,3 +4653,179 @@ body.pt-nav-open { overflow: hidden; }
     animation: none;
   }
 }
+
+/* ── Track your order ─────────────────────────────────────────
+   Public order lookup (/track-order). Reuses .pt-card, .pt-input and
+   .pt-btn-primary; only the form's own stacking and the result block below it
+   need rules of their own. */
+
+/* The heading block owns its own spacing. .pt-card-title and .pt-card-sub are
+   each declared twice in this sheet and the LATER pair resets both to
+   `margin: 0`, so the 8px/20px in the base rules never reach this page — the
+   first field label sat flush against the subtitle with a measured 0px gap.
+   Fixed here rather than by reopening margins that every other card in the
+   app now relies on being flat. */
+.pt-track-intro {
+  margin-bottom: 18px;
+}
+
+.pt-track-intro .pt-card-title {
+  margin-bottom: 6px;
+}
+
+.pt-track-form {
+  display: grid;
+  gap: 7px;
+}
+
+.pt-track-label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--pt-ink);
+}
+
+/* The label of the second field sits directly under the first input, so it
+   needs the breathing room the grid gap alone doesn't give it. */
+.pt-track-label + .pt-input {
+  margin-bottom: 9px;
+}
+
+.pt-track-submit {
+  margin-top: 7px;
+}
+
+/* ── Result ── */
+.pt-track-head {
+  margin-bottom: 14px;
+}
+
+.pt-track-order-no {
+  margin: 0 0 3px;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--pt-ink);
+  /* An order number never breaks across lines mid-token, but a long product
+     list in the meta line under it can — keep the two visually distinct. */
+  letter-spacing: 0.01em;
+}
+
+.pt-track-meta {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--pt-sub);
+  line-height: 1.5;
+}
+
+.pt-track-current {
+  display: grid;
+  gap: 2px;
+  background: #F7F9FC;
+  border: 1px solid #EEF0F3;
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+
+.pt-track-current-eyebrow {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #9CA3AF;
+}
+
+.pt-track-current-status {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--pt-ink);
+}
+
+.pt-track-current-time {
+  font-size: 0.74rem;
+  color: var(--pt-sub);
+}
+
+.pt-track-empty {
+  margin: 0;
+  padding: 8px 0;
+  text-align: center;
+  font-size: 0.82rem;
+  color: var(--pt-sub);
+  line-height: 1.6;
+}
+
+/* ── Checkpoint timeline ── */
+.pt-track-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 22px;
+  position: relative;
+}
+
+/* The rail. Inset at the bottom so it stops at the last dot rather than
+   trailing past it. */
+.pt-track-steps::before {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 6px;
+  bottom: 10px;
+  width: 2px;
+  background: var(--pt-border);
+}
+
+.pt-track-step {
+  display: grid;
+  gap: 1px;
+  position: relative;
+  padding-bottom: 16px;
+}
+
+.pt-track-step:last-child {
+  padding-bottom: 0;
+}
+
+.pt-track-dot {
+  position: absolute;
+  left: -22px;
+  top: 3px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #C9CDD3;
+  /* Punches a hole in the rail so it reads as passing behind each dot. */
+  box-shadow: 0 0 0 3px var(--pt-white);
+}
+
+/* Where the parcel is now. */
+.pt-track-step-now .pt-track-dot {
+  background: var(--pt-amber);
+}
+
+.pt-track-step-title {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--pt-ink);
+}
+
+.pt-track-step-now .pt-track-step-title {
+  font-weight: 800;
+}
+
+.pt-track-step-place {
+  font-size: 0.76rem;
+  color: var(--pt-sub);
+}
+
+.pt-track-step-time {
+  font-size: 0.72rem;
+  color: #9CA3AF;
+}
+
+.pt-track-courier {
+  display: inline-block;
+  margin-top: 10px;
+  font-size: 0.76rem;
+  color: var(--pt-sub);
+  text-decoration: underline;
+}

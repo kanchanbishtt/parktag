@@ -4,6 +4,8 @@ import { requireSession, toObjectId, tryObjectId } from "../../lib/auth/auth.js"
 import { addressToNotes } from "../../lib/core/address.js";
 import { createPremiumTagForVehicle } from "../../lib/core/tag-issuance.js";
 import { createShipment, isDelhiveryConfigured, updateShipmentToPrepaid, trackingUrl } from "../../lib/integrations/delhivery.js";
+import { getOrderTracking } from "../../lib/core/order-tracking.js";
+import { safeEqual } from "../../lib/auth/security.js";
 import { sendOrderConfirmationEmail } from "../../lib/integrations/email.js";
 import { isMetaWhatsappConfigured, sendMetaWhatsappOrderUpdate } from "../../lib/integrations/meta.js";
 import { sendOtp, verifyOtp, isMobileIdentifier, normalizeIdentifier } from "../../lib/auth/otp.js";
@@ -37,6 +39,51 @@ async function generateOrderNumber(collections) {
   // The v6 driver returns the doc directly; older behaviour wraps it in `.value`.
   const seq = (res && (res.seq ?? (res.value && res.value.seq))) || 1;
   return `PT-${datePart}-${String(seq).padStart(5, "0")}`;
+}
+
+// ── Public order-tracking helpers ───────────────────────────────────────────
+
+// One message for every failed lookup — unknown order, wrong last-4, or a
+// spent attempt budget. Anything more specific would tell a stranger which
+// order numbers are real. It still names both fields so a buyer who fat-
+// fingered one of them knows where to look.
+const TRACK_MISS_MESSAGE =
+  "We couldn't find an order with those details. Check the order ID and the last 4 digits of the delivery phone number, then try again.";
+
+// Failures allowed against ONE order before it stops answering, and the window
+// they are counted over. 10/hour reduces an exhaustive walk of the 10,000
+// possible last-4s to roughly six weeks per order, while leaving far more room
+// than a buyer reading their own phone number off a confirmation ever needs.
+const MAX_TRACK_ATTEMPTS = 10;
+const TRACK_WINDOW_MINUTES = 60;
+
+// Accept an order number however the buyer types it — lowercase, spaced, or
+// with the dashes dropped by a copy/paste — and canonicalise it back to the
+// stored PT-YYMMDD-NNNNN form. Returns "" for anything that can't be one.
+function normalizeOrderNumber(raw) {
+  const compact = String(raw || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const parts = /^PT(\d{6})(\d{5})$/.exec(compact);
+  return parts ? `PT-${parts[1]}-${parts[2]}` : "";
+}
+
+// True once an order has burnt its attempts inside the current window. An
+// expired window is not exhausted — the count starts again on the next miss.
+function trackGuardExhausted(guard) {
+  if (!guard || !guard.startedAt) return false;
+  const windowOpen =
+    Date.now() - new Date(guard.startedAt).getTime() < TRACK_WINDOW_MINUTES * 60 * 1000;
+  return windowOpen && Number(guard.failures || 0) >= MAX_TRACK_ATTEMPTS;
+}
+
+// Update document for one failed attempt: extend the open window, or start a
+// fresh one if the last window has already run out.
+function bumpTrackGuard(guard) {
+  const windowOpen =
+    guard?.startedAt &&
+    Date.now() - new Date(guard.startedAt).getTime() < TRACK_WINDOW_MINUTES * 60 * 1000;
+  return windowOpen
+    ? { $inc: { "trackGuard.failures": 1 } }
+    : { $set: { trackGuard: { failures: 1, startedAt: new Date().toISOString() } } };
 }
 
 // Shippable subset of an address DB doc.
@@ -577,5 +624,103 @@ export function registerShopRoutes(app, env) {
     }
 
     return { ok: true, replaced, newTagId };
+  });
+
+  // ── Public order tracking ────────────────────────────────────────────────
+  // Lets a buyer follow their parcel without signing in — the drawer's "Track
+  // order" row, and the only route open to someone who bought a tag in a shop
+  // and has no owner account yet.
+  //
+  // It asks for the order number AND the last 4 digits of the delivery phone,
+  // and that second field is not decoration. Order numbers are sequential
+  // (PT-YYMMDD-00042, see generateOrderNumber above), so an ID-only lookup
+  // would let anyone count upwards and read the whole order book. The last 4
+  // is something only the buyer has, costs them nothing to supply, and turns
+  // each order into a 10,000-guess problem.
+  app.post("/api/shop/track-order", { config: { rateLimit: { max: 8, timeWindow: "1 minute" } } }, async (request, reply) => {
+    const collections = await getCollections(env);
+    if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
+
+    const orderNumber = normalizeOrderNumber((request.body || {}).orderNumber);
+    const lastFour = String((request.body || {}).lastFour || "").trim();
+
+    if (!orderNumber || !/^\d{4}$/.test(lastFour)) {
+      reply.code(400);
+      return { ok: false, error: TRACK_MISS_MESSAGE };
+    }
+
+    // Only orders that were actually placed. A "created" row is a Razorpay
+    // order the buyer abandoned before paying — there is nothing to track, and
+    // it must not confirm that the number exists either.
+    const order = await collections.shopOrders.findOne({
+      orderNumber,
+      status: { $in: ["paid", "cod"] }
+    });
+
+    if (!order) {
+      reply.code(404);
+      return { ok: false, error: TRACK_MISS_MESSAGE };
+    }
+
+    // Per-order ceiling, independent of IP. The @fastify/rate-limit cap above
+    // is per-IP and so is only as strong as the attacker's willingness to
+    // rotate addresses; this one cannot be widened that way, because the key is
+    // the order the attacker is by definition trying to open.
+    if (trackGuardExhausted(order.trackGuard)) {
+      // Deliberately the same 404 + message as a miss. A distinguishable
+      // "too many attempts" would be an order-EXISTS oracle: ten cheap requests
+      // per candidate number would then map out which orders are real, which is
+      // the enumeration the last-4 is here to prevent. The cost is a genuine
+      // buyer who has already mistyped ten times in an hour reading "check your
+      // details" instead of "wait a while" — still true, still actionable, and
+      // rare enough to be worth the trade.
+      reply.code(404);
+      return { ok: false, error: TRACK_MISS_MESSAGE };
+    }
+
+    const expected = String(order.shippingAddress?.phone || "").replace(/\D/g, "").slice(-4);
+    if (!expected || !safeEqual(expected, lastFour)) {
+      await collections.shopOrders
+        .updateOne({ _id: order._id }, bumpTrackGuard(order.trackGuard))
+        .catch(() => {});
+      reply.code(404);
+      return { ok: false, error: TRACK_MISS_MESSAGE };
+    }
+
+    // Proven. Clear the failure window so earlier typos never count against a
+    // buyer who then gets it right.
+    if (order.trackGuard) {
+      await collections.shopOrders
+        .updateOne({ _id: order._id }, { $unset: { trackGuard: "" } })
+        .catch(() => {});
+    }
+
+    const tracking = await getOrderTracking(collections, env, order);
+    const isCod = order.status === "cod";
+
+    // Everything below is about the PARCEL, never about the person. No name,
+    // phone, address or e-mail is returned — the pair that opened this response
+    // is the buyer's own, but there is no reason for the page to echo back
+    // details the courier already has and the buyer already knows.
+    return {
+      ok: true,
+      order: {
+        orderNumber: order.orderNumber,
+        productName: order.productName || null,
+        amount: typeof order.amount === "number" ? order.amount : null,
+        paymentMethod: isCod ? "cod" : "paid",
+        // COD orders have no paidAt — fall back to when the order was placed.
+        orderedAt: order.paidAt || order.createdAt || null,
+        waybill: order.waybill || null,
+        trackingUrl: order.waybill ? trackingUrl(order.waybill) : null,
+        shippingStatus: order.shipmentError
+          ? "booking_failed"
+          : order.waybill
+            ? (tracking?.status || "booked")
+            : (isCod ? "cod_confirmed" : "processing"),
+        statusDateTime: tracking?.statusDateTime || null,
+        scans: Array.isArray(tracking?.scans) ? tracking.scans : []
+      }
+    };
   });
 }

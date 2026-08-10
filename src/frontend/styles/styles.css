@@ -4374,6 +4374,14 @@ html:has(body.pt-hub-body) {
 }
 .pt-nav-list[hidden] { display: none; }
 
+/* Separates the product rows from the account rows inside one panel. */
+.pt-nav-rule {
+  height: 0;
+  margin: 1px 2px;
+  border: none;
+  border-top: 1px solid #E2E6ED;
+}
+
 .pt-nav-item {
   display: grid;
   grid-template-columns: auto 1fr auto;

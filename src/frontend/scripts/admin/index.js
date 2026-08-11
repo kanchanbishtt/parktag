@@ -311,42 +311,82 @@ function renderPrintQueue(data) {
     return;
   }
 
-  // Group by batchNumber
+  // Group by batch, then by ISSUANCE RUN inside it.
+  //
+  // A batch is filled over several sittings — 1000 tags one day, 2000 more into
+  // the same batch the next — and a sitting is what goes to the printer. Batch
+  // was the only grouping before, so "select all" on batch 01 selected every
+  // run it had ever held and the export re-printed work already sent out.
   const batches = {};
   for (const tag of tags) {
     const key = tag.batchNumber || "__no_batch__";
-    if (!batches[key]) batches[key] = { batchNumber: tag.batchNumber, batchLabel: tag.batchLabel, tags: [] };
-    batches[key].tags.push(tag);
+    if (!batches[key]) batches[key] = { batchNumber: tag.batchNumber, batchLabel: tag.batchLabel, runs: {} };
+    // Tags issued before runs were recorded share one bucket rather than each
+    // becoming a run of its own.
+    const runKey = tag.issuanceRunId || "__legacy__";
+    const runs = batches[key].runs;
+    if (!runs[runKey]) runs[runKey] = { runId: runKey, issuedAt: tag.issuedAt || tag.createdAt, tags: [] };
+    runs[runKey].tags.push(tag);
   }
 
   target.innerHTML = Object.values(batches).map(batch => {
-    const batchKey = batch.batchNumber || "__no_batch__";
     const batchTitle = batch.batchNumber
       ? `Batch ${esc(batch.batchNumber)}${batch.batchLabel ? ` · ${esc(batch.batchLabel)}` : ""}`
       : "No batch assigned";
-    const batchIds = batch.tags.map((t) => t.id);
-    const batchIdsCsv = batchIds.join(",");
-    const allSelected = batchIds.length > 0 && batchIds.every((id) => _pqSelected.has(id));
+    // Newest run first: the fresh one is what you came here to print.
+    const runs = Object.values(batch.runs).sort(
+      (a, b) => String(b.issuedAt || "").localeCompare(String(a.issuedAt || ""))
+    );
+    const batchCount = runs.reduce((n, r) => n + r.tags.length, 0);
+
     return `
-      <div style="margin-bottom:20px">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding:8px 12px;background:#F1F1F0;border-radius:8px;border:1px solid #E5E7EB">
-          <label style="display:flex;align-items:center;gap:8px;font-weight:700;font-size:0.9rem;cursor:pointer">
-            <input type="checkbox" class="pq-select-all" data-ids="${esc(batchIdsCsv)}" ${allSelected ? "checked" : ""} onchange="togglePqSelectBatch('${esc(batchIdsCsv)}', this.checked)" style="width:16px;height:16px;cursor:pointer" />
-            ${batchTitle} <span style="font-weight:400;color:#6B7280">(${batch.tags.length} tags)</span>
-          </label>
+      <div style="margin-bottom:26px">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+          <h3 style="margin:0;font-size:1rem;font-weight:900">${batchTitle}
+            <span style="font-weight:400;color:#6B7280">(${batchCount} tags across ${runs.length} generation${runs.length === 1 ? "" : "s"})</span>
+          </h3>
           ${batch.batchNumber ? `<button class="action small" style="color:#DC2626;background:#FEF2F2;border-color:#FECACA" onclick="deleteBatch('${jsAttr(batch.batchNumber)}')">Delete batch</button>` : ""}
         </div>
-        ${batch.tags.map(tag => `
-          <article class="queue-row">
-            <input type="checkbox" class="pq-select" data-id="${esc(tag.id)}" ${_pqSelected.has(tag.id) ? "checked" : ""} onchange="togglePqSelect('${esc(tag.id)}', this.checked)" style="width:16px;height:16px;cursor:pointer;flex:0 0 auto" />
-            <strong>${esc(tag.token)} ${tag.premium
-              ? `<span style="display:inline-block;background:#FF2700;color:#fff;font-size:0.62rem;font-weight:800;letter-spacing:.04em;padding:2px 7px;border-radius:20px;vertical-align:middle;margin-left:4px">PREMIUM</span>`
-              : `<span style="display:inline-block;background:#F1F1F0;color:#6B7280;font-size:0.62rem;font-weight:700;letter-spacing:.04em;padding:2px 7px;border-radius:20px;vertical-align:middle;margin-left:4px">FREE</span>`}</strong>
-            <span>Print status: <strong>${esc(tag.printStatus)}</strong></span>
-            <a href="${esc(tag.claimUrl)}" target="_blank" rel="noreferrer" style="word-break:break-all;font-size:0.82rem">${esc(tag.claimUrl)}</a>
-            ${tag.printStatus !== "printed" ? `<button class="action small" onclick="markPrinted('${jsAttr(tag.id)}')">Mark as printed</button>` : `<span style="color:#FF2700;font-weight:700">✓ Printed</span>`}
-          </article>
-        `).join("")}
+        ${runs.map((run, index) => {
+          const ids = run.tags.map((t) => t.id);
+          const idsCsv = ids.join(",");
+          const allSelected = ids.length > 0 && ids.every((id) => _pqSelected.has(id));
+          const first = run.tags[0] || {};
+          const range = first.runSerialStart != null && first.runSerialEnd != null
+            ? `${pqSerialLabel(first.batchNumber, first.runSerialStart)} → ${pqSerialLabel(first.batchNumber, first.runSerialEnd)}`
+            : "";
+          const when = run.issuedAt
+            ? new Date(run.issuedAt).toLocaleString()
+            : "date unknown";
+          const legacy = run.runId === "__legacy__";
+          return `
+          <div style="margin-bottom:14px;border:1px solid #E5E7EB;border-radius:10px;overflow:hidden">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;background:${index === 0 && !legacy ? "#FFF4F1" : "#F1F1F0"};border-bottom:1px solid #E5E7EB;flex-wrap:wrap">
+              <label style="display:flex;align-items:center;gap:9px;font-weight:700;font-size:.88rem;cursor:pointer;min-width:0">
+                <input type="checkbox" class="pq-select-all" data-ids="${esc(idsCsv)}" ${allSelected ? "checked" : ""} onchange="togglePqSelectBatch('${esc(idsCsv)}', this.checked)" style="width:16px;height:16px;cursor:pointer;flex:0 0 auto" />
+                <span style="min-width:0">
+                  ${legacy ? "Earlier tags (no generation recorded)" : `Generated ${esc(when)}`}
+                  <span style="font-weight:400;color:#6B7280">· ${run.tags.length} tag${run.tags.length === 1 ? "" : "s"}${range ? ` · ${esc(range)}` : ""}</span>
+                </span>
+              </label>
+              <div style="display:flex;gap:6px;flex-wrap:wrap">
+                ${index === 0 && !legacy ? `<span style="background:#FF2700;color:#fff;font-size:.62rem;font-weight:800;letter-spacing:.04em;padding:3px 9px;border-radius:20px">NEWEST</span>` : ""}
+                ${_pqPrinted ? "" : `<button class="action small" onclick="markRunPrinted('${jsAttr(run.runId)}', ${run.tags.length})">Mark generation printed</button>`}
+              </div>
+            </div>
+            ${run.tags.map(tag => `
+              <article class="queue-row">
+                <input type="checkbox" class="pq-select" data-id="${esc(tag.id)}" ${_pqSelected.has(tag.id) ? "checked" : ""} onchange="togglePqSelect('${esc(tag.id)}', this.checked)" style="width:16px;height:16px;cursor:pointer;flex:0 0 auto" />
+                <strong>${tag.serial ? esc(tag.serial) + " · " : ""}${esc(tag.token)} ${tag.premium
+                  ? `<span style="display:inline-block;background:#FF2700;color:#fff;font-size:0.62rem;font-weight:800;letter-spacing:.04em;padding:2px 7px;border-radius:20px;vertical-align:middle;margin-left:4px">PREMIUM</span>`
+                  : `<span style="display:inline-block;background:#F1F1F0;color:#6B7280;font-size:0.62rem;font-weight:700;letter-spacing:.04em;padding:2px 7px;border-radius:20px;vertical-align:middle;margin-left:4px">FREE</span>`}</strong>
+                <span>Print status: <strong>${esc(tag.printStatus)}</strong></span>
+                <a href="${esc(tag.claimUrl)}" target="_blank" rel="noreferrer" style="word-break:break-all;font-size:0.82rem">${esc(tag.claimUrl)}</a>
+                ${tag.printStatus !== "printed" ? `<button class="action small" onclick="markPrinted('${jsAttr(tag.id)}')">Mark as printed</button>` : `<span style="color:#FF2700;font-weight:700">✓ Printed</span>`}
+              </article>
+            `).join("")}
+          </div>`;
+        }).join("")}
       </div>
     `;
   }).join("");
@@ -415,6 +455,32 @@ async function exportQrsForPrint() {
     grid.innerHTML = sheetsHtml;
   } catch (err) {
     grid.innerHTML = `<p style="color:#DC2626">Failed to load: ${err.message}</p>`;
+  }
+}
+
+// PT-<batch>-<serial>, matching what stickerSerialFor prints server-side.
+function pqSerialLabel(batchNumber, serial) {
+  const batch = String(batchNumber ?? 0).replace(/\D/g, "").padStart(2, "0");
+  return `PT-${batch}-${String(serial).replace(/\D/g, "").padStart(6, "0")}`;
+}
+
+// Marks an entire generation printed in one request, so it leaves the queue and
+// the next export cannot pick it up again. Per-tag marking was the only option
+// before, which is why nothing was ever marked and every run kept reappearing.
+async function markRunPrinted(runId, count) {
+  if (!confirm(`Mark all ${count} tags in this generation as printed? They leave the print queue and will not be included in future exports.`)) return;
+  try {
+    const res = await fetchJson("/api/admin/print-queue/mark-run-printed", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ issuanceRunId: runId })
+    });
+    // Selections point at tags that are about to disappear from the queue.
+    _pqSelected.clear();
+    await loadPrintQueue();
+    alert(`${res.marked} tag(s) marked as printed.`);
+  } catch (err) {
+    alert(`Failed to mark generation as printed: ${err.message}`);
   }
 }
 
@@ -878,6 +944,7 @@ function bindEvents() {
   }
 
   window.markPrinted = markPrinted;
+  window.markRunPrinted = markRunPrinted;
   window.deleteBatch = deleteBatch;
 
   if (hasEl("clear-all-button")) {

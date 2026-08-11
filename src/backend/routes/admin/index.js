@@ -603,6 +603,15 @@ export function registerAdminRoutes(app, env) {
         printStatus: tag.printStatus || "pending_print",
         premium: Boolean(tag.premium),
         claimUrl: buildClaimUrl(request, tag.token),
+        // Which issuance run this tag came from, so the queue can offer one
+        // sitting at a time instead of the whole batch. Null for tags issued
+        // before runs were recorded and not yet backfilled — the client groups
+        // those together as one legacy run rather than hiding them.
+        issuanceRunId: tag.issuanceRunId ? String(tag.issuanceRunId) : null,
+        issuedAt: tag.issuedAt || null,
+        serial: stickerSerialFor(tag),
+        runSerialStart: tag.runSerialStart ?? null,
+        runSerialEnd: tag.runSerialEnd ?? null,
         createdAt: tag.createdAt
       }))
     };
@@ -685,6 +694,45 @@ export function registerAdminRoutes(app, env) {
     });
 
     return { ok: true, deleted: result.deletedCount };
+  });
+
+  // Mark a whole issuance run printed in one write.
+  //
+  // Marking was per-tag only, which is why nothing was ever marked: a 1000-tag
+  // run meant a thousand HTTP calls, so in practice the queue was never
+  // drained and every later export re-included every earlier run. That is the
+  // other half of the repeat-printing problem — grouping alone would organise
+  // the pile without ever shrinking it.
+  app.post("/api/admin/print-queue/mark-run-printed", async (request, reply) => {
+    const blocked = await requireSession(app, "admin")(request, reply);
+    if (blocked) return blocked;
+
+    const collections = await getCollections(env);
+    const runId = String((request.body || {}).issuanceRunId || "");
+    const printedAt = new Date().toISOString();
+
+    // Only ever touches tags still waiting: an already-printed tag keeps its
+    // original printedAt, so re-running this cannot rewrite print history.
+    const base = { status: "unclaimed", printStatus: { $ne: "printed" } };
+    let filter;
+
+    if (runId === "__legacy__") {
+      // Tags issued before runs were recorded. Grouped and actionable as one,
+      // rather than left unmarkable because they predate the field.
+      filter = { ...base, issuanceRunId: { $in: [null, undefined] } };
+    } else {
+      if (!ObjectId.isValid(runId)) {
+        reply.code(400);
+        return { ok: false, error: "Bad issuance run id" };
+      }
+      filter = { ...base, issuanceRunId: new ObjectId(runId) };
+    }
+
+    const result = await collections.tags.updateMany(filter, {
+      $set: { printStatus: "printed", printedAt }
+    });
+
+    return { ok: true, marked: result.modifiedCount };
   });
 
   app.post("/api/admin/print-queue/:tagId/mark-printed", async (request, reply) => {

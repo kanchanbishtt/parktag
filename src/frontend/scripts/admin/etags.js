@@ -50,15 +50,15 @@ async function load() {
     data = await res.json();
     if (!res.ok) throw new Error(data.error || "Failed");
   } catch (e) {
-    rows.innerHTML = `<tr><td colspan="9" class="err">Could not load E-Tags.</td></tr>`;
+    rows.innerHTML = `<tr><td colspan="9" class="err">Could not load tags.</td></tr>`;
     summary.textContent = "";
     return;
   }
 
   const list = data.etags || [];
-  summary.textContent = `Showing ${list.length} of ${data.total} E-Tag(s)`;
+  summary.textContent = `Showing ${list.length} of ${data.total} tag(s)`;
   if (!list.length) {
-    rows.innerHTML = `<tr><td colspan="9" class="empty">No E-Tags found.</td></tr>`;
+    rows.innerHTML = `<tr><td colspan="9" class="empty">No tags found.</td></tr>`;
     return;
   }
 

@@ -4236,7 +4236,7 @@ html:has(body.pt-hub-body) {
   max-width: 340px;
   display: flex;
   flex-direction: column;
-  background: #FBFAF4;
+  background: #F3F5F9;
   border-radius: 0 18px 18px 0;
   box-shadow: 0 20px 60px rgba(3,22,45,0.30);
   transform: translateX(-104%);
@@ -4346,7 +4346,7 @@ html:has(body.pt-hub-body) {
   text-decoration: none;
   transition: border-color .15s ease, background .15s ease;
 }
-.pt-nav-tile:hover { border-color: #CBD5E1; background: #FDFDFB; }
+.pt-nav-tile:hover { border-color: #CBD5E1; background: #F8FAFC; }
 .pt-nav-tile span {
   font-size: 0.79rem;
   font-weight: 600;
@@ -4426,7 +4426,7 @@ html:has(body.pt-hub-body) {
 /* The first row of each section is the one we want tapped — tinted, and
    outlined in the brand yellow rather than the neutral hairline. */
 .pt-nav-item-lead {
-  background: #F5F8FC;
+  background: #FFFFFF;
   border: 2px solid var(--pt-navy);
   padding: 11px 13px;
 }

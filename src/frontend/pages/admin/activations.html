@@ -13,7 +13,15 @@
     body { margin: 0; font-family: "Segoe UI", Tahoma, sans-serif; background: #F1F1F0; color: #03162D; overflow-x: hidden; overflow-wrap: break-word; }
     .wrap { max-width: 1180px; margin: 0 auto; padding: clamp(14px, 3vw, 24px) clamp(12px, 3vw, 20px) 60px; }
     .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
-    .title { font-size: clamp(1.2rem, 4.5vw, 1.5rem); font-weight: 900; margin: 0; }
+    .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    /* The real sticker artwork, not a typed wordmark. It is a 1000×600 poster,
+       so it is shown at a fixed aspect ratio as a small plate — big enough to
+       read as the product, small enough to stay a header element. width/height
+       are on the tag too, so the row does not reflow when the SVG lands. */
+    .brand-sticker { width: clamp(84px, 22vw, 116px); height: auto; aspect-ratio: 5 / 3;
+                     border-radius: 8px; border: 1px solid #E5E7EB; background: #fff;
+                     flex: 0 0 auto; display: block; }
+    .title { font-size: clamp(1.2rem, 4.5vw, 1.5rem); font-weight: 900; margin: 0; min-width: 0; }
     .title span { color: #FF2700; }
     a.back { text-decoration: none; color: #6B7280; font-weight: 700; font-size: .85rem; border: 1.5px solid #E5E7EB; padding: 8px 14px; border-radius: 10px; background: #fff; white-space: nowrap; }
 
@@ -81,7 +89,11 @@
 <body>
   <div class="wrap">
     <div class="top">
-      <h1 class="title">Park<span>Tag</span> · Tag Activations</h1>
+      <div class="brand">
+        <img class="brand-sticker" src="/images/org-parktag-sticker.svg"
+             alt="ParkTag vehicle sticker" width="1000" height="600" />
+        <h1 class="title">Tag Activations</h1>
+      </div>
       <a class="back" href="/admin/overview">← Back to Admin</a>
     </div>
 
@@ -98,9 +110,9 @@
       <div class="card">
         <table>
           <thead>
-            <tr><th>E-Tag ID</th><th>Vehicle</th><th>Owner</th><th>Mobile</th><th>Activated On</th><th>Status</th></tr>
+            <tr><th>E-Tag ID</th><th>Sticker serial</th><th>Vehicle</th><th>Owner</th><th>Mobile</th><th>Activated On</th><th>Status</th></tr>
           </thead>
-          <tbody id="activatedRows"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
+          <tbody id="activatedRows"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody>
         </table>
       </div>
     </div>

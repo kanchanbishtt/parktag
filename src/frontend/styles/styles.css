@@ -3804,8 +3804,16 @@ html:has(body.pt-hub-body) {
 
 .scanner-body .pt-header {
   flex: 0 0 auto;
+  /* The shared .pt-header is a fixed 64px bar with NO vertical padding, so a
+     top-only inset for the notch pushed the logo and the burger 6px below the
+     bar's middle. Pad both ends equally instead: 42px logo + 11px + 11px is
+     the same 64px bar, with its contents actually centred. min-height keeps
+     the bar from collapsing if the logo is ever swapped for a shorter one. */
+  height: auto;
+  min-height: 64px;
   /* viewport-fit=cover is set on this page — keep the logo out of the notch. */
-  padding-top: calc(12px + env(safe-area-inset-top, 0px));
+  padding-top: calc(11px + env(safe-area-inset-top, 0px));
+  padding-bottom: 11px;
   padding-left: calc(20px + env(safe-area-inset-left, 0px));
   padding-right: calc(20px + env(safe-area-inset-right, 0px));
 }

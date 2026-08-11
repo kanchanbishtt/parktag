@@ -720,6 +720,23 @@ export function registerAdminRoutes(app, env) {
       // Tags issued before runs were recorded. Grouped and actionable as one,
       // rather than left unmarkable because they predate the field.
       filter = { ...base, issuanceRunId: { $in: [null, undefined] } };
+
+      // The client shows legacy tags as one group PER BATCH, so it names the
+      // batch it means. Without this, marking one batch's legacy group printed
+      // marked every batch's — every legacy tag in the queue shares the single
+      // "__legacy__" id. Left unscoped only when the client sends no batch, so
+      // an older client keeps its previous whole-queue behaviour.
+      const raw = (request.body || {}).batchNumbers;
+      if (Array.isArray(raw) && raw.length) {
+        const values = raw
+          .filter((value) => value === null || typeof value === "string" || typeof value === "number")
+          .slice(0, 200);
+        if (!values.length) {
+          reply.code(400);
+          return { ok: false, error: "Bad batch numbers" };
+        }
+        filter.batchNumber = { $in: values };
+      }
     } else {
       if (!ObjectId.isValid(runId)) {
         reply.code(400);

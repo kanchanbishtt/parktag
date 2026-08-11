@@ -887,6 +887,78 @@ pre {
   color: var(--muted);
 }
 
+/* ── Print queue lookup bar ───────────────────────────────────────────
+   Batch filter + serial jump, sitting above the queue. Wraps rather than
+   scrolls, so it stays usable on a narrow admin window. */
+.pt-pq-lookup {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  padding: 12px;
+  margin-bottom: 16px;
+  background: #F9FAFB;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.pt-pq-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.pt-pq-field > span {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.pt-pq-field select,
+.pt-pq-field input {
+  font: inherit;
+  font-size: 0.88rem;
+  padding: 8px 10px;
+  border: 1.5px solid var(--line);
+  border-radius: 9px;
+  background: #fff;
+  color: #03162D;
+  min-width: 0;
+}
+
+.pt-pq-field select { max-width: 340px; }
+.pt-pq-field input { width: 190px; }
+
+.pt-pq-note {
+  font-size: 0.82rem;
+  color: var(--muted);
+  align-self: center;
+}
+
+.pt-pq-note[data-tone="warn"] { color: #B31C00; font-weight: 700; }
+
+/* A generation's header stays visible when its rows are collapsed; the caret
+   rotates to show state. */
+.pt-pq-caret {
+  display: inline-block;
+  transition: transform 0.15s ease;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.pt-pq-caret[data-open="1"] { transform: rotate(90deg); }
+
+/* Flash the row a serial jump landed on, so it is findable inside a long
+   generation without hunting for the highlight. */
+.queue-row[data-pq-hit="1"] {
+  outline: 2px solid #FF2700;
+  outline-offset: 2px;
+  background: #FFF4F1;
+}
+
 .qr-card-body {
   display: grid;
   gap: 6px;

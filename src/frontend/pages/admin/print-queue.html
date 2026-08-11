@@ -63,6 +63,25 @@
             <button id="pq-tab-printed" class="pt-admin-btn pt-admin-btn-ghost" onclick="switchPqTab(true)">Printed · awaiting claim</button>
           </div>
 
+          <!-- Lookup bar. Lives in the page rather than inside
+               #print-queue-output because that element is rewritten on every
+               render — a search box inside it would lose its value and its
+               focus mid-typing. The <select> is repopulated from the loaded
+               queue; its selection is preserved across renders. -->
+          <div class="pt-pq-lookup">
+            <label class="pt-pq-field">
+              <span>Batch</span>
+              <select id="pq-batch-filter"><option value="">All batches</option></select>
+            </label>
+            <label class="pt-pq-field">
+              <span>Find serial</span>
+              <input id="pq-serial-jump" type="search" placeholder="01-001500 or 1500" autocomplete="off" spellcheck="false" />
+            </label>
+            <button id="pq-serial-jump-button" class="pt-admin-btn pt-admin-btn-ghost">Find</button>
+            <button id="pq-expand-toggle" class="pt-admin-btn pt-admin-btn-ghost">Expand all</button>
+            <span id="pq-lookup-note" class="pt-pq-note"></span>
+          </div>
+
           <div id="print-queue-output"><p class="pt-admin-empty">No print queue loaded yet.</p></div>
         </div>
 

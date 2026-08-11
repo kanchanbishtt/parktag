@@ -127,6 +127,19 @@ export async function createUnclaimedTags(collections, input) {
 
   const tags = [];
 
+  // Identity for THIS issuance run. A batch is filled over many sittings — 1000
+  // tags one day, 2000 more into the same batch the next — and a sitting is
+  // what actually goes to the printer. Without a run id the only thing telling
+  // sittings apart is createdAt, which is stamped per tag and spreads across
+  // the insert, so the print queue could group no finer than the batch and
+  // every export re-included everything printed before it.
+  //
+  // issuedAt is stamped ONCE for the whole run rather than per tag, so every
+  // tag in a run carries an identical timestamp and the run can be grouped and
+  // labelled by it exactly.
+  const issuanceRunId = new ObjectId();
+  const issuedAt = new Date().toISOString();
+
   for (let index = 0; index < quantity; index += 1) {
     tags.push({
       _id: new ObjectId(),
@@ -140,6 +153,12 @@ export async function createUnclaimedTags(collections, input) {
       batchLabel: input.batchLabel || null,
       // Sequential within the batch: PT-<batch>-<serialNumber>.
       serialNumber: seqStart + index,
+      issuanceRunId,
+      issuedAt,
+      // The run's own serial block, denormalised onto each tag so the queue can
+      // label a run "PT-01-001004 → PT-01-002003" without re-reading its siblings.
+      runSerialStart: seqStart,
+      runSerialEnd: seqEnd,
       printStatus: "pending_print",
       stickerRequested: Boolean(input.stickerRequested),
       createdAt: new Date().toISOString(),

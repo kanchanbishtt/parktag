@@ -53,6 +53,13 @@ let resendTimer = null;
 // wa.me link for the help card; empty when no support number is configured.
 let supportWhatsappHref = "";
 
+// Support number for the quick-action row. SUPPORT_WHATSAPP_NUMBER is not set
+// in every environment, so this falls back to the same number the scan menu
+// links to rather than leaving the row with a dead link.
+const FALLBACK_SUPPORT_WHATSAPP = "918791638854";
+let supportWhatsappDigits = FALLBACK_SUPPORT_WHATSAPP;
+let quickStatusTimer = null;
+
 function byId(id) {
   return document.getElementById(id);
 }
@@ -142,6 +149,91 @@ function showOnly(sectionId) {
     "act-help-card",
     sectionId !== "registration-shell" || !supportWhatsappHref
   );
+
+  // The quick actions belong to a resolved tag, so they follow the action card
+  // and nothing else.
+  setHidden("scanner-quick-actions", sectionId !== "scanner-action-shell");
+
+  if (sectionId !== "scanner-action-shell") {
+    setHidden("quick-action-status", true);
+  }
+}
+
+// ── Quick actions ────────────────────────────────────────────────────────
+// Three page-level actions under the action card. Two open WhatsApp support
+// with the tag already named, so a report doesn't begin with us asking "which
+// tag?". None of them reaches the owner.
+
+function supportWhatsappLink(text) {
+  return `https://wa.me/${supportWhatsappDigits}?text=${encodeURIComponent(text)}`;
+}
+
+function setQuickStatus(message) {
+  const el = byId("quick-action-status");
+
+  if (!el) {
+    return;
+  }
+
+  el.textContent = message;
+  el.hidden = false;
+  clearTimeout(quickStatusTimer);
+  quickStatusTimer = setTimeout(() => {
+    el.hidden = true;
+  }, 4000);
+}
+
+function setupQuickActions(tag) {
+  // Only the masked plate goes into the message. It is already on screen, and
+  // the full plate is something this page deliberately never learns.
+  const plate = tag.maskedPlateNumber || "unknown plate";
+  const urgent = byId("quick-urgent");
+  const report = byId("quick-report");
+
+  if (urgent) {
+    urgent.href = supportWhatsappLink(
+      `Urgent: I scanned a ParkTag on vehicle ${plate} and need help right away.\nTag: ${tag.token}`
+    );
+  }
+
+  // The report goes to a form, not to WhatsApp: it needs a reason we can sort
+  // on and a callback number, and it has to work for someone who does not use
+  // WhatsApp. The tag travels in the query string, not the path, so the page
+  // is still reachable (and says so) when opened without one.
+  if (report) {
+    report.href = `/report-tag?tag=${encodeURIComponent(tag.token)}`;
+    report.removeAttribute("target");
+    report.removeAttribute("rel");
+  }
+}
+
+async function handleQuickShare() {
+  const url = window.location.href;
+  const payload = {
+    title: "ParkTag",
+    text: "Contact this vehicle's owner privately through ParkTag.",
+    url
+  };
+
+  if (navigator.share) {
+    try {
+      await navigator.share(payload);
+      return;
+    } catch (error) {
+      // Dismissing the sheet rejects with AbortError. That is a decision, not
+      // a failure, so it must not fall through to copying the link.
+      if (error && error.name === "AbortError") {
+        return;
+      }
+    }
+  }
+
+  try {
+    await navigator.clipboard.writeText(url);
+    setQuickStatus("Link copied.");
+  } catch {
+    setQuickStatus("Copy the link from your browser's address bar.");
+  }
 }
 
 function resetActionState() {
@@ -446,6 +538,10 @@ async function loadScannerView() {
     setValue("request-token", tag.token);
     setText("plate-mask-preview", tag.maskedPlateNumber || "••••");
     emergencyAvailable = tag.emergencyAvailable === true;
+
+    const configuredSupport = String(data.supportWhatsapp || "").replace(/\D/g, "");
+    supportWhatsappDigits = configuredSupport || FALLBACK_SUPPORT_WHATSAPP;
+    setupQuickActions(tag);
 
     if (registrationState) {
       setText("scanner-load-status", "This WaveTag needs owner registration before contact can be enabled.");
@@ -1048,6 +1144,7 @@ byId("plate-verify-form")?.addEventListener("submit", handlePlateVerification);
 byId("call-owner-button")?.addEventListener("click", () => requestContactNumber("call"));
 byId("send-whatsapp-button")?.addEventListener("click", handleWhatsAppNotify);
 byId("pt-alert-ok")?.addEventListener("click", () => byId("pt-alert")?.close());
+byId("quick-share")?.addEventListener("click", handleQuickShare);
 byId("contact-number-submit")?.addEventListener("click", handleContactNumberSubmit);
 byId("final-call-button")?.addEventListener("click", handleFinalCallAction);
 

@@ -24,6 +24,10 @@ export async function getCollections(env) {
     // memory). Auto-expired by a TTL index on expiresAt.
     sessions: db.collection(withPrefix(prefix, "sessions")),
     contactRequests: db.collection(withPrefix(prefix, "contact_requests")),
+    // Scanner-submitted reports about a tag ("vehicle is sold", "wrong number",
+    // abuse). Written by the public report form and read by support; nothing on
+    // the scan page ever reads them back.
+    tagReports: db.collection(withPrefix(prefix, "tag_reports")),
     passwordResetTokens: db.collection(withPrefix(prefix, "password_reset_tokens")),
     otpTokens: db.collection(withPrefix(prefix, "otp_tokens")),
     // Tracks per-scanner verification attempts, lockouts, and contact grants.

@@ -4829,3 +4829,366 @@ body.pt-nav-open { overflow: hidden; }
   color: var(--pt-sub);
   text-decoration: underline;
 }
+
+/* ── Scanner quick actions ─────────────────────────────────────────────────
+   One centred row under the action card, on the page ground rather than in
+   it. Small and muted on purpose: none of the three reaches the owner, and
+   giving them card weight would read as a third contact route sitting beside
+   WhatsApp and Private Call. */
+/* One line, always. The three labels together are wider than a 360px phone at
+   a fixed size, and wrapping strands "Share" on a second row under a dangling
+   separator — so the type scales with the viewport instead of the row
+   breaking. `nowrap` on the items keeps a label from splitting mid-phrase. */
+.pt-quick-actions {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0 clamp(4px, 2vw, 9px);
+  max-width: 100%;
+  margin: 14px auto 0;
+  padding: 0 4px;
+}
+
+.pt-quick-action {
+  display: inline-flex;
+  align-items: center;
+  gap: clamp(4px, 1.2vw, 6px);
+  margin: 0;
+  padding: 4px 1px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  font-size: clamp(10.5px, 3.3vw, 13.5px);
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+  color: var(--ink);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+/* The icon shrinks with the type, so the row keeps its proportions rather
+   than the glyph swelling on a narrow screen. */
+.pt-quick-action svg {
+  flex: none;
+  width: clamp(12px, 3.6vw, 15px);
+  height: clamp(12px, 3.6vw, 15px);
+}
+
+.pt-quick-action:hover,
+.pt-quick-action:focus-visible {
+  color: var(--accent-dark);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Decoration only — it must not swallow a tap aimed at the link beside it. */
+.pt-quick-sep {
+  flex: none;
+  font-size: clamp(11px, 3.2vw, 13px);
+  color: var(--muted);
+  opacity: .5;
+  pointer-events: none;
+  user-select: none;
+}
+
+.pt-quick-status {
+  margin: 8px auto 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+  text-align: center;
+}
+
+/* ── Report-a-tag page ────────────────────────────────────────────────────
+   Its own card system rather than .pt-card: the reference layout is a stack
+   of flat white cards on a warm off-white ground with no shadow and a wider
+   radius, and reusing .pt-card would mean overriding almost every property
+   of it. */
+.report-body {
+  min-height: 100vh;
+  margin: 0;
+  background: #FBF9F6;
+  color: var(--ink);
+}
+
+.pt-report-main {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 14px 16px calc(30px + env(safe-area-inset-bottom, 0px));
+  display: grid;
+  gap: 16px;
+}
+
+.pt-report-card {
+  background: #fff;
+  border-radius: 18px;
+  padding: 22px 20px;
+}
+
+.pt-report-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 14px 7px 11px;
+  border-radius: 999px;
+  background: #FDECEC;
+  color: #E23B3B;
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+
+.pt-report-title {
+  margin: 16px 0 10px;
+  font-size: 25px;
+  font-weight: 800;
+  line-height: 1.22;
+  letter-spacing: -.01em;
+  color: #16283F;
+}
+
+.pt-report-h2 {
+  margin: 0 0 8px;
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: -.01em;
+  color: #16283F;
+}
+
+.pt-report-sub {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: #6B7A90;
+}
+
+/* Dashed, not solid: this is a reference value to read back to support, not
+   an input, and the dashes keep it from reading as an empty field. */
+.pt-report-idbox {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 18px;
+  padding: 15px 18px;
+  border: 1.5px dashed #DFE5EC;
+  border-radius: 14px;
+  background: #FBFCFD;
+}
+
+.pt-report-idlabel {
+  font-size: 15px;
+  color: #6B7A90;
+}
+
+.pt-report-idvalue {
+  font-size: 17px;
+  font-weight: 800;
+  color: #16283F;
+}
+
+/* Two columns; "Others" is a fifth item and sits alone on the last row, which
+   is the reference layout rather than an accident of wrapping. */
+.pt-report-reasons {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 13px;
+  margin: 20px 0 22px;
+}
+
+/* Sized so the longest label ("No one Answered") sits on ONE line in a
+   half-width chip from 390px up, which is the reference layout. Narrower than
+   that it wraps rather than overflowing, and the grid keeps both chips in a
+   row the same height either way. */
+.pt-report-reason {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 16px 9px;
+  border: 1.5px solid #E7ECF2;
+  border-radius: 14px;
+  background: #fff;
+  font: inherit;
+  font-size: clamp(12px, 3.2vw, 13.5px);
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: left;
+  color: #16283F;
+  cursor: pointer;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+.pt-report-reason svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: #6B7A90;
+}
+
+.pt-report-reason:hover {
+  border-color: #C9D4E1;
+}
+
+/* Selection is carried by the border, so the inset shadow does the work of a
+   second border pixel without shifting the box and nudging the grid. */
+.pt-report-reason.is-selected {
+  border-color: #16283F;
+  box-shadow: inset 0 0 0 1px #16283F;
+}
+
+.pt-report-reason.is-selected svg {
+  color: #16283F;
+}
+
+.pt-report-form {
+  display: block;
+}
+
+.pt-report-label {
+  display: block;
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #16283F;
+}
+
+.pt-report-input {
+  display: block;
+  width: 100%;
+  margin: 0 0 18px;
+  padding: 16px 17px;
+  border: 1.5px solid #E7ECF2;
+  border-radius: 13px;
+  background: #fff;
+  font: inherit;
+  font-size: 15.5px;
+  color: #16283F;
+}
+
+.pt-report-input::placeholder {
+  color: #97A4B6;
+}
+
+.pt-report-input:focus {
+  outline: none;
+  border-color: #16283F;
+}
+
+.pt-report-textarea {
+  resize: vertical;
+  min-height: 84px;
+}
+
+.pt-report-captcha {
+  margin: 0 0 16px;
+}
+
+.pt-report-submit {
+  display: block;
+  width: 100%;
+  padding: 18px 20px;
+  border: 0;
+  border-radius: 14px;
+  background: #16283F;
+  font: inherit;
+  font-size: 16.5px;
+  font-weight: 800;
+  color: #fff;
+  cursor: pointer;
+}
+
+.pt-report-submit:disabled {
+  opacity: .6;
+  cursor: default;
+}
+
+.pt-report-status {
+  margin: 14px 0 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: #6B7A90;
+}
+
+.pt-report-status[data-tone="error"] { color: #DC2626; }
+.pt-report-status[data-tone="success"] { color: #128C4B; }
+
+/* Transfer card: icon and copy side by side, button on its own row below. */
+.pt-report-transfer {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 14px;
+}
+
+.pt-report-transfer-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 13px;
+  background: #E8F8EE;
+  color: #25D366;
+}
+
+.pt-report-transfer-title {
+  margin: 0 0 7px;
+  font-size: 19px;
+  font-weight: 800;
+  line-height: 1.28;
+  letter-spacing: -.01em;
+  color: #16283F;
+}
+
+.pt-report-transfer-copy {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: #6B7A90;
+}
+
+.pt-report-wa {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  margin-top: 4px;
+  padding: 17px 20px;
+  border-radius: 14px;
+  background: #25D366;
+  font-size: 16.5px;
+  font-weight: 800;
+  color: #fff;
+  text-decoration: none;
+}
+
+/* Back sits at the top-left of the stack, above the first card. A single
+   destination does not need a persistent bar, and putting it inline means it
+   scrolls away with the rest of the page instead of hovering over the submit
+   button at the moment someone is reaching for it. */
+.pt-report-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  justify-self: start;
+  margin: 0 0 2px 2px;
+  padding: 8px 14px 8px 11px;
+  border-radius: 999px;
+  background: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  color: #5C6B80;
+  text-decoration: none;
+}
+
+.pt-report-back:hover,
+.pt-report-back:focus-visible {
+  color: #16283F;
+}

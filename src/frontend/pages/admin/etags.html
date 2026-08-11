@@ -17,12 +17,26 @@
     a.back { text-decoration: none; color: #6B7280; font-weight: 700; font-size: .85rem; border: 1.5px solid #E5E7EB; padding: 8px 14px; border-radius: 10px; background: #fff; }
     .bar { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
     .bar input, .bar select { height: 42px; border: 1.5px solid #E5E7EB; border-radius: 10px; padding: 0 12px; font-size: .9rem; font-family: inherit; outline: none; }
-    .bar input { flex: 1; min-width: 220px; }
+    .bar input { flex: 1 1 260px; min-width: 0; }
+    .bar select { flex: 0 0 auto; }
+    /* Sized to its content and given the same 42px box as the controls beside
+       it, so it reads as one of the filters instead of a stray line of text.
+       It used to be an inline-styled label with no sizing at all, which took a
+       whole flex row to itself the moment the bar wrapped. */
+    .check { display: inline-flex; align-items: center; gap: 8px; flex: 0 0 auto;
+             height: 42px; padding: 0 14px; border: 1.5px solid #E5E7EB; border-radius: 10px;
+             background: #fff; font-size: .82rem; font-weight: 700; color: #6B7280;
+             white-space: nowrap; cursor: pointer; user-select: none; }
+    .check:hover { border-color: #D1D5DB; color: #374151; }
+    .check input { width: 16px; height: 16px; margin: 0; accent-color: #FF2700; cursor: pointer; }
     .bar input:focus, .bar select:focus { border-color: #FF2700; }
     .summary { font-size: .82rem; color: #6B7280; margin: 0 0 10px; }
     .card { background: #fff; border: 1px solid #E5E7EB; border-radius: 14px; overflow: auto; }
     table { width: 100%; border-collapse: collapse; font-size: .84rem; min-width: 860px; }
-    th, td { text-align: left; padding: 11px 12px; border-bottom: 1px solid #F1F2F4; white-space: nowrap; }
+    th, td { text-align: left; padding: 10px; border-bottom: 1px solid #F1F2F4; white-space: nowrap; }
+    /* Two short lines instead of one long one, so the column stops driving the
+       table wider than the card that holds it. */
+    .stamp .muted { display: block; font-size: .76rem; }
     th { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; color: #9CA3AF; background: #FAFBFC; }
     tr:last-child td { border-bottom: none; }
     .plate { font-weight: 800; letter-spacing: .04em; }
@@ -58,8 +72,10 @@
     @media (max-width: 900px) {
       .wrap { padding: 16px 14px 60px; }
       .title { font-size: 1.28rem; }
-      .bar input, .bar select { height: 44px; font-size: 16px; } /* >=16px: no iOS zoom-on-focus */
-      .bar input { min-width: 0; flex: 1 1 100%; }
+      /* >=16px keeps iOS from zooming the page on focus; 44px is the touch
+         target. The bar still fits on ONE row here — it only wraps further
+         down, at 700px, where the four controls genuinely stop fitting. */
+      .bar input, .bar select, .check { height: 44px; font-size: 16px; }
 
       .card { background: transparent; border: none; overflow: visible; border-radius: 0; }
       table, tbody, tr, td { display: block; width: 100%; }
@@ -82,6 +98,14 @@
       .overlay { padding: 10px; }
       .modal { padding: 16px; max-height: 90vh; }
     }
+    /* ── The filter bar stops fitting on one row here. Search takes the full
+       width, the two dropdowns share the next, and the checkbox gets its own
+       full-width row so it stays a comfortable tap target. ── */
+    @media (max-width: 700px) {
+      .bar input { flex: 1 1 100%; }
+      .bar select { flex: 1 1 calc(50% - 5px); min-width: 0; }
+      .check { flex: 1 1 100%; justify-content: center; }
+    }
     /* ── Small phones: labels sit above values for breathing room. ── */
     @media (max-width: 420px) {
       td { flex-direction: column; align-items: stretch; gap: 3px; text-align: left; }
@@ -98,13 +122,18 @@
     </div>
 
     <div class="bar">
-      <input id="q" type="search" placeholder="Search by vehicle number, E-Tag ID, owner email/mobile…" autocomplete="off"/>
-      <select id="status">
+      <input id="q" type="search" placeholder="Search by vehicle number, E-Tag ID, sticker serial, owner email/mobile…" autocomplete="off"/>
+      <select id="category" aria-label="Tag category">
+        <option value="all">All tags</option>
+        <option value="premium">Premium tags</option>
+        <option value="etag">E-Tags</option>
+      </select>
+      <select id="status" aria-label="Tag status">
         <option value="">All statuses</option>
         <option value="active">Active</option>
         <option value="inactive">Inactive</option>
       </select>
-      <label style="display:flex;align-items:center;gap:6px;font-size:.82rem;color:#6B7280">
+      <label class="check" for="includeDeleted">
         <input id="includeDeleted" type="checkbox"/> Show deleted
       </label>
     </div>
@@ -115,11 +144,11 @@
       <table>
         <thead>
           <tr>
-            <th>E-Tag ID</th><th>Vehicle</th><th>Owner</th><th>Status</th>
+            <th>E-Tag ID</th><th>Sticker serial</th><th>Vehicle</th><th>Owner</th><th>Status</th>
             <th>Plan</th><th>Contacts</th><th>Created</th><th>Actions</th>
           </tr>
         </thead>
-        <tbody id="rows"><tr><td colspan="8" class="empty">Loading…</td></tr></tbody>
+        <tbody id="rows"><tr><td colspan="9" class="empty">Loading…</td></tr></tbody>
       </table>
     </div>
   </div>

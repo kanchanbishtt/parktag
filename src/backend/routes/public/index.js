@@ -10,8 +10,13 @@ import {
   resolveOwnerByVerifiedMobile
 } from "../../lib/auth/otp.js";
 import { getCollections, ensureVerificationIndexes, ensurePendingCallsIndexes } from "../../lib/db/repositories.js";
-import { VEHICLE_LABELS } from "../../lib/core/tag-issuance.js";
+import { VEHICLE_LABELS, etagIdFor, stickerSerialFor } from "../../lib/core/tag-issuance.js";
+import { verifyRecaptchaV2 } from "../../lib/integrations/recaptcha.js";
 import { clientErrorMessage } from "../../lib/errors.js";
+
+// Report reasons, matched exactly. An open text field for the reason would let
+// a reporter write anything into a record support reads later.
+const REPORT_REASONS = ["sold", "wrong_number", "no_answer", "abuse", "other"];
 
 // Verification security parameters (spec: 3 attempts, then temporary lockout).
 const MAX_VERIFY_ATTEMPTS = 3;
@@ -162,6 +167,13 @@ export function registerPublicRoutes(app, env) {
       tag: {
         token: tag.token,
         status: tag.status,
+        // The identifier a person can read back to support. A premium tag has a
+        // serial physically printed on the sticker they are standing in front
+        // of, so that one wins; an E-Tag has no printed serial and falls back to
+        // the canonical PT-XXXXXXXX form the owner dashboard and admin already
+        // show. Both are derived from records that already exist — neither is
+        // secret, and the scanner is holding the 64-char token either way.
+        tagId: stickerSerialFor(tag) || etagIdFor(tag._id),
         vehicleType: tag.vehicleType || null,
         // Show the real vehicle type per vehicle (e.g. "Bicycle"), falling back
         // to the stored label only for older tags without a type.
@@ -1072,6 +1084,97 @@ export function registerPublicRoutes(app, env) {
 
     return { ok: true, virtualNumber: env.exotelCallerId };
   });
+
+  // ── Tag reports ───────────────────────────────────────────────────────
+  // Public form on /report-tag. Anyone standing at a vehicle can flag that the
+  // tag is stale (sold on) or being misused, without an account.
+
+  // The site key is public by definition — it is embedded in the widget markup
+  // Google renders. Only the secret stays server-side.
+  app.get("/api/recaptcha/v2-config", async (_request, reply) => {
+    reply.send({ siteKey: env.recaptchaV2SiteKey || "" });
+  });
+
+  app.post(
+    "/api/tags/:token/report",
+    { config: { rateLimit: { max: 5, timeWindow: "10 minutes" } } },
+    async (request, reply) => {
+      const collections = await getCollections(env);
+
+      if (!collections) {
+        reply.code(500);
+        return { ok: false, error: "MongoDB is not configured" };
+      }
+
+      const { token } = request.params;
+      const body = request.body || {};
+      const reason = String(body.reason || "").trim();
+      const details = String(body.details || "").trim().slice(0, 1000);
+      const name = String(body.name || "").trim().slice(0, 80);
+      const phoneDigits = String(body.phone || "").replace(/\D/g, "");
+
+      if (!REPORT_REASONS.includes(reason)) {
+        reply.code(400);
+        return { ok: false, error: "Choose a reason for the report." };
+      }
+
+      if (!name) {
+        reply.code(400);
+        return { ok: false, error: "Enter your name." };
+      }
+
+      // Indian mobile numbers are 10 digits; accept a 91/+91 prefix too since
+      // people type their number both ways.
+      const normalizedPhone =
+        phoneDigits.length === 12 && phoneDigits.startsWith("91")
+          ? phoneDigits.slice(2)
+          : phoneDigits;
+
+      if (!/^[6-9]\d{9}$/.test(normalizedPhone)) {
+        reply.code(400);
+        return { ok: false, error: "Enter a valid 10-digit phone number." };
+      }
+
+      const captcha = await verifyRecaptchaV2(env, body.captchaToken, {
+        remoteIp: getClientIp(request)
+      });
+
+      if (!captcha.ok) {
+        reply.code(400);
+        return { ok: false, error: "Please complete the reCAPTCHA and try again." };
+      }
+
+      const tag = await collections.tags.findOne({ token });
+
+      if (!tag) {
+        reply.code(404);
+        return { ok: false, error: "This tag could not be found." };
+      }
+
+      // The reporter's own number is stored so support can call back — it is
+      // never returned to any scan page, and the owner is not notified here.
+      // A report is an accusation; it goes to us, not to the person accused.
+      await collections.tagReports.insertOne({
+        token,
+        tagId: tag._id,
+        ownerId: tag.ownerId || null,
+        reason,
+        details: details || null,
+        reporterName: name,
+        reporterPhone: `+91${normalizedPhone}`,
+        status: "open",
+        ipHash: hashIp(getClientIp(request), token),
+        createdAt: new Date().toISOString()
+      });
+
+      request.log.info(
+        { event: "tag-report-submitted", token, reason },
+        "[report] tag report received"
+      );
+
+      return { ok: true };
+    }
+  );
 }
 
 function toE164(input) {

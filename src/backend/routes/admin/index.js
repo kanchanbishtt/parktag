@@ -7,7 +7,9 @@ import {
   buildIssuedTagOutput,
   buildClaimUrl,
   createUnclaimedTags,
-  etagIdFor
+  etagIdFor,
+  batchKeyFor,
+  stickerSerialFor
 } from "../../lib/core/tag-issuance.js";
 
 // Order the print queue the way the sheets should come off the printer: newest
@@ -77,6 +79,8 @@ export function registerAdminRoutes(app, env) {
     const collections = await getCollections(env);
     const q = String(request.query.q || "").trim().toLowerCase();
     const statusFilter = String(request.query.status || "");
+    // "all" (or anything unrecognised) means no category condition at all.
+    const categoryFilter = String(request.query.category || "");
     const includeDeleted = request.query.includeDeleted === "1";
 
     // This endpoint used to pull EVERY tag, EVERY owner and EVERY contact
@@ -89,6 +93,14 @@ export function registerAdminRoutes(app, env) {
     const filter = { ownerId: { $ne: null } };
     if (!includeDeleted) filter.deletedAt = { $in: [null, undefined] };
     if (statusFilter) filter.status = statusFilter;
+
+    // Category filter. `premium: true` is the single source of truth for a
+    // premium tag, so an E-Tag is anything NOT flagged premium — written as
+    // { $ne: true } rather than { premium: false } because tags issued before
+    // the flag existed have no `premium` field at all and would otherwise
+    // vanish from both categories at once.
+    if (categoryFilter === "premium") filter.premium = true;
+    else if (categoryFilter === "etag") filter.premium = { $ne: true };
 
     if (q) {
       // Escape the user's text before it becomes a regex — otherwise a search
@@ -119,6 +131,34 @@ export function registerAdminRoutes(app, env) {
             $regexMatch: { input: { $toString: "$_id" }, regex: `${etagQuery}$`, options: "i" }
           }
         });
+      }
+
+      // Sticker serials (PT-<batch>-<unit>) are what a caller reads off a
+      // premium tag, so they have to be searchable too. Unlike the E-Tag ID
+      // both halves ARE stored, so this stays a plain indexed query.
+      //
+      // The batch half is not optional. serialNumber restarts per batch — dev
+      // already has two tags numbered 1 — so matching the unit alone would
+      // return a tag from the wrong batch as confidently as the right one.
+      const serialMatch = /^(\d{1,3})-(\d{1,6})$/.exec(etagQuery);
+      if (serialMatch) {
+        const wantedBatch = batchKeyFor(serialMatch[1]);
+        const unit = Number(serialMatch[2]);
+
+        // batchNumber is stored raw and inconsistently ("01", "1", 12,
+        // "DEMO-BATCH-001"), and batchKeyFor is what reconciles them for
+        // display. Resolving the raw values through that SAME function is what
+        // guarantees a serial the sticker shows is a serial this search finds —
+        // rather than reimplementing the normalisation and letting the two
+        // drift. There are only a handful of distinct values, so the extra
+        // lookup is cheap and keeps the tag query itself indexed.
+        const rawBatches = (await collections.tags.distinct("batchNumber")).filter(
+          (value) => batchKeyFor(value) === wantedBatch
+        );
+
+        if (rawBatches.length) {
+          filter.$or.push({ $and: [{ serialNumber: unit }, { batchNumber: { $in: rawBatches } }] });
+        }
       }
     }
 
@@ -154,6 +194,10 @@ export function registerAdminRoutes(app, env) {
       return {
         id: String(t._id),
         etagId: etagIdFor(t._id),
+        // Serial printed on the physical sticker, or "" for a tag that has
+        // none. stickerSerialFor is used unchanged — it is the same call the
+        // print sheet and the owner dashboard make.
+        serial: stickerSerialFor(t),
         token: t.token,
         plateNumber: t.plateNumber || null,
         vehicleType: t.vehicleType || null,
@@ -202,6 +246,7 @@ export function registerAdminRoutes(app, env) {
       etag: {
         id: String(tag._id),
         etagId: etagIdFor(tag._id),
+        serial: stickerSerialFor(tag),
         token: tag.token,
         plateNumber: tag.plateNumber || null,
         vehicleType: tag.vehicleType || null,
@@ -299,6 +344,11 @@ export function registerAdminRoutes(app, env) {
       return {
         id: String(t._id),
         etagId: etagIdFor(t._id),
+        // This list is where the serialled stock actually lives: it filters on
+        // `premium` alone, with no ownerId condition, so it also covers printed
+        // stickers nobody has activated yet. The E-Tags list cannot — it
+        // requires an owner, and today every serialled tag is still unclaimed.
+        serial: stickerSerialFor(t),
         plateNumber: t.plateNumber || null,
         vehicleLabel: t.vehicleLabel || t.vehicleType || null,
         status: t.status,

@@ -123,6 +123,13 @@ export function getEnv() {
     // Site key is public (shipped to the browser); secret stays server-side.
     recaptchaSiteKey: process.env.RECAPTCHA_SITE_KEY || "",
     recaptchaSecret: process.env.RECAPTCHA_SECRET || "",
+    // Optional reCAPTCHA v2 ("I'm not a robot" checkbox). A SEPARATE key pair
+    // from v3 above — Google rejects a v3 key for the checkbox widget and vice
+    // versa. Used by the tag-report form, which shows the checkbox rather than
+    // scoring silently. Unset → the widget is not rendered and the server skips
+    // verification, exactly as v3 does.
+    recaptchaV2SiteKey: process.env.RECAPTCHA_V2_SITE_KEY || "",
+    recaptchaV2Secret: process.env.RECAPTCHA_V2_SECRET || "",
     razorpayKeyId: process.env.RAZORPAY_KEY_ID || "",
     razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET || "",
     superAdminBootstrapKey: process.env.SUPER_ADMIN_BOOTSTRAP_KEY || "",

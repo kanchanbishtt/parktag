@@ -940,22 +940,318 @@ pre {
 
 .pt-pq-note[data-tone="warn"] { color: #B31C00; font-weight: 700; }
 
-/* A generation's header stays visible when its rows are collapsed; the caret
-   rotates to show state. */
-.pt-pq-caret {
-  display: inline-block;
-  transition: transform 0.15s ease;
+/* ── Print queue: batches ─────────────────────────────────────────────
+   A batch is a heading, not a card — the generations inside it are the
+   things you act on, so the batch line stays typographic and quiet. */
+.pt-pq-batch { margin-bottom: 28px; }
+
+.pt-pq-batch-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.pt-pq-batch-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 900;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+
+.pt-pq-batch-meta {
+  margin: 2px 0 0;
+  font-size: 0.84rem;
   color: var(--muted);
-  font-size: 0.8rem;
+}
+
+/* Two spellings of one batch. Stated once, plainly, on its own line — inline
+   it ran into the title and read as noise. */
+.pt-pq-variant {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 7px;
+  padding: 4px 10px;
+  background: #FFF1EF;
+  border: 1px solid #FFD8D0;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: #B31C00;
+}
+
+.pt-pq-batch-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* Destructive, so it must be reachable — but it is not what you came here to
+   do. Quiet until hover; the primary red is reserved for Export QRs. */
+.pt-pq-danger {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+
+.pt-pq-danger:hover {
+  color: var(--error);
+  border-color: #FECACA;
+  background: #FEF2F2;
+}
+
+/* ── Print queue: one generation ──────────────────────────────────────
+   The header is the row you scan, so it holds a fixed shape: select, caret,
+   a two-line label, then actions pinned right. */
+.pt-pq-run {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 10px;
+  background: var(--panel);
+}
+
+.pt-pq-run + .pt-pq-run { margin-top: 0; }
+
+.pt-pq-run-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 13px;
+  background: #F8FAFC;
+  flex-wrap: wrap;
+}
+
+.pt-pq-run.is-open .pt-pq-run-head { border-bottom: 1px solid var(--line); }
+.pt-pq-run.is-newest .pt-pq-run-head { background: #FFF4F1; }
+
+.pt-pq-run-check { width: 16px; height: 16px; cursor: pointer; flex: 0 0 auto; }
+
+/* The whole label is the expand target — a 12px caret is a poor click area. */
+.pt-pq-run-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1 1 240px;
+  min-width: 0;
+  padding: 2px 0;
+  background: none;
+  border: 0;
+  font: inherit;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.pt-pq-caret {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  color: var(--muted);
+  transition: transform 0.15s ease;
 }
 
 .pt-pq-caret[data-open="1"] { transform: rotate(90deg); }
 
+.pt-pq-run-label { min-width: 0; }
+
+.pt-pq-run-title {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+/* Flex with a column gap rather than a "·" between the parts: at narrow widths
+   the range drops to its own line, and a literal separator was left dangling at
+   the end of the line above it. */
+.pt-pq-run-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 9px;
+  margin-top: 1px;
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+/* A serial range is one token to a reader; breaking it across lines as
+   "PT-01-" / "001034" made the header unreadable at narrow widths. */
+.pt-pq-range { white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+.pt-pq-run-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+
+/* nowrap + no shrink, or a flex parent squeezes the label inside the pill and
+   it collapses into an unreadable blob. */
+.pt-pq-badge {
+  flex: 0 0 auto;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  padding: 3px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.pt-pq-badge-sm { font-size: 0.55rem; padding: 2px 7px; letter-spacing: 0.04em; }
+
+/* Per-row tier chip. Solid red down a column of 600 rows turned the tier — which
+   is usually the same for every tag in a generation — into the loudest thing on
+   the page. Outlined keeps it readable and gives NEWEST its emphasis back. */
+.pt-pq-tier {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 2px 7px;
+  font-size: 0.55rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  background: #FFF1EF;
+  color: #B31C00;
+  border: 1px solid #FFD8D0;
+}
+
+.pt-pq-tier[data-tier="free"] {
+  background: #F1F5F9;
+  color: var(--muted);
+  border-color: var(--line);
+}
+
+/* Secondary: it acts on one generation, while Export QRs acts on the whole
+   selection. Solid red on every generation made the page look like a warning. */
+.pt-pq-act {
+  border: 1.5px solid var(--line);
+  background: var(--panel);
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 7px 13px;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.pt-pq-act:hover { border-color: var(--ink); background: #F8FAFC; }
+
+.pt-pq-more {
+  padding: 10px 13px;
+  background: #F8FAFC;
+  border-top: 1px solid var(--line);
+  font-size: 0.82rem;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* ── Print queue: tag rows ────────────────────────────────────────────
+   Compact by design. The generic .queue-row card stacks token, status, a full
+   claim URL and a button into five lines each — at 600 rows that is a mile of
+   scrolling for data you rarely read. Here the serial leads, and the token and
+   URL are truncated to one line with the full value on hover. */
+/* The serial column gets a real minimum: under minmax(0, …) the grid is free to
+   shrink it below its content, which stacked "PT-01-001016" one character per
+   line. Only the token and the URL may shrink, and they ellipsize. */
+#print-queue-output .queue-row {
+  display: grid;
+  grid-template-columns: auto minmax(210px, 1.2fr) auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 13px;
+  border: 0;
+  border-top: 1px solid #F1F5F9;
+  border-radius: 0;
+  background: var(--panel);
+}
+
+#print-queue-output .queue-row:first-of-type { border-top: 0; }
+#print-queue-output .queue-row:hover { background: #F8FAFC; }
+
+#print-queue-output .queue-row strong {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  min-width: 0;
+  font-size: 0.84rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+#print-queue-output .queue-row .pt-pq-serial { white-space: nowrap; flex: 0 0 auto; }
+
+#print-queue-output .queue-row .pt-pq-token {
+  font-weight: 400;
+  font-size: 0.76rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+#print-queue-output .queue-row a {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.78rem;
+  min-width: 0;
+}
+
+#print-queue-output .queue-row span { font-size: 0.78rem; }
+#print-queue-output .queue-row .pt-pq-status { white-space: nowrap; }
+
+/* Below this the five columns cannot hold their content without every cell
+   becoming an ellipsis, so the row folds to two lines: identity above, claim
+   URL below, action pinned right across both. Every child is placed explicitly
+   — left to flow, the action wrapped onto a third line and each row grew to
+   three lines tall. */
+@media (max-width: 900px) {
+  #print-queue-output .queue-row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    row-gap: 2px;
+    padding: 9px 13px;
+  }
+  #print-queue-output .queue-row > input { grid-column: 1; grid-row: 1 / span 2; }
+  #print-queue-output .queue-row > strong { grid-column: 2; grid-row: 1; }
+  #print-queue-output .queue-row > a { grid-column: 2; grid-row: 2; }
+  #print-queue-output .queue-row > .pt-pq-status { grid-column: 2; grid-row: 3; }
+  #print-queue-output .queue-row > :last-child {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+    align-self: center;
+  }
+  /* An empty status cell would otherwise reserve a third row of blank space. */
+  #print-queue-output .queue-row > .pt-pq-status:empty { display: none; }
+}
+
 /* Flash the row a serial jump landed on, so it is findable inside a long
    generation without hunting for the highlight. */
-.queue-row[data-pq-hit="1"] {
-  outline: 2px solid #FF2700;
-  outline-offset: 2px;
+#print-queue-output .queue-row[data-pq-hit="1"] {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
   background: #FFF4F1;
 }
 

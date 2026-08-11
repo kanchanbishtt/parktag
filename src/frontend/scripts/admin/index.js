@@ -351,24 +351,25 @@ function renderPrintQueue(data) {
     // that visible instead of silently merging.
     const raws = [...group.raws.keys()];
     const variantNote = raws.length > 1
-      ? `<span style="font-weight:400;color:#B31C00;font-size:.8rem"> · entered as ${raws.map((r) => esc(JSON.stringify(r))).join(", ")} — one batch, one serial run</span>`
+      ? `<span class="pt-pq-variant">Entered as ${raws.map((r) => esc(JSON.stringify(r))).join(", ")} — one batch, one serial run</span>`
       : "";
 
     return `
-      <div style="margin-bottom:26px">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;flex-wrap:wrap">
-          <h3 style="margin:0;font-size:1rem;font-weight:900">${batchTitle}
-            <span style="font-weight:400;color:#6B7280">(${batchCount} tags across ${runs.length} generation${runs.length === 1 ? "" : "s"})</span>
+      <section class="pt-pq-batch">
+        <div class="pt-pq-batch-head">
+          <div style="min-width:0">
+            <h3 class="pt-pq-batch-title">${batchTitle}</h3>
+            <p class="pt-pq-batch-meta">${batchCount} tag${batchCount === 1 ? "" : "s"} · ${runs.length} generation${runs.length === 1 ? "" : "s"}</p>
             ${variantNote}
-          </h3>
-          <div style="display:flex;gap:6px;flex-wrap:wrap">
+          </div>
+          <div class="pt-pq-batch-actions">
             ${group.key === "__no_batch__" ? "" : raws.map((raw) => `
-              <button class="action small" style="color:#DC2626;background:#FEF2F2;border-color:#FECACA" onclick="deleteBatch('${jsAttr(raw)}')">Delete batch${raws.length > 1 ? ` ${esc(JSON.stringify(raw))}` : ""}</button>
+              <button class="pt-pq-danger" onclick="deleteBatch('${jsAttr(raw)}')">Delete batch${raws.length > 1 ? ` ${esc(JSON.stringify(raw))}` : ""}</button>
             `).join("")}
           </div>
         </div>
         ${runs.map((run, index) => pqRunHtml(group, run, index)).join("")}
-      </div>
+      </section>
     `;
   }).join("");
 
@@ -401,40 +402,39 @@ function pqRunHtml(group, run, index) {
     ? `'__legacy__', ${run.tags.length}, '${jsAttr(group.key)}'`
     : `'${jsAttr(run.runId)}', ${run.tags.length}`;
 
+  const newest = index === 0 && !legacy;
+
   return `
-    <div style="margin-bottom:14px;border:1px solid #E5E7EB;border-radius:10px;overflow:hidden">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;background:${index === 0 && !legacy ? "#FFF4F1" : "#F1F1F0"};border-bottom:1px solid #E5E7EB;flex-wrap:wrap">
-        <div style="display:flex;align-items:center;gap:9px;min-width:0;flex:1 1 260px">
-          <input type="checkbox" class="pq-select-all" data-ids="${esc(idsCsv)}" ${allSelected ? "checked" : ""} onchange="togglePqSelectBatch('${esc(idsCsv)}', this.checked)" style="width:16px;height:16px;cursor:pointer;flex:0 0 auto" title="Select this generation" />
-          <button type="button" onclick="togglePqRun('${jsAttr(runKey)}')" style="display:flex;align-items:center;gap:8px;background:none;border:none;padding:0;font:inherit;font-weight:700;font-size:.88rem;color:#03162D;cursor:pointer;text-align:left;min-width:0">
-            <span class="pt-pq-caret" data-open="${open ? "1" : "0"}">▶</span>
-            <span style="min-width:0">
-              ${legacy ? "Earlier tags (no generation recorded)" : `Generated ${esc(when)}`}
-              <span style="font-weight:400;color:#6B7280">· ${run.tags.length} tag${run.tags.length === 1 ? "" : "s"}${range ? ` · ${esc(range)}` : ""}</span>
-            </span>
-          </button>
-        </div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">
-          ${index === 0 && !legacy ? `<span style="background:#FF2700;color:#fff;font-size:.62rem;font-weight:800;letter-spacing:.04em;padding:3px 9px;border-radius:20px">NEWEST</span>` : ""}
-          ${_pqPrinted ? "" : `<button class="action small" onclick="markRunPrinted(${markArgs})">Mark generation printed</button>`}
+    <div class="pt-pq-run${open ? " is-open" : ""}${newest ? " is-newest" : ""}">
+      <div class="pt-pq-run-head">
+        <input type="checkbox" class="pq-select-all pt-pq-run-check" data-ids="${esc(idsCsv)}" ${allSelected ? "checked" : ""} onchange="togglePqSelectBatch('${esc(idsCsv)}', this.checked)" title="Select this generation for export" />
+        <button type="button" class="pt-pq-run-toggle" aria-expanded="${open ? "true" : "false"}" onclick="togglePqRun('${jsAttr(runKey)}')">
+          <span class="pt-pq-caret" data-open="${open ? "1" : "0"}" aria-hidden="true">
+            <svg width="9" height="12" viewBox="0 0 8 12" fill="none"><path d="M1.5 1L6.5 6l-5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+          <span class="pt-pq-run-label">
+            <span class="pt-pq-run-title">${legacy ? "Earlier tags (no generation recorded)" : `Generated ${esc(when)}`}</span>
+            <span class="pt-pq-run-meta"><span>${run.tags.length} tag${run.tags.length === 1 ? "" : "s"}</span> ${range ? `<span class="pt-pq-range">${esc(range)}</span>` : ""}</span>
+          </span>
+        </button>
+        <div class="pt-pq-run-actions">
+          ${newest ? `<span class="pt-pq-badge">NEWEST</span>` : ""}
+          ${_pqPrinted ? "" : `<button class="pt-pq-act" onclick="markRunPrinted(${markArgs})">Mark printed</button>`}
         </div>
       </div>
       ${visibleTags.map(tag => `
         <article class="queue-row" ${_pqHighlightId === tag.id ? 'data-pq-hit="1"' : ""}>
-          <input type="checkbox" class="pq-select" data-id="${esc(tag.id)}" ${_pqSelected.has(tag.id) ? "checked" : ""} onchange="togglePqSelect('${esc(tag.id)}', this.checked)" style="width:16px;height:16px;cursor:pointer;flex:0 0 auto" />
-          <strong>${tag.serial ? esc(tag.serial) + " · " : ""}${esc(tag.token)} ${tag.premium
-            ? `<span style="display:inline-block;background:#FF2700;color:#fff;font-size:0.62rem;font-weight:800;letter-spacing:.04em;padding:2px 7px;border-radius:20px;vertical-align:middle;margin-left:4px">PREMIUM</span>`
-            : `<span style="display:inline-block;background:#F1F1F0;color:#6B7280;font-size:0.62rem;font-weight:700;letter-spacing:.04em;padding:2px 7px;border-radius:20px;vertical-align:middle;margin-left:4px">FREE</span>`}</strong>
-          <span>Print status: <strong>${esc(tag.printStatus)}</strong></span>
-          <a href="${esc(tag.claimUrl)}" target="_blank" rel="noreferrer" style="word-break:break-all;font-size:0.82rem">${esc(tag.claimUrl)}</a>
-          ${tag.printStatus !== "printed" ? `<button class="action small" onclick="markPrinted('${jsAttr(tag.id)}')">Mark as printed</button>` : `<span style="color:#FF2700;font-weight:700">✓ Printed</span>`}
+          <input type="checkbox" class="pq-select pt-pq-run-check" data-id="${esc(tag.id)}" ${_pqSelected.has(tag.id) ? "checked" : ""} onchange="togglePqSelect('${esc(tag.id)}', this.checked)" />
+          <strong><span class="pt-pq-serial">${tag.serial ? esc(tag.serial) : "—"}</span><span class="pt-pq-tier" data-tier="${tag.premium ? "premium" : "free"}">${tag.premium ? "PREMIUM" : "FREE"}</span><span class="pt-pq-token" title="${esc(tag.token)}">${esc(tag.token)}</span></strong>
+          <span class="pt-pq-status">${esc(pqOddStatus(tag))}</span>
+          <a href="${esc(tag.claimUrl)}" target="_blank" rel="noreferrer" title="${esc(tag.claimUrl)}">${esc(tag.claimUrl)}</a>
+          ${tag.printStatus !== "printed" ? `<button class="pt-pq-act" onclick="markPrinted('${jsAttr(tag.id)}')">Mark printed</button>` : `<span style="color:#FF2700;font-weight:700">✓ Printed</span>`}
         </article>
       `).join("")}
       ${open && run.tags.length > visibleTags.length ? `
-        <div style="padding:10px 12px;background:#F9FAFB;border-top:1px solid #E5E7EB;font-size:.84rem;color:#6B7280">
-          Showing ${visibleTags.length} of ${run.tags.length} rows.
-          <button class="action small" style="margin-left:8px" onclick="pqShowAllRows('${jsAttr(runKey)}')">Show all ${run.tags.length}</button>
-          <span style="margin-left:8px">The checkbox above still selects the whole generation.</span>
+        <div class="pt-pq-more">
+          <span>Showing ${visibleTags.length} of ${run.tags.length} rows — the checkbox above still selects all ${run.tags.length}.</span>
+          <button class="pt-pq-act" onclick="pqShowAllRows('${jsAttr(runKey)}')">Show all ${run.tags.length}</button>
         </div>` : ""}
     </div>`;
 }
@@ -568,6 +568,16 @@ function pqObservedRange(run) {
 
 function pqRunKey(batchKey, runId) {
   return `${batchKey}::${runId}`;
+}
+
+// Print status, but only when it says something the tab does not. Every row of
+// "To Print" is pending_print and every row of the printed tab is printed, so
+// spelling it out on each line was a column of identical text. Anything else —
+// a status this UI does not set — still shows, because that is worth seeing.
+function pqOddStatus(tag) {
+  const expected = _pqPrinted ? "printed" : "pending_print";
+  const status = tag.printStatus || "pending_print";
+  return status === expected ? "" : status;
 }
 
 // Batch order has to be the same everywhere or the dropdown stops being a map

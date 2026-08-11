@@ -140,6 +140,14 @@
 
     <div class="bar">
       <input id="q" type="search" placeholder="Search by vehicle number, E-Tag ID, sticker serial, owner email/mobile…" autocomplete="off"/>
+      <!-- Broadest axis first: which population, then which kind, then which
+           state. Claim state decides whether you are looking at stock or at
+           tags in the field, which is the coarsest cut of the three. -->
+      <select id="claim" aria-label="Claim state">
+        <option value="claimed">Claimed by an owner</option>
+        <option value="unclaimed">Unclaimed stock</option>
+        <option value="all">Claimed + unclaimed</option>
+      </select>
       <select id="category" aria-label="Tag category">
         <option value="all">All tags</option>
         <option value="premium">Premium tags</option>

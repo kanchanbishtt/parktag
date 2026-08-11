@@ -3,6 +3,7 @@ const summary = document.getElementById("summary");
 const qInput = document.getElementById("q");
 const statusSel = document.getElementById("status");
 const categorySel = document.getElementById("category");
+const claimSel = document.getElementById("claim");
 const inclDel = document.getElementById("includeDeleted");
 
 function esc(s) {
@@ -40,6 +41,8 @@ async function load() {
   // "all" is the default, so it is left off the query entirely rather than
   // sent as a value the server would have to recognise and ignore.
   if (categorySel.value && categorySel.value !== "all") params.set("category", categorySel.value);
+  // "claimed" is the server default, so it is left off for the same reason.
+  if (claimSel.value && claimSel.value !== "claimed") params.set("claim", claimSel.value);
   if (inclDel.checked) params.set("includeDeleted", "1");
 
   rows.innerHTML = `<tr><td colspan="9" class="empty">Loading…</td></tr>`;
@@ -71,10 +74,18 @@ async function load() {
       : `<span class="pill free">Free${t.freeContactUsed ? " · used" : ""}</span>`;
     const toggleLabel = t.status === "active" ? "Deactivate" : "Activate";
     const toggleTo = t.status === "active" ? "inactive" : "active";
+    // Unclaimed stock has no active/inactive state — it sits at "unclaimed"
+    // until an owner claims it. Offering Activate here would produce a live tag
+    // with nobody to contact, so the toggle is not shown. Restore goes through
+    // the same status endpoint, so it is withheld for the same reason. The
+    // server refuses the change independently of this.
+    const claimed = Boolean(t.claimed);
     const actions = t.deletedAt
-      ? `<button class="go" data-act="status" data-id="${t.id}" data-to="active">Restore</button>`
+      ? (claimed
+        ? `<button class="go" data-act="status" data-id="${t.id}" data-to="active">Restore</button>`
+        : `<span class="muted">—</span>`)
       : `<button data-act="logs" data-id="${t.id}">Logs</button>
-         <button data-act="status" data-id="${t.id}" data-to="${toggleTo}">${toggleLabel}</button>
+         ${claimed ? `<button data-act="status" data-id="${t.id}" data-to="${toggleTo}">${toggleLabel}</button>` : ""}
          <button class="danger" data-act="delete" data-id="${t.id}">Delete</button>`;
     // data-label feeds the `td::before` labels the narrow-screen card layout
     // renders once the header row is hidden (see the @media block in etags.html).
@@ -156,5 +167,6 @@ async function openLogs(id) {
 qInput.addEventListener("input", debouncedLoad);
 statusSel.addEventListener("change", load);
 categorySel.addEventListener("change", load);
+claimSel.addEventListener("change", load);
 inclDel.addEventListener("change", load);
 load();

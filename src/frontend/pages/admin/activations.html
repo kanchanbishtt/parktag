@@ -14,13 +14,13 @@
     .wrap { max-width: 1180px; margin: 0 auto; padding: clamp(14px, 3vw, 24px) clamp(12px, 3vw, 20px) 60px; }
     .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
     .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
-    /* The real sticker artwork, not a typed wordmark. It is a 1000×600 poster,
-       so it is shown at a fixed aspect ratio as a small plate — big enough to
-       read as the product, small enough to stay a header element. width/height
-       are on the tag too, so the row does not reflow when the SVG lands. */
-    .brand-sticker { width: clamp(84px, 22vw, 116px); height: auto; aspect-ratio: 5 / 3;
-                     border-radius: 8px; border: 1px solid #E5E7EB; background: #fff;
-                     flex: 0 0 auto; display: block; }
+    /* The logo asset, matching the tags page. It is a PNG with a solid white
+       background, so on this page's grey ground it renders as a white box —
+       `multiply` drops the white and leaves the ink. width/height are on the
+       tag too, so the header does not reflow when the image lands. */
+    .brand-logo { width: auto; height: 30px; aspect-ratio: 735 / 280; flex: 0 0 auto;
+                  display: block; mix-blend-mode: multiply; }
+    .brand-sep { color: #9CA3AF; font-weight: 700; font-size: 1.2rem; }
     .title { font-size: clamp(1.2rem, 4.5vw, 1.5rem); font-weight: 900; margin: 0; min-width: 0; }
     .title span { color: #FF2700; }
     a.back { text-decoration: none; color: #6B7280; font-weight: 700; font-size: .85rem; border: 1.5px solid #E5E7EB; padding: 8px 14px; border-radius: 10px; background: #fff; white-space: nowrap; }
@@ -63,6 +63,7 @@
        forces a sideways scroll. Kicks in exactly where the widest table (700px)
        would otherwise overflow. ── */
     @media (max-width: 760px) {
+      .brand-logo { height: 26px; }
       .card { background: transparent; border: none; overflow: visible; border-radius: 0; }
       table, tbody, tr, td { display: block; width: 100%; }
       thead { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
@@ -90,8 +91,9 @@
   <div class="wrap">
     <div class="top">
       <div class="brand">
-        <img class="brand-sticker" src="/images/org-parktag-sticker.svg"
-             alt="ParkTag vehicle sticker" width="1000" height="600" />
+        <img class="brand-logo" src="/images/light-logo.png" alt="ParkTag"
+             width="735" height="280" />
+        <span class="brand-sep" aria-hidden="true">·</span>
         <h1 class="title">Tag Activations</h1>
       </div>
       <a class="back" href="/admin/overview">← Back to Admin</a>

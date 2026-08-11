@@ -3810,6 +3810,15 @@ html:has(body.pt-hub-body) {
   padding-right: calc(20px + env(safe-area-inset-right, 0px));
 }
 
+/* The wordmark carries far more visual weight than the 20px burger glyph
+   opposite it, so matching their insets exactly leaves the logo looking
+   crowded. Pull it out to 14px — the floor of the clamp the page content
+   below already uses — while the burger keeps its 20px. The safe-area inset
+   is added before this is subtracted, so a notch is still cleared. */
+.scanner-body .pt-logo {
+  margin-left: -6px;
+}
+
 .scanner-body .pt-main {
   --pt-pad-x: clamp(14px, 4.5vw, 20px);
   --pt-pad-y: clamp(16px, 3.5vh, 28px);

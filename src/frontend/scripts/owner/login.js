@@ -45,7 +45,6 @@ async function sendWhatsappOtp(raw) {
 
   byId("phone-step2").style.display = "";
   byId("owner-form-step1").style.display = "none";
-  byId("google-section").style.display = "none";
   const sub = byId("card-sub");
   if (sub) {
     const last4 = phone.replace(/\D/g, "").slice(-4);
@@ -485,7 +484,6 @@ if (hasEl("phone-back-btn")) {
     e.preventDefault();
     byId("phone-step2").style.display = "none";
     byId("owner-form-step1").style.display = "";
-    byId("google-section").style.display = "";
     setStatus("", "info");
     const btn = byId("owner-login-button");
     if (btn) { btn.disabled = false; btn.classList.remove("pt-btn-loading"); }

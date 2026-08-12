@@ -175,7 +175,7 @@ export function registerPublicRoutes(app, env) {
         // secret, and the scanner is holding the 64-char token either way.
         tagId: stickerSerialFor(tag) || etagIdFor(tag._id),
         vehicleType: tag.vehicleType || null,
-        // Show the real vehicle type per vehicle (e.g. "Bicycle"), falling back
+        // Show the real vehicle type per vehicle (e.g. "Auto Rickshaw"), falling back
         // to the stored label only for older tags without a type.
         vehicleLabel: VEHICLE_LABELS[tag.vehicleType] || tag.vehicleLabel || "Vehicle",
         maskedPlateNumber:

@@ -13,6 +13,11 @@ let actionLocked = false;
 let verifiedPlateLastFour = "";
 let expectedPlateLastFour = "";
 let pendingAction = null;
+// Which contact action the scanner asked for and is verifying the plate in
+// order to reach. Plate verification is now a gate in front of a chosen
+// action rather than the first thing a scanner meets, so the choice has to
+// survive the detour and resume once the plate checks out.
+let pendingVerifiedAction = "";
 // Server-issued grant proving this scanner passed last-4 verification.
 let contactGrant = "";
 // Whether this E-Tag still has its free contact available (server-authoritative).
@@ -562,11 +567,15 @@ async function loadScannerView() {
       return;
     }
 
-    setText(
-      "scanner-load-status",
-      "Confirm the vehicle plate first to continue."
-    );
-    showOnly("scanner-verification-shell");
+    // The contact card is the first thing a scanner meets. Nothing here is
+    // owner data — the plate is masked, the label is generic, and every
+    // contact action still stops at plate verification before it can reach
+    // anybody. Choosing first means a scanner who only wants to send the
+    // WhatsApp alert is never asked for anything they do not need to give.
+    setText("scanner-load-status", "Choose how you'd like to reach the owner.");
+    setVerifiedBadge(false);
+    showOnly("scanner-action-shell");
+    setRequestStatus("request-status", "", "info");
   } catch (error) {
     setText("scanner-load-status", "This WaveTag could not be loaded.");
     setText(
@@ -633,15 +642,64 @@ async function handlePlateVerification(event) {
   setDisabled("plate-verify-submit", false);
   setRequestStatus("plate-verify-status", "", "info");
   showOnly("scanner-action-shell");
+  setVerifiedBadge(true);
   // Reflect free-usage state: show buttons, or the Purchase CTA if used up.
+  // Whether this tag has anything left is only knowable after the plate
+  // checks out — the load payload deliberately withholds it, so that scanning
+  // a stranger's tag cannot be used to probe how it has been used.
   setContactAvailability(data.contactAvailable !== false);
+
+  if (data.contactAvailable === false) {
+    pendingVerifiedAction = "";
+    setRequestStatus("request-status", "Verified ✓", "success");
+    return;
+  }
+
+  const resuming = pendingVerifiedAction;
+  pendingVerifiedAction = "";
+  setRequestStatus("request-status", "Verified ✓", "success");
+  runVerifiedAction(resuming);
+}
+
+// Every contact action passes through here. Verifying once is enough for the
+// rest of the visit: the server issues a single grant and each action carries
+// it, so a scanner who calls and then messages is not asked twice.
+function requireVerification(action) {
+  if (contactGrant) {
+    runVerifiedAction(action);
+    return;
+  }
+
+  pendingVerifiedAction = action;
+  showOnly("scanner-verification-shell");
   setRequestStatus(
-    "request-status",
-    data.contactAvailable !== false
-      ? "Verified ✓ Choose WhatsApp or Call to reach the owner."
-      : "Verified ✓",
-    "success"
+    "plate-verify-status",
+    "Enter the last 4 digits shown on the vehicle plate.",
+    "info"
   );
+  byId("plate-last-four-input")?.focus();
+}
+
+function runVerifiedAction(action) {
+  if (action === "call") {
+    requestContactNumber("call");
+    return;
+  }
+
+  if (action === "message") {
+    handleWhatsAppNotify();
+    return;
+  }
+
+  if (action === "sos") {
+    openSosConfirm();
+  }
+}
+
+// The badge states a fact about this session, so it cannot be on screen before
+// the plate has actually been confirmed.
+function setVerifiedBadge(verified) {
+  setHidden("pt-verified-badge", !verified);
 }
 
 async function handleFinalCallAction() {
@@ -1141,8 +1199,20 @@ async function handleActVerify(event) {
 await loadScannerView();
 
 byId("plate-verify-form")?.addEventListener("submit", handlePlateVerification);
-byId("call-owner-button")?.addEventListener("click", () => requestContactNumber("call"));
-byId("send-whatsapp-button")?.addEventListener("click", handleWhatsAppNotify);
+byId("plate-verify-cancel")?.addEventListener("click", () => {
+  pendingVerifiedAction = "";
+  setValue("plate-last-four-input", "");
+  setRequestStatus("plate-verify-status", "", "info");
+  showOnly("scanner-action-shell");
+  setRequestStatus("request-status", "", "info");
+});
+byId("call-owner-button")?.addEventListener("click", () => requireVerification("call"));
+// The reason is checked before the plate, not after: being sent to verify and
+// then told to pick a reason would be two corrections for one tap.
+byId("send-whatsapp-button")?.addEventListener("click", () => {
+  if (!hasContactReason()) return;
+  requireVerification("message");
+});
 byId("pt-alert-ok")?.addEventListener("click", () => byId("pt-alert")?.close());
 byId("quick-share")?.addEventListener("click", handleQuickShare);
 byId("contact-number-submit")?.addEventListener("click", handleContactNumberSubmit);
@@ -1165,7 +1235,7 @@ byId("contact-number-cancel")?.addEventListener("click", () => {
 
 // Emergency / SOS — the button opens the confirmation gate, which is the only
 // thing that opens the panel.
-byId("sos-button")?.addEventListener("click", openSosConfirm);
+byId("sos-button")?.addEventListener("click", () => requireVerification("sos"));
 byId("sos-confirm-check")?.addEventListener("change", (event) => {
   setDisabled("sos-confirm-continue", !event.target.checked);
 });

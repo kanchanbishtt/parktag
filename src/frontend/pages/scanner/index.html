@@ -76,7 +76,10 @@
 
         <hr class="pt-verify-rule" />
 
-        <a class="pt-cancel-action" href="https://parktag.me">Cancel</a>
+        <!-- Back to the choices, not off the site: verification is a step
+             inside the flow now, so cancelling it returns the scanner to the
+             card they came from rather than ending their visit. -->
+        <button class="pt-cancel-action" id="plate-verify-cancel" type="button">Cancel</button>
       </article>
 
       <!-- Activation wizard: intro → plate → mobile → OTP code -->
@@ -180,7 +183,7 @@
         <div class="pt-vehicle-block" id="pt-vehicle-block">
           <div class="pt-vehicle-id-row">
             <div class="pt-plate-display" id="pt-plate-display">••••</div>
-            <div class="pt-verified-badge">
+            <div class="pt-verified-badge" id="pt-verified-badge" hidden>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="m9 12 2 2 4-4" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/></svg>
               Verified
             </div>

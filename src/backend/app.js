@@ -206,7 +206,9 @@ export async function buildApp() {
           // Google reCAPTCHA v3 loader + its runtime assets (invisible bot check
           // on the OTP-send flow). Inert unless RECAPTCHA_SITE_KEY is set.
           "https://www.google.com",
-          "https://www.gstatic.com"
+          "https://www.gstatic.com",
+          // Maze website-test snippet loader.
+          "https://snippet.maze.co"
         ],
         // The owner/admin pages wire controls with inline onclick handlers.
         // Helmet defaults script-src-attr to 'none', which blocks ALL inline
@@ -215,11 +217,16 @@ export async function buildApp() {
         // controls work. (scriptSrc's 'unsafe-inline' does NOT cover event
         // handler attributes — script-src-attr is a separate directive.)
         scriptSrcAttr: ["'unsafe-inline'"],
-        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-        fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
-        imgSrc: ["'self'", "data:", "https://api.qrserver.com"],
-        connectSrc: ["'self'", "https://www.google.com"],
-        frameSrc: ["https://accounts.google.com", "https://*.razorpay.com", "https://www.google.com"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://snippet.maze.co"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com", "data:", "https://snippet.maze.co"],
+        imgSrc: ["'self'", "data:", "https://api.qrserver.com", "https://snippet.maze.co"],
+        connectSrc: ["'self'", "https://www.google.com", "https://api.maze.co", "https://prompts.maze.co"],
+        frameSrc: [
+          "https://accounts.google.com",
+          "https://*.razorpay.com",
+          "https://www.google.com",
+          "https://t.maze.co"
+        ],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
         formAction: ["'self'"],

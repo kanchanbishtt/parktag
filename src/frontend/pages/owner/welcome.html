@@ -1717,17 +1717,11 @@ const PRODUCTS = [
     variants: ["Car", "Auto"],
     image: "/images/shop-car-2.svg",
   },
-  {
-    id: "pt-bike-1",
-    name: "ParkTag Bike Tag",
-    desc: "For Bike & Helmet: weatherproof sticker with QR contact.",
-    features: ["Masked Calls", "WhatsApp", "Emergency Contact", "One time buy"],
-    price: 299,
-    orig: 399,
-    discount: 25,
-    variants: ["Bike", "Scooter", "Helmet"],
-    image: "/images/shop-bike.webp",
-  },
+  // Combo before Bike, so the two photographic thumbnails sit on opposite
+  // corners of the two-column grid rather than stacked down one side. Order in
+  // this array IS the order on screen; nothing addresses a product by position
+  // (the detail sheet indexes back into this same array, and the price
+  // catalogue is keyed by id), so it is safe to arrange for layout.
   {
     id: "pt-combo",
     name: "ParkTag Combo Pack",
@@ -1738,6 +1732,17 @@ const PRODUCTS = [
     discount: 44,
     variants: ["Car", "Bike", "Scooter"],
     image: "/images/shop-combo.svg",
+  },
+  {
+    id: "pt-bike-1",
+    name: "ParkTag Bike Tag",
+    desc: "For Bike & Helmet: weatherproof sticker with QR contact.",
+    features: ["Masked Calls", "WhatsApp", "Emergency Contact", "One time buy"],
+    price: 299,
+    orig: 399,
+    discount: 25,
+    variants: ["Bike", "Scooter", "Helmet"],
+    image: "/images/shop-bike.webp",
   },
 ];
 

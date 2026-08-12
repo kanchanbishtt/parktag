@@ -1,7 +1,7 @@
 const VEHICLE_LABELS = {
   car: "Car", bike: "Bike", scooter: "Scooter",
   auto_rickshaw: "Auto Rickshaw", truck: "Truck",
-  bus: "Bus", bicycle: "Bicycle", e_scooter: "E-Scooter"
+  bus: "Bus"
 };
 
 // Type-specific icon SVGs (inline, colour-neutral — uses currentColor)
@@ -43,20 +43,6 @@ const VEHICLE_SVGS = {
     <circle cx="8" cy="18" r="1.5" fill="currentColor"/>
     <circle cx="16" cy="18" r="1.5" fill="currentColor"/>
     <path d="M7 4v6M17 4v6" stroke="currentColor" stroke-width="1.5"/>
-  </svg>`,
-  bicycle: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-    <circle cx="5" cy="17" r="3" stroke="currentColor" stroke-width="1.8"/>
-    <circle cx="19" cy="17" r="3" stroke="currentColor" stroke-width="1.8"/>
-    <path d="M5 17l4-6h4l1 3M13 11l2 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-    <path d="M9 11H7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-    <circle cx="9" cy="7" r="1.5" stroke="currentColor" stroke-width="1.5"/>
-  </svg>`,
-  e_scooter: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-    <circle cx="5" cy="17" r="2.5" stroke="currentColor" stroke-width="1.8"/>
-    <circle cx="19" cy="17" r="2.5" stroke="currentColor" stroke-width="1.8"/>
-    <path d="M5 17h2l2-5h6l1 3h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-    <path d="M11 12V9l3-2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-    <path d="M14 5h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
   </svg>`,
 };
 
@@ -113,11 +99,6 @@ async function loadOwnerMobile() {
 
 function validatePlate(raw, type) {
   if (!raw) return "Please enter the vehicle number.";
-  if (type === "bicycle") {
-    return raw.replace(/\s/g, "").length >= 3
-      ? null
-      : "Enter a valid frame number or ID (min. 3 characters).";
-  }
   return PLATE_RE.test(raw)
     ? null
     : "Invalid format. Use Indian format, e.g. DL 01 AB 1234.";

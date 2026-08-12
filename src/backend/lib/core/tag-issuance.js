@@ -33,13 +33,36 @@ export function stickerSerialFor(tag) {
   return `PT-${batchKeyFor(tag.batchNumber)}-${unit}`;
 }
 
+// The complete list of vehicle types ParkTag supports. This is the only list:
+// the add-vehicle dropdown mirrors it, and assertVehicleType below accepts
+// nothing outside it, so the form and the API cannot drift apart.
 export const VEHICLE_LABELS = {
   car: "Car", bike: "Bike", scooter: "Scooter", auto_rickshaw: "Auto Rickshaw",
-  truck: "Truck", bus: "Bus", bicycle: "Bicycle", e_scooter: "E-Scooter"
+  truck: "Truck", bus: "Bus"
 };
 
 function labelForType(type, fallback = "Registered vehicle") {
   return VEHICLE_LABELS[type] || fallback;
+}
+
+// Reject a type we do not offer. Removing the dropdown option alone would not
+// stop a direct POST, and nothing validated this field before. No type at all
+// stays allowed: retail tags are issued before anyone says what the vehicle is.
+function assertVehicleType(type) {
+  if (type == null || type === "") return null;
+  if (!Object.prototype.hasOwnProperty.call(VEHICLE_LABELS, type)) {
+    throw new Error("Unsupported vehicle type");
+  }
+  return type;
+}
+
+// Same list, but for a tag being re-minted from one the owner already has. A
+// type that is no longer offered is dropped rather than thrown on: an owner
+// whose old tag predates this list must still be able to buy a premium
+// replacement, and vehicleLabel carries the original wording over.
+function sanitiseVehicleType(type) {
+  if (type == null || type === "") return null;
+  return Object.prototype.hasOwnProperty.call(VEHICLE_LABELS, type) ? type : null;
 }
 
 // Base for scan/QR URLs: use env.scanBaseUrl if set (production pin), else the
@@ -224,7 +247,7 @@ export async function createRegisteredOwnerTag(collections, ownerId, input) {
 // now permanently linked to a single vehicle via a 256-bit secure token.
 export async function createEtagForVehicle(collections, ownerId, input) {
   const plateNumber = String(input.number || "").trim().toUpperCase();
-  const vehicleType = input.type || null;
+  const vehicleType = assertVehicleType(input.type || null);
 
   if (!plateNumber) {
     throw new Error("Vehicle number is required");
@@ -268,7 +291,7 @@ export async function createEtagForVehicle(collections, ownerId, input) {
 // createEtagForVehicle does, so the new premium tag is always distinct.
 export async function createPremiumTagForVehicle(collections, ownerId, input) {
   const plateNumber = String(input.plateNumber || "").trim().toUpperCase();
-  const vehicleType = input.vehicleType || null;
+  const vehicleType = sanitiseVehicleType(input.vehicleType || null);
   const now = new Date().toISOString();
 
   const tag = {

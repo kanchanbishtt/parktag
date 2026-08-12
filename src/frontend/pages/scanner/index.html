@@ -69,6 +69,19 @@
                    placeholder="Last 4 Digits" class="pt-input pt-verify-input"
                    aria-label="Last 4 digits of the vehicle plate number" />
           </div>
+          <!-- Private Call only. The masked call needs a number to ring back,
+               and asking for it here means the call path is one screen rather
+               than two. Stays hidden for WhatsApp and Emergency: WhatsApp needs
+               nothing from the scanner, so it must never see a number field. -->
+          <div id="plate-verify-call-block" hidden>
+            <p class="pt-verify-callnote">
+              We will need your phone number to setup a <strong>MASKED</strong> call between you and tag owner.
+            </p>
+            <input id="plate-verify-phone" type="tel" inputmode="tel" autocomplete="tel"
+                   placeholder="Your Phone" class="pt-input pt-verify-phone"
+                   aria-label="Your phone number" />
+          </div>
+
           <button id="plate-verify-submit" class="pt-btn pt-btn-primary pt-btn-full" type="submit">Verify &amp; Continue</button>
         </form>
 

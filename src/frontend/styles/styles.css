@@ -4465,6 +4465,36 @@ html:has(body.pt-hub-body) {
   letter-spacing: normal;
 }
 
+/* The Private Call block. Same type scale as .pt-verify-label so the card
+   reads as one form rather than two pasted together; heavier, because it is
+   asking for something rather than describing the field above it. */
+.pt-verify-callnote {
+  margin: 0 0 10px;
+  font-size: clamp(0.88rem, 3.5vw, 0.95rem);
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--pt-ink);
+}
+
+/* MASKED is the word that answers "why do you want my number?", so it is the
+   one thing emphasised in the sentence. */
+.pt-verify-callnote strong {
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.pt-verify-phone {
+  font-weight: 600;
+}
+
+/* The form is a grid, and a grid item still generates a box when the UA
+   stylesheet is overridden anywhere upstream. State it explicitly: a leaked
+   number field on the WhatsApp path is the one thing this must never do. */
+#plate-verify-call-block[hidden] {
+  display: none;
+}
+
 /* Shared by the verification card and the contact card's number panel, so the
    two ways out of this flow look and measure the same. Deliberately quiet:
    next to a red primary button it must read as the way back, not a rival. */

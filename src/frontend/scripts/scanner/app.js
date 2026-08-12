@@ -18,6 +18,10 @@ let pendingAction = null;
 // action rather than the first thing a scanner meets, so the choice has to
 // survive the detour and resume once the plate checks out.
 let pendingVerifiedAction = "";
+// A number typed on the verification card, for the Private Call path only.
+// Held here so a verified call goes straight to the dial panel instead of
+// asking for the same number again on the next screen.
+let verifyCapturedPhone = "";
 // Server-issued grant proving this scanner passed last-4 verification.
 let contactGrant = "";
 // Whether this E-Tag still has its free contact available (server-authoritative).
@@ -597,6 +601,23 @@ async function handlePlateVerification(event) {
     return;
   }
 
+  // Check the number before the plate goes anywhere. A failed verification
+  // counts against the lockout, so a mistyped phone must not cost the scanner
+  // one of their attempts at a plate they had right.
+  if (pendingVerifiedAction === "call") {
+    const typed = byId("plate-verify-phone")?.value.trim() || "";
+    if (typed.replace(/\D/g, "").length < 7) {
+      setRequestStatus(
+        "plate-verify-status",
+        "Enter a valid phone number so the owner's call can reach you.",
+        "error"
+      );
+      byId("plate-verify-phone")?.focus();
+      return;
+    }
+    verifyCapturedPhone = typed;
+  }
+
   setDisabled("plate-verify-submit", true);
   setRequestStatus("plate-verify-status", "Verifying…", "info");
 
@@ -671,6 +692,15 @@ function requireVerification(action) {
   }
 
   pendingVerifiedAction = action;
+  // Only the call needs a number, so only the call is asked for one.
+  const wantsNumber = action === "call";
+  setHidden("plate-verify-call-block", !wantsNumber);
+  setValue("plate-verify-phone", "");
+  verifyCapturedPhone = "";
+  const submit = byId("plate-verify-submit");
+  if (submit) {
+    submit.textContent = wantsNumber ? "Setup Masked Call" : "Verify & Continue";
+  }
   showOnly("scanner-verification-shell");
   setRequestStatus(
     "plate-verify-status",
@@ -682,6 +712,18 @@ function requireVerification(action) {
 
 function runVerifiedAction(action) {
   if (action === "call") {
+    // Already given on the verification card — go straight to the dial panel
+    // rather than asking for the same number twice. The separate number panel
+    // is still the path when the plate was verified by an earlier action.
+    if (verifyCapturedPhone) {
+      setValue("contact-phone", verifyCapturedPhone);
+      verifyCapturedPhone = "";
+      setHidden("contact-number-panel", true);
+      setHidden("dial-number-block", true);
+      setHidden("dial-panel", false);
+      setRequestStatus("request-status", "Tap Call Now to connect with the owner privately.", "info");
+      return;
+    }
     requestContactNumber("call");
     return;
   }
@@ -1202,6 +1244,10 @@ byId("plate-verify-form")?.addEventListener("submit", handlePlateVerification);
 byId("plate-verify-cancel")?.addEventListener("click", () => {
   pendingVerifiedAction = "";
   setValue("plate-last-four-input", "");
+  // Do not leave a typed number sitting in a hidden field after a cancel.
+  setValue("plate-verify-phone", "");
+  verifyCapturedPhone = "";
+  setHidden("plate-verify-call-block", true);
   setRequestStatus("plate-verify-status", "", "info");
   showOnly("scanner-action-shell");
   setRequestStatus("request-status", "", "info");

@@ -15,15 +15,15 @@
     .pt-wp { width: 100%; min-height: 100vh; background: #fff; padding-bottom: 72px; }
 
     /* ── Header ──────────────────────────────────── */
+    /* Flat brand navy. This was a four-stop gradient that only passed through
+       #03162D at 28% and finished four shades lighter, so the header never
+       actually read as the brand colour. The white radial wash that sat on top
+       of it is gone too — it tinted the same area back off-colour. */
     .pt-wh {
-      background: linear-gradient(155deg, #010D1A 0%, #03162D 28%, #0A2040 58%, #162F60 100%);
+      background: #03162D;
       padding: 0 18px;
       box-shadow: 0 1px 0 rgba(255,255,255,0.06), 0 6px 32px rgba(0,18,48,0.32);
       position: relative; overflow: hidden;
-    }
-    .pt-wh::before {
-      content: ''; position: absolute; inset: 0; pointer-events: none;
-      background: radial-gradient(ellipse 90% 55% at 50% -5%, rgba(255,255,255,0.07) 0%, transparent 70%);
     }
     .pt-wh::after {
       content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 2px; pointer-events: none;
@@ -532,7 +532,7 @@
     /* ── Shared flow header (same navy + dark logo as the dashboard) ─── */
     .pt-fhead {
       position: sticky; top: 0; z-index: 3;
-      background: linear-gradient(155deg, #010D1A 0%, #03162D 28%, #0A2040 58%, #162F60 100%);
+      background: #03162D;
       padding: 16px 22px; display: flex; align-items: center;
       box-shadow: 0 2px 14px rgba(0,18,48,0.22);
     }

@@ -169,16 +169,6 @@
     }
     .pt-dot-btn[aria-selected="true"] { width: 22px; background:#FF2700; }
 
-    .pt-car-arr {
-      position: absolute; top: 50%; transform: translateY(-50%);
-      background: rgba(255,255,255,.88); border: 1.5px solid #E5E7EB;
-      border-radius: 50%; width: 30px; height: 30px;
-      display: flex; align-items: center; justify-content: center;
-      cursor: pointer; z-index: 2; padding: 0; transition: box-shadow .15s;
-    }
-    .pt-car-arr:hover { box-shadow: 0 2px 8px rgba(0,0,0,.14); }
-    .pt-car-prev { left: 8px; }
-    .pt-car-next { right: 8px; }
 
     /* ── Search ────────────────────────────────────── */
     .pt-wsearch { position: relative; padding: 16px 0 0; }
@@ -206,6 +196,16 @@
 
     /* ── Vehicle list ───────────────────────────────── */
     .pt-vgrid { display: flex; flex-direction: column; gap: 10px; }
+    /* One vehicle per row is right on a phone, but on a desktop it stretches a
+       small icon, a plate and a chevron across the whole content width. Two
+       columns from 1024px, matching the shop grid. A flex column cannot do
+       columns, so it becomes a grid at that width — the cards are already
+       stretch-aligned, so they need no change of their own.
+       A trailing odd vehicle sits alone on the last row; unlike the shop, the
+       count is the owner's, not ours, so that is unavoidable and expected. */
+    @media (min-width: 1024px) {
+      .pt-vgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    }
 
     .pt-vlc {
       display: flex; flex-direction: column; align-items: stretch;
@@ -355,13 +355,19 @@
       .pt-shop-name  { font-size: .86rem; }
       .pt-shop-price { font-size: 1rem; }
     }
+    /* Two columns at every width, phone through desktop — the column count
+       never changes, only the gap and type scale. Three columns would strand a
+       card (four products lay out as 3 + 1), and four turns the cards into a
+       thin strip on a wide screen. The grid takes the full content width at
+       every size; the page container is what limits it, the same limit the
+       rest of the dashboard answers to. */
     @media (min-width: 640px) {
-      .pt-shop-grid { grid-template-columns: repeat(3, 1fr); gap: 14px; }
+      .pt-shop-grid { gap: 14px; }
       .pt-shop-body { padding: 11px 13px 14px; }
       .pt-shop-name { font-size: .88rem; }
     }
     @media (min-width: 1024px) {
-      .pt-shop-grid { grid-template-columns: repeat(4, 1fr); gap: 20px; }
+      .pt-shop-grid { gap: 20px; }
       .pt-shop-name { font-size: 1rem; }
       /* The desktop artwork is 16:9 and takes over at exactly this width (see
          PT_SHOP_DESKTOP_MQ in the script below). The frame has to change with
@@ -1115,12 +1121,10 @@
 
           </div>
 
-          <button class="pt-car-arr pt-car-prev" id="carPrev" aria-label="Previous">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M15 18l-6-6 6-6" stroke="#374151" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </button>
-          <button class="pt-car-arr pt-car-next" id="carNext" aria-label="Next">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="#374151" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </button>
+          <!-- No prev/next arrows. They sat on top of the banner artwork and
+               covered the words at both edges, and the slides are the one thing
+               on this screen that exists to be read. The carousel still advances
+               on its own, and the dots below and a swipe both move it. -->
         </div>
 
         <div class="pt-car-dots">

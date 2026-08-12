@@ -377,6 +377,17 @@
       background: #F3F4F6; border-radius: 16px; aspect-ratio: 16/9;
       display: flex; align-items: center; justify-content: center;
       margin-bottom: 18px;
+      overflow: hidden;
+    }
+    /* Fills its frame in both places. The thumbnails are 4:3 while the detail
+       sheet's frame is 16:9, so `cover` crops rather than letterboxing — the
+       subject sits centre-frame in all four, so nothing important is lost.
+       The width/height attributes on the tag reserve the box before the file
+       lands, which keeps the grid from reflowing as the photos arrive. */
+    .pt-shop-photo {
+      width: 100%; height: 100%;
+      object-fit: cover; object-position: center;
+      display: block;
     }
     .pt-sheet-name { font-size: 1.05rem; font-weight: 900; color: #03162D; margin: 0 0 14px; line-height: 1.35; }
     .pt-sheet-prow { display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px; flex-wrap: wrap; }
@@ -1688,6 +1699,12 @@ const PRODUCTS = [
     orig: 499,
     discount: 40,
     variants: ["Car", "Auto"],
+    // The two photo thumbnails are WebP rather than the SVGs they were exported
+    // as: the Figma export embeds the full-resolution photograph as base64, so
+    // the car card alone was 3.2MB. Rendered at 2x the display box (1800x1350)
+    // they stay sharp on a retina phone at ~80KB. The vector thumbnails below
+    // stay SVG, where they are already small and resolution-independent.
+    image: "/images/shop-car.webp",
   },
   {
     id: "pt-car-2",
@@ -1698,6 +1715,7 @@ const PRODUCTS = [
     orig: 799,
     discount: 38,
     variants: ["Car", "Auto"],
+    image: "/images/shop-car-2.svg",
   },
   {
     id: "pt-bike-1",
@@ -1708,6 +1726,7 @@ const PRODUCTS = [
     orig: 399,
     discount: 25,
     variants: ["Bike", "Scooter", "Helmet"],
+    image: "/images/shop-bike.webp",
   },
   {
     id: "pt-combo",
@@ -1718,6 +1737,7 @@ const PRODUCTS = [
     orig: 899,
     discount: 44,
     variants: ["Car", "Bike", "Scooter"],
+    image: "/images/shop-combo.svg",
   },
 ];
 
@@ -1769,6 +1789,32 @@ function tagPlaceholder(size) {
   </svg>`;
 }
 
+// A product's photo, or the drawn placeholder when it has none.
+//
+// The placeholder is kept rather than deleted: a product added without artwork
+// should still render a card, not a hole. onerror falls back to it too, so a
+// missing or corrupt file degrades to the old look instead of a broken image
+// icon on the dashboard's main screen.
+//
+// Sized eagerly for the first card and lazily after — the grid is above the
+// fold on a phone, so the first thumbnail should not wait on the scroller.
+function productImage(product, placeholderSize) {
+  if (!product.image) return tagPlaceholder(placeholderSize);
+  return `<img class="pt-shop-photo" src="${product.image}" alt="${product.name}"
+    loading="lazy" decoding="async" width="900" height="675"
+    onerror="ptShopImgFallback(this, ${placeholderSize})" />`;
+}
+
+// Swaps a failed image for the drawn placeholder. A named handler rather than
+// inline markup in the onerror attribute: the placeholder is a chunk of SVG
+// full of double quotes, which cannot be embedded in a double-quoted attribute
+// without escaping that the browser then has to undo.
+function ptShopImgFallback(img, size) {
+  const holder = document.createElement("span");
+  holder.innerHTML = tagPlaceholder(size);
+  img.replaceWith(...holder.childNodes);
+}
+
 // ── Render shop grid ──────────────────────────────────────────
 function renderShop() {
   const grid = document.getElementById("shopGrid");
@@ -1776,7 +1822,7 @@ function renderShop() {
     <div class="pt-shop-card" onclick="openProduct(${i})">
       <div class="pt-shop-img">
         <span class="pt-shop-badge">${p.discount}% OFF</span>
-        ${tagPlaceholder(68)}
+        ${productImage(p, 68)}
       </div>
       <div class="pt-shop-body">
         <p class="pt-shop-name">${p.name}</p>
@@ -1821,7 +1867,7 @@ function renderSheet() {
   const body = document.getElementById("ptSheetBody");
   body.innerHTML = `
     <div class="pt-sheet-img">
-      ${tagPlaceholder(100)}
+      ${productImage(p, 100)}
     </div>
     <p class="pt-sheet-name">${p.name}. ${p.desc}</p>
     <div class="pt-sheet-prow">

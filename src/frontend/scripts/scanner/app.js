@@ -13,6 +13,19 @@ let actionLocked = false;
 let verifiedPlateLastFour = "";
 let expectedPlateLastFour = "";
 let pendingAction = null;
+// Which contact action the scanner asked for and is verifying the plate in
+// order to reach. Plate verification is now a gate in front of a chosen
+// action rather than the first thing a scanner meets, so the choice has to
+// survive the detour and resume once the plate checks out.
+let pendingVerifiedAction = "";
+// A number typed on the verification card, for the Private Call path only.
+// Held here so the call is registered and dialled straight off the card
+// instead of asking for the same number again on the next screen.
+let verifyCapturedPhone = "";
+// The verification card showing its number field without the plate step,
+// because the plate was already confirmed earlier this visit. The submit then
+// has nothing to verify and goes straight to placing the call.
+let verifyPhoneOnly = false;
 // Server-issued grant proving this scanner passed last-4 verification.
 let contactGrant = "";
 // Whether this E-Tag still has its free contact available (server-authoritative).
@@ -242,10 +255,12 @@ function resetActionState() {
   setHidden("call-popup", true);
   setHidden("request-confirmation", true);
   setHidden("dial-panel", true);
-  setHidden("contact-number-panel", true);
   setValue("message-template-select", "");
   setValue("message-text", DEFAULT_MESSAGE);
   setValue("contact-phone", "");
+  verifyCapturedPhone = "";
+  verifyPhoneOnly = false;
+  setHidden("plate-verify-plate-block", false);
   actionLocked = false;
   verifiedPlateLastFour = "";
   expectedPlateLastFour = "";
@@ -257,7 +272,6 @@ function resetActionState() {
   setDisabled("call-owner-button", false);
   setDisabled("send-whatsapp-button", false);
   setDisabled("submit-message-button", false);
-  setDisabled("contact-number-submit", false);
   setDisabled("final-call-button", false);
   setHidden("pt-sos-block", true);
   closeSosPanels();
@@ -276,7 +290,6 @@ function setContactAvailability(available) {
   setHidden("purchase-cta", available);
   if (!available) {
     // Hide any open contact sub-panels too.
-    setHidden("contact-number-panel", true);
     setHidden("dial-panel", true);
     setHidden("message-panel", true);
     setHidden("call-popup", true);
@@ -352,7 +365,6 @@ function openSosHelplines(note) {
 
 function openSosPanel() {
   // Close the ordinary contact panels so only one flow is ever live.
-  setHidden("contact-number-panel", true);
   setHidden("dial-panel", true);
   setHidden("message-panel", true);
   setHidden("call-popup", true);
@@ -562,11 +574,15 @@ async function loadScannerView() {
       return;
     }
 
-    setText(
-      "scanner-load-status",
-      "Confirm the vehicle plate first to continue."
-    );
-    showOnly("scanner-verification-shell");
+    // The contact card is the first thing a scanner meets. Nothing here is
+    // owner data — the plate is masked, the label is generic, and every
+    // contact action still stops at plate verification before it can reach
+    // anybody. Choosing first means a scanner who only wants to send the
+    // WhatsApp alert is never asked for anything they do not need to give.
+    setText("scanner-load-status", "Choose how you'd like to reach the owner.");
+    setVerifiedBadge(false);
+    showOnly("scanner-action-shell");
+    setRequestStatus("request-status", "", "info");
   } catch (error) {
     setText("scanner-load-status", "This WaveTag could not be loaded.");
     setText(
@@ -582,6 +598,36 @@ async function handlePlateVerification(event) {
 
   const entered = byId("plate-last-four-input")?.value.trim();
   const token = byId("request-token")?.value.trim() || getTokenFromUrl();
+
+  // Check the number before the plate goes anywhere. A failed verification
+  // counts against the lockout, so a mistyped phone must not cost the scanner
+  // one of their attempts at a plate they had right.
+  if (pendingVerifiedAction === "call") {
+    const typed = byId("plate-verify-phone")?.value.trim() || "";
+    if (typed.replace(/\D/g, "").length < 7) {
+      setRequestStatus(
+        "plate-verify-status",
+        "Enter a valid phone number so the owner's call can reach you.",
+        "error"
+      );
+      byId("plate-verify-phone")?.focus();
+      return;
+    }
+    verifyCapturedPhone = typed;
+  }
+
+  // The plate was confirmed earlier this visit, so the card is showing the
+  // number field on its own and there is nothing left to check. Take the
+  // number and go straight to placing the call.
+  if (verifyPhoneOnly) {
+    verifyPhoneOnly = false;
+    const resumingWithGrant = pendingVerifiedAction;
+    pendingVerifiedAction = "";
+    setRequestStatus("plate-verify-status", "", "info");
+    showOnly("scanner-action-shell");
+    runVerifiedAction(resumingWithGrant);
+    return;
+  }
 
   if (!entered) {
     setRequestStatus("plate-verify-status", "Enter the last 4 digits first.", "error");
@@ -633,15 +679,97 @@ async function handlePlateVerification(event) {
   setDisabled("plate-verify-submit", false);
   setRequestStatus("plate-verify-status", "", "info");
   showOnly("scanner-action-shell");
+  setVerifiedBadge(true);
   // Reflect free-usage state: show buttons, or the Purchase CTA if used up.
+  // Whether this tag has anything left is only knowable after the plate
+  // checks out — the load payload deliberately withholds it, so that scanning
+  // a stranger's tag cannot be used to probe how it has been used.
   setContactAvailability(data.contactAvailable !== false);
+
+  if (data.contactAvailable === false) {
+    pendingVerifiedAction = "";
+    setRequestStatus("request-status", "Verified ✓", "success");
+    return;
+  }
+
+  const resuming = pendingVerifiedAction;
+  pendingVerifiedAction = "";
+  setRequestStatus("request-status", "Verified ✓", "success");
+  runVerifiedAction(resuming);
+}
+
+// Every contact action passes through here. Verifying once is enough for the
+// rest of the visit: the server issues a single grant and each action carries
+// it, so a scanner who calls and then messages is not asked twice.
+function requireVerification(action) {
+  // Only the call needs a number, so only the call is asked for one.
+  const wantsNumber = action === "call";
+
+  // WhatsApp and Emergency need nothing from the scanner, so a grant is the
+  // whole of what they were waiting for. The call still needs a number, and
+  // that number is only ever asked for on this card — so a verified scanner
+  // tapping Private Call comes back here rather than to a second panel.
+  if (contactGrant && !wantsNumber) {
+    runVerifiedAction(action);
+    return;
+  }
+
+  verifyPhoneOnly = Boolean(contactGrant) && wantsNumber;
+  pendingVerifiedAction = action;
+  setHidden("plate-verify-call-block", !wantsNumber);
+  setHidden("plate-verify-plate-block", verifyPhoneOnly);
+  setValue("plate-verify-phone", "");
+  verifyCapturedPhone = "";
+  const submit = byId("plate-verify-submit");
+  if (submit) {
+    submit.textContent = wantsNumber ? "Setup Masked Call" : "Verify & Continue";
+  }
+  showOnly("scanner-verification-shell");
   setRequestStatus(
-    "request-status",
-    data.contactAvailable !== false
-      ? "Verified ✓ Choose WhatsApp or Call to reach the owner."
-      : "Verified ✓",
-    "success"
+    "plate-verify-status",
+    verifyPhoneOnly
+      ? "Enter your number and we'll connect the masked call."
+      : "Enter the last 4 digits shown on the vehicle plate.",
+    "info"
   );
+  (verifyPhoneOnly ? byId("plate-verify-phone") : byId("plate-last-four-input"))?.focus();
+}
+
+function runVerifiedAction(action) {
+  if (action === "call") {
+    // The number was given on the verification card, so nothing is left to ask
+    // and nothing is left to tap: register the call and hand the handset the
+    // virtual number in the same gesture that submitted the card. The dial
+    // panel still opens — it is the receipt, and the fallback tap for a browser
+    // that declines to open the dialer on its own.
+    if (verifyCapturedPhone) {
+      setValue("contact-phone", verifyCapturedPhone);
+      verifyCapturedPhone = "";
+      setHidden("dial-number-block", true);
+      setHidden("dial-panel", false);
+      handleFinalCallAction();
+      return;
+    }
+    // No number in hand — the card is where it gets asked for, never a second
+    // panel. Reachable only if a grant outlived the number that came with it.
+    requireVerification("call");
+    return;
+  }
+
+  if (action === "message") {
+    handleWhatsAppNotify();
+    return;
+  }
+
+  if (action === "sos") {
+    openSosConfirm();
+  }
+}
+
+// The badge states a fact about this session, so it cannot be on screen before
+// the plate has actually been confirmed.
+function setVerifiedBadge(verified) {
+  setHidden("pt-verified-badge", !verified);
 }
 
 async function handleFinalCallAction() {
@@ -830,60 +958,6 @@ async function handleWhatsAppNotify() {
         "error"
       );
     }
-  }
-}
-
-function requestContactNumber(action) {
-  pendingAction = action;
-  // Clear the previous action's receipt. On a premium tag the WhatsApp
-  // confirmation is still on screen when the call is started, and leaving it
-  // above the number field reads as if the call had already been placed.
-  setHidden("request-confirmation", true);
-  setHidden("contact-number-panel", false);
-  // Take the emergency block's place rather than stacking underneath it. Every
-  // element between the action buttons and this panel is hidden at this point,
-  // so closing the SOS block lands the number field directly under the buttons
-  // — visible without scrolling, which is the whole point on a phone held at a
-  // windscreen. resetActionState/setContactAvailability bring the block back
-  // when the card is re-evaluated.
-  setHidden("pt-sos-block", true);
-  setHidden("dial-panel", true);
-  setHidden("message-panel", true);
-  setHidden("message-editor-shell", true);
-  setHidden("call-popup", true);
-  setRequestStatus(
-    "request-status",
-    action === "call"
-      ? "Enter your phone number to continue to the dial panel."
-      : "Enter your phone number to continue to the WhatsApp message panel.",
-    "info"
-  );
-}
-
-function handleContactNumberSubmit() {
-  const phone = byId("contact-phone")?.value.trim();
-
-  if (!verifiedPlateLastFour) {
-    setRequestStatus("request-status", "Verify the vehicle plate first.", "error");
-    return;
-  }
-
-  if (!phone) {
-    setRequestStatus("request-status", "Enter your phone number first.", "error");
-    return;
-  }
-
-  setHidden("contact-number-panel", true);
-
-  if (pendingAction === "call") {
-    setHidden("dial-number-block", true);
-    setHidden("dial-panel", false);
-    setRequestStatus("request-status", "Tap Call Now to connect with the owner privately.", "info");
-    return;
-  }
-
-  if (pendingAction === "message") {
-    openWhatsAppPanel();
   }
 }
 
@@ -1141,31 +1215,37 @@ async function handleActVerify(event) {
 await loadScannerView();
 
 byId("plate-verify-form")?.addEventListener("submit", handlePlateVerification);
-byId("call-owner-button")?.addEventListener("click", () => requestContactNumber("call"));
-byId("send-whatsapp-button")?.addEventListener("click", handleWhatsAppNotify);
-byId("pt-alert-ok")?.addEventListener("click", () => byId("pt-alert")?.close());
-byId("quick-share")?.addEventListener("click", handleQuickShare);
-byId("contact-number-submit")?.addEventListener("click", handleContactNumberSubmit);
-byId("final-call-button")?.addEventListener("click", handleFinalCallAction);
-
-// Backs out of the number panel and puts the card back the way the tap found
-// it. The mirror of requestContactNumber: that took the emergency block's
-// place, so cancelling has to hand it back. Unconditional, like every other
-// restore now that the button is offered on every active tag — leaving the old
-// `!emergencyAvailable` here would have made cancelling a Private Call the one
-// way to lose an Emergency button the card had been showing all along. The
-// typed number is left alone: on a premium tag the scanner may be coming
-// straight back, and retyping it is the only cost of a mis-tap.
-byId("contact-number-cancel")?.addEventListener("click", () => {
-  setHidden("contact-number-panel", true);
-  setHidden("pt-sos-block", false);
-  pendingAction = null;
+byId("plate-verify-cancel")?.addEventListener("click", () => {
+  pendingVerifiedAction = "";
+  setValue("plate-last-four-input", "");
+  // Do not leave a typed number sitting in a hidden field after a cancel.
+  setValue("plate-verify-phone", "");
+  verifyCapturedPhone = "";
+  // Put the plate step back, or the next scanner to open this card without a
+  // grant would be asked for a number and never for the plate.
+  verifyPhoneOnly = false;
+  setHidden("plate-verify-plate-block", false);
+  setHidden("plate-verify-call-block", true);
+  setRequestStatus("plate-verify-status", "", "info");
+  showOnly("scanner-action-shell");
   setRequestStatus("request-status", "", "info");
 });
+byId("call-owner-button")?.addEventListener("click", () => requireVerification("call"));
+// The reason is checked before the plate, not after: being sent to verify and
+// then told to pick a reason would be two corrections for one tap.
+byId("send-whatsapp-button")?.addEventListener("click", () => {
+  if (!hasContactReason()) return;
+  requireVerification("message");
+});
+byId("pt-alert-ok")?.addEventListener("click", () => byId("pt-alert")?.close());
+byId("quick-share")?.addEventListener("click", handleQuickShare);
+// Re-dial only. The first dial is fired by the verification card's submit; this
+// button exists for the browser that would not open the dialer by itself.
+byId("final-call-button")?.addEventListener("click", handleFinalCallAction);
 
 // Emergency / SOS — the button opens the confirmation gate, which is the only
 // thing that opens the panel.
-byId("sos-button")?.addEventListener("click", openSosConfirm);
+byId("sos-button")?.addEventListener("click", () => requireVerification("sos"));
 byId("sos-confirm-check")?.addEventListener("change", (event) => {
   setDisabled("sos-confirm-continue", !event.target.checked);
 });

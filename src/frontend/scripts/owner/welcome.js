@@ -306,17 +306,9 @@ function renderGrid(tags, animate = false) {
   }
 }
 
-function updateHeaderStats(tags) {
-  const el = document.getElementById("headerStats");
-  if (!el || !tags.length) { if (el) el.innerHTML = ""; return; }
-  const active  = tags.filter(t => t.status !== "inactive").length;
-  const premium = tags.filter(t => t.premium).length;
-  el.innerHTML = [
-    { n: tags.length, l: "Tags"    },
-    { n: active,      l: "Active"  },
-    { n: premium,     l: "Premium" },
-  ].map(s => `<div class="pt-wh-sc"><span class="pt-wh-sn">${s.n}</span><span class="pt-wh-sl">${s.l}</span></div>`).join("");
-}
+// The Tags / Active / Premium chips have been taken out of the header, so
+// there is nothing left to render there. The same three counts are still on
+// the page, in the Overview section (see renderNoticeboard).
 
 function renderNoticeboard(tags) {
   const nb = document.getElementById("noticeboard");
@@ -792,7 +784,6 @@ async function syncLocalVehicles(localVehicles, userId) {
       return true;
     });
     renderGrid(getDisplayTags(), true);
-    updateHeaderStats(allTags);
     renderNoticeboard(allTags);
   } catch {}
 }
@@ -911,7 +902,6 @@ async function load() {
     allTags     = [...localOnly, ...dedupedApi];
     allRequests = data.requests || [];
     renderGrid(getDisplayTags(), true);
-    updateHeaderStats(allTags);
     renderNoticeboard(allTags);
     renderActivity(allRequests);
     if (localOnly.length > 0) syncLocalVehicles(localOnly, userId);

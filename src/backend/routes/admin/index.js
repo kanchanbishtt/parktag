@@ -69,6 +69,15 @@ function orderForPrinting(tags) {
   });
 }
 
+// How many tags one export request may render QR images for. Bounded because
+// rendering is the expensive part — the original endpoint rendered every
+// unprinted tag in one go and timed out the gateway.
+//
+// The print queue reports this value to the client so the two cannot drift: a
+// client chunking larger than the server accepts would get a 400 on every
+// request of a long print run.
+const EXPORT_MAX_PER_REQUEST = 250;
+
 export function registerAdminRoutes(app, env) {
   // ── E-Tag management (spec §10) ───────────────────────────────────
   // List / search all owner E-Tags with purchase + contact summary.
@@ -595,6 +604,9 @@ export function registerAdminRoutes(app, env) {
 
     return {
       ok: true,
+      // Chunk size for the export endpoint, so the client never sends a batch
+      // the server will reject.
+      exportMaxPerRequest: EXPORT_MAX_PER_REQUEST,
       tags: tags.map((tag) => ({
         id: String(tag._id),
         token: tag.token,
@@ -617,19 +629,40 @@ export function registerAdminRoutes(app, env) {
     };
   });
 
-  app.post("/api/admin/print-queue/export", { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } }, async (request, reply) => {
+  // Rate limit sized for the job this endpoint actually does. A full print run
+  // is thousands of stickers fetched in chunks, so the old 30/minute made a
+  // 3000-tag export impossible: at 100 tags per chunk that is exactly 30
+  // requests, and the limiter rejected the last of them — the export failed
+  // with "Too many requests" after doing almost all the work.
+  //
+  // At the current chunk size (EXPORT_MAX_PER_REQUEST) this allows ~15,000 tags
+  // a minute, and the client backs off and retries on a 429 rather than
+  // failing, so a run larger than that still completes — just slower.
+  app.post("/api/admin/print-queue/export", { config: { rateLimit: { max: 60, timeWindow: "1 minute" } } }, async (request, reply) => {
     const blocked = await requireSession(app, "admin")(request, reply);
     if (blocked) return blocked;
 
     // Render QR images only for the specific tags requested, and cap how many a
     // single request will render. The old version rendered a QR for EVERY
     // unprinted tag (thousands) and let the client filter — which timed out the
-    // gateway. The client now sends its selection in bounded chunks.
-    const MAX_PER_REQUEST = 250;
-    const ids = (Array.isArray(request.body?.ids) ? request.body.ids : [])
+    // gateway. The client sends its selection in bounded chunks.
+    const rawIds = Array.isArray(request.body?.ids) ? request.body.ids : [];
+    const ids = rawIds
       .filter((id) => typeof id === "string" && /^[a-f0-9]{24}$/i.test(id))
-      .slice(0, MAX_PER_REQUEST)
       .map((id) => new ObjectId(id));
+
+    // Refuse an over-sized request rather than trimming it. This used to
+    // .slice() to the cap and return 200, so a caller asking for 300 tags got
+    // 250 and no indication that 50 were dropped — in a printing path that is
+    // stickers silently missing from the run. Loud failure is the only safe
+    // behaviour here.
+    if (ids.length > EXPORT_MAX_PER_REQUEST) {
+      reply.code(400);
+      return {
+        ok: false,
+        error: `Too many tags in one request: ${ids.length}. Send at most ${EXPORT_MAX_PER_REQUEST} per request.`
+      };
+    }
 
     if (!ids.length) {
       return { ok: true, tags: [] };

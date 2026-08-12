@@ -439,6 +439,60 @@ function pqRunHtml(group, run, index) {
     </div>`;
 }
 
+// One chunk of an export, with the rate limiter treated as back-pressure rather
+// than a failure.
+//
+// A print run is thousands of stickers over many requests, so it is the one
+// flow that can legitimately reach the limit. Failing the whole export there
+// threw away every chunk already fetched and left the operator with nothing —
+// which is exactly what happened on a 3000-tag run. Waiting and retrying costs
+// seconds and keeps the work.
+//
+// fetchJson is not used here because it discards the status code, and 429 has
+// to be told apart from a real error.
+async function pqFetchExportChunk(ids, onWait) {
+  const MAX_RETRIES = 6;
+  let attempt = 0;
+
+  for (;;) {
+    const response = await fetch("/api/admin/print-queue/export", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ids })
+    });
+
+    if (response.status === 429) {
+      attempt += 1;
+      if (attempt > MAX_RETRIES) {
+        throw new Error(
+          "The server is still limiting requests after several retries. Wait a minute and export the rest."
+        );
+      }
+      // Honour Retry-After (seconds) when the limiter sends it; otherwise widen
+      // the wait each time, capped so a run never stalls indefinitely.
+      const retryAfter = Number(response.headers.get("retry-after"));
+      const waitMs = Number.isFinite(retryAfter) && retryAfter > 0
+        ? retryAfter * 1000
+        : Math.min(30000, 2000 * 2 ** (attempt - 1));
+      if (onWait) onWait(waitMs);
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+      continue;
+    }
+
+    const raw = await response.text();
+    let data;
+    try {
+      data = raw ? JSON.parse(raw) : {};
+    } catch {
+      throw new Error(`Server error ${response.status} — ${raw.trim().slice(0, 120)}`);
+    }
+    if (!response.ok) {
+      throw new Error(data.error || `Request failed (${response.status})`);
+    }
+    return data;
+  }
+}
+
 async function exportQrsForPrint() {
   const overlay = byId("qr-export-overlay");
   const grid = byId("qr-export-grid");
@@ -468,17 +522,36 @@ async function exportQrsForPrint() {
     // Fetch QR images in bounded chunks so a large selection never becomes one
     // heavy request (rendering thousands of QR PNGs at once is what used to time
     // out the gateway). Each chunk renders only its own tags.
-    const CHUNK = 100;
+    //
+    // The chunk size comes from the server so the two cannot drift; it is the
+    // largest the export endpoint accepts, which keeps the request count — and
+    // so the load on the rate limiter — as low as it can be. At 100 per chunk a
+    // 3000-tag run was exactly 30 requests against a 30/minute limit, and died
+    // on the last one with "Too many requests" after nearly all the work.
+    const CHUNK = Number(_pqData && _pqData.exportMaxPerRequest) || 250;
     const tags = [];
+    const totalChunks = Math.ceil(selectedIds.length / CHUNK);
+
     for (let i = 0; i < selectedIds.length; i += CHUNK) {
       const chunk = selectedIds.slice(i, i + CHUNK);
-      const data = await fetchJson("/api/admin/print-queue/export", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ ids: chunk })
+      const data = await pqFetchExportChunk(chunk, (waitMs) => {
+        grid.innerHTML = `<p style="color:#6B7280">Loading QR codes… ${tags.length}/${selectedIds.length}<br>
+          <span style="font-size:.9em">Server is pacing the run — continuing in ${Math.ceil(waitMs / 1000)}s. Nothing is lost.</span></p>`;
       });
       tags.push(...(data.tags || []));
-      grid.innerHTML = `<p style="color:#6B7280">Loading QR codes… ${Math.min(i + CHUNK, selectedIds.length)}/${selectedIds.length}</p>`;
+      const done = Math.min(i + CHUNK, selectedIds.length);
+      grid.innerHTML = `<p style="color:#6B7280">Loading QR codes… ${done}/${selectedIds.length}
+        <span style="font-size:.9em">(batch ${Math.floor(i / CHUNK) + 1} of ${totalChunks})</span></p>`;
+    }
+
+    // A tag can leave the queue between selecting and exporting (claimed, or
+    // marked printed in another tab). Say so rather than printing a short run
+    // and letting it be discovered at the guillotine.
+    if (tags.length < selectedIds.length) {
+      setStatus(
+        `${selectedIds.length - tags.length} of ${selectedIds.length} selected tags are no longer printable and were left out.`,
+        "info"
+      );
     }
 
     if (!tags.length) {

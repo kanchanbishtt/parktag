@@ -220,7 +220,14 @@ export async function buildApp() {
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://snippet.maze.co"],
         fontSrc: ["'self'", "https://fonts.gstatic.com", "data:", "https://snippet.maze.co"],
         imgSrc: ["'self'", "data:", "https://api.qrserver.com", "https://snippet.maze.co"],
-        connectSrc: ["'self'", "https://www.google.com", "https://api.maze.co", "https://prompts.maze.co"],
+        connectSrc: [
+          "'self'",
+          "https://www.google.com",
+          "https://api.maze.co",
+          "https://prompts.maze.co",
+          // The loader itself beacons back to snippet.maze.co/lwt.
+          "https://snippet.maze.co"
+        ],
         frameSrc: [
           "https://accounts.google.com",
           "https://*.razorpay.com",

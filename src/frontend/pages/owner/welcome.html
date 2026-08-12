@@ -15,15 +15,15 @@
     .pt-wp { width: 100%; min-height: 100vh; background: #fff; padding-bottom: 72px; }
 
     /* ── Header ──────────────────────────────────── */
+    /* Flat brand navy. This was a four-stop gradient that only passed through
+       #03162D at 28% and finished four shades lighter, so the header never
+       actually read as the brand colour. The white radial wash that sat on top
+       of it is gone too — it tinted the same area back off-colour. */
     .pt-wh {
-      background: linear-gradient(155deg, #010D1A 0%, #03162D 28%, #0A2040 58%, #162F60 100%);
+      background: #03162D;
       padding: 0 18px;
       box-shadow: 0 1px 0 rgba(255,255,255,0.06), 0 6px 32px rgba(0,18,48,0.32);
       position: relative; overflow: hidden;
-    }
-    .pt-wh::before {
-      content: ''; position: absolute; inset: 0; pointer-events: none;
-      background: radial-gradient(ellipse 90% 55% at 50% -5%, rgba(255,255,255,0.07) 0%, transparent 70%);
     }
     .pt-wh::after {
       content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 2px; pointer-events: none;
@@ -41,7 +41,7 @@
       display: flex; align-items: center; gap: 11px; flex: 1; min-width: 0;
     }
     .pt-wh-logo-img {
-      height: 28px; width: auto; mix-blend-mode: lighten; flex-shrink: 0;
+      height: 42px; width: auto; mix-blend-mode: lighten; flex-shrink: 0;
     }
     .pt-wh-sep {
       width: 1px; height: 28px; background: rgba(255,255,255,0.15); flex-shrink: 0;
@@ -532,7 +532,7 @@
     /* ── Shared flow header (same navy + dark logo as the dashboard) ─── */
     .pt-fhead {
       position: sticky; top: 0; z-index: 3;
-      background: linear-gradient(155deg, #010D1A 0%, #03162D 28%, #0A2040 58%, #162F60 100%);
+      background: #03162D;
       padding: 16px 22px; display: flex; align-items: center;
       box-shadow: 0 2px 14px rgba(0,18,48,0.22);
     }
@@ -819,19 +819,6 @@
     }
     .pt-menu-ft-o:active { background: #E5E7EB; }
 
-  /* ── Header stats chips ── */
-  .pt-wh-stats { display: none; gap: 7px; align-items: center; }
-  @media (min-width: 400px) { .pt-wh-stats { display: flex; } }
-  .pt-wh-sc {
-    display: flex; flex-direction: column; align-items: center;
-    background: rgba(255,255,255,0.10);
-    border: 1px solid rgba(255,255,255,0.16);
-    border-radius: 10px; padding: 5px 11px; min-width: 38px;
-    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-  }
-  .pt-wh-sn { font-size: .86rem; font-weight: 900; color: #fff; line-height: 1; letter-spacing: -.01em; }
-  .pt-wh-sl { font-size: .52rem; color: rgba(255,255,255,0.50); font-weight: 700; text-transform: uppercase; letter-spacing: .07em; margin-top: 2px; }
-
   /* ── Vehicle card — status dot & contact pill ── */
   .pt-vc-status {
     position: absolute; bottom: -3px; left: -3px;
@@ -1045,13 +1032,6 @@
     <div class="pt-wh-inner">
       <div class="pt-wh-row">
 
-        <!-- Hamburger -->
-        <button class="pt-wh-btn" aria-label="Menu" onclick="openMenu()">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-            <path d="M4 6h16M4 12h10M4 18h16" stroke="rgba(255,255,255,0.92)" stroke-width="2" stroke-linecap="round"/>
-          </svg>
-        </button>
-
         <!-- Logo + separator + greeting -->
         <div class="pt-wh-brand">
           <a href="https://parktag.me" aria-label="ParkTag home" style="display:inline-flex;align-items:center;text-decoration:none"><img src="/images/dark-logo.png" alt="ParkTag" class="pt-wh-logo-img"></a>
@@ -1066,13 +1046,20 @@
           </div>
         </div>
 
-        <!-- Stats + notification -->
+        <!-- Notification + menu. Both actions sit together on the right; the
+             brand block has flex: 1, so it takes the space the hamburger used
+             to occupy on the left. The tag/active/premium chips that were here
+             are gone; the Overview section already carries those counts. -->
         <div class="pt-wh-right">
-          <div class="pt-wh-stats" id="headerStats"></div>
           <button class="pt-wh-btn" aria-label="Notifications">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
               <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" stroke="rgba(255,255,255,0.92)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
               <path d="M13.73 21a2 2 0 0 1-3.46 0" stroke="rgba(255,255,255,0.92)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+          <button class="pt-wh-btn" aria-label="Menu" onclick="openMenu()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+              <path d="M4 6h16M4 12h10M4 18h16" stroke="rgba(255,255,255,0.92)" stroke-width="2" stroke-linecap="round"/>
             </svg>
           </button>
         </div>

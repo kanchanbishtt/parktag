@@ -19,7 +19,7 @@
        ground it renders as a white box. `multiply` drops the white out and
        leaves the ink, which is the same trick the scan page header uses in
        reverse (`lighten`) for the dark logo on its dark bar. */
-    .brand-logo { width: auto; height: 30px; aspect-ratio: 735 / 280; flex: 0 0 auto;
+    .brand-logo { width: auto; height: 42px; aspect-ratio: 735 / 280; flex: 0 0 auto;
                   display: block; mix-blend-mode: multiply; }
     .title { font-size: 1.5rem; font-weight: 900; margin: 0; min-width: 0; }
     /* The dot separates the logo from the page name the way the wordmark used
@@ -83,7 +83,6 @@
     @media (max-width: 900px) {
       .wrap { padding: 16px 14px 60px; }
       .title { font-size: 1.28rem; }
-      .brand-logo { height: 26px; }
       /* >=16px keeps iOS from zooming the page on focus; 44px is the touch
          target. The bar still fits on ONE row here — it only wraps further
          down, at 700px, where the four controls genuinely stop fitting. */

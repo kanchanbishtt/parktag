@@ -1566,7 +1566,8 @@ pre {
   align-items: center;
   justify-content: space-between;
   padding: 12px 20px;
-  background: linear-gradient(135deg, #010D1A 0%, #03162D 55%, #0B2244 100%);
+  /* Flat brand navy, the same colour the owner dashboard header uses. */
+  background: #03162D;
   border-bottom: 2px solid rgba(255,39,0,0.48);
   box-shadow: 0 4px 20px rgba(0,0,0,0.28);
   position: sticky;
@@ -3630,7 +3631,7 @@ html:has(body.pt-hub-body) {
 }
 
 .pt-admin-brand-logo {
-  height: 26px;
+  height: 42px;
   width: auto;
   display: block;
 }

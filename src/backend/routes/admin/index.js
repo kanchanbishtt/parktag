@@ -99,7 +99,20 @@ export function registerAdminRoutes(app, env) {
     // (against the indexes added in repositories.js), the owner join is limited
     // to the owners actually referenced by the returned page, and contact
     // counts come from an aggregation over only the tokens on that page.
-    const filter = { ownerId: { $ne: null } };
+    // Claim state. This page has always listed CLAIMED tags only, which quietly
+    // made the category filter useless where it mattered most: production holds
+    // 3000 premium tags as unclaimed stock, so "Premium tags" returned the one
+    // premium tag that happened to have an owner. Unclaimed stock was visible
+    // nowhere else either — the print queue only shows what is still unprinted.
+    //
+    // Default stays "claimed", so existing links and habits are unchanged.
+    const claimFilter = String(request.query.claim || "claimed");
+    const filter = {};
+    // $in: [null] matches both an explicit null and a missing field; $ne: null
+    // excludes both, which is what "claimed" has always meant here.
+    if (claimFilter === "unclaimed") filter.ownerId = { $in: [null] };
+    else if (claimFilter !== "all") filter.ownerId = { $ne: null };
+
     if (!includeDeleted) filter.deletedAt = { $in: [null, undefined] };
     if (statusFilter) filter.status = statusFilter;
 
@@ -217,6 +230,10 @@ export function registerAdminRoutes(app, env) {
         physicalTagPurchased: Boolean(t.physicalTagPurchased),
         freeContactUsed: Boolean(t.freeContactUsed),
         deletedAt: t.deletedAt || null,
+        // Authoritative claim state. The client must not infer this from the
+        // owner fields below — a claimed tag whose owner record is missing a
+        // display name, email and mobile would read as unclaimed.
+        claimed: t.ownerId != null,
         ownerName: owner.displayName || null,
         ownerEmail: owner.email || null,
         ownerMobile: owner.mobile || owner.phone || null,
@@ -301,6 +318,21 @@ export function registerAdminRoutes(app, env) {
     const collections = await getCollections(env);
     let tagId;
     try { tagId = new ObjectId(request.params.tagId); } catch { reply.code(400); return { ok: false, error: "Bad id" }; }
+
+    // Only a claimed tag has an active/inactive state to change. An unclaimed
+    // tag sits at status "unclaimed" until an owner claims it, and forcing it to
+    // "active" would leave a tag that is live with nobody to contact — it would
+    // no longer be picked up as claimable, and a scan would find no owner.
+    //
+    // Unreachable while this page listed claimed tags only; the claim filter
+    // puts unclaimed stock on screen, so the guard belongs here rather than in
+    // the UI alone.
+    const existing = await collections.tags.findOne({ _id: tagId }, { projection: { ownerId: 1 } });
+    if (!existing) { reply.code(404); return { ok: false, error: "E-Tag not found" }; }
+    if (existing.ownerId == null) {
+      reply.code(409);
+      return { ok: false, error: "This tag has no owner yet, so it has no active/inactive state." };
+    }
 
     const result = await collections.tags.findOneAndUpdate(
       { _id: tagId },

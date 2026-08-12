@@ -57,17 +57,24 @@
 
         <form id="plate-verify-form" class="pt-verify-form">
           <input id="request-token" type="hidden" />
-          <p class="pt-verify-label">
-            Please enter the<br />
-            <strong>last 4 digits of vehicle plate number</strong>
-          </p>
-          <div class="pt-verify-row">
-            <span class="pt-verify-plate" id="plate-mask-preview">••••</span>
-            <!-- No <label> wrapper: the plate sits where the label would, so the
-                 field carries its own accessible name instead. -->
-            <input id="plate-last-four-input" maxlength="4" inputmode="numeric" autocomplete="off"
-                   placeholder="Last 4 Digits" class="pt-input pt-verify-input"
-                   aria-label="Last 4 digits of the vehicle plate number" />
+          <!-- Wrapped so the plate step can be dropped on its own. A scanner who
+               verified earlier in the visit (by messaging first) and then taps
+               Private Call comes back to this card for their number, and making
+               them re-read a plate they already confirmed would be a step that
+               exists only to fill the screen. -->
+          <div id="plate-verify-plate-block">
+            <p class="pt-verify-label">
+              Please enter the<br />
+              <strong>last 4 digits of vehicle plate number</strong>
+            </p>
+            <div class="pt-verify-row">
+              <span class="pt-verify-plate" id="plate-mask-preview">••••</span>
+              <!-- No <label> wrapper: the plate sits where the label would, so the
+                   field carries its own accessible name instead. -->
+              <input id="plate-last-four-input" maxlength="4" inputmode="numeric" autocomplete="off"
+                     placeholder="Last 4 Digits" class="pt-input pt-verify-input"
+                     aria-label="Last 4 digits of the vehicle plate number" />
+            </div>
           </div>
           <!-- Private Call only. The masked call needs a number to ring back,
                and asking for it here means the call path is one screen rather
@@ -375,16 +382,11 @@
           </a>
         </div>
 
-        <!-- Phone number input for call -->
-        <div id="contact-number-panel" class="pt-panel" hidden>
-          <p class="pt-panel-label">Your phone number</p>
-          <p class="pt-panel-sub" id="contact-number-copy">We'll connect you anonymously. Your number stays private.</p>
-          <label class="pt-field">
-            <input id="contact-phone" type="tel" autocomplete="tel" inputmode="tel" placeholder="+91 99999 99999" class="pt-input" />
-          </label>
-          <button id="contact-number-submit" class="pt-btn pt-btn-primary pt-btn-full" type="button">Continue to call</button>
-          <button id="contact-number-cancel" class="pt-cancel-action" type="button">Cancel</button>
-        </div>
+        <!-- The scanner's number is asked for once, on the verification card,
+             and nowhere else. What used to be a second "Your phone number"
+             panel here is now just the field that carries the number the card
+             collected through to the call registration. -->
+        <input id="contact-phone" type="hidden" />
 
         <!-- Call popup -->
         <div id="call-popup" class="pt-success-panel" hidden>

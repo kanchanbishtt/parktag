@@ -60,9 +60,10 @@ const ownerVerifyPage = path.join(pagesRoot, "owner/verify.html");
 const ownerWelcomePage = path.join(pagesRoot, "owner/welcome.html");
 const ownerVehicleDetailPage = path.join(pagesRoot, "owner/vehicle-detail.html");
 const ownerDocumentsPage = path.join(pagesRoot, "owner/documents.html");
-// Bumped with the scan-flow reorder: without it a returning scanner keeps the
-// cached app.js and lands on the old plate-first screen.
-const scannerAssetVersion = "parktag-ui-9";
+// Bumped with the scan-flow reorder, then again when the call moved onto the
+// verification card: without it a returning scanner keeps the cached app.js and
+// lands on the old plate-first screen, or on the retired number panel.
+const scannerAssetVersion = "parktag-ui-10";
 const hubAssetVersion = "hub-shell-1";
 
 // Every request is logged with its URL, and several sensitive values travel in

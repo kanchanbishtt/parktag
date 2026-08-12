@@ -94,24 +94,20 @@
       padding: 0 16px 56px;
     }
 
-    /* ── Responsive breakpoints ────────────────────── */
-    @media (min-width: 480px) {
-      .pt-shop-name  { font-size: .86rem; }
-      .pt-shop-price { font-size: 1rem; }
-    }
+    /* ── Responsive breakpoints ──────────────────── */
+    /* Shop rules do NOT belong in this block. The .pt-shop-* base styles are
+       declared ~200 lines further down, and at equal specificity the later
+       rule wins — so every .pt-shop-* override written here was dead, and the
+       grid stayed two columns at every width. They now live in a block placed
+       after those base styles; search for "Shop: responsive". */
     @media (min-width: 640px) {
       .pt-wh { padding: 16px 28px 28px; }
       .pt-wc { padding: 0 28px 56px; }
-      .pt-shop-grid { grid-template-columns: repeat(3, 1fr); gap: 14px; }
-      .pt-shop-body { padding: 11px 13px 14px; }
-      .pt-shop-name { font-size: .88rem; }
     }
     @media (min-width: 1024px) {
       .pt-wh { padding: 20px 60px 28px; }
       .pt-wh-inner { max-width: 1200px; }
       .pt-wc { max-width: 1200px; padding: 0 60px 64px; }
-      .pt-shop-grid { grid-template-columns: repeat(4, 1fr); gap: 20px; }
-      .pt-shop-name { font-size: 1rem; }
       .pt-wh-hi { font-size: 1.45rem; }
     }
     @media (min-width: 1400px) {
@@ -350,6 +346,30 @@
     .pt-shop-price { font-size: .92rem; font-weight: 900; color: #03162D; }
     .pt-shop-orig  { font-size: .7rem; color: #9CA3AF; text-decoration: line-through; }
 
+    /* Shop: responsive.
+       Placed AFTER the base rules above, not with the other breakpoints near
+       the top of this stylesheet. These selectors have the same specificity as
+       the base ones, so whichever comes last wins — up there they lost, and the
+       grid stayed two columns however wide the window was. */
+    @media (min-width: 480px) {
+      .pt-shop-name  { font-size: .86rem; }
+      .pt-shop-price { font-size: 1rem; }
+    }
+    @media (min-width: 640px) {
+      .pt-shop-grid { grid-template-columns: repeat(3, 1fr); gap: 14px; }
+      .pt-shop-body { padding: 11px 13px 14px; }
+      .pt-shop-name { font-size: .88rem; }
+    }
+    @media (min-width: 1024px) {
+      .pt-shop-grid { grid-template-columns: repeat(4, 1fr); gap: 20px; }
+      .pt-shop-name { font-size: 1rem; }
+      /* The desktop artwork is 16:9 and takes over at exactly this width (see
+         PT_SHOP_DESKTOP_MQ in the script below). The frame has to change with
+         it — left at 4:3, `cover` crops a fifth off each side of a composition
+         laid out to be seen whole. */
+      .pt-shop-img { aspect-ratio: 16/9; }
+    }
+
     /* ── Product detail sheet ──────────────────────── */
     .pt-backdrop {
       position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 200;
@@ -389,6 +409,10 @@
       object-fit: cover; object-position: center;
       display: block;
     }
+    /* <picture> is a wrapper with no box of its own worth keeping — `contents`
+       lets the <img> inside it be the flex/grid child directly, so the sizing
+       rules above still apply and no extra element sits between them. */
+    .pt-shop-pic { display: contents; }
     .pt-sheet-name { font-size: 1.05rem; font-weight: 900; color: #03162D; margin: 0 0 14px; line-height: 1.35; }
     .pt-sheet-prow { display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px; flex-wrap: wrap; }
     .pt-sheet-price { font-size: 1.5rem; font-weight: 900; color: #03162D; }
@@ -1705,6 +1729,7 @@ const PRODUCTS = [
     // they stay sharp on a retina phone at ~80KB. The vector thumbnails below
     // stay SVG, where they are already small and resolution-independent.
     image: "/images/shop-car.webp",
+    imageDesktop: "/images/shop-car-desktop.webp",
   },
   {
     id: "pt-car-2",
@@ -1716,6 +1741,7 @@ const PRODUCTS = [
     discount: 38,
     variants: ["Car", "Auto"],
     image: "/images/shop-car-2.svg",
+    imageDesktop: "/images/shop-car-2-desktop.svg",
   },
   // Combo before Bike, so the two photographic thumbnails sit on opposite
   // corners of the two-column grid rather than stacked down one side. Order in
@@ -1732,6 +1758,7 @@ const PRODUCTS = [
     discount: 44,
     variants: ["Car", "Bike", "Scooter"],
     image: "/images/shop-combo.svg",
+    imageDesktop: "/images/shop-combo-desktop.svg",
   },
   {
     id: "pt-bike-1",
@@ -1743,6 +1770,7 @@ const PRODUCTS = [
     discount: 25,
     variants: ["Bike", "Scooter", "Helmet"],
     image: "/images/shop-bike.webp",
+    imageDesktop: "/images/shop-bike-desktop.webp",
   },
 ];
 
@@ -1803,11 +1831,31 @@ function tagPlaceholder(size) {
 //
 // Sized eagerly for the first card and lazily after — the grid is above the
 // fold on a phone, so the first thumbnail should not wait on the scroller.
+// The width at which the desktop artwork takes over. Written once here and
+// reused in the <source media> below; the stylesheet switches the card frame to
+// 16:9 at the same width, and the two must not drift — a 16:9 image in a 4:3
+// frame gets its sides cropped off.
+const PT_SHOP_DESKTOP_MQ = "(min-width: 1024px)";
+
 function productImage(product, placeholderSize) {
   if (!product.image) return tagPlaceholder(placeholderSize);
-  return `<img class="pt-shop-photo" src="${product.image}" alt="${product.name}"
+
+  // Two crops of the same shot rather than one image scaled: the mobile artwork
+  // is 4:3 (900x675) and the desktop artwork 16:9 (1440x810), each composed for
+  // the shape the card actually has at that width.
+  //
+  // <source> comes before <img> because the browser takes the first match; the
+  // <img> is both the mobile case and the fallback for anything that does not
+  // understand <picture>. onerror stays on the <img>, which is where the
+  // browser reports a failure of whichever source it chose.
+  const desktop = product.imageDesktop
+    ? `<source media="${PT_SHOP_DESKTOP_MQ}" srcset="${product.imageDesktop}" width="1440" height="810" />`
+    : "";
+
+  return `<picture class="pt-shop-pic">${desktop}<img class="pt-shop-photo"
+    src="${product.image}" alt="${product.name}"
     loading="lazy" decoding="async" width="900" height="675"
-    onerror="ptShopImgFallback(this, ${placeholderSize})" />`;
+    onerror="ptShopImgFallback(this, ${placeholderSize})" /></picture>`;
 }
 
 // Swaps a failed image for the drawn placeholder. A named handler rather than
@@ -1817,7 +1865,11 @@ function productImage(product, placeholderSize) {
 function ptShopImgFallback(img, size) {
   const holder = document.createElement("span");
   holder.innerHTML = tagPlaceholder(size);
-  img.replaceWith(...holder.childNodes);
+  // Replace the whole <picture>, not just the <img> inside it. A <picture>
+  // renders through its <img> child, so swapping only the image would leave the
+  // placeholder inside a wrapper that does not display it.
+  const target = img.closest("picture") || img;
+  target.replaceWith(...holder.childNodes);
 }
 
 // ── Render shop grid ──────────────────────────────────────────

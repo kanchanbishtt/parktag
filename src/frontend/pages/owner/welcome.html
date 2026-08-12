@@ -345,18 +345,20 @@
       .pt-shop-name  { font-size: .86rem; }
       .pt-shop-price { font-size: 1rem; }
     }
-    /* Deliberately no three-column tier. The catalogue is four products, and
-       three columns can only ever lay them out as 3 + 1 — a full row and a lone
-       card stranded beside empty space. Two and four both divide four evenly,
-       so the grid is balanced at every width. Revisit if the catalogue stops
-       being a multiple of both. */
+    /* Two columns at every width, phone through desktop — the column count
+       never changes, only the gap and type scale. Three columns would strand a
+       card (four products lay out as 3 + 1), and four turns the cards into a
+       thin strip on a wide screen. The grid itself is capped below so the two
+       cards do not grow into billboards. */
     @media (min-width: 640px) {
       .pt-shop-grid { gap: 14px; }
       .pt-shop-body { padding: 11px 13px 14px; }
       .pt-shop-name { font-size: .88rem; }
     }
     @media (min-width: 1024px) {
-      .pt-shop-grid { grid-template-columns: repeat(4, 1fr); gap: 20px; }
+      /* Left-aligned rather than centred, so the grid lines up with the section
+         heading above it instead of drifting away from it. */
+      .pt-shop-grid { gap: 20px; max-width: 760px; }
       .pt-shop-name { font-size: 1rem; }
       /* The desktop artwork is 16:9 and takes over at exactly this width (see
          PT_SHOP_DESKTOP_MQ in the script below). The frame has to change with

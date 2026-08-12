@@ -345,8 +345,13 @@
       .pt-shop-name  { font-size: .86rem; }
       .pt-shop-price { font-size: 1rem; }
     }
+    /* Deliberately no three-column tier. The catalogue is four products, and
+       three columns can only ever lay them out as 3 + 1 — a full row and a lone
+       card stranded beside empty space. Two and four both divide four evenly,
+       so the grid is balanced at every width. Revisit if the catalogue stops
+       being a multiple of both. */
     @media (min-width: 640px) {
-      .pt-shop-grid { grid-template-columns: repeat(3, 1fr); gap: 14px; }
+      .pt-shop-grid { gap: 14px; }
       .pt-shop-body { padding: 11px 13px 14px; }
       .pt-shop-name { font-size: .88rem; }
     }

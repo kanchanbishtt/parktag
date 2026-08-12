@@ -196,6 +196,16 @@
 
     /* ── Vehicle list ───────────────────────────────── */
     .pt-vgrid { display: flex; flex-direction: column; gap: 10px; }
+    /* One vehicle per row is right on a phone, but on a desktop it stretches a
+       small icon, a plate and a chevron across the whole content width. Two
+       columns from 1024px, matching the shop grid. A flex column cannot do
+       columns, so it becomes a grid at that width — the cards are already
+       stretch-aligned, so they need no change of their own.
+       A trailing odd vehicle sits alone on the last row; unlike the shop, the
+       count is the owner's, not ours, so that is unavoidable and expected. */
+    @media (min-width: 1024px) {
+      .pt-vgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    }
 
     .pt-vlc {
       display: flex; flex-direction: column; align-items: stretch;
@@ -348,17 +358,16 @@
     /* Two columns at every width, phone through desktop — the column count
        never changes, only the gap and type scale. Three columns would strand a
        card (four products lay out as 3 + 1), and four turns the cards into a
-       thin strip on a wide screen. The grid itself is capped below so the two
-       cards do not grow into billboards. */
+       thin strip on a wide screen. The grid takes the full content width at
+       every size; the page container is what limits it, the same limit the
+       rest of the dashboard answers to. */
     @media (min-width: 640px) {
       .pt-shop-grid { gap: 14px; }
       .pt-shop-body { padding: 11px 13px 14px; }
       .pt-shop-name { font-size: .88rem; }
     }
     @media (min-width: 1024px) {
-      /* Left-aligned rather than centred, so the grid lines up with the section
-         heading above it instead of drifting away from it. */
-      .pt-shop-grid { gap: 20px; max-width: 760px; }
+      .pt-shop-grid { gap: 20px; }
       .pt-shop-name { font-size: 1rem; }
       /* The desktop artwork is 16:9 and takes over at exactly this width (see
          PT_SHOP_DESKTOP_MQ in the script below). The frame has to change with

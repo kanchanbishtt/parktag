@@ -11,8 +11,13 @@ function goTo(idx) {
   dots.forEach((d, i) => d.setAttribute("aria-selected", String(i === cur)));
 }
 
-document.getElementById("carPrev").addEventListener("click", () => goTo(cur - 1));
-document.getElementById("carNext").addEventListener("click", () => goTo(cur + 1));
+// The prev/next arrows are gone from the markup: they sat on top of the banner
+// artwork and covered the words at both edges, and the slides exist to be read.
+// The dots, a swipe, and the auto-advance below are the ways through them.
+//
+// These listeners were attached WITHOUT a null check, at the top level of this
+// module — so removing the buttons alone would have thrown here and killed
+// every line of dashboard setup that follows.
 dots.forEach(d => d.addEventListener("click", () => goTo(Number(d.dataset.idx))));
 
 function startAuto() { autoTimer = setInterval(() => goTo(cur + 1), 3000); }

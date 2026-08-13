@@ -124,7 +124,10 @@ export function registerOtpAuthRoutes(app, env) {
         const ownerId = new ObjectId();
         owner = {
           _id: ownerId,
-          displayName: normalized,
+          // Not the identifier they signed in with. Storing it here made the
+          // dashboard greet people with their own phone number or email; null
+          // means "not known yet" and the dashboard asks for it inline.
+          displayName: null,
           credits: 0,
           role: "owner",
           createdAt: new Date().toISOString()

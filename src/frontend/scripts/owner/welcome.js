@@ -41,9 +41,119 @@ const isNewUser = newParam !== null
   : sessionStorage.getItem("pt_is_new_user") === "1";
 sessionStorage.removeItem("pt_is_new_user");
 
+// ── Name on the greeting ─────────────────────────────────────────
+// Sign-in only ever collects an email or a mobile, so most owners arrive with
+// no name at all. Rather than taxing the sign-in flow for a greeting, the
+// greeting asks for itself: "Hi there!" carries a quiet "Add your name", and an
+// owner who already has one gets a pencil. Ignoring it costs nothing.
+let _ownerName = "";        // the name stored on the profile, "" if none
+
+function renderGreetingAffordance(owner) {
+  if (!nameEdit) return;
+  _ownerName = owner.displayName || "";
+  const has = Boolean(owner.hasOwnName);
+  nameEdit.dataset.mode = has ? "edit" : "add";
+  nameEdit.innerHTML = has ? PENCIL_SVG : `${PENCIL_SVG}<span>Add your name</span>`;
+  nameEdit.setAttribute("aria-label", has ? "Edit your name" : "Add your name");
+  nameEdit.title = has ? "Edit your name" : "Add your name";
+  nameEdit.hidden = false;
+}
+
+function openNameEditor() {
+  if (!nameForm) return;
+  nameInput.value = _ownerName;
+  // Only the greeting line gives way to the field — the email/mobile beneath it
+  // stays put. Hiding that too made the whole header lurch and left the owner
+  // with no sign of which account they were editing.
+  if (greetRow) greetRow.hidden = true;
+  nameForm.hidden = false;
+  setNameStatus("");
+  nameInput.focus();
+  nameInput.select();
+}
+
+function closeNameEditor() {
+  if (!nameForm) return;
+  nameForm.hidden = true;
+  if (greetRow) greetRow.hidden = false;
+  setNameStatus("");
+}
+
+function setNameStatus(message) {
+  if (!nameStatus) return;
+  nameStatus.textContent = message || "";
+  nameStatus.hidden = !message;
+}
+
+async function saveOwnerName(event) {
+  event?.preventDefault();
+  const value = (nameInput?.value || "").trim();
+
+  const save = document.getElementById("greet-name-save");
+  if (save) save.disabled = true;
+  try {
+    const res = await fetch("/api/owner/profile", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ displayName: value })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) {
+      // Only a 400 carries a message written for a person ("at least 2
+      // characters"). Anything else is the framework talking — a bare "Not
+      // Found" from a route that isn't deployed yet means nothing to whoever
+      // is typing their name, so it does not get shown to them.
+      setNameStatus(
+        res.status === 400 && data.error ? data.error : "Could not save your name. Please try again."
+      );
+      return;
+    }
+    _ownerName = data.displayName || "";
+    if (greetName) {
+      greetName.textContent = `${UI.greetPrefix} ${data.greetingName || UI.greetFallback}!`;
+    }
+    renderGreetingAffordance({ displayName: _ownerName, hasOwnName: data.hasOwnName });
+    // Keep the menu's owner panel in step — it reads the same name. Updated
+    // directly rather than through that panel's own `set` helper, which is a
+    // local inside its render function and not in scope here.
+    if (_owner) {
+      _owner.displayName = _ownerName;
+      _owner.hasOwnName = data.hasOwnName;
+      const miName = document.getElementById("mi-name");
+      if (miName) miName.textContent = _ownerName || _owner.email || _owner.mobile || "—";
+    }
+    closeNameEditor();
+  } catch {
+    setNameStatus("Network error. Please try again.");
+  } finally {
+    if (save) save.disabled = false;
+  }
+}
+
 // ── DOM refs ─────────────────────────────────────────────────────
 const greetName = document.getElementById("greetName");
 const greetId   = document.getElementById("greetId");
+const nameEdit    = document.getElementById("greet-name-edit");
+const nameForm    = document.getElementById("greet-name-form");
+const nameInput   = document.getElementById("greet-name-input");
+const nameCancel  = document.getElementById("greet-name-cancel");
+const nameStatus  = document.getElementById("greet-name-status");
+const greetRow    = document.getElementById("greet-display");
+
+const PENCIL_SVG =
+  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+  '<path d="M4 20h4l10-10a2.5 2.5 0 0 0-3.5-3.5L4.5 16.5 4 20Z" stroke="currentColor" stroke-width="2" ' +
+  'stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+// Bound here rather than beside the handlers above: these run at module load,
+// and the elements they attach to are declared in this block.
+nameEdit?.addEventListener("click", openNameEditor);
+nameForm?.addEventListener("submit", saveOwnerName);
+nameCancel?.addEventListener("click", closeNameEditor);
+// Escape backs out, the same as Cancel — the field is dismissible by design.
+nameInput?.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") { e.preventDefault(); closeNameEditor(); }
+});
 const grid      = document.getElementById("vehicleGrid");
 const searchInp = document.getElementById("vehicleSearch");
 let allTags      = [];
@@ -796,24 +906,14 @@ async function load() {
       : null;
 
     if (data.owner) {
-      const rawName = data.owner.displayName || "";
-      const isEmail = rawName.includes("@");
-      let firstName;
-      if (!isEmail && rawName) {
-        firstName = rawName.split(" ")[0];
-      } else {
-        // Derive a friendly name from the email address
-        const email = data.owner.email || "";
-        if (email.includes("@")) {
-          const local = email.split("@")[0].replace(/[0-9]/g, "");
-          const parts = local.split(/[._\-+]/).filter(Boolean);
-          const part = parts[0] || local;
-          firstName = part ? part.charAt(0).toUpperCase() + part.slice(1).toLowerCase() : UI.greetFallback;
-        } else {
-          firstName = UI.greetFallback;
-        }
-      }
+      // The server decides the name now: what the owner set, then the recipient
+      // name off their delivery address, then a cautious read of the email. The
+      // guessing that used to live here turned "info@" into "Hi Info" — a wrong
+      // answer stated confidently. A null greetingName means we genuinely do not
+      // know, and "Hi there" plus the inline field is the honest response.
+      const firstName = data.owner.greetingName || UI.greetFallback;
       const id = data.owner.email || data.owner.mobile || "";
+      renderGreetingAffordance(data.owner);
       greetName.textContent = `${UI.greetPrefix} ${firstName}!`;
       greetName.classList.remove("pt-reveal");
       void greetName.offsetWidth; // force reflow to re-trigger animation
@@ -834,7 +934,10 @@ async function load() {
       // Razorpay prefills from this so the sheet shows the CURRENT user, not a
       // stale cached number.
       window.__ptOwner = {
-        name: (rawName && !isEmail) ? rawName : firstName,
+        // The owner's full name, or empty. Never the greeting's first name and
+        // never "there": Razorpay prefills a real checkout field from this, and
+        // a placeholder greeting is not a name to bill.
+        name: data.owner.displayName || "",
         email: data.owner.email || "",
         contact: data.owner.mobile || ""
       };
@@ -891,7 +994,12 @@ async function load() {
     renderNoticeboard(allTags);
     renderActivity(allRequests);
     if (localOnly.length > 0) syncLocalVehicles(localOnly, userId);
-  } catch {
+  } catch (error) {
+    // This used to be a bare `catch {}`. Every failure in the whole block —
+    // a network fault, a bad payload, a typo in a render helper — surfaced as
+    // the same "Couldn't load your vehicles." with no way to tell which, so a
+    // rendering bug was indistinguishable from the API being down.
+    console.error("[owner dashboard] load failed:", error);
     grid.innerHTML = `
       <div role="alert" style="grid-column:1/-1;text-align:center;padding:28px 16px 12px">
         <p style="font-size:.9rem;font-weight:700;color:#374151;margin:0 0 10px">${UI.loadError}</p>
@@ -1023,6 +1131,9 @@ async function saveSos() {
       tag.emergencyContact = data.emergencyContact || null;
       const el = document.getElementById("sos-inp");
       if (el && data.emergencyContact) el.value = data.emergencyContact;
+      // The warning has to clear on the same save that fixes it, or the vehicle
+      // keeps reading as missing until the drawer is reopened.
+      setSosMissing(!data.emergencyContact);
     } catch {
       _toast("Network error — emergency contact not saved.", "err");
       return;
@@ -1159,9 +1270,26 @@ function _fillMenu() {
 
   // SOS number — server value wins; the localStorage key (same one
   // vehicle-detail.js uses) is only a fallback for local, unsaved vehicles.
-  const sosVal = tag.emergencyContact || localStorage.getItem(_sosKey(tag)) || "";
+  // Only the number the SERVER holds. The old localStorage fallback put a value
+  // from this browser into a field the owner had never saved, which read as
+  // "already set" for a vehicle that had no SOS at all — and it is the owner's
+  // job to nominate someone else, not for us to pre-answer with whatever this
+  // device happened to remember. Empty is the correct starting state.
   const sosEl = document.getElementById("sos-inp");
-  if (sosEl) sosEl.value = sosVal;
+  if (sosEl) sosEl.value = tag.emergencyContact || "";
+  // Only a number the SERVER holds counts as set. A value sitting in
+  // localStorage exists on one device and cannot be dialled by the scanner
+  // flow, so treating it as "done" would hide exactly the gap being flagged.
+  setSosMissing(!tag.emergencyContact);
+}
+
+// Marks a vehicle with no emergency contact, both inside the panel and on the
+// collapsed row, so the gap is visible without opening anything.
+function setSosMissing(missing) {
+  const note = document.getElementById("sos-missing");
+  if (note) note.hidden = !missing;
+  const row = document.querySelector('.pt-mi[data-key="sos"], .pt-mi[data-key="emergency"]');
+  if (row) row.dataset.sosMissing = missing ? "1" : "0";
 }
 
 function openMenu() {

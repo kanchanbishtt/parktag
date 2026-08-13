@@ -21,6 +21,7 @@
   var els = null; // built lazily on first open
   var resolver = null; // resolve fn of the in-flight promise
   var savedAddress = null; // last address fetched from the server this open
+  var profileName = "";    // owner's profile name, used only to prefill a blank
 
   // Inline icons (no network dependency — works offline / on flaky mobile data).
   var IC = {
@@ -88,6 +89,7 @@
       ".pt-addr-f.pt-half{display:inline-block;width:calc(50% - 5px);vertical-align:top;}",
       ".pt-addr-f.pt-half+.pt-half{margin-left:8px;}",
       ".pt-addr-f label{display:block;font-size:.72rem;font-weight:700;letter-spacing:.01em;color:#374151;margin-bottom:5px;}",
+      ".pt-req{color:var(--r);margin-left:3px;font-weight:800;}",
       ".pt-addr-f input{width:100%;box-sizing:border-box;padding:12px 13px;border:1.5px solid #e6e6ec;border-radius:13px;font-size:.94rem;color:var(--ink);background:#fff;outline:none;transition:border-color .15s,box-shadow .15s;}",
       ".pt-addr-f input::placeholder{color:#a8adb8;}",
       ".pt-addr-f input:focus{border-color:var(--r);box-shadow:0 0 0 3.5px var(--tint);}",
@@ -136,7 +138,13 @@
         (f.maxlength ? ' maxlength="' + f.maxlength + '"' : "") +
         (f.inputmode ? ' inputmode="' + f.inputmode + '"' : "") +
         (f.auto ? ' autocomplete="' + f.auto + '"' : "");
-      return '<div class="pt-addr-f' + (half ? " pt-half" : "") + '"><label for="pt-addr-' + f.key + '">' + f.label + "</label><input " + attrs + "></div>";
+      // Required fields carry a *. Marking only the mobile would have implied
+      // the rest were optional, so the star comes off `optional` — the same flag
+      // the labels already use to write "(optional)" — and the two can't drift.
+      var star = f.optional ? "" : '<span class="pt-req" aria-hidden="true">*</span>';
+      var req = f.optional ? "" : " required aria-required=\"true\"";
+      return '<div class="pt-addr-f' + (half ? " pt-half" : "") + '"><label for="pt-addr-' + f.key + '">' +
+        f.label + star + "</label><input " + attrs + req + "></div>";
     }).join("");
 
     var secure =
@@ -272,6 +280,13 @@
     FIELDS.forEach(function (f) {
       els.inputs[f.key].value = prefill && prefill[f.key] != null ? prefill[f.key] : "";
     });
+    // First-time buyers have no address to prefill from, but many do have a
+    // name on their profile by now. Filling it saves them retyping what we
+    // already know, and it stays editable — plenty of people ship to someone
+    // else. Only ever fills a blank; a saved address always wins.
+    if (!els.inputs.fullName.value && profileName) {
+      els.inputs.fullName.value = profileName;
+    }
     els.title.textContent = prefill ? "Edit delivery address" : "Delivery address";
     els.sub.textContent = prefill
       ? "Update where we should ship your sticker."
@@ -332,6 +347,20 @@
     }
   }
 
+  // The name already on the profile, used only to prefill a blank recipient
+  // field. Best-effort: if this fails the form simply opens empty, exactly as
+  // it did before, so the address flow never depends on it.
+  async function fetchProfileName() {
+    try {
+      var res = await fetch("/api/owner/dashboard");
+      if (!res.ok) return "";
+      var data = await res.json();
+      return (data && data.owner && data.owner.displayName) || "";
+    } catch (_) {
+      return "";
+    }
+  }
+
   // Restart the pop-in animation on the sheet (re-add the class after a reflow).
   function popIn() {
     els.sheet.classList.remove("pt-in");
@@ -353,7 +382,12 @@
       els.form.classList.add("pt-hide");
       els.sheet.classList.remove("pt-in");
       els.ov.classList.add("pt-open");
-      fetchSaved().then(function (addr) {
+      // Both requests go out together: the profile name is only needed for the
+      // blank-form case, and waiting for it in series would delay the sheet for
+      // everyone who already has an address saved.
+      Promise.all([fetchSaved(), fetchProfileName()]).then(function (results) {
+        var addr = results[0];
+        profileName = results[1] || "";
         savedAddress = addr;
         if (addr) showConfirm(addr);
         else showForm(null);

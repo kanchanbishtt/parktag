@@ -6,6 +6,7 @@ import { getCollections, ensurePendingCallsIndexes } from "../../lib/db/reposito
 import { createQrDataUrl, createPrintQrDataUrl } from "../../lib/core/qr-output.js";
 import { createEtagForVehicle, buildTagScanUrl, VEHICLE_LABELS, etagIdFor, stickerSerialFor } from "../../lib/core/tag-issuance.js";
 import { validateAddress } from "../../lib/core/address.js";
+import { resolveOwnerName, firstNameOf, cleanName, isIdentifierNotAName } from "../../lib/core/owner-name.js";
 import { checkPincodeServiceability, trackingUrl } from "../../lib/integrations/delhivery.js";
 // Shared with the public order-tracking page, so both show the same status off
 // the same cache.
@@ -62,13 +63,30 @@ export function registerOwnerRoutes(app, env) {
       .limit(10)
       .toArray();
 
+    // Resolved server-side so the greeting, the My Info panel and the address
+    // form all agree. The browser used to guess a name out of the email itself,
+    // which is how "info@" became "Hi Info".
+    const addressForName = await collections.addresses.findOne({ ownerId });
+    const resolvedName = resolveOwnerName(owner, addressForName);
+
     return {
       ok: true,
       owner: {
         _id: String(owner._id),
         email: owner.email || null,
         mobile: owner.mobile || null,
-        displayName: owner.displayName || request.session.displayName || null,
+        // Only a name the owner actually set. A stored identifier reads as
+        // "no name", so the dashboard offers to collect one instead of
+        // greeting them with their own phone number.
+        displayName: isIdentifierNotAName(owner.displayName, owner)
+          ? null
+          : cleanName(owner.displayName),
+        // What to put after "Hi" — null means the dashboard says "there".
+        greetingName: firstNameOf(resolvedName),
+        // Whether that name is stored on the profile or merely inferred, so the
+        // dashboard knows to offer "add your name" rather than "edit".
+        hasOwnName: Boolean(cleanName(owner.displayName) &&
+          !isIdentifierNotAName(owner.displayName, owner)),
         credits: owner.credits || 0
       },
       tags: await Promise.all(tags.map(async (tag) => {
@@ -264,6 +282,57 @@ export function registerOwnerRoutes(app, env) {
     return { ok: true, id: String(result.tag._id), token: result.tag.token };
   });
 
+  // ── Profile ───────────────────────────────────────────────────────
+  // Sets the name shown on the dashboard. There was no way for an owner to
+  // record a name at all before this: sign-in collects an email or a mobile and
+  // nothing else, and the field it landed in was the identifier itself.
+  app.patch("/api/owner/profile", async (request, reply) => {
+    const blocked = await requireSession(app, "owner")(request, reply);
+    if (blocked) return blocked;
+
+    const collections = await getCollections(env);
+    if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
+
+    const ownerId = toObjectId(request.session.userId);
+    const owner = await collections.owners.findOne({ _id: ownerId });
+    if (!owner) { reply.code(404); return { ok: false, error: "Owner not found." }; }
+
+    // An empty value clears the name rather than erroring — the inline field
+    // has to be undoable, and "" is how the browser says "I changed my mind".
+    const raw = request.body?.displayName;
+    const name = cleanName(raw);
+
+    if (raw != null && String(raw).trim() !== "" && !name) {
+      reply.code(400);
+      return { ok: false, error: "Please enter at least 2 characters." };
+    }
+
+    // Refusing the identifier keeps the very problem this endpoint exists to fix
+    // from being typed straight back in.
+    if (name && isIdentifierNotAName(name, owner)) {
+      reply.code(400);
+      return { ok: false, error: "Please enter your name, not your phone number or email." };
+    }
+
+    await collections.owners.updateOne(
+      { _id: ownerId },
+      { $set: { displayName: name, updatedAt: new Date().toISOString() } }
+    );
+
+    // The session carries displayName for other screens; leaving it stale would
+    // show the old name until the owner signed out and back in.
+    if (request.session) request.session.displayName = name;
+
+    const address = await collections.addresses.findOne({ ownerId });
+    const resolved = resolveOwnerName({ ...owner, displayName: name }, address);
+    return {
+      ok: true,
+      displayName: name,
+      greetingName: firstNameOf(resolved),
+      hasOwnName: Boolean(name)
+    };
+  });
+
   // ── Delivery address (physical sticker shipping) ──────────────────
   // One saved address per owner, reused across purchases. Returns the saved
   // address so the checkout form can prefill it on repeat buys.
@@ -305,6 +374,22 @@ export function registerOwnerRoutes(app, env) {
       { $set: { ...result.address, updatedAt: now }, $setOnInsert: { ownerId, createdAt: now } },
       { upsert: true }
     );
+
+    // The recipient name typed here is the only real name most owners ever give
+    // us, so adopt it as the profile name when there isn't one. Deliberately
+    // only fills a gap: an owner who set their own name keeps it, even if they
+    // ship to someone else.
+    const owner = await collections.owners.findOne({ _id: ownerId });
+    const recipient = cleanName(result.address.fullName);
+    if (owner && recipient &&
+        isIdentifierNotAName(owner.displayName, owner) &&
+        !isIdentifierNotAName(recipient, owner)) {
+      await collections.owners.updateOne(
+        { _id: ownerId },
+        { $set: { displayName: recipient, updatedAt: now } }
+      );
+      if (request.session) request.session.displayName = recipient;
+    }
 
     return { ok: true, address: result.address };
   });
@@ -488,9 +573,18 @@ export function registerOwnerRoutes(app, env) {
     const raw = String((request.body || {}).emergencyContact ?? "").trim();
     const digits = raw.replace(/\D/g, "");
 
-    // Empty clears the contact; otherwise demand something that can actually be
-    // dialled. 7-15 digits covers every E.164 national number.
-    if (raw && (digits.length < 7 || digits.length > 15)) {
+    // Required, and no longer clearable. This number is the whole of the SOS
+    // feature: a scanner standing at a crash gets the owner's next of kin only
+    // if one is recorded. Allowing it to be emptied meant the button could be
+    // switched off silently, from the one screen where that is least visible.
+    if (!raw) {
+      reply.code(400);
+      return { ok: false, error: "An emergency contact is required — this is who we call in an accident." };
+    }
+
+    // Demand something that can actually be dialled. 7-15 digits covers every
+    // E.164 national number.
+    if (digits.length < 7 || digits.length > 15) {
       reply.code(400);
       return { ok: false, error: "Enter a valid emergency contact number." };
     }
@@ -500,7 +594,7 @@ export function registerOwnerRoutes(app, env) {
     const tagId = tryObjectId(request.params.tagId);
     if (!tagId) { reply.code(400); return { ok: false, error: "Invalid tag id" }; }
 
-    const emergencyContact = raw ? toE164(raw) : null;
+    const emergencyContact = toE164(raw);
 
     // Guard against an owner pointing the SOS at the tag's own masked-call
     // number or at their own mobile — in an accident that reaches nobody new.

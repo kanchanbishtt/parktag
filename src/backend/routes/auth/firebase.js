@@ -53,7 +53,11 @@ async function findOrCreateOwner(collections, phoneE164) {
     owner = {
       _id: ownerId,
       mobile: phoneE164,
-      displayName: phone10,
+      // Not the phone number. Writing the identifier here made every screen
+      // reading displayName render it as a person's name — the dashboard
+      // greeted these owners with "Hi 9876500123". Null means "not known yet",
+      // which the dashboard answers with "Hi there" and an inline field.
+      displayName: null,
       credits: 0,
       role: "owner",
       createdAt: new Date().toISOString()

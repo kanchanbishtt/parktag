@@ -2031,19 +2031,33 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
   text-indent: 0.22em;   /* the tracking after the last letter, re-centred */
 }
 
-/* The tricolour strip down the left, chakra dot painted into the white band
-   with a radial gradient so it needs no element of its own. */
+/* The tricolour strip down the left, from the artwork rather than from CSS.
+   This replaces a linear-gradient for the three bands plus a radial-gradient
+   standing in for the chakra — that stand-in was a plain 4.8px dot, because a
+   24-spoke wheel is not something a gradient can draw. The SVG carries the real
+   Ashoka Chakra in the correct navy (#000080).
+
+   The file is authored at exactly 18x42, the size this strip measures on the
+   default plate, so at that size it is pixel-exact.
+
+   `background-size: 100% 100%` rather than `contain`: the strip's height is
+   derived (top:17px to bottom:0), so it shortens to ~37px when the plate
+   tightens on small screens — see the 1.25rem rule further down. `contain`
+   would letterbox and leave white gaps at top and bottom; stretching keeps the
+   bands meeting the plate edges exactly as the gradient did. The ~11% vertical
+   squash that costs the chakra is imperceptible on a 5px wheel.
+
+   Only the strip comes from artwork. The IND band above is still CSS: it is a
+   text label that has to stay selectable-free but legible at any width, and it
+   spans the full plate rather than this fixed 18px column. */
 .pt-plate-display::after {
   content: "";
   position: absolute;
   left: 0; top: 17px; bottom: 0;
   width: 18px;
-  background-image:
-    radial-gradient(circle at 50% 50%, #16296B 0 2.4px, rgba(0,0,0,0) 2.5px),
-    linear-gradient(180deg,
-      #FF9933 0 33.34%,
-      #FFFFFF 33.34% 66.67%,
-      #138808 66.67% 100%);
+  background-image: url("/images/ind-flag-strip.svg");
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
   border-right: 1px solid rgba(14,27,46,0.22);
 }
 

@@ -934,7 +934,10 @@ async function load() {
       // Razorpay prefills from this so the sheet shows the CURRENT user, not a
       // stale cached number.
       window.__ptOwner = {
-        name: (rawName && !isEmail) ? rawName : firstName,
+        // The owner's full name, or empty. Never the greeting's first name and
+        // never "there": Razorpay prefills a real checkout field from this, and
+        // a placeholder greeting is not a name to bill.
+        name: data.owner.displayName || "",
         email: data.owner.email || "",
         contact: data.owner.mobile || ""
       };
@@ -991,7 +994,12 @@ async function load() {
     renderNoticeboard(allTags);
     renderActivity(allRequests);
     if (localOnly.length > 0) syncLocalVehicles(localOnly, userId);
-  } catch {
+  } catch (error) {
+    // This used to be a bare `catch {}`. Every failure in the whole block —
+    // a network fault, a bad payload, a typo in a render helper — surfaced as
+    // the same "Couldn't load your vehicles." with no way to tell which, so a
+    // rendering bug was indistinguishable from the API being down.
+    console.error("[owner dashboard] load failed:", error);
     grid.innerHTML = `
       <div role="alert" style="grid-column:1/-1;text-align:center;padding:28px 16px 12px">
         <p style="font-size:.9rem;font-weight:700;color:#374151;margin:0 0 10px">${UI.loadError}</p>

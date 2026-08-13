@@ -62,8 +62,10 @@ function renderGreetingAffordance(owner) {
 function openNameEditor() {
   if (!nameForm) return;
   nameInput.value = _ownerName;
+  // Only the greeting line gives way to the field — the email/mobile beneath it
+  // stays put. Hiding that too made the whole header lurch and left the owner
+  // with no sign of which account they were editing.
   if (greetRow) greetRow.hidden = true;
-  if (greetId) greetId.hidden = true;
   nameForm.hidden = false;
   setNameStatus("");
   nameInput.focus();
@@ -74,7 +76,6 @@ function closeNameEditor() {
   if (!nameForm) return;
   nameForm.hidden = true;
   if (greetRow) greetRow.hidden = false;
-  if (greetId) greetId.hidden = false;
   setNameStatus("");
 }
 
@@ -98,9 +99,13 @@ async function saveOwnerName(event) {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.ok) {
-      // Server-side rules (too short, or the identifier typed back in) are
-      // reported where they were typed rather than swallowed.
-      setNameStatus(data.error || "Could not save your name.");
+      // Only a 400 carries a message written for a person ("at least 2
+      // characters"). Anything else is the framework talking — a bare "Not
+      // Found" from a route that isn't deployed yet means nothing to whoever
+      // is typing their name, so it does not get shown to them.
+      setNameStatus(
+        res.status === 400 && data.error ? data.error : "Could not save your name. Please try again."
+      );
       return;
     }
     _ownerName = data.displayName || "";

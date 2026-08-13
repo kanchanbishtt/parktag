@@ -74,7 +74,8 @@
     /* Icon-only state (a name already exists) is a square rather than a pill. */
     .pt-wh-nameedit[data-mode="edit"] { padding: 4px; border-radius: 9px; }
 
-    .pt-wh-nameform { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+    /* Takes the greeting's place, so it carries no extra top margin. */
+    .pt-wh-nameform { display: flex; align-items: center; gap: 6px; margin: 0; }
     .pt-wh-nameform[hidden] { display: none; }
     .pt-wh-nameinput {
       flex: 1; min-width: 0; font-family: inherit;
@@ -1093,9 +1094,9 @@
               </p>
               <button type="button" id="greet-name-edit" class="pt-wh-nameedit" hidden></button>
             </div>
-            <p class="pt-wh-id" id="greetId">
-              <span class="sk" style="display:inline-block;width:90px;height:.65em;border-radius:4px;vertical-align:middle;opacity:0.2"></span>
-            </p>
+            <!-- Sits between the greeting and the identifier, so opening it
+                 swaps out "Hi, there!" and leaves the email/mobile below
+                 exactly where it was. -->
             <form id="greet-name-form" class="pt-wh-nameform" hidden>
               <input id="greet-name-input" class="pt-wh-nameinput" type="text" maxlength="60"
                      autocomplete="name" placeholder="Your name" aria-label="Your name" />
@@ -1107,6 +1108,9 @@
               </button>
             </form>
             <p id="greet-name-status" class="pt-wh-namestatus" hidden></p>
+            <p class="pt-wh-id" id="greetId">
+              <span class="sk" style="display:inline-block;width:90px;height:.65em;border-radius:4px;vertical-align:middle;opacity:0.2"></span>
+            </p>
           </div>
         </div>
 

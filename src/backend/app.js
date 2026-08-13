@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 import QRCode from "qrcode";
 
 import { getEnv } from "./lib/env.js";
+import { BoundedTtlMap } from "./lib/bounded-map.js";
 import { clientError, clientErrorMessage } from "./lib/errors.js";
 import { readSession } from "./lib/auth/session.js";
 import { createSharedRateLimitStore } from "./lib/auth/rate-limit-store.js";
@@ -148,10 +149,35 @@ export async function buildApp() {
 
   // In-process cache in front of the MongoDB-backed session store (see
   // lib/auth/session.js). Sessions themselves live in Mongo, so a restart or a
-  // second instance no longer logs users out — this Map is just a fast path.
-  app.decorate("sessions", new Map());
-  // Server-side OAuth state store — avoids SameSite cookie blocking on Google callback
-  app.decorate("oauthStates", new Map());
+  // second instance no longer logs users out — this is just a fast path.
+  //
+  // BOUNDED (see lib/bounded-map.js): a plain Map only ever evicted a session
+  // when someone read it AFTER it had expired, so sessions belonging to users
+  // who never came back were retained for the life of the process. Dropping an
+  // entry early is free here — a cached session is only trusted for
+  // CACHE_REVALIDATE_MS (30s) before it is re-read from Mongo anyway, so an
+  // eviction costs one extra query and nothing else.
+  app.decorate("sessions", new BoundedTtlMap({
+    ttlMs: 60 * 60 * 1000, // 1 hour — far beyond the 30s the cache is trusted for
+    cap: 10000,
+    name: "sessions"
+  }));
+
+  // Server-side OAuth state store — avoids SameSite cookie blocking on the
+  // Google callback.
+  //
+  // BOUNDED, and this one was the leak that mattered: an entry is written by
+  // GET /api/auth/google (unauthenticated) and deleted only by the CALLBACK, so
+  // every abandoned sign-in leaked permanently and the route could be called in
+  // a loop. TTL matches STATE_TTL_MS in routes/auth/google.js — a state older
+  // than that is refused there anyway, so expiring it here drops nothing that
+  // could still have been used. Mongo keeps the authoritative copy (TTL index
+  // on oauth_states), so an eviction under load degrades to a DB read.
+  app.decorate("oauthStates", new BoundedTtlMap({
+    ttlMs: 10 * 60 * 1000,
+    cap: 5000,
+    name: "oauthStates"
+  }));
 
   app.addContentTypeParser(
     "application/x-www-form-urlencoded",

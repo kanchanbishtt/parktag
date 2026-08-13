@@ -21,7 +21,9 @@ export function registerOtpAuthRoutes(app, env) {
   app.post("/api/auth/send-otp", { config: { rateLimit: { max: 5, timeWindow: "1 minute" } } }, async (request, reply) => {
     const { identifier, recaptchaToken } = request.body || {};
 
-    if (!identifier) {
+    // Type, not just presence: a non-empty array or object is truthy and used
+    // to sail past this check into string handling that then threw a 500.
+    if (typeof identifier !== "string" || !identifier.trim()) {
       reply.code(400);
       return { ok: false, error: "Email or mobile number is required" };
     }
@@ -61,7 +63,18 @@ export function registerOtpAuthRoutes(app, env) {
   app.post("/api/auth/verify-otp", { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } }, async (request, reply) => {
     const { identifier, code } = request.body || {};
 
-    if (!identifier || !code) {
+    // Type, not just presence — see send-otp above. `{ identifier: [...] }`
+    // and `{ identifier: { $ne: null } }` both used to reach normalizeIdentifier
+    // and throw, answering a malformed request with 500 instead of 400.
+    if (typeof identifier !== "string" || !identifier.trim()) {
+      reply.code(400);
+      return { ok: false, error: "Identifier and code are required" };
+    }
+    if (typeof code !== "string" && typeof code !== "number") {
+      reply.code(400);
+      return { ok: false, error: "Identifier and code are required" };
+    }
+    if (!String(code).trim()) {
       reply.code(400);
       return { ok: false, error: "Identifier and code are required" };
     }

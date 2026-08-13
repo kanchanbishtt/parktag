@@ -31,16 +31,26 @@ export function isMobileIdentifier(identifier) {
 }
 
 function normalizePhone(input) {
-  const digits = input.trim().replace(/[^\d+]/g, "");
+  // Coerced, not assumed: `input` comes straight off a JSON request body, so it
+  // can be an array, object or number. See normalizeIdentifier below.
+  const digits = String(input ?? "").trim().replace(/[^\d+]/g, "");
   if (digits.startsWith("+")) return digits;
   if (digits.length === 10) return `+91${digits}`;
   if (digits.length === 12 && digits.startsWith("91")) return `+${digits}`;
   return digits;
 }
 
+// `identifier` is whatever arrived in the JSON body — the route only checks it
+// is truthy, and a non-empty ARRAY or OBJECT is truthy. Calling .trim() on one
+// threw `identifier.trim is not a function`, which surfaced as a 500 on
+// /api/auth/send-otp and /api/auth/verify-otp for anything that wasn't a
+// string. Coerce instead: a junk identifier must be a 400, not a server error.
+// (It never reached Mongo — the throw happened first — so this was a wrong
+// status code and log noise rather than an injection hole, but a 500 on the
+// login path invites client retries and buries genuine faults in the metrics.)
 export function normalizeIdentifier(identifier) {
   if (isMobileIdentifier(identifier)) return normalizePhone(identifier);
-  return identifier.trim().toLowerCase();
+  return String(identifier ?? "").trim().toLowerCase();
 }
 
 export async function sendOtp(env, identifier) {

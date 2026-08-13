@@ -89,6 +89,7 @@
       ".pt-addr-f.pt-half{display:inline-block;width:calc(50% - 5px);vertical-align:top;}",
       ".pt-addr-f.pt-half+.pt-half{margin-left:8px;}",
       ".pt-addr-f label{display:block;font-size:.72rem;font-weight:700;letter-spacing:.01em;color:#374151;margin-bottom:5px;}",
+      ".pt-req{color:var(--r);margin-left:3px;font-weight:800;}",
       ".pt-addr-f input{width:100%;box-sizing:border-box;padding:12px 13px;border:1.5px solid #e6e6ec;border-radius:13px;font-size:.94rem;color:var(--ink);background:#fff;outline:none;transition:border-color .15s,box-shadow .15s;}",
       ".pt-addr-f input::placeholder{color:#a8adb8;}",
       ".pt-addr-f input:focus{border-color:var(--r);box-shadow:0 0 0 3.5px var(--tint);}",
@@ -137,7 +138,13 @@
         (f.maxlength ? ' maxlength="' + f.maxlength + '"' : "") +
         (f.inputmode ? ' inputmode="' + f.inputmode + '"' : "") +
         (f.auto ? ' autocomplete="' + f.auto + '"' : "");
-      return '<div class="pt-addr-f' + (half ? " pt-half" : "") + '"><label for="pt-addr-' + f.key + '">' + f.label + "</label><input " + attrs + "></div>";
+      // Required fields carry a *. Marking only the mobile would have implied
+      // the rest were optional, so the star comes off `optional` — the same flag
+      // the labels already use to write "(optional)" — and the two can't drift.
+      var star = f.optional ? "" : '<span class="pt-req" aria-hidden="true">*</span>';
+      var req = f.optional ? "" : " required aria-required=\"true\"";
+      return '<div class="pt-addr-f' + (half ? " pt-half" : "") + '"><label for="pt-addr-' + f.key + '">' +
+        f.label + star + "</label><input " + attrs + req + "></div>";
     }).join("");
 
     var secure =

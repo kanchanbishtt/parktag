@@ -1270,9 +1270,13 @@ function _fillMenu() {
 
   // SOS number — server value wins; the localStorage key (same one
   // vehicle-detail.js uses) is only a fallback for local, unsaved vehicles.
-  const sosVal = tag.emergencyContact || localStorage.getItem(_sosKey(tag)) || "";
+  // Only the number the SERVER holds. The old localStorage fallback put a value
+  // from this browser into a field the owner had never saved, which read as
+  // "already set" for a vehicle that had no SOS at all — and it is the owner's
+  // job to nominate someone else, not for us to pre-answer with whatever this
+  // device happened to remember. Empty is the correct starting state.
   const sosEl = document.getElementById("sos-inp");
-  if (sosEl) sosEl.value = sosVal;
+  if (sosEl) sosEl.value = tag.emergencyContact || "";
   // Only a number the SERVER holds counts as set. A value sitting in
   // localStorage exists on one device and cannot be dialled by the scanner
   // flow, so treating it as "done" would hide exactly the gap being flagged.

@@ -255,8 +255,10 @@ setTimeout(async () => {
     } catch {}
   }
 
-  const saved = localStorage.getItem("pt_sos_" + plate);
-  if (saved) inp.value = saved;
+  // Deliberately no localStorage fallback. Filling this from whatever this
+  // browser happened to remember put a number into a field the owner had never
+  // saved for the vehicle, so one with no SOS at all looked as though it had
+  // one. Empty is the honest starting state; the owner nominates someone.
 }, 600);
 
 // ── Remove Vehicle ────────────────────────────────────────────

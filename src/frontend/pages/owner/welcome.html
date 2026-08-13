@@ -818,6 +818,9 @@
     .pt-sw input:checked + .pt-sw-t::after { transform: translateX(19px); }
 
     /* Sub-panel helpers */
+    /* Required marker, same red as the delivery form's so the two read as one
+       convention rather than two separate decorations. */
+    .pt-req { color: #FF2700; margin-left: 3px; font-weight: 800; }
     .pt-snote { font-size: .79rem; color: #6B7280; line-height: 1.6; margin: 0 0 11px; }
     /* A vehicle with no emergency contact has no SOS at all, so the gap is
        stated rather than left to the empty field to imply. */
@@ -1691,7 +1694,7 @@
         <div class="pt-mi-ic" style="background:#FFF1F2;color:#E11D48">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" stroke="currentColor" stroke-width="1.8"/><path d="M12 9v4M12 17h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
         </div>
-        <span class="pt-mi-lb">Emergency / SOS</span>
+        <span class="pt-mi-lb">Emergency / SOS<span class="pt-req" aria-hidden="true">*</span></span>
         <span class="pt-mi-ar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>
       </div>
       <div class="pt-mi-s"><div class="pt-mi-si">
@@ -1700,7 +1703,14 @@
              required, but it is no use being required somewhere nobody looks —
              this is what makes a missing one visible on the dashboard. -->
         <p class="pt-smissing" id="sos-missing" hidden>No emergency contact set for this vehicle.</p>
-        <input class="pt-sfield" id="sos-inp" type="tel" placeholder="Emergency contact number" inputmode="tel" required aria-required="true"/>
+        <!-- autocomplete off, and a name the browser cannot map to a person:
+             a bare tel field was being autofilled with the owner's OWN saved
+             number, which is the one number this must never be. The field
+             starts empty unless the server actually holds a contact. -->
+        <input class="pt-sfield" id="sos-inp" type="tel" name="pt-sos-contact"
+               placeholder="Emergency contact number" inputmode="tel"
+               autocomplete="off" autocorrect="off" spellcheck="false"
+               required aria-required="true"/>
         <button class="pt-sbtn" onclick="saveSos()">Save Emergency Contact</button>
       </div></div>
     </div>

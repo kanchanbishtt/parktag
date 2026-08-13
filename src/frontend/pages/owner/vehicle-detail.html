@@ -552,8 +552,13 @@
         </div>
         <div class="vd-sub-panel">
           <div class="vd-sub-inner">
-            <p class="vd-sub-note">Set an emergency contact number. In case of accident, scanners can call this number directly.</p>
-            <input class="vd-field" id="sos-number" type="tel" placeholder="Emergency contact number" inputmode="tel"/>
+            <p class="vd-sub-note">Required. In case of accident, scanners can call this number directly — a vehicle without one has no SOS.</p>
+            <!-- autocomplete off: a bare tel field was autofilled with the
+                 owner's own saved number, the one number this must never be. -->
+            <input class="vd-field" id="sos-number" type="tel" name="pt-sos-contact"
+                   placeholder="Emergency contact number" inputmode="tel"
+                   autocomplete="off" autocorrect="off" spellcheck="false"
+                   required aria-required="true"/>
             <button class="vd-btn-primary" id="sos-save-btn">Save Emergency Contact</button>
             <button class="vd-btn-danger" id="sos-test-btn">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" stroke="currentColor" stroke-width="1.8"/></svg>

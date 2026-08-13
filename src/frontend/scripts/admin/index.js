@@ -414,7 +414,7 @@ function pqRunHtml(group, run, index) {
           </span>
           <span class="pt-pq-run-label">
             <span class="pt-pq-run-title">${legacy ? "Earlier tags (no generation recorded)" : `Generated ${esc(when)}`}</span>
-            <span class="pt-pq-run-meta"><span>${run.tags.length} tag${run.tags.length === 1 ? "" : "s"}</span> ${range ? `<span class="pt-pq-range">${esc(range)}</span>` : ""}</span>
+            <span class="pt-pq-run-meta"><span>${run.tags.length} tag${run.tags.length === 1 ? "" : "s"}</span> ${range ? `<span class="pt-pq-range">${esc(range)}</span>` : ""} <span class="pt-pq-mount" data-mount="${esc(first.mountType || "windscreen_interior")}">${esc(pqMountLabel(first.mountType))}</span></span>
           </span>
         </button>
         <div class="pt-pq-run-actions">
@@ -586,6 +586,13 @@ async function exportQrsForPrint() {
 // stickers collide, which is exactly the lookup this has to get right.
 function pqBatchKey(batchNumber) {
   return String(batchNumber ?? 0).replace(/\D/g, "").padStart(2, "0");
+}
+
+// Which sticker a run prints — the one thing on the card the printer acts on.
+// Anything issued before mount types existed is windscreen stock, so a missing
+// value reads as windscreen rather than as "unknown".
+function pqMountLabel(mountType) {
+  return mountType === "exterior_surface" ? "BIKE · back glue" : "CAR · front glue";
 }
 
 // PT-<batch>-<serial>, matching what stickerSerialFor prints server-side.
@@ -987,6 +994,18 @@ window.updatePremiumToggle = updatePremiumToggle;
 
 async function issueTag() {
   const btn = byId("issue-tag-button");
+
+  // Caught here as well as server-side, so the operator is told before a run is
+  // attempted rather than after. The server still refuses a missing value — it
+  // is the only check a direct POST cannot skip.
+  const mountType = byId("issue-mount-type")?.value || "";
+  if (!mountType) {
+    setStatus("Choose which sticker this run prints before generating.", "error");
+    setIssueMessage("No batch generated — sticker type is required.");
+    byId("issue-mount-type")?.focus();
+    return;
+  }
+
   if (btn) { btn.disabled = true; btn.textContent = "Generating…"; }
   setIssueMessage("Generating QR batch, please wait…");
 
@@ -1001,7 +1020,8 @@ async function issueTag() {
         batchLabel: byId("issue-batch-label")?.value.trim(),
         quantity: byId("issue-quantity")?.value.trim(),
         stickerRequested: byId("issue-sticker-requested")?.checked,
-        premiumBatch: byId("issue-premium-batch")?.checked
+        premiumBatch: byId("issue-premium-batch")?.checked,
+        mountType
       })
     });
 

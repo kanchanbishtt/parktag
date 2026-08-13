@@ -45,6 +45,30 @@ function labelForType(type, fallback = "Registered vehicle") {
   return VEHICLE_LABELS[type] || fallback;
 }
 
+// Which physical sticker a run produces. This is a MANUFACTURING property, not
+// the owner's vehicle: the glue is on the front for a windscreen tag (it goes on
+// from inside the glass) and on the back for one that sits on a tank or headlamp.
+// It is decided at print time, months before anyone says what vehicle the tag
+// ends up on — which is why it cannot be derived from vehicleType, a field that
+// is still null on every tag this function creates.
+export const MOUNT_TYPES = {
+  windscreen_interior: "Windscreen — interior (front glue)",
+  exterior_surface: "Exterior surface — tank / headlamp (back glue)"
+};
+
+// Required on every batch, with no default. A wrong guess here does not produce
+// a wrong record, it produces a pallet of stickers whose glue is on the wrong
+// face — so silently inheriting a value would be worse than refusing to issue.
+function assertMountType(type) {
+  if (type == null || type === "") {
+    throw new Error("Choose which sticker this run prints: windscreen or exterior");
+  }
+  if (!Object.prototype.hasOwnProperty.call(MOUNT_TYPES, type)) {
+    throw new Error("Unsupported mount type");
+  }
+  return type;
+}
+
 // Reject a type we do not offer. Removing the dropdown option alone would not
 // stop a direct POST, and nothing validated this field before. No type at all
 // stays allowed: retail tags are issued before anyone says what the vehicle is.
@@ -132,8 +156,10 @@ export async function createUnclaimedTags(collections, input) {
 
   // Validation deliberately runs BEFORE the serial reservation below. The
   // counter bump is atomic and irreversible, so validating afterwards would let
-  // a rejected batch (bad quantity) still consume a block of sticker serials and
-  // leave a permanent gap in the printed sequence.
+  // a rejected batch (bad quantity, missing mount type) still consume a block of
+  // sticker serials and leave a permanent gap in the printed sequence.
+  const mountType = assertMountType(input.mountType);
+
   //
   // Reserve this run's sticker serials in one atomic bump, so two admins issuing
   // into the same batch can never be handed the same number. Same counters
@@ -174,6 +200,11 @@ export async function createUnclaimedTags(collections, input) {
       status: "unclaimed",
       batchNumber: input.batchNumber || null,
       batchLabel: input.batchLabel || null,
+      // Denormalised onto every tag, the same way runSerialStart/End are: a run
+      // is only an id on its tags, there is no runs collection to hold it. A
+      // batch may now mix both mount types across sittings, so the batch number
+      // no longer tells you which sticker a tag is — this field does.
+      mountType,
       // Sequential within the batch: PT-<batch>-<serialNumber>.
       serialNumber: seqStart + index,
       issuanceRunId,

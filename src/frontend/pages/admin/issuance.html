@@ -58,6 +58,23 @@
               Batch label
               <input id="issue-batch-label" class="pt-admin-input" placeholder="e.g. June 2026 print run" />
             </label>
+            <!-- Which physical sticker this run prints. Deliberately has no
+                 default: the glue goes on a different face for each, so a run
+                 issued on a guess is a pallet of unusable stock. The batch
+                 number and its serial sequence are untouched by this — a batch
+                 can hold runs of both, numbered straight through. -->
+            <label class="pt-admin-label">
+              Sticker type
+              <select id="issue-mount-type" class="pt-admin-input">
+                <option value="">Select which sticker this run prints…</option>
+                <option value="windscreen_interior">Car — windscreen, interior (glue on front)</option>
+                <option value="exterior_surface">Bike — tank / headlamp (glue on back)</option>
+              </select>
+            </label>
+            <p id="issue-mount-hint" style="margin:-6px 0 0;font-size:0.75rem;color:#6B7280">
+              Applies to this run only. Serial numbers continue through the batch either way.
+            </p>
+
             <label style="display:flex;align-items:center;gap:10px;font-size:0.85rem;font-weight:600;color:#374151;cursor:pointer">
               <input id="issue-sticker-requested" type="checkbox" style="width:16px;height:16px;accent-color:#FF2700" />
               Physical sticker requested

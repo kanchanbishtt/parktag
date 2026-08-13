@@ -57,6 +57,43 @@
       font-size: .72rem; color: #8FAACB; margin: 2px 0 0; font-weight: 500;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.25;
     }
+    /* Name editing. The affordance sits beside the greeting and stays quiet:
+       an owner who ignores it loses nothing, which is the whole point of asking
+       here instead of in the sign-in flow. */
+    .pt-wh-hi-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .pt-wh-nameedit {
+      flex-shrink: 0; border: 0; cursor: pointer; font-family: inherit;
+      display: inline-flex; align-items: center; gap: 5px;
+      background: rgba(255,255,255,0.10); color: rgba(255,255,255,0.86);
+      border-radius: 20px; padding: 3px 9px;
+      font-size: .7rem; font-weight: 700; letter-spacing: .01em;
+      transition: background .15s, color .15s;
+    }
+    .pt-wh-nameedit:hover { background: rgba(255,255,255,0.18); color: #fff; }
+    .pt-wh-nameedit:focus-visible { outline: 2px solid rgba(255,255,255,0.75); outline-offset: 2px; }
+    /* Icon-only state (a name already exists) is a square rather than a pill. */
+    .pt-wh-nameedit[data-mode="edit"] { padding: 4px; border-radius: 9px; }
+
+    .pt-wh-nameform { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+    .pt-wh-nameform[hidden] { display: none; }
+    .pt-wh-nameinput {
+      flex: 1; min-width: 0; font-family: inherit;
+      background: rgba(255,255,255,0.12); color: #fff;
+      border: 1.5px solid rgba(255,255,255,0.28); border-radius: 9px;
+      padding: 6px 10px; font-size: .9rem; font-weight: 600;
+    }
+    .pt-wh-nameinput::placeholder { color: rgba(255,255,255,0.5); font-weight: 500; }
+    .pt-wh-nameinput:focus { outline: none; border-color: rgba(255,255,255,0.7); }
+    .pt-wh-namebtn {
+      flex-shrink: 0; width: 30px; height: 30px; border-radius: 9px; cursor: pointer;
+      border: 1.5px solid rgba(255,255,255,0.28); background: rgba(255,255,255,0.12);
+      color: #fff; display: inline-flex; align-items: center; justify-content: center;
+      transition: background .15s;
+    }
+    .pt-wh-namebtn:hover { background: rgba(255,255,255,0.22); }
+    .pt-wh-namebtn:focus-visible { outline: 2px solid rgba(255,255,255,0.75); outline-offset: 2px; }
+    .pt-wh-namestatus { margin: 4px 0 0; font-size: .72rem; font-weight: 600; color: #FFC9BD; }
+    .pt-wh-namestatus[hidden] { display: none; }
     /* Right: action buttons. 40px squares to sit with the 42px logo, on the
        same 12px corner radius as the cards below. */
     .pt-wh-right { display: flex; align-items: center; gap: 9px; flex-shrink: 0; }
@@ -1046,12 +1083,30 @@
           <a href="https://parktag.me" aria-label="ParkTag home" style="display:inline-flex;align-items:center;text-decoration:none"><img src="/images/dark-logo.png" alt="ParkTag" class="pt-wh-logo-img"></a>
           <div class="pt-wh-sep"></div>
           <div class="pt-wh-greet">
-            <p class="pt-wh-hi" id="greetName">
-              <span class="sk" style="display:inline-block;width:120px;height:.9em;border-radius:5px;vertical-align:middle;opacity:0.3"></span>
-            </p>
+            <!-- The greeting is the input. An owner who never told us their name
+                 is greeted with "Hi there!" and offered a quiet way to add one;
+                 an owner who has one gets a pencil to change it. Both open the
+                 same field in place, rather than a dialog. -->
+            <div class="pt-wh-hi-row" id="greet-display">
+              <p class="pt-wh-hi" id="greetName">
+                <span class="sk" style="display:inline-block;width:120px;height:.9em;border-radius:5px;vertical-align:middle;opacity:0.3"></span>
+              </p>
+              <button type="button" id="greet-name-edit" class="pt-wh-nameedit" hidden></button>
+            </div>
             <p class="pt-wh-id" id="greetId">
               <span class="sk" style="display:inline-block;width:90px;height:.65em;border-radius:4px;vertical-align:middle;opacity:0.2"></span>
             </p>
+            <form id="greet-name-form" class="pt-wh-nameform" hidden>
+              <input id="greet-name-input" class="pt-wh-nameinput" type="text" maxlength="60"
+                     autocomplete="name" placeholder="Your name" aria-label="Your name" />
+              <button type="submit" class="pt-wh-namebtn" id="greet-name-save" aria-label="Save name" title="Save">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <button type="button" class="pt-wh-namebtn" id="greet-name-cancel" aria-label="Cancel" title="Cancel">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+              </button>
+            </form>
+            <p id="greet-name-status" class="pt-wh-namestatus" hidden></p>
           </div>
         </div>
 

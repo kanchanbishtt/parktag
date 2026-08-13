@@ -41,9 +41,114 @@ const isNewUser = newParam !== null
   : sessionStorage.getItem("pt_is_new_user") === "1";
 sessionStorage.removeItem("pt_is_new_user");
 
+// ── Name on the greeting ─────────────────────────────────────────
+// Sign-in only ever collects an email or a mobile, so most owners arrive with
+// no name at all. Rather than taxing the sign-in flow for a greeting, the
+// greeting asks for itself: "Hi there!" carries a quiet "Add your name", and an
+// owner who already has one gets a pencil. Ignoring it costs nothing.
+let _ownerName = "";        // the name stored on the profile, "" if none
+
+function renderGreetingAffordance(owner) {
+  if (!nameEdit) return;
+  _ownerName = owner.displayName || "";
+  const has = Boolean(owner.hasOwnName);
+  nameEdit.dataset.mode = has ? "edit" : "add";
+  nameEdit.innerHTML = has ? PENCIL_SVG : `${PENCIL_SVG}<span>Add your name</span>`;
+  nameEdit.setAttribute("aria-label", has ? "Edit your name" : "Add your name");
+  nameEdit.title = has ? "Edit your name" : "Add your name";
+  nameEdit.hidden = false;
+}
+
+function openNameEditor() {
+  if (!nameForm) return;
+  nameInput.value = _ownerName;
+  if (greetRow) greetRow.hidden = true;
+  if (greetId) greetId.hidden = true;
+  nameForm.hidden = false;
+  setNameStatus("");
+  nameInput.focus();
+  nameInput.select();
+}
+
+function closeNameEditor() {
+  if (!nameForm) return;
+  nameForm.hidden = true;
+  if (greetRow) greetRow.hidden = false;
+  if (greetId) greetId.hidden = false;
+  setNameStatus("");
+}
+
+function setNameStatus(message) {
+  if (!nameStatus) return;
+  nameStatus.textContent = message || "";
+  nameStatus.hidden = !message;
+}
+
+async function saveOwnerName(event) {
+  event?.preventDefault();
+  const value = (nameInput?.value || "").trim();
+
+  const save = document.getElementById("greet-name-save");
+  if (save) save.disabled = true;
+  try {
+    const res = await fetch("/api/owner/profile", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ displayName: value })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) {
+      // Server-side rules (too short, or the identifier typed back in) are
+      // reported where they were typed rather than swallowed.
+      setNameStatus(data.error || "Could not save your name.");
+      return;
+    }
+    _ownerName = data.displayName || "";
+    if (greetName) {
+      greetName.textContent = `${UI.greetPrefix} ${data.greetingName || UI.greetFallback}!`;
+    }
+    renderGreetingAffordance({ displayName: _ownerName, hasOwnName: data.hasOwnName });
+    // Keep the menu's owner panel in step — it reads the same name. Updated
+    // directly rather than through that panel's own `set` helper, which is a
+    // local inside its render function and not in scope here.
+    if (_owner) {
+      _owner.displayName = _ownerName;
+      _owner.hasOwnName = data.hasOwnName;
+      const miName = document.getElementById("mi-name");
+      if (miName) miName.textContent = _ownerName || _owner.email || _owner.mobile || "—";
+    }
+    closeNameEditor();
+  } catch {
+    setNameStatus("Network error. Please try again.");
+  } finally {
+    if (save) save.disabled = false;
+  }
+}
+
 // ── DOM refs ─────────────────────────────────────────────────────
 const greetName = document.getElementById("greetName");
 const greetId   = document.getElementById("greetId");
+const nameEdit    = document.getElementById("greet-name-edit");
+const nameForm    = document.getElementById("greet-name-form");
+const nameInput   = document.getElementById("greet-name-input");
+const nameCancel  = document.getElementById("greet-name-cancel");
+const nameStatus  = document.getElementById("greet-name-status");
+const greetRow    = document.getElementById("greet-display");
+
+const PENCIL_SVG =
+  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+  '<path d="M4 20h4l10-10a2.5 2.5 0 0 0-3.5-3.5L4.5 16.5 4 20Z" stroke="currentColor" stroke-width="2" ' +
+  'stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+// Bound here rather than beside the handlers above: these run at module load,
+// and the elements they attach to are declared in this block.
+nameEdit?.addEventListener("click", openNameEditor);
+nameForm?.addEventListener("submit", saveOwnerName);
+nameCancel?.addEventListener("click", closeNameEditor);
+// Escape backs out, the same as Cancel — the field is dismissible by design.
+nameInput?.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") { e.preventDefault(); closeNameEditor(); }
+});
 const grid      = document.getElementById("vehicleGrid");
 const searchInp = document.getElementById("vehicleSearch");
 let allTags      = [];
@@ -796,24 +901,14 @@ async function load() {
       : null;
 
     if (data.owner) {
-      const rawName = data.owner.displayName || "";
-      const isEmail = rawName.includes("@");
-      let firstName;
-      if (!isEmail && rawName) {
-        firstName = rawName.split(" ")[0];
-      } else {
-        // Derive a friendly name from the email address
-        const email = data.owner.email || "";
-        if (email.includes("@")) {
-          const local = email.split("@")[0].replace(/[0-9]/g, "");
-          const parts = local.split(/[._\-+]/).filter(Boolean);
-          const part = parts[0] || local;
-          firstName = part ? part.charAt(0).toUpperCase() + part.slice(1).toLowerCase() : UI.greetFallback;
-        } else {
-          firstName = UI.greetFallback;
-        }
-      }
+      // The server decides the name now: what the owner set, then the recipient
+      // name off their delivery address, then a cautious read of the email. The
+      // guessing that used to live here turned "info@" into "Hi Info" — a wrong
+      // answer stated confidently. A null greetingName means we genuinely do not
+      // know, and "Hi there" plus the inline field is the honest response.
+      const firstName = data.owner.greetingName || UI.greetFallback;
       const id = data.owner.email || data.owner.mobile || "";
+      renderGreetingAffordance(data.owner);
       greetName.textContent = `${UI.greetPrefix} ${firstName}!`;
       greetName.classList.remove("pt-reveal");
       void greetName.offsetWidth; // force reflow to re-trigger animation

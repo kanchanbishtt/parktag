@@ -21,6 +21,7 @@
   var els = null; // built lazily on first open
   var resolver = null; // resolve fn of the in-flight promise
   var savedAddress = null; // last address fetched from the server this open
+  var profileName = "";    // owner's profile name, used only to prefill a blank
 
   // Inline icons (no network dependency — works offline / on flaky mobile data).
   var IC = {
@@ -272,6 +273,13 @@
     FIELDS.forEach(function (f) {
       els.inputs[f.key].value = prefill && prefill[f.key] != null ? prefill[f.key] : "";
     });
+    // First-time buyers have no address to prefill from, but many do have a
+    // name on their profile by now. Filling it saves them retyping what we
+    // already know, and it stays editable — plenty of people ship to someone
+    // else. Only ever fills a blank; a saved address always wins.
+    if (!els.inputs.fullName.value && profileName) {
+      els.inputs.fullName.value = profileName;
+    }
     els.title.textContent = prefill ? "Edit delivery address" : "Delivery address";
     els.sub.textContent = prefill
       ? "Update where we should ship your sticker."
@@ -332,6 +340,20 @@
     }
   }
 
+  // The name already on the profile, used only to prefill a blank recipient
+  // field. Best-effort: if this fails the form simply opens empty, exactly as
+  // it did before, so the address flow never depends on it.
+  async function fetchProfileName() {
+    try {
+      var res = await fetch("/api/owner/dashboard");
+      if (!res.ok) return "";
+      var data = await res.json();
+      return (data && data.owner && data.owner.displayName) || "";
+    } catch (_) {
+      return "";
+    }
+  }
+
   // Restart the pop-in animation on the sheet (re-add the class after a reflow).
   function popIn() {
     els.sheet.classList.remove("pt-in");
@@ -353,7 +375,12 @@
       els.form.classList.add("pt-hide");
       els.sheet.classList.remove("pt-in");
       els.ov.classList.add("pt-open");
-      fetchSaved().then(function (addr) {
+      // Both requests go out together: the profile name is only needed for the
+      // blank-form case, and waiting for it in series would delay the sheet for
+      // everyone who already has an address saved.
+      Promise.all([fetchSaved(), fetchProfileName()]).then(function (results) {
+        var addr = results[0];
+        profileName = results[1] || "";
         savedAddress = addr;
         if (addr) showConfirm(addr);
         else showForm(null);

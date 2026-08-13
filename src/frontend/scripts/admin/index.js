@@ -1292,7 +1292,15 @@ async function createNewAdmin() {
 }
 
 function bindEvents() {
-  if (hasEl("admin-login-button")) {
+  // Bound on the form's submit, not the button's click, so Enter from either
+  // field signs in the same way the button does. A click handler alone left the
+  // keyboard with no way through.
+  if (hasEl("admin-login-form")) {
+    byId("admin-login-form").addEventListener("submit", (event) => {
+      event.preventDefault();
+      loginAdmin();
+    });
+  } else if (hasEl("admin-login-button")) {
     byId("admin-login-button").addEventListener("click", loginAdmin);
   }
 

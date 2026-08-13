@@ -4427,6 +4427,101 @@ html:has(body.pt-hub-body) {
   color: var(--pt-ink);
 }
 
+/* ── Verification overlay ───────────────────────────────────────────────
+   The verify card is raised over the contact card instead of replacing it,
+   so the scanner can still see the choice they just made behind the blur.
+
+   Nothing in here touches the card's own typography or box — the card keeps
+   .pt-card / .pt-verify-card exactly as before. .pt-vmodal-inner reproduces
+   .pt-main's max-width and horizontal padding so the card measures the same
+   number of pixels inside the overlay as it did in the page flow. If
+   .pt-main's width ever changes, change it here too. */
+.pt-vmodal {
+  position: fixed;
+  inset: 0;
+  z-index: 120;              /* above the sticky header (z-index 100) */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* The blur is the point: the page behind stays legible as context but
+     clearly out of reach. The translucent wash underneath keeps contrast on
+     browsers with no backdrop-filter (older in-app webviews), where this
+     degrades to a plain dim rather than to an unreadable overlap. */
+  background: rgba(9, 20, 38, 0.42);
+  -webkit-backdrop-filter: blur(7px) saturate(115%);
+  backdrop-filter: blur(7px) saturate(115%);
+  /* A tall card on a short phone must be reachable, so the overlay scrolls
+     rather than clipping the Cancel button off the bottom. */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* The overlay is fixed, so the body's scrollbar-compensation padding does not
+     reach it. Apply the same gutter here, or the card inside would centre on a
+     viewport 15px wider than the page behind and render wider than the card it
+     replaced. */
+  padding-right: var(--pt-scroll-gutter, 0px);
+  animation: pt-vmodal-fade 200ms ease-out both;
+}
+
+.pt-vmodal[hidden] {
+  display: none;             /* [hidden] alone loses to display:flex */
+}
+
+/* Set while the overlay is up. Without it a swipe over the blur scrolls the
+   contact card underneath, which reads as the overlay having come loose.
+   The padding replaces the scrollbar the lock removed, so the page behind does
+   not jump sideways — see openVerifyModal, which measures the gutter. */
+body.pt-modal-open {
+  overflow: hidden;
+  padding-right: var(--pt-scroll-gutter, 0px);
+}
+
+.pt-vmodal-inner {
+  width: 100%;
+  /* Mirrors `.scanner-body .pt-main` — the rule that actually governs this
+     page — NOT the base .pt-main. Those differ: the scanner column is 520px,
+     not 480px, and its inline padding is the fluid --pt-pad-x
+     (clamp(14px, 4.5vw, 20px)), not a fixed 16px. Mirroring the base rule put
+     the card at 398px against the 391.31px it measures in the page flow.
+     --pt-pad-x is read rather than repeated, so the two cannot drift: the
+     overlay is a descendant of .pt-main, and custom properties inherit even
+     though position:fixed takes it out of flow. */
+  max-width: 520px;
+  padding-block: 20px;
+  padding-inline: calc(var(--pt-pad-x, 16px) + env(safe-area-inset-left, 0px))
+                  calc(var(--pt-pad-x, 16px) + env(safe-area-inset-right, 0px));
+  margin: auto;              /* centres, and keeps top/bottom gap when scrolling */
+}
+
+/* On tablet and up the card is already held to 460px and centred by
+   `.scanner-body #scanner-verification-shell` (see the min-width:700px block
+   further down). That rule still applies inside the overlay, so the desktop
+   width needs nothing here. */
+
+.pt-vmodal .pt-verify-card {
+  /* Lifts the card off the blur; the card's own radius/padding are untouched. */
+  box-shadow: 0 8px 20px rgba(0,25,53,0.18), 0 24px 60px rgba(0,25,53,0.26);
+  animation: pt-vmodal-rise 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes pt-vmodal-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes pt-vmodal-rise {
+  from { opacity: 0; transform: translateY(14px) scale(0.98); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Motion is decoration here — the card must still arrive, just without the
+   travel, for anyone who has asked the OS to reduce animation. */
+@media (prefers-reduced-motion: reduce) {
+  .pt-vmodal,
+  .pt-vmodal .pt-verify-card {
+    animation: none;
+  }
+}
+
 /* var(--pt-border) is tuned for input outlines against white and all but
    vanishes as a standalone rule. This one is doing a job — separating the
    picture from the question, and the question from the answer — so it is

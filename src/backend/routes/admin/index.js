@@ -124,6 +124,18 @@ export function registerAdminRoutes(app, env) {
     if (categoryFilter === "premium") filter.premium = true;
     else if (categoryFilter === "etag") filter.premium = { $ne: true };
 
+    // Which physical sticker, kept as its own filter rather than folded into
+    // `category`: the two are orthogonal, since a windscreen tag can be premium
+    // or an E-Tag. Every tag issued before mount types existed is windscreen
+    // stock, and those carry no field at all, so "windscreen" has to match a
+    // missing value too — the same reasoning as `premium: { $ne: true }` above.
+    const mountFilter = String(request.query.mount || "");
+    if (mountFilter === "windscreen_interior") {
+      filter.mountType = { $in: ["windscreen_interior", null] };
+    } else if (mountFilter === "exterior_surface") {
+      filter.mountType = "exterior_surface";
+    }
+
     if (q) {
       // Escape the user's text before it becomes a regex — otherwise a search
       // for something like "a(" throws, and a crafted pattern could be made
@@ -224,6 +236,9 @@ export function registerAdminRoutes(app, env) {
         plateNumber: t.plateNumber || null,
         vehicleType: t.vehicleType || null,
         vehicleLabel: t.vehicleLabel || null,
+        // Absent on everything issued before mount types existed; that stock is
+        // all windscreen, so it reads as such rather than as "unknown".
+        mountType: t.mountType || "windscreen_interior",
         status: t.status,
         premium: Boolean(t.premium),
         purchaseStatus: t.purchaseStatus || "none",
@@ -581,7 +596,7 @@ export function registerAdminRoutes(app, env) {
       return blocked;
     }
 
-    const { batchNumber, batchLabel, quantity, stickerRequested, premiumBatch } =
+    const { batchNumber, batchLabel, quantity, stickerRequested, premiumBatch, mountType } =
       request.body || {};
 
     const collections = await getCollections(env);
@@ -592,12 +607,13 @@ export function registerAdminRoutes(app, env) {
         batchLabel,
         quantity,
         stickerRequested,
-        premiumBatch
+        premiumBatch,
+        mountType
       });
     } catch (error) {
-      // Quantity validation (non-numeric, < 1, or over the per-batch ceiling)
-      // — surface it so the operator sees why nothing was issued instead of a
-      // silent zero-tag "success".
+      // Quantity and mount-type validation (non-numeric, < 1, over the per-batch
+      // ceiling, or no sticker chosen) — surface it so the operator sees why
+      // nothing was issued instead of a silent zero-tag "success".
       reply.code(400);
       return {
         ok: false,
@@ -613,7 +629,8 @@ export function registerAdminRoutes(app, env) {
       ok: true,
       count: tags.length,
       batchNumber: batchNumber || null,
-      batchLabel: batchLabel || null
+      batchLabel: batchLabel || null,
+      mountType: tags[0]?.mountType || null
     };
   });
 
@@ -654,6 +671,9 @@ export function registerAdminRoutes(app, env) {
         issuanceRunId: tag.issuanceRunId ? String(tag.issuanceRunId) : null,
         issuedAt: tag.issuedAt || null,
         serial: stickerSerialFor(tag),
+        // A run is one print job, so its mount type is what the printer needs
+        // to know: which face the glue goes on.
+        mountType: tag.mountType || "windscreen_interior",
         runSerialStart: tag.runSerialStart ?? null,
         runSerialEnd: tag.runSerialEnd ?? null,
         createdAt: tag.createdAt

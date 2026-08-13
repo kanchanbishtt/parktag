@@ -1090,6 +1090,24 @@ pre {
    "PT-01-" / "001034" made the header unreadable at narrow widths. */
 .pt-pq-range { white-space: nowrap; font-variant-numeric: tabular-nums; }
 
+/* Which sticker the run prints. Two mount types get two colours because this is
+   the line the printer acts on, and reading it wrong wastes the whole run. */
+.pt-pq-mount {
+  white-space: nowrap;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  padding: 2px 7px;
+  border-radius: 20px;
+  border: 1px solid transparent;
+}
+.pt-pq-mount[data-mount="windscreen_interior"] {
+  background: #EAF2FF; color: #14448F; border-color: #C4DAFB;
+}
+.pt-pq-mount[data-mount="exterior_surface"] {
+  background: #FFF1E6; color: #9A4A05; border-color: #FBD9BC;
+}
+
 .pt-pq-run-actions {
   display: flex;
   align-items: center;

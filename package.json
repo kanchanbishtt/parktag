@@ -12,6 +12,7 @@
     "verify:admin-registration": "node src/backend/scripts/verify-admin-registration-visibility.js",
     "verify:exotel-call": "node src/backend/scripts/verify-exotel-call.js",
     "verify:exotel-whatsapp": "node src/backend/scripts/verify-exotel-whatsapp.js",
+    "verify:qa-hardening": "node src/backend/scripts/verify-qa-hardening.js",
     "dev:mail": "maildev",
     "backfill:mount-types": "node src/backend/scripts/backfill-mount-types.js"
   },

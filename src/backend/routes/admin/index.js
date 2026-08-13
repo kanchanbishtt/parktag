@@ -383,8 +383,6 @@ export function registerAdminRoutes(app, env) {
     if (blocked) return blocked;
 
     const collections = await getCollections(env);
-    const owners = await collections.owners.find({}).toArray();
-    const ownerMap = Object.fromEntries(owners.map((o) => [String(o._id), o]));
 
     // ACTIVATED = live premium tags. `premium: true` is the single source of
     // truth for "this is an activated premium tag" — it is only ever stamped by
@@ -395,6 +393,40 @@ export function registerAdminRoutes(app, env) {
       .find({ premium: true, deletedAt: { $in: [null, undefined] } })
       .sort({ premiumSince: -1, createdAt: -1 })
       .toArray();
+
+    // UNACTIVATED = genuinely SOLD orders (paid = prepaid completed, or cod = real
+    // COD order — never "created", an abandoned checkout) whose buyer has NOT yet
+    // ended up with a live premium tag.
+    const orders = await collections.shopOrders
+      .find({ status: { $in: ["paid", "cod"] }, deletedAt: { $in: [null, undefined] } })
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    // Only the owners actually referenced by the rows above, rather than the
+    // whole collection. Both lists are joined by Map lookup, so this was linear
+    // rather than quadratic — but it still pulled every owner document (and
+    // every field on it, including credentials) across the wire on each load,
+    // growing with the customer base for no benefit.
+    const referencedOwnerIds = [
+      ...new Set(
+        [...premiumTags, ...orders]
+          .map((row) => (row.ownerId ? String(row.ownerId) : null))
+          .filter(Boolean)
+      )
+    ]
+      .map((id) => { try { return new ObjectId(id); } catch { return null; } })
+      .filter(Boolean);
+
+    const owners = referencedOwnerIds.length
+      ? await collections.owners
+          .find(
+            { _id: { $in: referencedOwnerIds } },
+            { projection: { displayName: 1, email: 1, mobile: 1, phone: 1 } }
+          )
+          .toArray()
+      : [];
+    const ownerMap = Object.fromEntries(owners.map((o) => [String(o._id), o]));
+
     const activated = premiumTags.map((t) => {
       const o = ownerMap[String(t.ownerId)] || {};
       return {
@@ -427,16 +459,11 @@ export function registerAdminRoutes(app, env) {
         .map((t) => String(t.ownerId))
     );
 
-    // UNACTIVATED = genuinely SOLD orders (paid = prepaid completed, or cod = real
-    // COD order — never "created", an abandoned checkout) whose buyer has NOT yet
-    // ended up with a live premium tag. An order counts as activated when it
-    // minted a premium tag (mintedTagId), its replace-target free tag was upgraded
-    // away, OR the owner now holds a live premium tag.
-    const orders = await collections.shopOrders
-      .find({ status: { $in: ["paid", "cod"] }, deletedAt: { $in: [null, undefined] } })
-      .sort({ createdAt: -1 })
-      .toArray();
-
+    // `orders` is fetched above, before the owner lookup, so that the owner
+    // query can be scoped to the ids these rows actually reference. An order
+    // counts as activated when it minted a premium tag (mintedTagId), its
+    // replace-target free tag was upgraded away, OR the owner now holds a live
+    // premium tag.
     const unactivated = [];
     for (const ord of orders) {
       const ownerKey = ord.ownerId ? String(ord.ownerId) : null;
@@ -862,15 +889,61 @@ export function registerAdminRoutes(app, env) {
     if (blocked) return blocked;
 
     const collections = await getCollections(env);
-    const owners = await collections.owners.find({}).sort({ createdAt: -1 }).toArray();
-    const tags = await collections.tags.find({}).toArray();
+
+    // This route used to load EVERY owner and EVERY tag, then run
+    // `tags.filter(...)` once per owner — an O(owners × tags) scan on the event
+    // loop. Node is single-threaded, so while that ran, nothing else was
+    // served: not a scan, not a login, not a webhook. Measured on this data
+    // shape: 3k×3k ≈ 81 ms, 10k×20k ≈ 1.5 s, 20k×50k ≈ 5.9 s of total service
+    // stall, and the tags collection grows with every sticker manufactured.
+    //
+    // Now: one page of owners, only THEIR tags (projected to the four fields
+    // used below), and a Map for grouping — O(owners + tags).
+    const OWNER_PAGE = 500;
+    const totalOwners = await collections.owners.countDocuments();
+    const owners = await collections.owners
+      .find({})
+      .sort({ createdAt: -1 })
+      .limit(OWNER_PAGE)
+      .toArray();
+
+    const ownerObjectIds = owners.map((o) => o._id);
+    const tags = ownerObjectIds.length
+      ? await collections.tags
+          .find(
+            { ownerId: { $in: ownerObjectIds }, deletedAt: { $in: [null, undefined] } },
+            { projection: { ownerId: 1, status: 1, token: 1, deletedAt: 1 } }
+          )
+          .toArray()
+      : [];
+
+    // Group once, then look up per owner, instead of re-scanning every tag for
+    // every owner.
+    const tagsByOwner = new Map();
+    for (const tag of tags) {
+      if (!tag.ownerId) continue;
+      const key = String(tag.ownerId);
+      const bucket = tagsByOwner.get(key);
+      if (bucket) bucket.push(tag);
+      else tagsByOwner.set(key, [tag]);
+    }
+
+    // Never truncate silently — an admin looking at a short list must be able
+    // to tell "that's everyone" from "that's the first page".
+    if (totalOwners > owners.length) {
+      request.log.warn(
+        { totalOwners, returned: owners.length },
+        "[admin] owners list truncated to one page"
+      );
+    }
 
     return {
       ok: true,
+      total: totalOwners,
+      returned: owners.length,
+      truncated: totalOwners > owners.length,
       owners: owners.map((owner) => {
-        const ownerTags = tags.filter(
-          (tag) => tag.ownerId && String(tag.ownerId) === String(owner._id) && !tag.deletedAt
-        );
+        const ownerTags = tagsByOwner.get(String(owner._id)) || [];
         return {
           id: String(owner._id),
           displayName: owner.displayName,

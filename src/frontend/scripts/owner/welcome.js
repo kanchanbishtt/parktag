@@ -1131,6 +1131,9 @@ async function saveSos() {
       tag.emergencyContact = data.emergencyContact || null;
       const el = document.getElementById("sos-inp");
       if (el && data.emergencyContact) el.value = data.emergencyContact;
+      // The warning has to clear on the same save that fixes it, or the vehicle
+      // keeps reading as missing until the drawer is reopened.
+      setSosMissing(!data.emergencyContact);
     } catch {
       _toast("Network error — emergency contact not saved.", "err");
       return;
@@ -1270,6 +1273,19 @@ function _fillMenu() {
   const sosVal = tag.emergencyContact || localStorage.getItem(_sosKey(tag)) || "";
   const sosEl = document.getElementById("sos-inp");
   if (sosEl) sosEl.value = sosVal;
+  // Only a number the SERVER holds counts as set. A value sitting in
+  // localStorage exists on one device and cannot be dialled by the scanner
+  // flow, so treating it as "done" would hide exactly the gap being flagged.
+  setSosMissing(!tag.emergencyContact);
+}
+
+// Marks a vehicle with no emergency contact, both inside the panel and on the
+// collapsed row, so the gap is visible without opening anything.
+function setSosMissing(missing) {
+  const note = document.getElementById("sos-missing");
+  if (note) note.hidden = !missing;
+  const row = document.querySelector('.pt-mi[data-key="sos"], .pt-mi[data-key="emergency"]');
+  if (row) row.dataset.sosMissing = missing ? "1" : "0";
 }
 
 function openMenu() {

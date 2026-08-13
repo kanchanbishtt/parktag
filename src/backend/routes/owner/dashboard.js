@@ -573,9 +573,18 @@ export function registerOwnerRoutes(app, env) {
     const raw = String((request.body || {}).emergencyContact ?? "").trim();
     const digits = raw.replace(/\D/g, "");
 
-    // Empty clears the contact; otherwise demand something that can actually be
-    // dialled. 7-15 digits covers every E.164 national number.
-    if (raw && (digits.length < 7 || digits.length > 15)) {
+    // Required, and no longer clearable. This number is the whole of the SOS
+    // feature: a scanner standing at a crash gets the owner's next of kin only
+    // if one is recorded. Allowing it to be emptied meant the button could be
+    // switched off silently, from the one screen where that is least visible.
+    if (!raw) {
+      reply.code(400);
+      return { ok: false, error: "An emergency contact is required — this is who we call in an accident." };
+    }
+
+    // Demand something that can actually be dialled. 7-15 digits covers every
+    // E.164 national number.
+    if (digits.length < 7 || digits.length > 15) {
       reply.code(400);
       return { ok: false, error: "Enter a valid emergency contact number." };
     }
@@ -585,7 +594,7 @@ export function registerOwnerRoutes(app, env) {
     const tagId = tryObjectId(request.params.tagId);
     if (!tagId) { reply.code(400); return { ok: false, error: "Invalid tag id" }; }
 
-    const emergencyContact = raw ? toE164(raw) : null;
+    const emergencyContact = toE164(raw);
 
     // Guard against an owner pointing the SOS at the tag's own masked-call
     // number or at their own mobile — in an accident that reaches nobody new.

@@ -99,30 +99,40 @@ const VEHICLE_SVGS = {
     <path d="M10 10V7m0 3l4 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
   </svg>`,
   scooter: `<svg width="28" height="28" viewBox="0 0 24 24" fill="none">
-    <circle cx="5" cy="17" r="2.5" stroke="currentColor" stroke-width="1.8"/>
-    <circle cx="19" cy="17" r="2.5" stroke="currentColor" stroke-width="1.8"/>
-    <path d="M5 17h2l2-5h6l1 3h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-    <path d="M11 12V9l3-2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+    <g stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="5.6" cy="16.8" r="2.7"/>
+      <circle cx="18.4" cy="16.8" r="2.7"/>
+      <path d="M3.2 13h4.6a2 2 0 0 1 1.9 1.3l.9 2.5"/>
+      <path d="M10.6 16.8h4.2V12a2.5 2.5 0 0 1 2.5-2.5h1.5"/>
+      <path d="M14.8 12h-4"/>
+    </g>
   </svg>`,
   auto_rickshaw: `<svg width="28" height="28" viewBox="0 0 24 24" fill="none">
-    <rect x="3" y="7" width="14" height="10" rx="2" stroke="currentColor" stroke-width="1.8"/>
-    <path d="M17 11h3l1 4h-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-    <circle cx="7" cy="18" r="1.5" fill="currentColor"/>
-    <circle cx="17" cy="18" r="1.5" fill="currentColor"/>
-    <path d="M3 11h14" stroke="currentColor" stroke-width="1.5"/>
+    <g stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="6.6" cy="17.4" r="2.4"/>
+      <circle cx="17.4" cy="17.8" r="1.9"/>
+      <path d="M3.6 17.4v-5.6a4.2 4.2 0 0 1 4.2-4.2h2.2a3 3 0 0 1 2.5 1.3l2.8 4.2a2.6 2.6 0 0 1 .4 1.4v3.3"/>
+      <path d="M3.6 12.6h6.8V7.6"/>
+      <path d="M12.4 12.6h3.3"/>
+    </g>
   </svg>`,
   truck: `<svg width="28" height="28" viewBox="0 0 24 24" fill="none">
-    <rect x="1" y="6" width="14" height="12" rx="1.5" stroke="currentColor" stroke-width="1.8"/>
-    <path d="M15 9h4l3 3v4h-7V9z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-    <circle cx="5.5" cy="18" r="1.5" fill="currentColor"/>
-    <circle cx="18.5" cy="18" r="1.5" fill="currentColor"/>
+    <g stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="8.8" y="6" width="12.9" height="10" rx="1.2"/>
+      <path d="M8.8 16H2.3v-4.6L4.6 8h4.2"/>
+    </g>
+    <circle cx="5" cy="17.6" r="1.7" fill="currentColor"/>
+    <circle cx="17.3" cy="17.6" r="1.7" fill="currentColor"/>
   </svg>`,
   bus: `<svg width="28" height="28" viewBox="0 0 24 24" fill="none">
-    <rect x="3" y="4" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.8"/>
-    <path d="M3 10h18" stroke="currentColor" stroke-width="1.5"/>
-    <circle cx="8" cy="18" r="1.5" fill="currentColor"/>
-    <circle cx="16" cy="18" r="1.5" fill="currentColor"/>
-    <path d="M7 4v6M17 4v6" stroke="currentColor" stroke-width="1.5"/>
+    <g stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M2.2 16.2V8.2a2.5 2.5 0 0 1 2.5-2.5h14.6a2.5 2.5 0 0 1 2.5 2.5v8"/>
+      <path d="M2.2 16.2h19.6"/>
+      <path d="M2.2 10.4h13.4"/>
+      <path d="M15.6 5.7v10.5"/>
+    </g>
+    <circle cx="7" cy="17.6" r="1.7" fill="currentColor"/>
+    <circle cx="17.4" cy="17.6" r="1.7" fill="currentColor"/>
   </svg>`,
 };
 

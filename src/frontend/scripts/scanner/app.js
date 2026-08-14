@@ -1116,52 +1116,48 @@ function showActStep(step) {
   }
 }
 
-// Draws the vehicle-type picker and applies the server's suggestion.
+// Draws the vehicle-type picker with nothing pre-selected.
 //
-// The suggestion comes from the sticker's mount type: a windscreen sticker is
-// glued for the inside of glass, so it is a four-wheeler; an exterior one goes
-// on a tank or headlamp, so it is a two-wheeler. That narrows the CATEGORY, not
-// the exact type, so it is used to pre-select the commonest member and to float
-// that category to the front — the owner still confirms, and a wrong guess is
-// one tap to fix.
+// It used to open with a guess. The sticker's mount type does carry a real
+// signal — a windscreen sticker is glued to the inside of glass, an exterior
+// one goes on a tank or headlamp — but that narrows the CATEGORY and no more.
+// A windscreen sticker fits a car, a truck, a bus or an auto equally well, and
+// the picker resolved that by pre-selecting whichever was commonest. Presenting
+// a frequency bet as though the tag knew the answer is what made it wrong: an
+// owner who trusts the pre-fill and taps straight past ends up with the wrong
+// vehicle recorded, and nothing about the screen ever told them it was a guess.
 //
-// A tag issued before mount types existed sends no suggestion, and then nothing
-// is pre-selected. That is the deliberate choice: an unanswered question reads
-// as a question, whereas a confident wrong answer reads as a broken app.
+// So the owner is now always asked. Step 2 will not advance until they choose,
+// which is how tags with no mount type have always behaved. An unanswered
+// question reads as a question; a confident wrong answer reads as a broken app.
+//
+// The server still sends suggestedVehicleType and vehicleCategory on
+// /api/tags/:token — deliberately left in place, because deciding whether a
+// windscreen sticker should be allowed on a two-wheeler at all is a separate
+// question from whether to pre-tick a box.
 function renderVehicleTypePicker(tag) {
   const grid = byId("act-vtype-grid");
   if (!grid) return;
 
-  const suggested = tag && tag.suggestedVehicleType;
-
   // One fixed order for every sticker: Car then Bike, the two vehicles almost
-  // every tag goes on, with the rarer ones after. The grid used to float the
-  // sticker's own category to the front, which pushed Bike to the fifth slot
-  // on a car sticker — worse for the common case than a stable order the eye
-  // learns. The sticker still drives which option opens pre-selected below;
-  // only the ordering stopped reacting to it.
-  const options = VEHICLE_TYPE_OPTIONS;
-
-  grid.innerHTML = options
+  // every tag goes on, with the rarer ones after.
+  grid.innerHTML = VEHICLE_TYPE_OPTIONS
     .map(
       (o) =>
         `<button type="button" class="pt-vtype-btn" role="radio" data-vtype="${o.type}"` +
-        ` aria-checked="${o.type === suggested ? "true" : "false"}">` +
+        ` aria-checked="false">` +
         `<span class="pt-vtype-ico" aria-hidden="true">${VEHICLE_ICONS[o.type] || ""}</span>` +
         `<span>${o.label}</span></button>`
     )
     .join("");
 
-  activation.type = suggested || "";
+  activation.type = "";
 
-  // Say WHY something is already chosen. A pre-selection nobody explains is a
-  // pre-selection nobody checks.
+  // Nothing is pre-filled, so there is nothing to explain away.
   const hint = byId("act-vtype-hint");
   if (hint) {
-    hint.textContent = suggested
-      ? "Pre-filled from your sticker type — tap to change it."
-      : "";
-    hint.hidden = !suggested;
+    hint.textContent = "";
+    hint.hidden = true;
   }
 }
 

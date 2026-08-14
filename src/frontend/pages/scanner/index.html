@@ -162,6 +162,29 @@
             <p class="pt-vtype-hint" id="act-vtype-hint" hidden></p>
           </fieldset>
 
+          <!-- Shown in place of the picker when the chosen vehicle cannot take
+               this sticker: windscreen stock is glued inside glass, exterior
+               stock goes on a bike's bodywork, and neither holds on the other.
+               The sentence comes from mountMismatchMessage() in
+               lib/core/tag-issuance.js, which the API refusal also uses, so the
+               owner reads the same words whichever path they hit.
+               role="alert" so swapping it in is announced, not silent. -->
+          <div class="pt-mount-block" id="act-mount-block" role="alert" hidden>
+            <span class="pt-mount-block-ic" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" width="30" height="30">
+                <circle cx="12" cy="12" r="9.2" stroke="currentColor" stroke-width="1.8"/>
+                <path d="M12 7.4v5.4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+                <circle cx="12" cy="16.4" r="1.15" fill="currentColor"/>
+              </svg>
+            </span>
+            <h3 class="pt-mount-block-t" id="act-mount-title">This tag won't fit that vehicle</h3>
+            <p class="pt-mount-block-s" id="act-mount-text"></p>
+            <button class="pt-btn pt-btn-outline pt-mount-block-btn" type="button" id="act-mount-back">
+              Pick a different vehicle
+            </button>
+            <a class="pt-mount-block-link" href="/shop">See the right tag for it</a>
+          </div>
+
           <button class="pt-btn pt-btn-step" type="submit" id="act-plate-btn">Next Step</button>
         </form>
 

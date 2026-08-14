@@ -16,7 +16,9 @@ import {
   stickerSerialFor,
   isSupportedVehicleType,
   suggestedVehicleTypeForMount,
-  vehicleCategoryForMount
+  vehicleCategoryForMount,
+  vehicleTypeMatchesMount,
+  mountMismatchMessage
 } from "../../lib/core/tag-issuance.js";
 import { verifyRecaptchaV2 } from "../../lib/integrations/recaptcha.js";
 import { clientErrorMessage } from "../../lib/errors.js";
@@ -619,6 +621,25 @@ export function registerPublicRoutes(app, env) {
     if (!["unclaimed", "inactive"].includes(tag.status)) {
       reply.code(400);
       return { ok: false, error: "Tag is not claimable" };
+    }
+
+    // A windscreen sticker cannot serve a bike, and an exterior one cannot
+    // serve a car. Checked here rather than only in the picker: the UI blocks
+    // the pairing, but a direct POST would otherwise write a tag whose stock
+    // does not fit the vehicle it is recorded against.
+    //
+    // Deliberately ahead of verifyOtp — the code is single-use, and spending it
+    // on a request we were always going to refuse would force the owner to wait
+    // out a resend before they could correct their answer.
+    if (!vehicleTypeMatchesMount(tag.mountType, vehicleType)) {
+      reply.code(409);
+      return {
+        ok: false,
+        code: "mount_type_mismatch",
+        error: mountMismatchMessage(tag.mountType, vehicleType),
+        mountType: tag.mountType,
+        vehicleType
+      };
     }
 
     try {

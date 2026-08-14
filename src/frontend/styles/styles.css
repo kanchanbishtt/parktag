@@ -1909,6 +1909,58 @@ pre {
   transition: border-color 180ms ease, background 180ms ease, color 180ms ease;
 }
 
+/* Shown in place of the picker when the sticker cannot go on the vehicle that
+   was tapped. Amber rather than red: nothing has gone wrong and nothing was
+   lost — the owner is one tap from a valid answer. */
+.pt-mount-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+  padding: 22px 18px 18px;
+  border: 1px solid var(--pt-amber);
+  border-radius: 16px;
+  background: var(--pt-amber-bg);
+}
+
+.pt-mount-block[hidden] {
+  display: none;
+}
+
+.pt-mount-block-ic {
+  display: flex;
+  line-height: 0;
+  color: var(--pt-amber-dark);
+}
+
+.pt-mount-block-t {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--pt-ink);
+}
+
+.pt-mount-block-s {
+  margin: 0;
+  font-size: 0.86rem;
+  line-height: 1.5;
+  color: var(--pt-sub);
+  max-width: 34ch;
+}
+
+.pt-mount-block-btn {
+  margin-top: 6px;
+  width: 100%;
+}
+
+.pt-mount-block-link {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--pt-amber-dark);
+  text-decoration: underline;
+}
+
 /* The size lives here rather than on each icon — one number to change rather
    than six. */
 .pt-vtype-ico {

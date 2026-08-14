@@ -1139,6 +1139,12 @@ function renderVehicleTypePicker(tag) {
   const grid = byId("act-vtype-grid");
   if (!grid) return;
 
+  // What this sticker can go on. Every option is still drawn: a bike owner
+  // holding a windscreen tag needs to be told why it will not work, and a grid
+  // silently missing Bike explains nothing.
+  activationCategory = (tag && tag.vehicleCategory) || null;
+  showMountBlock(null);
+
   // One fixed order for every sticker: Car then Bike, the two vehicles almost
   // every tag goes on, with the rarer ones after.
   grid.innerHTML = VEHICLE_TYPE_OPTIONS
@@ -1169,7 +1175,85 @@ function syncVehicleNoun() {
   setText("act-vehicle-noun", chosen ? chosen.label : "Vehicle");
 }
 
+// Which vehicles this sticker can physically go on, from the tag's mount type.
+// Null for tags issued before mount types existed — nothing to enforce, so
+// every option stays open for them.
+let activationCategory = null;
+
+// Mirrors VEHICLE_CATEGORIES in lib/core/tag-issuance.js. The server refuses
+// the same pairings on POST, so this copy only decides how early the owner
+// finds out — it is not the thing keeping bad data out.
+const CATEGORY_MEMBERS = {
+  two_wheeler: ["bike", "scooter"],
+  four_wheeler: ["car", "auto_rickshaw", "truck", "bus"]
+};
+
+// Mirrors MOUNT_COPY on the server, for the same reason and with the same words.
+const MOUNT_COPY = {
+  four_wheeler: {
+    sticker: "windscreen tag",
+    fits: "the inside of a car, auto, truck or bus windscreen",
+    needs: "an exterior tag"
+  },
+  two_wheeler: {
+    sticker: "exterior tag",
+    fits: "the body of a bike or scooter",
+    needs: "a windscreen tag"
+  }
+};
+
+function vehicleTypeAllowed(type) {
+  if (!activationCategory) return true;
+  return (CATEGORY_MEMBERS[activationCategory] || []).includes(type);
+}
+
+// Swaps the picker for the refusal, or back. Kept as one function so the two
+// halves cannot fall out of step and leave both visible at once.
+function showMountBlock(type) {
+  const block = byId("act-mount-block");
+  const field = byId("act-vtype-field");
+  const next = byId("act-plate-btn");
+  if (!block || !field) return;
+
+  if (!type) {
+    block.hidden = true;
+    field.hidden = false;
+    if (next) next.hidden = false;
+    return;
+  }
+
+  const copy = MOUNT_COPY[activationCategory];
+  const label = (VEHICLE_TYPE_OPTIONS.find((o) => o.type === type) || {}).label || "vehicle";
+  setText("act-mount-title", `This tag won't fit a ${label}`);
+  setText(
+    "act-mount-text",
+    copy ? `This is a ${copy.sticker}, made for ${copy.fits}. A ${label} needs ${copy.needs}.` : ""
+  );
+  field.hidden = true;
+  block.hidden = false;
+  // Hiding Next matters as much as showing the message: leaving it there
+  // invites a tap that the server would only refuse a screen later.
+  if (next) next.hidden = true;
+  byId("act-mount-back")?.focus();
+}
+
 function selectVehicleType(type) {
+  // A sticker that cannot go on this vehicle is refused at the tap, before any
+  // number or OTP is asked for. Nothing is recorded and nothing is selected —
+  // the owner either picks again or goes and buys the tag that does fit.
+  if (!vehicleTypeAllowed(type)) {
+    activation.type = "";
+    syncVehicleNoun();
+    showMountBlock(type);
+    return;
+  }
+
+  // Clearing the refusal here, not only in its own button, keeps this function
+  // true whatever route reached it: settling on a type the sticker does fit is
+  // exactly the condition the refusal was waiting on, and leaving it up would
+  // hide the Next button for a choice that is now perfectly valid.
+  showMountBlock(null);
+
   activation.type = type;
   syncVehicleNoun();
   const grid = byId("act-vtype-grid");
@@ -1518,6 +1602,13 @@ byId("act-vtype-grid")?.addEventListener("click", (event) => {
   if (!btn) return;
   selectVehicleType(btn.dataset.vtype);
   setRequestStatus("claim-status", "", "info");
+});
+
+// Back out of the refusal to the picker, with nothing chosen — the vehicle they
+// tapped is still the wrong one, so re-selecting it would only refuse again.
+byId("act-mount-back")?.addEventListener("click", () => {
+  showMountBlock(null);
+  byId("act-vtype-grid")?.querySelector(".pt-vtype-btn")?.focus();
 });
 byId("act-step-3")?.addEventListener("submit", handleActMobile);
 byId("act-step-4")?.addEventListener("submit", handleActVerify);

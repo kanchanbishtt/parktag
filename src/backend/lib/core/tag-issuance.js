@@ -105,6 +105,48 @@ export function isSupportedVehicleType(type) {
   return Object.prototype.hasOwnProperty.call(VEHICLE_LABELS, String(type ?? ""));
 }
 
+// Whether a sticker can physically go on the vehicle the owner picked.
+//
+// Mount type is a manufacturing fact, not a preference: windscreen stock is
+// printed and glued for the inside of glass, exterior stock for a painted or
+// plastic surface out in the weather. Cross them and the owner gets a sticker
+// that peels, or one facing the wrong way through glass — so activation
+// refuses the pairing rather than recording it.
+//
+// Tags issued before mount types existed carry none, and nothing is enforced
+// for them: there is no fact to check against, and refusing them would strand
+// owners who bought a tag before the field existed.
+export function vehicleTypeMatchesMount(mountType, vehicleType) {
+  const category = vehicleCategoryForMount(mountType);
+  if (!category) return true;
+  return (VEHICLE_CATEGORIES[category] || []).includes(String(vehicleType ?? ""));
+}
+
+// Wording for the refusal, kept beside the rule that triggers it so the two
+// cannot drift apart. `fits` describes what the sticker is made for; `needs`
+// names the stock the owner's vehicle actually wants.
+export const MOUNT_COPY = {
+  windscreen_interior: {
+    sticker: "windscreen tag",
+    fits: "the inside of a car, auto, truck or bus windscreen",
+    needs: "an exterior tag"
+  },
+  exterior_surface: {
+    sticker: "exterior tag",
+    fits: "the body of a bike or scooter",
+    needs: "a windscreen tag"
+  }
+};
+
+// The refusal, worded once. Used by the activation route and mirrored by the
+// scanner's error screen, so the owner reads the same sentence either way.
+export function mountMismatchMessage(mountType, vehicleType) {
+  const copy = MOUNT_COPY[String(mountType ?? "")];
+  const vehicle = VEHICLE_LABELS[String(vehicleType ?? "")] || "vehicle";
+  if (!copy) return `This tag cannot be activated for a ${vehicle}.`;
+  return `This is a ${copy.sticker}, made for ${copy.fits}. A ${vehicle} needs ${copy.needs}.`;
+}
+
 // Required on every batch, with no default. A wrong guess here does not produce
 // a wrong record, it produces a pallet of stickers whose glue is on the wrong
 // face — so silently inheriting a value would be worse than refusing to issue.

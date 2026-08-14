@@ -1909,13 +1909,23 @@ pre {
   transition: border-color 180ms ease, background 180ms ease, color 180ms ease;
 }
 
-/* The icons are inline SVG with no width/height of their own, so the size lives
-   here — one number to change rather than six. 22px reads at the same optical
-   weight as the 0.78rem label beneath it; the dashboard draws the same icons at
-   28px, where they sit against larger type. */
+/* The size lives here rather than on each icon — one number to change rather
+   than six. */
 .pt-vtype-ico {
   display: flex;
   line-height: 0;
+}
+
+/* The vehicle artwork is raster inside an SVG wrapper (see VEHICLE_ICON_SRC in
+   scripts/scanner/app.js), so it is sized rather than tinted — an <img> cannot
+   inherit the chip's colour the way the old inline SVG did. 34px, not the 22px
+   the line icons used: the auto and the truck are detailed silhouettes that
+   blur into a smudge below about 34. */
+.pt-vtype-ico img {
+  width: 34px;
+  height: 34px;
+  display: block;
+  object-fit: contain;
 }
 
 .pt-vtype-ico svg {

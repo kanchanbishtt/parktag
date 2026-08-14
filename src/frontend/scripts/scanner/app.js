@@ -63,70 +63,46 @@ const ACT_STEP_IDS = {
 
 const activation = { plate: "", name: "", phone: "", type: "" };
 
-// Line icons, not emoji. Emoji render as full-colour glyphs that differ on
-// every platform and cannot take the chip's colour, so a selected chip kept a
-// bright multicolour badge inside an amber outline. These are the same drawings
-// the owner dashboard already uses for the same six vehicles, so the type
-// someone picks here is the icon they meet again on their dashboard.
+// Artwork icons, not line drawings. Car and bike reuse the shop's own tag
+// artwork, so one vehicle looks the same in the shop, the picker and the
+// dashboard.
 //
-// `currentColor` throughout is the point: each icon inherits the chip's text
-// colour and turns amber with it on selection.
+// These are <img> rather than inline SVG because the four road-vehicle files
+// arrived as PNG bitmaps inside an SVG wrapper — that is what Figma writes when
+// a placed bitmap is exported as SVG, and they carry zero vector paths. Each
+// was trimmed to its artwork, squared, downscaled to 120px and recoloured from
+// black to #03162D to match the car and bike, which cut the six chips from the
+// ~492 KB the originals weighed to ~48 KB. Being raster, they will not stay
+// crisp much past 34px — replace them with real vectors before drawing bigger.
+//
+// The trade-off of dropping inline SVG is that a selected chip no longer tints
+// its icon the way `currentColor` did. The amber border, fill and label still
+// carry the selection — the same way the shop's nav rows have always shown it.
 //
 // Copied rather than imported: scripts/owner/welcome.js and
 // scripts/owner/register.js each already carry their own copy of this map, and
 // the scanner bundle is cache-busted through scannerAssetVersion while a bare
 // import would not be. Worth consolidating into one shared module when those
 // two files are next touched.
-const VEHICLE_ICONS = {
-  car: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-    <rect x="2" y="8" width="20" height="10" rx="2" stroke="currentColor" stroke-width="1.8"/>
-    <path d="M5 8l2-4h10l2 4" stroke="currentColor" stroke-width="1.8"/>
-    <circle cx="7" cy="18" r="1.5" fill="currentColor"/>
-    <circle cx="17" cy="18" r="1.5" fill="currentColor"/>
-  </svg>`,
-  bike: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-    <circle cx="6" cy="16" r="3" stroke="currentColor" stroke-width="1.8"/>
-    <circle cx="18" cy="16" r="3" stroke="currentColor" stroke-width="1.8"/>
-    <path d="M6 16l4-6h4l2 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-    <path d="M10 10V7m0 3l4 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-  </svg>`,
-  scooter: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-    <g stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-      <circle cx="5.6" cy="16.8" r="2.7"/>
-      <circle cx="18.4" cy="16.8" r="2.7"/>
-      <path d="M3.2 13h4.6a2 2 0 0 1 1.9 1.3l.9 2.5"/>
-      <path d="M10.6 16.8h4.2V12a2.5 2.5 0 0 1 2.5-2.5h1.5"/>
-      <path d="M14.8 12h-4"/>
-    </g>
-  </svg>`,
-  auto_rickshaw: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-    <g stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-      <circle cx="6.6" cy="17.4" r="2.4"/>
-      <circle cx="17.4" cy="17.8" r="1.9"/>
-      <path d="M3.6 17.4v-5.6a4.2 4.2 0 0 1 4.2-4.2h2.2a3 3 0 0 1 2.5 1.3l2.8 4.2a2.6 2.6 0 0 1 .4 1.4v3.3"/>
-      <path d="M3.6 12.6h6.8V7.6"/>
-      <path d="M12.4 12.6h3.3"/>
-    </g>
-  </svg>`,
-  truck: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-    <g stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-      <rect x="8.8" y="6" width="12.9" height="10" rx="1.2"/>
-      <path d="M8.8 16H2.3v-4.6L4.6 8h4.2"/>
-    </g>
-    <circle cx="5" cy="17.6" r="1.7" fill="currentColor"/>
-    <circle cx="17.3" cy="17.6" r="1.7" fill="currentColor"/>
-  </svg>`,
-  bus: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-    <g stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M2.2 16.2V8.2a2.5 2.5 0 0 1 2.5-2.5h14.6a2.5 2.5 0 0 1 2.5 2.5v8"/>
-      <path d="M2.2 16.2h19.6"/>
-      <path d="M2.2 10.4h13.4"/>
-      <path d="M15.6 5.7v10.5"/>
-    </g>
-    <circle cx="7" cy="17.6" r="1.7" fill="currentColor"/>
-    <circle cx="17.4" cy="17.6" r="1.7" fill="currentColor"/>
-  </svg>`
+const VEHICLE_ICON_SRC = {
+  car: "/images/car-tag.svg",
+  bike: "/images/bike-tag.svg",
+  scooter: "/images/vtype-scooter.png",
+  auto_rickshaw: "/images/vtype-auto.png",
+  truck: "/images/vtype-truck.png",
+  bus: "/images/vtype-bus.png"
 };
+
+// 34px, not the 22px the line icons used: the auto and the truck are detailed
+// silhouettes that blur into a smudge below about 34. Width and height are set
+// in the markup as well as the stylesheet so the grid cannot reflow between
+// first paint and the image decoding.
+const VEHICLE_ICONS = Object.fromEntries(
+  Object.entries(VEHICLE_ICON_SRC).map(([type, src]) => [
+    type,
+    `<img src="${src}" alt="" width="34" height="34" decoding="async" aria-hidden="true">`
+  ])
+);
 
 // The picker offered on activation step 2. Mirrors VEHICLE_LABELS in
 // lib/core/tag-issuance.js — the server validates against that same map, so an

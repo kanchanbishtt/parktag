@@ -84,57 +84,27 @@ const VEHICLE_LABELS = {
   bus: "Bus"
 };
 
-// ── Type-specific SVG icons (28×28) ──────────────────────────────
-const VEHICLE_SVGS = {
-  car: `<svg width="28" height="28" viewBox="0 0 24 24" fill="none">
-    <rect x="2" y="8" width="20" height="10" rx="2" stroke="currentColor" stroke-width="1.8"/>
-    <path d="M5 8l2-4h10l2 4" stroke="currentColor" stroke-width="1.8"/>
-    <circle cx="7" cy="18" r="1.5" fill="currentColor"/>
-    <circle cx="17" cy="18" r="1.5" fill="currentColor"/>
-  </svg>`,
-  bike: `<svg width="28" height="28" viewBox="0 0 24 24" fill="none">
-    <circle cx="6" cy="16" r="3" stroke="currentColor" stroke-width="1.8"/>
-    <circle cx="18" cy="16" r="3" stroke="currentColor" stroke-width="1.8"/>
-    <path d="M6 16l4-6h4l2 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-    <path d="M10 10V7m0 3l4 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-  </svg>`,
-  scooter: `<svg width="28" height="28" viewBox="0 0 24 24" fill="none">
-    <g stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-      <circle cx="5.6" cy="16.8" r="2.7"/>
-      <circle cx="18.4" cy="16.8" r="2.7"/>
-      <path d="M3.2 13h4.6a2 2 0 0 1 1.9 1.3l.9 2.5"/>
-      <path d="M10.6 16.8h4.2V12a2.5 2.5 0 0 1 2.5-2.5h1.5"/>
-      <path d="M14.8 12h-4"/>
-    </g>
-  </svg>`,
-  auto_rickshaw: `<svg width="28" height="28" viewBox="0 0 24 24" fill="none">
-    <g stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-      <circle cx="6.6" cy="17.4" r="2.4"/>
-      <circle cx="17.4" cy="17.8" r="1.9"/>
-      <path d="M3.6 17.4v-5.6a4.2 4.2 0 0 1 4.2-4.2h2.2a3 3 0 0 1 2.5 1.3l2.8 4.2a2.6 2.6 0 0 1 .4 1.4v3.3"/>
-      <path d="M3.6 12.6h6.8V7.6"/>
-      <path d="M12.4 12.6h3.3"/>
-    </g>
-  </svg>`,
-  truck: `<svg width="28" height="28" viewBox="0 0 24 24" fill="none">
-    <g stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-      <rect x="8.8" y="6" width="12.9" height="10" rx="1.2"/>
-      <path d="M8.8 16H2.3v-4.6L4.6 8h4.2"/>
-    </g>
-    <circle cx="5" cy="17.6" r="1.7" fill="currentColor"/>
-    <circle cx="17.3" cy="17.6" r="1.7" fill="currentColor"/>
-  </svg>`,
-  bus: `<svg width="28" height="28" viewBox="0 0 24 24" fill="none">
-    <g stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M2.2 16.2V8.2a2.5 2.5 0 0 1 2.5-2.5h14.6a2.5 2.5 0 0 1 2.5 2.5v8"/>
-      <path d="M2.2 16.2h19.6"/>
-      <path d="M2.2 10.4h13.4"/>
-      <path d="M15.6 5.7v10.5"/>
-    </g>
-    <circle cx="7" cy="17.6" r="1.7" fill="currentColor"/>
-    <circle cx="17.4" cy="17.6" r="1.7" fill="currentColor"/>
-  </svg>`,
+// ── Type-specific vehicle artwork ────────────────────────────────
+// The same six drawings the activation picker uses (VEHICLE_ICON_SRC in
+// scripts/scanner/app.js), so the type someone picks when activating a tag is
+// the icon they meet again here. <img> rather than inline SVG because the four
+// road-vehicle files are raster inside an SVG wrapper; the consequence is that
+// these no longer inherit the card's text colour.
+const VEHICLE_ICON_SRC = {
+  car: "/images/car-tag.svg",
+  bike: "/images/bike-tag.svg",
+  scooter: "/images/vtype-scooter.png",
+  auto_rickshaw: "/images/vtype-auto.png",
+  truck: "/images/vtype-truck.png",
+  bus: "/images/vtype-bus.png"
 };
+
+const VEHICLE_SVGS = Object.fromEntries(
+  Object.entries(VEHICLE_ICON_SRC).map(([type, src]) => [
+    type,
+    `<img src="${src}" alt="" width="28" height="28" decoding="async" aria-hidden="true" style="display:block;object-fit:contain">`
+  ])
+);
 
 // HTML-escape any value before interpolating it into innerHTML. vehicleLabel
 // and plateNumber are owner-supplied free text (from registration/claim/add-
@@ -178,7 +148,7 @@ function vehicleCard(tag, idx) {
   const labelSafe = esc(label);
   const plateSafe = esc(plate);
   const params    = new URLSearchParams({ number: plate, type, label, id: tag.id || "", token: tag.token || "" }).toString();
-  const svg       = iconFor(tag).replace(/width="\d+"/, 'width="22"').replace(/height="\d+"/, 'height="22"').replace("<svg ", '<svg aria-hidden="true" focusable="false" ');
+  const svg       = iconFor(tag);
   const isActive  = tag.status !== "inactive";
   const pill      = tag.premium ? "★ Premium" : (!tag.freeContactUsed ? "1 Free Call" : "Call Used");
   const pillClass = tag.premium ? "vp-premium" : (!tag.freeContactUsed ? "vp-free" : "vp-used");

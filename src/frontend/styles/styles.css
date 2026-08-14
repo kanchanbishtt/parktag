@@ -2598,6 +2598,15 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
   margin: 0;
 }
 
+/* The wizard's status line sits directly under a full-width button in a
+   centred, one-question-per-screen card, so a left-aligned message reads as
+   detached from the button that triggered it. Scoped to #claim-status rather
+   than applied to .pt-status: the contact card's own status (#plate-verify-status)
+   sits in a left-aligned form and is deliberately left as it is. */
+#claim-status {
+  text-align: center;
+}
+
 .pt-status[data-tone="info"] { color: var(--pt-sub); }
 .pt-status[data-tone="success"] { color: #FF2700; }
 .pt-status[data-tone="error"] { color: #DC2626; }

@@ -1060,6 +1060,11 @@ function showActStep(step) {
 
   setRequestStatus("claim-status", "", "info");
 
+  // Carry the chosen vehicle type into the later steps' wording. Done here
+  // rather than at the moment of choosing, so it is right however the step was
+  // reached — including via "Previous Step" back from the OTP screen.
+  syncVehicleNoun();
+
   // Step 1 and the success screen have no input — focusing there would pop the
   // mobile keyboard for nothing.
   if (step !== 1 && step !== "done") {
@@ -1117,8 +1122,17 @@ function renderVehicleTypePicker(tag) {
   }
 }
 
+// Replaces the generic "Vehicle" in the later steps with what was actually
+// chosen. Falls back to the generic word when nothing is set yet, so the
+// heading is never left blank or half-written.
+function syncVehicleNoun() {
+  const chosen = VEHICLE_TYPE_OPTIONS.find((o) => o.type === activation.type);
+  setText("act-vehicle-noun", chosen ? chosen.label : "Vehicle");
+}
+
 function selectVehicleType(type) {
   activation.type = type;
+  syncVehicleNoun();
   const grid = byId("act-vtype-grid");
   if (!grid) return;
   grid.querySelectorAll(".pt-vtype-btn").forEach((btn) => {

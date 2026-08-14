@@ -167,7 +167,11 @@
 
         <!-- Step 3 — owner name + mobile -->
         <form class="pt-step" id="act-step-3" hidden novalidate>
-          <h2 class="pt-step-title">We need your phone number to send notifications about your Vehicle</h2>
+          <!-- The noun is filled in from the type chosen on the previous step
+               ("…about your Bike"), so the wizard carries the answer forward
+               instead of asking and then forgetting. Falls back to the generic
+               word if no type is set, which is only reachable by jumping steps. -->
+          <h2 class="pt-step-title">We need your phone number to send notifications about your <span class="pt-step-noun" id="act-vehicle-noun">Vehicle</span></h2>
           <input id="act-name" class="pt-input" type="text" autocomplete="name" maxlength="60" placeholder="Your full name" />
           <div class="pt-step-row">
             <select id="act-dial" class="pt-input pt-select" aria-label="Country code">

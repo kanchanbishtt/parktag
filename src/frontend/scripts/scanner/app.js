@@ -108,13 +108,16 @@ const VEHICLE_ICONS = Object.fromEntries(
 // lib/core/tag-issuance.js — the server validates against that same map, so an
 // option added here without adding it there is rejected rather than silently
 // stored. Order is deliberate: the two most common types lead each category.
+// Rendered in this order for every sticker — Car and Bike lead because nearly
+// every tag goes on one of them. `category` is no longer used for ordering; it
+// stays because it documents which mount type each option belongs to.
 const VEHICLE_TYPE_OPTIONS = [
   { type: "car", label: "Car", category: "four_wheeler" },
   { type: "bike", label: "Bike", category: "two_wheeler" },
-  { type: "scooter", label: "Scooter", category: "two_wheeler" },
-  { type: "auto_rickshaw", label: "Auto", category: "four_wheeler" },
   { type: "truck", label: "Truck", category: "four_wheeler" },
-  { type: "bus", label: "Bus", category: "four_wheeler" }
+  { type: "bus", label: "Bus", category: "four_wheeler" },
+  { type: "auto_rickshaw", label: "Auto", category: "four_wheeler" },
+  { type: "scooter", label: "Scooter", category: "two_wheeler" }
 ];
 let resendTimer = null;
 // wa.me link for the help card; empty when no support number is configured.
@@ -1130,15 +1133,14 @@ function renderVehicleTypePicker(tag) {
   if (!grid) return;
 
   const suggested = tag && tag.suggestedVehicleType;
-  const category = tag && tag.vehicleCategory;
 
-  // Float the suggested category first, preserving relative order inside each.
-  const options = category
-    ? [
-        ...VEHICLE_TYPE_OPTIONS.filter((o) => o.category === category),
-        ...VEHICLE_TYPE_OPTIONS.filter((o) => o.category !== category)
-      ]
-    : VEHICLE_TYPE_OPTIONS;
+  // One fixed order for every sticker: Car then Bike, the two vehicles almost
+  // every tag goes on, with the rarer ones after. The grid used to float the
+  // sticker's own category to the front, which pushed Bike to the fifth slot
+  // on a car sticker — worse for the common case than a stable order the eye
+  // learns. The sticker still drives which option opens pre-selected below;
+  // only the ordering stopped reacting to it.
+  const options = VEHICLE_TYPE_OPTIONS;
 
   grid.innerHTML = options
     .map(

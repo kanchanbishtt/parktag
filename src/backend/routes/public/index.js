@@ -10,7 +10,14 @@ import {
   resolveOwnerByVerifiedMobile
 } from "../../lib/auth/otp.js";
 import { getCollections, ensureVerificationIndexes, ensurePendingCallsIndexes } from "../../lib/db/repositories.js";
-import { VEHICLE_LABELS, etagIdFor, stickerSerialFor } from "../../lib/core/tag-issuance.js";
+import {
+  VEHICLE_LABELS,
+  etagIdFor,
+  stickerSerialFor,
+  isSupportedVehicleType,
+  suggestedVehicleTypeForMount,
+  vehicleCategoryForMount
+} from "../../lib/core/tag-issuance.js";
 import { verifyRecaptchaV2 } from "../../lib/integrations/recaptcha.js";
 import { clientErrorMessage } from "../../lib/errors.js";
 
@@ -188,7 +195,19 @@ export function registerPublicRoutes(app, env) {
         // that the button is worth showing.
         emergencyAvailable:
           tag.status === "active" && isNonEmptyString(tag.emergencyContact),
-        claimable: ["unclaimed", "inactive"].includes(tag.status)
+        claimable: ["unclaimed", "inactive"].includes(tag.status),
+        // Which vehicle type the activation wizard opens on, derived from the
+        // sticker's mount type (see suggestedVehicleTypeForMount). Sent only
+        // for a tag that can still be claimed — it is an input hint for the
+        // wizard, and has no meaning for a scanner looking at someone else's
+        // active tag. Null on tags issued before mount types existed, and the
+        // wizard then opens with nothing chosen rather than guessing.
+        suggestedVehicleType: ["unclaimed", "inactive"].includes(tag.status)
+          ? suggestedVehicleTypeForMount(tag.mountType)
+          : null,
+        vehicleCategory: ["unclaimed", "inactive"].includes(tag.status)
+          ? vehicleCategoryForMount(tag.mountType)
+          : null
       },
       // Public support handle for the activation wizard's help card. Null when
       // unconfigured, in which case the card is not rendered at all.
@@ -542,7 +561,8 @@ export function registerPublicRoutes(app, env) {
       return { ok: false, error: "MongoDB is not configured" };
     }
 
-    const { displayName, phone, code, plateNumber, vehicleLabel } = request.body || {};
+    const { displayName, phone, code, plateNumber, vehicleLabel, vehicleType } =
+      request.body || {};
 
     if (
       !isNonEmptyString(displayName) ||
@@ -555,6 +575,24 @@ export function registerPublicRoutes(app, env) {
         ok: false,
         error: "displayName, phone, plateNumber, and code are required"
       };
+    }
+
+    // Vehicle type is asked for on the plate step and is REQUIRED here.
+    // This is the whole reason the field exists: a plate number does not encode
+    // vehicle class anywhere in India, so if the wizard does not ask, the type
+    // is unknowable afterwards — and every retail tag activates through this
+    // route. Optional-but-skipped would leave us exactly where we started, with
+    // a dashboard showing "Vehicle" and a car icon over a bike.
+    //
+    // Validated against the same VEHICLE_LABELS map the picker is built from,
+    // so removing an option from the UI cannot be bypassed by a direct POST.
+    if (!isNonEmptyString(vehicleType)) {
+      reply.code(400);
+      return { ok: false, error: "Choose the type of vehicle this tag is going on." };
+    }
+    if (!isSupportedVehicleType(vehicleType)) {
+      reply.code(400);
+      return { ok: false, error: "Unsupported vehicle type." };
     }
 
     if (!isMobileIdentifier(phone)) {
@@ -648,13 +686,19 @@ export function registerPublicRoutes(app, env) {
       await collections.owners.insertOne(owner);
     }
 
+    // The label follows the type unless the caller supplied one explicitly, so
+    // the dashboard reads "Bike" rather than the generic "Vehicle" it fell back
+    // to while this was null.
+    const resolvedLabel = vehicleLabel || VEHICLE_LABELS[vehicleType] || tag.vehicleLabel;
+
     await collections.tags.updateOne(
       { _id: tag._id },
       {
         $set: {
           ownerId: owner._id,
           status: "active",
-          vehicleLabel: vehicleLabel || tag.vehicleLabel,
+          vehicleType,
+          vehicleLabel: resolvedLabel,
           plateNumber: normalizedPlate
         }
       }
@@ -676,7 +720,11 @@ export function registerPublicRoutes(app, env) {
       tag: {
         token: tag.token,
         status: "active",
-        vehicleLabel: vehicleLabel || tag.vehicleLabel,
+        vehicleType,
+        // Echo what was actually stored, not a second guess at it — these two
+        // drifted apart before, which is how the success screen could say
+        // something the dashboard then contradicted.
+        vehicleLabel: resolvedLabel,
         maskedPlateNumber: maskPlateNumber(normalizedPlate)
       }
     };

@@ -61,7 +61,20 @@ const ACT_STEP_IDS = {
   done: "act-step-done"
 };
 
-const activation = { plate: "", name: "", phone: "" };
+const activation = { plate: "", name: "", phone: "", type: "" };
+
+// The picker offered on activation step 2. Mirrors VEHICLE_LABELS in
+// lib/core/tag-issuance.js — the server validates against that same map, so an
+// option added here without adding it there is rejected rather than silently
+// stored. Order is deliberate: the two most common types lead each category.
+const VEHICLE_TYPE_OPTIONS = [
+  { type: "car", label: "Car", icon: "🚗", category: "four_wheeler" },
+  { type: "bike", label: "Bike", icon: "🏍️", category: "two_wheeler" },
+  { type: "scooter", label: "Scooter", icon: "🛵", category: "two_wheeler" },
+  { type: "auto_rickshaw", label: "Auto", icon: "🛺", category: "four_wheeler" },
+  { type: "truck", label: "Truck", icon: "🚚", category: "four_wheeler" },
+  { type: "bus", label: "Bus", icon: "🚌", category: "four_wheeler" }
+];
 let resendTimer = null;
 // wa.me link for the help card; empty when no support number is configured.
 let supportWhatsappHref = "";
@@ -1054,14 +1067,75 @@ function showActStep(step) {
   }
 }
 
+// Draws the vehicle-type picker and applies the server's suggestion.
+//
+// The suggestion comes from the sticker's mount type: a windscreen sticker is
+// glued for the inside of glass, so it is a four-wheeler; an exterior one goes
+// on a tank or headlamp, so it is a two-wheeler. That narrows the CATEGORY, not
+// the exact type, so it is used to pre-select the commonest member and to float
+// that category to the front — the owner still confirms, and a wrong guess is
+// one tap to fix.
+//
+// A tag issued before mount types existed sends no suggestion, and then nothing
+// is pre-selected. That is the deliberate choice: an unanswered question reads
+// as a question, whereas a confident wrong answer reads as a broken app.
+function renderVehicleTypePicker(tag) {
+  const grid = byId("act-vtype-grid");
+  if (!grid) return;
+
+  const suggested = tag && tag.suggestedVehicleType;
+  const category = tag && tag.vehicleCategory;
+
+  // Float the suggested category first, preserving relative order inside each.
+  const options = category
+    ? [
+        ...VEHICLE_TYPE_OPTIONS.filter((o) => o.category === category),
+        ...VEHICLE_TYPE_OPTIONS.filter((o) => o.category !== category)
+      ]
+    : VEHICLE_TYPE_OPTIONS;
+
+  grid.innerHTML = options
+    .map(
+      (o) =>
+        `<button type="button" class="pt-vtype-btn" role="radio" data-vtype="${o.type}"` +
+        ` aria-checked="${o.type === suggested ? "true" : "false"}">` +
+        `<span class="pt-vtype-ico" aria-hidden="true">${o.icon}</span>` +
+        `<span>${o.label}</span></button>`
+    )
+    .join("");
+
+  activation.type = suggested || "";
+
+  // Say WHY something is already chosen. A pre-selection nobody explains is a
+  // pre-selection nobody checks.
+  const hint = byId("act-vtype-hint");
+  if (hint) {
+    hint.textContent = suggested
+      ? "Pre-filled from your sticker type — tap to change it."
+      : "";
+    hint.hidden = !suggested;
+  }
+}
+
+function selectVehicleType(type) {
+  activation.type = type;
+  const grid = byId("act-vtype-grid");
+  if (!grid) return;
+  grid.querySelectorAll(".pt-vtype-btn").forEach((btn) => {
+    btn.setAttribute("aria-checked", btn.dataset.vtype === type ? "true" : "false");
+  });
+}
+
 function setupActivationWizard(tag, supportWhatsapp) {
   activation.plate = "";
   activation.name = "";
   activation.phone = "";
+  activation.type = "";
   setValue("act-plate", "");
   setValue("act-name", "");
   setValue("act-phone", "");
   setValue("act-otp", "");
+  renderVehicleTypePicker(tag);
   clearResendCooldown();
 
   const digits = String(supportWhatsapp || "").replace(/\D/g, "");
@@ -1103,8 +1177,21 @@ function handleActPlate(event) {
     return;
   }
 
+  // Checked after the plate so the two errors cannot both fire at once, and so
+  // a scanner who typed a good plate is not sent back over it.
+  if (!activation.type) {
+    setRequestStatus(
+      "claim-status",
+      "Choose the type of vehicle this tag is going on.",
+      "error"
+    );
+    byId("act-vtype-grid")?.scrollIntoView({ block: "center", behavior: "smooth" });
+    return;
+  }
+
   activation.plate = plate;
   setValue("act-plate", plate);
+  setRequestStatus("claim-status", "", "info");
   showActStep(3);
 }
 
@@ -1243,7 +1330,10 @@ async function handleActVerify(event) {
         displayName: activation.name,
         phone: activation.phone,
         code,
-        plateNumber: activation.plate
+        plateNumber: activation.plate,
+        // Captured on step 2. The server requires it and validates it against
+        // its own type list, so this is the value the dashboard will show.
+        vehicleType: activation.type
       })
     });
 
@@ -1367,6 +1457,15 @@ byId("sos-final-call-button")?.addEventListener("click", handleSosCall);
 // Activation wizard
 byId("act-start-btn")?.addEventListener("click", () => showActStep(2));
 byId("act-step-2")?.addEventListener("submit", handleActPlate);
+
+// Delegated, because the buttons are rendered after this file runs (the picker
+// is drawn from the tag payload once the tag loads).
+byId("act-vtype-grid")?.addEventListener("click", (event) => {
+  const btn = event.target.closest(".pt-vtype-btn");
+  if (!btn) return;
+  selectVehicleType(btn.dataset.vtype);
+  setRequestStatus("claim-status", "", "info");
+});
 byId("act-step-3")?.addEventListener("submit", handleActMobile);
 byId("act-step-4")?.addEventListener("submit", handleActVerify);
 byId("act-resend-btn")?.addEventListener("click", handleActResend);

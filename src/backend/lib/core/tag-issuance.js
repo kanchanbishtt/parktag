@@ -56,6 +56,55 @@ export const MOUNT_TYPES = {
   exterior_surface: "Exterior surface — tank / headlamp (back glue)"
 };
 
+// ── Mount type as a vehicle-type HINT ─────────────────────────────────────
+// An Indian registration number does not encode vehicle class: the series
+// letters are handed out sequentially as each series exhausts, not by class, so
+// the plate can never tell us whether this is a car or a bike.
+//
+// The mount type can — partially. A windscreen sticker goes on from inside the
+// glass, so it is a four-wheeler; an exterior sticker goes on a tank or a
+// headlamp, so it is a two-wheeler. That is decided at print time and is
+// already stamped on every tag, which makes it a free and reliable signal for
+// which half of the picker to open on.
+//
+// It narrows the CATEGORY, never the exact type — a windscreen tag could be a
+// car, an auto, a truck or a bus. So this pre-selects and orders the choices,
+// and the owner still confirms. Tags issued before mount types existed return
+// null, and the picker then opens with nothing chosen rather than guessing: a
+// wrong-but-plausible type reads as a bug, an empty one reads as a question.
+export const VEHICLE_CATEGORIES = {
+  two_wheeler: ["bike", "scooter"],
+  four_wheeler: ["car", "auto_rickshaw", "truck", "bus"]
+};
+
+const MOUNT_TO_CATEGORY = {
+  exterior_surface: "two_wheeler",
+  windscreen_interior: "four_wheeler"
+};
+
+export function vehicleCategoryForMount(mountType) {
+  return MOUNT_TO_CATEGORY[String(mountType ?? "")] || null;
+}
+
+// The most common type inside each category, used as the pre-selection.
+// Grounded in the live data rather than taste: among claimed production tags
+// car outnumbers every other four-wheeler type, and bike outnumbers scooter.
+const CATEGORY_DEFAULT_TYPE = {
+  two_wheeler: "bike",
+  four_wheeler: "car"
+};
+
+export function suggestedVehicleTypeForMount(mountType) {
+  const category = vehicleCategoryForMount(mountType);
+  return category ? CATEGORY_DEFAULT_TYPE[category] : null;
+}
+
+// Exported so the activation route can reject an unsupported type without
+// reaching for the label map itself — same list, one owner.
+export function isSupportedVehicleType(type) {
+  return Object.prototype.hasOwnProperty.call(VEHICLE_LABELS, String(type ?? ""));
+}
+
 // Required on every batch, with no default. A wrong guess here does not produce
 // a wrong record, it produces a pallet of stickers whose glue is on the wrong
 // face — so silently inheriting a value would be worse than refusing to issue.

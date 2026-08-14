@@ -1862,6 +1862,83 @@ pre {
   text-transform: uppercase;
 }
 
+/* ── Vehicle type picker (activation step 2) ────────────────────────────
+   Deliberately borrows the reason chips' visual language — same 12px radius,
+   same 1.5px border, same amber selected state — because it is the same kind
+   of control and the scanner has usually just seen those. Three columns: six
+   types land as two even rows on a phone without the labels wrapping. */
+.pt-vtype {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;          /* fieldset defaults to min-content and breaks grids */
+}
+
+.pt-vtype-legend {
+  display: block;
+  padding: 0;
+  margin-bottom: 10px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--pt-ink);
+}
+
+.pt-vtype-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.pt-vtype-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 10px 6px;
+  border: 1.5px solid var(--pt-border);
+  border-radius: 12px;
+  background: var(--pt-white);
+  color: var(--pt-ink);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 180ms ease, background 180ms ease, color 180ms ease;
+}
+
+.pt-vtype-ico {
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.pt-vtype-btn:hover {
+  border-color: var(--pt-amber);
+  background: var(--pt-amber-bg);
+  color: var(--pt-amber-dark);
+}
+
+.pt-vtype-btn[aria-checked="true"] {
+  border-color: var(--pt-amber);
+  background: var(--pt-amber-bg);
+  color: var(--pt-amber-dark);
+  box-shadow: 0 2px 8px rgba(255,39,0,0.12);
+}
+
+/* Marks the option the sticker's mount type points at, so a pre-selection is
+   visibly a suggestion the owner can override rather than a silent default. */
+.pt-vtype-hint {
+  margin: 8px 0 0;
+  font-size: 0.72rem;
+  color: var(--pt-sub);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pt-vtype-btn { transition: none; }
+}
+
 .pt-select {
   appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236B7280' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");

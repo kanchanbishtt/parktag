@@ -1862,6 +1862,155 @@ pre {
   text-transform: uppercase;
 }
 
+/* ── Vehicle type picker (activation step 2) ────────────────────────────
+   Deliberately borrows the reason chips' visual language — same 12px radius,
+   same 1.5px border, same amber selected state — because it is the same kind
+   of control and the scanner has usually just seen those. Three columns: six
+   types land as two even rows on a phone without the labels wrapping. */
+.pt-vtype {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;          /* fieldset defaults to min-content and breaks grids */
+}
+
+.pt-vtype-legend {
+  display: block;
+  padding: 0;
+  margin-bottom: 10px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--pt-ink);
+}
+
+.pt-vtype-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.pt-vtype-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 10px 6px;
+  border: 1.5px solid var(--pt-border);
+  border-radius: 12px;
+  background: var(--pt-white);
+  color: var(--pt-ink);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 180ms ease, background 180ms ease, color 180ms ease;
+}
+
+/* Shown in place of the picker when the sticker cannot go on the vehicle that
+   was tapped. Amber rather than red: nothing has gone wrong and nothing was
+   lost — the owner is one tap from a valid answer. */
+.pt-mount-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+  padding: 22px 18px 18px;
+  border: 1px solid var(--pt-amber);
+  border-radius: 16px;
+  background: var(--pt-amber-bg);
+}
+
+.pt-mount-block[hidden] {
+  display: none;
+}
+
+.pt-mount-block-ic {
+  display: flex;
+  line-height: 0;
+  color: var(--pt-amber-dark);
+}
+
+.pt-mount-block-t {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--pt-ink);
+}
+
+.pt-mount-block-s {
+  margin: 0;
+  font-size: 0.86rem;
+  line-height: 1.5;
+  color: var(--pt-sub);
+  max-width: 34ch;
+}
+
+.pt-mount-block-btn {
+  margin-top: 6px;
+  width: 100%;
+}
+
+.pt-mount-block-link {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--pt-amber-dark);
+  text-decoration: underline;
+}
+
+/* The size lives here rather than on each icon — one number to change rather
+   than six. */
+.pt-vtype-ico {
+  display: flex;
+  line-height: 0;
+}
+
+/* The vehicle artwork is raster inside an SVG wrapper (see VEHICLE_ICON_SRC in
+   scripts/scanner/app.js), so it is sized rather than tinted — an <img> cannot
+   inherit the chip's colour the way the old inline SVG did. 34px, not the 22px
+   the line icons used: the auto and the truck are detailed silhouettes that
+   blur into a smudge below about 34. */
+.pt-vtype-ico img {
+  width: 34px;
+  height: 34px;
+  display: block;
+  object-fit: contain;
+}
+
+.pt-vtype-ico svg {
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+
+.pt-vtype-btn:hover {
+  border-color: var(--pt-amber);
+  background: var(--pt-amber-bg);
+  color: var(--pt-amber-dark);
+}
+
+.pt-vtype-btn[aria-checked="true"] {
+  border-color: var(--pt-amber);
+  background: var(--pt-amber-bg);
+  color: var(--pt-amber-dark);
+  box-shadow: 0 2px 8px rgba(255,39,0,0.12);
+}
+
+/* Marks the option the sticker's mount type points at, so a pre-selection is
+   visibly a suggestion the owner can override rather than a silent default. */
+.pt-vtype-hint {
+  margin: 8px 0 0;
+  font-size: 0.72rem;
+  color: var(--pt-sub);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pt-vtype-btn { transition: none; }
+}
+
 .pt-select {
   appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236B7280' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
@@ -2031,19 +2180,33 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
   text-indent: 0.22em;   /* the tracking after the last letter, re-centred */
 }
 
-/* The tricolour strip down the left, chakra dot painted into the white band
-   with a radial gradient so it needs no element of its own. */
+/* The tricolour strip down the left, from the artwork rather than from CSS.
+   This replaces a linear-gradient for the three bands plus a radial-gradient
+   standing in for the chakra — that stand-in was a plain 4.8px dot, because a
+   24-spoke wheel is not something a gradient can draw. The SVG carries the real
+   Ashoka Chakra in the correct navy (#000080).
+
+   The file is authored at exactly 18x42, the size this strip measures on the
+   default plate, so at that size it is pixel-exact.
+
+   `background-size: 100% 100%` rather than `contain`: the strip's height is
+   derived (top:17px to bottom:0), so it shortens to ~37px when the plate
+   tightens on small screens — see the 1.25rem rule further down. `contain`
+   would letterbox and leave white gaps at top and bottom; stretching keeps the
+   bands meeting the plate edges exactly as the gradient did. The ~11% vertical
+   squash that costs the chakra is imperceptible on a 5px wheel.
+
+   Only the strip comes from artwork. The IND band above is still CSS: it is a
+   text label that has to stay selectable-free but legible at any width, and it
+   spans the full plate rather than this fixed 18px column. */
 .pt-plate-display::after {
   content: "";
   position: absolute;
   left: 0; top: 17px; bottom: 0;
   width: 18px;
-  background-image:
-    radial-gradient(circle at 50% 50%, #16296B 0 2.4px, rgba(0,0,0,0) 2.5px),
-    linear-gradient(180deg,
-      #FF9933 0 33.34%,
-      #FFFFFF 33.34% 66.67%,
-      #138808 66.67% 100%);
+  background-image: url("/images/ind-flag-strip.svg");
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
   border-right: 1px solid rgba(14,27,46,0.22);
 }
 
@@ -2505,6 +2668,15 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
   font-weight: 600;
   padding: 0 24px 12px;
   margin: 0;
+}
+
+/* The wizard's status line sits directly under a full-width button in a
+   centred, one-question-per-screen card, so a left-aligned message reads as
+   detached from the button that triggered it. Scoped to #claim-status rather
+   than applied to .pt-status: the contact card's own status (#plate-verify-status)
+   sits in a left-aligned form and is deliberately left as it is. */
+#claim-status {
+  text-align: center;
 }
 
 .pt-status[data-tone="info"] { color: var(--pt-sub); }
@@ -4425,6 +4597,101 @@ html:has(body.pt-hub-body) {
   font-weight: 800;
   line-height: 1.32;
   color: var(--pt-ink);
+}
+
+/* ── Verification overlay ───────────────────────────────────────────────
+   The verify card is raised over the contact card instead of replacing it,
+   so the scanner can still see the choice they just made behind the blur.
+
+   Nothing in here touches the card's own typography or box — the card keeps
+   .pt-card / .pt-verify-card exactly as before. .pt-vmodal-inner reproduces
+   .pt-main's max-width and horizontal padding so the card measures the same
+   number of pixels inside the overlay as it did in the page flow. If
+   .pt-main's width ever changes, change it here too. */
+.pt-vmodal {
+  position: fixed;
+  inset: 0;
+  z-index: 120;              /* above the sticky header (z-index 100) */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* The blur is the point: the page behind stays legible as context but
+     clearly out of reach. The translucent wash underneath keeps contrast on
+     browsers with no backdrop-filter (older in-app webviews), where this
+     degrades to a plain dim rather than to an unreadable overlap. */
+  background: rgba(9, 20, 38, 0.42);
+  -webkit-backdrop-filter: blur(7px) saturate(115%);
+  backdrop-filter: blur(7px) saturate(115%);
+  /* A tall card on a short phone must be reachable, so the overlay scrolls
+     rather than clipping the Cancel button off the bottom. */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* The overlay is fixed, so the body's scrollbar-compensation padding does not
+     reach it. Apply the same gutter here, or the card inside would centre on a
+     viewport 15px wider than the page behind and render wider than the card it
+     replaced. */
+  padding-right: var(--pt-scroll-gutter, 0px);
+  animation: pt-vmodal-fade 200ms ease-out both;
+}
+
+.pt-vmodal[hidden] {
+  display: none;             /* [hidden] alone loses to display:flex */
+}
+
+/* Set while the overlay is up. Without it a swipe over the blur scrolls the
+   contact card underneath, which reads as the overlay having come loose.
+   The padding replaces the scrollbar the lock removed, so the page behind does
+   not jump sideways — see openVerifyModal, which measures the gutter. */
+body.pt-modal-open {
+  overflow: hidden;
+  padding-right: var(--pt-scroll-gutter, 0px);
+}
+
+.pt-vmodal-inner {
+  width: 100%;
+  /* Mirrors `.scanner-body .pt-main` — the rule that actually governs this
+     page — NOT the base .pt-main. Those differ: the scanner column is 520px,
+     not 480px, and its inline padding is the fluid --pt-pad-x
+     (clamp(14px, 4.5vw, 20px)), not a fixed 16px. Mirroring the base rule put
+     the card at 398px against the 391.31px it measures in the page flow.
+     --pt-pad-x is read rather than repeated, so the two cannot drift: the
+     overlay is a descendant of .pt-main, and custom properties inherit even
+     though position:fixed takes it out of flow. */
+  max-width: 520px;
+  padding-block: 20px;
+  padding-inline: calc(var(--pt-pad-x, 16px) + env(safe-area-inset-left, 0px))
+                  calc(var(--pt-pad-x, 16px) + env(safe-area-inset-right, 0px));
+  margin: auto;              /* centres, and keeps top/bottom gap when scrolling */
+}
+
+/* On tablet and up the card is already held to 460px and centred by
+   `.scanner-body #scanner-verification-shell` (see the min-width:700px block
+   further down). That rule still applies inside the overlay, so the desktop
+   width needs nothing here. */
+
+.pt-vmodal .pt-verify-card {
+  /* Lifts the card off the blur; the card's own radius/padding are untouched. */
+  box-shadow: 0 8px 20px rgba(0,25,53,0.18), 0 24px 60px rgba(0,25,53,0.26);
+  animation: pt-vmodal-rise 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes pt-vmodal-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes pt-vmodal-rise {
+  from { opacity: 0; transform: translateY(14px) scale(0.98); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Motion is decoration here — the card must still arrive, just without the
+   travel, for anyone who has asked the OS to reduce animation. */
+@media (prefers-reduced-motion: reduce) {
+  .pt-vmodal,
+  .pt-vmodal .pt-verify-card {
+    animation: none;
+  }
 }
 
 /* var(--pt-border) is tuned for input outlines against white and all but

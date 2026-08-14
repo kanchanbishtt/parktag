@@ -61,7 +61,64 @@ const ACT_STEP_IDS = {
   done: "act-step-done"
 };
 
-const activation = { plate: "", name: "", phone: "" };
+const activation = { plate: "", name: "", phone: "", type: "" };
+
+// Artwork icons, not line drawings. Car and bike reuse the shop's own tag
+// artwork, so one vehicle looks the same in the shop, the picker and the
+// dashboard.
+//
+// These are <img> rather than inline SVG because the four road-vehicle files
+// arrived as PNG bitmaps inside an SVG wrapper — that is what Figma writes when
+// a placed bitmap is exported as SVG, and they carry zero vector paths. Each
+// was trimmed to its artwork, squared, downscaled to 120px and recoloured from
+// black to #03162D to match the car and bike, which cut the six chips from the
+// ~492 KB the originals weighed to ~48 KB. Being raster, they will not stay
+// crisp much past 34px — replace them with real vectors before drawing bigger.
+//
+// The trade-off of dropping inline SVG is that a selected chip no longer tints
+// its icon the way `currentColor` did. The amber border, fill and label still
+// carry the selection — the same way the shop's nav rows have always shown it.
+//
+// Copied rather than imported: scripts/owner/welcome.js and
+// scripts/owner/register.js each already carry their own copy of this map, and
+// the scanner bundle is cache-busted through scannerAssetVersion while a bare
+// import would not be. Worth consolidating into one shared module when those
+// two files are next touched.
+const VEHICLE_ICON_SRC = {
+  car: "/images/car-tag.svg",
+  bike: "/images/bike-tag.svg",
+  scooter: "/images/vtype-scooter.png",
+  auto_rickshaw: "/images/vtype-auto.png",
+  truck: "/images/vtype-truck.png",
+  bus: "/images/vtype-bus.png"
+};
+
+// 34px, not the 22px the line icons used: the auto and the truck are detailed
+// silhouettes that blur into a smudge below about 34. Width and height are set
+// in the markup as well as the stylesheet so the grid cannot reflow between
+// first paint and the image decoding.
+const VEHICLE_ICONS = Object.fromEntries(
+  Object.entries(VEHICLE_ICON_SRC).map(([type, src]) => [
+    type,
+    `<img src="${src}" alt="" width="34" height="34" decoding="async" aria-hidden="true">`
+  ])
+);
+
+// The picker offered on activation step 2. Mirrors VEHICLE_LABELS in
+// lib/core/tag-issuance.js — the server validates against that same map, so an
+// option added here without adding it there is rejected rather than silently
+// stored. Order is deliberate: the two most common types lead each category.
+// Rendered in this order for every sticker — Car and Bike lead because nearly
+// every tag goes on one of them. `category` is no longer used for ordering; it
+// stays because it documents which mount type each option belongs to.
+const VEHICLE_TYPE_OPTIONS = [
+  { type: "car", label: "Car", category: "four_wheeler" },
+  { type: "bike", label: "Bike", category: "two_wheeler" },
+  { type: "truck", label: "Truck", category: "four_wheeler" },
+  { type: "bus", label: "Bus", category: "four_wheeler" },
+  { type: "auto_rickshaw", label: "Auto", category: "four_wheeler" },
+  { type: "scooter", label: "Scooter", category: "two_wheeler" }
+];
 let resendTimer = null;
 // wa.me link for the help card; empty when no support number is configured.
 let supportWhatsappHref = "";
@@ -133,6 +190,38 @@ async function fetchJson(url, options) {
   return data;
 }
 
+// ── Verification overlay ─────────────────────────────────────────────────
+// The card is raised over the contact card rather than replacing it. The page
+// behind keeps its scroll position, so dismissing the card returns the scanner
+// to exactly the spot they tapped from.
+//
+// `body.pt-modal-open` locks the page behind from scrolling: without it, a
+// swipe over the blur scrolls the contact card underneath, which reads as the
+// overlay having come loose.
+function openVerifyModal() {
+  // Locking the body removes the scrollbar, which widens the viewport: the page
+  // behind jumps sideways under the blur, and the card lands a few pixels wider
+  // than the card it replaced. Publish the gutter as a custom property and hand
+  // it back as padding on BOTH the page and the overlay — the overlay is
+  // position:fixed, so the body's own padding never reaches it. Measured, not
+  // assumed: 0 with the overlay scrollbars phones use, ~15px on a desktop.
+  const gutter = window.innerWidth - document.documentElement.clientWidth;
+  document.documentElement.style.setProperty("--pt-scroll-gutter", `${Math.max(gutter, 0)}px`);
+  setHidden("verify-modal", false);
+  document.body.classList.add("pt-modal-open");
+}
+
+function closeVerifyModal() {
+  setHidden("verify-modal", true);
+  document.body.classList.remove("pt-modal-open");
+  document.documentElement.style.removeProperty("--pt-scroll-gutter");
+}
+
+function isVerifyModalOpen() {
+  const el = byId("verify-modal");
+  return Boolean(el) && !el.hidden;
+}
+
 function setRequestStatus(targetId, message, tone = "info") {
   const el = byId(targetId);
 
@@ -144,9 +233,12 @@ function setRequestStatus(targetId, message, tone = "info") {
   el.dataset.tone = tone;
 }
 
+// The verification card is no longer one of these: it is an overlay raised over
+// whichever section is showing (see openVerifyModal), so it is not part of the
+// swap. Any section change does dismiss it, though — arriving at a new screen
+// with a stale modal still floating over it would be a bug.
 function showOnly(sectionId) {
   const ids = [
-    "scanner-verification-shell",
     "registration-shell",
     "scanner-action-shell",
     "error-card"
@@ -155,6 +247,8 @@ function showOnly(sectionId) {
   for (const id of ids) {
     setHidden(id, id !== sectionId);
   }
+
+  closeVerifyModal();
 
   // The help card only accompanies the activation wizard, and only when a
   // support number is actually configured.
@@ -304,11 +398,11 @@ function setContactAvailability(available) {
 }
 
 // ── Emergency / SOS ──────────────────────────────────────────────────────
-// Same two-step shape as the owner call (capture number → dial the masked
-// virtual number), but pointed at /register-emergency-call so the Dial Whom
-// webhook resolves the owner's emergency contact instead of the owner.
+// The same shape as the owner call — number captured on the verification card,
+// then dial the masked virtual number — but pointed at
+// /register-emergency-call so the Dial Whom webhook resolves the owner's
+// emergency contact instead of the owner.
 function closeSosPanels() {
-  setHidden("sos-number-panel", true);
   setHidden("sos-dial-panel", true);
   setHidden("sos-dial-number-block", true);
 }
@@ -332,7 +426,9 @@ function openSosConfirm() {
   // deterrent, not a security control.
   if (!dialog || typeof dialog.showModal !== "function") {
     if (emergencyAvailable) {
-      openSosPanel();
+      requireVerification("sos");
+    } else {
+      openSosHelplines();
     }
     return;
   }
@@ -363,40 +459,13 @@ function openSosHelplines(note) {
   dialog.showModal();
 }
 
-function openSosPanel() {
-  // Close the ordinary contact panels so only one flow is ever live.
+// Closes the ordinary contact panels so only one flow is ever live. Called
+// before the emergency dial panel opens.
+function closeContactPanels() {
   setHidden("dial-panel", true);
   setHidden("message-panel", true);
   setHidden("call-popup", true);
   setHidden("request-confirmation", true);
-
-  setHidden("sos-dial-panel", true);
-  setHidden("sos-number-panel", false);
-  // Take the emergency block's own place, the same way the Private Call panel
-  // does. #sos-number-panel is the next sibling, so closing the block lands this
-  // panel directly under the two action buttons instead of below the prompt that
-  // launched it. sos-cancel puts the block back.
-  setHidden("pt-sos-block", true);
-  setValue("sos-phone", "");
-  setRequestStatus(
-    "request-status",
-    "Emergency: enter your number and we will connect you to the owner's emergency contact.",
-    "info"
-  );
-  byId("sos-phone")?.focus();
-}
-
-function handleSosNumberSubmit() {
-  const phone = byId("sos-phone")?.value.trim();
-
-  if (!phone || phone.replace(/\D/g, "").length < 7) {
-    setRequestStatus("request-status", "Enter a valid phone number so we can call you back.", "error");
-    return;
-  }
-
-  setHidden("sos-number-panel", true);
-  setHidden("sos-dial-panel", false);
-  setRequestStatus("request-status", "Tap Call Now to connect the emergency contact.", "info");
 }
 
 async function handleSosCall() {
@@ -602,12 +671,19 @@ async function handlePlateVerification(event) {
   // Check the number before the plate goes anywhere. A failed verification
   // counts against the lockout, so a mistyped phone must not cost the scanner
   // one of their attempts at a plate they had right.
-  if (pendingVerifiedAction === "call") {
+  //
+  // Both calls are captured here. This must stay in step with `wantsNumber` in
+  // requireVerification(): if a card asks for a number but this does not read
+  // it, verifyCapturedPhone stays empty and runVerifiedAction sends the scanner
+  // straight back to the card — a loop with no way out.
+  if (pendingVerifiedAction === "call" || pendingVerifiedAction === "sos") {
     const typed = byId("plate-verify-phone")?.value.trim() || "";
     if (typed.replace(/\D/g, "").length < 7) {
       setRequestStatus(
         "plate-verify-status",
-        "Enter a valid phone number so the owner's call can reach you.",
+        pendingVerifiedAction === "sos"
+          ? "Enter a valid phone number so the emergency contact's call can reach you."
+          : "Enter a valid phone number so the owner's call can reach you.",
         "error"
       );
       byId("plate-verify-phone")?.focus();
@@ -702,13 +778,17 @@ async function handlePlateVerification(event) {
 // rest of the visit: the server issues a single grant and each action carries
 // it, so a scanner who calls and then messages is not asked twice.
 function requireVerification(action) {
-  // Only the call needs a number, so only the call is asked for one.
-  const wantsNumber = action === "call";
+  // Both calls need a number to ring back — the owner call and the emergency
+  // call are the same masked mechanism pointed at different people. Emergency
+  // used to collect its number on a panel of its own (#sos-number-panel), which
+  // is why it looked and behaved unlike the other two; it now asks on this card,
+  // so all three actions open the identical card.
+  const wantsNumber = action === "call" || action === "sos";
 
-  // WhatsApp and Emergency need nothing from the scanner, so a grant is the
-  // whole of what they were waiting for. The call still needs a number, and
-  // that number is only ever asked for on this card — so a verified scanner
-  // tapping Private Call comes back here rather than to a second panel.
+  // WhatsApp needs nothing from the scanner, so a grant is the whole of what it
+  // was waiting for. Either call still needs a number, and that number is only
+  // ever asked for on this card — so a verified scanner tapping Private Call or
+  // Emergency comes back here rather than to a second panel.
   if (contactGrant && !wantsNumber) {
     runVerifiedAction(action);
     return;
@@ -724,7 +804,15 @@ function requireVerification(action) {
   if (submit) {
     submit.textContent = wantsNumber ? "Setup Masked Call" : "Verify & Continue";
   }
-  showOnly("scanner-verification-shell");
+  // Identical block, identical styling — it just has to name the right person.
+  const callNote = byId("plate-verify-callnote");
+  if (callNote) {
+    callNote.innerHTML =
+      action === "sos"
+        ? "We will need your phone number to setup a <strong>MASKED</strong> call between you and the owner's emergency contact."
+        : "We will need your phone number to setup a <strong>MASKED</strong> call between you and tag owner.";
+  }
+  openVerifyModal();
   setRequestStatus(
     "plate-verify-status",
     verifyPhoneOnly
@@ -762,7 +850,29 @@ function runVerifiedAction(action) {
   }
 
   if (action === "sos") {
-    openSosConfirm();
+    // Mirrors the owner-call branch above, deliberately: the number came from
+    // the same field on the same card, so there is nothing left to ask and
+    // nothing left to tap. The dial panel still opens as the receipt and as the
+    // fallback tap for a browser that will not open the dialer itself.
+    //
+    // The consent gate is NOT here — it runs before the card (see the
+    // #sos-button handler), so the warning is read before we ask a scanner
+    // standing at a crash to type anything.
+    if (verifyCapturedPhone) {
+      setValue("sos-phone", verifyCapturedPhone);
+      verifyCapturedPhone = "";
+      closeContactPanels();
+      // The emergency block steps aside so the dial panel takes its place,
+      // exactly as the block did for the old number panel.
+      setHidden("pt-sos-block", true);
+      setHidden("sos-dial-number-block", true);
+      setHidden("sos-dial-panel", false);
+      handleSosCall();
+      return;
+    }
+    // No number in hand — the card is where it gets asked for, never a second
+    // panel. Reachable only if a grant outlived the number that came with it.
+    requireVerification("sos");
   }
 }
 
@@ -994,6 +1104,11 @@ function showActStep(step) {
 
   setRequestStatus("claim-status", "", "info");
 
+  // Carry the chosen vehicle type into the later steps' wording. Done here
+  // rather than at the moment of choosing, so it is right however the step was
+  // reached — including via "Previous Step" back from the OTP screen.
+  syncVehicleNoun();
+
   // Step 1 and the success screen have no input — focusing there would pop the
   // mobile keyboard for nothing.
   if (step !== 1 && step !== "done") {
@@ -1001,14 +1116,163 @@ function showActStep(step) {
   }
 }
 
+// Draws the vehicle-type picker with nothing pre-selected.
+//
+// It used to open with a guess. The sticker's mount type does carry a real
+// signal — a windscreen sticker is glued to the inside of glass, an exterior
+// one goes on a tank or headlamp — but that narrows the CATEGORY and no more.
+// A windscreen sticker fits a car, a truck, a bus or an auto equally well, and
+// the picker resolved that by pre-selecting whichever was commonest. Presenting
+// a frequency bet as though the tag knew the answer is what made it wrong: an
+// owner who trusts the pre-fill and taps straight past ends up with the wrong
+// vehicle recorded, and nothing about the screen ever told them it was a guess.
+//
+// So the owner is now always asked. Step 2 will not advance until they choose,
+// which is how tags with no mount type have always behaved. An unanswered
+// question reads as a question; a confident wrong answer reads as a broken app.
+//
+// The server still sends suggestedVehicleType and vehicleCategory on
+// /api/tags/:token — deliberately left in place, because deciding whether a
+// windscreen sticker should be allowed on a two-wheeler at all is a separate
+// question from whether to pre-tick a box.
+function renderVehicleTypePicker(tag) {
+  const grid = byId("act-vtype-grid");
+  if (!grid) return;
+
+  // What this sticker can go on. Every option is still drawn: a bike owner
+  // holding a windscreen tag needs to be told why it will not work, and a grid
+  // silently missing Bike explains nothing.
+  activationCategory = (tag && tag.vehicleCategory) || null;
+  showMountBlock(null);
+
+  // One fixed order for every sticker: Car then Bike, the two vehicles almost
+  // every tag goes on, with the rarer ones after.
+  grid.innerHTML = VEHICLE_TYPE_OPTIONS
+    .map(
+      (o) =>
+        `<button type="button" class="pt-vtype-btn" role="radio" data-vtype="${o.type}"` +
+        ` aria-checked="false">` +
+        `<span class="pt-vtype-ico" aria-hidden="true">${VEHICLE_ICONS[o.type] || ""}</span>` +
+        `<span>${o.label}</span></button>`
+    )
+    .join("");
+
+  activation.type = "";
+
+  // Nothing is pre-filled, so there is nothing to explain away.
+  const hint = byId("act-vtype-hint");
+  if (hint) {
+    hint.textContent = "";
+    hint.hidden = true;
+  }
+}
+
+// Replaces the generic "Vehicle" in the later steps with what was actually
+// chosen. Falls back to the generic word when nothing is set yet, so the
+// heading is never left blank or half-written.
+function syncVehicleNoun() {
+  const chosen = VEHICLE_TYPE_OPTIONS.find((o) => o.type === activation.type);
+  setText("act-vehicle-noun", chosen ? chosen.label : "Vehicle");
+}
+
+// Which vehicles this sticker can physically go on, from the tag's mount type.
+// Null for tags issued before mount types existed — nothing to enforce, so
+// every option stays open for them.
+let activationCategory = null;
+
+// Mirrors VEHICLE_CATEGORIES in lib/core/tag-issuance.js. The server refuses
+// the same pairings on POST, so this copy only decides how early the owner
+// finds out — it is not the thing keeping bad data out.
+const CATEGORY_MEMBERS = {
+  two_wheeler: ["bike", "scooter"],
+  four_wheeler: ["car", "auto_rickshaw", "truck", "bus"]
+};
+
+// Mirrors MOUNT_COPY on the server, for the same reason and with the same words.
+const MOUNT_COPY = {
+  four_wheeler: {
+    sticker: "windscreen tag",
+    fits: "the inside of a car, auto, truck or bus windscreen",
+    needs: "an exterior tag"
+  },
+  two_wheeler: {
+    sticker: "exterior tag",
+    fits: "the body of a bike or scooter",
+    needs: "a windscreen tag"
+  }
+};
+
+function vehicleTypeAllowed(type) {
+  if (!activationCategory) return true;
+  return (CATEGORY_MEMBERS[activationCategory] || []).includes(type);
+}
+
+// Swaps the picker for the refusal, or back. Kept as one function so the two
+// halves cannot fall out of step and leave both visible at once.
+function showMountBlock(type) {
+  const block = byId("act-mount-block");
+  const field = byId("act-vtype-field");
+  const next = byId("act-plate-btn");
+  if (!block || !field) return;
+
+  if (!type) {
+    block.hidden = true;
+    field.hidden = false;
+    if (next) next.hidden = false;
+    return;
+  }
+
+  const copy = MOUNT_COPY[activationCategory];
+  const label = (VEHICLE_TYPE_OPTIONS.find((o) => o.type === type) || {}).label || "vehicle";
+  setText("act-mount-title", `This tag won't fit a ${label}`);
+  setText(
+    "act-mount-text",
+    copy ? `This is a ${copy.sticker}, made for ${copy.fits}. A ${label} needs ${copy.needs}.` : ""
+  );
+  field.hidden = true;
+  block.hidden = false;
+  // Hiding Next matters as much as showing the message: leaving it there
+  // invites a tap that the server would only refuse a screen later.
+  if (next) next.hidden = true;
+  byId("act-mount-back")?.focus();
+}
+
+function selectVehicleType(type) {
+  // A sticker that cannot go on this vehicle is refused at the tap, before any
+  // number or OTP is asked for. Nothing is recorded and nothing is selected —
+  // the owner either picks again or goes and buys the tag that does fit.
+  if (!vehicleTypeAllowed(type)) {
+    activation.type = "";
+    syncVehicleNoun();
+    showMountBlock(type);
+    return;
+  }
+
+  // Clearing the refusal here, not only in its own button, keeps this function
+  // true whatever route reached it: settling on a type the sticker does fit is
+  // exactly the condition the refusal was waiting on, and leaving it up would
+  // hide the Next button for a choice that is now perfectly valid.
+  showMountBlock(null);
+
+  activation.type = type;
+  syncVehicleNoun();
+  const grid = byId("act-vtype-grid");
+  if (!grid) return;
+  grid.querySelectorAll(".pt-vtype-btn").forEach((btn) => {
+    btn.setAttribute("aria-checked", btn.dataset.vtype === type ? "true" : "false");
+  });
+}
+
 function setupActivationWizard(tag, supportWhatsapp) {
   activation.plate = "";
   activation.name = "";
   activation.phone = "";
+  activation.type = "";
   setValue("act-plate", "");
   setValue("act-name", "");
   setValue("act-phone", "");
   setValue("act-otp", "");
+  renderVehicleTypePicker(tag);
   clearResendCooldown();
 
   const digits = String(supportWhatsapp || "").replace(/\D/g, "");
@@ -1050,8 +1314,21 @@ function handleActPlate(event) {
     return;
   }
 
+  // Checked after the plate so the two errors cannot both fire at once, and so
+  // a scanner who typed a good plate is not sent back over it.
+  if (!activation.type) {
+    setRequestStatus(
+      "claim-status",
+      "Choose the type of vehicle this tag is going on.",
+      "error"
+    );
+    byId("act-vtype-grid")?.scrollIntoView({ block: "center", behavior: "smooth" });
+    return;
+  }
+
   activation.plate = plate;
   setValue("act-plate", plate);
+  setRequestStatus("claim-status", "", "info");
   showActStep(3);
 }
 
@@ -1190,7 +1467,10 @@ async function handleActVerify(event) {
         displayName: activation.name,
         phone: activation.phone,
         code,
-        plateNumber: activation.plate
+        plateNumber: activation.plate,
+        // Captured on step 2. The server requires it and validates it against
+        // its own type list, so this is the value the dashboard will show.
+        vehicleType: activation.type
       })
     });
 
@@ -1215,7 +1495,10 @@ async function handleActVerify(event) {
 await loadScannerView();
 
 byId("plate-verify-form")?.addEventListener("submit", handlePlateVerification);
-byId("plate-verify-cancel")?.addEventListener("click", () => {
+
+// Every way out of the card runs this, so a dismissal can never leave half the
+// state behind — whether it came from Cancel, Escape, or a tap on the blur.
+function dismissVerifyModal() {
   pendingVerifiedAction = "";
   setValue("plate-last-four-input", "");
   // Do not leave a typed number sitting in a hidden field after a cancel.
@@ -1229,6 +1512,27 @@ byId("plate-verify-cancel")?.addEventListener("click", () => {
   setRequestStatus("plate-verify-status", "", "info");
   showOnly("scanner-action-shell");
   setRequestStatus("request-status", "", "info");
+}
+
+byId("plate-verify-cancel")?.addEventListener("click", dismissVerifyModal);
+
+// Escape closes it, the way the <dialog>-based gates on this page already do —
+// the card should not be the one overlay that traps you.
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && isVerifyModalOpen()) {
+    dismissVerifyModal();
+  }
+});
+
+// A tap on the blur closes it too — including the gutter either side of the
+// card, which reads as backdrop to anyone looking at it. Anything that lands on
+// the card itself is ignored, so a drag that starts in the input and releases
+// outside cannot dismiss the card mid-typing.
+byId("verify-modal")?.addEventListener("click", (event) => {
+  const card = byId("scanner-verification-shell");
+  if (card && !card.contains(event.target)) {
+    dismissVerifyModal();
+  }
 });
 byId("call-owner-button")?.addEventListener("click", () => requireVerification("call"));
 // The reason is checked before the plate, not after: being sent to verify and
@@ -1243,9 +1547,12 @@ byId("quick-share")?.addEventListener("click", handleQuickShare);
 // button exists for the browser that would not open the dialer by itself.
 byId("final-call-button")?.addEventListener("click", handleFinalCallAction);
 
-// Emergency / SOS — the button opens the confirmation gate, which is the only
-// thing that opens the panel.
-byId("sos-button")?.addEventListener("click", () => requireVerification("sos"));
+// Emergency / SOS — the button opens the confirmation gate, and the gate is the
+// only thing that opens the verification card. The gate runs BEFORE the card,
+// not after: the warning it carries is the reason to stop, so making someone
+// read a plate and type a number first would put it after the effort rather
+// than before the decision.
+byId("sos-button")?.addEventListener("click", openSosConfirm);
 byId("sos-confirm-check")?.addEventListener("change", (event) => {
   setDisabled("sos-confirm-continue", !event.target.checked);
 });
@@ -1265,8 +1572,12 @@ byId("sos-confirm-continue")?.addEventListener("click", () => {
   // there is one, otherwise the public helplines. The branch is here rather
   // than on the Emergency button so the warning is read either way — the
   // offence it names applies to dialling 112 for a prank just as much.
+  //
+  // With a contact to reach, this now opens the SAME verification card the
+  // other two actions use, asking for the plate and the scanner's number
+  // together, instead of the emergency-only panel it used to open.
   if (emergencyAvailable) {
-    openSosPanel();
+    requireVerification("sos");
     return;
   }
   openSosHelplines();
@@ -1278,20 +1589,27 @@ byId("sos-helplines-close")?.addEventListener("click", () => {
 byId("sos-helplines-back")?.addEventListener("click", () => {
   byId("sos-helplines")?.close();
 });
-byId("sos-number-submit")?.addEventListener("click", handleSosNumberSubmit);
 byId("sos-final-call-button")?.addEventListener("click", handleSosCall);
-byId("sos-cancel")?.addEventListener("click", () => {
-  closeSosPanels();
-  // openSosPanel closed the block to take its place — bring it back. It is no
-  // longer conditional: every active tag offers the button, and what it leads
-  // to is decided at the gate.
-  setHidden("pt-sos-block", false);
-  setRequestStatus("request-status", "", "info");
-});
 
 // Activation wizard
 byId("act-start-btn")?.addEventListener("click", () => showActStep(2));
 byId("act-step-2")?.addEventListener("submit", handleActPlate);
+
+// Delegated, because the buttons are rendered after this file runs (the picker
+// is drawn from the tag payload once the tag loads).
+byId("act-vtype-grid")?.addEventListener("click", (event) => {
+  const btn = event.target.closest(".pt-vtype-btn");
+  if (!btn) return;
+  selectVehicleType(btn.dataset.vtype);
+  setRequestStatus("claim-status", "", "info");
+});
+
+// Back out of the refusal to the picker, with nothing chosen — the vehicle they
+// tapped is still the wrong one, so re-selecting it would only refuse again.
+byId("act-mount-back")?.addEventListener("click", () => {
+  showMountBlock(null);
+  byId("act-vtype-grid")?.querySelector(".pt-vtype-btn")?.focus();
+});
 byId("act-step-3")?.addEventListener("submit", handleActMobile);
 byId("act-step-4")?.addEventListener("submit", handleActVerify);
 byId("act-resend-btn")?.addEventListener("click", handleActResend);

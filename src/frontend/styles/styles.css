@@ -1909,9 +1909,19 @@ pre {
   transition: border-color 180ms ease, background 180ms ease, color 180ms ease;
 }
 
+/* The icons are inline SVG with no width/height of their own, so the size lives
+   here — one number to change rather than six. 22px reads at the same optical
+   weight as the 0.78rem label beneath it; the dashboard draws the same icons at
+   28px, where they sit against larger type. */
 .pt-vtype-ico {
-  font-size: 1.15rem;
-  line-height: 1;
+  display: flex;
+  line-height: 0;
+}
+
+.pt-vtype-ico svg {
+  width: 22px;
+  height: 22px;
+  display: block;
 }
 
 .pt-vtype-btn:hover {

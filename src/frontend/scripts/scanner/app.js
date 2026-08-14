@@ -63,17 +63,72 @@ const ACT_STEP_IDS = {
 
 const activation = { plate: "", name: "", phone: "", type: "" };
 
+// Line icons, not emoji. Emoji render as full-colour glyphs that differ on
+// every platform and cannot take the chip's colour, so a selected chip kept a
+// bright multicolour badge inside an amber outline. These are the same drawings
+// the owner dashboard already uses for the same six vehicles, so the type
+// someone picks here is the icon they meet again on their dashboard.
+//
+// `currentColor` throughout is the point: each icon inherits the chip's text
+// colour and turns amber with it on selection.
+//
+// Copied rather than imported: scripts/owner/welcome.js and
+// scripts/owner/register.js each already carry their own copy of this map, and
+// the scanner bundle is cache-busted through scannerAssetVersion while a bare
+// import would not be. Worth consolidating into one shared module when those
+// two files are next touched.
+const VEHICLE_ICONS = {
+  car: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <rect x="2" y="8" width="20" height="10" rx="2" stroke="currentColor" stroke-width="1.8"/>
+    <path d="M5 8l2-4h10l2 4" stroke="currentColor" stroke-width="1.8"/>
+    <circle cx="7" cy="18" r="1.5" fill="currentColor"/>
+    <circle cx="17" cy="18" r="1.5" fill="currentColor"/>
+  </svg>`,
+  bike: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <circle cx="6" cy="16" r="3" stroke="currentColor" stroke-width="1.8"/>
+    <circle cx="18" cy="16" r="3" stroke="currentColor" stroke-width="1.8"/>
+    <path d="M6 16l4-6h4l2 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M10 10V7m0 3l4 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+  </svg>`,
+  scooter: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <circle cx="5" cy="17" r="2.5" stroke="currentColor" stroke-width="1.8"/>
+    <circle cx="19" cy="17" r="2.5" stroke="currentColor" stroke-width="1.8"/>
+    <path d="M5 17h2l2-5h6l1 3h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M11 12V9l3-2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+  </svg>`,
+  auto_rickshaw: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <rect x="3" y="7" width="14" height="10" rx="2" stroke="currentColor" stroke-width="1.8"/>
+    <path d="M17 11h3l1 4h-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="7" cy="18" r="1.5" fill="currentColor"/>
+    <circle cx="17" cy="18" r="1.5" fill="currentColor"/>
+    <path d="M3 11h14" stroke="currentColor" stroke-width="1.5"/>
+  </svg>`,
+  truck: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <rect x="1" y="6" width="14" height="12" rx="1.5" stroke="currentColor" stroke-width="1.8"/>
+    <path d="M15 9h4l3 3v4h-7V9z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="5.5" cy="18" r="1.5" fill="currentColor"/>
+    <circle cx="18.5" cy="18" r="1.5" fill="currentColor"/>
+  </svg>`,
+  bus: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <rect x="3" y="4" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.8"/>
+    <path d="M3 10h18" stroke="currentColor" stroke-width="1.5"/>
+    <circle cx="8" cy="18" r="1.5" fill="currentColor"/>
+    <circle cx="16" cy="18" r="1.5" fill="currentColor"/>
+    <path d="M7 4v6M17 4v6" stroke="currentColor" stroke-width="1.5"/>
+  </svg>`
+};
+
 // The picker offered on activation step 2. Mirrors VEHICLE_LABELS in
 // lib/core/tag-issuance.js — the server validates against that same map, so an
 // option added here without adding it there is rejected rather than silently
 // stored. Order is deliberate: the two most common types lead each category.
 const VEHICLE_TYPE_OPTIONS = [
-  { type: "car", label: "Car", icon: "🚗", category: "four_wheeler" },
-  { type: "bike", label: "Bike", icon: "🏍️", category: "two_wheeler" },
-  { type: "scooter", label: "Scooter", icon: "🛵", category: "two_wheeler" },
-  { type: "auto_rickshaw", label: "Auto", icon: "🛺", category: "four_wheeler" },
-  { type: "truck", label: "Truck", icon: "🚚", category: "four_wheeler" },
-  { type: "bus", label: "Bus", icon: "🚌", category: "four_wheeler" }
+  { type: "car", label: "Car", category: "four_wheeler" },
+  { type: "bike", label: "Bike", category: "two_wheeler" },
+  { type: "scooter", label: "Scooter", category: "two_wheeler" },
+  { type: "auto_rickshaw", label: "Auto", category: "four_wheeler" },
+  { type: "truck", label: "Truck", category: "four_wheeler" },
+  { type: "bus", label: "Bus", category: "four_wheeler" }
 ];
 let resendTimer = null;
 // wa.me link for the help card; empty when no support number is configured.
@@ -1104,7 +1159,7 @@ function renderVehicleTypePicker(tag) {
       (o) =>
         `<button type="button" class="pt-vtype-btn" role="radio" data-vtype="${o.type}"` +
         ` aria-checked="${o.type === suggested ? "true" : "false"}">` +
-        `<span class="pt-vtype-ico" aria-hidden="true">${o.icon}</span>` +
+        `<span class="pt-vtype-ico" aria-hidden="true">${VEHICLE_ICONS[o.type] || ""}</span>` +
         `<span>${o.label}</span></button>`
     )
     .join("");

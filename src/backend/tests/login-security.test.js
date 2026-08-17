@@ -97,7 +97,15 @@ describe("NoSQL operator injection is rejected, not evaluated", () => {
         200,
         "operator object authenticated — NoSQL injection is reachable"
       );
-      assert.equal(response.statusCode, 401);
+
+      // 401 when the value reached the credential check and failed it; 400 when
+      // it was rejected earlier as malformed. `role` takes the 400 path since
+      // the endpoint stopped accepting a body role at all. Both are refusals —
+      // what must never happen is a 200.
+      assert.ok(
+        response.statusCode === 400 || response.statusCode === 401,
+        `expected a refusal, got ${response.statusCode}`
+      );
 
       const setCookie = response.headers["set-cookie"];
       assert.equal(

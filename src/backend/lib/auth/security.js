@@ -8,18 +8,62 @@ function isSha256Hash(hash) {
   return typeof hash === "string" && /^[0-9a-f]{64}$/.test(hash);
 }
 
+// bcrypt hashes are `$2<variant>$<cost>$<22-char salt><31-char digest>`. Checked
+// explicitly because bcrypt.compare() THROWS on a non-string second argument
+// ("Illegal arguments: string, undefined") rather than returning false — and an
+// owner who registered through the OTP flow has no passwordHash at all.
+function isBcryptHash(hash) {
+  return typeof hash === "string" && /^\$2[aby]?\$\d{2}\$[./A-Za-z0-9]{53}$/.test(hash);
+}
+
+// A real bcrypt hash at the production cost, compared against when there is no
+// genuine hash to check. Its plaintext is irrelevant and it is never a valid
+// credential — the point is solely that comparing against it costs the same as
+// comparing against a real account's hash.
+const TIMING_EQUALISER_HASH =
+  "$2b$12$CAiTw3iQP7xeoanm.WPDi.CGooYyOgDyE5/OWqLM51SA0iRsGbJqS";
+
+// Burn one password comparison's worth of work and discard the result.
+//
+// A sign-in that can skip the hash comparison answers in ~1ms where a real one
+// takes ~240ms, and that gap is a reliable oracle: it separates "no such
+// account" from "account exists, wrong password" without the response body ever
+// differing. Every path through loginUser must perform exactly one comparison,
+// so the ones with nothing to compare against call this.
+export async function burnPasswordComparison(password) {
+  await bcrypt.compare(
+    typeof password === "string" ? password : String(password ?? ""),
+    TIMING_EQUALISER_HASH
+  );
+}
+
 export async function createPasswordHash(password) {
   return bcrypt.hash(password, BCRYPT_ROUNDS);
 }
 
 // Returns { valid, needsUpgrade } — needsUpgrade=true means caller should re-hash with bcrypt
+//
+// Every branch costs one bcrypt comparison. Two of them have no bcrypt work of
+// their own and pad instead: a legacy SHA-256 hash verifies in microseconds, and
+// an account with no usable hash has nothing to verify. Without the padding,
+// answering fast would identify which of those a given account is.
 export async function verifyPassword(password, hash) {
   if (isSha256Hash(hash)) {
     const sha256 = crypto.createHash("sha256").update(password).digest("hex");
     // Constant-time compare so a legacy-hash login can't be timing-probed.
     const valid = safeEqual(sha256, hash);
+    await burnPasswordComparison(password);
     return { valid, needsUpgrade: valid };
   }
+
+  // No usable hash: an OTP-registered owner (never set a password), or a record
+  // whose hash is corrupt. Previously this reached bcrypt.compare(password,
+  // undefined), which throws — turning a wrong-account sign-in into a 500.
+  if (!isBcryptHash(hash)) {
+    await burnPasswordComparison(password);
+    return { valid: false, needsUpgrade: false };
+  }
+
   const valid = await bcrypt.compare(password, hash);
   return { valid, needsUpgrade: false };
 }

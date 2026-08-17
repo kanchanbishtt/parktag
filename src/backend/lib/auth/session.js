@@ -158,11 +158,24 @@ export async function clearSession(app, request, reply) {
 }
 
 export function writeSessionCookie(reply, sessionId, isProduction = false, rememberMe = false) {
+  // `secure` used to be exactly `isProduction`, i.e. one environment variable.
+  // Set RUNTIME_MODE to anything but "production" on a live deployment and every
+  // session cookie silently loses the flag — served over HTTPS, so nothing looks
+  // wrong, but now willing to travel over plain HTTP if anything can force it.
+  //
+  // The connection itself is the more reliable signal: request.protocol is
+  // "https" whenever TLS terminated at the trusted proxy (from X-Forwarded-Proto
+  // under trustProxy) or at this process. Kept as OR rather than a replacement
+  // so a misconfigured proxy that fails to forward the scheme cannot take the
+  // flag away either — and so local HTTP development, where neither holds, still
+  // gets a usable cookie.
+  const overHttps = reply.request?.protocol === "https";
+
   const opts = {
     httpOnly: true,
     path: "/",
     sameSite: "lax",
-    secure: isProduction
+    secure: isProduction || overHttps
   };
   // Only persist across browser restarts when user explicitly chose "Remember me".
   // Default is a session cookie — cleared when the browser tab/window closes.

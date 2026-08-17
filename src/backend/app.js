@@ -117,6 +117,48 @@ const NO_STORE_PAGES = new Set([
   "/reset-password"
 ]);
 
+// Pages served with no 'unsafe-inline' in script-src, and with inline event
+// handler attributes refused outright.
+//
+// The app-wide policy has to keep both, because the owner dashboard and the
+// admin console build markup with onclick="..." in it — eight sites in the
+// admin bundle alone — and those break the moment script-src-attr is tightened.
+// Removing that pattern everywhere is a real refactor, and not one to attach to
+// a security fix.
+//
+// These five pages need neither. None contains an inline <script> (the two that
+// did now load their code from a file), and none of the scripts they run emits
+// an inline handler. So the pages that actually take credentials get the strict
+// policy today, and the rest keep the permissive one until the refactor happens.
+//
+// NOT the same list as NO_STORE_PAGES: /owner-welcome and /admin must not be
+// cached either, but both generate inline handlers and would break here.
+const STRICT_SCRIPT_PAGES = new Set([
+  "/owner-login",
+  "/owner-verify",
+  "/register-owner",
+  "/forgot-password",
+  "/reset-password"
+]);
+
+// Derived from whatever helmet just set, rather than written out again, so a
+// change to the app-wide policy carries over instead of leaving these pages on
+// a stale copy of it.
+function tightenScriptDirectives(policy) {
+  return String(policy)
+    .split(";")
+    .map((directive) => {
+      const trimmed = directive.trim();
+      if (trimmed.startsWith("script-src-attr")) return "script-src-attr 'none'";
+      if (trimmed.startsWith("script-src ")) {
+        return trimmed.replace(/\s*'unsafe-inline'/g, "");
+      }
+      return trimmed;
+    })
+    .filter(Boolean)
+    .join(";");
+}
+
 function isNoStorePage(pathname) {
   // Every /admin page is an authenticated view, including the sub-pages.
   return NO_STORE_PAGES.has(pathname) || pathname === "/admin" || pathname.startsWith("/admin/");
@@ -249,10 +291,89 @@ export async function buildApp() {
   // See NO_STORE_PAGES. Set on the way out so it covers every response from
   // these paths — the rendered page, and the redirect an unauthenticated
   // visitor gets instead of it.
+  // Cross-site request forgery guard for the credential endpoints.
+  //
+  // SameSite=Lax on the session cookie already stops a cross-site POST carrying
+  // a session, so this is the second line rather than the first — but it covers
+  // what SameSite does not. Sign-in is the case: a forged POST to
+  // /api/auth/login carries no cookie and does not need one, because it is
+  // creating the session. Land one on a victim's browser and they are quietly
+  // signed in as the attacker, and everything they do next — an address, a
+  // vehicle, a document — is filed under the attacker's account.
+  //
+  // Origin is the check. A browser attaches it to every cross-origin POST and
+  // scripts cannot forge it. Referer is the fallback for the rare browser that
+  // omits Origin on same-origin requests.
+  //
+  // Neither header present means the caller is not a browser — curl, the verify
+  // scripts, a server-to-server call — and is allowed through: those requests
+  // are not the ones an attacker can make a victim's browser send. Blocking
+  // them would break the operational scripts while stopping no attack.
+  //
+  // Scoped to /api/auth/* on purpose. The Exotel and Meta webhooks are POSTs
+  // from other origins by design and authenticate with their own secrets; a
+  // blanket origin check would reject every one of them.
+  // Both sides of the comparison go through the URL parser. Comparing a parsed
+  // origin against a concatenated string does not work: the parser drops a
+  // default port, so a browser's "http://localhost" never equals a hand-built
+  // "http://localhost:80" and the site rejects its own sign-in page.
+  function toOrigin(value) {
+    try {
+      return new URL(value).origin;
+    } catch {
+      return null;
+    }
+  }
+
+  const allowedOrigins = new Set([toOrigin(env.appBaseUrl)].filter(Boolean));
+
+  app.addHook("onRequest", async (request, reply) => {
+    if (request.method !== "POST") return;
+    if (!request.url.startsWith("/api/auth/")) return;
+
+    const origin = request.headers.origin;
+    const referer = request.headers.referer;
+    if (!origin && !referer) return;
+
+    const source = toOrigin(origin || referer);
+
+    if (!source) {
+      reply.code(403);
+      return reply.send({ ok: false, error: "Request blocked: malformed origin." });
+    }
+
+    // The deployment's own origin is the reference, but the host the request
+    // actually arrived on counts too, so a preview domain or a second hostname
+    // pointing at the same service is not locked out of its own sign-in page.
+    const selfOrigin = toOrigin(`${request.protocol}://${request.headers.host}`);
+
+    if (source !== selfOrigin && !allowedOrigins.has(source)) {
+      request.log.warn(
+        { event: "csrf-origin-rejected", source },
+        "[csrf] cross-origin POST to a credential endpoint was refused"
+      );
+      reply.code(403);
+      return reply.send({
+        ok: false,
+        error: "Request blocked: this request did not come from the ParkTag site."
+      });
+    }
+  });
+
   app.addHook("onSend", async (request, reply, payload) => {
-    if (isNoStorePage(request.url.split("?")[0])) {
+    const pathname = request.url.split("?")[0];
+
+    if (isNoStorePage(pathname)) {
       setNoStore(reply);
     }
+
+    if (STRICT_SCRIPT_PAGES.has(pathname)) {
+      const policy = reply.getHeader("content-security-policy");
+      if (policy) {
+        reply.header("content-security-policy", tightenScriptDirectives(policy));
+      }
+    }
+
     return payload;
   });
 

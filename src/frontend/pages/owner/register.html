@@ -412,18 +412,9 @@
     </div>
   </div>
 
-  <script>
-    setTimeout(function () {
-      var sk = document.getElementById('page-skeleton');
-      var content = document.getElementById('page-content');
-      var bar = document.querySelector('.av-submit-bar');
-      sk.style.display = 'none';
-      bar.style.display = 'block';
-      requestAnimationFrame(function () {
-        content.classList.add('sk-visible');
-      });
-    }, 250);
-  </script>
+  <!-- In a file, not inline, so this page can be served without
+       script-src 'unsafe-inline'. -->
+  <script src="/scripts/owner/register-skeleton.js" defer></script>
   <script src="/scripts/owner/smart-back.js"></script>
   <script type="module" src="/scripts/owner/register.js"></script>
 </body>

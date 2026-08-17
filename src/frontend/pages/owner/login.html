@@ -44,17 +44,9 @@
         opacity: 0; transition: opacity 180ms ease;
       }
     </style>
-    <script>
-      // Show skeleton immediately, fade it out once DOM is ready
-      document.addEventListener("DOMContentLoaded", () => {
-        document.body.style.opacity = "1";
-        const sk = document.getElementById("login-skeleton");
-        if (sk) {
-          sk.classList.add("fade-out");
-          setTimeout(() => sk.remove(), 200);
-        }
-      });
-    </script>
+    <!-- Show skeleton immediately, fade it out once DOM is ready. In a file, not
+         inline, so this page can be served without script-src 'unsafe-inline'. -->
+    <script src="/scripts/owner/login-skeleton.js" defer></script>
   </head>
   <body class="pt-hub-body">
 

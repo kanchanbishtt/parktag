@@ -974,7 +974,9 @@ async function logoutAdmin() {
     method: "POST"
   });
 
-  window.location.href = "/admin";
+  // replace(), not href: the admin console the user just left must not be one
+  // Back press away, on a shared machine least of all.
+  window.location.replace("/admin");
 }
 
 function updatePremiumToggle(checkbox) {

@@ -1475,7 +1475,11 @@ window.removeVehicle = removeVehicle;
 async function signOut() {
   try { await fetch("/api/auth/logout", { method: "POST" }); } catch {}
   sessionStorage.clear();
-  window.location.href = "/owner-login";
+  // replace(), not href: assigning pushes a new entry and leaves the dashboard
+  // sitting directly behind it, so one press of Back returned to the page the
+  // person had just signed out of. Replacing swaps the dashboard's own entry
+  // for the sign-in page, so Back skips past it entirely.
+  window.location.replace("/owner-login");
 }
 window.signOut = signOut;
 

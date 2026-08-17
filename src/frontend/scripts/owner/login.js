@@ -367,7 +367,9 @@ async function resendWhatsappOtp() {
 
 async function logoutOwner() {
   await fetchJson("/api/auth/logout", { method: "POST" });
-  window.location.href = "/owner";
+  // replace(), not href — see signOut() in welcome.js. Assigning leaves the
+  // signed-in page one Back press away.
+  window.location.replace("/owner");
 }
 
 async function requestSticker(tagId, token) {

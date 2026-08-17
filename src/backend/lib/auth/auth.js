@@ -5,9 +5,10 @@ import {
   verifyPassword,
   createPasswordHash,
   isNonEmptyString,
-  burnPasswordComparison
+  burnHashComparison
 } from "./security.js";
 import { readSession } from "./session.js";
+import { findByCanonicalEmail } from "./identity.js";
 
 export async function findUserByEmail(env, role, email) {
   const collections = await getCollections(env);
@@ -22,7 +23,11 @@ export async function findUserByEmail(env, role, email) {
   if (!isNonEmptyString(email)) return null;
 
   const collection = role === "admin" ? collections.admins : collections.owners;
-  return collection.findOne({ email });
+
+  // Canonical, not as-typed. This used to be `findOne({ email })` with the raw
+  // value, which made sign-in case-sensitive while the OTP path was not — the
+  // two disagreed about which account an address belonged to.
+  return findByCanonicalEmail(collection, email);
 }
 
 export async function loginUser(env, role, email, password) {
@@ -35,7 +40,7 @@ export async function loginUser(env, role, email, password) {
     // Pay for a password comparison we have no hash for. Returning here without
     // it answered an unregistered address ~240ms faster than a registered one,
     // which enumerates accounts regardless of the responses being identical.
-    await burnPasswordComparison(password);
+    await burnHashComparison(password);
     return null;
   }
 

@@ -102,6 +102,21 @@ const CORE_INDEXES = [
   ["tags", { status: 1, printStatus: 1 }, { name: "print_queue" }],
   ["tags", { batchNumber: 1 }, { name: "batch" }],
   ["owners", { email: 1 }, { name: "email" }],
+  // Case-insensitive email index. Account lookup matches an address regardless
+  // of the case it was stored in (see lib/auth/identity.js), and a collation
+  // query can only use an index whose collation matches — without this one the
+  // sign-in lookup is a collection scan.
+  [
+    "owners",
+    { email: 1 },
+    { name: "email_ci", collation: { locale: "en", strength: 2 } }
+  ],
+  ["admins", { email: 1 }, { name: "email" }],
+  [
+    "admins",
+    { email: 1 },
+    { name: "email_ci", collation: { locale: "en", strength: 2 } }
+  ],
   ["owners", { mobile: 1 }, { name: "mobile" }],
   ["owners", { phone: 1 }, { name: "phone" }],
   ["contactRequests", { token: 1, createdAt: -1 }, { name: "token_recent" }],

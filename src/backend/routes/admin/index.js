@@ -3,6 +3,7 @@ import { ObjectId } from "mongodb";
 import { requireSession } from "../../lib/auth/auth.js";
 import { isNonEmptyString } from "../../lib/auth/security.js";
 import { getCollections } from "../../lib/db/repositories.js";
+import { findByCanonicalEmail, canonicalEmail } from "../../lib/auth/identity.js";
 import {
   buildIssuedTagOutput,
   buildClaimUrl,
@@ -1062,7 +1063,7 @@ export function registerAdminRoutes(app, env) {
     // `email` is used as a raw Mongo filter value just below — reject non-string
     // input above (defense in depth; this route is already admin-authenticated).
     const collections = await getCollections(env);
-    const existing = await collections.admins.findOne({ email });
+    const existing = await findByCanonicalEmail(collections.admins, email);
 
     if (existing) {
       reply.code(400);
@@ -1075,7 +1076,9 @@ export function registerAdminRoutes(app, env) {
     const { createPasswordHash } = await import("../../lib/auth/security.js");
 
     await collections.admins.insertOne({
-      email,
+      // Canonical, matching the lookup in findByCanonicalEmail — the admin table
+      // had the same case-sensitivity split as owners.
+      email: canonicalEmail(email),
       passwordHash: await createPasswordHash(password),
       displayName,
       role: "admin",

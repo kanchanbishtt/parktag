@@ -9,8 +9,10 @@ import {
   redactText,
   safeEqual,
   createOtpHash,
-  verifyOtpHash
+  verifyOtpHash,
+  burnHashComparison
 } from "./security.js";
+import { canonicalEmail, findByCanonicalEmail } from "./identity.js";
 
 const OTP_EXPIRY_MS = 10 * 60 * 1000;
 const RATE_LIMIT_MS = 2 * 60 * 1000;
@@ -56,7 +58,10 @@ function normalizePhone(input) {
 // login path invites client retries and buries genuine faults in the metrics.)
 export function normalizeIdentifier(identifier) {
   if (isMobileIdentifier(identifier)) return normalizePhone(identifier);
-  return String(identifier ?? "").trim().toLowerCase();
+  // Same canonicaliser the password path uses. Previously this lowercased here
+  // while findUserByEmail matched the raw string, so the two paths resolved the
+  // same address to different accounts.
+  return canonicalEmail(String(identifier ?? ""));
 }
 
 export async function sendOtp(env, identifier) {
@@ -248,7 +253,18 @@ export async function verifyOtp(env, identifier, code) {
     expiresAt: { $gt: new Date().toISOString() }
   }, { sort: { createdAt: -1 } });
 
-  if (!record) throw clientError("Invalid or expired code. Please try again.");
+  if (!record) {
+    // Pay for the comparison there is no token to make. Returning straight away
+    // answered in ~30ms where a real check costs ~290ms, and that gap says
+    // whether the address has a code outstanding — i.e. whether that person is
+    // part-way through signing in right now, which is a targeting signal for
+    // someone phoning them pretending to be support.
+    //
+    // The gap existed before codes were hashed, but was small when the compare
+    // was safeEqual; bcrypt widened it to the point of being trivially readable.
+    await burnHashComparison(code);
+    throw clientError("Invalid or expired code. Please try again.");
+  }
 
   // Enforce attempt limit
   if ((record.attempts || 0) >= MAX_VERIFY_ATTEMPTS) {
@@ -267,9 +283,22 @@ export async function verifyOtp(env, identifier, code) {
   // Both branches are constant-time: bcrypt.compare is, and safeEqual returns
   // false on a length mismatch rather than short-circuiting on the first
   // differing byte, so the correct code can't be recovered digit-by-digit.
-  const matches = record.codeHash
-    ? await verifyOtpHash(code, record.codeHash)
-    : safeEqual(record.code, code);
+  let matches;
+
+  if (record.codeHash) {
+    matches = await verifyOtpHash(code, record.codeHash);
+  } else {
+    // Legacy path, and it should stop being reached ten minutes after the
+    // deploy that introduced hashing — no token issued since then carries a
+    // plaintext `code`, and none lives longer than OTP_EXPIRY_MS. Logged so its
+    // use is observable: once this stops appearing, the branch (and the
+    // plaintext it accepts) can be deleted.
+    console.warn(
+      "[OTP] verified a pre-hashing token holding a plaintext code — " +
+        "safe to remove this fallback once these stop appearing"
+    );
+    matches = safeEqual(record.code, code);
+  }
 
   if (!matches) {
     await collections.otpTokens.updateOne(
@@ -287,9 +316,13 @@ export async function verifyOtp(env, identifier, code) {
     { $set: { used: true, usedAt: new Date().toISOString() } }
   );
 
+  // Canonical lookup, so an account stored with a mixed-case address is found
+  // rather than missed. Missing it here is what forked a second, empty account
+  // for someone who registered as "Name@example.com" and later signed in with a
+  // code — the route below creates an owner whenever this returns nothing.
   const owner = isMobile
     ? await collections.owners.findOne({ mobile: normalized })
-    : await collections.owners.findOne({ email: normalized });
+    : await findByCanonicalEmail(collections.owners, normalized);
 
   return {
     ok: true,

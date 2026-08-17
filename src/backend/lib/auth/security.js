@@ -68,6 +68,27 @@ export async function verifyPassword(password, hash) {
   return { valid, needsUpgrade: false };
 }
 
+// ── One-time codes ──────────────────────────────────────────────────────
+// OTPs are credentials with a short life, and they used to be written to
+// otpTokens in the clear. Anyone who could read the database — an operator, a
+// leaked backup, an aggregated log — could sign in as any account currently
+// mid-login, without needing that account's password at all.
+//
+// Hashed with bcrypt like a password, for two reasons: it needs no new secret
+// in the environment (so there is no deploy in which the hash key is missing
+// and every code silently stops verifying), and it is deliberately slow. A
+// 6-digit code is only a million possibilities, which a fast hash would give up
+// instantly from a dump; at bcrypt's cost that search runs far longer than the
+// ten minutes a code stays valid for.
+export async function createOtpHash(code) {
+  return bcrypt.hash(String(code), BCRYPT_ROUNDS);
+}
+
+export async function verifyOtpHash(code, hash) {
+  if (!isBcryptHash(hash)) return false;
+  return bcrypt.compare(String(code), hash);
+}
+
 export function createToken(length = 12) {
   return crypto.randomBytes(length).toString("hex").slice(0, length);
 }

@@ -95,6 +95,39 @@ function sanitizeLogUrl(url) {
   return `${path}?${sanitized}`;
 }
 
+// Pages that either take credentials or render a signed-in view. None of them
+// may be kept by a shared cache or replayed out of the browser's back/forward
+// store: on a shared or borrowed device, tapping Back after signing out
+// otherwise re-renders the previous occupant's page from history.
+//
+// `no-store` is the directive that governs the history store; `no-cache` alone
+// permits it. The rest are there for intermediaries that predate `no-store`.
+//
+// Applied by a hook rather than by editing each handler, so a page added later
+// is covered by adding one line here instead of by remembering to repeat a call
+// at the bottom of a new route.
+const NO_STORE_PAGES = new Set([
+  "/owner-login",
+  "/owner-verify",
+  "/owner-welcome",
+  "/owner-documents",
+  "/owner",
+  "/register-owner",
+  "/forgot-password",
+  "/reset-password"
+]);
+
+function isNoStorePage(pathname) {
+  // Every /admin page is an authenticated view, including the sub-pages.
+  return NO_STORE_PAGES.has(pathname) || pathname === "/admin" || pathname.startsWith("/admin/");
+}
+
+function setNoStore(reply) {
+  reply.header("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  reply.header("Pragma", "no-cache");
+  reply.header("Expires", "0");
+}
+
 function setScannerNoCache(reply) {
   reply.header(
     "Cache-Control",
@@ -212,6 +245,16 @@ export async function buildApp() {
   );
 
   await app.register(fastifyCookie);
+
+  // See NO_STORE_PAGES. Set on the way out so it covers every response from
+  // these paths — the rendered page, and the redirect an unauthenticated
+  // visitor gets instead of it.
+  app.addHook("onSend", async (request, reply, payload) => {
+    if (isNoStorePage(request.url.split("?")[0])) {
+      setNoStore(reply);
+    }
+    return payload;
+  });
 
   const isProduction = env.runtimeMode === "production";
 

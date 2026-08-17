@@ -9,9 +9,31 @@ import {
 import { createSession, writeSessionCookie } from "../../lib/auth/session.js";
 import { getCollections } from "../../lib/db/repositories.js";
 import { clientErrorMessage } from "../../lib/errors.js";
-import { verifyRecaptcha } from "../../lib/integrations/recaptcha.js";
+import { verifyRecaptcha, isRecaptchaConfigured } from "../../lib/integrations/recaptcha.js";
 
 export function registerOtpAuthRoutes(app, env) {
+  // verifyRecaptcha() no-ops when no keys are set, which is right for local work
+  // but means the bot gate on /api/auth/send-otp can be entirely absent in a
+  // deployment without anything saying so. Every OTP costs real money to send
+  // and lands on somebody's phone, so an unconfigured production deployment is
+  // worth stating out loud rather than discovering from a WhatsApp bill.
+  //
+  // A warning and not a hard failure: the per-IP and per-destination send caps
+  // still apply, so this degrades the defence rather than removing it, and
+  // refusing to boot over it would take the whole site down for a bot control.
+  if (!isRecaptchaConfigured(env)) {
+    const message =
+      "[recaptcha] RECAPTCHA_SITE_KEY / RECAPTCHA_SECRET are not configured — " +
+      "/api/auth/send-otp has NO bot check. Scripted OTP flooding is limited only by " +
+      "the per-IP and per-destination send caps.";
+
+    if (env.runtimeMode === "production") {
+      app.log.warn(message);
+    } else {
+      app.log.info(`${message} (expected outside production)`);
+    }
+  }
+
   // Public: lets the browser fetch the reCAPTCHA site key (safe to expose). Empty
   // when unconfigured, in which case the frontend loads no reCAPTCHA at all.
   app.get("/api/auth/recaptcha/config", async (_request, reply) => {

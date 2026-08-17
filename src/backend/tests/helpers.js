@@ -46,6 +46,35 @@ export function uniqueAddress() {
   return `10.${b}.${c}.${d === 0 ? 1 : d}`;
 }
 
+// sendOtp() dispatches for real. On the mobile branch it calls the Meta
+// WhatsApp API whenever META_WHATSAPP_PHONE_NUMBER_ID and
+// META_WHATSAPP_ACCESS_TOKEN are set — and a developer .env here does set them,
+// pointing at the live account. A test that passes a made-up mobile number
+// therefore sends a genuine WhatsApp message to whoever owns that number, and
+// the request succeeds, so nothing about the run looks wrong.
+//
+// The email branch is fire-and-forget to an unroutable .invalid domain, so it
+// reaches nobody. Any test that needs sendOtp must go through here.
+export function assertUndeliverableIdentifier(identifier) {
+  const value = String(identifier || "");
+
+  if (!value.includes("@")) {
+    throw new Error(
+      `Refusing to send an OTP to "${value}": tests must use an email identifier. ` +
+        `The mobile path calls the live WhatsApp API and messages a real handset.`
+    );
+  }
+
+  if (!value.endsWith(".invalid")) {
+    throw new Error(
+      `Refusing to send an OTP to "${value}": test identifiers must use the ` +
+        `.invalid TLD, which is guaranteed never to resolve.`
+    );
+  }
+
+  return value;
+}
+
 export async function startTestApp() {
   assertDisposableDatabase();
 

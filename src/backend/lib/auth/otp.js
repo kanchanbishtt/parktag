@@ -4,7 +4,13 @@ import { getCollections } from "../db/repositories.js";
 import { sendOtpEmail } from "../integrations/email.js";
 import { isMetaWhatsappConfigured, sendMetaWhatsappOtp } from "../integrations/meta.js";
 import { clientError } from "../errors.js";
-import { maskIdentifier, redactText, safeEqual } from "./security.js";
+import {
+  maskIdentifier,
+  redactText,
+  safeEqual,
+  createOtpHash,
+  verifyOtpHash
+} from "./security.js";
 
 const OTP_EXPIRY_MS = 10 * 60 * 1000;
 const RATE_LIMIT_MS = 2 * 60 * 1000;
@@ -87,9 +93,13 @@ export async function sendOtp(env, identifier) {
   const code = generateOtp();
   const now = new Date();
 
+  // `codeHash`, never `code`. The plaintext lives only in this function and in
+  // the message that carries it to the user; nothing recoverable is persisted.
+  // The resend path above returns before reaching here, so no caller ever needs
+  // to read a previously issued code back out.
   const inserted = await collections.otpTokens.insertOne({
     identifier: normalized,
-    code,
+    codeHash: await createOtpHash(code),
     used: false,
     attempts: 0,
     createdAt: now.toISOString(),
@@ -249,9 +259,19 @@ export async function verifyOtp(env, identifier, code) {
     throw clientError("Too many incorrect attempts. Please request a new code.");
   }
 
-  // Constant-time compare so the correct code can't be recovered digit-by-digit
-  // by timing responses. safeEqual returns false on any length mismatch too.
-  if (!safeEqual(record.code, code)) {
+  // Codes are stored hashed. `record.code` is only present on tokens issued
+  // before that change; they expire ten minutes after the deploy that
+  // introduced it, so this fallback is short-lived but has to exist — without
+  // it, everyone mid-login at deploy time is told their valid code is wrong.
+  //
+  // Both branches are constant-time: bcrypt.compare is, and safeEqual returns
+  // false on a length mismatch rather than short-circuiting on the first
+  // differing byte, so the correct code can't be recovered digit-by-digit.
+  const matches = record.codeHash
+    ? await verifyOtpHash(code, record.codeHash)
+    : safeEqual(record.code, code);
+
+  if (!matches) {
     await collections.otpTokens.updateOne(
       { _id: record._id },
       { $inc: { attempts: 1 } }

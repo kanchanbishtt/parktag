@@ -91,7 +91,10 @@ export async function createTestOwner(collections, { email, password }) {
 export async function purgeLoginCollections(collections) {
   assertDisposableDatabase();
 
-  for (const name of ["owners", "sessions", "otpTokens", "loginAttempts"]) {
+  // rateLimits is included because those counters live in Mongo and are keyed by
+  // address: left behind, a second run inside the same window starts partway
+  // through its allowance and the 429 assertions become order-dependent.
+  for (const name of ["owners", "sessions", "otpTokens", "loginAttempts", "rateLimits"]) {
     await collections[name].deleteMany({}).catch(() => {});
   }
 }

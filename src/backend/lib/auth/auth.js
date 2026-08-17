@@ -1,7 +1,12 @@
 import { ObjectId } from "mongodb";
 
 import { getCollections } from "../db/repositories.js";
-import { verifyPassword, createPasswordHash, isNonEmptyString } from "./security.js";
+import {
+  verifyPassword,
+  createPasswordHash,
+  isNonEmptyString,
+  burnPasswordComparison
+} from "./security.js";
 import { readSession } from "./session.js";
 
 export async function findUserByEmail(env, role, email) {
@@ -26,7 +31,13 @@ export async function loginUser(env, role, email, password) {
   const collections = await getCollections(env);
   const user = await findUserByEmail(env, role, email);
 
-  if (!user) return null;
+  if (!user) {
+    // Pay for a password comparison we have no hash for. Returning here without
+    // it answered an unregistered address ~240ms faster than a registered one,
+    // which enumerates accounts regardless of the responses being identical.
+    await burnPasswordComparison(password);
+    return null;
+  }
 
   const { valid, needsUpgrade } = await verifyPassword(password, user.passwordHash);
   if (!valid) return null;

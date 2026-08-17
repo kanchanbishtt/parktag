@@ -249,7 +249,13 @@ export async function buildApp() {
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
         formAction: ["'self'"],
-        frameAncestors: ["'self'"]
+        // 'self' alone renders a blank frame in VS Code's Simple Browser: the
+        // page is embedded in a cross-origin webview iframe (vscode-webview://
+        // on desktop, *.vscode-cdn.net on vscode.dev). Dev-only — production
+        // keeps the plain 'self' clickjacking guard.
+        frameAncestors: isProduction
+          ? ["'self'"]
+          : ["'self'", "vscode-webview:", "https://*.vscode-cdn.net"]
       }
     },
     // In dev, allow the app to render inside VS Code's Simple Browser (a

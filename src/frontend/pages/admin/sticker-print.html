@@ -5,8 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ParkTag Sticker</title>
   <style>
-    /* Artwork SVG coordinate system is 1585 x 987; QR is placed as a % of that
-       box so it stays correctly positioned at any print size. */
+    /* Artwork SVG coordinate system is 1000 x 600 (full-bleed — the canvas IS
+       the card); QR is placed as a % of that box so it stays correctly
+       positioned at any print size. */
     * { margin: 0; box-sizing: border-box; }
     body { background: #cfd3da; font-family: "Segoe UI", system-ui, sans-serif; }
 
@@ -24,27 +25,46 @@
 
     .sticker {
       position: relative;
-      width: 1585px; height: 987px;   /* screen size; overridden for print below */
+      container-type: inline-size;    /* so the serial can size in cqw */
+      width: 1000px; height: 600px;   /* screen size; overridden for print below */
       max-width: 100%;
-      aspect-ratio: 1585 / 987;
+      aspect-ratio: 1000 / 600;
     }
     .sticker .bg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-    /* QR overlay — % of the artwork box so it scales with the sticker */
+    /* QR overlay — % of the artwork box so it scales with the sticker. Matches
+       the artwork's own image slot (631.4,68.16 306.4x312.09), squared off and
+       centred in it. */
     .sticker .qr {
       position: absolute;
-      left: 63.91%; top: 14.49%;
-      width: 26.18%; aspect-ratio: 1;
+      left: 63.14%; top: 11.83%;
+      width: 30.64%; aspect-ratio: 1;
     }
     .sticker .qr svg, .sticker .qr img { width: 100%; height: 100%; display: block; }
+    /* Sticker serial — the red band above the QR card (y 0..44) is empty, so the
+       number sits there: legible to us, unobtrusive to anyone glancing at the
+       car. Right edge lines up with the QR's own right edge (x=937.8), not the
+       card's, so it reads as part of the QR block. Black is the most
+       fade-resistant ink, which matters on a red field that will lift first.
+       Sized in cqw so it tracks the sticker at any print size. */
+    .sticker .serial {
+      position: absolute;
+      right: 6.22%; top: 3%;
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 7px;
+      font-size: 1.3cqw;
+      letter-spacing: 0.06em;
+      color: #000;
+      white-space: nowrap;
+    }
 
     @media print {
       /* One sticker per page, sized to the physical sticker. Adjust to your real
-         die-cut size; aspect must stay 1585:987 (≈1.606). */
-      @page { size: 105mm 65.4mm; margin: 0; }
+         die-cut size; aspect must stay 1000:600 (≈1.667). */
+      @page { size: 105mm 63mm; margin: 0; }
       html, body { background: #fff; }
       .toolbar { display: none; }
       .sheet { padding: 0; }
-      .sticker { width: 105mm; height: 65.4mm; }
+      .sticker { width: 105mm; height: 63mm; }
     }
   </style>
 </head>
@@ -55,8 +75,9 @@
   </div>
   <div class="sheet">
     <div class="sticker">
-      <img class="bg" src="/images/org-premium-bg.svg" alt="ParkTag sticker">
+      <img class="bg" src="/images/org-parktag-sticker.svg" alt="ParkTag sticker">
       <div class="qr"><!--QR--></div>
+      <div class="serial">__SERIAL__</div>
     </div>
   </div>
 </body>

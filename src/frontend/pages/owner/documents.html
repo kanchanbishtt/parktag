@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <title>ParkTag | Vehicle Documents</title>
+  <link rel="stylesheet" href="/styles/styles.css"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --amber: #FF2700;
+      --amber-dark: #D92200;
+      --tint: #FFE3DD;
+      --ink: #323232;
+      --ink-2: #374151;
+      --ink-3: #6B7280;
+      --ink-4: #9CA3AF;
+      --surface: #F1F1F0;
+      --card: #ffffff;
+      --border: #E5E7EB;
+      --radius-card: 20px;
+      --radius-btn: 14px;
+      font-size: 16px;
+    }
+
+    html { -webkit-text-size-adjust: 100%; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: var(--surface);
+      color: var(--ink);
+      min-height: 100dvh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Header ─────────────────────────────────────────── */
+    .dv-header {
+      position: sticky; top: 0; z-index: 50;
+      display: grid; grid-template-columns: 56px 1fr 56px; align-items: center;
+      background: var(--card); border-bottom: 1px solid var(--border);
+      padding: 10px 8px; padding-top: max(10px, env(safe-area-inset-top));
+    }
+    .dv-back {
+      display: flex; align-items: center; justify-content: center;
+      width: 40px; height: 40px; border-radius: 12px;
+      color: var(--ink-2); text-decoration: none;
+    }
+    .dv-back:active { background: #f3f4f6; }
+    .dv-logo { text-align: center; }
+    .dv-lock-btn {
+      display: none; align-items: center; justify-content: center;
+      width: 40px; height: 40px; border-radius: 12px;
+      border: none; background: none; color: var(--ink-3); cursor: pointer;
+    }
+    .dv-lock-btn.dv-on { display: flex; }
+    .dv-lock-btn:active { background: #f3f4f6; }
+
+    .dv-wrap { max-width: 720px; margin: 0 auto; padding: 16px 14px 40px; }
+
+    /* ── Title block ────────────────────────────────────── */
+    .dv-title { font-size: 1.4rem; font-weight: 900; color: var(--ink); margin-bottom: 4px; }
+    .dv-bar { width: 34px; height: 3px; background: var(--amber); border-radius: 2px; margin-bottom: 8px; }
+    .dv-sub { font-size: .86rem; color: var(--ink-3); line-height: 1.5; margin-bottom: 18px; }
+    .dv-vehicle {
+      display: inline-flex; align-items: center; gap: 7px;
+      background: var(--tint); color: var(--amber);
+      font-size: .75rem; font-weight: 800; letter-spacing: .04em;
+      padding: 5px 11px; border-radius: 20px; margin-bottom: 10px;
+    }
+
+    /* ── Status / error banners ─────────────────────────── */
+    .dv-msg {
+      display: none; font-size: .82rem; font-weight: 600;
+      padding: 11px 14px; border-radius: 12px; margin-bottom: 14px;
+    }
+    .dv-msg.dv-show { display: block; }
+    .dv-msg.dv-err { background: #fdecec; color: #c0271b; }
+    .dv-msg.dv-ok  { background: #eaf7ee; color: #1c7a3e; }
+
+    /* ── Locked / PIN card ──────────────────────────────── */
+    .dv-card {
+      background: var(--card); border-radius: var(--radius-card);
+      padding: 22px 18px; box-shadow: 0 1px 3px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.04);
+    }
+    .dv-lock-ic {
+      width: 54px; height: 54px; border-radius: 16px; margin: 0 auto 14px;
+      background: var(--tint); color: var(--amber); padding: 13px;
+    }
+    .dv-lock-ic svg { width: 100%; height: 100%; }
+    .dv-card h2 { font-size: 1.05rem; font-weight: 900; text-align: center; margin-bottom: 6px; }
+    .dv-card p.dv-hint { font-size: .84rem; color: var(--ink-3); text-align: center; line-height: 1.55; margin-bottom: 18px; }
+
+    .dv-f { margin-bottom: 13px; }
+    .dv-f label { display: block; font-size: .72rem; font-weight: 700; color: var(--ink-2); margin-bottom: 5px; }
+    .dv-f input, .dv-f select {
+      width: 100%; padding: 13px 14px; border: 1.5px solid #e6e6ec;
+      border-radius: 13px; font-size: .95rem; color: var(--ink);
+      background: #fff; outline: none; font-family: inherit;
+    }
+    .dv-f input:focus, .dv-f select:focus { border-color: var(--amber); box-shadow: 0 0 0 3.5px var(--tint); }
+    .dv-pin { letter-spacing: .45em; font-weight: 800; text-align: center; }
+
+    .dv-primary {
+      width: 100%; padding: 15px; border: none; border-radius: 15px;
+      background: var(--amber); color: #fff; font-size: .97rem; font-weight: 800;
+      cursor: pointer; font-family: inherit;
+    }
+    .dv-primary:active { background: var(--amber-dark); }
+    .dv-primary:disabled { opacity: .6; cursor: default; }
+    .dv-secondary {
+      width: 100%; padding: 12px; margin-top: 9px; border: 1.5px solid var(--border);
+      border-radius: 14px; background: #fff; color: var(--ink-2);
+      font-size: .88rem; font-weight: 700; cursor: pointer; font-family: inherit;
+    }
+
+    /* ── Document grid ──────────────────────────────────── */
+    .dv-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 18px; }
+    @media (min-width: 560px) { .dv-grid { grid-template-columns: repeat(3, 1fr); } }
+
+    .dv-doc {
+      background: var(--card); border-radius: 16px; overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,.06), 0 4px 14px rgba(0,0,0,.04);
+      display: flex; flex-direction: column;
+    }
+    /* Wraps the preview so the edit pencil can sit over it as a SIBLING of the
+       tap-to-view area rather than nested inside it — a button inside another
+       button is neither valid nor reachable by a screen reader. */
+    .dv-doc-media { position: relative; }
+    .dv-doc-thumb {
+      aspect-ratio: 4 / 3; background: #f3f4f6;
+      display: flex; align-items: center; justify-content: center;
+      overflow: hidden; position: relative; cursor: pointer;
+    }
+    .dv-edit-fab {
+      position: absolute; top: 7px; right: 7px; z-index: 2;
+      width: 30px; height: 30px; border-radius: 50%; padding: 6px;
+      border: none; background: rgba(255,255,255,.94); color: var(--ink-2);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; box-shadow: 0 1px 5px rgba(0,0,0,.2);
+    }
+    .dv-edit-fab svg { width: 100%; height: 100%; }
+    .dv-edit-fab:active { background: #fff; color: var(--amber); }
+    .dv-doc-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .dv-doc-thumb .dv-fallback { width: 42px; height: 42px; color: var(--amber); }
+    .dv-chip {
+      position: absolute; top: 7px; left: 7px;
+      background: rgba(3,22,45,.78); color: #fff;
+      font-size: .62rem; font-weight: 800; letter-spacing: .05em;
+      padding: 3px 7px; border-radius: 20px; text-transform: uppercase;
+    }
+    .dv-doc-body { padding: 10px 11px 12px; flex: 1; display: flex; flex-direction: column; }
+    .dv-doc-name {
+      font-size: .85rem; font-weight: 800; color: var(--ink); line-height: 1.3;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-bottom: 2px;
+    }
+    .dv-doc-meta { font-size: .7rem; color: var(--ink-4); margin-bottom: 9px; }
+    .dv-doc-acts { display: flex; gap: 6px; margin-top: auto; }
+    .dv-act {
+      flex: 1; padding: 7px 0; border: 1px solid var(--border); border-radius: 9px;
+      background: #fff; font-size: .72rem; font-weight: 700; color: var(--ink-2);
+      cursor: pointer; font-family: inherit;
+    }
+    .dv-act:active { background: #f3f4f6; }
+    .dv-act.dv-danger { color: #c0271b; border-color: #f3d3d0; }
+
+    .dv-empty {
+      background: var(--card); border-radius: var(--radius-card);
+      padding: 34px 20px; text-align: center; color: var(--ink-4);
+      font-size: .88rem; line-height: 1.6; margin-bottom: 18px;
+    }
+    .dv-quota { font-size: .74rem; color: var(--ink-4); text-align: center; margin-top: 14px; }
+
+    /* ── Viewer / edit overlay ──────────────────────────── */
+    .dv-ov {
+      position: fixed; inset: 0; background: rgba(3,22,45,.72); z-index: 200;
+      display: none; align-items: center; justify-content: center; padding: 16px;
+    }
+    .dv-ov.dv-open { display: flex; }
+    .dv-ov-inner {
+      background: var(--card); border-radius: 18px; width: 100%; max-width: 520px;
+      max-height: 90vh; overflow-y: auto; padding: 16px;
+    }
+    .dv-ov-hd { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+    .dv-ov-hd h3 { font-size: 1rem; font-weight: 900; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .dv-x {
+      border: none; background: #f3f4f6; border-radius: 10px;
+      width: 32px; height: 32px; cursor: pointer; color: var(--ink-3); padding: 7px; flex: 0 0 32px;
+    }
+    .dv-x svg { width: 100%; height: 100%; }
+    #dv-view-img { width: 100%; border-radius: 12px; display: block; background: #f3f4f6; }
+    .dv-pdf-note { text-align: center; padding: 26px 12px; color: var(--ink-3); font-size: .88rem; line-height: 1.6; }
+
+    @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+  </style>
+</head>
+<body>
+
+<header class="dv-header">
+  <!-- data-back: see scripts/owner/smart-back.js — returns to the previous page
+       rather than always forcing the dashboard. href is the no-history fallback. -->
+  <a href="/owner-welcome" class="dv-back" aria-label="Back" data-back>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+      <path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  </a>
+  <div class="dv-logo">
+    <a href="https://parktag.me" aria-label="ParkTag home" style="display:inline-flex;align-items:center;text-decoration:none">
+      <img src="/images/light-logo.png" alt="ParkTag" style="height:42px;width:auto;">
+    </a>
+  </div>
+  <button class="dv-lock-btn" id="dv-lock" aria-label="Lock documents" title="Lock">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="5" y="10.5" width="14" height="9.5" rx="2.2" stroke="currentColor" stroke-width="1.8"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" stroke="currentColor" stroke-width="1.8"/></svg>
+  </button>
+</header>
+
+<div class="dv-wrap">
+  <span class="dv-vehicle" id="dv-vehicle" hidden></span>
+  <h1 class="dv-title">Vehicle Documents</h1>
+  <div class="dv-bar"></div>
+  <p class="dv-sub">Your RC, insurance, PUC and licence — kept private and locked behind your PIN.</p>
+
+  <div class="dv-msg dv-err" id="dv-err" role="alert"></div>
+  <div class="dv-msg dv-ok" id="dv-ok" role="status"></div>
+
+  <div id="dv-body"></div>
+</div>
+
+<!-- Viewer / editor overlay -->
+<div class="dv-ov" id="dv-ov">
+  <div class="dv-ov-inner" role="dialog" aria-modal="true" aria-labelledby="dv-ov-title">
+    <div class="dv-ov-hd">
+      <h3 id="dv-ov-title">Document</h3>
+      <button class="dv-x" id="dv-ov-x" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div id="dv-ov-body"></div>
+  </div>
+</div>
+
+<script src="/scripts/owner/smart-back.js"></script>
+<script type="module" src="/scripts/owner/documents.js"></script>
+</body>
+</html>

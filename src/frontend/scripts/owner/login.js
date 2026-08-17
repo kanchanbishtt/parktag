@@ -1,5 +1,19 @@
 import { getCaptchaToken } from "../recaptcha.js";
 
+// Remember that this visitor arrived here on their way to the shop (/shop sends
+// signed-out buyers to /owner-login?next=shop), so the dashboard can open the
+// Shop tab for them once they are signed in.
+//
+// sessionStorage rather than carrying a ?next through the redirects: signing in
+// can take several hops off this page — the email OTP screen, the Google OAuth
+// round trip — and each one arrives on a URL we do not control, so a query
+// string would be dropped somewhere along the way. It is also tab-scoped, so
+// the intent cannot leak into the visitor's other tabs. The dashboard deletes
+// the key as it reads it, the same hand-off pt_is_new_user already uses.
+if (new URLSearchParams(location.search).get("next") === "shop") {
+  sessionStorage.setItem("pt_after_login", "shop");
+}
+
 let _currentPhone = null;
 
 // HTML-escape any value before interpolating it into innerHTML. tag.plateNumber
@@ -31,7 +45,6 @@ async function sendWhatsappOtp(raw) {
 
   byId("phone-step2").style.display = "";
   byId("owner-form-step1").style.display = "none";
-  byId("google-section").style.display = "none";
   const sub = byId("card-sub");
   if (sub) {
     const last4 = phone.replace(/\D/g, "").slice(-4);
@@ -471,7 +484,6 @@ if (hasEl("phone-back-btn")) {
     e.preventDefault();
     byId("phone-step2").style.display = "none";
     byId("owner-form-step1").style.display = "";
-    byId("google-section").style.display = "";
     setStatus("", "info");
     const btn = byId("owner-login-button");
     if (btn) { btn.disabled = false; btn.classList.remove("pt-btn-loading"); }

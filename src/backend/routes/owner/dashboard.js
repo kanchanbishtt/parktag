@@ -4,42 +4,13 @@ import { clearSession } from "../../lib/auth/session.js";
 import { sendOtp, verifyOtp, isMobileIdentifier, normalizeIdentifier } from "../../lib/auth/otp.js";
 import { getCollections, ensurePendingCallsIndexes } from "../../lib/db/repositories.js";
 import { createQrDataUrl, createPrintQrDataUrl } from "../../lib/core/qr-output.js";
-import { createEtagForVehicle, buildTagScanUrl, VEHICLE_LABELS, etagIdFor } from "../../lib/core/tag-issuance.js";
+import { createEtagForVehicle, buildTagScanUrl, VEHICLE_LABELS, etagIdFor, stickerSerialFor } from "../../lib/core/tag-issuance.js";
 import { validateAddress } from "../../lib/core/address.js";
-import { checkPincodeServiceability, trackShipment, trackingUrl } from "../../lib/integrations/delhivery.js";
-
-// How long a persisted Delhivery tracking snapshot stays fresh before we call
-// their API again. Every dashboard open would otherwise hit Delhivery once per
-// order (up to 20 in parallel); a short cache keeps status live without
-// hammering them or risking rate limits. Delivered is terminal, so a slightly
-// stale snapshot is harmless.
-const TRACKING_TTL_MS = 15 * 60 * 1000;
-
-// Return a tracking snapshot for one order, cached on the order document. Uses
-// the cache when fresh; otherwise refreshes from Delhivery and persists it.
-// Never throws (trackShipment is best-effort) and never overwrites a good cached
-// status with a transient null from a Delhivery hiccup.
-async function getOrderTracking(collections, env, order) {
-  if (!order.waybill) return null;
-
-  const cache = order.trackingCache;
-  if (cache && cache.fetchedAt &&
-      Date.now() - new Date(cache.fetchedAt).getTime() < TRACKING_TTL_MS) {
-    return cache;
-  }
-
-  const fresh = await trackShipment(env, order.waybill);
-  if (fresh && fresh.status) {
-    const snapshot = { ...fresh, fetchedAt: new Date().toISOString() };
-    await collections.shopOrders
-      .updateOne({ _id: order._id }, { $set: { trackingCache: snapshot } })
-      .catch(() => {});
-    return snapshot;
-  }
-
-  // Delhivery gave us nothing usable — prefer the last good cache over a null.
-  return cache || fresh;
-}
+import { resolveOwnerName, firstNameOf, cleanName, isIdentifierNotAName } from "../../lib/core/owner-name.js";
+import { checkPincodeServiceability, trackingUrl } from "../../lib/integrations/delhivery.js";
+// Shared with the public order-tracking page, so both show the same status off
+// the same cache.
+import { getOrderTracking } from "../../lib/core/order-tracking.js";
 
 // Strip an address DB doc down to the shippable fields (no _id/ownerId/timestamps).
 function shapeAddress(doc) {
@@ -92,13 +63,30 @@ export function registerOwnerRoutes(app, env) {
       .limit(10)
       .toArray();
 
+    // Resolved server-side so the greeting, the My Info panel and the address
+    // form all agree. The browser used to guess a name out of the email itself,
+    // which is how "info@" became "Hi Info".
+    const addressForName = await collections.addresses.findOne({ ownerId });
+    const resolvedName = resolveOwnerName(owner, addressForName);
+
     return {
       ok: true,
       owner: {
         _id: String(owner._id),
         email: owner.email || null,
         mobile: owner.mobile || null,
-        displayName: owner.displayName || request.session.displayName || null,
+        // Only a name the owner actually set. A stored identifier reads as
+        // "no name", so the dashboard offers to collect one instead of
+        // greeting them with their own phone number.
+        displayName: isIdentifierNotAName(owner.displayName, owner)
+          ? null
+          : cleanName(owner.displayName),
+        // What to put after "Hi" — null means the dashboard says "there".
+        greetingName: firstNameOf(resolvedName),
+        // Whether that name is stored on the profile or merely inferred, so the
+        // dashboard knows to offer "add your name" rather than "edit".
+        hasOwnName: Boolean(cleanName(owner.displayName) &&
+          !isIdentifierNotAName(owner.displayName, owner)),
         credits: owner.credits || 0
       },
       tags: await Promise.all(tags.map(async (tag) => {
@@ -108,6 +96,7 @@ export function registerOwnerRoutes(app, env) {
           id: String(tag._id),
           token: tag.token,
           etagId: etagIdFor(tag._id),
+          serial: stickerSerialFor(tag),
           status: tag.status,
           vehicleType: tag.vehicleType || null,
           vehicleLabel: VEHICLE_LABELS[tag.vehicleType] || tag.vehicleLabel || "Vehicle",
@@ -177,7 +166,7 @@ export function registerOwnerRoutes(app, env) {
     }
   );
 
-  app.post("/api/owner/mobile", async (request, reply) => {
+  app.post("/api/owner/mobile", { config: { rateLimit: { max: 10, timeWindow: "5 minutes" } } }, async (request, reply) => {
     const blocked = await requireSession(app, "owner")(request, reply);
     if (blocked) return blocked;
 
@@ -215,7 +204,7 @@ export function registerOwnerRoutes(app, env) {
   // Generate (or fetch existing) a real, scannable E-Tag for a vehicle.
   // Returns a high-resolution QR linked to a 256-bit secure token. This is what
   // the print/PDF flow now uses instead of the old demo QR placeholder.
-  app.post("/api/owner/etag/generate", async (request, reply) => {
+  app.post("/api/owner/etag/generate", { config: { rateLimit: { max: 20, timeWindow: "5 minutes" } } }, async (request, reply) => {
     const blocked = await requireSession(app, "owner")(request, reply);
     if (blocked) return blocked;
 
@@ -248,6 +237,7 @@ export function registerOwnerRoutes(app, env) {
         id: String(tag._id),
         token: tag.token,
         etagId: etagIdFor(tag._id),
+        serial: stickerSerialFor(tag),
         vehicleType: tag.vehicleType || type || null,
         plateNumber: tag.plateNumber,
         status: tag.status,
@@ -262,7 +252,7 @@ export function registerOwnerRoutes(app, env) {
   // own unique 256-bit secure token + QR (single source of truth in `tags`).
   // Kept at this path for frontend compatibility. Idempotent: re-adding the same
   // plate returns 409 (the existing E-Tag is reused, never duplicated).
-  app.post("/api/owner/local-vehicle", async (request, reply) => {
+  app.post("/api/owner/local-vehicle", { config: { rateLimit: { max: 20, timeWindow: "5 minutes" } } }, async (request, reply) => {
     const blocked = await requireSession(app, "owner")(request, reply);
     if (blocked) return blocked;
 
@@ -290,6 +280,57 @@ export function registerOwnerRoutes(app, env) {
       return { ok: false, error: "Vehicle already added." };
     }
     return { ok: true, id: String(result.tag._id), token: result.tag.token };
+  });
+
+  // ── Profile ───────────────────────────────────────────────────────
+  // Sets the name shown on the dashboard. There was no way for an owner to
+  // record a name at all before this: sign-in collects an email or a mobile and
+  // nothing else, and the field it landed in was the identifier itself.
+  app.patch("/api/owner/profile", async (request, reply) => {
+    const blocked = await requireSession(app, "owner")(request, reply);
+    if (blocked) return blocked;
+
+    const collections = await getCollections(env);
+    if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
+
+    const ownerId = toObjectId(request.session.userId);
+    const owner = await collections.owners.findOne({ _id: ownerId });
+    if (!owner) { reply.code(404); return { ok: false, error: "Owner not found." }; }
+
+    // An empty value clears the name rather than erroring — the inline field
+    // has to be undoable, and "" is how the browser says "I changed my mind".
+    const raw = request.body?.displayName;
+    const name = cleanName(raw);
+
+    if (raw != null && String(raw).trim() !== "" && !name) {
+      reply.code(400);
+      return { ok: false, error: "Please enter at least 2 characters." };
+    }
+
+    // Refusing the identifier keeps the very problem this endpoint exists to fix
+    // from being typed straight back in.
+    if (name && isIdentifierNotAName(name, owner)) {
+      reply.code(400);
+      return { ok: false, error: "Please enter your name, not your phone number or email." };
+    }
+
+    await collections.owners.updateOne(
+      { _id: ownerId },
+      { $set: { displayName: name, updatedAt: new Date().toISOString() } }
+    );
+
+    // The session carries displayName for other screens; leaving it stale would
+    // show the old name until the owner signed out and back in.
+    if (request.session) request.session.displayName = name;
+
+    const address = await collections.addresses.findOne({ ownerId });
+    const resolved = resolveOwnerName({ ...owner, displayName: name }, address);
+    return {
+      ok: true,
+      displayName: name,
+      greetingName: firstNameOf(resolved),
+      hasOwnName: Boolean(name)
+    };
   });
 
   // ── Delivery address (physical sticker shipping) ──────────────────
@@ -333,6 +374,22 @@ export function registerOwnerRoutes(app, env) {
       { $set: { ...result.address, updatedAt: now }, $setOnInsert: { ownerId, createdAt: now } },
       { upsert: true }
     );
+
+    // The recipient name typed here is the only real name most owners ever give
+    // us, so adopt it as the profile name when there isn't one. Deliberately
+    // only fills a gap: an owner who set their own name keeps it, even if they
+    // ship to someone else.
+    const owner = await collections.owners.findOne({ _id: ownerId });
+    const recipient = cleanName(result.address.fullName);
+    if (owner && recipient &&
+        isIdentifierNotAName(owner.displayName, owner) &&
+        !isIdentifierNotAName(recipient, owner)) {
+      await collections.owners.updateOne(
+        { _id: ownerId },
+        { $set: { displayName: recipient, updatedAt: now } }
+      );
+      if (request.session) request.session.displayName = recipient;
+    }
 
     return { ok: true, address: result.address };
   });
@@ -509,16 +566,25 @@ export function registerOwnerRoutes(app, env) {
   // Until now this number only ever lived in the browser's localStorage, so it
   // existed on exactly one device and the server could not dial it. Persisting
   // it here is what makes the scanner-side SOS button able to connect anyone.
-  app.post("/api/owner/tags/:tagId/emergency-contact", async (request, reply) => {
+  app.post("/api/owner/tags/:tagId/emergency-contact", { config: { rateLimit: { max: 10, timeWindow: "5 minutes" } } }, async (request, reply) => {
     const blocked = await requireSession(app, "owner")(request, reply);
     if (blocked) return blocked;
 
     const raw = String((request.body || {}).emergencyContact ?? "").trim();
     const digits = raw.replace(/\D/g, "");
 
-    // Empty clears the contact; otherwise demand something that can actually be
-    // dialled. 7-15 digits covers every E.164 national number.
-    if (raw && (digits.length < 7 || digits.length > 15)) {
+    // Required, and no longer clearable. This number is the whole of the SOS
+    // feature: a scanner standing at a crash gets the owner's next of kin only
+    // if one is recorded. Allowing it to be emptied meant the button could be
+    // switched off silently, from the one screen where that is least visible.
+    if (!raw) {
+      reply.code(400);
+      return { ok: false, error: "An emergency contact is required — this is who we call in an accident." };
+    }
+
+    // Demand something that can actually be dialled. 7-15 digits covers every
+    // E.164 national number.
+    if (digits.length < 7 || digits.length > 15) {
       reply.code(400);
       return { ok: false, error: "Enter a valid emergency contact number." };
     }
@@ -528,7 +594,7 @@ export function registerOwnerRoutes(app, env) {
     const tagId = tryObjectId(request.params.tagId);
     if (!tagId) { reply.code(400); return { ok: false, error: "Invalid tag id" }; }
 
-    const emergencyContact = raw ? toE164(raw) : null;
+    const emergencyContact = toE164(raw);
 
     // Guard against an owner pointing the SOS at the tag's own masked-call
     // number or at their own mobile — in an accident that reaches nobody new.
@@ -579,24 +645,77 @@ export function registerOwnerRoutes(app, env) {
     return { ok: true };
   });
 
-  app.post("/api/owner/set-password", async (request, reply) => {
-    const blocked = await requireSession(app, "owner")(request, reply);
-    if (blocked) return blocked;
+  // Set or change the account password.
+  //
+  // Two properties this must hold, neither of which it used to:
+  //
+  //  1. CHANGING an existing password requires proving the current one. Without
+  //     that check a session alone was enough to overwrite it, so anyone who got
+  //     hold of a cookie could lock the real owner out and convert temporary
+  //     access into permanent credentials. Accounts with no password yet
+  //     (mobile-OTP or Google sign-ups) are SETTING one for the first time, so
+  //     there is nothing to prove — the session is the only credential they have
+  //     and demanding a password they never had would lock them out of the
+  //     feature entirely.
+  //  2. A successful change revokes every OTHER session, which is what makes
+  //     "change your password" an effective response to a suspected compromise.
+  //     resetPassword() already did this; this route did not, so the attacker's
+  //     session survived the very action taken to evict them. The CURRENT
+  //     session is deliberately kept alive so the owner isn't logged out of the
+  //     tab they just used.
+  app.post(
+    "/api/owner/set-password",
+    { config: { rateLimit: { max: 5, timeWindow: "5 minutes" } } },
+    async (request, reply) => {
+      const blocked = await requireSession(app, "owner")(request, reply);
+      if (blocked) return blocked;
 
-    const { password } = request.body || {};
-    if (!password || password.length < 8) {
-      reply.code(400);
-      return { ok: false, error: "Password must be at least 8 characters" };
+      const { password, currentPassword } = request.body || {};
+      if (!isNonEmptyString(password) || password.length < 8) {
+        reply.code(400);
+        return { ok: false, error: "Password must be at least 8 characters" };
+      }
+
+      const collections = await getCollections(env);
+      if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
+
+      const ownerId = toObjectId(request.session.userId);
+      const owner = await collections.owners.findOne({ _id: ownerId });
+      if (!owner) {
+        reply.code(404);
+        return { ok: false, error: "Account not found." };
+      }
+
+      if (owner.passwordHash) {
+        if (!isNonEmptyString(currentPassword)) {
+          reply.code(400);
+          return {
+            ok: false,
+            code: "CURRENT_PASSWORD_REQUIRED",
+            error: "Enter your current password to change it."
+          };
+        }
+        const { valid } = await verifyPassword(currentPassword, owner.passwordHash);
+        if (!valid) {
+          reply.code(401);
+          return { ok: false, error: "Incorrect current password." };
+        }
+      }
+
+      const hash = await createPasswordHash(password);
+      await collections.owners.updateOne(
+        { _id: ownerId },
+        { $set: { passwordHash: hash } }
+      );
+
+      // Evict every other session for this account (see note 2 above).
+      await collections.sessions
+        .deleteMany({ userId: String(ownerId), _id: { $ne: request.session.id } })
+        .catch(() => {});
+
+      return { ok: true };
     }
-
-    const collections = await getCollections(env);
-    const hash = await createPasswordHash(password);
-    await collections.owners.updateOne(
-      { _id: toObjectId(request.session.userId) },
-      { $set: { passwordHash: hash } }
-    );
-    return { ok: true };
-  });
+  );
 
   // Permanently delete the owner's account and every record tied to it.
   // Accounts with a password must re-enter it first — this is the most
@@ -644,14 +763,18 @@ export function registerOwnerRoutes(app, env) {
       ]);
       await collections.owners.deleteOne({ _id: ownerId });
 
-      clearSession(app, request, reply);
+      // Must be awaited. clearSession only reaches `reply.clearCookie` after an
+      // `await` on the session collection, so firing it off unawaited let the
+      // response serialise first and the Set-Cookie header never made it out —
+      // the browser kept a cookie for a deleted account.
+      await clearSession(app, request, reply);
       return { ok: true };
     }
   );
 
   // Owner calls back the most recent scanner who contacted them within 60 minutes.
   // No phone input — owner's phone comes from their profile (owner.mobile).
-  app.post("/api/owner/callback/register-call", async (request, reply) => {
+  app.post("/api/owner/callback/register-call", { config: { rateLimit: { max: 5, timeWindow: "5 minutes" } } }, async (request, reply) => {
     const blocked = await requireSession(app, "owner")(request, reply);
     if (blocked) return blocked;
 

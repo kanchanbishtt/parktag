@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>ParkTag Admin | E-Tags</title>
+  <title>ParkTag Admin | Tags</title>
   <style>
     * { box-sizing: border-box; }
     /* This page does not link /styles/styles.css, so it carries its own copy of
@@ -12,17 +12,42 @@
     body { margin: 0; font-family: "Segoe UI", Tahoma, sans-serif; background: #F1F1F0; color: #03162D; overflow-wrap: break-word; }
     .wrap { max-width: 1180px; margin: 0 auto; padding: 22px 18px 60px; }
     .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
-    .title { font-size: 1.5rem; font-weight: 900; margin: 0; }
-    .title span { color: #FF2700; }
+    .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    /* The real logo asset rather than a typed wordmark. width/height are on the
+       tag as well, so the header does not reflow when the image lands. */
+    /* The asset is a PNG with a solid white background, so on this page's grey
+       ground it renders as a white box. `multiply` drops the white out and
+       leaves the ink, which is the same trick the scan page header uses in
+       reverse (`lighten`) for the dark logo on its dark bar. */
+    .brand-logo { width: auto; height: 42px; aspect-ratio: 735 / 280; flex: 0 0 auto;
+                  display: block; mix-blend-mode: multiply; }
+    .title { font-size: 1.5rem; font-weight: 900; margin: 0; min-width: 0; }
+    /* The dot separates the logo from the page name the way the wordmark used
+       to, without needing a character in the markup. */
+    .brand-sep { color: #9CA3AF; font-weight: 700; font-size: 1.2rem; }
     a.back { text-decoration: none; color: #6B7280; font-weight: 700; font-size: .85rem; border: 1.5px solid #E5E7EB; padding: 8px 14px; border-radius: 10px; background: #fff; }
     .bar { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
     .bar input, .bar select { height: 42px; border: 1.5px solid #E5E7EB; border-radius: 10px; padding: 0 12px; font-size: .9rem; font-family: inherit; outline: none; }
-    .bar input { flex: 1; min-width: 220px; }
+    .bar input { flex: 1 1 260px; min-width: 0; }
+    .bar select { flex: 0 0 auto; }
+    /* Sized to its content and given the same 42px box as the controls beside
+       it, so it reads as one of the filters instead of a stray line of text.
+       It used to be an inline-styled label with no sizing at all, which took a
+       whole flex row to itself the moment the bar wrapped. */
+    .check { display: inline-flex; align-items: center; gap: 8px; flex: 0 0 auto;
+             height: 42px; padding: 0 14px; border: 1.5px solid #E5E7EB; border-radius: 10px;
+             background: #fff; font-size: .82rem; font-weight: 700; color: #6B7280;
+             white-space: nowrap; cursor: pointer; user-select: none; }
+    .check:hover { border-color: #D1D5DB; color: #374151; }
+    .check input { width: 16px; height: 16px; margin: 0; accent-color: #FF2700; cursor: pointer; }
     .bar input:focus, .bar select:focus { border-color: #FF2700; }
     .summary { font-size: .82rem; color: #6B7280; margin: 0 0 10px; }
     .card { background: #fff; border: 1px solid #E5E7EB; border-radius: 14px; overflow: auto; }
     table { width: 100%; border-collapse: collapse; font-size: .84rem; min-width: 860px; }
-    th, td { text-align: left; padding: 11px 12px; border-bottom: 1px solid #F1F2F4; white-space: nowrap; }
+    th, td { text-align: left; padding: 10px; border-bottom: 1px solid #F1F2F4; white-space: nowrap; }
+    /* Two short lines instead of one long one, so the column stops driving the
+       table wider than the card that holds it. */
+    .stamp .muted { display: block; font-size: .76rem; }
     th { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; color: #9CA3AF; background: #FAFBFC; }
     tr:last-child td { border-bottom: none; }
     .plate { font-weight: 800; letter-spacing: .04em; }
@@ -58,8 +83,10 @@
     @media (max-width: 900px) {
       .wrap { padding: 16px 14px 60px; }
       .title { font-size: 1.28rem; }
-      .bar input, .bar select { height: 44px; font-size: 16px; } /* >=16px: no iOS zoom-on-focus */
-      .bar input { min-width: 0; flex: 1 1 100%; }
+      /* >=16px keeps iOS from zooming the page on focus; 44px is the touch
+         target. The bar still fits on ONE row here — it only wraps further
+         down, at 700px, where the four controls genuinely stop fitting. */
+      .bar input, .bar select, .check { height: 44px; font-size: 16px; }
 
       .card { background: transparent; border: none; overflow: visible; border-radius: 0; }
       table, tbody, tr, td { display: block; width: 100%; }
@@ -82,6 +109,14 @@
       .overlay { padding: 10px; }
       .modal { padding: 16px; max-height: 90vh; }
     }
+    /* ── The filter bar stops fitting on one row here. Search takes the full
+       width, the two dropdowns share the next, and the checkbox gets its own
+       full-width row so it stays a comfortable tap target. ── */
+    @media (max-width: 700px) {
+      .bar input { flex: 1 1 100%; }
+      .bar select { flex: 1 1 calc(50% - 5px); min-width: 0; }
+      .check { flex: 1 1 100%; justify-content: center; }
+    }
     /* ── Small phones: labels sit above values for breathing room. ── */
     @media (max-width: 420px) {
       td { flex-direction: column; align-items: stretch; gap: 3px; text-align: left; }
@@ -93,18 +128,36 @@
 <body>
   <div class="wrap">
     <div class="top">
-      <h1 class="title">Park<span>Tag</span> · E-Tags</h1>
+      <div class="brand">
+        <img class="brand-logo" src="/images/light-logo.png" alt="ParkTag"
+             width="735" height="280" />
+        <span class="brand-sep" aria-hidden="true">·</span>
+        <h1 class="title">Tags</h1>
+      </div>
       <a class="back" href="/admin/overview">← Back to Admin</a>
     </div>
 
     <div class="bar">
-      <input id="q" type="search" placeholder="Search by vehicle number, E-Tag ID, owner email/mobile…" autocomplete="off"/>
-      <select id="status">
+      <input id="q" type="search" placeholder="Search by vehicle number, E-Tag ID, sticker serial, owner email/mobile…" autocomplete="off"/>
+      <!-- Broadest axis first: which population, then which kind, then which
+           state. Claim state decides whether you are looking at stock or at
+           tags in the field, which is the coarsest cut of the three. -->
+      <select id="claim" aria-label="Claim state">
+        <option value="claimed">Claimed by an owner</option>
+        <option value="unclaimed">Unclaimed stock</option>
+        <option value="all">Claimed + unclaimed</option>
+      </select>
+      <select id="category" aria-label="Tag category">
+        <option value="all">All tags</option>
+        <option value="premium">Premium tags</option>
+        <option value="etag">E-Tags</option>
+      </select>
+      <select id="status" aria-label="Tag status">
         <option value="">All statuses</option>
         <option value="active">Active</option>
         <option value="inactive">Inactive</option>
       </select>
-      <label style="display:flex;align-items:center;gap:6px;font-size:.82rem;color:#6B7280">
+      <label class="check" for="includeDeleted">
         <input id="includeDeleted" type="checkbox"/> Show deleted
       </label>
     </div>
@@ -115,11 +168,11 @@
       <table>
         <thead>
           <tr>
-            <th>E-Tag ID</th><th>Vehicle</th><th>Owner</th><th>Status</th>
+            <th>E-Tag ID</th><th>Sticker serial</th><th>Vehicle</th><th>Owner</th><th>Status</th>
             <th>Plan</th><th>Contacts</th><th>Created</th><th>Actions</th>
           </tr>
         </thead>
-        <tbody id="rows"><tr><td colspan="8" class="empty">Loading…</td></tr></tbody>
+        <tbody id="rows"><tr><td colspan="9" class="empty">Loading…</td></tr></tbody>
       </table>
     </div>
   </div>

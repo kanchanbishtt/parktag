@@ -81,13 +81,21 @@ export function registerReviewerSetupRoute(app, env) {
       });
     }
 
+    // URLs are built from the configured base and the REAL route paths. Both
+    // were wrong before: `/owner/login` is not a route (it is `/owner-login`)
+    // and `/t/{token}` is not a route either (it is `/tag/{token}`), so a
+    // reviewer following either link got a 404 — on the one flow this endpoint
+    // exists to demonstrate. Hardcoding the production host also made the
+    // response useless from any other environment.
+    const base = (env.appBaseUrl || "https://app.parktag.me").replace(/\/+$/, "");
+
     return {
       ok: true,
       credentials: {
-        loginUrl: "https://app.parktag.me/owner/login",
+        loginUrl: `${base}/owner-login`,
         email: REVIEWER_EMAIL,
         password: REVIEWER_PASSWORD,
-        tagScanUrl: `https://app.parktag.me/t/${tagToken}`,
+        tagScanUrl: `${base}/tag/${tagToken}`,
         plateLastFour: "9999"
       }
     };

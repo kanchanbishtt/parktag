@@ -67,12 +67,30 @@ export function minutesFromNow(minutes) {
   return new Date(Date.now() + minutes * 60 * 1000);
 }
 
+// The client's IP, as computed by Fastify from the `trustProxy: 1` setting in
+// app.js — i.e. the address the ONE trusted reverse proxy (Railway's edge)
+// actually observed.
+//
+// This MUST NOT read `x-forwarded-for` directly. That header is a chain the
+// client can prepend to, and its LEFTMOST entry is always fully
+// attacker-controlled: a real deployment's edge APPENDS the true socket
+// address to the right, so `xff.split(",")[0]` returns whatever the caller
+// typed. This function used to do exactly that, which meant every value keyed
+// off it was attacker-chosen. Two things broke as a result:
+//
+//   1. The plate-verification lockout (see routes/public/index.js) buckets
+//      failed attempts by `hashIp(getClientIp(...), token)`. With a spoofable
+//      key, an attacker got a fresh 3-attempt allowance on every request by
+//      rotating the header — the 3-strikes/15-minute lockout never engaged, so
+//      the last-4 plate check (the ONLY gate in front of masked calls, the SOS
+//      call, and plate disclosure) could be brute-forced.
+//   2. `contactRequests.ipAddress` is shown to admins as an audit trail. A
+//      spoofable source made that record forgeable.
+//
+// `request.ip` is derived by proxy-addr from the trusted-hop count and cannot
+// be set by the client, so both are keyed off a real value now.
 export function getClientIp(request) {
-  return (
-    (request.headers["x-forwarded-for"] || "").split(",")[0].trim() ||
-    request.ip ||
-    "unknown"
-  );
+  return request.ip || "unknown";
 }
 
 export function maskPlateNumber(plateNumber) {

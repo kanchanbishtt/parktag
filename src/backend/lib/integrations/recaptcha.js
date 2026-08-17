@@ -68,3 +68,49 @@ export async function verifyRecaptcha(env, token, { remoteIp, expectedAction } =
   }
   return { ok: true, score: data.score };
 }
+
+// ── reCAPTCHA v2 (the "I'm not a robot" checkbox) ────────────────────────
+//
+// A separate key pair from v3 above. The response is pass/fail with no score
+// and no action, so verification is simpler: Google either recognises the
+// token the widget minted or it does not. Same opt-in contract as v3 — with
+// no keys set, verification is a no-op and the caller keeps working.
+
+export function isRecaptchaV2Configured(env) {
+  return Boolean(env.recaptchaV2SiteKey && env.recaptchaV2Secret);
+}
+
+export async function verifyRecaptchaV2(env, token, { remoteIp } = {}) {
+  if (!isRecaptchaV2Configured(env)) return { ok: true, skipped: true };
+
+  // Unlike v3, a v2 token is only minted when the visitor actually ticks the
+  // box, so a missing one is a real failure rather than a dev-host artefact.
+  if (!token || typeof token !== "string") {
+    return { ok: false, reason: "missing-token" };
+  }
+
+  let data;
+  try {
+    const params = new URLSearchParams({
+      secret: env.recaptchaV2Secret,
+      response: token
+    });
+    if (remoteIp) params.set("remoteip", remoteIp);
+
+    const res = await fetch(VERIFY_URL, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: params.toString()
+    });
+    data = await res.json();
+  } catch (err) {
+    // Same reasoning as v3: Google being unreachable is their outage, not the
+    // visitor's fault, and the per-IP and per-tag limits still apply.
+    return { ok: true, degraded: true, error: err && err.message };
+  }
+
+  if (!data || data.success !== true) {
+    return { ok: false, reason: "verify-failed", detail: data && data["error-codes"] };
+  }
+  return { ok: true };
+}

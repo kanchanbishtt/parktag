@@ -323,7 +323,7 @@ export default function Home() {
                 <p className="text-[#495B7B] leading-relaxed mb-8 text-[15px]">
                   Most solutions need both parties on the same app. ParkTag doesn&apos;t. Whoever is trying to reach you just points their phone camera at your tag. That&apos;s it.
                 </p>
-                <a href={`${APP_URL}/register-owner`} className="inline-flex items-center bg-[#03162D] text-white font-bold px-6 py-3 rounded-xl hover:bg-[#03162D] transition-colors text-sm">
+                <a href={`${APP_URL}/shop`} className="inline-flex items-center bg-[#03162D] text-white font-bold px-6 py-3 rounded-xl hover:bg-[#03162D] transition-colors text-sm">
                   Order your tag →
                 </a>
               </AnimateIn>
@@ -470,7 +470,7 @@ export default function Home() {
                     ))}
                   </ul>
 
-                  <a href={`${APP_URL}/register-owner`} className="block text-center border-2 border-[#03162D] text-[#03162D] font-bold py-3 rounded-xl hover:bg-[#03162D] hover:text-white transition-colors text-sm">
+                  <a href={`${APP_URL}/shop`} className="block text-center border-2 border-[#03162D] text-[#03162D] font-bold py-3 rounded-xl hover:bg-[#03162D] hover:text-white transition-colors text-sm">
                     Get Solo Tag
                   </a>
                 </div>
@@ -511,7 +511,7 @@ export default function Home() {
                     ))}
                   </ul>
 
-                  <a href={`${APP_URL}/register-owner`} className="block text-center bg-[#FF2700] hover:bg-[var(--red-hover)] text-white font-bold py-3 rounded-xl transition-colors text-sm">
+                  <a href={`${APP_URL}/shop`} className="block text-center bg-[#FF2700] hover:bg-[var(--red-hover)] text-white font-bold py-3 rounded-xl transition-colors text-sm">
                     Get Duo Pack
                   </a>
                 </div>
@@ -566,7 +566,7 @@ export default function Home() {
                 Never miss a call about<br />your parked vehicle again.
               </h2>
               <p className="text-white/50 mb-8">Join vehicle owners across India who park with confidence.</p>
-              <a href={`${APP_URL}/register-owner`} className="inline-block bg-[#FF2700] hover:bg-[var(--red-hover)] text-white font-bold px-8 py-4 rounded-xl transition-colors text-base">
+              <a href={`${APP_URL}/shop`} className="inline-block bg-[#FF2700] hover:bg-[var(--red-hover)] text-white font-bold px-8 py-4 rounded-xl transition-colors text-base">
                 Get Your ParkTag →
               </a>
               <p className="text-white/25 text-sm mt-4">Starting at ₹299 · Ships across India · 1-year subscription included</p>

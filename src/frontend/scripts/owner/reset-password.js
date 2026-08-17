@@ -77,4 +77,9 @@ if (!getTokenFromUrl()) {
   byId("reset-invalid-shell").hidden = false;
 }
 
-byId("reset-submit")?.addEventListener("click", handleResetPassword);
+// Bound on the form's submit rather than the button's click, so Enter from
+// either password field finishes the reset the same way the button does.
+byId("reset-password-form")?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  handleResetPassword();
+});

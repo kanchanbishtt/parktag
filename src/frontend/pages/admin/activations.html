@@ -13,7 +13,15 @@
     body { margin: 0; font-family: "Segoe UI", Tahoma, sans-serif; background: #F1F1F0; color: #03162D; overflow-x: hidden; overflow-wrap: break-word; }
     .wrap { max-width: 1180px; margin: 0 auto; padding: clamp(14px, 3vw, 24px) clamp(12px, 3vw, 20px) 60px; }
     .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
-    .title { font-size: clamp(1.2rem, 4.5vw, 1.5rem); font-weight: 900; margin: 0; }
+    .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    /* The logo asset, matching the tags page. It is a PNG with a solid white
+       background, so on this page's grey ground it renders as a white box —
+       `multiply` drops the white and leaves the ink. width/height are on the
+       tag too, so the header does not reflow when the image lands. */
+    .brand-logo { width: auto; height: 42px; aspect-ratio: 735 / 280; flex: 0 0 auto;
+                  display: block; mix-blend-mode: multiply; }
+    .brand-sep { color: #9CA3AF; font-weight: 700; font-size: 1.2rem; }
+    .title { font-size: clamp(1.2rem, 4.5vw, 1.5rem); font-weight: 900; margin: 0; min-width: 0; }
     .title span { color: #FF2700; }
     a.back { text-decoration: none; color: #6B7280; font-weight: 700; font-size: .85rem; border: 1.5px solid #E5E7EB; padding: 8px 14px; border-radius: 10px; background: #fff; white-space: nowrap; }
 
@@ -81,7 +89,12 @@
 <body>
   <div class="wrap">
     <div class="top">
-      <h1 class="title">Park<span>Tag</span> · Tag Activations</h1>
+      <div class="brand">
+        <img class="brand-logo" src="/images/light-logo.png" alt="ParkTag"
+             width="735" height="280" />
+        <span class="brand-sep" aria-hidden="true">·</span>
+        <h1 class="title">Tag Activations</h1>
+      </div>
       <a class="back" href="/admin/overview">← Back to Admin</a>
     </div>
 
@@ -98,9 +111,9 @@
       <div class="card">
         <table>
           <thead>
-            <tr><th>E-Tag ID</th><th>Vehicle</th><th>Owner</th><th>Mobile</th><th>Activated On</th><th>Status</th></tr>
+            <tr><th>E-Tag ID</th><th>Sticker serial</th><th>Vehicle</th><th>Owner</th><th>Mobile</th><th>Activated On</th><th>Status</th></tr>
           </thead>
-          <tbody id="activatedRows"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
+          <tbody id="activatedRows"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody>
         </table>
       </div>
     </div>

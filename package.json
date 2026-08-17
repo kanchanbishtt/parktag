@@ -7,14 +7,19 @@
     "dev": "nodemon src/backend/server.js",
     "start": "node src/backend/server.js",
     "seed:demo": "node src/backend/scripts/seed-demo.js",
+    "backfill:tag-serials": "node src/backend/scripts/backfill-tag-serials.js",
+    "backfill:issuance-runs": "node src/backend/scripts/backfill-issuance-runs.js",
     "verify:admin-registration": "node src/backend/scripts/verify-admin-registration-visibility.js",
     "verify:exotel-call": "node src/backend/scripts/verify-exotel-call.js",
     "verify:exotel-whatsapp": "node src/backend/scripts/verify-exotel-whatsapp.js",
-    "dev:mail": "maildev"
+    "verify:qa-hardening": "node src/backend/scripts/verify-qa-hardening.js",
+    "dev:mail": "maildev",
+    "backfill:mount-types": "node src/backend/scripts/backfill-mount-types.js"
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.2",
     "@fastify/helmet": "^13.0.2",
+    "@fastify/multipart": "^10.1.0",
     "@fastify/rate-limit": "^11.0.0",
     "@fastify/static": "^10.1.2",
     "axios": "^1.17.0",

@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "test": "node --test \"src/backend/tests/**/*.test.js\"",
     "dev": "nodemon src/backend/server.js",
     "start": "node src/backend/server.js",
     "seed:demo": "node src/backend/scripts/seed-demo.js",

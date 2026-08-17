@@ -9,12 +9,40 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
+
+    # The security tests exercise real routes against a real database, because
+    # the properties they pin (an operator object reaching a query filter, a
+    # per-account lockout counter, a token's attempt cap) only exist at the
+    # database boundary. The boot smoke test below also points at this URI, so
+    # it now starts against a reachable Mongo rather than a dead port.
+    services:
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.runCommand({ ping: 1 })'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      APP_ENV: dev
+      MONGODB_URI: mongodb://127.0.0.1:27017
+      MONGODB_DB_NAME: wavetag
+      # Must match the disposable-prefix rule in src/backend/tests/helpers.js —
+      # the suite refuses to run against anything that isn't clearly throwaway.
+      MONGODB_COLLECTION_PREFIX: ci_
+
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # 22, not 20: `node --test` only accepts glob patterns from 21 onward,
+          # and the test script scopes discovery with one so that the manual
+          # Exotel script at ./test.js is not picked up as a test.
+          node-version: 22
           cache: npm
 
       - run: npm ci
@@ -23,13 +51,12 @@ jobs:
         run: |
           find src -name "*.js" -print0 | xargs -0 -n1 node --check
 
+      - name: Login security tests
+        run: npm test
+
       - name: Boot smoke test
         run: |
           PORT=4100 \
-          APP_ENV=dev \
-          MONGODB_URI=mongodb://127.0.0.1:27017 \
-          MONGODB_DB_NAME=wavetag \
-          MONGODB_COLLECTION_PREFIX=ci_ \
           APP_BASE_URL=http://localhost:4100 \
           node src/backend/server.js &
           SERVER_PID=$!

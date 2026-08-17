@@ -22,6 +22,7 @@ import {
 } from "../../lib/core/tag-issuance.js";
 import { verifyRecaptchaV2 } from "../../lib/integrations/recaptcha.js";
 import { clientErrorMessage } from "../../lib/errors.js";
+import { findByCanonicalEmail } from "../../lib/auth/identity.js";
 
 // Report reasons, matched exactly. An open text field for the reason would let
 // a reporter write anything into a record support reads later.
@@ -490,7 +491,7 @@ export function registerPublicRoutes(app, env) {
       };
     }
 
-    const existingOwner = await collections.owners.findOne({ email });
+    const existingOwner = await findByCanonicalEmail(collections.owners, email);
 
     if (existingOwner) {
       reply.code(400);

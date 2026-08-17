@@ -144,19 +144,45 @@ const STRICT_SCRIPT_PAGES = new Set([
 // Derived from whatever helmet just set, rather than written out again, so a
 // change to the app-wide policy carries over instead of leaving these pages on
 // a stale copy of it.
+// Script origins these pages actually load. The app-wide list also carries
+// accounts.google.com, checkout.razorpay.com and the reCAPTCHA hosts, because
+// somewhere in the app signs in with Google and takes payments — but not here.
+// Google sign-in was removed from the owner login page, and nothing on a
+// credential page reaches Razorpay, so allowing those origins only widened what
+// an injection on these particular pages could pull in.
+//
+// www.google.com and www.gstatic.com stay: they serve the reCAPTCHA loader,
+// which the OTP-send flow uses when RECAPTCHA_SITE_KEY is configured.
+const STRICT_SCRIPT_SOURCES = "'self' https://www.google.com https://www.gstatic.com";
+
+// Inline styles are a separate question from inline script and are not solved
+// here. These pages still carry `style="..."` attributes throughout their
+// markup, and stripping every one is a layout refactor. Blocking a whole
+// injected <style> element is still worth having, so style-src loses
+// 'unsafe-inline' while style-src-attr keeps it — the attributes that exist
+// keep working, a `<style>` an attacker injects does not.
 function tightenScriptDirectives(policy) {
-  return String(policy)
+  const directives = String(policy)
     .split(";")
-    .map((directive) => {
-      const trimmed = directive.trim();
-      if (trimmed.startsWith("script-src-attr")) return "script-src-attr 'none'";
-      if (trimmed.startsWith("script-src ")) {
-        return trimmed.replace(/\s*'unsafe-inline'/g, "");
-      }
-      return trimmed;
-    })
-    .filter(Boolean)
-    .join(";");
+    .map((directive) => directive.trim())
+    .filter(Boolean);
+
+  const out = directives.map((directive) => {
+    if (directive.startsWith("script-src-attr")) return "script-src-attr 'none'";
+    if (directive.startsWith("script-src ")) return `script-src ${STRICT_SCRIPT_SOURCES}`;
+    if (directive.startsWith("style-src ")) {
+      return directive.replace(/\s*'unsafe-inline'/g, "");
+    }
+    return directive;
+  });
+
+  // helmet emits no style-src-attr of its own, so without adding one here the
+  // tightened style-src would cascade to attributes and break the pages.
+  if (!out.some((d) => d.startsWith("style-src-attr"))) {
+    out.push("style-src-attr 'unsafe-inline'");
+  }
+
+  return out.join(";");
 }
 
 function isNoStorePage(pathname) {
@@ -342,12 +368,29 @@ export async function buildApp() {
       return reply.send({ ok: false, error: "Request blocked: malformed origin." });
     }
 
-    // The deployment's own origin is the reference, but the host the request
-    // actually arrived on counts too, so a preview domain or a second hostname
-    // pointing at the same service is not locked out of its own sign-in page.
+    // APP_BASE_URL is the trusted reference. The Host the request arrived on is
+    // accepted as well, so a preview domain or a second hostname pointing at
+    // this service is not locked out of its own sign-in page.
+    //
+    // Host is caller-supplied, which looks like a hole and is not one for the
+    // attack this defends: in a cross-site POST the victim's browser sets Host
+    // to the site it is posting to and Origin to the attacker's page, so the two
+    // cannot be made to agree. It is logged when it is what allowed a request
+    // through and it disagrees with APP_BASE_URL, because that combination
+    // usually means APP_BASE_URL is set wrong rather than that anything is being
+    // attacked — and a wrong APP_BASE_URL is otherwise invisible until the day
+    // this fallback is removed.
     const selfOrigin = toOrigin(`${request.protocol}://${request.headers.host}`);
+    const matchesConfigured = allowedOrigins.has(source);
 
-    if (source !== selfOrigin && !allowedOrigins.has(source)) {
+    if (!matchesConfigured && source === selfOrigin) {
+      request.log.warn(
+        { event: "csrf-host-fallback", source, configured: [...allowedOrigins] },
+        "[csrf] request allowed by its Host header, not by APP_BASE_URL — check APP_BASE_URL"
+      );
+    }
+
+    if (source !== selfOrigin && !matchesConfigured) {
       request.log.warn(
         { event: "csrf-origin-rejected", source },
         "[csrf] cross-origin POST to a credential endpoint was refused"

@@ -30,7 +30,7 @@ const TIMING_EQUALISER_HASH =
 // account" from "account exists, wrong password" without the response body ever
 // differing. Every path through loginUser must perform exactly one comparison,
 // so the ones with nothing to compare against call this.
-export async function burnPasswordComparison(password) {
+export async function burnHashComparison(password) {
   await bcrypt.compare(
     typeof password === "string" ? password : String(password ?? ""),
     TIMING_EQUALISER_HASH
@@ -52,7 +52,7 @@ export async function verifyPassword(password, hash) {
     const sha256 = crypto.createHash("sha256").update(password).digest("hex");
     // Constant-time compare so a legacy-hash login can't be timing-probed.
     const valid = safeEqual(sha256, hash);
-    await burnPasswordComparison(password);
+    await burnHashComparison(password);
     return { valid, needsUpgrade: valid };
   }
 
@@ -60,7 +60,7 @@ export async function verifyPassword(password, hash) {
   // whose hash is corrupt. Previously this reached bcrypt.compare(password,
   // undefined), which throws — turning a wrong-account sign-in into a 500.
   if (!isBcryptHash(hash)) {
-    await burnPasswordComparison(password);
+    await burnHashComparison(password);
     return { valid: false, needsUpgrade: false };
   }
 

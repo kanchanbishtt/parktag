@@ -4,6 +4,7 @@ import { getCollections } from "../db/repositories.js";
 import { createPasswordHash, isNonEmptyString, redactText } from "./security.js";
 import { clientError } from "../errors.js";
 import { sendPasswordResetEmail } from "../integrations/email.js";
+import { findByCanonicalEmail } from "./identity.js";
 
 const TOKEN_EXPIRY_MS = 15 * 60 * 1000;   // 15 minutes — keep the reset window short-lived
 const RATE_LIMIT_MS  = 10 * 60 * 1000;    // 1 request per email per 10 minutes
@@ -27,7 +28,7 @@ export async function requestPasswordReset(env, email) {
     return { ok: true };
   }
 
-  const owner = await collections.owners.findOne({ email });
+  const owner = await findByCanonicalEmail(collections.owners, email);
 
   // No user enumeration — always succeed silently if email not found
   if (!owner) {
@@ -108,7 +109,7 @@ export async function resetPassword(env, token, newPassword) {
     throw clientError("This reset link has expired. Please request a new one.");
   }
 
-  const owner = await collections.owners.findOne({ email: record.email });
+  const owner = await findByCanonicalEmail(collections.owners, record.email);
 
   if (!owner) {
     throw clientError("Account not found.");

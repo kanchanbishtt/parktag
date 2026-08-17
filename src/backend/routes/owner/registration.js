@@ -4,6 +4,7 @@ import { createPasswordHash, isNonEmptyString } from "../../lib/auth/security.js
 import { isMobileIdentifier, normalizeIdentifier, verifyOtp } from "../../lib/auth/otp.js";
 import { getCollections } from "../../lib/db/repositories.js";
 import { clientErrorMessage } from "../../lib/errors.js";
+import { findByCanonicalEmail, canonicalEmail } from "../../lib/auth/identity.js";
 import {
   buildIssuedTagOutput,
   createRegisteredOwnerTag
@@ -90,7 +91,7 @@ export function registerRegistrationRoutes(app, env) {
 
     // `email` is used as a raw Mongo filter value just below — reject non-string
     // input above so a crafted body can't be interpreted as a query operator.
-    const existingOwner = await collections.owners.findOne({ email });
+    const existingOwner = await findByCanonicalEmail(collections.owners, email);
 
     if (existingOwner) {
       // Don't confirm the email is already registered — an explicit "email
@@ -109,7 +110,10 @@ export function registerRegistrationRoutes(app, env) {
     const verifiedMobile = normalizeIdentifier(phone);
     const owner = {
       _id: ownerId,
-      email,
+      // Stored canonical so no new mixed-case rows are created. Reads go through
+      // findByCanonicalEmail either way, but writing it canonical is what lets
+      // that helper's legacy fallback eventually be removed.
+      email: canonicalEmail(email),
       passwordHash,
       displayName,
       // Store the OTP-proven number in BOTH fields, canonicalised to +91 form.

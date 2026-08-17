@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>ParkTag | Report a tag</title>
+    <link rel="stylesheet" href="/styles/styles.css?v=__SCANNER_ASSET_VERSION__" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  </head>
+  <body class="report-body">
+
+    <main class="pt-report-main">
+
+      <!-- Back sits above the stack, at the top-left where a reader's thumb
+           and eye both expect it on a form page. Not a floating bar: this page
+           is one task, and a persistent nav over the last card would compete
+           with the submit button for the same corner of the screen. -->
+      <a class="pt-report-back" id="report-back" href="/">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M20 12H4M10 6l-6 6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Back
+      </a>
+
+      <!-- Intro -->
+      <article class="pt-report-card">
+        <span class="pt-report-badge">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 7v6M12 16.4h.01" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/>
+          </svg>
+          Report tag
+        </span>
+
+        <h1 class="pt-report-title">Tell us what looks wrong</h1>
+        <p class="pt-report-sub">
+          Share a few details and our team will review this tag. This helps us keep
+          ParkTag safer and more accurate.
+        </p>
+
+        <div class="pt-report-idbox">
+          <span class="pt-report-idlabel">Tag ID</span>
+          <span class="pt-report-idvalue" id="report-tag-id">—</span>
+        </div>
+      </article>
+
+      <!-- Form -->
+      <article class="pt-report-card">
+        <h2 class="pt-report-h2">Report details</h2>
+        <p class="pt-report-sub">
+          Choose the closest reason and leave your phone so we can follow up if
+          needed.
+        </p>
+
+        <!-- radiogroup, not buttons: exactly one reason applies, and arrow keys
+             should move between them the way a radio set does. -->
+        <div class="pt-report-reasons" id="report-reasons" role="radiogroup" aria-label="Reason for the report">
+          <button class="pt-report-reason" type="button" role="radio" aria-checked="false" data-reason="sold">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M4.4 16.2v2.1a.9.9 0 0 1-.9.9H2.9a.9.9 0 0 1-.9-.9v-2.1M22 16.2v2.1a.9.9 0 0 1-.9.9h-.6a.9.9 0 0 1-.9-.9v-2.1" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+              <path d="M2.6 16.2h18.8v-3.4l-1.6-4.4a1.8 1.8 0 0 0-1.7-1.2H5.9a1.8 1.8 0 0 0-1.7 1.2l-1.6 4.4v3.4Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+              <path d="M6.2 12.9h.01M17.8 12.9h.01" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+            </svg>
+            Vehicle is Sold
+          </button>
+
+          <button class="pt-report-reason" type="button" role="radio" aria-checked="false" data-reason="wrong_number">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M8.1 4.6c-.5-.6-1.4-.8-2-.4C4.9 4.8 4 6.3 4.1 7.7c.1 2.3 1.1 4.9 3.2 7 2 2 4.6 3.1 6.9 3.2 1.4.1 2.9-.8 3.5-1.9.4-.7.2-1.5-.4-2l-2.2-2c-.5-.5-1.3-.5-2-.2l-1.4.9c-.3.2-.8.1-1.1-.2l-2.2-2.2c-.3-.3-.4-.8-.2-1.1l.9-1.4c.4-.6.3-1.4-.2-2L8.1 4.6Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+              <path d="M15.4 3.6 21.8 10M21.8 3.6 15.4 10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            </svg>
+            Wrong Number
+          </button>
+
+          <button class="pt-report-reason" type="button" role="radio" aria-checked="false" data-reason="no_answer">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M8.1 6.6c-.5-.6-1.4-.8-2-.4-1.2.6-2.1 2.1-2 3.5.1 2.3 1.1 4.9 3.2 7 2 2 4.6 3.1 6.9 3.2 1.4.1 2.9-.8 3.5-1.9.4-.7.2-1.5-.4-2l-2.2-2c-.5-.5-1.3-.5-2-.2l-1.4.9c-.3.2-.8.1-1.1-.2l-2.2-2.2c-.3-.3-.4-.8-.2-1.1l.9-1.4c.4-.6.3-1.4-.2-2L8.1 6.6Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+              <path d="M15.2 6.4a4 4 0 0 1 2.6 2.5M14.8 2.6a8 8 0 0 1 5.8 5.6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+            </svg>
+            No one Answered
+          </button>
+
+          <button class="pt-report-reason" type="button" role="radio" aria-checked="false" data-reason="abuse">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M12 2.8 19.2 6v5.6c0 4.3-2.9 7.9-7.2 9.6-4.3-1.7-7.2-5.3-7.2-9.6V6L12 2.8Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+            </svg>
+            Abuse
+          </button>
+
+          <button class="pt-report-reason" type="button" role="radio" aria-checked="false" data-reason="other">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <circle cx="5.5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="18.5" cy="12" r="1.7"/>
+            </svg>
+            Others
+          </button>
+        </div>
+
+        <form id="report-form" class="pt-report-form" novalidate>
+          <!-- Only shown for "Others", where the five fixed reasons say nothing
+               useful on their own. -->
+          <div id="report-details-field" hidden>
+            <label class="pt-report-label" for="report-details">What is wrong?</label>
+            <textarea id="report-details" class="pt-report-input pt-report-textarea" rows="3"
+                      placeholder="Tell us briefly what looks wrong"></textarea>
+          </div>
+
+          <label class="pt-report-label" for="report-name">Your name</label>
+          <input id="report-name" class="pt-report-input" type="text"
+                 placeholder="Enter your name" autocomplete="name" />
+
+          <label class="pt-report-label" for="report-phone">Phone number</label>
+          <input id="report-phone" class="pt-report-input" type="tel"
+                 placeholder="Enter phone number" inputmode="numeric"
+                 maxlength="10" autocomplete="tel-national" />
+
+          <!-- Rendered by Google when RECAPTCHA_V2_SITE_KEY is set; the block
+               stays out of the layout entirely when it is not, so the form is
+               never blocked by a widget that cannot load. -->
+          <div class="pt-report-captcha" id="report-captcha" hidden></div>
+
+          <button id="report-submit" class="pt-report-submit" type="submit">Submit report</button>
+        </form>
+
+        <p id="report-status" class="pt-report-status" hidden></p>
+      </article>
+
+      <!-- Transfer -->
+      <article class="pt-report-card pt-report-transfer">
+        <span class="pt-report-transfer-icon" aria-hidden="true">
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M17.5 14.4c-.3-.15-1.75-.86-2-.96-.27-.1-.47-.15-.66.15-.2.3-.76.95-.93 1.15-.17.2-.34.22-.63.07-.3-.15-1.25-.46-2.38-1.47-.88-.78-1.47-1.75-1.64-2.05-.17-.3-.02-.46.13-.6.14-.14.3-.35.45-.53.15-.18.2-.3.3-.5.1-.2.05-.38-.02-.53-.08-.15-.66-1.6-.9-2.19-.24-.57-.48-.5-.66-.5h-.56c-.2 0-.5.07-.77.37-.26.3-1 .98-1 2.4s1.03 2.78 1.17 2.98c.15.2 2.02 3.08 4.9 4.32.68.3 1.22.47 1.64.6.69.22 1.31.19 1.81.11.55-.08 1.75-.71 2-1.4.24-.69.24-1.28.17-1.4-.07-.13-.27-.2-.56-.35ZM12.05 21.3h-.02a9.2 9.2 0 0 1-4.68-1.28l-.34-.2-3.48.91.93-3.4-.22-.35a9.19 9.19 0 0 1-1.4-4.9c0-5.07 4.13-9.2 9.22-9.2a9.15 9.15 0 0 1 9.19 9.21c0 5.07-4.13 9.2-9.2 9.2ZM12.05 1.05C5.9 1.05.9 6.05.9 12.19c0 1.96.51 3.88 1.49 5.57L.8 23.2l5.58-1.46a11.1 11.1 0 0 0 5.66 1.51h.01c6.14 0 11.14-5 11.14-11.14 0-2.98-1.16-5.78-3.26-7.88a11.06 11.06 0 0 0-7.88-3.18Z"/>
+          </svg>
+        </span>
+        <div class="pt-report-transfer-body">
+          <h2 class="pt-report-transfer-title">Did you buy this vehicle with the tag?</h2>
+          <p class="pt-report-transfer-copy">
+            We can transfer this tag to your name. Keep previous owner details
+            handy. Transfer fee is Rs 79.
+          </p>
+        </div>
+        <a class="pt-report-wa" id="report-transfer-wa" href="#" target="_blank" rel="noopener noreferrer">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M17.5 14.4c-.3-.15-1.75-.86-2-.96-.27-.1-.47-.15-.66.15-.2.3-.76.95-.93 1.15-.17.2-.34.22-.63.07-.3-.15-1.25-.46-2.38-1.47-.88-.78-1.47-1.75-1.64-2.05-.17-.3-.02-.46.13-.6.14-.14.3-.35.45-.53.15-.18.2-.3.3-.5.1-.2.05-.38-.02-.53-.08-.15-.66-1.6-.9-2.19-.24-.57-.48-.5-.66-.5h-.56c-.2 0-.5.07-.77.37-.26.3-1 .98-1 2.4s1.03 2.78 1.17 2.98c.15.2 2.02 3.08 4.9 4.32.68.3 1.22.47 1.64.6.69.22 1.31.19 1.81.11.55-.08 1.75-.71 2-1.4.24-.69.24-1.28.17-1.4-.07-.13-.27-.2-.56-.35ZM12.05 21.3h-.02a9.2 9.2 0 0 1-4.68-1.28l-.34-.2-3.48.91.93-3.4-.22-.35a9.19 9.19 0 0 1-1.4-4.9c0-5.07 4.13-9.2 9.22-9.2a9.15 9.15 0 0 1 9.19 9.21c0 5.07-4.13 9.2-9.2 9.2ZM12.05 1.05C5.9 1.05.9 6.05.9 12.19c0 1.96.51 3.88 1.49 5.57L.8 23.2l5.58-1.46a11.1 11.1 0 0 0 5.66 1.51h.01c6.14 0 11.14-5 11.14-11.14 0-2.98-1.16-5.78-3.26-7.88a11.06 11.06 0 0 0-7.88-3.18Z"/>
+          </svg>
+          WhatsApp us
+        </a>
+      </article>
+
+    </main>
+
+
+    <script type="module" src="/scripts/scanner/report-tag.js?v=__SCANNER_ASSET_VERSION__"></script>
+    <script src="/scripts/ux-feedback.js"></script>
+  </body>
+</html>

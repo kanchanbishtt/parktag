@@ -63,6 +63,25 @@
             <button id="pq-tab-printed" class="pt-admin-btn pt-admin-btn-ghost" onclick="switchPqTab(true)">Printed · awaiting claim</button>
           </div>
 
+          <!-- Lookup bar. Lives in the page rather than inside
+               #print-queue-output because that element is rewritten on every
+               render — a search box inside it would lose its value and its
+               focus mid-typing. The <select> is repopulated from the loaded
+               queue; its selection is preserved across renders. -->
+          <div class="pt-pq-lookup">
+            <label class="pt-pq-field">
+              <span>Batch</span>
+              <select id="pq-batch-filter"><option value="">All batches</option></select>
+            </label>
+            <label class="pt-pq-field">
+              <span>Find serial</span>
+              <input id="pq-serial-jump" type="search" placeholder="01-001500 or 1500" autocomplete="off" spellcheck="false" />
+            </label>
+            <button id="pq-serial-jump-button" class="pt-admin-btn pt-admin-btn-ghost">Find</button>
+            <button id="pq-expand-toggle" class="pt-admin-btn pt-admin-btn-ghost">Expand all</button>
+            <span id="pq-lookup-note" class="pt-pq-note"></span>
+          </div>
+
           <div id="print-queue-output"><p class="pt-admin-empty">No print queue loaded yet.</p></div>
         </div>
 
@@ -82,34 +101,67 @@
         </div>
 
         <style>
-          /* Export sheet: 4 stickers per landscape A4 page (2x2), each the exact
-             Figma card (1500x902) cropped from the SVG. Stickers are grouped into
-             .pt-sheet blocks of 4 so the on-screen preview matches the print. */
+          /* Export sheet: one sticker per A6 landscape page, centred. Each
+             .pt-sheet is exactly one page and is drawn at its true physical
+             size in millimetres, so the on-screen preview is 1:1 with the
+             print rather than a scaled approximation.
+
+             A6 landscape (148 x 105mm) is the smallest ISO size Chrome will
+             actually honour that the sticker fits on with room to handle it:
+             the dashed box is 103.3 x 63.0mm, leaving ~22mm of paper at the
+             sides and ~21mm top and bottom. A4 wasted three quarters of the
+             sheet on one sticker. */
           #qr-export-grid { display: block; }
           #qr-export-grid .pt-sheet {
-            display: grid; grid-template-columns: repeat(2, 1fr); gap: 6%;
-            align-content: start; aspect-ratio: 297 / 210; box-sizing: border-box;
-            padding: 4%; margin: 0 auto 22px; background: #fff;
+            display: flex; align-items: center; justify-content: center;
+            width: 148mm; height: 105mm; box-sizing: border-box;
+            margin: 0 auto 22px; background: #fff;
             border: 1px solid #E5E7EB; border-radius: 6px; box-shadow: 0 2px 12px rgba(0,0,0,.08);
           }
-          #qr-export-grid .pt-page { width: 100%; margin: 0; break-inside: avoid; page-break-inside: avoid; }
+          /* Shrink-to-fit around the cut box, which carries the real width. */
+          #qr-export-grid .pt-page { width: auto; margin: 0; break-inside: avoid; page-break-inside: avoid; }
           #qr-export-grid .pt-wrap { font-family: 'Inter','Segoe UI',Arial,sans-serif; color: #03162D; }
           #qr-export-grid .pt-instr { font-size: 11px; line-height: 1.8; margin-bottom: 18px; color: #323232; }
           #qr-export-grid .pt-instr .pt-instr-h { display: block; font-size: 12.5px; font-weight: 800; margin: 3px 0 2px; color: #03162D; }
           #qr-export-grid .pt-instr ol { margin: 5px 0 0; padding-left: 18px; }
           #qr-export-grid .pt-freebox { margin-top: 10px; padding: 9px 12px; background: #FFF1EF; border: 1px solid #FFD8D0; border-radius: 9px; font-size: 10px; color: #03162D; line-height: 1.55; }
           #qr-export-grid .pt-freebox b { color: #B31C00; }
-          #qr-export-grid .pt-cut { border: 1px dashed #b6bcc6; border-radius: 10px; padding: 7px; display: block; break-inside: avoid; page-break-inside: avoid; }
-          /* Figma SVG sticker cropped to the exact 1500x902 card. The exported
-             SVG is 1585x987 with ~30px transparent margin (top/left) and shadow
-             bleed (right/bottom); we scale the artwork by 1585/1500 and shift it
-             so the card fills the box exactly (overflow:hidden clips the rest),
-             preserving the true Figma ratio with no distortion. The QR is placed
-             as a % of the *card* so it lands in the blank square. Image-based
-             (not CSS background) so it prints without "Background graphics". */
-          #qr-export-grid .pt-figma-sticker { position: relative; width: 100%; aspect-ratio: 1500 / 902; overflow: hidden; }
-          #qr-export-grid .pt-figma-bg { position: absolute; top: 0; left: 0; width: calc(100% * 1585 / 1500); height: auto; transform: translate(-1.83%, -3.44%); display: block; }
-          #qr-export-grid .pt-figma-qr { position: absolute; left: 65.6%; top: 12.08%; width: 27.67%; aspect-ratio: 1; display: block; }
+          /* The cut guide. Square corners, because the sticker it guides is a
+             rectangular die-cut — a rounded guide told the cutter to round
+             corners the sticker does not have. 1mm of clearance, so the line
+             reads as the sticker's own edge and the trimmed result is the
+             artwork plus a hairline rather than a visible white border.
+
+             content-box is what holds the artwork still while the clearance
+             changes: `width` here sizes the STICKER, so the padding and the
+             rule sit outside it and altering the padding no longer resizes the
+             sticker. Under the inherited border-box they ate inward, which is
+             why the old 7px padding left the artwork at 100.77mm.
+
+             DO NOT ROUND OR "TIDY" THAT WIDTH. calc(105mm - 16px) is the exact
+             size this export has always produced — 105mm less the 7px padding
+             and 1px rule on each side — i.e. 100.77 x 60.46mm. Printed stock
+             and any die made from it are that size, so changing this number
+             changes the physical product. It is deliberately NOT 105mm despite
+             what older comments in this file claimed. */
+          #qr-export-grid .pt-cut {
+            border: 1px dashed #b6bcc6; border-radius: 0;
+            box-sizing: content-box; width: calc(105mm - 16px); padding: 1mm;
+            display: block; break-inside: avoid; page-break-inside: avoid;
+          }
+          /* Figma SVG sticker. The exported artwork is full-bleed — its
+             1000x600 canvas IS the card, with no transparent margin or shadow
+             bleed — so it fills the box directly with no crop or distortion.
+             The QR is placed as a % of that canvas so it lands in the blank
+             square. Image-based (not CSS background) so it prints without
+             "Background graphics". */
+          #qr-export-grid .pt-figma-sticker { position: relative; container-type: inline-size; width: 100%; aspect-ratio: 1000 / 600; overflow: hidden; }
+          #qr-export-grid .pt-figma-bg { position: absolute; top: 0; left: 0; width: 100%; height: auto; display: block; }
+          #qr-export-grid .pt-figma-qr { position: absolute; left: 63.14%; top: 11.83%; width: 30.64%; aspect-ratio: 1; display: block; }
+          /* Serial in the empty red band above the QR card, right edge aligned to
+             the QR's own right edge so it reads as part of that block. Black
+             ink: most fade-resistant, and discreet on the red. */
+          #qr-export-grid .pt-figma-serial { position: absolute; right: 6.22%; top: 3%; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 7px; font-size: 1.3cqw; letter-spacing: 0.06em; color: #000; white-space: nowrap; }
           #qr-export-grid .pt-sticker { display: flex; width: 100%; border-radius: 18px; overflow: hidden; border: 2px solid #03162D; }
           #qr-export-grid .pt-left { flex: 0 0 60%; background: #fff; padding: 22px; display: flex; flex-direction: column; justify-content: space-between; }
           #qr-export-grid .pt-logo { height: 26px; width: auto; display: block; }
@@ -140,16 +192,35 @@
             #qr-export-overlay { display: block !important; position: static !important; overflow: visible !important; padding: 0 !important; }
             #qr-export-overlay > div:first-child { display: none !important; }
             #qr-export-overlay, #qr-export-overlay * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-            /* Landscape A4: each .pt-sheet is one page holding a 2x2 grid of
-               four stickers. Never split a sticker across a page break. */
-            @page { margin: 1cm; size: A4 landscape; }
+            /* A6 landscape (148 x 105mm), one sticker per page, centred. Zero
+               page margin so .pt-sheet can be exactly the full 148 x 105mm —
+               that is what centres the sticker; if the margin changes, these
+               dimensions must change with it. The sticker prints at its
+               established 100.77 x 60.46mm size — unchanged by this layout, so
+               it still matches existing stock and can be cut out and used as is.
+
+               PRINT AT 100% / ACTUAL SIZE. "Fit to page" scales the sheet and
+               the sticker stops matching the die, which defeats the point of
+               printing at a fixed physical size.
+
+               Written as explicit millimetres, NOT `A6 landscape`. Chrome only
+               recognises A3/A4/A5/B4/B5/Letter/Legal/Ledger as size keywords;
+               `A6` is not among them, and an unrecognised keyword makes it
+               discard the whole declaration and fall back to the default paper
+               (US Letter here) — bigger than the A4 this replaced. Verified by
+               rendering through printToPDF: the keyword form produced a
+               215.9 x 279.4mm page, this form produces 148 x 105mm. */
+            @page { margin: 0; size: 148mm 105mm; }
             #qr-export-grid { max-width: none !important; }
             #qr-export-grid .pt-sheet {
-              aspect-ratio: auto !important; padding: 0 !important; margin: 0 !important;
-              gap: 8mm !important; border: none !important; box-shadow: none !important;
+              display: flex !important; align-items: center !important; justify-content: center !important;
+              width: 148mm !important; height: 105mm !important;
+              padding: 0 !important; margin: 0 !important;
+              border: none !important; box-shadow: none !important;
               border-radius: 0 !important; background: transparent !important;
               break-after: page; page-break-after: always;
             }
+            #qr-export-grid .pt-page { width: auto !important; }
             #qr-export-grid .pt-sheet:last-child { break-after: auto; page-break-after: auto; }
             #qr-export-grid .pt-page { break-inside: avoid; page-break-inside: avoid; }
           }

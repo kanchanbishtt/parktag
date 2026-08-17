@@ -2,6 +2,8 @@ const rows = document.getElementById("rows");
 const summary = document.getElementById("summary");
 const qInput = document.getElementById("q");
 const statusSel = document.getElementById("status");
+const categorySel = document.getElementById("category");
+const claimSel = document.getElementById("claim");
 const inclDel = document.getElementById("includeDeleted");
 
 function esc(s) {
@@ -18,6 +20,16 @@ function fmtDate(s) {
   if (!s) return "—";
   try { return new Date(s).toLocaleString(); } catch { return s; }
 }
+// Date and time on separate lines. As one nowrap string the Created column ran
+// to 164px — with nine columns that was enough to push the table past its card
+// and clip the Delete button off the right edge.
+function fmtStamp(s) {
+  if (!s) return "—";
+  try {
+    const d = new Date(s);
+    return `${esc(d.toLocaleDateString())}<br><span class="muted">${esc(d.toLocaleTimeString())}</span>`;
+  } catch { return esc(s); }
+}
 
 let timer;
 function debouncedLoad() { clearTimeout(timer); timer = setTimeout(load, 250); }
@@ -26,9 +38,14 @@ async function load() {
   const params = new URLSearchParams();
   if (qInput.value.trim()) params.set("q", qInput.value.trim());
   if (statusSel.value) params.set("status", statusSel.value);
+  // "all" is the default, so it is left off the query entirely rather than
+  // sent as a value the server would have to recognise and ignore.
+  if (categorySel.value && categorySel.value !== "all") params.set("category", categorySel.value);
+  // "claimed" is the server default, so it is left off for the same reason.
+  if (claimSel.value && claimSel.value !== "claimed") params.set("claim", claimSel.value);
   if (inclDel.checked) params.set("includeDeleted", "1");
 
-  rows.innerHTML = `<tr><td colspan="8" class="empty">Loading…</td></tr>`;
+  rows.innerHTML = `<tr><td colspan="9" class="empty">Loading…</td></tr>`;
   let data;
   try {
     const res = await fetch(`/api/admin/etags?${params.toString()}`);
@@ -36,15 +53,15 @@ async function load() {
     data = await res.json();
     if (!res.ok) throw new Error(data.error || "Failed");
   } catch (e) {
-    rows.innerHTML = `<tr><td colspan="8" class="err">Could not load E-Tags.</td></tr>`;
+    rows.innerHTML = `<tr><td colspan="9" class="err">Could not load tags.</td></tr>`;
     summary.textContent = "";
     return;
   }
 
   const list = data.etags || [];
-  summary.textContent = `Showing ${list.length} of ${data.total} E-Tag(s)`;
+  summary.textContent = `Showing ${list.length} of ${data.total} tag(s)`;
   if (!list.length) {
-    rows.innerHTML = `<tr><td colspan="8" class="empty">No E-Tags found.</td></tr>`;
+    rows.innerHTML = `<tr><td colspan="9" class="empty">No tags found.</td></tr>`;
     return;
   }
 
@@ -57,21 +74,30 @@ async function load() {
       : `<span class="pill free">Free${t.freeContactUsed ? " · used" : ""}</span>`;
     const toggleLabel = t.status === "active" ? "Deactivate" : "Activate";
     const toggleTo = t.status === "active" ? "inactive" : "active";
+    // Unclaimed stock has no active/inactive state — it sits at "unclaimed"
+    // until an owner claims it. Offering Activate here would produce a live tag
+    // with nobody to contact, so the toggle is not shown. Restore goes through
+    // the same status endpoint, so it is withheld for the same reason. The
+    // server refuses the change independently of this.
+    const claimed = Boolean(t.claimed);
     const actions = t.deletedAt
-      ? `<button class="go" data-act="status" data-id="${t.id}" data-to="active">Restore</button>`
+      ? (claimed
+        ? `<button class="go" data-act="status" data-id="${t.id}" data-to="active">Restore</button>`
+        : `<span class="muted">—</span>`)
       : `<button data-act="logs" data-id="${t.id}">Logs</button>
-         <button data-act="status" data-id="${t.id}" data-to="${toggleTo}">${toggleLabel}</button>
+         ${claimed ? `<button data-act="status" data-id="${t.id}" data-to="${toggleTo}">${toggleLabel}</button>` : ""}
          <button class="danger" data-act="delete" data-id="${t.id}">Delete</button>`;
     // data-label feeds the `td::before` labels the narrow-screen card layout
     // renders once the header row is hidden (see the @media block in etags.html).
     return `<tr>
       <td data-label="E-Tag ID"><b>${esc(t.etagId)}</b></td>
+      <td data-label="Sticker serial">${t.serial ? `<b>${esc(t.serial)}</b>` : `<span class="muted">—</span>`}</td>
       <td data-label="Vehicle"><span class="plate">${esc(t.plateNumber || "—")}</span><br><span class="muted">${esc(t.vehicleLabel || t.vehicleType || "")}</span></td>
       <td data-label="Owner">${esc(t.ownerName || "—")}<br><span class="muted">${esc(t.ownerEmail || t.ownerMobile || "")}</span></td>
       <td data-label="Status">${statusPill}</td>
       <td data-label="Plan">${planPill}</td>
       <td data-label="Contacts">${t.contactCount}</td>
-      <td data-label="Created" class="muted">${fmtDate(t.createdAt)}</td>
+      <td data-label="Created" class="muted stamp">${fmtStamp(t.createdAt)}</td>
       <td data-label="Actions"><div class="act">${actions}</div></td>
     </tr>`;
   }).join("");
@@ -140,5 +166,7 @@ async function openLogs(id) {
 
 qInput.addEventListener("input", debouncedLoad);
 statusSel.addEventListener("change", load);
+categorySel.addEventListener("change", load);
+claimSel.addEventListener("change", load);
 inclDel.addEventListener("change", load);
 load();

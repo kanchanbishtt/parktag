@@ -336,12 +336,17 @@
     .pt-freebox b { color: #B31C00; }
 
     .pt-cut { border: 1.5px dashed #b6bcc6; border-radius: 16px; padding: 14px; display: block; page-break-inside: avoid; }
-    /* Official premium sticker (real Figma artwork, cropped to its 1500x902
-       card). Hidden by default; shown ONLY for premium tags via
-       #etag-print.is-premium, which then hides the generated .pt-sticker. */
-    .pt-figma-sticker { position: relative; width: 100%; aspect-ratio: 1500 / 902; overflow: hidden; display: none; }
-    .pt-figma-bg { position: absolute; top: 0; left: 0; width: calc(100% * 1585 / 1500); height: auto; transform: translate(-1.83%, -3.44%); display: block; }
-    .pt-figma-qr { position: absolute; left: 65.6%; top: 12.08%; width: 27.67%; aspect-ratio: 1; display: block; }
+    /* Official premium sticker (real Figma artwork; the 1000x600 canvas is the
+       full-bleed card, so no crop is needed). Hidden by default; shown ONLY for
+       premium tags via #etag-print.is-premium, which then hides the generated
+       .pt-sticker. */
+    .pt-figma-sticker { position: relative; container-type: inline-size; width: 100%; aspect-ratio: 1000 / 600; overflow: hidden; display: none; }
+    .pt-figma-bg { position: absolute; top: 0; left: 0; width: 100%; height: auto; display: block; }
+    .pt-figma-qr { position: absolute; left: 63.14%; top: 11.83%; width: 30.64%; aspect-ratio: 1; display: block; }
+    /* Serial in the empty red band above the QR card, right edge aligned to the
+       QR's own right edge so it reads as part of that block. Black ink: most
+       fade-resistant, and discreet on the red. */
+    .pt-figma-serial { position: absolute; right: 6.22%; top: 3%; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 7px; font-size: 1.3cqw; letter-spacing: 0.06em; color: #000; white-space: nowrap; }
     #etag-print.is-premium .pt-sticker { display: none; }
     #etag-print.is-premium .pt-figma-sticker { display: block; }
     .pt-sticker { display: flex; width: 100%; border-radius: 18px; overflow: hidden; border: 2px solid #03162D; }
@@ -369,17 +374,19 @@
 
 <!-- Header -->
 <div class="vd-header">
-  <a href="/owner-welcome" class="vd-back" aria-label="Back">
+  <!-- data-back: see scripts/owner/smart-back.js — returns to the previous page
+       rather than always forcing the dashboard. href is the no-history fallback. -->
+  <a href="/owner-welcome" class="vd-back" aria-label="Back" data-back>
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
       <path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
     </svg>
   </a>
   <div class="vd-logo">
-    <a href="https://parktag.me" aria-label="ParkTag home" style="display:inline-flex;align-items:center;text-decoration:none"><img src="/images/light-logo.png" alt="ParkTag" style="height:38px;width:auto;"></a>
+    <a href="https://parktag.me" aria-label="ParkTag home" style="display:inline-flex;align-items:center;text-decoration:none"><img src="/images/light-logo.png" alt="ParkTag" style="height:42px;width:auto;"></a>
   </div>
   <div class="vd-header-right">
     <button class="vd-icon-btn" aria-label="Notifications">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.73 21a2 2 0 0 1-3.46 0" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.2a5.6 5.6 0 0 0-5.6 5.6c0 2.83-.62 4.77-1.32 6.02-.36.63.1 1.41.83 1.41h12.18c.73 0 1.19-.78.83-1.41-.7-1.25-1.32-3.19-1.32-6.02A5.6 5.6 0 0 0 12 3.2Z"/><path d="M10.1 19.1a2.1 2.1 0 0 0 3.8 0"/></svg>
     </button>
     <button class="vd-icon-btn" aria-label="Profile">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.9"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
@@ -545,8 +552,13 @@
         </div>
         <div class="vd-sub-panel">
           <div class="vd-sub-inner">
-            <p class="vd-sub-note">Set an emergency contact number. In case of accident, scanners can call this number directly.</p>
-            <input class="vd-field" id="sos-number" type="tel" placeholder="Emergency contact number" inputmode="tel"/>
+            <p class="vd-sub-note">Required. In case of accident, scanners can call this number directly — a vehicle without one has no SOS.</p>
+            <!-- autocomplete off: a bare tel field was autofilled with the
+                 owner's own saved number, the one number this must never be. -->
+            <input class="vd-field" id="sos-number" type="tel" name="pt-sos-contact"
+                   placeholder="Emergency contact number" inputmode="tel"
+                   autocomplete="off" autocorrect="off" spellcheck="false"
+                   required aria-required="true"/>
             <button class="vd-btn-primary" id="sos-save-btn">Save Emergency Contact</button>
             <button class="vd-btn-danger" id="sos-test-btn">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" stroke="currentColor" stroke-width="1.8"/></svg>
@@ -660,6 +672,20 @@
         </div>
       </div>
 
+      <!-- 4. Vehicle documents — a link to its own page, not an accordion
+           sub-panel: the vault is somewhere owners come to look things up, so
+           it wants a back button, a URL they can return to, and room to show a
+           document big enough to read. id is filled in by vehicle-detail.js. -->
+      <a class="vd-menu-item" id="documents-link" href="/owner-documents" style="display:block;text-decoration:none;color:inherit">
+        <div class="vd-menu-row">
+          <div class="vd-menu-icon" style="background:#FFE3DD;color:#FF2700">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M14 3v5h5" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M19 8v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+          </div>
+          <span class="vd-menu-label">Vehicle Documents</span>
+          <span class="vd-menu-arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+        </div>
+      </a>
+
       <!-- Remove Vehicle -->
       <div style="margin-top:8px;padding:0 2px">
         <button id="remove-vehicle-btn" class="vd-btn-danger" style="width:100%">
@@ -726,10 +752,11 @@
       </div>
       <!-- Official premium sticker (real Figma artwork); shown only for premium tags -->
       <div class="pt-figma-sticker">
-        <img class="pt-figma-bg" src="/images/org-premium-bg.svg" alt="ParkTag sticker"/>
+        <img class="pt-figma-bg" src="/images/org-parktag-sticker.svg" alt="ParkTag sticker"/>
         <img class="pt-figma-qr" id="print-figma-qr-img"
           src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=https://parktag.me"
           alt="QR Code"/>
+        <div class="pt-figma-serial" id="print-figma-serial"></div>
       </div>
     </div>
   </div>
@@ -737,6 +764,7 @@
 
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 <script src="/scripts/owner/address-step.js"></script>
+<script src="/scripts/owner/smart-back.js"></script>
 <script type="module" src="/scripts/owner/vehicle-detail.js"></script>
 </body>
 </html>

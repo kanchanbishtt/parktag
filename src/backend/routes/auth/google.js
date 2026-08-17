@@ -24,18 +24,61 @@ export function registerGoogleAuthRoutes(app, env) {
 
   const STATE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
-  // Purge expired states to prevent unbounded memory growth
-  function purgeExpiredStates() {
-    const now = Date.now();
-    for (const [key, value] of app.oauthStates) {
-      if (now - value.ts > STATE_TTL_MS) app.oauthStates.delete(key);
+  // OAuth `state` (the CSRF nonce) is persisted in Mongo, not just in this
+  // process's memory. It used to live only in an in-process Map, which meant a
+  // deploy or restart between the redirect to Google and the callback lost the
+  // state and failed the sign-in with `invalid_state` — and if the service ever
+  // runs more than one instance, the callback frequently lands on a different
+  // instance than the one that issued the state, breaking a large share of
+  // logins. The in-memory Map is kept as a fast path in front of it, and the
+  // TTL index on oauth_states handles expiry (see repositories.js).
+  async function saveOAuthState(state, role) {
+    app.oauthStates.set(state, { ts: Date.now(), role });
+    try {
+      const collections = await getCollections(env);
+      if (collections) {
+        await collections.oauthStates.insertOne({
+          _id: state,
+          role,
+          createdAt: new Date()
+        });
+      }
+    } catch {
+      // Non-fatal: the in-memory copy still covers the single-instance,
+      // no-restart case, which is the common one.
     }
   }
 
-  function startOAuth(reply, role) {
-    purgeExpiredStates();
+  // Single-use: reading a state also consumes it, so a captured callback URL
+  // cannot be replayed.
+  async function consumeOAuthState(state) {
+    if (typeof state !== "string" || !state) return null;
+
+    const cached = app.oauthStates.get(state);
+    app.oauthStates.delete(state);
+
+    let doc = null;
+    try {
+      const collections = await getCollections(env);
+      if (collections) {
+        doc = await collections.oauthStates.findOneAndDelete({ _id: state });
+      }
+    } catch {
+      // Fall back to the in-memory copy below.
+    }
+
+    const found = doc || cached;
+    if (!found) return null;
+
+    const issuedAt = doc ? new Date(doc.createdAt).getTime() : cached.ts;
+    if (Date.now() - issuedAt > STATE_TTL_MS) return null;
+
+    return { role: found.role || "owner" };
+  }
+
+  async function startOAuth(reply, role) {
     const state = crypto.randomBytes(16).toString("hex");
-    app.oauthStates.set(state, { ts: Date.now(), role });
+    await saveOAuthState(state, role);
     const params = new URLSearchParams({
       client_id: env.googleClientId,
       redirect_uri: env.googleCallbackUrl,
@@ -48,11 +91,11 @@ export function registerGoogleAuthRoutes(app, env) {
   }
 
   app.get("/api/auth/google", async (_request, reply) => {
-    startOAuth(reply, "owner");
+    await startOAuth(reply, "owner");
   });
 
   app.get("/api/auth/admin/google", async (_request, reply) => {
-    startOAuth(reply, "admin");
+    await startOAuth(reply, "admin");
   });
 
   app.get("/api/auth/google/callback", async (request, reply) => {
@@ -63,14 +106,12 @@ export function registerGoogleAuthRoutes(app, env) {
       return;
     }
 
-    const storedState = app.oauthStates.get(state);
-    if (!storedState || Date.now() - storedState.ts > STATE_TTL_MS) {
-      app.oauthStates.delete(state);
+    const storedState = await consumeOAuthState(state);
+    if (!storedState) {
       reply.redirect("/owner-login?error=invalid_state");
       return;
     }
-    const role = storedState.role || "owner";
-    app.oauthStates.delete(state);
+    const role = storedState.role;
 
     try {
       const tokenRes = await fetch(GOOGLE_TOKEN_URL, {
@@ -178,7 +219,7 @@ export function registerGoogleAuthRoutes(app, env) {
   });
 
   // ── One Tap: verify ID token from GSI credential callback ────────
-  app.post("/api/auth/google/credential", async (request, reply) => {
+  app.post("/api/auth/google/credential", { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } }, async (request, reply) => {
     const { credential } = request.body || {};
     if (!credential) return reply.code(400).send({ error: "missing_credential" });
 
@@ -233,7 +274,7 @@ export function registerGoogleAuthRoutes(app, env) {
   });
 
   // ── Popup fallback: exchange auth code from popup flow ───────────
-  app.post("/api/auth/google/popup", async (request, reply) => {
+  app.post("/api/auth/google/popup", { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } }, async (request, reply) => {
     const { code } = request.body || {};
     if (!code) return reply.code(400).send({ error: "missing_code" });
 

@@ -39,7 +39,13 @@ const REQUIRED_IN_PRODUCTION = [
   // in production means the app refuses to boot mis-secured rather than leaking
   // private phone numbers / allowing forged status writes.
   ["EXOTEL_WEBHOOK_SECRET", "exotelWebhookSecret"],
-  ["META_APP_SECRET", "metaAppSecret"]
+  ["META_APP_SECRET", "metaAppSecret"],
+  // Meta's GET verification handshake compares this against the caller's
+  // `hub.verify_token`. Unset it defaults to "", which used to compare equal to
+  // an empty token supplied by anyone — so the handshake passed for arbitrary
+  // callers. The route now fails closed when it's missing; requiring it here
+  // means a production deploy can't quietly reach that state at all.
+  ["WHATSAPP_WEBHOOK_VERIFY_TOKEN", "metaWhatsappWebhookVerifyToken"]
 ];
 
 function validateEnv(env, runtimeMode) {
@@ -117,6 +123,13 @@ export function getEnv() {
     // Site key is public (shipped to the browser); secret stays server-side.
     recaptchaSiteKey: process.env.RECAPTCHA_SITE_KEY || "",
     recaptchaSecret: process.env.RECAPTCHA_SECRET || "",
+    // Optional reCAPTCHA v2 ("I'm not a robot" checkbox). A SEPARATE key pair
+    // from v3 above — Google rejects a v3 key for the checkbox widget and vice
+    // versa. Used by the tag-report form, which shows the checkbox rather than
+    // scoring silently. Unset → the widget is not rendered and the server skips
+    // verification, exactly as v3 does.
+    recaptchaV2SiteKey: process.env.RECAPTCHA_V2_SITE_KEY || "",
+    recaptchaV2Secret: process.env.RECAPTCHA_V2_SECRET || "",
     razorpayKeyId: process.env.RAZORPAY_KEY_ID || "",
     razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET || "",
     superAdminBootstrapKey: process.env.SUPER_ADMIN_BOOTSTRAP_KEY || "",

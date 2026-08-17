@@ -241,8 +241,9 @@ function etagPrintPageHtml(tag) {
     <div class="pt-wrap">
       <div class="pt-cut">
         <div class="pt-figma-sticker">
-          <img class="pt-figma-bg" src="/images/org-premium-bg.svg" alt="ParkTag sticker"/>
+          <img class="pt-figma-bg" src="/images/org-parktag-sticker.svg" alt="ParkTag sticker"/>
           <img class="pt-figma-qr" src="${tag.qrDataUrl}" alt="QR ${tag.token}"/>
+          <div class="pt-figma-serial">${tag.serial || ""}</div>
         </div>
       </div>
     </div>
@@ -288,6 +289,7 @@ function setQueueMessage(message) {
 function renderPrintQueue(data) {
   const target = byId("print-queue-output");
   const tags = data.tags || [];
+  _pqData = data;
 
   const countEl = byId("print-queue-count");
   if (countEl) {
@@ -306,51 +308,189 @@ function renderPrintQueue(data) {
 
   if (!tags.length) {
     _pqUpdateExportLabel();
+    pqRenderLookupBar(new Map(), tags);
     target.innerHTML = `<p class="empty-copy">${_pqPrinted ? "No printed tags are awaiting a claim." : "Nothing waiting to be printed, issue a batch to populate the queue."}</p>`;
     return;
   }
 
-  // Group by batchNumber
-  const batches = {};
-  for (const tag of tags) {
-    const key = tag.batchNumber || "__no_batch__";
-    if (!batches[key]) batches[key] = { batchNumber: tag.batchNumber, batchLabel: tag.batchLabel, tags: [] };
-    batches[key].tags.push(tag);
+  // Group by batch, then by ISSUANCE RUN inside it.
+  //
+  // A batch is filled over several sittings — 1000 tags one day, 2000 more into
+  // the same batch the next — and a sitting is what goes to the printer. Batch
+  // was the only grouping before, so "select all" on batch 01 selected every
+  // run it had ever held and the export re-printed work already sent out.
+  const groups = pqGroupTags(tags);
+  pqRenderLookupBar(groups, tags);
+
+  // Batch filter is purely a view: _pqVisibleIds and _pqSelected above still
+  // span the whole queue, so filtering never silently drops a selection.
+  const shown = pqSortGroups(groups).filter(
+    (group) => !_pqBatchFilter || group.key === _pqBatchFilter
+  );
+
+  if (!shown.length) {
+    target.innerHTML = `<p class="empty-copy">No tags in batch ${esc(_pqBatchFilter)} in this view.</p>`;
+    _pqUpdateExportLabel();
+    return;
   }
 
-  target.innerHTML = Object.values(batches).map(batch => {
-    const batchKey = batch.batchNumber || "__no_batch__";
-    const batchTitle = batch.batchNumber
-      ? `Batch ${esc(batch.batchNumber)}${batch.batchLabel ? ` · ${esc(batch.batchLabel)}` : ""}`
-      : "No batch assigned";
-    const batchIds = batch.tags.map((t) => t.id);
-    const batchIdsCsv = batchIds.join(",");
-    const allSelected = batchIds.length > 0 && batchIds.every((id) => _pqSelected.has(id));
+  target.innerHTML = shown.map(group => {
+    // Newest run first: the fresh one is what you came here to print.
+    const runs = [...group.runs.values()].sort(
+      (a, b) => String(b.issuedAt || "").localeCompare(String(a.issuedAt || ""))
+    );
+    const batchCount = runs.reduce((n, r) => n + r.tags.length, 0);
+    const labels = [...group.labels].filter(Boolean);
+    const batchTitle = group.key === "__no_batch__"
+      ? "No batch assigned"
+      : `Batch ${esc(group.key)}${labels.length ? ` · ${esc(labels.join(" / "))}` : ""}`;
+
+    // Raw batchNumber values that reduce to this key. Normally one; more than
+    // one means the same batch was typed differently at issuance ("1" and "01"),
+    // which the serial counter already treats as ONE batch. Naming them keeps
+    // that visible instead of silently merging.
+    const raws = [...group.raws.keys()];
+    const variantNote = raws.length > 1
+      ? `<span class="pt-pq-variant">Entered as ${raws.map((r) => esc(JSON.stringify(r))).join(", ")} — one batch, one serial run</span>`
+      : "";
+
     return `
-      <div style="margin-bottom:20px">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding:8px 12px;background:#F1F1F0;border-radius:8px;border:1px solid #E5E7EB">
-          <label style="display:flex;align-items:center;gap:8px;font-weight:700;font-size:0.9rem;cursor:pointer">
-            <input type="checkbox" class="pq-select-all" data-ids="${esc(batchIdsCsv)}" ${allSelected ? "checked" : ""} onchange="togglePqSelectBatch('${esc(batchIdsCsv)}', this.checked)" style="width:16px;height:16px;cursor:pointer" />
-            ${batchTitle} <span style="font-weight:400;color:#6B7280">(${batch.tags.length} tags)</span>
-          </label>
-          ${batch.batchNumber ? `<button class="action small" style="color:#DC2626;background:#FEF2F2;border-color:#FECACA" onclick="deleteBatch('${jsAttr(batch.batchNumber)}')">Delete batch</button>` : ""}
+      <section class="pt-pq-batch">
+        <div class="pt-pq-batch-head">
+          <div style="min-width:0">
+            <h3 class="pt-pq-batch-title">${batchTitle}</h3>
+            <p class="pt-pq-batch-meta">${batchCount} tag${batchCount === 1 ? "" : "s"} · ${runs.length} generation${runs.length === 1 ? "" : "s"}</p>
+            ${variantNote}
+          </div>
+          <div class="pt-pq-batch-actions">
+            ${group.key === "__no_batch__" ? "" : raws.map((raw) => `
+              <button class="pt-pq-danger" onclick="deleteBatch('${jsAttr(raw)}')">Delete batch${raws.length > 1 ? ` ${esc(JSON.stringify(raw))}` : ""}</button>
+            `).join("")}
+          </div>
         </div>
-        ${batch.tags.map(tag => `
-          <article class="queue-row">
-            <input type="checkbox" class="pq-select" data-id="${esc(tag.id)}" ${_pqSelected.has(tag.id) ? "checked" : ""} onchange="togglePqSelect('${esc(tag.id)}', this.checked)" style="width:16px;height:16px;cursor:pointer;flex:0 0 auto" />
-            <strong>${esc(tag.token)} ${tag.premium
-              ? `<span style="display:inline-block;background:#FF2700;color:#fff;font-size:0.62rem;font-weight:800;letter-spacing:.04em;padding:2px 7px;border-radius:20px;vertical-align:middle;margin-left:4px">PREMIUM</span>`
-              : `<span style="display:inline-block;background:#F1F1F0;color:#6B7280;font-size:0.62rem;font-weight:700;letter-spacing:.04em;padding:2px 7px;border-radius:20px;vertical-align:middle;margin-left:4px">FREE</span>`}</strong>
-            <span>Print status: <strong>${esc(tag.printStatus)}</strong></span>
-            <a href="${esc(tag.claimUrl)}" target="_blank" rel="noreferrer" style="word-break:break-all;font-size:0.82rem">${esc(tag.claimUrl)}</a>
-            ${tag.printStatus !== "printed" ? `<button class="action small" onclick="markPrinted('${jsAttr(tag.id)}')">Mark as printed</button>` : `<span style="color:#FF2700;font-weight:700">✓ Printed</span>`}
-          </article>
-        `).join("")}
-      </div>
+        ${runs.map((run, index) => pqRunHtml(group, run, index)).join("")}
+      </section>
     `;
   }).join("");
 
   _pqUpdateExportLabel();
+  pqScrollToHit();
+}
+
+// One generation: a header that is always visible, and rows that are only in
+// the DOM while it is expanded. Collapsed by default — a single production
+// batch holds thousands of unprinted tags, and rendering every row made the
+// page unusable to find anything in. The header carries what you actually look
+// up by (date, count, serial range), so most trips never need to expand.
+function pqRunHtml(group, run, index) {
+  const ids = run.tags.map((t) => t.id);
+  const idsCsv = ids.join(",");
+  const allSelected = ids.length > 0 && ids.every((id) => _pqSelected.has(id));
+  const first = run.tags[0] || {};
+  const range = first.runSerialStart != null && first.runSerialEnd != null
+    ? `${pqSerialLabel(first.batchNumber, first.runSerialStart)} → ${pqSerialLabel(first.batchNumber, first.runSerialEnd)}`
+    : pqObservedRange(run);
+  const when = run.issuedAt ? new Date(run.issuedAt).toLocaleString() : "date unknown";
+  const legacy = run.runId === "__legacy__";
+  const runKey = pqRunKey(group.key, run.runId);
+  const open = _pqExpanded.has(runKey);
+  const cap = _pqRowCap.get(runKey) || PQ_ROW_CAP;
+  const visibleTags = open ? run.tags.slice(0, cap) : [];
+  // Legacy tags carry no run id, so marking them printed has to be scoped by
+  // batch — otherwise one click would mark every batch's legacy tags.
+  const markArgs = legacy
+    ? `'__legacy__', ${run.tags.length}, '${jsAttr(group.key)}'`
+    : `'${jsAttr(run.runId)}', ${run.tags.length}`;
+
+  const newest = index === 0 && !legacy;
+
+  return `
+    <div class="pt-pq-run${open ? " is-open" : ""}${newest ? " is-newest" : ""}">
+      <div class="pt-pq-run-head">
+        <input type="checkbox" class="pq-select-all pt-pq-run-check" data-ids="${esc(idsCsv)}" ${allSelected ? "checked" : ""} onchange="togglePqSelectBatch('${esc(idsCsv)}', this.checked)" title="Select this generation for export" />
+        <button type="button" class="pt-pq-run-toggle" aria-expanded="${open ? "true" : "false"}" onclick="togglePqRun('${jsAttr(runKey)}')">
+          <span class="pt-pq-caret" data-open="${open ? "1" : "0"}" aria-hidden="true">
+            <svg width="9" height="12" viewBox="0 0 8 12" fill="none"><path d="M1.5 1L6.5 6l-5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+          <span class="pt-pq-run-label">
+            <span class="pt-pq-run-title">${legacy ? "Earlier tags (no generation recorded)" : `Generated ${esc(when)}`}</span>
+            <span class="pt-pq-run-meta"><span>${run.tags.length} tag${run.tags.length === 1 ? "" : "s"}</span> ${range ? `<span class="pt-pq-range">${esc(range)}</span>` : ""} <span class="pt-pq-mount" data-mount="${esc(first.mountType || "windscreen_interior")}">${esc(pqMountLabel(first.mountType))}</span></span>
+          </span>
+        </button>
+        <div class="pt-pq-run-actions">
+          ${newest ? `<span class="pt-pq-badge">NEWEST</span>` : ""}
+          ${_pqPrinted ? "" : `<button class="pt-pq-act" onclick="markRunPrinted(${markArgs})">Mark printed</button>`}
+        </div>
+      </div>
+      ${visibleTags.map(tag => `
+        <article class="queue-row" ${_pqHighlightId === tag.id ? 'data-pq-hit="1"' : ""}>
+          <input type="checkbox" class="pq-select pt-pq-run-check" data-id="${esc(tag.id)}" ${_pqSelected.has(tag.id) ? "checked" : ""} onchange="togglePqSelect('${esc(tag.id)}', this.checked)" />
+          <strong><span class="pt-pq-serial">${tag.serial ? esc(tag.serial) : "—"}</span><span class="pt-pq-tier" data-tier="${tag.premium ? "premium" : "free"}">${tag.premium ? "PREMIUM" : "FREE"}</span><span class="pt-pq-token" title="${esc(tag.token)}">${esc(tag.token)}</span></strong>
+          <span class="pt-pq-status">${esc(pqOddStatus(tag))}</span>
+          <a href="${esc(tag.claimUrl)}" target="_blank" rel="noreferrer" title="${esc(tag.claimUrl)}">${esc(tag.claimUrl)}</a>
+          ${tag.printStatus !== "printed" ? `<button class="pt-pq-act" onclick="markPrinted('${jsAttr(tag.id)}')">Mark printed</button>` : `<span style="color:#FF2700;font-weight:700">✓ Printed</span>`}
+        </article>
+      `).join("")}
+      ${open && run.tags.length > visibleTags.length ? `
+        <div class="pt-pq-more">
+          <span>Showing ${visibleTags.length} of ${run.tags.length} rows — the checkbox above still selects all ${run.tags.length}.</span>
+          <button class="pt-pq-act" onclick="pqShowAllRows('${jsAttr(runKey)}')">Show all ${run.tags.length}</button>
+        </div>` : ""}
+    </div>`;
+}
+
+// One chunk of an export, with the rate limiter treated as back-pressure rather
+// than a failure.
+//
+// A print run is thousands of stickers over many requests, so it is the one
+// flow that can legitimately reach the limit. Failing the whole export there
+// threw away every chunk already fetched and left the operator with nothing —
+// which is exactly what happened on a 3000-tag run. Waiting and retrying costs
+// seconds and keeps the work.
+//
+// fetchJson is not used here because it discards the status code, and 429 has
+// to be told apart from a real error.
+async function pqFetchExportChunk(ids, onWait) {
+  const MAX_RETRIES = 6;
+  let attempt = 0;
+
+  for (;;) {
+    const response = await fetch("/api/admin/print-queue/export", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ids })
+    });
+
+    if (response.status === 429) {
+      attempt += 1;
+      if (attempt > MAX_RETRIES) {
+        throw new Error(
+          "The server is still limiting requests after several retries. Wait a minute and export the rest."
+        );
+      }
+      // Honour Retry-After (seconds) when the limiter sends it; otherwise widen
+      // the wait each time, capped so a run never stalls indefinitely.
+      const retryAfter = Number(response.headers.get("retry-after"));
+      const waitMs = Number.isFinite(retryAfter) && retryAfter > 0
+        ? retryAfter * 1000
+        : Math.min(30000, 2000 * 2 ** (attempt - 1));
+      if (onWait) onWait(waitMs);
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+      continue;
+    }
+
+    const raw = await response.text();
+    let data;
+    try {
+      data = raw ? JSON.parse(raw) : {};
+    } catch {
+      throw new Error(`Server error ${response.status} — ${raw.trim().slice(0, 120)}`);
+    }
+    if (!response.ok) {
+      throw new Error(data.error || `Request failed (${response.status})`);
+    }
+    return data;
+  }
 }
 
 async function exportQrsForPrint() {
@@ -360,7 +500,16 @@ async function exportQrsForPrint() {
   if (!overlay || !grid) return;
 
   // Require an explicit selection — never default to exporting the whole sheet.
-  const selectedIds = [..._pqSelected];
+  //
+  // Exported in the order the queue displays (serial ascending within a batch),
+  // not the order the boxes happened to be ticked, so each chunk sent below is a
+  // contiguous block of serials and the sheets print in one countable run.
+  // Anything selected but no longer visible still goes, at the end.
+  const visible = new Set(_pqVisibleIds);
+  const selectedIds = [
+    ..._pqVisibleIds.filter((id) => _pqSelected.has(id)),
+    ...[..._pqSelected].filter((id) => !visible.has(id))
+  ];
   if (selectedIds.length === 0) {
     setStatus("Select the tag(s) you want to export first.", "info");
     return;
@@ -373,17 +522,36 @@ async function exportQrsForPrint() {
     // Fetch QR images in bounded chunks so a large selection never becomes one
     // heavy request (rendering thousands of QR PNGs at once is what used to time
     // out the gateway). Each chunk renders only its own tags.
-    const CHUNK = 100;
+    //
+    // The chunk size comes from the server so the two cannot drift; it is the
+    // largest the export endpoint accepts, which keeps the request count — and
+    // so the load on the rate limiter — as low as it can be. At 100 per chunk a
+    // 3000-tag run was exactly 30 requests against a 30/minute limit, and died
+    // on the last one with "Too many requests" after nearly all the work.
+    const CHUNK = Number(_pqData && _pqData.exportMaxPerRequest) || 250;
     const tags = [];
+    const totalChunks = Math.ceil(selectedIds.length / CHUNK);
+
     for (let i = 0; i < selectedIds.length; i += CHUNK) {
       const chunk = selectedIds.slice(i, i + CHUNK);
-      const data = await fetchJson("/api/admin/print-queue/export", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ ids: chunk })
+      const data = await pqFetchExportChunk(chunk, (waitMs) => {
+        grid.innerHTML = `<p style="color:#6B7280">Loading QR codes… ${tags.length}/${selectedIds.length}<br>
+          <span style="font-size:.9em">Server is pacing the run — continuing in ${Math.ceil(waitMs / 1000)}s. Nothing is lost.</span></p>`;
       });
       tags.push(...(data.tags || []));
-      grid.innerHTML = `<p style="color:#6B7280">Loading QR codes… ${Math.min(i + CHUNK, selectedIds.length)}/${selectedIds.length}</p>`;
+      const done = Math.min(i + CHUNK, selectedIds.length);
+      grid.innerHTML = `<p style="color:#6B7280">Loading QR codes… ${done}/${selectedIds.length}
+        <span style="font-size:.9em">(batch ${Math.floor(i / CHUNK) + 1} of ${totalChunks})</span></p>`;
+    }
+
+    // A tag can leave the queue between selecting and exporting (claimed, or
+    // marked printed in another tab). Say so rather than printing a short run
+    // and letting it be discovered at the guillotine.
+    if (tags.length < selectedIds.length) {
+      setStatus(
+        `${selectedIds.length - tags.length} of ${selectedIds.length} selected tags are no longer printable and were left out.`,
+        "info"
+      );
     }
 
     if (!tags.length) {
@@ -394,9 +562,9 @@ async function exportQrsForPrint() {
 
     if (countLabel) countLabel.textContent = `${tags.length} tag${tags.length !== 1 ? "s" : ""} to print`;
 
-    // Group into landscape sheets of 4 (2x2) so the on-screen preview matches
-    // the printed page and each page holds exactly four stickers.
-    const perSheet = 4;
+    // One sticker per portrait page. Each .pt-sheet is a page, so the on-screen
+    // preview matches the print exactly.
+    const perSheet = 1;
     let sheetsHtml = "";
     for (let i = 0; i < tags.length; i += perSheet) {
       const cells = tags.slice(i, i + perSheet).map(etagPrintPageHtml).join("");
@@ -405,6 +573,286 @@ async function exportQrsForPrint() {
     grid.innerHTML = sheetsHtml;
   } catch (err) {
     grid.innerHTML = `<p style="color:#DC2626">Failed to load: ${err.message}</p>`;
+  }
+}
+
+// Mirrors batchKeyFor() server-side: digits only, padded to two.
+//
+// This is not cosmetic. The same key names the serial counter
+// (counters._id = "tagSerial:<key>") and is printed on the sticker, so two tags
+// whose raw batchNumber differs but whose key matches ("1" and "01") draw from
+// ONE serial sequence and carry interchangeable serials — they are the same
+// batch. Grouping the queue on the raw value listed them as two batches whose
+// stickers collide, which is exactly the lookup this has to get right.
+function pqBatchKey(batchNumber) {
+  return String(batchNumber ?? 0).replace(/\D/g, "").padStart(2, "0");
+}
+
+// Which sticker a run prints — the one thing on the card the printer acts on.
+// Anything issued before mount types existed is windscreen stock, so a missing
+// value reads as windscreen rather than as "unknown".
+function pqMountLabel(mountType) {
+  return mountType === "exterior_surface" ? "BIKE · back glue" : "CAR · front glue";
+}
+
+// PT-<batch>-<serial>, matching what stickerSerialFor prints server-side.
+function pqSerialLabel(batchNumber, serial) {
+  return `PT-${pqBatchKey(batchNumber)}-${String(serial).replace(/\D/g, "").padStart(6, "0")}`;
+}
+
+// Batch (normalized) → generations → tags.
+function pqGroupTags(tags) {
+  const groups = new Map();
+
+  for (const tag of tags) {
+    const key = tag.batchNumber == null || tag.batchNumber === ""
+      ? "__no_batch__"
+      : pqBatchKey(tag.batchNumber);
+    let group = groups.get(key);
+    if (!group) {
+      group = { key, raws: new Map(), labels: new Set(), runs: new Map() };
+      groups.set(key, group);
+    }
+    if (tag.batchNumber != null && tag.batchNumber !== "") {
+      const raw = String(tag.batchNumber);
+      group.raws.set(raw, (group.raws.get(raw) || 0) + 1);
+    }
+    if (tag.batchLabel) group.labels.add(tag.batchLabel);
+
+    // Tags issued before runs were recorded share one bucket per batch rather
+    // than each becoming a generation of its own.
+    const runId = tag.issuanceRunId || "__legacy__";
+    let run = group.runs.get(runId);
+    if (!run) {
+      run = { runId, issuedAt: tag.issuedAt || tag.createdAt, tags: [] };
+      group.runs.set(runId, run);
+    }
+    run.tags.push(tag);
+  }
+
+  return groups;
+}
+
+// A collapsed generation still has to be identifiable, so one with no recorded
+// serial range falls back to the span of the serials it actually holds. Labelled
+// "observed" because, unlike runSerialStart/End, it describes what is left in
+// the queue rather than what was issued — tags already printed or claimed are
+// not in this list, so the span can be narrower than the real generation.
+function pqObservedRange(run) {
+  const serials = run.tags.map((t) => t.serial).filter(Boolean).sort();
+  if (!serials.length) return "";
+  const first = serials[0];
+  const last = serials[serials.length - 1];
+  return first === last ? first : `${first} → ${last} (observed)`;
+}
+
+function pqRunKey(batchKey, runId) {
+  return `${batchKey}::${runId}`;
+}
+
+// Print status, but only when it says something the tab does not. Every row of
+// "To Print" is pending_print and every row of the printed tab is printed, so
+// spelling it out on each line was a column of identical text. Anything else —
+// a status this UI does not set — still shows, because that is worth seeing.
+function pqOddStatus(tag) {
+  const expected = _pqPrinted ? "printed" : "pending_print";
+  const status = tag.printStatus || "pending_print";
+  return status === expected ? "" : status;
+}
+
+// Batch order has to be the same everywhere or the dropdown stops being a map
+// of the page. Ascending by batch number, with the unbatched stragglers last —
+// they are a leftover, not a batch you go looking for.
+function pqSortGroups(groups) {
+  return [...groups.values()].sort((a, b) => {
+    if (a.key === "__no_batch__") return 1;
+    if (b.key === "__no_batch__") return -1;
+    return Number(a.key) - Number(b.key) || a.key.localeCompare(b.key);
+  });
+}
+
+function togglePqRun(runKey) {
+  if (_pqExpanded.has(runKey)) _pqExpanded.delete(runKey);
+  else _pqExpanded.add(runKey);
+  _pqHighlightId = null;
+  if (_pqData) renderPrintQueue(_pqData);
+}
+window.togglePqRun = togglePqRun;
+
+function pqShowAllRows(runKey) {
+  _pqRowCap.set(runKey, Infinity);
+  if (_pqData) renderPrintQueue(_pqData);
+}
+window.pqShowAllRows = pqShowAllRows;
+
+function pqSetExpandAll(expand) {
+  _pqExpanded.clear();
+  if (expand && _pqData) {
+    for (const [key, group] of pqGroupTags(_pqData.tags || [])) {
+      for (const runId of group.runs.keys()) _pqExpanded.add(pqRunKey(key, runId));
+    }
+  }
+  if (_pqData) renderPrintQueue(_pqData);
+}
+
+// Populates the batch dropdown from the queue that is actually loaded, so it
+// can never offer a batch with nothing in it. Built from ALL tags, not the
+// filtered view, or selecting a batch would empty the list you select from.
+function pqRenderLookupBar(groups, tags) {
+  const select = byId("pq-batch-filter");
+  const toggle = byId("pq-expand-toggle");
+
+  if (toggle) {
+    const anyOpen = _pqExpanded.size > 0;
+    toggle.textContent = anyOpen ? "Collapse all" : "Expand all";
+  }
+
+  if (!select) return;
+
+  // A batch can disappear between renders (marked printed, deleted). Fall back
+  // to "all" rather than leaving the filter pointing at nothing.
+  if (_pqBatchFilter && !groups.has(_pqBatchFilter)) {
+    _pqBatchFilter = "";
+    pqSetLookupNote("");
+  }
+
+  const options = pqSortGroups(groups)
+    .map((group) => {
+      const count = [...group.runs.values()].reduce((n, r) => n + r.tags.length, 0);
+      const gens = group.runs.size;
+      const name = group.key === "__no_batch__" ? "No batch assigned" : `Batch ${group.key}`;
+      return `<option value="${esc(group.key)}"${group.key === _pqBatchFilter ? " selected" : ""}>${esc(name)} — ${count} tag${count === 1 ? "" : "s"}, ${gens} generation${gens === 1 ? "" : "s"}</option>`;
+    })
+    .join("");
+
+  select.innerHTML =
+    `<option value=""${_pqBatchFilter ? "" : " selected"}>All batches — ${tags.length} tag${tags.length === 1 ? "" : "s"}</option>` +
+    options;
+}
+
+function pqSetLookupNote(message, tone) {
+  const note = byId("pq-lookup-note");
+  if (!note) return;
+  note.textContent = message || "";
+  if (tone) note.dataset.tone = tone;
+  else delete note.dataset.tone;
+}
+
+// Accepts what is actually printed on a sticker and the shorthands people type
+// from memory: "PT-01-001500", "01-001500", "1-1500", or a bare "1500" (which
+// searches the selected batch, or every batch if none is selected).
+function pqParseSerialQuery(raw) {
+  const text = String(raw || "").trim().toUpperCase().replace(/^PT-/, "");
+  if (!text) return null;
+
+  const pair = /^(\d{1,6})[-\s/]+(\d{1,6})$/.exec(text);
+  if (pair) {
+    return { batchKey: pqBatchKey(pair[1]), unit: Number(pair[2]) };
+  }
+
+  const bare = /^(\d{1,6})$/.exec(text);
+  if (bare) {
+    return { batchKey: null, unit: Number(bare[1]) };
+  }
+
+  return null;
+}
+
+// Finds the tag a serial names, opens the generation holding it, and scrolls to
+// it. Searching the loaded queue rather than the server keeps this instant and
+// means a hit is always something you can act on right there.
+function pqJumpToSerial() {
+  const input = byId("pq-serial-jump");
+  const query = pqParseSerialQuery(input ? input.value : "");
+
+  if (!query) {
+    pqSetLookupNote("Type a serial like 01-001500, or just 1500.", "warn");
+    return;
+  }
+
+  const tags = (_pqData && _pqData.tags) || [];
+  const batchKey = query.batchKey || (_pqBatchFilter && _pqBatchFilter !== "__no_batch__" ? _pqBatchFilter : null);
+  const wanted = String(query.unit).padStart(6, "0");
+
+  const hits = tags.filter((tag) => {
+    if (!tag.serial) return false;
+    const parts = tag.serial.split("-");           // PT-<batch>-<unit>
+    if (parts.length !== 3) return false;
+    if (batchKey && parts[1] !== batchKey) return false;
+    return parts[2] === wanted;
+  });
+
+  if (!hits.length) {
+    const where = batchKey ? `batch ${batchKey}` : "any batch";
+    pqSetLookupNote(
+      `No tag ${pqSerialLabel(batchKey || 0, query.unit)} in ${where} in this view. It may already be printed, or claimed by an owner.`,
+      "warn"
+    );
+    return;
+  }
+
+  // A bare unit can match the same serial in more than one batch; show the
+  // first and say so rather than pretending the lookup was unambiguous.
+  const hit = hits[0];
+  const group = pqBatchKey(hit.batchNumber);
+  const runKey = pqRunKey(group, hit.issuanceRunId || "__legacy__");
+
+  // A jump FOCUSES: everything else closes. Leaving earlier expansions open
+  // meant each successive lookup added another generation's rows to the page,
+  // rebuilding the wall of rows this was meant to get rid of.
+  _pqExpanded.clear();
+  _pqExpanded.add(runKey);
+  _pqBatchFilter = group;
+  _pqHighlightId = hit.id;
+  // The row has to be inside the rendered slice, not cut off by the row cap.
+  _pqRowCap.set(runKey, Infinity);
+
+  pqSetLookupNote(
+    hits.length > 1
+      ? `${esc(hit.serial)} — ${hits.length} matches across batches, showing the first.`
+      : `Found ${hit.serial}.`
+  );
+
+  if (_pqData) renderPrintQueue(_pqData);
+}
+
+// Runs after the queue re-renders, since the row only exists then.
+function pqScrollToHit() {
+  if (!_pqHighlightId) return;
+  requestAnimationFrame(() => {
+    const row = document.querySelector('.queue-row[data-pq-hit="1"]');
+    if (row) row.scrollIntoView({ behavior: "smooth", block: "center" });
+  });
+}
+
+// Marks an entire generation printed in one request, so it leaves the queue and
+// the next export cannot pick it up again. Per-tag marking was the only option
+// before, which is why nothing was ever marked and every run kept reappearing.
+//
+// batchKey is passed for legacy groups only: those tags have no run id, so the
+// server would otherwise match every batch's legacy tags at once.
+async function markRunPrinted(runId, count, batchKey) {
+  if (!confirm(`Mark all ${count} tags in this generation as printed? They leave the print queue and will not be included in future exports.`)) return;
+  try {
+    const body = { issuanceRunId: runId };
+    if (runId === "__legacy__" && batchKey) {
+      const group = pqGroupTags((_pqData && _pqData.tags) || []).get(batchKey);
+      // Every raw spelling that reduces to this key — the server matches
+      // batchNumber exactly, so all of them have to be named.
+      body.batchNumbers = group ? [...group.raws.keys()] : [];
+      if (batchKey === "__no_batch__") body.batchNumbers = [null];
+    }
+    const res = await fetchJson("/api/admin/print-queue/mark-run-printed", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    // Selections point at tags that are about to disappear from the queue.
+    _pqSelected.clear();
+    await loadPrintQueue();
+    alert(`${res.marked} tag(s) marked as printed.`);
+  } catch (err) {
+    alert(`Failed to mark generation as printed: ${err.message}`);
   }
 }
 
@@ -546,6 +994,18 @@ window.updatePremiumToggle = updatePremiumToggle;
 
 async function issueTag() {
   const btn = byId("issue-tag-button");
+
+  // Caught here as well as server-side, so the operator is told before a run is
+  // attempted rather than after. The server still refuses a missing value — it
+  // is the only check a direct POST cannot skip.
+  const mountType = byId("issue-mount-type")?.value || "";
+  if (!mountType) {
+    setStatus("Choose which sticker this run prints before generating.", "error");
+    setIssueMessage("No batch generated — sticker type is required.");
+    byId("issue-mount-type")?.focus();
+    return;
+  }
+
   if (btn) { btn.disabled = true; btn.textContent = "Generating…"; }
   setIssueMessage("Generating QR batch, please wait…");
 
@@ -560,7 +1020,8 @@ async function issueTag() {
         batchLabel: byId("issue-batch-label")?.value.trim(),
         quantity: byId("issue-quantity")?.value.trim(),
         stickerRequested: byId("issue-sticker-requested")?.checked,
-        premiumBatch: byId("issue-premium-batch")?.checked
+        premiumBatch: byId("issue-premium-batch")?.checked,
+        mountType
       })
     });
 
@@ -584,6 +1045,25 @@ const _pqSelected = new Set();
 // Ids currently shown in the queue — used so "Select all" and the fallback
 // know the full set, and so we can prune stale selections after a reload.
 let _pqVisibleIds = [];
+
+// The last queue payload, kept so expanding a generation, filtering by batch or
+// jumping to a serial can re-render from memory instead of refetching. On a
+// production-sized queue that response is ~1.7MB.
+let _pqData = null;
+// Normalized batch key currently filtered to; "" shows every batch. A view
+// filter only — it never narrows _pqVisibleIds or _pqSelected, so a selection
+// made in one batch survives switching to another.
+let _pqBatchFilter = "";
+// Run keys ("<batchKey>::<runId>") whose rows are expanded. Generations are
+// collapsed by default: production holds thousands of unprinted tags in a
+// single batch, and rendering every row is what made the queue unsearchable.
+const _pqExpanded = new Set();
+// Rows rendered per expanded generation before a "show all" prompt. Expanding a
+// 2000-tag generation in one go locks the page up for seconds.
+const PQ_ROW_CAP = 200;
+const _pqRowCap = new Map();
+// Tag id a serial lookup landed on, highlighted and scrolled to once.
+let _pqHighlightId = null;
 
 function _pqUpdateExportLabel() {
   const btn = byId("export-qr-button");
@@ -832,7 +1312,15 @@ async function createNewAdmin() {
 }
 
 function bindEvents() {
-  if (hasEl("admin-login-button")) {
+  // Bound on the form's submit, not the button's click, so Enter from either
+  // field signs in the same way the button does. A click handler alone left the
+  // keyboard with no way through.
+  if (hasEl("admin-login-form")) {
+    byId("admin-login-form").addEventListener("submit", (event) => {
+      event.preventDefault();
+      loginAdmin();
+    });
+  } else if (hasEl("admin-login-button")) {
     byId("admin-login-button").addEventListener("click", loginAdmin);
   }
 
@@ -860,6 +1348,47 @@ function bindEvents() {
     byId("export-qr-button").addEventListener("click", exportQrsForPrint);
   }
 
+  if (hasEl("pq-batch-filter")) {
+    byId("pq-batch-filter").addEventListener("change", (event) => {
+      _pqBatchFilter = event.target.value || "";
+      _pqHighlightId = null;
+      pqSetLookupNote("");
+      if (_pqData) renderPrintQueue(_pqData);
+    });
+  }
+
+  if (hasEl("pq-serial-jump")) {
+    const input = byId("pq-serial-jump");
+    // Enter is how anyone types a code into a box; don't make them reach for
+    // the button.
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        pqJumpToSerial();
+      }
+    });
+    // Clearing the box (including via the search field's ✕) drops the
+    // highlight, so a stale hit is not left outlined.
+    input.addEventListener("input", () => {
+      if (input.value.trim()) return;
+      pqSetLookupNote("");
+      if (_pqHighlightId) {
+        _pqHighlightId = null;
+        if (_pqData) renderPrintQueue(_pqData);
+      }
+    });
+  }
+
+  if (hasEl("pq-serial-jump-button")) {
+    byId("pq-serial-jump-button").addEventListener("click", pqJumpToSerial);
+  }
+
+  if (hasEl("pq-expand-toggle")) {
+    byId("pq-expand-toggle").addEventListener("click", () => {
+      pqSetExpandAll(_pqExpanded.size === 0);
+    });
+  }
+
   if (hasEl("close-export-button")) {
     byId("close-export-button").addEventListener("click", () => {
       const overlay = byId("qr-export-overlay");
@@ -868,6 +1397,7 @@ function bindEvents() {
   }
 
   window.markPrinted = markPrinted;
+  window.markRunPrinted = markRunPrinted;
   window.deleteBatch = deleteBatch;
 
   if (hasEl("clear-all-button")) {

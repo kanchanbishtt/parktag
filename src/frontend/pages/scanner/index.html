@@ -30,35 +30,93 @@
       <div class="pt-logo">
         <a href="https://parktag.me" aria-label="ParkTag home" style="display:inline-flex;align-items:center;text-decoration:none"><img src="/images/dark-logo.png" alt="ParkTag" style="height:42px;width:auto;mix-blend-mode:lighten;"></a>
       </div>
-      <div class="pt-header-badge" id="tag-chip">Checking…</div>
+      <div class="pt-header-right">
+        <!-- Shown only for a tag that still needs registering. Starts hidden and
+             empty so an active tag never flashes "Checking…" before it clears. -->
+        <div class="pt-header-badge" id="tag-chip" hidden></div>
+        <button type="button" class="pt-burger" id="pt-nav-open"
+                aria-label="Open menu" aria-controls="pt-nav" aria-expanded="false">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
     </header>
 
     <main class="pt-main">
 
-      <!-- Verification shell -->
-      <article class="pt-card" id="scanner-verification-shell" hidden>
-        <div class="pt-card-icon pt-icon-lock">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-            <rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" stroke-width="2"/>
-            <path d="M8 11V7a4 4 0 0 1 8 0v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          </svg>
-        </div>
-        <h1 class="pt-card-title">Verify the vehicle</h1>
-        <p class="pt-card-sub">Enter the last 4 digits of the plate number to unlock contact options.</p>
+      <!-- Verification shell.
+           Presented as an overlay ON TOP of the contact card rather than as a
+           screen that replaces it: the scanner has just chosen how they want to
+           reach the owner, and swapping the whole page out made that choice feel
+           undone. The card markup below is unchanged — same classes, same type
+           scale, same padding — only its container moved, so the card renders at
+           exactly the width it did before (see .pt-vmodal-inner, which mirrors
+           .pt-main's box).
+           `hidden` lives on the overlay now, not on the article. -->
+      <div class="pt-vmodal" id="verify-modal" role="dialog" aria-modal="true"
+           aria-labelledby="plate-verify-title" hidden>
+        <div class="pt-vmodal-inner">
+      <article class="pt-card pt-verify-card" id="scanner-verification-shell">
+        <!-- Decorative: the heading and label below say the same thing in words,
+             so a screen reader gains nothing from describing the picture again. -->
+        <img class="pt-verify-media" src="/images/verify-vehicle.svg" alt="" />
 
-        <div class="pt-plate-preview" id="plate-mask-preview">••••</div>
+        <h1 class="pt-verify-title" id="plate-verify-title">Please verify the plate number of the vehicle.</h1>
 
-        <form id="plate-verify-form" class="pt-form">
+        <hr class="pt-verify-rule" />
+
+        <form id="plate-verify-form" class="pt-verify-form">
           <input id="request-token" type="hidden" />
-          <label class="pt-field">
-            <span>Last 4 digits on the plate</span>
-            <input id="plate-last-four-input" maxlength="4" inputmode="numeric" autocomplete="off" placeholder="e.g. 1234" class="pt-input pt-input-lg" />
-          </label>
+          <!-- Wrapped so the plate step can be dropped on its own. A scanner who
+               verified earlier in the visit (by messaging first) and then taps
+               Private Call comes back to this card for their number, and making
+               them re-read a plate they already confirmed would be a step that
+               exists only to fill the screen. -->
+          <div id="plate-verify-plate-block">
+            <p class="pt-verify-label">
+              Please enter the<br />
+              <strong>last 4 digits of vehicle plate number</strong>
+            </p>
+            <div class="pt-verify-row">
+              <span class="pt-verify-plate" id="plate-mask-preview">••••</span>
+              <!-- No <label> wrapper: the plate sits where the label would, so the
+                   field carries its own accessible name instead. -->
+              <input id="plate-last-four-input" maxlength="4" inputmode="numeric" autocomplete="off"
+                     placeholder="Last 4 Digits" class="pt-input pt-verify-input"
+                     aria-label="Last 4 digits of the vehicle plate number" />
+            </div>
+          </div>
+          <!-- Private Call only. The masked call needs a number to ring back,
+               and asking for it here means the call path is one screen rather
+               than two. Stays hidden for WhatsApp and Emergency: WhatsApp needs
+               nothing from the scanner, so it must never see a number field. -->
+          <div id="plate-verify-call-block" hidden>
+            <!-- Same block, same styling, for both calls — only the person on
+                 the other end differs, and naming the owner when the call is
+                 going to their emergency contact would be simply untrue. -->
+            <p class="pt-verify-callnote" id="plate-verify-callnote">
+              We will need your phone number to setup a <strong>MASKED</strong> call between you and tag owner.
+            </p>
+            <input id="plate-verify-phone" type="tel" inputmode="tel" autocomplete="tel"
+                   placeholder="Your Phone" class="pt-input pt-verify-phone"
+                   aria-label="Your phone number" />
+          </div>
+
           <button id="plate-verify-submit" class="pt-btn pt-btn-primary pt-btn-full" type="submit">Verify &amp; Continue</button>
         </form>
 
         <p id="plate-verify-status" class="pt-status" data-tone="info">Enter the last 4 digits shown on the vehicle plate.</p>
+
+        <hr class="pt-verify-rule" />
+
+        <!-- Back to the choices, not off the site: verification is a step
+             inside the flow now, so cancelling it returns the scanner to the
+             card they came from rather than ending their visit. -->
+        <button class="pt-cancel-action" id="plate-verify-cancel" type="button">Cancel</button>
       </article>
+        </div>
+      </div>
 
       <!-- Activation wizard: intro → plate → mobile → OTP code -->
       <article class="pt-card pt-step-card" id="registration-shell" hidden>
@@ -83,17 +141,60 @@
           <button type="button" id="act-start-btn" class="pt-btn pt-btn-step">Activate tag</button>
         </section>
 
-        <!-- Step 2 — vehicle plate -->
+        <!-- Step 2 — vehicle plate + type -->
         <form class="pt-step" id="act-step-2" hidden novalidate>
           <h2 class="pt-step-title">Enter your full <u class="pt-step-noun">Vehicle</u> plate number <span class="pt-step-eg">(e.g. DL8CX55665)</span></h2>
           <input id="act-plate" class="pt-input pt-input-plate" type="text" autocomplete="off"
                  autocapitalize="characters" spellcheck="false" maxlength="16" placeholder="DL8CX55665" />
+
+          <!-- Vehicle type. Asked here rather than inferred, because an Indian
+               registration number carries no vehicle class — the series letters
+               run in issue order, not by type. Without this the dashboard has
+               nothing to show but "Vehicle".
+               Sits on the plate step because this is already the "about the
+               vehicle" question; steps 3 and 4 stay purely about identity.
+               Buttons are rendered by app.js from the server's own type list so
+               the picker cannot drift from what the API accepts. -->
+          <fieldset class="pt-vtype" id="act-vtype-field">
+            <legend class="pt-vtype-legend">What kind of vehicle is this tag going on?</legend>
+            <div class="pt-vtype-grid" id="act-vtype-grid" role="radiogroup"
+                 aria-label="Vehicle type"></div>
+            <p class="pt-vtype-hint" id="act-vtype-hint" hidden></p>
+          </fieldset>
+
+          <!-- Shown in place of the picker when the chosen vehicle cannot take
+               this sticker: windscreen stock is glued inside glass, exterior
+               stock goes on a bike's bodywork, and neither holds on the other.
+               The sentence comes from mountMismatchMessage() in
+               lib/core/tag-issuance.js, which the API refusal also uses, so the
+               owner reads the same words whichever path they hit.
+               role="alert" so swapping it in is announced, not silent. -->
+          <div class="pt-mount-block" id="act-mount-block" role="alert" hidden>
+            <span class="pt-mount-block-ic" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" width="30" height="30">
+                <circle cx="12" cy="12" r="9.2" stroke="currentColor" stroke-width="1.8"/>
+                <path d="M12 7.4v5.4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+                <circle cx="12" cy="16.4" r="1.15" fill="currentColor"/>
+              </svg>
+            </span>
+            <h3 class="pt-mount-block-t" id="act-mount-title">This tag won't fit that vehicle</h3>
+            <p class="pt-mount-block-s" id="act-mount-text"></p>
+            <button class="pt-btn pt-btn-outline pt-mount-block-btn" type="button" id="act-mount-back">
+              Pick a different vehicle
+            </button>
+            <a class="pt-mount-block-link" href="/shop">See the right tag for it</a>
+          </div>
+
           <button class="pt-btn pt-btn-step" type="submit" id="act-plate-btn">Next Step</button>
         </form>
 
         <!-- Step 3 — owner name + mobile -->
         <form class="pt-step" id="act-step-3" hidden novalidate>
-          <h2 class="pt-step-title">We need your phone number to send notifications about your Vehicle</h2>
+          <!-- The noun is filled in from the type chosen on the previous step
+               ("…about your Bike"), so the wizard carries the answer forward
+               instead of asking and then forgetting. Falls back to the generic
+               word if no type is set, which is only reachable by jumping steps. -->
+          <h2 class="pt-step-title">We need your phone number to send notifications about your <span class="pt-step-noun" id="act-vehicle-noun">Vehicle</span></h2>
           <input id="act-name" class="pt-input" type="text" autocomplete="name" maxlength="60" placeholder="Your full name" />
           <div class="pt-step-row">
             <select id="act-dial" class="pt-input pt-select" aria-label="Country code">
@@ -161,7 +262,7 @@
         <div class="pt-vehicle-block" id="pt-vehicle-block">
           <div class="pt-vehicle-id-row">
             <div class="pt-plate-display" id="pt-plate-display">••••</div>
-            <div class="pt-verified-badge">
+            <div class="pt-verified-badge" id="pt-verified-badge" hidden>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="m9 12 2 2 4-4" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/></svg>
               Verified
             </div>
@@ -230,20 +331,87 @@
           </button>
         </div>
 
-        <!-- SOS phone capture — mirrors the owner-call panel, separate ids so the
-             two flows never share state. -->
-        <div id="sos-number-panel" class="pt-panel pt-panel-sos" hidden>
-          <p class="pt-panel-label">Emergency call — your phone number</p>
-          <p class="pt-panel-sub">
-            We connect you to the owner's emergency contact. Both numbers stay hidden.
-            Use this only for a genuine accident or emergency.
-          </p>
-          <label class="pt-field">
-            <input id="sos-phone" type="tel" autocomplete="tel" inputmode="tel" placeholder="+91 99999 99999" class="pt-input" />
-          </label>
-          <button id="sos-number-submit" class="pt-btn pt-btn-sos pt-btn-full" type="button">Connect emergency call</button>
-          <button type="button" class="pt-sos-cancel" id="sos-cancel">Cancel</button>
-        </div>
+        <!-- Emergency gate. The SOS call reaches a third party the owner
+             nominated — someone who never opted in — so the tap has to be
+             deliberate before their phone rings. A <dialog> rather than an
+             inline panel: it takes focus, traps it, and closes on Escape,
+             which is what makes this a decision rather than a step. -->
+        <dialog class="pt-dialog" id="sos-confirm" aria-labelledby="sos-confirm-title">
+          <div class="pt-dialog-head">
+            <h2 class="pt-dialog-title" id="sos-confirm-title">Emergency</h2>
+            <button type="button" class="pt-dialog-close" id="sos-confirm-close" aria-label="Close">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+              </svg>
+            </button>
+          </div>
+          <div class="pt-dialog-body">
+            <p class="pt-dialog-copy">
+              Using emergency info for spam or prank is a punishable offence. Please use
+              this only in case of a real emergency (e.g. accident, medical need, or to
+              reach the vehicle owner's family).
+            </p>
+            <label class="pt-dialog-check">
+              <input type="checkbox" id="sos-confirm-check" />
+              <span>I confirm this is a genuine emergency and I need to contact the owner or emergency services.</span>
+            </label>
+            <button type="button" id="sos-confirm-continue" class="pt-btn pt-btn-sos pt-btn-full" disabled>
+              View emergency contacts
+            </button>
+          </div>
+        </dialog>
+
+        <!-- Shown instead of the masked-call panel when the owner never
+             nominated anyone. The scanner is standing at what may be an
+             accident, so the answer cannot be "nothing here for you". -->
+        <dialog class="pt-dialog" id="sos-helplines" aria-labelledby="sos-helplines-title">
+          <div class="pt-dialog-head">
+            <h2 class="pt-dialog-title" id="sos-helplines-title">Emergency contacts</h2>
+            <button type="button" class="pt-dialog-close" id="sos-helplines-close" aria-label="Close">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+              </svg>
+            </button>
+          </div>
+          <div class="pt-dialog-body">
+            <!-- Rewritten by openSosHelplines: there is more than one reason to
+                 land here, and "no contact added" is a lie in the others. -->
+            <p class="pt-note-box" id="sos-helplines-note">
+              No emergency contact added for this tag. Use the All India helplines below.
+            </p>
+
+            <section class="pt-helpline-card">
+              <h3 class="pt-helpline-title">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M12 3.2 2.6 19.4a1 1 0 0 0 .87 1.5h17.06a1 1 0 0 0 .87-1.5L12 3.2Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+                  <path d="M12 9.6v4.2M12 17.1h.01" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+                </svg>
+                All India emergency helplines
+              </h3>
+              <p class="pt-helpline-sub">Use these if the owner's contacts are not available.</p>
+
+              <!-- Anchors, not buttons: a tel: link dials with one tap on a
+                   phone and is still copyable on a desktop. -->
+              <ul class="pt-helpline-list">
+                <li><span>National Emergency</span><a href="tel:112">112</a></li>
+                <li><span>Ambulance</span><a href="tel:102">102</a></li>
+                <li><span>Police</span><a href="tel:100">100</a></li>
+                <li><span>Fire</span><a href="tel:101">101</a></li>
+                <li><span>Women Helpline</span><a href="tel:1091">1091</a></li>
+              </ul>
+            </section>
+
+            <button type="button" class="pt-dialog-back" id="sos-helplines-back">Back</button>
+          </div>
+        </dialog>
+
+        <!-- The scanner's number for the emergency call is captured on the SAME
+             verification card the other two actions use, so the panel that used
+             to ask for it here is gone. This hidden field is what carries the
+             number from that card into handleSosCall — kept separate from
+             #contact-phone so the owner call and the emergency call can never
+             share state. -->
+        <input id="sos-phone" type="hidden" />
 
         <!-- SOS dial panel -->
         <div id="sos-dial-panel" class="pt-panel pt-panel-sos" hidden>
@@ -266,15 +434,11 @@
           </a>
         </div>
 
-        <!-- Phone number input for call -->
-        <div id="contact-number-panel" class="pt-panel" hidden>
-          <p class="pt-panel-label">Your phone number</p>
-          <p class="pt-panel-sub" id="contact-number-copy">We'll connect you anonymously. Your number stays private.</p>
-          <label class="pt-field">
-            <input id="contact-phone" type="tel" autocomplete="tel" inputmode="tel" placeholder="+91 99999 99999" class="pt-input" />
-          </label>
-          <button id="contact-number-submit" class="pt-btn pt-btn-primary pt-btn-full" type="button">Continue to call</button>
-        </div>
+        <!-- The scanner's number is asked for once, on the verification card,
+             and nowhere else. What used to be a second "Your phone number"
+             panel here is now just the field that carries the number the card
+             collected through to the call registration. -->
+        <input id="contact-phone" type="hidden" />
 
         <!-- Call popup -->
         <div id="call-popup" class="pt-success-panel" hidden>
@@ -331,6 +495,27 @@
         </p>
       </article>
 
+      <!-- Quick actions. Deliberately a sibling of the action card rather than
+           a row inside it: none of these three reach the owner, and sitting on
+           the page ground instead of the white card is what keeps them from
+           reading as a third way to contact them. Shown only alongside the
+           action card — there is nothing to report or share about a tag that
+           has not resolved. -->
+      <nav class="pt-quick-actions" id="scanner-quick-actions" aria-label="More actions" hidden>
+        <a class="pt-quick-action" id="quick-urgent" href="#" target="_blank" rel="noopener noreferrer">
+          <svg width="15" height="15" viewBox="0 0 32 32" fill="currentColor" aria-hidden="true">
+            <path d="M27 15.6c0 6.1-5 11.1-11.1 11.1-1.9 0-3.7-.5-5.3-1.4L5 27l1.8-5.2a11 11 0 0 1-2-6.2C4.8 9.5 9.8 4.5 15.9 4.5S27 9.5 27 15.6Zm-2.2 0c0-4.9-4-8.9-8.9-8.9S7 10.7 7 15.6c0 1.9.6 3.7 1.7 5.2l-1 3 3.1-1a8.8 8.8 0 0 0 5.1 1.6c4.9 0 8.9-4 8.9-8.8Z"/>
+            <path d="M12.7 10.8c-.2-.5-.4-.5-.6-.5h-.6c-.2 0-.6.1-.9.5-.3.3-1.1 1.1-1.1 2.7s1.1 3.1 1.2 3.3c.2.2 2.2 3.6 5.4 4.9 2.6 1 3.1.8 3.7.8.6-.1 1.8-.7 2-1.4.3-.7.3-1.4.2-1.5-.1-.1-.4-.2-.9-.5s-1.8-.9-2-.9c-.3-.1-.5-.1-.7.2-.2.3-.8.9-1 .9-.2 0-.4 0-.8-.2-.4-.2-1.5-.6-2.8-2-.8-.9-1.4-2-1.5-2.3-.2-.3 0-.4.1-.6.2-.2.3-.4.5-.6.2-.2.2-.3.3-.5.1-.2 0-.4 0-.6-.1-.1-.7-1.7-1-2.3Z"/>
+          </svg>
+          Urgent — WhatsApp us
+        </a>
+        <span class="pt-quick-sep" aria-hidden="true">·</span>
+        <a class="pt-quick-action" id="quick-report" href="#" target="_blank" rel="noopener noreferrer">Report wrong info</a>
+        <span class="pt-quick-sep" aria-hidden="true">·</span>
+        <button class="pt-quick-action" id="quick-share" type="button">Share</button>
+      </nav>
+      <p class="pt-quick-status" id="quick-action-status" role="status" hidden></p>
+
       <!-- Error card -->
       <article class="pt-card pt-error-card" id="error-card" hidden>
         <div class="pt-card-icon pt-icon-error">
@@ -342,7 +527,318 @@
 
     </main>
 
+    <!-- Raised when an action needs something the scanner has not given yet: a
+         contact reason, or a plate that does not match.
+
+         Outside <main>, deliberately. A modal is promoted to the top layer, but
+         a `display: none` ANCESTOR still leaves it with no box at all — parked
+         inside a card, it opened to 0x0 on any screen where that card was the
+         hidden one. Out here it renders whichever card is showing. -->
+    <dialog class="pt-dialog pt-alert" id="pt-alert" aria-labelledby="pt-alert-title">
+      <div class="pt-alert-body">
+        <!-- Ring and strokes are three separate SVG shapes, not a CSS border
+             and one path, so each can be drawn in turn when the dialog opens. -->
+        <span class="pt-alert-mark" aria-hidden="true">
+          <svg width="78" height="78" viewBox="0 0 80 80" fill="none">
+            <circle class="pt-alert-ring" cx="40" cy="40" r="36" />
+            <line class="pt-alert-x1" x1="28" y1="28" x2="52" y2="52" />
+            <line class="pt-alert-x2" x1="52" y1="28" x2="28" y2="52" />
+          </svg>
+        </span>
+        <h2 class="pt-alert-title" id="pt-alert-title">Alert</h2>
+        <p class="pt-alert-copy" id="pt-alert-copy"></p>
+        <button type="button" id="pt-alert-ok" class="pt-btn pt-btn-primary pt-alert-ok">OK</button>
+      </div>
+    </dialog>
+
+    <!-- ── Slide-out menu, opened from the header burger ──────────────────
+         Everything here points off the scan flow, so it lives outside <main>
+         and stays inert until opened (see scripts/scanner/menu.js). -->
+    <div class="pt-nav-scrim" id="pt-nav-scrim"></div>
+
+    <nav class="pt-nav" id="pt-nav" aria-label="Menu" inert>
+
+      <div class="pt-nav-head">
+        <a class="pt-nav-logo-link" href="https://parktag.me" aria-label="ParkTag home">
+          <img class="pt-nav-logo" src="/images/light-logo.png" alt="ParkTag" />
+        </a>
+        <button type="button" class="pt-nav-close" id="pt-nav-close" aria-label="Close menu">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="pt-nav-body">
+
+        <div class="pt-nav-brand">
+          <p class="pt-nav-brand-name">ParkTag</p>
+          <p class="pt-nav-brand-sub">Smart tags for cars, bikes &amp; fleets.</p>
+        </div>
+
+        <div class="pt-nav-tiles">
+          <a class="pt-nav-tile" href="/shop">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M4 8h16l-1.2 11a2 2 0 0 1-2 1.8H7.2a2 2 0 0 1-2-1.8L4 8Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+              <path d="M9 8V6a3 3 0 0 1 6 0v2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            </svg>
+            <span>Shop</span>
+          </a>
+          <a class="pt-nav-tile" href="/owner-login">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <rect x="3" y="3" width="7" height="7" rx="1.4" stroke="currentColor" stroke-width="1.8"/>
+              <rect x="14" y="3" width="7" height="7" rx="1.4" stroke="currentColor" stroke-width="1.8"/>
+              <rect x="3" y="14" width="7" height="7" rx="1.4" stroke="currentColor" stroke-width="1.8"/>
+              <path d="M14 14h3v3h-3zM20 14h1M14 20h3M20 17v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            </svg>
+            <span>Free eTag</span>
+          </a>
+          <a class="pt-nav-tile" href="/owner">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M3 11.5 11.2 3.3a2 2 0 0 1 1.4-.6H19a2 2 0 0 1 2 2v6.4a2 2 0 0 1-.6 1.4L12.2 21a1.6 1.6 0 0 1-2.3 0L3 14.1a1.8 1.8 0 0 1 0-2.6Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+              <circle cx="16.3" cy="7.7" r="1.5" fill="currentColor"/>
+            </svg>
+            <span>My Tags</span>
+          </a>
+        </div>
+
+        <p class="pt-nav-eyebrow">Menu</p>
+
+        <div class="pt-nav-tabs" role="tablist" aria-label="Menu sections">
+          <button type="button" class="pt-nav-tab" role="tab" id="pt-nav-tab-utility"
+                  aria-selected="true" aria-controls="pt-nav-panel-utility">Utility</button>
+          <button type="button" class="pt-nav-tab" role="tab" id="pt-nav-tab-business"
+                  aria-selected="false" aria-controls="pt-nav-panel-business" tabindex="-1">Business</button>
+          <button type="button" class="pt-nav-tab" role="tab" id="pt-nav-tab-more"
+                  aria-selected="false" aria-controls="pt-nav-panel-more" tabindex="-1">More</button>
+        </div>
+
+        <div class="pt-nav-list" id="pt-nav-panel-utility" role="tabpanel" aria-labelledby="pt-nav-tab-utility">
+          <a class="pt-nav-item pt-nav-item-lead" href="/shop">
+            <span class="pt-nav-item-ic" data-tone="brand">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M4 8h16l-1.2 11a2 2 0 0 1-2 1.8H7.2a2 2 0 0 1-2-1.8L4 8Z" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/>
+                <path d="M9 8V6a3 3 0 0 1 6 0v2" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+              </svg>
+            </span>
+            <span class="pt-nav-item-tx">
+              <span class="pt-nav-item-t">Shop all products</span>
+              <span class="pt-nav-item-s">Car tags, bike tags &amp; combo packs</span>
+            </span>
+            <span class="pt-nav-item-ar" aria-hidden="true">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+          </a>
+          <a class="pt-nav-item" href="/shop">
+            <span class="pt-nav-item-ic">
+              <!-- The shop's car-tag icon (PACK_CAR_ICON in pages/owner/welcome.html),
+                   at the size the shop draws it. -->
+              <svg width="27" height="27" viewBox="0 0 512 512" aria-hidden="true"><path fill="#03162D" d="M256 92c-71.6 0-110 6.4-125.9 20.6-13.8 12.3-24.6 42.4-37.9 96.4-6.3 3.7-12.4 9.2-18.6 17C58.7 244.8 46.5 271.6 46.5 300.4v112.2c0 15.9 12.9 28.8 28.8 28.8h41c15.9 0 28.8-12.9 28.8-28.8v-25.2c41.9 3.9 90.3 5.6 111.9 5.6s70-1.7 111.9-5.6v25.2c0 15.9 12.9 28.8 28.8 28.8h41c15.9 0 28.8-12.9 28.8-28.8V300.4c0-28.8-12.2-55.6-27.1-74.4-6.2-7.8-12.3-13.3-18.6-17-13.3-54-24.1-84.1-37.9-96.4C366 98.4 327.6 92 256 92z"/><path fill="#fff" d="M256 130c-53.7 0-84.4 4.3-94.7 14.2-8.4 8-16.6 31.4-25.2 65.6-2 8 2.6 13.9 12.4 13 31.1-2.9 68.2-4.1 107.5-4.1s76.4 1.2 107.5 4.1c9.8.9 14.4-5 12.4-13-8.6-34.2-16.8-57.6-25.2-65.6C340.4 134.3 309.7 130 256 130z"/><circle fill="#fff" cx="148" cy="332" r="35"/><circle fill="#fff" cx="364" cy="332" r="35"/><rect fill="#fff" x="196" y="315" width="120" height="46" rx="23"/></svg>
+            </span>
+            <span class="pt-nav-item-tx">
+              <span class="pt-nav-item-t">Car ParkTag</span>
+              <span class="pt-nav-item-s">Parking &amp; emergencies</span>
+            </span>
+            <span class="pt-nav-item-ar" aria-hidden="true">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+          </a>
+          <a class="pt-nav-item" href="/shop">
+            <span class="pt-nav-item-ic">
+              <!-- The shop's bike-tag artwork (PACK_BIKE_ICON in pages/owner/welcome.html).
+                   Lazy, so a scan that never opens the menu does not pay for it. -->
+              <img src="/images/bike-tag.svg" alt="" width="30" height="30" loading="lazy" decoding="async" style="display:block;object-fit:contain" aria-hidden="true">
+            </span>
+            <span class="pt-nav-item-tx">
+              <span class="pt-nav-item-t">Bike ParkTag</span>
+              <span class="pt-nav-item-s">Built for two-wheelers</span>
+            </span>
+            <span class="pt-nav-item-ar" aria-hidden="true">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+          </a>
+          <a class="pt-nav-item" href="/owner-login">
+            <span class="pt-nav-item-ic">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <rect x="3" y="3" width="7" height="7" rx="1.4" stroke="currentColor" stroke-width="1.9"/>
+                <rect x="14" y="3" width="7" height="7" rx="1.4" stroke="currentColor" stroke-width="1.9"/>
+                <rect x="3" y="14" width="7" height="7" rx="1.4" stroke="currentColor" stroke-width="1.9"/>
+                <path d="M14 14h3v3h-3zM20 14h1M14 20h3M20 17v4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+              </svg>
+            </span>
+            <span class="pt-nav-item-tx">
+              <span class="pt-nav-item-t">Get a free eTag</span>
+              <span class="pt-nav-item-s">Try before you buy</span>
+            </span>
+            <span class="pt-nav-item-ar" aria-hidden="true">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+          </a>
+
+          <!-- Below the rule the rows stop being about products and start
+               being about the visitor's own account. -->
+          <hr class="pt-nav-rule" />
+
+          <!-- The public lookup, not the owner dashboard. Most people who open
+               this menu are scanning a stranger's tag and are not signed in,
+               and a buyer whose tag came from a shop may have no account at
+               all — /owner bounced both to a login they can't get past. -->
+          <a class="pt-nav-item" href="/track-order">
+            <span class="pt-nav-item-ic">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M12 21.5s7-6.2 7-11.2a7 7 0 1 0-14 0c0 5 7 11.2 7 11.2Z" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/>
+                <circle cx="12" cy="10" r="2.6" stroke="currentColor" stroke-width="1.9"/>
+              </svg>
+            </span>
+            <span class="pt-nav-item-tx">
+              <span class="pt-nav-item-t">Track order</span>
+              <span class="pt-nav-item-s">Fast shipping on most orders</span>
+            </span>
+            <span class="pt-nav-item-ar" aria-hidden="true">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+          </a>
+          <a class="pt-nav-item" href="/owner-login">
+            <span class="pt-nav-item-ic">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.9"/>
+                <path d="M8.5 12h6.5M12.3 9.2 15 12l-2.7 2.8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
+            <span class="pt-nav-item-tx">
+              <span class="pt-nav-item-t">Login</span>
+              <span class="pt-nav-item-s">Dashboard &amp; your tags</span>
+            </span>
+            <span class="pt-nav-item-ar" aria-hidden="true">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+          </a>
+        </div>
+
+        <div class="pt-nav-list" id="pt-nav-panel-business" role="tabpanel" aria-labelledby="pt-nav-tab-business" hidden>
+          <a class="pt-nav-item pt-nav-item-lead" href="https://parktag.me/#pricing">
+            <span class="pt-nav-item-ic" data-tone="brand">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <rect x="2.5" y="10.5" width="9" height="7" rx="1.6" stroke="currentColor" stroke-width="1.9"/>
+                <rect x="12.5" y="6.5" width="9" height="11" rx="1.6" stroke="currentColor" stroke-width="1.9"/>
+                <path d="M4.5 20h15" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+              </svg>
+            </span>
+            <span class="pt-nav-item-tx">
+              <span class="pt-nav-item-t">Fleet &amp; bulk tags</span>
+              <span class="pt-nav-item-s">Bulk pricing for 10+ vehicles</span>
+            </span>
+            <span class="pt-nav-item-ar" aria-hidden="true">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+          </a>
+          <a class="pt-nav-item" href="https://parktag.me/contact">
+            <span class="pt-nav-item-ic">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M21 15.9v2.7a1.9 1.9 0 0 1-2.1 1.9 18.8 18.8 0 0 1-8.2-2.9 18.5 18.5 0 0 1-5.7-5.7A18.8 18.8 0 0 1 2.1 3.7 1.9 1.9 0 0 1 4 1.6h2.7a1.9 1.9 0 0 1 1.9 1.6c.12.9.34 1.8.66 2.6a1.9 1.9 0 0 1-.43 2L7.7 9.1a15.2 15.2 0 0 0 5.7 5.7l1.3-1.1a1.9 1.9 0 0 1 2-.43c.85.32 1.74.54 2.65.66A1.9 1.9 0 0 1 21 15.9Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+              </svg>
+            </span>
+            <span class="pt-nav-item-tx">
+              <span class="pt-nav-item-t">Talk to sales</span>
+              <span class="pt-nav-item-s">Get a quote for your fleet</span>
+            </span>
+            <span class="pt-nav-item-ar" aria-hidden="true">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+          </a>
+        </div>
+
+        <div class="pt-nav-list" id="pt-nav-panel-more" role="tabpanel" aria-labelledby="pt-nav-tab-more" hidden>
+          <a class="pt-nav-item pt-nav-item-lead" href="https://parktag.me/#faq">
+            <span class="pt-nav-item-ic" data-tone="brand">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.9"/>
+                <path d="M9.6 9.3a2.5 2.5 0 1 1 3.4 2.4c-.7.3-1 .9-1 1.6v.3" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+                <path d="M12 16.8h.01" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/>
+              </svg>
+            </span>
+            <span class="pt-nav-item-tx">
+              <span class="pt-nav-item-t">FAQ</span>
+              <span class="pt-nav-item-s">Common questions answered</span>
+            </span>
+            <span class="pt-nav-item-ar" aria-hidden="true">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+          </a>
+          <a class="pt-nav-item" href="https://parktag.me/privacy">
+            <span class="pt-nav-item-ic">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M12 2.8 19.2 6v5.6c0 4.3-2.9 7.9-7.2 9.6-4.3-1.7-7.2-5.3-7.2-9.6V6L12 2.8Z" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/>
+                <path d="m9 11.9 2.1 2.1L15 10.1" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
+            <span class="pt-nav-item-tx">
+              <span class="pt-nav-item-t">Privacy</span>
+              <span class="pt-nav-item-s">How we protect your data</span>
+            </span>
+            <span class="pt-nav-item-ar" aria-hidden="true">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+          </a>
+          <a class="pt-nav-item" href="https://parktag.me/terms">
+            <span class="pt-nav-item-ic">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M12 4.2v15.4M7.6 19.6h8.8M4.2 8.4h15.6M9.4 6.6h5.2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                <path d="M4.2 8.4 1.7 14h5l-2.5-5.6ZM19.8 8.4 17.3 14h5l-2.5-5.6Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+              </svg>
+            </span>
+            <span class="pt-nav-item-tx">
+              <span class="pt-nav-item-t">Terms of use</span>
+              <span class="pt-nav-item-s">Policies &amp; refunds</span>
+            </span>
+            <span class="pt-nav-item-ar" aria-hidden="true">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+          </a>
+          <a class="pt-nav-item" href="https://parktag.me/about">
+            <span class="pt-nav-item-ic">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.9"/>
+                <path d="M12 16v-4.5M12 8h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+            </span>
+            <span class="pt-nav-item-tx">
+              <span class="pt-nav-item-t">About ParkTag</span>
+              <span class="pt-nav-item-s">How it works &amp; who we are</span>
+            </span>
+            <span class="pt-nav-item-ar" aria-hidden="true">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+          </a>
+        </div>
+
+        <section class="pt-nav-help">
+          <h2 class="pt-nav-help-title">Need help?</h2>
+          <p class="pt-nav-help-copy">Read our activation guide or chat with us on WhatsApp.</p>
+          <a class="pt-nav-whatsapp" href="https://wa.me/918791638854" target="_blank" rel="noopener noreferrer">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M17.5 14.4c-.3-.15-1.75-.86-2-.96-.27-.1-.47-.15-.66.15-.2.3-.76.95-.93 1.15-.17.2-.34.22-.63.07-.3-.15-1.25-.46-2.38-1.47-.88-.78-1.47-1.75-1.64-2.05-.17-.3-.02-.46.13-.6.14-.14.3-.35.45-.53.15-.18.2-.3.3-.5.1-.2.05-.38-.02-.53-.08-.15-.66-1.6-.9-2.19-.24-.57-.48-.5-.66-.5h-.56c-.2 0-.5.07-.77.37-.26.3-1 .98-1 2.4s1.03 2.78 1.17 2.98c.15.2 2.02 3.08 4.9 4.32.68.3 1.22.47 1.64.6.69.22 1.31.19 1.81.11.55-.08 1.75-.71 2-1.4.24-.69.24-1.28.17-1.4-.07-.13-.27-.2-.56-.35ZM12.05 21.3h-.02a9.2 9.2 0 0 1-4.68-1.28l-.34-.2-3.48.91.93-3.4-.22-.35a9.19 9.19 0 0 1-1.4-4.9c0-5.07 4.13-9.2 9.22-9.2a9.15 9.15 0 0 1 9.19 9.21c0 5.07-4.13 9.2-9.2 9.2ZM12.05 1.05C5.9 1.05.9 6.05.9 12.19c0 1.96.51 3.88 1.49 5.57L.8 23.2l5.58-1.46a11.1 11.1 0 0 0 5.66 1.51h.01c6.14 0 11.14-5 11.14-11.14 0-2.98-1.16-5.78-3.26-7.88a11.06 11.06 0 0 0-7.88-3.18Z"/>
+            </svg>
+            Chat on WhatsApp
+          </a>
+        </section>
+
+        <footer class="pt-nav-foot">
+          <p class="pt-nav-foot-made">Made in India · ParkTag</p>
+          <p class="pt-nav-foot-links">
+            <a href="https://parktag.me/terms">Terms</a>
+            <span aria-hidden="true">·</span>
+            <a href="https://parktag.me/privacy">Privacy</a>
+            <span aria-hidden="true">·</span>
+            <a href="https://parktag.me/refund">Refund</a>
+          </p>
+        </footer>
+
+      </div>
+    </nav>
+
     <script type="module" src="/scripts/scanner/app.js?v=__SCANNER_ASSET_VERSION__"></script>
+    <script type="module" src="/scripts/scanner/menu.js?v=__SCANNER_ASSET_VERSION__"></script>
     <script src="/scripts/ux-feedback.js"></script>
 </body>
 </html>

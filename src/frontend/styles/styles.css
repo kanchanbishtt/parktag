@@ -887,6 +887,392 @@ pre {
   color: var(--muted);
 }
 
+/* ── Print queue lookup bar ───────────────────────────────────────────
+   Batch filter + serial jump, sitting above the queue. Wraps rather than
+   scrolls, so it stays usable on a narrow admin window. */
+.pt-pq-lookup {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  padding: 12px;
+  margin-bottom: 16px;
+  background: #F9FAFB;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.pt-pq-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.pt-pq-field > span {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.pt-pq-field select,
+.pt-pq-field input {
+  font: inherit;
+  font-size: 0.88rem;
+  padding: 8px 10px;
+  border: 1.5px solid var(--line);
+  border-radius: 9px;
+  background: #fff;
+  color: #03162D;
+  min-width: 0;
+}
+
+.pt-pq-field select { max-width: 340px; }
+.pt-pq-field input { width: 190px; }
+
+.pt-pq-note {
+  font-size: 0.82rem;
+  color: var(--muted);
+  align-self: center;
+}
+
+.pt-pq-note[data-tone="warn"] { color: #B31C00; font-weight: 700; }
+
+/* ── Print queue: batches ─────────────────────────────────────────────
+   A batch is a heading, not a card — the generations inside it are the
+   things you act on, so the batch line stays typographic and quiet. */
+.pt-pq-batch { margin-bottom: 28px; }
+
+.pt-pq-batch-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.pt-pq-batch-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 900;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+
+.pt-pq-batch-meta {
+  margin: 2px 0 0;
+  font-size: 0.84rem;
+  color: var(--muted);
+}
+
+/* Two spellings of one batch. Stated once, plainly, on its own line — inline
+   it ran into the title and read as noise. */
+.pt-pq-variant {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 7px;
+  padding: 4px 10px;
+  background: #FFF1EF;
+  border: 1px solid #FFD8D0;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: #B31C00;
+}
+
+.pt-pq-batch-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* Destructive, so it must be reachable — but it is not what you came here to
+   do. Quiet until hover; the primary red is reserved for Export QRs. */
+.pt-pq-danger {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+
+.pt-pq-danger:hover {
+  color: var(--error);
+  border-color: #FECACA;
+  background: #FEF2F2;
+}
+
+/* ── Print queue: one generation ──────────────────────────────────────
+   The header is the row you scan, so it holds a fixed shape: select, caret,
+   a two-line label, then actions pinned right. */
+.pt-pq-run {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 10px;
+  background: var(--panel);
+}
+
+.pt-pq-run + .pt-pq-run { margin-top: 0; }
+
+.pt-pq-run-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 13px;
+  background: #F8FAFC;
+  flex-wrap: wrap;
+}
+
+.pt-pq-run.is-open .pt-pq-run-head { border-bottom: 1px solid var(--line); }
+.pt-pq-run.is-newest .pt-pq-run-head { background: #FFF4F1; }
+
+.pt-pq-run-check { width: 16px; height: 16px; cursor: pointer; flex: 0 0 auto; }
+
+/* The whole label is the expand target — a 12px caret is a poor click area. */
+.pt-pq-run-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1 1 240px;
+  min-width: 0;
+  padding: 2px 0;
+  background: none;
+  border: 0;
+  font: inherit;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.pt-pq-caret {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  color: var(--muted);
+  transition: transform 0.15s ease;
+}
+
+.pt-pq-caret[data-open="1"] { transform: rotate(90deg); }
+
+.pt-pq-run-label { min-width: 0; }
+
+.pt-pq-run-title {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+/* Flex with a column gap rather than a "·" between the parts: at narrow widths
+   the range drops to its own line, and a literal separator was left dangling at
+   the end of the line above it. */
+.pt-pq-run-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 9px;
+  margin-top: 1px;
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+/* A serial range is one token to a reader; breaking it across lines as
+   "PT-01-" / "001034" made the header unreadable at narrow widths. */
+.pt-pq-range { white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* Which sticker the run prints. Two mount types get two colours because this is
+   the line the printer acts on, and reading it wrong wastes the whole run. */
+.pt-pq-mount {
+  white-space: nowrap;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  padding: 2px 7px;
+  border-radius: 20px;
+  border: 1px solid transparent;
+}
+.pt-pq-mount[data-mount="windscreen_interior"] {
+  background: #EAF2FF; color: #14448F; border-color: #C4DAFB;
+}
+.pt-pq-mount[data-mount="exterior_surface"] {
+  background: #FFF1E6; color: #9A4A05; border-color: #FBD9BC;
+}
+
+.pt-pq-run-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+
+/* nowrap + no shrink, or a flex parent squeezes the label inside the pill and
+   it collapses into an unreadable blob. */
+.pt-pq-badge {
+  flex: 0 0 auto;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  padding: 3px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.pt-pq-badge-sm { font-size: 0.55rem; padding: 2px 7px; letter-spacing: 0.04em; }
+
+/* Per-row tier chip. Solid red down a column of 600 rows turned the tier — which
+   is usually the same for every tag in a generation — into the loudest thing on
+   the page. Outlined keeps it readable and gives NEWEST its emphasis back. */
+.pt-pq-tier {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 2px 7px;
+  font-size: 0.55rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  background: #FFF1EF;
+  color: #B31C00;
+  border: 1px solid #FFD8D0;
+}
+
+.pt-pq-tier[data-tier="free"] {
+  background: #F1F5F9;
+  color: var(--muted);
+  border-color: var(--line);
+}
+
+/* Secondary: it acts on one generation, while Export QRs acts on the whole
+   selection. Solid red on every generation made the page look like a warning. */
+.pt-pq-act {
+  border: 1.5px solid var(--line);
+  background: var(--panel);
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 7px 13px;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.pt-pq-act:hover { border-color: var(--ink); background: #F8FAFC; }
+
+.pt-pq-more {
+  padding: 10px 13px;
+  background: #F8FAFC;
+  border-top: 1px solid var(--line);
+  font-size: 0.82rem;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* ── Print queue: tag rows ────────────────────────────────────────────
+   Compact by design. The generic .queue-row card stacks token, status, a full
+   claim URL and a button into five lines each — at 600 rows that is a mile of
+   scrolling for data you rarely read. Here the serial leads, and the token and
+   URL are truncated to one line with the full value on hover. */
+/* The serial column gets a real minimum: under minmax(0, …) the grid is free to
+   shrink it below its content, which stacked "PT-01-001016" one character per
+   line. Only the token and the URL may shrink, and they ellipsize. */
+#print-queue-output .queue-row {
+  display: grid;
+  grid-template-columns: auto minmax(210px, 1.2fr) auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 13px;
+  border: 0;
+  border-top: 1px solid #F1F5F9;
+  border-radius: 0;
+  background: var(--panel);
+}
+
+#print-queue-output .queue-row:first-of-type { border-top: 0; }
+#print-queue-output .queue-row:hover { background: #F8FAFC; }
+
+#print-queue-output .queue-row strong {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  min-width: 0;
+  font-size: 0.84rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+#print-queue-output .queue-row .pt-pq-serial { white-space: nowrap; flex: 0 0 auto; }
+
+#print-queue-output .queue-row .pt-pq-token {
+  font-weight: 400;
+  font-size: 0.76rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+#print-queue-output .queue-row a {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.78rem;
+  min-width: 0;
+}
+
+#print-queue-output .queue-row span { font-size: 0.78rem; }
+#print-queue-output .queue-row .pt-pq-status { white-space: nowrap; }
+
+/* Below this the five columns cannot hold their content without every cell
+   becoming an ellipsis, so the row folds to two lines: identity above, claim
+   URL below, action pinned right across both. Every child is placed explicitly
+   — left to flow, the action wrapped onto a third line and each row grew to
+   three lines tall. */
+@media (max-width: 900px) {
+  #print-queue-output .queue-row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    row-gap: 2px;
+    padding: 9px 13px;
+  }
+  #print-queue-output .queue-row > input { grid-column: 1; grid-row: 1 / span 2; }
+  #print-queue-output .queue-row > strong { grid-column: 2; grid-row: 1; }
+  #print-queue-output .queue-row > a { grid-column: 2; grid-row: 2; }
+  #print-queue-output .queue-row > .pt-pq-status { grid-column: 2; grid-row: 3; }
+  #print-queue-output .queue-row > :last-child {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+    align-self: center;
+  }
+  /* An empty status cell would otherwise reserve a third row of blank space. */
+  #print-queue-output .queue-row > .pt-pq-status:empty { display: none; }
+}
+
+/* Flash the row a serial jump landed on, so it is findable inside a long
+   generation without hunting for the highlight. */
+#print-queue-output .queue-row[data-pq-hit="1"] {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  background: #FFF4F1;
+}
+
 .qr-card-body {
   display: grid;
   gap: 6px;
@@ -1198,7 +1584,8 @@ pre {
   align-items: center;
   justify-content: space-between;
   padding: 12px 20px;
-  background: linear-gradient(135deg, #010D1A 0%, #03162D 55%, #0B2244 100%);
+  /* Flat brand navy, the same colour the owner dashboard header uses. */
+  background: #03162D;
   border-bottom: 2px solid rgba(255,39,0,0.48);
   box-shadow: 0 4px 20px rgba(0,0,0,0.28);
   position: sticky;
@@ -1475,6 +1862,155 @@ pre {
   text-transform: uppercase;
 }
 
+/* ── Vehicle type picker (activation step 2) ────────────────────────────
+   Deliberately borrows the reason chips' visual language — same 12px radius,
+   same 1.5px border, same amber selected state — because it is the same kind
+   of control and the scanner has usually just seen those. Three columns: six
+   types land as two even rows on a phone without the labels wrapping. */
+.pt-vtype {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;          /* fieldset defaults to min-content and breaks grids */
+}
+
+.pt-vtype-legend {
+  display: block;
+  padding: 0;
+  margin-bottom: 10px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--pt-ink);
+}
+
+.pt-vtype-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.pt-vtype-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 10px 6px;
+  border: 1.5px solid var(--pt-border);
+  border-radius: 12px;
+  background: var(--pt-white);
+  color: var(--pt-ink);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 180ms ease, background 180ms ease, color 180ms ease;
+}
+
+/* Shown in place of the picker when the sticker cannot go on the vehicle that
+   was tapped. Amber rather than red: nothing has gone wrong and nothing was
+   lost — the owner is one tap from a valid answer. */
+.pt-mount-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+  padding: 22px 18px 18px;
+  border: 1px solid var(--pt-amber);
+  border-radius: 16px;
+  background: var(--pt-amber-bg);
+}
+
+.pt-mount-block[hidden] {
+  display: none;
+}
+
+.pt-mount-block-ic {
+  display: flex;
+  line-height: 0;
+  color: var(--pt-amber-dark);
+}
+
+.pt-mount-block-t {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--pt-ink);
+}
+
+.pt-mount-block-s {
+  margin: 0;
+  font-size: 0.86rem;
+  line-height: 1.5;
+  color: var(--pt-sub);
+  max-width: 34ch;
+}
+
+.pt-mount-block-btn {
+  margin-top: 6px;
+  width: 100%;
+}
+
+.pt-mount-block-link {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--pt-amber-dark);
+  text-decoration: underline;
+}
+
+/* The size lives here rather than on each icon — one number to change rather
+   than six. */
+.pt-vtype-ico {
+  display: flex;
+  line-height: 0;
+}
+
+/* The vehicle artwork is raster inside an SVG wrapper (see VEHICLE_ICON_SRC in
+   scripts/scanner/app.js), so it is sized rather than tinted — an <img> cannot
+   inherit the chip's colour the way the old inline SVG did. 34px, not the 22px
+   the line icons used: the auto and the truck are detailed silhouettes that
+   blur into a smudge below about 34. */
+.pt-vtype-ico img {
+  width: 34px;
+  height: 34px;
+  display: block;
+  object-fit: contain;
+}
+
+.pt-vtype-ico svg {
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+
+.pt-vtype-btn:hover {
+  border-color: var(--pt-amber);
+  background: var(--pt-amber-bg);
+  color: var(--pt-amber-dark);
+}
+
+.pt-vtype-btn[aria-checked="true"] {
+  border-color: var(--pt-amber);
+  background: var(--pt-amber-bg);
+  color: var(--pt-amber-dark);
+  box-shadow: 0 2px 8px rgba(255,39,0,0.12);
+}
+
+/* Marks the option the sticker's mount type points at, so a pre-selection is
+   visibly a suggestion the owner can override rather than a silent default. */
+.pt-vtype-hint {
+  margin: 8px 0 0;
+  font-size: 0.72rem;
+  color: var(--pt-sub);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pt-vtype-btn { transition: none; }
+}
+
 .pt-select {
   appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236B7280' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
@@ -1605,19 +2141,73 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
   flex-shrink: 0;
 }
 
+/* Drawn as the number plate itself rather than as a dark chip: an Indian
+   plate with its IND band and tricolour strip is instantly recognisable as
+   "this is the vehicle", which a navy pill is not. Built entirely from the
+   two pseudo-elements so the markup stays a single element carrying just the
+   plate text — nothing decorative to keep in sync in the JS. */
 .pt-plate-display {
   font-family: "Courier New", monospace;
   font-size: 1.45rem;
   font-weight: 900;
   letter-spacing: 0.13em;
-  color: #FFFFFF;
-  background: linear-gradient(135deg, #03162D 0%, #0A2040 100%);
-  border-radius: 10px;
-  padding: 8px 16px;
+  color: #101828;
+  background: #FFFFFF;
+  border-radius: 9px;
+  /* Top clears the IND band, left clears the flag strip. */
+  padding: 24px 14px 9px 28px;
   display: inline-block;
-  border: 1.5px solid rgba(255,255,255,0.12);
-  box-shadow: 0 3px 12px rgba(0,25,53,0.28), inset 0 1px 0 rgba(255,255,255,0.07);
-  text-shadow: 0 1px 3px rgba(0,0,0,0.4);
+  position: relative;
+  overflow: hidden;
+  border: 2px solid #0E1B2E;
+  box-shadow: 0 3px 12px rgba(0,25,53,0.20);
+}
+
+/* The IND band across the top. */
+.pt-plate-display::before {
+  content: "IND";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 17px;
+  background: #16296B;
+  color: #FFFFFF;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  line-height: 17px;
+  text-align: center;
+  text-indent: 0.22em;   /* the tracking after the last letter, re-centred */
+}
+
+/* The tricolour strip down the left, from the artwork rather than from CSS.
+   This replaces a linear-gradient for the three bands plus a radial-gradient
+   standing in for the chakra — that stand-in was a plain 4.8px dot, because a
+   24-spoke wheel is not something a gradient can draw. The SVG carries the real
+   Ashoka Chakra in the correct navy (#000080).
+
+   The file is authored at exactly 18x42, the size this strip measures on the
+   default plate, so at that size it is pixel-exact.
+
+   `background-size: 100% 100%` rather than `contain`: the strip's height is
+   derived (top:17px to bottom:0), so it shortens to ~37px when the plate
+   tightens on small screens — see the 1.25rem rule further down. `contain`
+   would letterbox and leave white gaps at top and bottom; stretching keeps the
+   bands meeting the plate edges exactly as the gradient did. The ~11% vertical
+   squash that costs the chakra is imperceptible on a 5px wheel.
+
+   Only the strip comes from artwork. The IND band above is still CSS: it is a
+   text label that has to stay selectable-free but legible at any width, and it
+   spans the full plate rather than this fixed 18px column. */
+.pt-plate-display::after {
+  content: "";
+  position: absolute;
+  left: 0; top: 17px; bottom: 0;
+  width: 18px;
+  background-image: url("/images/ind-flag-strip.svg");
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  border-right: 1px solid rgba(14,27,46,0.22);
 }
 
 .pt-vehicle-label {
@@ -1814,6 +2404,192 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
   background: #FFF6F4;
 }
 
+/* ── Emergency confirmation dialog ──
+   Proportioned off .pt-card rather than invented: same 20px radius, same 24px
+   inset, same type scale, so it reads as this product asking a question rather
+   than as a browser alert. Capped at the card's own 480px and at 92vw, so it
+   never reaches the screen edge on a phone. */
+.pt-dialog {
+  width: min(92vw, 480px);
+  padding: 0;
+  border: 1px solid rgba(0, 25, 53, 0.07);
+  border-radius: 20px;
+  background: var(--pt-white);
+  color: var(--pt-ink);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04), 0 18px 48px rgba(0, 25, 53, 0.22);
+  overflow: hidden;
+}
+
+.pt-dialog::backdrop {
+  background: rgba(3, 22, 45, 0.55);
+}
+
+.pt-dialog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 24px;
+  border-bottom: 1px solid #CBD5E1;
+}
+
+.pt-dialog-title {
+  margin: 0;
+  font-size: clamp(1.05rem, 4.4vw, 1.18rem);
+  font-weight: 800;
+  color: var(--pt-ink);
+}
+
+/* A rounded square rather than a circle, to sit with the card's rounded
+   rectangles. 40px is a comfortable tap target without competing with the
+   title beside it. */
+.pt-dialog-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 12px;
+  background: var(--pt-bg);
+  color: var(--pt-sub);
+  cursor: pointer;
+}
+
+.pt-dialog-close:hover {
+  background: #E4E8EF;
+}
+
+.pt-dialog-body {
+  display: grid;
+  gap: 16px;
+  padding: 20px 24px 24px;
+}
+
+.pt-dialog-copy {
+  margin: 0;
+  font-size: clamp(0.9rem, 3.6vw, 0.97rem);
+  line-height: 1.55;
+  color: var(--pt-sub);
+}
+
+/* Aligned to `start`, not `center`: the label runs to three lines on a phone,
+   and a centred box would float to the middle of the paragraph. */
+.pt-dialog-check {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  font-size: clamp(0.88rem, 3.5vw, 0.94rem);
+  line-height: 1.45;
+  color: var(--pt-ink);
+  cursor: pointer;
+}
+
+.pt-dialog-check input {
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  /* Sits on the first line's baseline rather than its ascender. */
+  margin-top: 1px;
+  accent-color: var(--pt-amber);
+  cursor: pointer;
+}
+
+/* ── Emergency helplines ── */
+.pt-note-box {
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--pt-bg);
+  font-size: clamp(0.88rem, 3.5vw, 0.95rem);
+  line-height: 1.5;
+  color: var(--pt-sub);
+}
+
+.pt-helpline-card {
+  padding: 16px;
+  border-radius: 14px;
+  background: var(--pt-bg);
+}
+
+.pt-helpline-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: clamp(0.97rem, 3.9vw, 1.04rem);
+  font-weight: 800;
+  color: var(--pt-ink);
+}
+
+.pt-helpline-title svg {
+  flex: 0 0 auto;
+  color: var(--pt-amber);
+}
+
+.pt-helpline-sub {
+  margin: 6px 0 0;
+  font-size: clamp(0.84rem, 3.3vw, 0.9rem);
+  line-height: 1.45;
+  color: var(--pt-sub);
+}
+
+.pt-helpline-list {
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Hairlines between rows, none under the last — a trailing rule with nothing
+   below it reads as a missing sixth number. */
+.pt-helpline-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 11px 0;
+  border-bottom: 1px solid #DDE3EC;
+}
+
+.pt-helpline-list li:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.pt-helpline-list span {
+  font-size: clamp(0.9rem, 3.6vw, 0.97rem);
+  font-weight: 700;
+  color: var(--pt-ink);
+}
+
+/* The number is the thing being reached for, so it carries the weight and the
+   brand red. Padded on the left so the tap target reaches past the digits
+   without pushing the label around. */
+.pt-helpline-list a {
+  padding: 4px 0 4px 16px;
+  font-size: clamp(1.15rem, 4.8vw, 1.3rem);
+  font-weight: 800;
+  color: var(--pt-amber);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.pt-dialog-back {
+  justify-self: start;
+  min-height: 44px;
+  padding: 10px 22px;
+  border: 1px solid var(--pt-border);
+  border-radius: 12px;
+  background: var(--pt-bg);
+  color: var(--pt-sub);
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 .pt-sos-cancel {
   justify-self: center;
   background: none;
@@ -1894,6 +2670,15 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
   margin: 0;
 }
 
+/* The wizard's status line sits directly under a full-width button in a
+   centred, one-question-per-screen card, so a left-aligned message reads as
+   detached from the button that triggered it. Scoped to #claim-status rather
+   than applied to .pt-status: the contact card's own status (#plate-verify-status)
+   sits in a left-aligned form and is deliberately left as it is. */
+#claim-status {
+  text-align: center;
+}
+
 .pt-status[data-tone="info"] { color: var(--pt-sub); }
 .pt-status[data-tone="success"] { color: #FF2700; }
 .pt-status[data-tone="error"] { color: #DC2626; }
@@ -1902,6 +2687,19 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
 .pt-card .pt-status {
   padding: 0;
   margin-top: 8px;
+}
+
+/* ...except in the action card, which is itself padding:0 so that each child
+   supplies its own 24px inset. The reset above left the status line flush
+   against the card edge, sitting further left than every sibling.
+   Centred to match the .pt-privacy-note directly beneath it — the two read as
+   one footer block under the action buttons. The 24px padding still matters
+   once the sentence wraps, so a long status stays inside the card's margins
+   rather than running edge to edge. Same specificity as the rule above, so this
+   has to stay after it. */
+.pt-action-card .pt-status {
+  padding: 0 24px 12px;
+  text-align: center;
 }
 
 /* Trust / privacy notes */
@@ -1936,7 +2734,9 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
   }
   .pt-plate-display {
     font-size: 1.25rem;
-    padding: 7px 12px;
+    /* Band and strip keep their pixel sizes, so only the plate's own padding
+       tightens — shrinking the top/left insets here would crop them. */
+    padding: 23px 11px 8px 26px;
   }
 }
 
@@ -3063,7 +3863,7 @@ html:has(body.pt-hub-body) {
 }
 
 .pt-admin-brand-logo {
-  height: 26px;
+  height: 42px;
   width: auto;
   display: block;
 }
@@ -3605,10 +4405,27 @@ html:has(body.pt-hub-body) {
 
 .scanner-body .pt-header {
   flex: 0 0 auto;
+  /* The shared .pt-header is a fixed 64px bar with NO vertical padding, so a
+     top-only inset for the notch pushed the logo and the burger 6px below the
+     bar's middle. Pad both ends equally instead: 42px logo + 11px + 11px is
+     the same 64px bar, with its contents actually centred. min-height keeps
+     the bar from collapsing if the logo is ever swapped for a shorter one. */
+  height: auto;
+  min-height: 64px;
   /* viewport-fit=cover is set on this page — keep the logo out of the notch. */
-  padding-top: calc(12px + env(safe-area-inset-top, 0px));
+  padding-top: calc(11px + env(safe-area-inset-top, 0px));
+  padding-bottom: 11px;
   padding-left: calc(20px + env(safe-area-inset-left, 0px));
   padding-right: calc(20px + env(safe-area-inset-right, 0px));
+}
+
+/* The wordmark carries far more visual weight than the 20px burger glyph
+   opposite it, so matching their insets exactly leaves the logo looking
+   crowded. Pull it out to 14px — the floor of the clamp the page content
+   below already uses — while the burger keeps its 20px. The safe-area inset
+   is added before this is subtracted, so a notch is still cleared. */
+.scanner-body .pt-logo {
+  margin-left: -6px;
 }
 
 .scanner-body .pt-main {
@@ -3636,6 +4453,19 @@ html:has(body.pt-hub-body) {
    scanner column more room and loosen the action card's internal rhythm. */
 .scanner-body .pt-main {
   max-width: 520px;
+}
+
+/* .pt-main is a flex item of .scanner-body with `margin: 0 auto`, and auto
+   cross-axis margins switch a flex item off `stretch` — so it sizes to its
+   widest content rather than to its column. The SOS copy was the widest text in
+   the action card, so closing that block on the Private Call tap collapsed the
+   card from 480px to ~389px.
+   Scoped with :has() to the screen that actually has the problem: applying it to
+   .pt-main outright also stretched the activation wizard (398px -> 460px), which
+   is meant to stay narrow. Browsers without :has() simply keep today's
+   behaviour. */
+.scanner-body:has(#scanner-action-shell:not([hidden])) .pt-main {
+  width: 100%;
 }
 
 .scanner-body .pt-vehicle-block {
@@ -3742,6 +4572,247 @@ html:has(body.pt-hub-body) {
   text-indent: 0.22em;
 }
 
+/* ── Verification card ──
+   Reads top to bottom as one instruction: see what to look for, then answer
+   it. Left-aligned throughout, unlike the centred cards elsewhere, because
+   every line here is prose the scanner reads rather than a status to admire. */
+.pt-verify-media {
+  display: block;
+  width: 100%;
+  /* The artwork's own ratio (1134x496), so it is shown whole — nothing cropped,
+     nothing stretched — while the box still reserves the exact height before
+     the image lands, which stops everything below it jumping on load. Update
+     this alongside the file if the artwork is ever re-cut. */
+  aspect-ratio: 1134 / 496;
+  object-fit: cover;
+  /* Painted behind the image so a slow or failed load leaves a neutral block
+     rather than a collapsed gap that shifts everything below it. */
+  background: #EEF1F5;
+  margin-bottom: 16px;
+}
+
+.pt-verify-title {
+  margin: 0;
+  font-size: clamp(0.95rem, 3.9vw, 1.05rem);
+  font-weight: 800;
+  line-height: 1.32;
+  color: var(--pt-ink);
+}
+
+/* ── Verification overlay ───────────────────────────────────────────────
+   The verify card is raised over the contact card instead of replacing it,
+   so the scanner can still see the choice they just made behind the blur.
+
+   Nothing in here touches the card's own typography or box — the card keeps
+   .pt-card / .pt-verify-card exactly as before. .pt-vmodal-inner reproduces
+   .pt-main's max-width and horizontal padding so the card measures the same
+   number of pixels inside the overlay as it did in the page flow. If
+   .pt-main's width ever changes, change it here too. */
+.pt-vmodal {
+  position: fixed;
+  inset: 0;
+  z-index: 120;              /* above the sticky header (z-index 100) */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* The blur is the point: the page behind stays legible as context but
+     clearly out of reach. The translucent wash underneath keeps contrast on
+     browsers with no backdrop-filter (older in-app webviews), where this
+     degrades to a plain dim rather than to an unreadable overlap. */
+  background: rgba(9, 20, 38, 0.42);
+  -webkit-backdrop-filter: blur(7px) saturate(115%);
+  backdrop-filter: blur(7px) saturate(115%);
+  /* A tall card on a short phone must be reachable, so the overlay scrolls
+     rather than clipping the Cancel button off the bottom. */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* The overlay is fixed, so the body's scrollbar-compensation padding does not
+     reach it. Apply the same gutter here, or the card inside would centre on a
+     viewport 15px wider than the page behind and render wider than the card it
+     replaced. */
+  padding-right: var(--pt-scroll-gutter, 0px);
+  animation: pt-vmodal-fade 200ms ease-out both;
+}
+
+.pt-vmodal[hidden] {
+  display: none;             /* [hidden] alone loses to display:flex */
+}
+
+/* Set while the overlay is up. Without it a swipe over the blur scrolls the
+   contact card underneath, which reads as the overlay having come loose.
+   The padding replaces the scrollbar the lock removed, so the page behind does
+   not jump sideways — see openVerifyModal, which measures the gutter. */
+body.pt-modal-open {
+  overflow: hidden;
+  padding-right: var(--pt-scroll-gutter, 0px);
+}
+
+.pt-vmodal-inner {
+  width: 100%;
+  /* Mirrors `.scanner-body .pt-main` — the rule that actually governs this
+     page — NOT the base .pt-main. Those differ: the scanner column is 520px,
+     not 480px, and its inline padding is the fluid --pt-pad-x
+     (clamp(14px, 4.5vw, 20px)), not a fixed 16px. Mirroring the base rule put
+     the card at 398px against the 391.31px it measures in the page flow.
+     --pt-pad-x is read rather than repeated, so the two cannot drift: the
+     overlay is a descendant of .pt-main, and custom properties inherit even
+     though position:fixed takes it out of flow. */
+  max-width: 520px;
+  padding-block: 20px;
+  padding-inline: calc(var(--pt-pad-x, 16px) + env(safe-area-inset-left, 0px))
+                  calc(var(--pt-pad-x, 16px) + env(safe-area-inset-right, 0px));
+  margin: auto;              /* centres, and keeps top/bottom gap when scrolling */
+}
+
+/* On tablet and up the card is already held to 460px and centred by
+   `.scanner-body #scanner-verification-shell` (see the min-width:700px block
+   further down). That rule still applies inside the overlay, so the desktop
+   width needs nothing here. */
+
+.pt-vmodal .pt-verify-card {
+  /* Lifts the card off the blur; the card's own radius/padding are untouched. */
+  box-shadow: 0 8px 20px rgba(0,25,53,0.18), 0 24px 60px rgba(0,25,53,0.26);
+  animation: pt-vmodal-rise 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes pt-vmodal-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes pt-vmodal-rise {
+  from { opacity: 0; transform: translateY(14px) scale(0.98); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Motion is decoration here — the card must still arrive, just without the
+   travel, for anyone who has asked the OS to reduce animation. */
+@media (prefers-reduced-motion: reduce) {
+  .pt-vmodal,
+  .pt-vmodal .pt-verify-card {
+    animation: none;
+  }
+}
+
+/* var(--pt-border) is tuned for input outlines against white and all but
+   vanishes as a standalone rule. This one is doing a job — separating the
+   picture from the question, and the question from the answer — so it is
+   darkened until it reads as a divider on a phone held at a windscreen. */
+.pt-verify-rule {
+  border: 0;
+  border-top: 1px solid #CBD5E1;
+  margin: 14px 0;
+}
+
+.pt-verify-form {
+  display: grid;
+  gap: 14px;
+}
+
+.pt-verify-label {
+  margin: 0;
+  font-size: clamp(0.88rem, 3.5vw, 0.95rem);
+  line-height: 1.4;
+  color: var(--pt-ink);
+}
+
+.pt-verify-label strong {
+  font-weight: 800;
+}
+
+/* The masked plate is the label for the field beside it: the scanner reads
+   "UK15D####", looks at the vehicle, and fills in what the hashes hide.
+   `auto` for the plate so a long registration keeps its own width and the
+   input gives way, rather than the plate wrapping mid-registration. */
+.pt-verify-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(10px, 3vw, 14px);
+}
+
+.pt-verify-plate {
+  font-family: "Courier New", monospace;
+  font-size: clamp(0.95rem, 4vw, 1.05rem);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--pt-ink);
+  white-space: nowrap;
+}
+
+.pt-verify-input {
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.pt-verify-input::placeholder {
+  font-weight: 500;
+  letter-spacing: normal;
+}
+
+/* The Private Call block. Same type scale as .pt-verify-label so the card
+   reads as one form rather than two pasted together; heavier, because it is
+   asking for something rather than describing the field above it. */
+.pt-verify-callnote {
+  margin: 0 0 10px;
+  font-size: clamp(0.88rem, 3.5vw, 0.95rem);
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--pt-ink);
+}
+
+/* MASKED is the word that answers "why do you want my number?", so it is the
+   one thing emphasised in the sentence. */
+.pt-verify-callnote strong {
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.pt-verify-phone {
+  font-weight: 600;
+}
+
+/* The form is a grid, and a grid item still generates a box when the UA
+   stylesheet is overridden anywhere upstream. State it explicitly: a leaked
+   number field on the WhatsApp path is the one thing this must never do. */
+#plate-verify-call-block[hidden] {
+  display: none;
+}
+
+/* Shared by the verification card and the contact card's number panel, so the
+   two ways out of this flow look and measure the same. Deliberately quiet:
+   next to a red primary button it must read as the way back, not a rival. */
+.pt-cancel-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* 44px is the minimum comfortable tap target, and this one sits close to
+     nothing else, so it does not need to be any bigger. */
+  min-height: 44px;
+  padding: 10px 22px;
+  border: 1px solid var(--pt-border);
+  border-radius: 12px;
+  background: var(--pt-bg);
+  color: var(--pt-sub);
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-decoration: none;
+  /* As a <button> it would otherwise inherit the UA font, not Inter. */
+  font-family: inherit;
+  cursor: pointer;
+}
+
+/* .pt-panel is a grid, whose items stretch to the full column by default —
+   which would blow this up to the width of "Continue to call" and turn the way
+   back into a second, competing button. Sized to its text and pinned left, so
+   it reads exactly as it does on the verification card. */
+.pt-panel .pt-cancel-action {
+  justify-self: start;
+  width: fit-content;
+  margin-top: 2px;
+}
+
 /* Country code + number: the code keeps just enough room for its longest
    label, the number gets the rest. Stays one row down to 320px — stacking
    would make the step taller and fight the centring. */
@@ -3828,4 +4899,1043 @@ html:has(body.pt-hub-body) {
     width: 100%;
     margin: 0 auto;
   }
+}
+
+/* ============================================================
+   SLIDE-OUT MENU (scan page header burger)
+   ============================================================ */
+
+/* The header is `justify-content: space-between`, so the badge and the burger
+   share one right-hand slot instead of fighting the logo for it. */
+.pt-header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.pt-burger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  /* Pull the box past the header padding so the GLYPH lines up 20px off the
+     edge, matching the logo's inset — the tap target keeps its slack. */
+  margin-right: -9px;
+  /* Bare glyph — no chip. The 38px box stays for the tap target, so the
+     icon keeps a comfortable target without drawing one. */
+  border: none;
+  background: none;
+  color: rgba(255,255,255,0.92);
+  cursor: pointer;
+  transition: color .15s ease, opacity .15s ease;
+}
+.pt-burger:hover { color: #FFFFFF; }
+.pt-burger:active { opacity: 0.6; }
+
+/* Scrim */
+.pt-nav-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  background: rgba(3,22,45,0.42);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity .26s ease, visibility 0s linear .26s;
+}
+.pt-nav-scrim.is-open {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity .26s ease;
+}
+
+/* Drawer shell */
+.pt-nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  z-index: 71;
+  width: 88%;
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  background: #F3F5F9;
+  border-radius: 0 18px 18px 0;
+  box-shadow: 0 20px 60px rgba(3,22,45,0.30);
+  transform: translateX(-104%);
+  visibility: hidden;
+  transition: transform .28s cubic-bezier(.2,.7,.3,1), visibility 0s linear .28s;
+  font-family: 'Inter', 'Roboto', "Segoe UI", sans-serif;
+}
+.pt-nav.is-open {
+  transform: none;
+  visibility: visible;
+  transition: transform .28s cubic-bezier(.2,.7,.3,1);
+}
+
+/* Drawer header — white, so it carries the light logo, not the dark one. */
+.pt-nav-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #FFFFFF;
+  border-radius: 0 18px 0 0;
+  border-bottom: 1px solid #EDEFF3;
+  min-height: 64px;
+  /* 10px at the bottom, not 11: this bar carries a 1px border the page
+     header does not, so the shorter pad keeps both bars at 64px and the
+     logo dead-centre in each. */
+  padding: 11px 16px 10px calc(14px + env(safe-area-inset-left, 0px));
+  padding-top: calc(11px + env(safe-area-inset-top, 0px));
+}
+
+.pt-nav-logo-link { display: inline-flex; align-items: center; text-decoration: none; }
+/* Same 42px as dark-logo.png on the page behind — the two files share a
+   745x280 frame, so equal heights render identically. */
+.pt-nav-logo { height: 42px; width: auto; display: block; }
+
+.pt-nav-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 35px;
+  height: 34px;
+  padding: 0;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 10px;
+  background: #EEF1F6;
+  color: #64748B;
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease;
+}
+.pt-nav-close:hover { background: #E3E8F0; color: #334155; }
+
+/* Scrolling body */
+.pt-nav-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: 14px 16px calc(18px + env(safe-area-inset-bottom, 0px));
+  padding-left: calc(16px + env(safe-area-inset-left, 0px));
+}
+
+/* Brand card */
+.pt-nav-brand {
+  background: #FFFFFF;
+  border: 1px solid #EDEFF3;
+  border-left: 5px solid var(--pt-navy);
+  border-radius: 12px;
+  padding: 11px 15px;
+}
+.pt-nav-brand-name {
+  margin: 0;
+  font-size: 1.06rem;
+  font-weight: 800;
+  color: #0F172A;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+}
+.pt-nav-brand-sub {
+  margin: 3px 0 0;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: #94A3B8;
+  line-height: 1.35;
+}
+
+/* Three quick tiles */
+.pt-nav-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 9px;
+  margin-top: 13px;
+}
+.pt-nav-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 65px;
+  padding: 9px 4px;
+  background: #FFFFFF;
+  border: 1px solid #E6E9EF;
+  border-radius: 12px;
+  color: #0F172A;
+  text-decoration: none;
+  transition: border-color .15s ease, background .15s ease;
+}
+.pt-nav-tile:hover { border-color: #CBD5E1; background: #F8FAFC; }
+.pt-nav-tile span {
+  font-size: 0.79rem;
+  font-weight: 600;
+  color: #0F172A;
+  text-align: center;
+  line-height: 1.2;
+}
+
+/* "MENU" eyebrow */
+.pt-nav-eyebrow {
+  margin: 18px 0 10px;
+  font-size: 0.70rem;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: #94A3B8;
+}
+
+/* Segmented tabs */
+.pt-nav-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+  padding: 3px;
+  background: #EEF1F6;
+  border-radius: 999px;
+}
+.pt-nav-tab {
+  padding: 5px 4px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: #64748B;
+  font-family: inherit;
+  font-size: 0.845rem;
+  font-weight: 600;
+  line-height: 1.15;
+  cursor: pointer;
+  transition: background .18s ease, color .18s ease;
+}
+.pt-nav-tab[aria-selected="true"] {
+  background: var(--pt-navy);
+  color: #FFFFFF;
+  font-weight: 700;
+}
+
+/* Menu lists */
+.pt-nav-list {
+  display: grid;
+  gap: 9px;
+  margin-top: 13px;
+}
+.pt-nav-list[hidden] { display: none; }
+
+/* Separates the product rows from the account rows inside one panel. */
+.pt-nav-rule {
+  height: 0;
+  margin: 1px 2px;
+  border: none;
+  border-top: 1px solid #E2E6ED;
+}
+
+.pt-nav-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: #FFFFFF;
+  border: 1px solid #E6E9EF;
+  border-radius: 12px;
+  text-decoration: none;
+  transition: border-color .15s ease, background .15s ease;
+}
+.pt-nav-item:hover { border-color: #CBD5E1; }
+
+/* The first row of each section is the one we want tapped — tinted, and
+   outlined in the brand yellow rather than the neutral hairline. */
+.pt-nav-item-lead {
+  background: #FFFFFF;
+  border: 2px solid var(--pt-navy);
+  padding: 11px 13px;
+}
+.pt-nav-item-lead:hover { border-color: #0B2244; }
+
+.pt-nav-item-ic {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 35px;
+  height: 35px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  background: #EEF2F7;
+  color: #334155;
+}
+.pt-nav-item-ic[data-tone="brand"] {
+  background: var(--pt-navy);
+  color: #FFFFFF;
+}
+
+.pt-nav-item-tx { min-width: 0; display: block; }
+.pt-nav-item-t {
+  display: block;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #0F172A;
+  line-height: 1.3;
+}
+.pt-nav-item-s {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.775rem;
+  font-weight: 500;
+  color: #94A3B8;
+  line-height: 1.3;
+}
+.pt-nav-item-ar {
+  display: inline-flex;
+  align-items: center;
+  color: #94A3B8;
+  flex-shrink: 0;
+}
+
+/* Need help */
+.pt-nav-help {
+  margin-top: 14px;
+  padding: 15px;
+  background: #FFFFFF;
+  border: 1px solid #EDEFF3;
+  border-radius: 12px;
+}
+.pt-nav-help-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
+  color: #0F172A;
+  line-height: 1.25;
+}
+.pt-nav-help-copy {
+  margin: 5px 0 13px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: #94A3B8;
+  line-height: 1.45;
+}
+.pt-nav-whatsapp {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 13px 14px;
+  border-radius: 11px;
+  background: #22A94F;
+  color: #FFFFFF;
+  font-size: 0.94rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: background .15s ease;
+}
+.pt-nav-whatsapp:hover { background: #1D9445; }
+
+/* Footer */
+.pt-nav-foot {
+  margin-top: 16px;
+  text-align: center;
+}
+.pt-nav-foot-made,
+.pt-nav-foot-links {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #94A3B8;
+  line-height: 1.6;
+}
+.pt-nav-foot-links a {
+  color: #94A3B8;
+  text-decoration: none;
+}
+.pt-nav-foot-links a:hover { color: #64748B; text-decoration: underline; }
+
+/* Freeze the page behind the drawer so a scroll gesture moves the menu. */
+body.pt-nav-open { overflow: hidden; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pt-nav, .pt-nav-scrim { transition: none; }
+}
+
+/* The wordmark's image box includes the p/g descenders, so its geometric
+   middle sits ~2.5px below where the eye reads the middle — the midpoint
+   between cap-top and baseline. Centring the burger on the box therefore
+   leaves it looking low next to the logo. Lift it onto the wordmark's
+   optical centre instead. Measured off dark-logo.png: cap-top 64, baseline
+   183 of 280 natural rows, rendered at 42px. A transform keeps the layout
+   and the tap target where they are. */
+.scanner-body .pt-burger {
+  transform: translateY(-2.5px);
+}
+
+/* ── Alert dialog ────────────────────────────────────────────
+   Shares .pt-dialog's shell (radius, backdrop, shadow) and only restyles the
+   inside: no header bar, everything stacked and centred under the mark. */
+.pt-alert {
+  width: min(88vw, 380px);
+}
+
+.pt-alert-body {
+  display: grid;
+  justify-items: center;
+  gap: 0;
+  padding: 30px 26px 26px;
+  text-align: center;
+}
+
+/* The ring is an SVG circle now, not a border — a border cannot be drawn on. */
+.pt-alert-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--pt-amber);
+}
+
+.pt-alert-title {
+  margin: 22px 0 0;
+  font-size: clamp(1.15rem, 4.6vw, 1.3rem);
+  font-weight: 800;
+  color: var(--pt-ink);
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.pt-alert-copy {
+  margin: 12px 0 0;
+  font-size: clamp(0.9rem, 3.6vw, 0.97rem);
+  line-height: 1.55;
+  color: var(--pt-sub);
+}
+
+.pt-alert-ok {
+  margin-top: 24px;
+  min-width: 150px;
+  width: auto;
+}
+
+/* ── Alert mark, drawn on open ────────────────────────────────
+   The dialog is display:none while closed, so every showModal() restarts
+   these from the beginning — no JS needed to replay them.
+
+   Dash lengths are the shapes' own: the ring is 2πr at r=36 (226.2), each
+   stroke is the diagonal of a 24x24 box (33.9). Rounded up so no sliver is
+   left behind by sub-pixel rounding. */
+.pt-alert-ring,
+.pt-alert-x1,
+.pt-alert-x2 {
+  stroke: var(--pt-amber);
+  stroke-width: 3;
+  stroke-linecap: round;
+  fill: none;
+}
+
+.pt-alert-ring {
+  stroke-dasharray: 227;
+  stroke-dashoffset: 0;
+  /* Start the sweep at 12 o'clock rather than 3, which is where a circle's
+     path begins. */
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+}
+
+.pt-alert-x1,
+.pt-alert-x2 {
+  stroke-dasharray: 34;
+  stroke-dashoffset: 0;
+}
+
+@keyframes pt-alert-ring-draw {
+  from { stroke-dashoffset: 227; }
+  to   { stroke-dashoffset: 0; }
+}
+
+@keyframes pt-alert-stroke-draw {
+  from { stroke-dashoffset: 34; }
+  to   { stroke-dashoffset: 0; }
+}
+
+@keyframes pt-alert-in {
+  from { opacity: 0; transform: translateY(10px) scale(.96); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes pt-alert-backdrop-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* The ring sweeps first, then the two strokes cross in behind it. */
+.pt-alert[open] .pt-alert-ring {
+  animation: pt-alert-ring-draw .52s cubic-bezier(.35, 0, .25, 1) both;
+}
+
+.pt-alert[open] .pt-alert-x1 {
+  animation: pt-alert-stroke-draw .2s cubic-bezier(.4, 0, .3, 1) .34s both;
+}
+
+.pt-alert[open] .pt-alert-x2 {
+  animation: pt-alert-stroke-draw .2s cubic-bezier(.4, 0, .3, 1) .48s both;
+}
+
+.pt-alert[open] {
+  animation: pt-alert-in .24s cubic-bezier(.2, .7, .3, 1) both;
+}
+
+.pt-alert[open]::backdrop {
+  animation: pt-alert-backdrop-in .24s ease both;
+}
+
+/* Everything lands in its finished state — the mark is the error, so it has
+   to be legible whether or not it was allowed to draw itself. */
+@media (prefers-reduced-motion: reduce) {
+  .pt-alert[open],
+  .pt-alert[open]::backdrop,
+  .pt-alert[open] .pt-alert-ring,
+  .pt-alert[open] .pt-alert-x1,
+  .pt-alert[open] .pt-alert-x2 {
+    animation: none;
+  }
+}
+
+/* ── Track your order ─────────────────────────────────────────
+   Public order lookup (/track-order). Reuses .pt-card, .pt-input and
+   .pt-btn-primary; only the form's own stacking and the result block below it
+   need rules of their own. */
+
+/* The heading block owns its own spacing. .pt-card-title and .pt-card-sub are
+   each declared twice in this sheet and the LATER pair resets both to
+   `margin: 0`, so the 8px/20px in the base rules never reach this page — the
+   first field label sat flush against the subtitle with a measured 0px gap.
+   Fixed here rather than by reopening margins that every other card in the
+   app now relies on being flat. */
+.pt-track-intro {
+  margin-bottom: 18px;
+}
+
+.pt-track-intro .pt-card-title {
+  margin-bottom: 6px;
+}
+
+.pt-track-form {
+  display: grid;
+  gap: 7px;
+}
+
+.pt-track-label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--pt-ink);
+}
+
+/* The label of the second field sits directly under the first input, so it
+   needs the breathing room the grid gap alone doesn't give it. */
+.pt-track-label + .pt-input {
+  margin-bottom: 9px;
+}
+
+.pt-track-submit {
+  margin-top: 7px;
+}
+
+/* ── Result ── */
+.pt-track-head {
+  margin-bottom: 14px;
+}
+
+.pt-track-order-no {
+  margin: 0 0 3px;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--pt-ink);
+  /* An order number never breaks across lines mid-token, but a long product
+     list in the meta line under it can — keep the two visually distinct. */
+  letter-spacing: 0.01em;
+}
+
+.pt-track-meta {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--pt-sub);
+  line-height: 1.5;
+}
+
+.pt-track-current {
+  display: grid;
+  gap: 2px;
+  background: #F7F9FC;
+  border: 1px solid #EEF0F3;
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+
+.pt-track-current-eyebrow {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #9CA3AF;
+}
+
+.pt-track-current-status {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--pt-ink);
+}
+
+.pt-track-current-time {
+  font-size: 0.74rem;
+  color: var(--pt-sub);
+}
+
+.pt-track-empty {
+  margin: 0;
+  padding: 8px 0;
+  text-align: center;
+  font-size: 0.82rem;
+  color: var(--pt-sub);
+  line-height: 1.6;
+}
+
+/* ── Checkpoint timeline ── */
+.pt-track-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 22px;
+  position: relative;
+}
+
+/* The rail. Inset at the bottom so it stops at the last dot rather than
+   trailing past it. */
+.pt-track-steps::before {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 6px;
+  bottom: 10px;
+  width: 2px;
+  background: var(--pt-border);
+}
+
+.pt-track-step {
+  display: grid;
+  gap: 1px;
+  position: relative;
+  padding-bottom: 16px;
+}
+
+.pt-track-step:last-child {
+  padding-bottom: 0;
+}
+
+.pt-track-dot {
+  position: absolute;
+  left: -22px;
+  top: 3px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #C9CDD3;
+  /* Punches a hole in the rail so it reads as passing behind each dot. */
+  box-shadow: 0 0 0 3px var(--pt-white);
+}
+
+/* Where the parcel is now. */
+.pt-track-step-now .pt-track-dot {
+  background: var(--pt-amber);
+}
+
+.pt-track-step-title {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--pt-ink);
+}
+
+.pt-track-step-now .pt-track-step-title {
+  font-weight: 800;
+}
+
+.pt-track-step-place {
+  font-size: 0.76rem;
+  color: var(--pt-sub);
+}
+
+.pt-track-step-time {
+  font-size: 0.72rem;
+  color: #9CA3AF;
+}
+
+.pt-track-courier {
+  display: inline-block;
+  margin-top: 10px;
+  font-size: 0.76rem;
+  color: var(--pt-sub);
+  text-decoration: underline;
+}
+
+/* ── Scanner quick actions ─────────────────────────────────────────────────
+   One centred row under the action card, on the page ground rather than in
+   it. Small and muted on purpose: none of the three reaches the owner, and
+   giving them card weight would read as a third contact route sitting beside
+   WhatsApp and Private Call. */
+/* One line, always. The three labels together are wider than a 360px phone at
+   a fixed size, and wrapping strands "Share" on a second row under a dangling
+   separator — so the type scales with the viewport instead of the row
+   breaking. `nowrap` on the items keeps a label from splitting mid-phrase. */
+.pt-quick-actions {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0 clamp(4px, 2vw, 9px);
+  max-width: 100%;
+  margin: 14px auto 0;
+  padding: 0 4px;
+}
+
+.pt-quick-action {
+  display: inline-flex;
+  align-items: center;
+  gap: clamp(4px, 1.2vw, 6px);
+  margin: 0;
+  padding: 4px 1px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  font-size: clamp(10.5px, 3.3vw, 13.5px);
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+  color: var(--ink);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+/* The icon shrinks with the type, so the row keeps its proportions rather
+   than the glyph swelling on a narrow screen. */
+.pt-quick-action svg {
+  flex: none;
+  width: clamp(12px, 3.6vw, 15px);
+  height: clamp(12px, 3.6vw, 15px);
+}
+
+.pt-quick-action:hover,
+.pt-quick-action:focus-visible {
+  color: var(--accent-dark);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Decoration only — it must not swallow a tap aimed at the link beside it. */
+.pt-quick-sep {
+  flex: none;
+  font-size: clamp(11px, 3.2vw, 13px);
+  color: var(--muted);
+  opacity: .5;
+  pointer-events: none;
+  user-select: none;
+}
+
+.pt-quick-status {
+  margin: 8px auto 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+  text-align: center;
+}
+
+/* ── Report-a-tag page ────────────────────────────────────────────────────
+   Its own card system rather than .pt-card: the reference layout is a stack
+   of flat white cards on a warm off-white ground with no shadow and a wider
+   radius, and reusing .pt-card would mean overriding almost every property
+   of it. */
+.report-body {
+  min-height: 100vh;
+  margin: 0;
+  background: #FBF9F6;
+  color: var(--ink);
+}
+
+.pt-report-main {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 14px 16px calc(30px + env(safe-area-inset-bottom, 0px));
+  display: grid;
+  gap: 16px;
+}
+
+.pt-report-card {
+  background: #fff;
+  border-radius: 18px;
+  padding: 22px 20px;
+}
+
+.pt-report-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 14px 7px 11px;
+  border-radius: 999px;
+  background: #FDECEC;
+  color: #E23B3B;
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+
+.pt-report-title {
+  margin: 16px 0 10px;
+  font-size: 25px;
+  font-weight: 800;
+  line-height: 1.22;
+  letter-spacing: -.01em;
+  color: #16283F;
+}
+
+.pt-report-h2 {
+  margin: 0 0 8px;
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: -.01em;
+  color: #16283F;
+}
+
+.pt-report-sub {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: #6B7A90;
+}
+
+/* Dashed, not solid: this is a reference value to read back to support, not
+   an input, and the dashes keep it from reading as an empty field. */
+.pt-report-idbox {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 18px;
+  padding: 15px 18px;
+  border: 1.5px dashed #DFE5EC;
+  border-radius: 14px;
+  background: #FBFCFD;
+}
+
+.pt-report-idlabel {
+  font-size: 15px;
+  color: #6B7A90;
+}
+
+.pt-report-idvalue {
+  font-size: 17px;
+  font-weight: 800;
+  color: #16283F;
+}
+
+/* Two columns; "Others" is a fifth item and sits alone on the last row, which
+   is the reference layout rather than an accident of wrapping. */
+.pt-report-reasons {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 13px;
+  margin: 20px 0 22px;
+}
+
+/* Sized so the longest label ("No one Answered") sits on ONE line in a
+   half-width chip from 390px up, which is the reference layout. Narrower than
+   that it wraps rather than overflowing, and the grid keeps both chips in a
+   row the same height either way. */
+.pt-report-reason {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 16px 9px;
+  border: 1.5px solid #E7ECF2;
+  border-radius: 14px;
+  background: #fff;
+  font: inherit;
+  font-size: clamp(12px, 3.2vw, 13.5px);
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: left;
+  color: #16283F;
+  cursor: pointer;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+.pt-report-reason svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: #6B7A90;
+}
+
+.pt-report-reason:hover {
+  border-color: #C9D4E1;
+}
+
+/* Selection is carried by the border, so the inset shadow does the work of a
+   second border pixel without shifting the box and nudging the grid. */
+.pt-report-reason.is-selected {
+  border-color: #16283F;
+  box-shadow: inset 0 0 0 1px #16283F;
+}
+
+.pt-report-reason.is-selected svg {
+  color: #16283F;
+}
+
+.pt-report-form {
+  display: block;
+}
+
+.pt-report-label {
+  display: block;
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #16283F;
+}
+
+.pt-report-input {
+  display: block;
+  width: 100%;
+  margin: 0 0 18px;
+  padding: 16px 17px;
+  border: 1.5px solid #E7ECF2;
+  border-radius: 13px;
+  background: #fff;
+  font: inherit;
+  font-size: 15.5px;
+  color: #16283F;
+}
+
+.pt-report-input::placeholder {
+  color: #97A4B6;
+}
+
+.pt-report-input:focus {
+  outline: none;
+  border-color: #16283F;
+}
+
+.pt-report-textarea {
+  resize: vertical;
+  min-height: 84px;
+}
+
+.pt-report-captcha {
+  margin: 0 0 16px;
+}
+
+.pt-report-submit {
+  display: block;
+  width: 100%;
+  padding: 18px 20px;
+  border: 0;
+  border-radius: 14px;
+  background: #16283F;
+  font: inherit;
+  font-size: 16.5px;
+  font-weight: 800;
+  color: #fff;
+  cursor: pointer;
+}
+
+.pt-report-submit:disabled {
+  opacity: .6;
+  cursor: default;
+}
+
+.pt-report-status {
+  margin: 14px 0 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: #6B7A90;
+}
+
+.pt-report-status[data-tone="error"] { color: #DC2626; }
+.pt-report-status[data-tone="success"] { color: #128C4B; }
+
+/* Transfer card: icon and copy side by side, button on its own row below. */
+.pt-report-transfer {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 14px;
+}
+
+.pt-report-transfer-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 13px;
+  background: #E8F8EE;
+  color: #25D366;
+}
+
+.pt-report-transfer-title {
+  margin: 0 0 7px;
+  font-size: 19px;
+  font-weight: 800;
+  line-height: 1.28;
+  letter-spacing: -.01em;
+  color: #16283F;
+}
+
+.pt-report-transfer-copy {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: #6B7A90;
+}
+
+.pt-report-wa {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  margin-top: 4px;
+  padding: 17px 20px;
+  border-radius: 14px;
+  background: #25D366;
+  font-size: 16.5px;
+  font-weight: 800;
+  color: #fff;
+  text-decoration: none;
+}
+
+/* Back sits at the top-left of the stack, above the first card. A single
+   destination does not need a persistent bar, and putting it inline means it
+   scrolls away with the rest of the page instead of hovering over the submit
+   button at the moment someone is reaching for it. */
+.pt-report-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  justify-self: start;
+  margin: 0 0 2px 2px;
+  padding: 8px 14px 8px 11px;
+  border-radius: 999px;
+  background: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  color: #5C6B80;
+  text-decoration: none;
+}
+
+.pt-report-back:hover,
+.pt-report-back:focus-visible {
+  color: #16283F;
 }

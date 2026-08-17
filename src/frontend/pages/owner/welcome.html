@@ -15,15 +15,15 @@
     .pt-wp { width: 100%; min-height: 100vh; background: #fff; padding-bottom: 72px; }
 
     /* ── Header ──────────────────────────────────── */
+    /* Flat brand navy. This was a four-stop gradient that only passed through
+       #03162D at 28% and finished four shades lighter, so the header never
+       actually read as the brand colour. The white radial wash that sat on top
+       of it is gone too — it tinted the same area back off-colour. */
     .pt-wh {
-      background: linear-gradient(155deg, #010D1A 0%, #03162D 28%, #0A2040 58%, #162F60 100%);
+      background: #03162D;
       padding: 0 18px;
       box-shadow: 0 1px 0 rgba(255,255,255,0.06), 0 6px 32px rgba(0,18,48,0.32);
       position: relative; overflow: hidden;
-    }
-    .pt-wh::before {
-      content: ''; position: absolute; inset: 0; pointer-events: none;
-      background: radial-gradient(ellipse 90% 55% at 50% -5%, rgba(255,255,255,0.07) 0%, transparent 70%);
     }
     .pt-wh::after {
       content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 2px; pointer-events: none;
@@ -41,34 +41,81 @@
       display: flex; align-items: center; gap: 11px; flex: 1; min-width: 0;
     }
     .pt-wh-logo-img {
-      height: 28px; width: auto; mix-blend-mode: lighten; flex-shrink: 0;
+      height: 42px; width: auto; mix-blend-mode: lighten; flex-shrink: 0;
     }
+    /* Sized against the 42px logo rather than left at its old 28px. */
     .pt-wh-sep {
-      width: 1px; height: 28px; background: rgba(255,255,255,0.15); flex-shrink: 0;
+      width: 1px; height: 30px; background: rgba(255,255,255,0.18); flex-shrink: 0;
     }
     .pt-wh-greet { flex: 1; min-width: 0; }
     .pt-wh-hi {
-      font-size: .96rem; font-weight: 800; color: #fff; margin: 0;
-      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; letter-spacing: -.01em;
+      font-size: 1rem; font-weight: 800; color: #fff; margin: 0;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; letter-spacing: -.015em;
+      line-height: 1.2;
     }
     .pt-wh-id {
-      font-size: .70rem; color: #7B9ABF; margin: 3px 0 0; font-weight: 500;
-      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      font-size: .72rem; color: #8FAACB; margin: 2px 0 0; font-weight: 500;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.25;
     }
-    /* Right: stats + action buttons */
-    .pt-wh-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    /* Name editing. The affordance sits beside the greeting and stays quiet:
+       an owner who ignores it loses nothing, which is the whole point of asking
+       here instead of in the sign-in flow. */
+    .pt-wh-hi-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .pt-wh-nameedit {
+      flex-shrink: 0; border: 0; cursor: pointer; font-family: inherit;
+      display: inline-flex; align-items: center; gap: 5px;
+      background: rgba(255,255,255,0.10); color: rgba(255,255,255,0.86);
+      border-radius: 20px; padding: 3px 9px;
+      font-size: .7rem; font-weight: 700; letter-spacing: .01em;
+      transition: background .15s, color .15s;
+    }
+    .pt-wh-nameedit:hover { background: rgba(255,255,255,0.18); color: #fff; }
+    .pt-wh-nameedit:focus-visible { outline: 2px solid rgba(255,255,255,0.75); outline-offset: 2px; }
+    /* Icon-only state (a name already exists) is a square rather than a pill. */
+    .pt-wh-nameedit[data-mode="edit"] { padding: 4px; border-radius: 9px; }
+
+    /* Takes the greeting's place, so it carries no extra top margin. */
+    .pt-wh-nameform { display: flex; align-items: center; gap: 6px; margin: 0; }
+    .pt-wh-nameform[hidden] { display: none; }
+    .pt-wh-nameinput {
+      flex: 1; min-width: 0; font-family: inherit;
+      background: rgba(255,255,255,0.12); color: #fff;
+      border: 1.5px solid rgba(255,255,255,0.28); border-radius: 9px;
+      padding: 6px 10px; font-size: .9rem; font-weight: 600;
+    }
+    .pt-wh-nameinput::placeholder { color: rgba(255,255,255,0.5); font-weight: 500; }
+    .pt-wh-nameinput:focus { outline: none; border-color: rgba(255,255,255,0.7); }
+    .pt-wh-namebtn {
+      flex-shrink: 0; width: 30px; height: 30px; border-radius: 9px; cursor: pointer;
+      border: 1.5px solid rgba(255,255,255,0.28); background: rgba(255,255,255,0.12);
+      color: #fff; display: inline-flex; align-items: center; justify-content: center;
+      transition: background .15s;
+    }
+    .pt-wh-namebtn:hover { background: rgba(255,255,255,0.22); }
+    .pt-wh-namebtn:focus-visible { outline: 2px solid rgba(255,255,255,0.75); outline-offset: 2px; }
+    .pt-wh-namestatus { margin: 4px 0 0; font-size: .72rem; font-weight: 600; color: #FFC9BD; }
+    .pt-wh-namestatus[hidden] { display: none; }
+    /* Right: action buttons. 40px squares to sit with the 42px logo, on the
+       same 12px corner radius as the cards below. */
+    .pt-wh-right { display: flex; align-items: center; gap: 9px; flex-shrink: 0; }
     .pt-wh-btn {
-      width: 38px; height: 38px; border-radius: 11px;
-      background: rgba(255,255,255,0.10);
-      border: 1px solid rgba(255,255,255,0.16);
-      cursor: pointer;
+      width: 40px; height: 40px; border-radius: 12px;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.14);
+      color: rgba(255,255,255,0.92);
+      cursor: pointer; padding: 0;
       display: flex; align-items: center; justify-content: center;
-      transition: background .18s, border-color .18s;
+      transition: background .18s, border-color .18s, color .18s;
       backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
       flex-shrink: 0;
     }
-    .pt-wh-btn:hover  { background: rgba(255,255,255,0.20); border-color: rgba(255,255,255,0.28); }
-    .pt-wh-btn:active { background: rgba(255,255,255,0.28); }
+    .pt-wh-ico { width: 20px; height: 20px; display: block; }
+    .pt-wh-btn:hover  { background: rgba(255,255,255,0.16); border-color: rgba(255,255,255,0.26); color: #fff; }
+    .pt-wh-btn:active { background: rgba(255,255,255,0.24); }
+    /* Keyboard users had no focus indicator at all on these. */
+    .pt-wh-btn:focus-visible {
+      outline: 2px solid rgba(255,255,255,0.75); outline-offset: 2px;
+    }
 
     /* ── Pull-to-refresh ───────────────────────────── */
     .pt-ptr {
@@ -94,24 +141,20 @@
       padding: 0 16px 56px;
     }
 
-    /* ── Responsive breakpoints ────────────────────── */
-    @media (min-width: 480px) {
-      .pt-shop-name  { font-size: .86rem; }
-      .pt-shop-price { font-size: 1rem; }
-    }
+    /* ── Responsive breakpoints ──────────────────── */
+    /* Shop rules do NOT belong in this block. The .pt-shop-* base styles are
+       declared ~200 lines further down, and at equal specificity the later
+       rule wins — so every .pt-shop-* override written here was dead, and the
+       grid stayed two columns at every width. They now live in a block placed
+       after those base styles; search for "Shop: responsive". */
     @media (min-width: 640px) {
       .pt-wh { padding: 16px 28px 28px; }
       .pt-wc { padding: 0 28px 56px; }
-      .pt-shop-grid { grid-template-columns: repeat(3, 1fr); gap: 14px; }
-      .pt-shop-body { padding: 11px 13px 14px; }
-      .pt-shop-name { font-size: .88rem; }
     }
     @media (min-width: 1024px) {
       .pt-wh { padding: 20px 60px 28px; }
       .pt-wh-inner { max-width: 1200px; }
       .pt-wc { max-width: 1200px; padding: 0 60px 64px; }
-      .pt-shop-grid { grid-template-columns: repeat(4, 1fr); gap: 20px; }
-      .pt-shop-name { font-size: 1rem; }
       .pt-wh-hi { font-size: 1.45rem; }
     }
     @media (min-width: 1400px) {
@@ -173,16 +216,6 @@
     }
     .pt-dot-btn[aria-selected="true"] { width: 22px; background:#FF2700; }
 
-    .pt-car-arr {
-      position: absolute; top: 50%; transform: translateY(-50%);
-      background: rgba(255,255,255,.88); border: 1.5px solid #E5E7EB;
-      border-radius: 50%; width: 30px; height: 30px;
-      display: flex; align-items: center; justify-content: center;
-      cursor: pointer; z-index: 2; padding: 0; transition: box-shadow .15s;
-    }
-    .pt-car-arr:hover { box-shadow: 0 2px 8px rgba(0,0,0,.14); }
-    .pt-car-prev { left: 8px; }
-    .pt-car-next { right: 8px; }
 
     /* ── Search ────────────────────────────────────── */
     .pt-wsearch { position: relative; padding: 16px 0 0; }
@@ -210,6 +243,16 @@
 
     /* ── Vehicle list ───────────────────────────────── */
     .pt-vgrid { display: flex; flex-direction: column; gap: 10px; }
+    /* One vehicle per row is right on a phone, but on a desktop it stretches a
+       small icon, a plate and a chevron across the whole content width. Two
+       columns from 1024px, matching the shop grid. A flex column cannot do
+       columns, so it becomes a grid at that width — the cards are already
+       stretch-aligned, so they need no change of their own.
+       A trailing odd vehicle sits alone on the last row; unlike the shop, the
+       count is the owner's, not ours, so that is unavoidable and expected. */
+    @media (min-width: 1024px) {
+      .pt-vgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    }
 
     .pt-vlc {
       display: flex; flex-direction: column; align-items: stretch;
@@ -350,6 +393,36 @@
     .pt-shop-price { font-size: .92rem; font-weight: 900; color: #03162D; }
     .pt-shop-orig  { font-size: .7rem; color: #9CA3AF; text-decoration: line-through; }
 
+    /* Shop: responsive.
+       Placed AFTER the base rules above, not with the other breakpoints near
+       the top of this stylesheet. These selectors have the same specificity as
+       the base ones, so whichever comes last wins — up there they lost, and the
+       grid stayed two columns however wide the window was. */
+    @media (min-width: 480px) {
+      .pt-shop-name  { font-size: .86rem; }
+      .pt-shop-price { font-size: 1rem; }
+    }
+    /* Two columns at every width, phone through desktop — the column count
+       never changes, only the gap and type scale. Three columns would strand a
+       card (four products lay out as 3 + 1), and four turns the cards into a
+       thin strip on a wide screen. The grid takes the full content width at
+       every size; the page container is what limits it, the same limit the
+       rest of the dashboard answers to. */
+    @media (min-width: 640px) {
+      .pt-shop-grid { gap: 14px; }
+      .pt-shop-body { padding: 11px 13px 14px; }
+      .pt-shop-name { font-size: .88rem; }
+    }
+    @media (min-width: 1024px) {
+      .pt-shop-grid { gap: 20px; }
+      .pt-shop-name { font-size: 1rem; }
+      /* The desktop artwork is 16:9 and takes over at exactly this width (see
+         PT_SHOP_DESKTOP_MQ in the script below). The frame has to change with
+         it — left at 4:3, `cover` crops a fifth off each side of a composition
+         laid out to be seen whole. */
+      .pt-shop-img { aspect-ratio: 16/9; }
+    }
+
     /* ── Product detail sheet ──────────────────────── */
     .pt-backdrop {
       position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 200;
@@ -377,7 +450,22 @@
       background: #F3F4F6; border-radius: 16px; aspect-ratio: 16/9;
       display: flex; align-items: center; justify-content: center;
       margin-bottom: 18px;
+      overflow: hidden;
     }
+    /* Fills its frame in both places. The thumbnails are 4:3 while the detail
+       sheet's frame is 16:9, so `cover` crops rather than letterboxing — the
+       subject sits centre-frame in all four, so nothing important is lost.
+       The width/height attributes on the tag reserve the box before the file
+       lands, which keeps the grid from reflowing as the photos arrive. */
+    .pt-shop-photo {
+      width: 100%; height: 100%;
+      object-fit: cover; object-position: center;
+      display: block;
+    }
+    /* <picture> is a wrapper with no box of its own worth keeping — `contents`
+       lets the <img> inside it be the flex/grid child directly, so the sizing
+       rules above still apply and no extra element sits between them. */
+    .pt-shop-pic { display: contents; }
     .pt-sheet-name { font-size: 1.05rem; font-weight: 900; color: #03162D; margin: 0 0 14px; line-height: 1.35; }
     .pt-sheet-prow { display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px; flex-wrap: wrap; }
     .pt-sheet-price { font-size: 1.5rem; font-weight: 900; color: #03162D; }
@@ -491,7 +579,7 @@
     /* ── Shared flow header (same navy + dark logo as the dashboard) ─── */
     .pt-fhead {
       position: sticky; top: 0; z-index: 3;
-      background: linear-gradient(155deg, #010D1A 0%, #03162D 28%, #0A2040 58%, #162F60 100%);
+      background: #03162D;
       padding: 16px 22px; display: flex; align-items: center;
       box-shadow: 0 2px 14px rgba(0,18,48,0.22);
     }
@@ -730,7 +818,34 @@
     .pt-sw input:checked + .pt-sw-t::after { transform: translateX(19px); }
 
     /* Sub-panel helpers */
+    /* Required marker, same red as the delivery form's so the two read as one
+       convention rather than two separate decorations. */
+    .pt-req { color: #FF2700; margin-left: 3px; font-weight: 800; }
     .pt-snote { font-size: .79rem; color: #6B7280; line-height: 1.6; margin: 0 0 11px; }
+    /* A vehicle with no emergency contact has no SOS at all, so the gap is
+       stated rather than left to the empty field to imply. */
+    .pt-smissing {
+      display: flex; align-items: center; gap: 7px;
+      font-size: .78rem; font-weight: 700; color: #9F1239;
+      background: #FFF1F2; border: 1px solid #FECDD3; border-radius: 10px;
+      padding: 8px 11px; margin: 0 0 10px; line-height: 1.4;
+    }
+    .pt-smissing[hidden] { display: none; }
+    .pt-smissing::before {
+      content: "!"; flex-shrink: 0;
+      width: 16px; height: 16px; border-radius: 50%;
+      background: #E11D48; color: #fff;
+      font-size: .68rem; font-weight: 800;
+      display: inline-flex; align-items: center; justify-content: center;
+    }
+    /* Flags the row itself, so a missing contact is visible before the section
+       is even opened. */
+    .pt-mi[data-sos-missing="1"] .pt-mi-lb::after {
+      content: "Required";
+      margin-left: 8px; padding: 2px 7px; border-radius: 20px;
+      background: #FFF1F2; color: #9F1239; border: 1px solid #FECDD3;
+      font-size: .64rem; font-weight: 800; letter-spacing: .02em;
+    }
     .pt-sfield {
       width: 100%; height: 42px; border: 1.5px solid #E5E7EB; border-radius: 11px;
       padding: 0 13px; margin-bottom: 9px;
@@ -777,19 +892,6 @@
       transition: background .15s;
     }
     .pt-menu-ft-o:active { background: #E5E7EB; }
-
-  /* ── Header stats chips ── */
-  .pt-wh-stats { display: none; gap: 7px; align-items: center; }
-  @media (min-width: 400px) { .pt-wh-stats { display: flex; } }
-  .pt-wh-sc {
-    display: flex; flex-direction: column; align-items: center;
-    background: rgba(255,255,255,0.10);
-    border: 1px solid rgba(255,255,255,0.16);
-    border-radius: 10px; padding: 5px 11px; min-width: 38px;
-    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-  }
-  .pt-wh-sn { font-size: .86rem; font-weight: 900; color: #fff; line-height: 1; letter-spacing: -.01em; }
-  .pt-wh-sl { font-size: .52rem; color: rgba(255,255,255,0.50); font-weight: 700; text-transform: uppercase; letter-spacing: .07em; margin-top: 2px; }
 
   /* ── Vehicle card — status dot & contact pill ── */
   .pt-vc-status {
@@ -963,13 +1065,19 @@
   .wl-pt-freebox { margin-top: 10px; padding: 9px 12px; background: #FFF1EF; border: 1px solid #FFD8D0; border-radius: 9px; font-size: 10px; color: #03162D; line-height: 1.55; }
   .wl-pt-freebox b { color: #B31C00; }
   .wl-pt-cut { border: 1.5px dashed #b6bcc6; border-radius: 16px; padding: 14px; display: block; page-break-inside: avoid; }
-  /* Official premium sticker: the real Figma artwork (org-premium-bg.svg)
-     cropped to its exact 1500x902 card, with the tag's QR overlaid in the
-     blank square — a 1:1 match of the physical sticker. Same crop math as the
-     admin print sheet (SVG canvas is 1585x987 with transparent margin/shadow). */
-  .wl-pt-figma-sticker { position: relative; width: 100%; aspect-ratio: 1500 / 902; overflow: hidden; }
-  .wl-pt-figma-bg { position: absolute; top: 0; left: 0; width: calc(100% * 1585 / 1500); height: auto; transform: translate(-1.83%, -3.44%); display: block; }
-  .wl-pt-figma-qr { position: absolute; left: 65.6%; top: 12.08%; width: 27.67%; aspect-ratio: 1; display: block; }
+  /* Official premium sticker: the real Figma artwork (org-parktag-sticker.svg),
+     with the tag's QR overlaid in the blank square — a 1:1 match of the
+     physical sticker. The artwork is full-bleed: its 1000x600 canvas IS the
+     card, with no transparent margin, so it needs no crop. The QR sits in the
+     artwork's own image slot (631.4,68.16 306.4x312.09), squared off and
+     centred in it — see the admin print sheet for the same numbers. */
+  .wl-pt-figma-sticker { position: relative; container-type: inline-size; width: 100%; aspect-ratio: 1000 / 600; overflow: hidden; }
+  .wl-pt-figma-bg { position: absolute; top: 0; left: 0; width: 100%; height: auto; display: block; }
+  .wl-pt-figma-qr { position: absolute; left: 63.14%; top: 11.83%; width: 30.64%; aspect-ratio: 1; display: block; }
+  /* Serial in the empty red band above the QR card, right edge aligned to the
+     QR's own right edge so it reads as part of that block. Black ink: most
+     fade-resistant, and discreet on the red. */
+  .wl-pt-figma-serial { position: absolute; right: 6.22%; top: 3%; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 7px; font-size: 1.3cqw; letter-spacing: 0.06em; color: #000; white-space: nowrap; }
   .wl-pt-sticker { display: flex; width: 100%; border-radius: 18px; overflow: hidden; border: 2px solid #03162D; }
   .wl-pt-left { flex: 0 0 60%; background: #fff; padding: 22px; display: flex; flex-direction: column; justify-content: space-between; }
   .wl-pt-logo { height: 26px; width: auto; display: block; }
@@ -998,34 +1106,61 @@
     <div class="pt-wh-inner">
       <div class="pt-wh-row">
 
-        <!-- Hamburger -->
-        <button class="pt-wh-btn" aria-label="Menu" onclick="openMenu()">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-            <path d="M4 6h16M4 12h10M4 18h16" stroke="rgba(255,255,255,0.92)" stroke-width="2" stroke-linecap="round"/>
-          </svg>
-        </button>
-
         <!-- Logo + separator + greeting -->
         <div class="pt-wh-brand">
           <a href="https://parktag.me" aria-label="ParkTag home" style="display:inline-flex;align-items:center;text-decoration:none"><img src="/images/dark-logo.png" alt="ParkTag" class="pt-wh-logo-img"></a>
           <div class="pt-wh-sep"></div>
           <div class="pt-wh-greet">
-            <p class="pt-wh-hi" id="greetName">
-              <span class="sk" style="display:inline-block;width:120px;height:.9em;border-radius:5px;vertical-align:middle;opacity:0.3"></span>
-            </p>
+            <!-- The greeting is the input. An owner who never told us their name
+                 is greeted with "Hi there!" and offered a quiet way to add one;
+                 an owner who has one gets a pencil to change it. Both open the
+                 same field in place, rather than a dialog. -->
+            <div class="pt-wh-hi-row" id="greet-display">
+              <p class="pt-wh-hi" id="greetName">
+                <span class="sk" style="display:inline-block;width:120px;height:.9em;border-radius:5px;vertical-align:middle;opacity:0.3"></span>
+              </p>
+              <button type="button" id="greet-name-edit" class="pt-wh-nameedit" hidden></button>
+            </div>
+            <!-- Sits between the greeting and the identifier, so opening it
+                 swaps out "Hi, there!" and leaves the email/mobile below
+                 exactly where it was. -->
+            <form id="greet-name-form" class="pt-wh-nameform" hidden>
+              <input id="greet-name-input" class="pt-wh-nameinput" type="text" maxlength="60"
+                     autocomplete="name" placeholder="Your name" aria-label="Your name" />
+              <button type="submit" class="pt-wh-namebtn" id="greet-name-save" aria-label="Save name" title="Save">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <button type="button" class="pt-wh-namebtn" id="greet-name-cancel" aria-label="Cancel" title="Cancel">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+              </button>
+            </form>
+            <p id="greet-name-status" class="pt-wh-namestatus" hidden></p>
             <p class="pt-wh-id" id="greetId">
               <span class="sk" style="display:inline-block;width:90px;height:.65em;border-radius:4px;vertical-align:middle;opacity:0.2"></span>
             </p>
           </div>
         </div>
 
-        <!-- Stats + notification -->
+        <!-- Notification + menu. Both actions sit together on the right; the
+             brand block has flex: 1, so it takes the space the hamburger used
+             to occupy on the left. The tag/active/premium chips that were here
+             are gone; the Overview section already carries those counts.
+
+             Both icons are drawn on the same 24 grid with the same 1.8 stroke
+             and round caps, so they read as one set. The SVGs are aria-hidden
+             because the button already carries the label. -->
         <div class="pt-wh-right">
-          <div class="pt-wh-stats" id="headerStats"></div>
           <button class="pt-wh-btn" aria-label="Notifications">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" stroke="rgba(255,255,255,0.92)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M13.73 21a2 2 0 0 1-3.46 0" stroke="rgba(255,255,255,0.92)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <svg class="pt-wh-ico" viewBox="0 0 24 24" fill="none" aria-hidden="true"
+                 stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3.2a5.6 5.6 0 0 0-5.6 5.6c0 2.83-.62 4.77-1.32 6.02-.36.63.1 1.41.83 1.41h12.18c.73 0 1.19-.78.83-1.41-.7-1.25-1.32-3.19-1.32-6.02A5.6 5.6 0 0 0 12 3.2Z"/>
+              <path d="M10.1 19.1a2.1 2.1 0 0 0 3.8 0"/>
+            </svg>
+          </button>
+          <button class="pt-wh-btn" aria-label="Menu" onclick="openMenu()">
+            <svg class="pt-wh-ico" viewBox="0 0 24 24" fill="none" aria-hidden="true"
+                 stroke="currentColor" stroke-width="1.9" stroke-linecap="round">
+              <path d="M4 7h16M4 12h16M4 17h16"/>
             </svg>
           </button>
         </div>
@@ -1056,13 +1191,13 @@
             <div class="pt-car-slide">
               <div class="pt-slide-img">
                 <img class="pt-slide-mob-img" src="/images/Parktag%20Mobil%20Banner%201.svg" alt="ParkTag banner 1">
-                <img class="pt-slide-desk-img" src="/images/Parktag%20Desktop%20Banner%201.0.svg" alt="ParkTag banner 1">
+                <img class="pt-slide-desk-img" src="/images/Parktag%20Desktop%20Banner%201.svg" alt="ParkTag banner 1">
               </div>
             </div>
 
             <!-- Slide 2 -->
             <div class="pt-car-slide">
-              <img class="pt-slide-mob-img" src="/images/Group%201973340790.svg" alt="ParkTag banner 2">
+              <img class="pt-slide-mob-img" src="/images/Parktag%20Mobil%20Banner%202.svg" alt="ParkTag banner 2">
               <img class="pt-slide-desk-img" src="/images/Parktag%20Desktop%20Banner%202.svg" alt="ParkTag banner 2">
             </div>
 
@@ -1074,12 +1209,10 @@
 
           </div>
 
-          <button class="pt-car-arr pt-car-prev" id="carPrev" aria-label="Previous">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M15 18l-6-6 6-6" stroke="#374151" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </button>
-          <button class="pt-car-arr pt-car-next" id="carNext" aria-label="Next">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="#374151" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </button>
+          <!-- No prev/next arrows. They sat on top of the banner artwork and
+               covered the words at both edges, and the slides are the one thing
+               on this screen that exists to be read. The carousel still advances
+               on its own, and the dots below and a swipe both move it. -->
         </div>
 
         <div class="pt-car-dots">
@@ -1561,12 +1694,23 @@
         <div class="pt-mi-ic" style="background:#FFF1F2;color:#E11D48">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" stroke="currentColor" stroke-width="1.8"/><path d="M12 9v4M12 17h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
         </div>
-        <span class="pt-mi-lb">Emergency / SOS</span>
+        <span class="pt-mi-lb">Emergency / SOS<span class="pt-req" aria-hidden="true">*</span></span>
         <span class="pt-mi-ar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>
       </div>
       <div class="pt-mi-s"><div class="pt-mi-si">
-        <p class="pt-snote">Set an emergency contact. Scanners can call this number directly in an accident.</p>
-        <input class="pt-sfield" id="sos-inp" type="tel" placeholder="Emergency contact number" inputmode="tel"/>
+        <p class="pt-snote">Required. Scanners can call this number directly in an accident, so a vehicle without one has no SOS.</p>
+        <!-- Shown only while the vehicle has no number recorded. The field is
+             required, but it is no use being required somewhere nobody looks —
+             this is what makes a missing one visible on the dashboard. -->
+        <p class="pt-smissing" id="sos-missing" hidden>No emergency contact set for this vehicle.</p>
+        <!-- autocomplete off, and a name the browser cannot map to a person:
+             a bare tel field was being autofilled with the owner's OWN saved
+             number, which is the one number this must never be. The field
+             starts empty unless the server actually holds a contact. -->
+        <input class="pt-sfield" id="sos-inp" type="tel" name="pt-sos-contact"
+               placeholder="Emergency contact number" inputmode="tel"
+               autocomplete="off" autocorrect="off" spellcheck="false"
+               required aria-required="true"/>
         <button class="pt-sbtn" onclick="saveSos()">Save Emergency Contact</button>
       </div></div>
     </div>
@@ -1657,10 +1801,11 @@
     <div class="wl-pt-cut">
       <!-- Official ParkTag premium sticker (real Figma artwork) with this tag's QR -->
       <div class="wl-pt-figma-sticker">
-        <img class="wl-pt-figma-bg" src="/images/org-premium-bg.svg" alt="ParkTag sticker"/>
+        <img class="wl-pt-figma-bg" src="/images/org-parktag-sticker.svg" alt="ParkTag sticker"/>
         <img class="wl-pt-figma-qr" id="wl-print-qr-img"
           src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=https://parktag.me"
           alt="QR Code"/>
+        <div class="wl-pt-figma-serial" id="wl-print-serial"></div>
       </div>
     </div>
   </div>
@@ -1681,6 +1826,13 @@ const PRODUCTS = [
     orig: 499,
     discount: 40,
     variants: ["Car", "Auto"],
+    // The two photo thumbnails are WebP rather than the SVGs they were exported
+    // as: the Figma export embeds the full-resolution photograph as base64, so
+    // the car card alone was 3.2MB. Rendered at 2x the display box (1800x1350)
+    // they stay sharp on a retina phone at ~80KB. The vector thumbnails below
+    // stay SVG, where they are already small and resolution-independent.
+    image: "/images/shop-car.webp",
+    imageDesktop: "/images/shop-car-desktop.webp",
   },
   {
     id: "pt-car-2",
@@ -1691,6 +1843,25 @@ const PRODUCTS = [
     orig: 799,
     discount: 38,
     variants: ["Car", "Auto"],
+    image: "/images/shop-car-2.svg",
+    imageDesktop: "/images/shop-car-2-desktop.svg",
+  },
+  // Combo before Bike, so the two photographic thumbnails sit on opposite
+  // corners of the two-column grid rather than stacked down one side. Order in
+  // this array IS the order on screen; nothing addresses a product by position
+  // (the detail sheet indexes back into this same array, and the price
+  // catalogue is keyed by id), so it is safe to arrange for layout.
+  {
+    id: "pt-combo",
+    name: "ParkTag Combo Pack",
+    desc: "Car + Bike tags: the complete bundle for your entire fleet.",
+    features: ["Masked Calls", "WhatsApp", "Emergency Contact", "One time buy"],
+    price: 499,
+    orig: 899,
+    discount: 44,
+    variants: ["Car", "Bike", "Scooter"],
+    image: "/images/shop-combo.svg",
+    imageDesktop: "/images/shop-combo-desktop.svg",
   },
   {
     id: "pt-bike-1",
@@ -1701,16 +1872,8 @@ const PRODUCTS = [
     orig: 399,
     discount: 25,
     variants: ["Bike", "Scooter", "Helmet"],
-  },
-  {
-    id: "pt-combo",
-    name: "ParkTag Combo Pack",
-    desc: "Car + Bike tags: the complete bundle for your entire fleet.",
-    features: ["Masked Calls", "WhatsApp", "Emergency Contact", "One time buy"],
-    price: 499,
-    orig: 899,
-    discount: 44,
-    variants: ["Car", "Bike", "Scooter"],
+    image: "/images/shop-bike.webp",
+    imageDesktop: "/images/shop-bike-desktop.webp",
   },
 ];
 
@@ -1762,6 +1925,56 @@ function tagPlaceholder(size) {
   </svg>`;
 }
 
+// A product's photo, or the drawn placeholder when it has none.
+//
+// The placeholder is kept rather than deleted: a product added without artwork
+// should still render a card, not a hole. onerror falls back to it too, so a
+// missing or corrupt file degrades to the old look instead of a broken image
+// icon on the dashboard's main screen.
+//
+// Sized eagerly for the first card and lazily after — the grid is above the
+// fold on a phone, so the first thumbnail should not wait on the scroller.
+// The width at which the desktop artwork takes over. Written once here and
+// reused in the <source media> below; the stylesheet switches the card frame to
+// 16:9 at the same width, and the two must not drift — a 16:9 image in a 4:3
+// frame gets its sides cropped off.
+const PT_SHOP_DESKTOP_MQ = "(min-width: 1024px)";
+
+function productImage(product, placeholderSize) {
+  if (!product.image) return tagPlaceholder(placeholderSize);
+
+  // Two crops of the same shot rather than one image scaled: the mobile artwork
+  // is 4:3 (900x675) and the desktop artwork 16:9 (1440x810), each composed for
+  // the shape the card actually has at that width.
+  //
+  // <source> comes before <img> because the browser takes the first match; the
+  // <img> is both the mobile case and the fallback for anything that does not
+  // understand <picture>. onerror stays on the <img>, which is where the
+  // browser reports a failure of whichever source it chose.
+  const desktop = product.imageDesktop
+    ? `<source media="${PT_SHOP_DESKTOP_MQ}" srcset="${product.imageDesktop}" width="1440" height="810" />`
+    : "";
+
+  return `<picture class="pt-shop-pic">${desktop}<img class="pt-shop-photo"
+    src="${product.image}" alt="${product.name}"
+    loading="lazy" decoding="async" width="900" height="675"
+    onerror="ptShopImgFallback(this, ${placeholderSize})" /></picture>`;
+}
+
+// Swaps a failed image for the drawn placeholder. A named handler rather than
+// inline markup in the onerror attribute: the placeholder is a chunk of SVG
+// full of double quotes, which cannot be embedded in a double-quoted attribute
+// without escaping that the browser then has to undo.
+function ptShopImgFallback(img, size) {
+  const holder = document.createElement("span");
+  holder.innerHTML = tagPlaceholder(size);
+  // Replace the whole <picture>, not just the <img> inside it. A <picture>
+  // renders through its <img> child, so swapping only the image would leave the
+  // placeholder inside a wrapper that does not display it.
+  const target = img.closest("picture") || img;
+  target.replaceWith(...holder.childNodes);
+}
+
 // ── Render shop grid ──────────────────────────────────────────
 function renderShop() {
   const grid = document.getElementById("shopGrid");
@@ -1769,7 +1982,7 @@ function renderShop() {
     <div class="pt-shop-card" onclick="openProduct(${i})">
       <div class="pt-shop-img">
         <span class="pt-shop-badge">${p.discount}% OFF</span>
-        ${tagPlaceholder(68)}
+        ${productImage(p, 68)}
       </div>
       <div class="pt-shop-body">
         <p class="pt-shop-name">${p.name}</p>
@@ -1814,7 +2027,7 @@ function renderSheet() {
   const body = document.getElementById("ptSheetBody");
   body.innerHTML = `
     <div class="pt-sheet-img">
-      ${tagPlaceholder(100)}
+      ${productImage(p, 100)}
     </div>
     <p class="pt-sheet-name">${p.name}. ${p.desc}</p>
     <div class="pt-sheet-prow">

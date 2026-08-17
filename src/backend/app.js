@@ -1,6 +1,7 @@
 import Fastify from "fastify";
 import fastifyCookie from "@fastify/cookie";
 import fastifyHelmet from "@fastify/helmet";
+import fastifyMultipart from "@fastify/multipart";
 import fastifyRateLimit from "@fastify/rate-limit";
 import fastifyStatic from "@fastify/static";
 import path from "node:path";
@@ -9,12 +10,18 @@ import { fileURLToPath } from "node:url";
 import QRCode from "qrcode";
 
 import { getEnv } from "./lib/env.js";
-import { clientErrorMessage } from "./lib/errors.js";
+import { BoundedTtlMap } from "./lib/bounded-map.js";
+import { clientError, clientErrorMessage } from "./lib/errors.js";
 import { readSession } from "./lib/auth/session.js";
+import { createSharedRateLimitStore } from "./lib/auth/rate-limit-store.js";
+import { getCollections } from "./lib/db/repositories.js";
+import { stickerSerialFor } from "./lib/core/tag-issuance.js";
 import { registerAdminRoutes } from "./routes/admin/index.js";
 import { registerAuthRoutes } from "./routes/auth/credentials.js";
 import { registerDemoRoutes } from "./routes/system/demo.js";
 import { registerOwnerRoutes } from "./routes/owner/dashboard.js";
+import { registerVaultRoutes } from "./routes/owner/vault.js";
+import { MAX_FILE_BYTES } from "./lib/core/vault.js";
 import { registerProviderRoutes } from "./routes/webhooks/exotel.js";
 import { registerMetaWebhookRoutes } from "./routes/webhooks/meta.js";
 import { registerPublicRoutes } from "./routes/public/index.js";
@@ -33,6 +40,8 @@ const frontendRoot = path.resolve(currentDir, "../frontend");
 const pagesRoot = path.join(frontendRoot, "pages");
 const scannerPage = path.join(pagesRoot, "scanner/index.html");
 const verifyPage = path.join(pagesRoot, "scanner/verify.html");
+const trackOrderPage = path.join(pagesRoot, "scanner/track-order.html");
+const reportTagPage = path.join(pagesRoot, "scanner/report-tag.html");
 const adminPage = path.join(pagesRoot, "admin/index.html");
 const adminOverviewPage = path.join(pagesRoot, "admin/overview.html");
 const adminEtagsPage = path.join(pagesRoot, "admin/etags.html");
@@ -51,7 +60,11 @@ const resetPasswordPage = path.join(pagesRoot, "owner/reset-password.html");
 const ownerVerifyPage = path.join(pagesRoot, "owner/verify.html");
 const ownerWelcomePage = path.join(pagesRoot, "owner/welcome.html");
 const ownerVehicleDetailPage = path.join(pagesRoot, "owner/vehicle-detail.html");
-const scannerAssetVersion = "parktag-ui-5";
+const ownerDocumentsPage = path.join(pagesRoot, "owner/documents.html");
+// Bumped with the scan-flow reorder, then again when the call moved onto the
+// verification card: without it a returning scanner keeps the cached app.js and
+// lands on the old plate-first screen, or on the retired number panel.
+const scannerAssetVersion = "parktag-ui-10";
 const hubAssetVersion = "hub-shell-1";
 
 // Every request is logged with its URL, and several sensitive values travel in
@@ -136,10 +149,35 @@ export async function buildApp() {
 
   // In-process cache in front of the MongoDB-backed session store (see
   // lib/auth/session.js). Sessions themselves live in Mongo, so a restart or a
-  // second instance no longer logs users out — this Map is just a fast path.
-  app.decorate("sessions", new Map());
-  // Server-side OAuth state store — avoids SameSite cookie blocking on Google callback
-  app.decorate("oauthStates", new Map());
+  // second instance no longer logs users out — this is just a fast path.
+  //
+  // BOUNDED (see lib/bounded-map.js): a plain Map only ever evicted a session
+  // when someone read it AFTER it had expired, so sessions belonging to users
+  // who never came back were retained for the life of the process. Dropping an
+  // entry early is free here — a cached session is only trusted for
+  // CACHE_REVALIDATE_MS (30s) before it is re-read from Mongo anyway, so an
+  // eviction costs one extra query and nothing else.
+  app.decorate("sessions", new BoundedTtlMap({
+    ttlMs: 60 * 60 * 1000, // 1 hour — far beyond the 30s the cache is trusted for
+    cap: 10000,
+    name: "sessions"
+  }));
+
+  // Server-side OAuth state store — avoids SameSite cookie blocking on the
+  // Google callback.
+  //
+  // BOUNDED, and this one was the leak that mattered: an entry is written by
+  // GET /api/auth/google (unauthenticated) and deleted only by the CALLBACK, so
+  // every abandoned sign-in leaked permanently and the route could be called in
+  // a loop. TTL matches STATE_TTL_MS in routes/auth/google.js — a state older
+  // than that is refused there anyway, so expiring it here drops nothing that
+  // could still have been used. Mongo keeps the authoritative copy (TTL index
+  // on oauth_states), so an eviction under load degrades to a DB read.
+  app.decorate("oauthStates", new BoundedTtlMap({
+    ttlMs: 10 * 60 * 1000,
+    cap: 5000,
+    name: "oauthStates"
+  }));
 
   app.addContentTypeParser(
     "application/x-www-form-urlencoded",
@@ -227,13 +265,50 @@ export async function buildApp() {
     crossOriginEmbedderPolicy: false
   });
 
+  // Multipart bodies, used only by the document vault upload. The file cap is
+  // enforced here at the parser rather than after the fact, so an oversized
+  // upload stops arriving instead of being read into memory and rejected later;
+  // the route still checks `truncated`, because hitting this limit flags the
+  // stream rather than throwing. `files: 1` keeps one request to one document.
+  await app.register(fastifyMultipart, {
+    limits: { fileSize: MAX_FILE_BYTES, files: 1, fields: 10 }
+  });
+
   await app.register(fastifyRateLimit, {
     max: 200,
     timeWindow: "1 minute",
-    errorResponseBuilder: () => ({
-      ok: false,
-      error: "Too many requests. Please slow down."
-    })
+    // Counters live in MongoDB so they hold ACROSS REPLICAS. The default store
+    // counts in process memory, and this service runs several replicas on
+    // Railway, so every declared limit was really `max × replicaCount`:
+    // /api/auth/forgot-password is declared at 3/hour, but six consecutive
+    // requests to production all returned 200 because no single replica saw
+    // more than two of them. Only the per-route limits pay the round-trip —
+    // the coarse 200/min guard below stays in memory. See rate-limit-store.js.
+    store: createSharedRateLimitStore({
+      // Resolved per request (lazily) rather than captured here: buildApp()
+      // runs before the Mongo connection exists, and getCollections() returns
+      // null when Mongo isn't configured at all, which the store treats as
+      // "fall back to in-memory counting".
+      getCollection: async () => (await getCollections(env))?.rateLimits ?? null,
+      log: () => app.log
+    }),
+    // @fastify/rate-limit does `throw errorResponseBuilder(req, ctx)` — it
+    // THROWS whatever this returns rather than sending it, so the value lands
+    // in setErrorHandler below and must satisfy that handler's contract:
+    //   • `statusCode` — or the handler falls through to its 500 branch;
+    //   • `expose: true` + a string `message` — or clientErrorMessage()
+    //     collapses it into the generic "Something went wrong" fallback.
+    // A plain `{ ok, error }` object (what this used to return) satisfies
+    // NEITHER, so every rate limit in the app — login, OTP send/verify, plate
+    // verify, contact, register, forgot-password, COD OTP — answered a routine
+    // throttle with HTTP 500 and an outage-shaped message. That also buried
+    // genuine 500s in the metrics and left no 429 for clients to branch on.
+    // ClientError already carries `expose: true`, so reuse it.
+    errorResponseBuilder: () => {
+      const error = clientError("Too many requests. Please slow down.");
+      error.statusCode = 429;
+      return error;
+    }
   });
 
   // Catch-all for any error not already turned into a response by a route
@@ -282,6 +357,25 @@ export async function buildApp() {
     return html;
   });
 
+  // Public order lookup. Deliberately outside every auth check: a buyer who
+  // picked a tag up in a shop, or checked out before creating an account, still
+  // needs to be able to follow the parcel. The endpoint behind it is what
+  // proves who is asking (order number + last 4 of the delivery phone).
+  app.get("/track-order", async (_request, reply) => {
+    const html = await fs.readFile(trackOrderPage, "utf8");
+    reply.type("text/html");
+    return html.replaceAll("__SCANNER_ASSET_VERSION__", scannerAssetVersion);
+  });
+
+  // Public tag report. Like /track-order, deliberately unauthenticated — the
+  // person best placed to tell us a tag is stale is the stranger standing at
+  // the vehicle, and they will never have an account.
+  app.get("/report-tag", async (_request, reply) => {
+    const html = await fs.readFile(reportTagPage, "utf8");
+    reply.type("text/html");
+    return html.replaceAll("__SCANNER_ASSET_VERSION__", scannerAssetVersion);
+  });
+
   app.get("/owner-login", async (_request, reply) => {
     const html = await fs.readFile(ownerLoginPage, "utf8");
     reply.type("text/html");
@@ -294,6 +388,22 @@ export async function buildApp() {
       return reply.redirect("/owner-login");
     }
     return reply.redirect("/owner-welcome");
+  });
+
+  // Public "buy a tag" entry point. Every order CTA on the marketing site aims
+  // here instead of at /register-owner, so buying starts the way people expect
+  // a shop to start — sign in, then browse — rather than by demanding vehicle
+  // details from someone who has not bought anything yet.
+  //
+  // Signed in → straight to the dashboard with the Shop tab open. Signed out →
+  // the login screen, flagged so it can hand the shop intent on to the
+  // dashboard once the visitor is through (see owner/login.js).
+  app.get("/shop", async (request, reply) => {
+    const session = await readSession(app, request);
+    if (!session || session.role !== "owner") {
+      return reply.redirect("/owner-login?next=shop");
+    }
+    return reply.redirect("/owner-welcome?shop=1");
   });
 
   app.get("/register-owner", async (_request, reply) => {
@@ -320,6 +430,20 @@ export async function buildApp() {
 
   app.get("/owner-vehicle-detail", async (_request, reply) => {
     const html = await fs.readFile(ownerVehicleDetailPage, "utf8");
+    reply.type("text/html");
+    return html;
+  });
+
+  // The document vault. Session-gated like the dashboard rather than served
+  // to anyone with the URL — the page itself reveals which vehicle is being
+  // looked at, and the PIN prompt on it should be the second gate, not the
+  // first. The documents themselves need the PIN on top of this.
+  app.get("/owner-documents", async (request, reply) => {
+    const session = await readSession(app, request);
+    if (!session || session.role !== "owner") {
+      return reply.redirect("/owner-login");
+    }
+    const html = await fs.readFile(ownerDocumentsPage, "utf8");
     reply.type("text/html");
     return html;
   });
@@ -417,15 +541,28 @@ export async function buildApp() {
     const host = /^[A-Za-z0-9.\-:]+$/.test(rawHost) ? rawHost : "";
     const base = env.scanBaseUrl || (host ? `${proto}://${host}` : env.appBaseUrl);
     const scanUrl = `${base}/tag/${token}`;
+    // margin 2 keeps a quiet zone inside the QR image itself, which matters now
+    // that the overlay fills the artwork's placeholder box edge to edge — with
+    // margin 0 the modules would butt straight up against the box's black
+    // keyline and scanners lose the finder patterns. Matches createPrintQrDataUrl.
     const qrSvg = await QRCode.toString(scanUrl, {
       type: "svg",
-      margin: 0,
+      margin: 2,
       errorCorrectionLevel: "M"
     });
 
+    // Serial printed on the sticker face. stickerSerialFor reduces both halves
+    // to digits, so the value can only be [A-Z0-9-] — nothing to escape here.
+    const collections = await getCollections(env);
+    const tag = await collections.tags.findOne({ token });
+    const serial = tag ? stickerSerialFor(tag) : "";
+
     const html = await fs.readFile(stickerPrintPage, "utf8");
     reply.type("text/html");
-    return html.replaceAll("__SCAN_URL__", scanUrl).replace("<!--QR-->", qrSvg);
+    return html
+      .replaceAll("__SCAN_URL__", scanUrl)
+      .replaceAll("__SERIAL__", serial)
+      .replace("<!--QR-->", qrSvg);
   });
 
   // Public scan landing page. Accepts both the new 256-bit hex tokens (64 chars)
@@ -460,6 +597,7 @@ export async function buildApp() {
   registerPasswordResetRoutes(app, env);
   registerShopRoutes(app, env);
   registerOwnerRoutes(app, env);
+  registerVaultRoutes(app, env);
   registerAdminRoutes(app, env);
 
   return app;

@@ -33,7 +33,7 @@ function telCell(mobile) {
 
 function matches(row, q) {
   if (!q) return true;
-  return [row.plateNumber, row.vehicleLabel, row.ownerName, row.ownerEmail, row.ownerMobile, row.orderNumber, row.productName, row.etagId]
+  return [row.plateNumber, row.vehicleLabel, row.ownerName, row.ownerEmail, row.ownerMobile, row.orderNumber, row.productName, row.etagId, row.serial]
     .some((v) => String(v || "").toLowerCase().includes(q));
 }
 
@@ -41,12 +41,13 @@ function renderActivated(q) {
   const list = DATA.activated.filter((r) => matches(r, q));
   activatedCount.textContent = `${list.length} activated`;
   if (!list.length) {
-    activatedRows.innerHTML = `<tr><td colspan="6" class="empty">No activated premium tags${q ? " match your search" : " yet"}.</td></tr>`;
+    activatedRows.innerHTML = `<tr><td colspan="7" class="empty">No activated premium tags${q ? " match your search" : " yet"}.</td></tr>`;
     return;
   }
   activatedRows.innerHTML = list.map((t) => `
     <tr>
       <td data-label="E-Tag ID"><b>${esc(t.etagId)}</b></td>
+      <td data-label="Sticker serial">${t.serial ? `<b>${esc(t.serial)}</b>` : `<span class="muted">—</span>`}</td>
       <td data-label="Vehicle"><span class="plate">${esc(t.plateNumber || "—")}</span>${t.vehicleLabel ? `<br><span class="muted">${esc(t.vehicleLabel)}</span>` : ""}</td>
       <td data-label="Owner">${esc(t.ownerName || "—")}${t.ownerEmail ? `<br><span class="muted">${esc(t.ownerEmail)}</span>` : ""}</td>
       <td data-label="Mobile">${telCell(t.ownerMobile)}</td>
@@ -99,7 +100,7 @@ async function load() {
     DATA = { activated: data.activated || [], unactivated: data.unactivated || [] };
     renderAll();
   } catch {
-    activatedRows.innerHTML = `<tr><td colspan="6" class="err">Could not load activations.</td></tr>`;
+    activatedRows.innerHTML = `<tr><td colspan="7" class="err">Could not load activations.</td></tr>`;
     unactivatedRows.innerHTML = `<tr><td colspan="7" class="err">Could not load orders.</td></tr>`;
     activatedCount.textContent = "—";
     unactivatedCount.textContent = "—";

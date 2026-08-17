@@ -6,6 +6,21 @@ const label    = params.get("label")  || "Vehicle";
 const realId   = params.get("id")     || "";
 const realToken = params.get("token") || "";
 
+// Point the MORE-tab "Vehicle Documents" row at this vehicle's vault page. The
+// row is a plain <a> so it keeps middle-click and "open in new tab"; only the
+// vehicle id is added here. With no real tag id (the demo/preview state) the
+// row is hidden rather than left linking to a page with nothing to show.
+const documentsLink = document.getElementById("documents-link");
+if (documentsLink) {
+  if (realId) {
+    documentsLink.href = `/owner-documents?id=${encodeURIComponent(realId)}`;
+  } else {
+    // Not `hidden`: the row carries an inline display:block (an <a> is inline
+    // by default), which would out-rank the [hidden] rule and leave it visible.
+    documentsLink.style.display = "none";
+  }
+}
+
 // Real QR data url — populated from API when a real tag id is present
 let realQrDataUrl = "";
 let realScanUrl   = "";
@@ -33,6 +48,9 @@ setTimeout(async () => {
         if (idEl && tag.etagId) idEl.textContent = String(tag.etagId).replace(/^PT-/, "");
         const stEl = document.getElementById("print-status");
         if (stEl) stEl.textContent = tag.status === "inactive" ? "Inactive" : "Active";
+        // Sticker serial, printed on the sticker face itself (not the sheet).
+        const serialEl = document.getElementById("print-figma-serial");
+        if (serialEl) serialEl.textContent = tag.serial || "";
       }
     } catch {}
   }
@@ -237,8 +255,10 @@ setTimeout(async () => {
     } catch {}
   }
 
-  const saved = localStorage.getItem("pt_sos_" + plate);
-  if (saved) inp.value = saved;
+  // Deliberately no localStorage fallback. Filling this from whatever this
+  // browser happened to remember put a number into a field the owner had never
+  // saved for the vehicle, so one with no SOS at all looked as though it had
+  // one. Empty is the honest starting state; the owner nominates someone.
 }, 600);
 
 // ── Remove Vehicle ────────────────────────────────────────────

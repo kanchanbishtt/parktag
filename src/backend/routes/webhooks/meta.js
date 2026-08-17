@@ -1,5 +1,6 @@
 import { getCollections } from "../../lib/db/repositories.js";
 import { verifyMetaWebhookSignature } from "../../lib/integrations/meta.js";
+import { isNonEmptyString, safeEqual } from "../../lib/auth/security.js";
 
 export function registerMetaWebhookRoutes(app, env) {
   // Meta sends a GET request to verify the webhook URL is real.
@@ -9,7 +10,27 @@ export function registerMetaWebhookRoutes(app, env) {
     const token     = request.query["hub.verify_token"];
     const challenge = request.query["hub.challenge"];
 
-    if (mode === "subscribe" && token === env.metaWhatsappWebhookVerifyToken) {
+    // Fail CLOSED when no verify token is configured. The check used to be a
+    // bare `token === env.metaWhatsappWebhookVerifyToken`, and that env var
+    // defaults to "" — so a request carrying `hub.verify_token=` compared ""
+    // against "" and PASSED, letting anyone complete Meta's verification
+    // handshake against this endpoint and have it echo back any challenge they
+    // chose. (Confirmed: it returned 200 with the attacker's own value.)
+    if (!isNonEmptyString(env.metaWhatsappWebhookVerifyToken)) {
+      request.log.error(
+        "[meta webhook] WHATSAPP_WEBHOOK_VERIFY_TOKEN is not configured — refusing webhook verification."
+      );
+      reply.code(403);
+      return { ok: false, error: "Webhook not configured" };
+    }
+
+    // Constant-time compare so the token can't be recovered a character at a
+    // time by timing the responses.
+    if (
+      mode === "subscribe" &&
+      isNonEmptyString(token) &&
+      safeEqual(token, env.metaWhatsappWebhookVerifyToken)
+    ) {
       reply.type("text/plain");
       return reply.send(challenge);
     }

@@ -336,9 +336,27 @@ export async function buildApp() {
   // are not the ones an attacker can make a victim's browser send. Blocking
   // them would break the operational scripts while stopping no attack.
   //
-  // Scoped to /api/auth/* on purpose. The Exotel and Meta webhooks are POSTs
-  // from other origins by design and authenticate with their own secrets; a
-  // blanket origin check would reject every one of them.
+  // WHAT IS COVERED. Every prefix below is a browser-driven surface whose
+  // requests are authorised by a cookie, which is precisely the shape a forged
+  // cross-site request exploits. It started at /api/auth/* alone, which left
+  // every signed-in action — change a tag's status, rewrite an emergency
+  // contact, delete a vehicle, delete the account — with no origin check at
+  // all. SameSite=Lax covers most of that in a current browser by withholding
+  // the cookie, but Lax is same-SITE: a foothold on any parktag.me subdomain
+  // is same-site and keeps the cookie. This is the control that does not have
+  // that gap.
+  //
+  // WHAT IS NOT, and must not be. The Exotel and Meta webhooks under
+  // /api/provider/* are cross-origin POSTs by design and authenticate with
+  // their own secrets, so an origin check would reject every one of them. The
+  // public scan, shop and contact surfaces are left out for the same reason —
+  // they are reachable without a session, so there is no ambient authority to
+  // forge, and a payment provider may post to them from its own origin.
+  //
+  // Unsafe methods only. GET is excluded because it is not supposed to change
+  // state, and sweeping it in would block ordinary cross-site navigation.
+  const CSRF_PROTECTED_PREFIXES = ["/api/auth/", "/api/owner/", "/api/admin/"];
+  const CSRF_PROTECTED_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
   // Both sides of the comparison go through the URL parser. Comparing a parsed
   // origin against a concatenated string does not work: the parser drops a
   // default port, so a browser's "http://localhost" never equals a hand-built
@@ -354,8 +372,8 @@ export async function buildApp() {
   const allowedOrigins = new Set([toOrigin(env.appBaseUrl)].filter(Boolean));
 
   app.addHook("onRequest", async (request, reply) => {
-    if (request.method !== "POST") return;
-    if (!request.url.startsWith("/api/auth/")) return;
+    if (!CSRF_PROTECTED_METHODS.has(request.method)) return;
+    if (!CSRF_PROTECTED_PREFIXES.some((prefix) => request.url.startsWith(prefix))) return;
 
     const origin = request.headers.origin;
     const referer = request.headers.referer;
@@ -392,8 +410,8 @@ export async function buildApp() {
 
     if (source !== selfOrigin && !matchesConfigured) {
       request.log.warn(
-        { event: "csrf-origin-rejected", source },
-        "[csrf] cross-origin POST to a credential endpoint was refused"
+        { event: "csrf-origin-rejected", source, method: request.method, path: request.url },
+        "[csrf] cross-origin state-changing request to a cookie-authenticated endpoint was refused"
       );
       reply.code(403);
       return reply.send({

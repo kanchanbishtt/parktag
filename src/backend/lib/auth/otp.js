@@ -28,6 +28,29 @@ const MAX_VERIFY_ATTEMPTS = 5;
 const MAX_SENDS_PER_WINDOW = 5;
 const SEND_WINDOW_MS = 60 * 60 * 1000;
 
+// What a code is allowed to do. A code is issued for one purpose and verifies
+// only against that purpose.
+//
+// Without this, every six-digit code in the system is interchangeable: the one
+// mailed out as "your sign-in code" would also confirm permanent deletion of
+// the account. Those two are indistinguishable to someone who has been talked
+// into reading a code down the phone, and only one of them is irreversible.
+// Scoping them means a code obtained under a sign-in pretext buys a sign-in,
+// and deleting still requires a second code the attacker has to intercept
+// separately.
+export const OTP_PURPOSE_AUTH = "auth";
+export const OTP_PURPOSE_DELETE_ACCOUNT = "delete-account";
+
+// Tokens issued before purposes existed carry no `purpose` field at all. They
+// are sign-in codes by definition — nothing else could issue one — so the auth
+// filter has to match a missing field as well as an explicit "auth". In Mongo a
+// `null` inside `$in` matches both null and absent, which is what that does.
+// The branch stops being reachable ten minutes after the deploy that adds this,
+// since no token outlives OTP_EXPIRY_MS.
+function purposeFilter(purpose) {
+  return purpose === OTP_PURPOSE_AUTH ? { $in: [OTP_PURPOSE_AUTH, null] } : purpose;
+}
+
 function generateOtp() {
   return String(crypto.randomInt(100000, 1000000));
 }
@@ -64,15 +87,19 @@ export function normalizeIdentifier(identifier) {
   return canonicalEmail(String(identifier ?? ""));
 }
 
-export async function sendOtp(env, identifier) {
+export async function sendOtp(env, identifier, { purpose = OTP_PURPOSE_AUTH } = {}) {
   const collections = await getCollections(env);
   if (!collections) throw new Error("MongoDB is not configured");
 
   const normalized = normalizeIdentifier(identifier);
   const isMobile = isMobileIdentifier(identifier);
 
+  // Per-purpose, so that asking to delete an account moments after signing in
+  // does not hand back "already sent" and leave the person waiting for a
+  // deletion code that was never dispatched.
   const recent = await collections.otpTokens.findOne({
     identifier: normalized,
+    purpose: purposeFilter(purpose),
     used: false,
     expiresAt: { $gt: new Date().toISOString() },
     createdAt: { $gt: new Date(Date.now() - RATE_LIMIT_MS).toISOString() }
@@ -84,6 +111,11 @@ export async function sendOtp(env, identifier) {
   // each real send inserts exactly one token, and reuse hits above return before
   // inserting — so this equals the number of messages dispatched to this
   // destination in the window, across every IP.
+  //
+  // Deliberately NOT filtered by purpose: the cap protects the person receiving
+  // the messages, and their handset does not care what each code was for. One
+  // budget per destination means a second purpose cannot double the number of
+  // messages that can be aimed at one victim.
   const windowStart = new Date(Date.now() - SEND_WINDOW_MS).toISOString();
   const sentInWindow = await collections.otpTokens.countDocuments({
     identifier: normalized,
@@ -104,6 +136,7 @@ export async function sendOtp(env, identifier) {
   // to read a previously issued code back out.
   const inserted = await collections.otpTokens.insertOne({
     identifier: normalized,
+    purpose,
     codeHash: await createOtpHash(code),
     used: false,
     attempts: 0,
@@ -113,6 +146,11 @@ export async function sendOtp(env, identifier) {
 
   if (isMobile) {
     if (isMetaWhatsappConfigured(env)) {
+      // The WhatsApp body is a Meta-approved template ("parktag_login"), so its
+      // wording cannot be varied per purpose from here — a deletion code still
+      // arrives worded as a sign-in code until a second template is approved.
+      // The scoping above is what actually constrains the code; this is only a
+      // wording gap, and the email channel below does say the right thing.
       try {
         await sendMetaWhatsappOtp(env, { to: normalized, code });
       } catch (err) {
@@ -128,7 +166,7 @@ export async function sendOtp(env, identifier) {
       throw clientError("WhatsApp OTP is not configured on this server.");
     }
   } else {
-    sendOtpEmail(env, { to: normalized, code })
+    sendOtpEmail(env, { to: normalized, code, purpose })
       .catch(err => console.error("[OTP] Email send failed:", redactText(err?.message || String(err))));
   }
 
@@ -224,6 +262,7 @@ export async function chargeExternalOtpSend(env, identifier) {
   const now = new Date();
   await collections.otpTokens.insertOne({
     identifier: normalized,
+    purpose: OTP_PURPOSE_AUTH,
     code: null,
     channel: "firebase",
     used: true,
@@ -235,7 +274,7 @@ export async function chargeExternalOtpSend(env, identifier) {
   return { ok: true };
 }
 
-export async function verifyOtp(env, identifier, code) {
+export async function verifyOtp(env, identifier, code, { purpose = OTP_PURPOSE_AUTH } = {}) {
   const collections = await getCollections(env);
   if (!collections) throw new Error("MongoDB is not configured");
 
@@ -249,6 +288,7 @@ export async function verifyOtp(env, identifier, code) {
   // be checked against a stale token and wrongly rejected as invalid.
   const record = await collections.otpTokens.findOne({
     identifier: normalized,
+    purpose: purposeFilter(purpose),
     used: false,
     expiresAt: { $gt: new Date().toISOString() }
   }, { sort: { createdAt: -1 } });

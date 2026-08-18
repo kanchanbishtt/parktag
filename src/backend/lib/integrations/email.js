@@ -17,7 +17,36 @@ function createTransport(env) {
   });
 }
 
-export async function sendOtpEmail(env, { to, code }) {
+// Wording per code purpose. A code that authorises permanent deletion must not
+// go out described as a sign-in code: the description is the only thing telling
+// the recipient what they are approving, and it is what makes "read me the code
+// you just got" fail rather than succeed.
+const OTP_EMAIL_COPY = {
+  "delete-account": {
+    subject: (code) => `${code} — confirm deleting your ParkTag account`,
+    heading: "Confirm account deletion",
+    lead:
+      "Use the code below to permanently delete your ParkTag account, including " +
+      "every vehicle, tag and order on it. This cannot be undone. The code " +
+      "expires in <strong>10 minutes</strong>.",
+    footer:
+      "If you didn't ask to delete your account, do not share this code — " +
+      "ignore this email and your account stays exactly as it is."
+  }
+};
+
+const OTP_EMAIL_DEFAULT = {
+  subject: (code) => `${code} — your ParkTag verification code`,
+  heading: "Your verification code",
+  lead:
+    "Use the code below to sign in to your ParkTag owner account. It expires in " +
+    "<strong>10 minutes</strong>.",
+  footer: "If you didn't request this, you can safely ignore this email."
+};
+
+export async function sendOtpEmail(env, { to, code, purpose }) {
+  const copy = OTP_EMAIL_COPY[purpose] || OTP_EMAIL_DEFAULT;
+
   if (!isEmailConfigured(env)) {
     if (env.runtimeMode !== "production") {
       // Dev-only fallback so the flow is testable without SMTP configured.
@@ -33,7 +62,7 @@ export async function sendOtpEmail(env, { to, code }) {
   await transporter.sendMail({
     from: env.emailFrom || "ParkTag <noreply@parktag.me>",
     to,
-    subject: `${code} — your ParkTag verification code`,
+    subject: copy.subject(code),
     html: `
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
         <div style="text-align:center;margin-bottom:24px">
@@ -41,15 +70,15 @@ export async function sendOtpEmail(env, { to, code }) {
             <span style="color:#fff;font-weight:800;font-size:1.1rem">ParkTag</span>
           </div>
         </div>
-        <h2 style="color:#111;margin-bottom:8px">Your verification code</h2>
-        <p style="color:#555;line-height:1.6">Use the code below to sign in to your ParkTag owner account. It expires in <strong>10 minutes</strong>.</p>
+        <h2 style="color:#111;margin-bottom:8px">${copy.heading}</h2>
+        <p style="color:#555;line-height:1.6">${copy.lead}</p>
         <div style="text-align:center;margin:28px 0">
           <div style="display:inline-block;background:#F9FAFB;border:2px solid #E5E7EB;border-radius:12px;padding:20px 40px">
             <span style="font-size:2.2rem;font-weight:800;letter-spacing:0.18em;color:#111">${code}</span>
           </div>
         </div>
         <hr style="border:none;border-top:1px solid #eee;margin:24px 0" />
-        <p style="color:#bbb;font-size:0.75rem">If you didn't request this, you can safely ignore this email.</p>
+        <p style="color:#bbb;font-size:0.75rem">${copy.footer}</p>
         <p style="color:#ccc;font-size:0.75rem;margin-top:8px">ParkTag · parktag.me</p>
       </div>
     `

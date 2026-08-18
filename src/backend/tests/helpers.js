@@ -96,14 +96,21 @@ export async function stopTestApp(app) {
 }
 
 // Owners created by a test, torn down in the same test's cleanup.
-export async function createTestOwner(collections, { email, password }) {
+//
+// `password` is optional. Omitting it produces an owner with NO passwordHash,
+// which is what the OTP sign-up path creates and is the default kind of account
+// in production — several rules branch on its absence, so tests need to be able
+// to build one.
+export async function createTestOwner(collections, { email, password, ...rest }) {
   const owner = {
     email,
     role: "owner",
     displayName: "QA Fixture",
-    passwordHash: await createPasswordHash(password),
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    ...rest
   };
+  if (password !== undefined) owner.passwordHash = await createPasswordHash(password);
+
   const { insertedId } = await collections.owners.insertOne(owner);
   return { ...owner, _id: insertedId };
 }

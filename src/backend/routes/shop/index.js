@@ -8,7 +8,13 @@ import { getOrderTracking } from "../../lib/core/order-tracking.js";
 import { safeEqual } from "../../lib/auth/security.js";
 import { sendOrderConfirmationEmail } from "../../lib/integrations/email.js";
 import { isMetaWhatsappConfigured, sendMetaWhatsappOrderUpdate } from "../../lib/integrations/meta.js";
-import { sendOtp, verifyOtp, isMobileIdentifier, normalizeIdentifier } from "../../lib/auth/otp.js";
+import {
+  sendOtp,
+  verifyOtp,
+  isMobileIdentifier,
+  normalizeIdentifier,
+  OTP_PURPOSE_COD_VERIFY
+} from "../../lib/auth/otp.js";
 
 // Flash-offer discount for converting a COD order to prepaid (paise). Kept
 // server-side so the ₹50 saving can't be inflated by a tampered client.
@@ -385,7 +391,16 @@ export function registerShopRoutes(app, env) {
       reply.code(400); return { error: "Add a valid delivery phone number first." };
     }
     try {
-      await sendOtp(env, phone);
+      // Scoped to COD verification. This code goes to a number the person
+      // checking out typed into their own address form, so it must not also be
+      // a way into the account that number belongs to — as an `auth` code it
+      // was exactly that, and this endpoint was a way to have ParkTag send a
+      // working sign-in code to any number on request.
+      //
+      // The WhatsApp body is still Meta's approved "parktag_login" template and
+      // so still reads as a sign-in code; that needs a second approved template
+      // to fix. The scoping is what removes the account risk in the meantime.
+      await sendOtp(env, phone, { purpose: OTP_PURPOSE_COD_VERIFY });
       return { ok: true, phoneHint: "••••" + String(phone).slice(-4) };
     } catch (err) {
       request.log.error({ err }, "COD OTP send failed");
@@ -433,7 +448,9 @@ export function registerShopRoutes(app, env) {
       // No code yet → tell the client to run the OTP step (200, not an error).
       if (!otp) return { ok: false, needsOtp: true };
       try {
-        await verifyOtp(env, deliveryPhone, String(otp));
+        // Only a code issued by cod-otp/send above. A sign-in code is not
+        // interchangeable with one, in either direction.
+        await verifyOtp(env, deliveryPhone, String(otp), { purpose: OTP_PURPOSE_COD_VERIFY });
       } catch (err) {
         reply.code(400);
         return { ok: false, error: err && err.message ? err.message : "Invalid verification code." };

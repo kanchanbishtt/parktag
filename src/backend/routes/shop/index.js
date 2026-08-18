@@ -27,6 +27,27 @@ const FLASH_DISCOUNT_PAISE = 5000;
 // back exactly on the catalog price (e.g. catalog ₹499 → COD ₹549 → online ₹499).
 const COD_SURCHARGE_PAISE = FLASH_DISCOUNT_PAISE;
 
+// Ceiling on how many unpaid COD orders one ACCOUNT can have open in a rolling
+// window. COD takes no money up front and books a real courier shipment, so
+// every order is cost ParkTag carries whether or not the parcel is ever
+// accepted — shipping out, and the return leg when it is refused.
+//
+// The only limit before this was @fastify/rate-limit's 10 per 5 minutes, which
+// is keyed on the caller's IP: rotating addresses walked straight past it. A
+// single account placed 12 orders in one burst in testing. This cap is keyed on
+// the owner, so it holds however many addresses the requests come from, and it
+// sits alongside the per-IP limit rather than replacing it.
+//
+// A ROLLING WINDOW rather than a lifetime total, deliberately: nothing in this
+// app ever transitions a COD order out of "cod" once the parcel is delivered —
+// the courier status is read live from Delhivery and never written back as a
+// terminal state — so a lifetime cap would permanently lock out a genuine
+// repeat customer. Three a day is far more than a real buyer needs and turns
+// unlimited abuse into something that costs an attacker a fresh OTP-verified
+// account per three parcels.
+const MAX_COD_ORDERS_PER_WINDOW = 3;
+const COD_WINDOW_MS = 24 * 60 * 60 * 1000;
+
 // Genuine order reference shown on the confirmation screen: a date prefix plus a
 // real, monotonically increasing sequence — like a standard e-commerce order id
 // (e.g. PT-260728-00042), never a random blob. The sequence comes from an atomic
@@ -429,6 +450,28 @@ export function registerShopRoutes(app, env) {
     const shipping = addressDoc ? shapeAddress(addressDoc) : null;
     if (!shipping) { reply.code(400); return { error: "Please add a delivery address before ordering." }; }
 
+    // Per-account ceiling (see MAX_COD_ORDERS_PER_WINDOW). Checked before the
+    // OTP step so someone at their limit is told so immediately rather than
+    // being walked through a verification that cannot end in an order.
+    // `createdAt` is an ISO-8601 string, which orders lexicographically, so a
+    // string comparison is a date comparison here.
+    const codWindowStart = new Date(Date.now() - COD_WINDOW_MS).toISOString();
+    const openCodOrders = await collections.shopOrders.countDocuments({
+      ownerId,
+      status: "cod",
+      createdAt: { $gt: codWindowStart }
+    });
+    if (openCodOrders >= MAX_COD_ORDERS_PER_WINDOW) {
+      reply.code(429);
+      return {
+        ok: false,
+        code: "COD_LIMIT",
+        error:
+          "You already have the maximum number of Cash on Delivery orders open. " +
+          "Pay for one online, or try again tomorrow."
+      };
+    }
+
     // COD anti-fraud: the delivery phone must be proven by an OTP sent to that
     // exact number. We skip re-verifying ONLY when this owner has already
     // OTP-verified this same number for a prior COD (owner.codVerifiedPhone) —
@@ -544,6 +587,29 @@ export function registerShopRoutes(app, env) {
 
     const order = await collections.shopOrders.findOne({ orderNumber, ownerId, status: "cod" });
     if (!order) { reply.code(400); return { error: "No matching COD order." }; }
+
+    // Reuse the prepay order already minted for this COD order rather than
+    // minting a second one.
+    //
+    // This used to overwrite `prepayOrderId` on every call, and cod-prepay-verify
+    // only accepts a payment matching the CURRENT one. So opening the flash offer
+    // twice and paying the first sheet — an ordinary thing to do if the sheet is
+    // dismissed and reopened — got the money captured by Razorpay and then
+    // rejected here with "Order mismatch": the order stayed COD, and the courier
+    // still collected cash on delivery. The buyer paid twice.
+    //
+    // Returning the stored order makes the route idempotent, so whichever sheet
+    // the buyer completes is the one verify expects. It also stops each reopen
+    // creating a throwaway order in the Razorpay account.
+    if (order.prepayOrderId && typeof order.prepayAmount === "number") {
+      return {
+        ok: true,
+        orderId: order.prepayOrderId,
+        amount: order.prepayAmount,
+        currency: "INR",
+        keyId: env.razorpayKeyId
+      };
+    }
 
     const discountedPaise = Math.max(order.amount - FLASH_DISCOUNT_PAISE, 100);
     try {

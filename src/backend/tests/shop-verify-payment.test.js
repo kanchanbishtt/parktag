@@ -10,10 +10,22 @@
 import test, { before, after, beforeEach, describe } from "node:test";
 import assert from "node:assert/strict";
 
-// Razorpay stays configured here, deliberately and safely: verifying a
-// signature is a local HMAC against the secret and reaches no API, and
-// verify-payment refuses outright without the key. Nothing in this file mints
-// an order.
+// Pin Razorpay to a throwaway key pair for this process, before anything reads
+// the environment.
+//
+// This file needs the key PRESENT: verify-payment refuses outright without one,
+// and the bad-signature path under test sits after that gate. The key used to
+// come from the ambient environment — the developer .env locally, and nothing
+// at all in CI, where the gate answered 500 and this test failed on an
+// environment difference rather than on behaviour.
+//
+// A fake pair is enough, and is the safer one. Verifying a signature is a local
+// HMAC that reaches no API, and nothing here asserts a VALID signature — only
+// that a forged one is refused, which holds under any secret. Nothing in this
+// file mints an order. Compare shop-idempotency.test.js, which removes the key
+// for the mirror-image reason.
+process.env.RAZORPAY_KEY_ID = "rzp_test_ci_placeholder";
+process.env.RAZORPAY_KEY_SECRET = "ci_placeholder_secret";
 
 import { createSession } from "../lib/auth/session.js";
 import {

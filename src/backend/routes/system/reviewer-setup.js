@@ -1,6 +1,7 @@
 import { ObjectId } from "mongodb";
 import { getCollections } from "../../lib/db/repositories.js";
 import { createPasswordHash, createSecureToken, safeEqual, isNonEmptyString } from "../../lib/auth/security.js";
+import { findByCanonicalEmail } from "../../lib/auth/identity.js";
 
 export function registerReviewerSetupRoute(app, env) {
   // One-time safe upsert — never deletes existing data.
@@ -38,7 +39,7 @@ export function registerReviewerSetupRoute(app, env) {
 
     // Upsert owner — safe, never touches other documents
     const ownerId = new ObjectId();
-    const existing = await collections.owners.findOne({ email: REVIEWER_EMAIL });
+    const existing = await findByCanonicalEmail(collections.owners, REVIEWER_EMAIL);
 
     let resolvedOwnerId;
     if (existing) {

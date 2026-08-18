@@ -1,6 +1,6 @@
 import { ObjectId } from "mongodb";
 
-import { createContactAction } from "../../lib/core/contact-actions.js";
+import { createContactAction, isSupportedContactReason } from "../../lib/core/contact-actions.js";
 import { createPasswordHash, createSecureToken, safeEqual, hashIp, minutesFromNow, getClientIp, maskPlateNumber, getPlateLastFour, isNonEmptyString } from "../../lib/auth/security.js";
 import { createSession, writeSessionCookie } from "../../lib/auth/session.js";
 import {
@@ -22,6 +22,7 @@ import {
 } from "../../lib/core/tag-issuance.js";
 import { verifyRecaptchaV2 } from "../../lib/integrations/recaptcha.js";
 import { clientErrorMessage } from "../../lib/errors.js";
+import { findByCanonicalEmail } from "../../lib/auth/identity.js";
 
 // Report reasons, matched exactly. An open text field for the reason would let
 // a reporter write anything into a record support reads later.
@@ -100,6 +101,68 @@ async function supersedePendingCalls(collections, callerPhone, token, now) {
   );
 }
 
+// Refuse to re-point a caller's number while another client is holding it.
+//
+// The number a masked call rings back on is taken on trust: a finder standing
+// at a vehicle has no way to prove a number, and demanding a code before they
+// can report a blocked driveway would break the feature in the situation it
+// exists for. Exotel then tells the Dial Whom webhook nothing about an incoming
+// call except the number it came from, so that number is the whole of the
+// routing key — and whoever registered it last decides where the call lands.
+//
+// That is enough for a stranger who knows someone's mobile number: register it
+// against a tag of their own, wait for that person to dial the virtual number,
+// and take a call the caller believes is going to a vehicle's owner.
+//
+// The registrant cannot be identified, but it can be distinguished. A genuine
+// second registration for a number comes from the handset that made the first
+// one — scan car A then car B, or try the owner and then Emergency — while a
+// planted one does not. So a live route registered from a different client
+// makes this registration a contest, and the contest is settled in favour of
+// whoever got there first: the handset already holding the number keeps its
+// route, and the stranger gets a refusal instead of the newest-wins victory
+// they were counting on.
+//
+// Deliberately NOT the other way round. By the time a contest arrives the
+// incumbent has already spent the tag's one free contact, so retiring their
+// route would leave them unable to register another one (402 FREE_USED) — and
+// anyone could then permanently silence an E-Tag by registering its finder's
+// number a second time. Refusing the newcomer costs a genuine newcomer nothing
+// but a retry, because this runs before anything is written.
+//
+// Residual, stated plainly: a number planted BEFORE its real holder registers
+// anything is the only live route for that number, so someone who dials the
+// virtual number from their call history rather than through the page can still
+// be misrouted until the row expires. Closing that needs a caller number the
+// server can actually prove — an OTP on the finder, or a per-registration
+// virtual number from Exotel — neither of which is a change this endpoint can
+// make on its own.
+//
+// Rows written before this check existed carry no registrantIpHash, so they
+// read as another client and can cost one retry. They expire within ten minutes.
+async function claimCallerNumber(collections, { callerPhone, registrantIpHash, now, log }) {
+  const live = await collections.pendingCalls
+    .find({ callerPhone, consumed: false, expiresAt: { $gt: now } })
+    .toArray();
+
+  const foreign = live.filter((row) => row.registrantIpHash !== registrantIpHash);
+
+  if (!foreign.length) {
+    return true;
+  }
+
+  log?.warn?.(
+    {
+      event: "pending-call-contested",
+      held: foreign.length,
+      tags: [...new Set(foreign.map((row) => row.token))].length
+    },
+    "[calls] refusing to re-point a caller number another client is holding"
+  );
+
+  return false;
+}
+
 // A grant authorises a scanner, not a plate-reading.
 //
 // /verify issues the grant before any phone number is known, so it cannot be
@@ -144,8 +207,94 @@ async function claimGrantForPhone(collections, grantSession, callerPhone) {
 }
 // Sentinel `ipHash` marking the per-tag bucket. Real values are 64-char SHA-256
 // hex, so "*" can never collide with a per-IP row, and reusing this collection
-// means the existing { token, ipHash } index and TTL cleanup already cover it.
+// means the existing TTL cleanup already covers it.
 const TAG_BUCKET_KEY = "*";
+
+// Identity for the two attempt buckets.
+//
+// Both are deterministic so that the upsert in reserveAttempt lands on exactly
+// one document per bucket. Mongo enforces uniqueness on `_id` and nowhere else:
+// on a plain { token, ipHash } lookup, two concurrent upserts each insert their
+// own row, and a second row is a second full allowance. `ipHash` is already
+// sha256(ip|token) (see hashIp), so it identifies one scanner on one tag
+// without the token needing to be appended to it.
+//
+// The prefixes keep the two kinds apart, and keep both distinguishable from the
+// ObjectId-keyed rows written before this scheme — those are simply not read
+// any more, and the TTL removes them.
+function ipBucketId(ipHash) {
+  return `ip:${ipHash}`;
+}
+
+function tagBucketId(token) {
+  return `tag:${token}`;
+}
+
+// Take one attempt from a bucket and report the running total, atomically.
+// Returns the count INCLUDING this attempt. See the call site for why the
+// reservation has to happen before the submitted digits are compared.
+async function reserveAttempt(collections, { id, token, ipHash, now, ttlMinutes, onInsert }) {
+  const doc = await collections.verificationSessions.findOneAndUpdate(
+    { _id: id },
+    {
+      $inc: { attempts: 1 },
+      $set: { updatedAt: now.toISOString(), expiresAt: minutesFromNow(ttlMinutes) },
+      // Kept disjoint from $set above on purpose: naming one field in both is a
+      // Mongo write error, not a precedence rule.
+      $setOnInsert: {
+        token,
+        ipHash,
+        lockedUntil: null,
+        verified: false,
+        grantId: null,
+        grantExpiresAt: null,
+        createdAt: now.toISOString(),
+        ...onInsert
+      }
+    },
+    { upsert: true, returnDocument: "after" }
+  );
+
+  return doc?.attempts || 0;
+}
+
+// Close a bucket for `minutes`.
+//
+// The count is deliberately NOT zeroed here. Zeroing on the way in looks tidy
+// and is wrong: requests that were already past the lock check when the bucket
+// closed go on to reserve, and the reset hands them a fresh allowance — a
+// parallel burst of eight got four comparisons out of a three-guess bucket that
+// way. The count is cleared when the lock lapses instead (see clearLapsedLock),
+// which is the only moment a new allowance is actually due.
+async function lockBucket(collections, id, minutes, now) {
+  await collections.verificationSessions.updateOne(
+    { _id: id },
+    {
+      $set: {
+        lockedUntil: minutesFromNow(minutes).toISOString(),
+        updatedAt: now.toISOString()
+      }
+    }
+  );
+}
+
+// Reopen a bucket whose lockout has run out, and give it its allowance back.
+//
+// Without this the count would still be at the ceiling when the lock lapsed, so
+// the next attempt would overshoot and re-lock immediately, and the bucket would
+// never open again. The exact lockedUntil value is part of the filter, so of
+// several requests arriving together at the moment of expiry, exactly one
+// resets the count and the others match nothing and move on.
+async function clearLapsedLock(collections, id, doc, now) {
+  if (!doc?.lockedUntil || new Date(doc.lockedUntil) > now) {
+    return;
+  }
+
+  await collections.verificationSessions.updateOne(
+    { _id: id, lockedUntil: doc.lockedUntil },
+    { $set: { attempts: 0, lockedUntil: null, updatedAt: now.toISOString() } }
+  );
+}
 
 export function registerPublicRoutes(app, env) {
   app.get("/api/tags/:token", async (request, reply) => {
@@ -244,11 +393,25 @@ export function registerPublicRoutes(app, env) {
     const ipHash = hashIp(getClientIp(request), token);
     const now = new Date();
 
-    let session = await collections.verificationSessions.findOne({ token, ipHash });
-    const tagBucket = await collections.verificationSessions.findOne({
-      token,
-      ipHash: TAG_BUCKET_KEY
-    });
+    // Read both buckets by their deterministic ids (see ipBucketId). Rows left
+    // by the previous, ObjectId-keyed scheme are not seen here — they carry no
+    // lock worth the few minutes the TTL takes to remove them, and the grant
+    // lookups further down this file match on { token, grantId } rather than on
+    // identity, so a verification in flight across a deploy still resolves.
+    const ipDocId = ipBucketId(ipHash);
+    const tagDocId = tagBucketId(token);
+
+    const [session, tagBucket] = await Promise.all([
+      collections.verificationSessions.findOne({ _id: ipDocId }),
+      collections.verificationSessions.findOne({ _id: tagDocId })
+    ]);
+
+    // A lock that has run out is cleared here, before anything is counted, so
+    // that a bucket which has served its lockout starts from a clean allowance.
+    await Promise.all([
+      clearLapsedLock(collections, ipDocId, session, now),
+      clearLapsedLock(collections, tagDocId, tagBucket, now)
+    ]);
 
     const lockedUntil =
       [session?.lockedUntil, tagBucket?.lockedUntil]
@@ -274,79 +437,110 @@ export function registerPublicRoutes(app, env) {
       return { ok: false, error: "Enter the last 4 digits of the vehicle number." };
     }
 
+    // ── Reserve an attempt, and only then compare ───────────────────────
+    //
+    // The lock check above is a snapshot of state that parallel requests are
+    // still moving, so it cannot be the thing that rations guesses. Both
+    // counters used to be read here, incremented in JS and written back with
+    // $set, which meant simultaneous requests all read the same value and all
+    // wrote back that same value + 1: eight concurrent wrong answers advanced
+    // the per-tag counter by three. That counter is the control that is meant
+    // to hold when an attacker rotates source addresses, so losing counts to a
+    // race defeats the ceiling it enforces.
+    //
+    // $inc is applied by the server, so N concurrent reservations produce N
+    // distinct totals and none are lost. Reserving BEFORE the comparison is
+    // what makes the ceiling real: a request that overshoots is refused without
+    // its digits ever being checked, so a burst cannot buy more comparisons
+    // than the ceiling allows. A wrong answer costs a slot either way, so
+    // nothing about a genuine scanner's three tries changes.
+    //
+    // The window rolls first, with the staleness test inside the FILTER so
+    // Mongo evaluates it atomically: the first request through resets the
+    // count, and a concurrent second one no longer matches and goes on to
+    // increment the fresh one. lockedUntil is deliberately left alone — a lock
+    // set late in a window outlives that window, and clearing it here would cut
+    // the lockout short.
+    await collections.verificationSessions.updateOne(
+      {
+        _id: tagDocId,
+        windowStart: {
+          $lt: new Date(now.getTime() - TAG_WINDOW_MINUTES * 60 * 1000).toISOString()
+        }
+      },
+      { $set: { attempts: 0, windowStart: now.toISOString() } }
+    );
+
+    const ipAttempts = await reserveAttempt(collections, {
+      id: ipDocId,
+      token,
+      ipHash,
+      now,
+      ttlMinutes: SESSION_TTL_MINUTES
+    });
+
+    const tagAttempts = await reserveAttempt(collections, {
+      id: tagDocId,
+      token,
+      ipHash: TAG_BUCKET_KEY,
+      now,
+      ttlMinutes: TAG_WINDOW_MINUTES + TAG_LOCKOUT_MINUTES,
+      onInsert: { windowStart: now.toISOString() }
+    });
+
+    // AT the ceiling: this attempt is the last one of the allowance and is still
+    // compared. Three attempts has always meant three real chances, and the
+    // third one may be the right answer.
+    const ipAtCeiling = ipAttempts >= MAX_VERIFY_ATTEMPTS;
+    const tagAtCeiling = tagAttempts >= MAX_TAG_ATTEMPTS_PER_WINDOW;
+
+    // PAST it: only reachable when requests raced each other into the same
+    // allowance. It is already spent, so lock and refuse without comparing.
+    if (ipAttempts > MAX_VERIFY_ATTEMPTS || tagAttempts > MAX_TAG_ATTEMPTS_PER_WINDOW) {
+      const tagOverflow = tagAttempts > MAX_TAG_ATTEMPTS_PER_WINDOW;
+
+      if (ipAttempts > MAX_VERIFY_ATTEMPTS) {
+        await lockBucket(collections, ipDocId, LOCKOUT_MINUTES, now);
+      }
+      if (tagOverflow) {
+        await lockBucket(collections, tagDocId, TAG_LOCKOUT_MINUTES, now);
+      }
+
+      reply.code(423);
+      return {
+        ok: false,
+        locked: true,
+        error: `Too many incorrect attempts. Try again in ${
+          tagOverflow ? TAG_LOCKOUT_MINUTES : LOCKOUT_MINUTES
+        } minutes.`
+      };
+    }
+
     const expected = getPlateLastFour(tag.plateNumber) || "";
     const isMatch = expected.length === 4 && safeEqual(lastFour, expected);
 
-    if (!session) {
-      session = {
-        _id: new ObjectId(),
-        token,
-        ipHash,
-        attempts: 0,
-        lockedUntil: null,
-        verified: false,
-        grantId: null,
-        grantExpiresAt: null,
-        createdAt: now.toISOString(),
-        updatedAt: now.toISOString(),
-        expiresAt: minutesFromNow(SESSION_TTL_MINUTES)
-      };
-      await collections.verificationSessions.insertOne(session);
-    }
-
     if (!isMatch) {
-      const attempts = (session.attempts || 0) + 1;
-      const willLock = attempts >= MAX_VERIFY_ATTEMPTS;
-
-      await collections.verificationSessions.updateOne(
-        { _id: session._id },
-        {
-          $set: {
-            attempts: willLock ? 0 : attempts,
-            lockedUntil: willLock ? minutesFromNow(LOCKOUT_MINUTES).toISOString() : null,
-            updatedAt: now.toISOString(),
-            expiresAt: minutesFromNow(SESSION_TTL_MINUTES)
-          }
-        }
-      );
+      if (ipAtCeiling) {
+        await lockBucket(collections, ipDocId, LOCKOUT_MINUTES, now);
+      }
 
       // Per-tag ceiling, counted across every IP (see MAX_TAG_ATTEMPTS_PER_WINDOW).
-      // The window rolls: once it has elapsed the count restarts, so a slow
-      // trickle of genuine mistakes never accumulates into a lockout.
-      const windowStart = tagBucket && tagBucket.windowStart ? new Date(tagBucket.windowStart) : null;
-      const windowLive = windowStart && now - windowStart < TAG_WINDOW_MINUTES * 60 * 1000;
-      const tagAttempts = (windowLive ? tagBucket.attempts || 0 : 0) + 1;
-      const tagWillLock = tagAttempts >= MAX_TAG_ATTEMPTS_PER_WINDOW;
-
-      await collections.verificationSessions.updateOne(
-        { token, ipHash: TAG_BUCKET_KEY },
-        {
-          $set: {
-            attempts: tagWillLock ? 0 : tagAttempts,
-            windowStart: (windowLive ? windowStart : now).toISOString(),
-            lockedUntil: tagWillLock ? minutesFromNow(TAG_LOCKOUT_MINUTES).toISOString() : null,
-            updatedAt: now.toISOString(),
-            expiresAt: minutesFromNow(TAG_WINDOW_MINUTES + TAG_LOCKOUT_MINUTES)
-          },
-          $setOnInsert: { token, ipHash: TAG_BUCKET_KEY, verified: false, grantId: null }
-        },
-        { upsert: true }
-      );
-
-      if (tagWillLock) {
+      if (tagAtCeiling) {
+        await lockBucket(collections, tagDocId, TAG_LOCKOUT_MINUTES, now);
         request.log.warn(
           { event: "tag-verify-bruteforce", token },
           "[verify] per-tag attempt ceiling hit — tag locked across all IPs"
         );
       }
 
-      if (willLock || tagWillLock) {
-        const minutes = tagWillLock ? TAG_LOCKOUT_MINUTES : LOCKOUT_MINUTES;
+      if (ipAtCeiling || tagAtCeiling) {
         reply.code(423);
         return {
           ok: false,
           locked: true,
-          error: `Too many incorrect attempts. Try again in ${minutes} minutes.`
+          error: `Too many incorrect attempts. Try again in ${
+            tagAtCeiling ? TAG_LOCKOUT_MINUTES : LOCKOUT_MINUTES
+          } minutes.`
         };
       }
 
@@ -354,14 +548,14 @@ export function registerPublicRoutes(app, env) {
       return {
         ok: false,
         error: "Those last 4 digits do not match this vehicle.",
-        attemptsRemaining: MAX_VERIFY_ATTEMPTS - attempts
+        attemptsRemaining: MAX_VERIFY_ATTEMPTS - ipAttempts
       };
     }
 
     // Success — issue a fresh grant.
     const grantId = createSecureToken();
     await collections.verificationSessions.updateOne(
-      { _id: session._id },
+      { _id: ipDocId },
       {
         $set: {
           attempts: 0,
@@ -370,7 +564,7 @@ export function registerPublicRoutes(app, env) {
           grantId,
           grantExpiresAt: minutesFromNow(GRANT_TTL_MINUTES).toISOString(),
           // A fresh grant starts with a clean set of caller numbers. The session
-          // document is keyed by { token, ipHash } and reused across verifies,
+          // document is one per (scanner, tag) and is reused across verifies,
           // so without this the numbers claimed under claimGrantForPhone would
           // accumulate for the life of the session and a scanner who re-verified
           // would find their new grant already exhausted.
@@ -383,13 +577,13 @@ export function registerPublicRoutes(app, env) {
 
     // A correct answer proves a real scanner is at the vehicle, so clear the
     // per-tag failure count — otherwise unrelated earlier fumbles could still
-    // tip a legitimately-used tag into a lockout later in the window.
-    if (tagBucket && (tagBucket.attempts || 0) > 0) {
-      await collections.verificationSessions.updateOne(
-        { token, ipHash: TAG_BUCKET_KEY },
-        { $set: { attempts: 0, windowStart: now.toISOString(), lockedUntil: null } }
-      );
-    }
+    // tip a legitimately-used tag into a lockout later in the window. That also
+    // returns the slot this attempt reserved, which a correct answer should
+    // never have cost the next scanner.
+    await collections.verificationSessions.updateOne(
+      { _id: tagDocId },
+      { $set: { attempts: 0, windowStart: now.toISOString(), lockedUntil: null } }
+    );
 
     return {
       ok: true,
@@ -490,7 +684,7 @@ export function registerPublicRoutes(app, env) {
       };
     }
 
-    const existingOwner = await collections.owners.findOne({ email });
+    const existingOwner = await findByCanonicalEmail(collections.owners, email);
 
     if (existingOwner) {
       reply.code(400);
@@ -762,8 +956,7 @@ export function registerPublicRoutes(app, env) {
       };
     }
 
-    const { token, phone, action, messageChannel, reason, grant } = request.body || {};
-    const resolvedAction = action || "call";
+    const { token, action, messageChannel, reason, grant } = request.body || {};
 
     // `token` and `grant` are used as raw Mongo filter values below
     // (`findOne({ token, grantId: grant, ... })` / `findOne({ token })`).
@@ -776,11 +969,24 @@ export function registerPublicRoutes(app, env) {
       return { ok: false, error: "token is required" };
     }
 
-    // A call needs the scanner's number (to masked-call them). A WhatsApp
-    // notification goes to the owner, so the scanner's number is not required.
-    if (resolvedAction === "call" && !isNonEmptyString(phone)) {
+    // This endpoint sends the owner a WhatsApp alert, and that is all it has
+    // ever done: the call branch reached createContactAction, which only ever
+    // dispatches for `message`, so it registered no route, dialled nobody, and
+    // returned ok — while still spending the tag's one free contact on the way
+    // out. A stranger holding a grant could therefore retire an E-Tag's ability
+    // to be contacted with a single request that contacted no one, and the
+    // scanner page never used the branch at all (calls go to
+    // /api/tags/:token/register-call, which registers a real masked route).
+    //
+    // Named explicitly rather than defaulted: this used to fall back to "call"
+    // when the field was absent, so defaulting to "message" instead would turn
+    // yesterday's silent no-op into a live notification to the owner.
+    if (action !== "message") {
       reply.code(400);
-      return { ok: false, error: "phone is required for a call" };
+      return {
+        ok: false,
+        error: "action must be message. Use /api/tags/:token/register-call to set up a call."
+      };
     }
 
     // Enforce verification server-side: a valid, unexpired grant is mandatory.
@@ -802,26 +1008,25 @@ export function registerPublicRoutes(app, env) {
       return { ok: false, error: "Your verification expired. Please verify the vehicle again." };
     }
 
-    if (action && !["call", "message"].includes(action)) {
-      reply.code(400);
-      return {
-        ok: false,
-        error: "action must be call or message"
-      };
-    }
-
     // The WhatsApp message body is built server-side (spec §6) — the client never
     // supplies it, so there is nothing to validate here beyond the channel.
-    if (
-      resolvedAction === "message" &&
-      messageChannel &&
-      messageChannel !== "whatsapp"
-    ) {
+    if (messageChannel && messageChannel !== "whatsapp") {
       reply.code(400);
       return {
         ok: false,
         error: "messageChannel must be whatsapp"
       };
+    }
+
+    // The reason selects one of a fixed set of server-authored sentences, and
+    // is the only part of the owner's alert a scanner influences at all. An
+    // unrecognised value is refused here rather than stored and looked up
+    // later: the lookup is safe now (see reasonLabel), but a value that cannot
+    // produce a sentence has no business sitting in the record support reads,
+    // and this endpoint took whole objects.
+    if (reason !== undefined && reason !== null && !isSupportedContactReason(reason)) {
+      reply.code(400);
+      return { ok: false, error: "reason is not one of the supported options." };
     }
 
     const tag = await collections.tags.findOne({ token });
@@ -831,6 +1036,19 @@ export function registerPublicRoutes(app, env) {
       return {
         ok: false,
         error: "Tag not found"
+      };
+    }
+
+    // Checked here and not only at /verify, because a grant outlives the state
+    // it was issued under: it stays valid for fifteen minutes, and an owner who
+    // deactivates a tag in that window (sold the vehicle, lost the sticker)
+    // would otherwise still be reachable through it. register-call already
+    // makes this check; this endpoint did not.
+    if (tag.status !== "active") {
+      reply.code(404);
+      return {
+        ok: false,
+        error: "Tag not found or not active"
       };
     }
 
@@ -847,17 +1065,15 @@ export function registerPublicRoutes(app, env) {
     }
 
     try {
-      // Normalize to digits-only E.164 before persisting — this is a free-text
-      // body field on a public, unauthenticated endpoint, and the raw value
-      // used to be stored verbatim (only later fixed on the *output* side with
-      // HTML-escaping in the admin dashboard). Constraining the input format
-      // here removes the underlying bad data at the source too.
-      const normalizedPhone = isNonEmptyString(phone) ? toE164(phone) : null;
+      // No caller number is taken or stored here. The alert travels one way to
+      // the owner over WhatsApp, so the scanner's number is not needed to
+      // deliver it, and a number this endpoint cannot use is a number it has no
+      // business holding.
       return await createContactAction(env, {
         token,
-        phone: normalizedPhone,
-        action: resolvedAction,
-        messageChannel: resolvedAction === "message" ? (messageChannel || "whatsapp") : null,
+        phone: null,
+        action: "message",
+        messageChannel: messageChannel || "whatsapp",
         reason: reason || null,
         ipAddress: getClientIp(request),
         userAgent: request.headers["user-agent"] || null
@@ -886,6 +1102,14 @@ export function registerPublicRoutes(app, env) {
     if (!isNonEmptyString(phone)) {
       reply.code(400);
       return { ok: false, error: "phone is required" };
+    }
+    // Validated the same way every other number in the app is. toE164 below
+    // will happily turn "abc" into "+" and a single digit into "+1", and a row
+    // keyed on either can never match a real CallFrom — it just sits in
+    // pendingCalls until it expires.
+    if (!isMobileIdentifier(phone)) {
+      reply.code(400);
+      return { ok: false, error: "Enter a valid mobile number." };
     }
     // `grant` is used as a raw Mongo filter value below — must be a string.
     if (!isNonEmptyString(grant)) {
@@ -953,6 +1177,28 @@ export function registerPublicRoutes(app, env) {
     const callerPhone = toE164(phone);
     const now = new Date();
 
+    // Salted with the number rather than the tag, so the value identifies the
+    // client that claimed THIS number and cannot be used to follow one client
+    // from one number to another.
+    const registrantIpHash = hashIp(getClientIp(request), callerPhone);
+
+    if (
+      !(await claimCallerNumber(collections, {
+        callerPhone,
+        registrantIpHash,
+        now,
+        log: request.log
+      }))
+    ) {
+      reply.code(409);
+      return {
+        ok: false,
+        code: "CALLER_IN_USE",
+        error:
+          "That number already has a call waiting from another device. Please try again in a moment."
+      };
+    }
+
     const { insertedId: requestId } = await collections.contactRequests.insertOne({
       token,
       ownerId: tag.ownerId,
@@ -975,6 +1221,7 @@ export function registerPublicRoutes(app, env) {
 
     await collections.pendingCalls.insertOne({
       callerPhone,
+      registrantIpHash,
       targetPhone: ownerPhone,
       token,
       ownerId: tag.ownerId,
@@ -1011,6 +1258,14 @@ export function registerPublicRoutes(app, env) {
     if (!isNonEmptyString(phone)) {
       reply.code(400);
       return { ok: false, error: "phone is required" };
+    }
+    // Validated the same way every other number in the app is. toE164 below
+    // will happily turn "abc" into "+" and a single digit into "+1", and a row
+    // keyed on either can never match a real CallFrom — it just sits in
+    // pendingCalls until it expires.
+    if (!isMobileIdentifier(phone)) {
+      reply.code(400);
+      return { ok: false, error: "Enter a valid mobile number." };
     }
     // `grant` is used as a raw Mongo filter value below — must be a string.
     if (!isNonEmptyString(grant)) {
@@ -1067,22 +1322,58 @@ export function registerPublicRoutes(app, env) {
       };
     }
 
+    const callerPhone = toE164(phone);
+    const targetPhone = toE164(tag.emergencyContact);
+    const now = new Date();
+
+    // Salted with the number rather than the tag, so the value identifies the
+    // client that claimed THIS number and cannot be used to follow one client
+    // from one number to another.
+    const registrantIpHash = hashIp(getClientIp(request), callerPhone);
+
+    if (
+      !(await claimCallerNumber(collections, {
+        callerPhone,
+        registrantIpHash,
+        now,
+        log: request.log
+      }))
+    ) {
+      reply.code(409);
+      return {
+        ok: false,
+        code: "CALLER_IN_USE",
+        error:
+          "That number already has a call waiting from another device. Please try again in a moment."
+      };
+    }
+
     // Daily ceiling (see MAX_EMERGENCY_CALLS_PER_DAY). Counted per tag over a
     // rolling 24h so it cannot be reset by rotating source addresses.
-    const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const emergencyToday = await collections.contactRequests.countDocuments({
-      token,
-      action: "emergency_call",
-      createdAt: { $gte: dayAgo }
-    });
+    //
+    // Held as a counter on the tag and moved with $inc, rather than by counting
+    // contactRequests rows before writing one. A count-then-insert reads a
+    // total that concurrent requests are still changing, so a burst of
+    // simultaneous calls all read the same number and all pass a ceiling only
+    // one of them should have — the same defect, and the same fix, as the
+    // verification buckets at the top of this file.
+    //
+    // The fast path below refuses out of the value already on the tag, so a
+    // request that arrives at a spent ceiling costs nothing. Only requests that
+    // were already in flight get as far as reserving, which is why the
+    // authoritative test is on the reserved total.
+    const dayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const windowStart = tag.emergencyWindowStart ? new Date(tag.emergencyWindowStart) : null;
+    const windowLive = windowStart && windowStart > dayAgo;
+    const usedBeforeThis = windowLive ? tag.emergencyWindowCount || 0 : 0;
 
-    if (emergencyToday >= MAX_EMERGENCY_CALLS_PER_DAY) {
+    const refuseOverCap = (count) => {
       request.log.warn(
         {
           event: "emergency-call-cap-hit",
           token,
           ownerId: tag.ownerId ? String(tag.ownerId) : null,
-          count: emergencyToday
+          count
         },
         "[emergency] per-tag daily SOS ceiling reached — refusing further calls"
       );
@@ -1093,11 +1384,40 @@ export function registerPublicRoutes(app, env) {
         error:
           "This vehicle's emergency contact has already been called several times today. If this is a real emergency, please call 112."
       };
+    };
+
+    if (usedBeforeThis >= MAX_EMERGENCY_CALLS_PER_DAY) {
+      return refuseOverCap(usedBeforeThis);
     }
 
-    const callerPhone = toE164(phone);
-    const targetPhone = toE164(tag.emergencyContact);
-    const now = new Date();
+    // Roll the day when it has run out, with the staleness test in the filter so
+    // Mongo settles concurrent rolls: the first request through resets the
+    // count and a second no longer matches, then increments the fresh one. The
+    // missing-field case is the same reset, for a tag that has never had one.
+    await collections.tags.updateOne(
+      {
+        _id: tag._id,
+        $or: [
+          { emergencyWindowStart: { $exists: false } },
+          { emergencyWindowStart: { $lte: dayAgo.toISOString() } }
+        ]
+      },
+      { $set: { emergencyWindowStart: now.toISOString(), emergencyWindowCount: 0 } }
+    );
+
+    const reserved = await collections.tags.findOneAndUpdate(
+      { _id: tag._id },
+      { $inc: { emergencyWindowCount: 1 } },
+      { returnDocument: "after", projection: { emergencyWindowCount: 1 } }
+    );
+    const usedToday = reserved?.emergencyWindowCount || 0;
+
+    // Strictly greater: the fifth call of the day is the last one allowed, and
+    // it is allowed. A refusal here leaves the reservation spent, which is the
+    // conservative direction for a ceiling and settles once the window rolls.
+    if (usedToday > MAX_EMERGENCY_CALLS_PER_DAY) {
+      return refuseOverCap(usedToday);
+    }
 
     const { insertedId: requestId } = await collections.contactRequests.insertOne({
       token,
@@ -1125,6 +1445,7 @@ export function registerPublicRoutes(app, env) {
 
     await collections.pendingCalls.insertOne({
       callerPhone,
+      registrantIpHash,
       targetPhone,
       token,
       ownerId: tag.ownerId || null,
@@ -1145,7 +1466,7 @@ export function registerPublicRoutes(app, env) {
         token,
         requestId: String(requestId),
         ownerId: tag.ownerId ? String(tag.ownerId) : null,
-        usedToday: emergencyToday + 1,
+        usedToday,
         dailyCap: MAX_EMERGENCY_CALLS_PER_DAY
       },
       "[emergency] pending SOS call registered"

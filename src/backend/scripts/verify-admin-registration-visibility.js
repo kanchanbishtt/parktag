@@ -42,8 +42,7 @@ async function getJson(url, extra = {}) {
 async function main() {
   await postJson(`${BASE_URL}/api/demo/seed`, {});
 
-  const login = await postJson(`${BASE_URL}/api/auth/login`, {
-    role: "admin",
+  const login = await postJson(`${BASE_URL}/api/auth/admin/login`, {
     email: ADMIN_EMAIL,
     password: ADMIN_PASSWORD
   });

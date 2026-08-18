@@ -1,8 +1,15 @@
 import { requireSession, toObjectId, tryObjectId } from "../../lib/auth/auth.js";
 import { createPasswordHash, verifyPassword, isNonEmptyString } from "../../lib/auth/security.js";
 import { clearSession } from "../../lib/auth/session.js";
-import { sendOtp, verifyOtp, isMobileIdentifier, normalizeIdentifier } from "../../lib/auth/otp.js";
+import {
+  sendOtp,
+  verifyOtp,
+  isMobileIdentifier,
+  normalizeIdentifier,
+  OTP_PURPOSE_DELETE_ACCOUNT
+} from "../../lib/auth/otp.js";
 import { getCollections, ensurePendingCallsIndexes } from "../../lib/db/repositories.js";
+import { clientErrorMessage } from "../../lib/errors.js";
 import { createQrDataUrl, createPrintQrDataUrl } from "../../lib/core/qr-output.js";
 import { createEtagForVehicle, buildTagScanUrl, VEHICLE_LABELS, etagIdFor, stickerSerialFor } from "../../lib/core/tag-issuance.js";
 import { validateAddress } from "../../lib/core/address.js";
@@ -16,6 +23,37 @@ import { getOrderTracking } from "../../lib/core/order-tracking.js";
 function shapeAddress(doc) {
   const { fullName, phone, line1, line2, landmark, city, state, pincode } = doc;
   return { fullName, phone, line1, line2, landmark, city, state, pincode };
+}
+
+// Where a confirmation code for THIS owner may be sent.
+//
+// Derived from the stored owner record and never from the request body. That is
+// the whole point: a caller holding a session cookie must not be able to name
+// the address the code goes to, or re-authentication becomes a formality they
+// perform against themselves.
+//
+// An unverified `mobile` is not a destination. Legacy rows carry phone numbers
+// that were typed at signup and never proven, so they may belong to a stranger
+// — mailing a deletion code there would be both useless and a nuisance to the
+// person who actually owns the number. `email` is usable because every path
+// that sets it (email OTP sign-in, Google) proved control of it first.
+function reauthDestination(owner) {
+  if (!owner) return null;
+
+  if (owner.mobileVerified === true && isNonEmptyString(owner.mobile)) {
+    const mobile = String(owner.mobile);
+    return { channel: "mobile", identifier: mobile, hint: `••••${mobile.slice(-4)}` };
+  }
+
+  if (isNonEmptyString(owner.email)) {
+    const email = String(owner.email);
+    const [name, domain] = email.split("@");
+    // Enough to recognise your own address, not enough to learn a new one.
+    const maskedName = name.length <= 2 ? `${name[0] || ""}•` : `${name.slice(0, 2)}•••`;
+    return { channel: "email", identifier: email, hint: domain ? `${maskedName}@${domain}` : maskedName };
+  }
+
+  return null;
 }
 
 export function registerOwnerRoutes(app, env) {
@@ -72,7 +110,14 @@ export function registerOwnerRoutes(app, env) {
     return {
       ok: true,
       owner: {
-        _id: String(owner._id),
+        // No `_id`. It is the ObjectId every /api/owner/* route keys off, and
+        // /api/session already refuses to hand it out for exactly that reason —
+        // this route was quietly undoing that. Nothing in the page needs it: the
+        // browser identifies the signed-in owner by email or mobile, and the
+        // server never accepts an owner id from the client anyway, so sending it
+        // only widened what a script on this page could read. That matters more
+        // here than elsewhere because the dashboard is not one of the
+        // STRICT_SCRIPT_PAGES — its CSP still permits inline script.
         email: owner.email || null,
         mobile: owner.mobile || null,
         // Only a name the owner actually set. A stored identifier reads as
@@ -94,6 +139,14 @@ export function registerOwnerRoutes(app, env) {
         const qrDataUrl = await createQrDataUrl(scanUrl);
         return {
           id: String(tag._id),
+          // Stays, unlike owner._id above, and the difference is worth stating
+          // because an audit will otherwise flag the two together every time.
+          // This token is not withheld from the owner by anything: it is printed
+          // on their own sticker, it is encoded in the QR image returned two
+          // fields down, and `scanUrl` right below spells it out in full. It is
+          // also load-bearing — contact requests reference their tag by token,
+          // so the page matches them on it. Removing it would break that while
+          // leaking nothing, since scanUrl would still carry the same value.
           token: tag.token,
           etagId: etagIdFor(tag._id),
           serial: stickerSerialFor(tag),
@@ -717,12 +770,86 @@ export function registerOwnerRoutes(app, env) {
     }
   );
 
+  // Send the confirmation code that DELETE /api/owner/account requires from an
+  // account with no password. Split from the delete itself so that merely
+  // opening the confirmation dialog does not dispatch a message, and so a
+  // caller probing the delete endpoint cannot use it to spray codes at the
+  // owner's phone.
+  app.post(
+    "/api/owner/account/send-delete-code",
+    { config: { rateLimit: { max: 5, timeWindow: "5 minutes" } } },
+    async (request, reply) => {
+      const blocked = await requireSession(app, "owner")(request, reply);
+      if (blocked) return blocked;
+
+      const collections = await getCollections(env);
+      if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
+
+      const ownerId = toObjectId(request.session.userId);
+      const owner = await collections.owners.findOne({ _id: ownerId });
+      if (!owner) {
+        reply.code(404);
+        return { ok: false, error: "Account not found." };
+      }
+
+      // An account that has a password re-authenticates with it; issuing a code
+      // as well would just add a second way in.
+      if (owner.passwordHash) {
+        reply.code(400);
+        return { ok: false, code: "PASSWORD_REQUIRED", error: "Enter your password to confirm." };
+      }
+
+      const destination = reauthDestination(owner);
+      if (!destination) {
+        reply.code(409);
+        return {
+          ok: false,
+          code: "NO_DESTINATION",
+          error:
+            "Add and verify a mobile number or email on your account before deleting it."
+        };
+      }
+
+      try {
+        await sendOtp(env, destination.identifier, { purpose: OTP_PURPOSE_DELETE_ACCOUNT });
+      } catch (err) {
+        // sendOtp raises a client-safe ClientError for the conditions an owner
+        // can act on — on the email channel the per-destination flood cap is the
+        // only one. Everything else collapses to a generic message and is
+        // logged. 429 is exact for the cap and merely imprecise for the two
+        // WhatsApp misconfiguration throws, which are server faults the owner
+        // could not tell apart in any case.
+        const exposable = err && err.expose === true;
+        reply.code(exposable ? 429 : 500);
+        return {
+          ok: false,
+          error: clientErrorMessage(
+            err,
+            "Could not send the confirmation code. Please try again.",
+            request.log
+          )
+        };
+      }
+
+      return { ok: true, channel: destination.channel, hint: destination.hint };
+    }
+  );
+
   // Permanently delete the owner's account and every record tied to it.
-  // Accounts with a password must re-enter it first — this is the most
-  // destructive action in the app, so a hijacked/stale session cookie alone
-  // isn't enough. Social/OTP-only accounts (Google, Firebase phone auth) have
-  // no passwordHash to check, so those fall back to session auth alone,
-  // consistent with how the rest of the app treats those accounts.
+  //
+  // This is the most destructive action in the app and there is no undo, so a
+  // session cookie on its own is never enough — a stale or stolen one would
+  // otherwise be a complete account wipe. What counts as proof depends on what
+  // the account actually has:
+  //
+  //   • a password  → re-enter it.
+  //   • no password → a fresh single-use code, sent by the route above to the
+  //     destination on the OWNER RECORD. OTP sign-up is the default path here,
+  //     so this is the common case, and it used to fall through to session-only
+  //     auth: an empty body plus a cookie deleted the account outright.
+  //
+  // Neither branch tells the caller anything they could not already read off
+  // their own dashboard, so the "which is it" reply below leaks nothing.
   app.delete(
     "/api/owner/account",
     { config: { rateLimit: { max: 5, timeWindow: "1 minute" } } },
@@ -744,13 +871,55 @@ export function registerOwnerRoutes(app, env) {
         const { password } = request.body || {};
         if (!isNonEmptyString(password)) {
           reply.code(400);
-          return { ok: false, error: "Password is required." };
+          return { ok: false, code: "PASSWORD_REQUIRED", error: "Password is required." };
         }
 
         const { valid } = await verifyPassword(password, owner.passwordHash);
         if (!valid) {
           reply.code(401);
           return { ok: false, error: "Incorrect password." };
+        }
+      } else {
+        const destination = reauthDestination(owner);
+        if (!destination) {
+          reply.code(409);
+          return {
+            ok: false,
+            code: "NO_DESTINATION",
+            error:
+              "Add and verify a mobile number or email on your account before deleting it."
+          };
+        }
+
+        // No code supplied yet → tell the client to run the code step. Same
+        // two-step contract as POST /api/owner/mobile, and deliberately not an
+        // error: it is the first half of a normal deletion.
+        const { otp } = request.body || {};
+        if (!isNonEmptyString(otp)) {
+          reply.code(400);
+          return {
+            ok: false,
+            needsOtp: true,
+            code: "OTP_REQUIRED",
+            channel: destination.channel,
+            hint: destination.hint,
+            error: "Enter the confirmation code we sent you."
+          };
+        }
+
+        // Scoped to this purpose, so a sign-in code cannot stand in for it, and
+        // marked used on success, so the code cannot delete anything twice.
+        try {
+          await verifyOtp(env, destination.identifier, otp, {
+            purpose: OTP_PURPOSE_DELETE_ACCOUNT
+          });
+        } catch (err) {
+          reply.code(400);
+          return {
+            ok: false,
+            code: "OTP_INVALID",
+            error: clientErrorMessage(err, "Invalid confirmation code.", request.log)
+          };
         }
       }
 

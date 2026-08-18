@@ -938,13 +938,15 @@ async function loginAdmin() {
   const password = byId("admin-password")?.value;
 
   try {
-    await fetchJson("/api/auth/login", {
+    // Admin sign-in has its own endpoint. The shared /api/auth/login used to
+    // take the role from this body, which made the public owner sign-in surface
+    // an admin one too; the role is now fixed by the route it is posted to.
+    await fetchJson("/api/auth/admin/login", {
       method: "POST",
       headers: {
         "content-type": "application/json"
       },
       body: JSON.stringify({
-        role: "admin",
         email,
         password
       })
@@ -972,7 +974,9 @@ async function logoutAdmin() {
     method: "POST"
   });
 
-  window.location.href = "/admin";
+  // replace(), not href: the admin console the user just left must not be one
+  // Back press away, on a shared machine least of all.
+  window.location.replace("/admin");
 }
 
 function updatePremiumToggle(checkbox) {

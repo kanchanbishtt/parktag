@@ -880,10 +880,14 @@ async function load() {
 
     const data = await res.json();
 
-    // Derive a stable user identifier from the session
-    const userId = data.owner
-      ? (data.owner.email || data.owner.mobile || String(data.owner._id || ""))
-      : null;
+    // Derive a stable user identifier from the session.
+    //
+    // Email or mobile only. This used to fall back to the owner's ObjectId, but
+    // the server no longer sends it — it is the id every owner route keys off,
+    // and no page needs it. The fallback could not fire in any case: an account
+    // with neither an email nor a mobile has no way to sign in, so it cannot be
+    // the one reading this.
+    const userId = data.owner ? (data.owner.email || data.owner.mobile || "") : null;
 
     if (data.owner) {
       // The server decides the name now: what the owner set, then the recipient
@@ -908,7 +912,7 @@ async function load() {
       // Populate burger menu owner header
       _owner       = data.owner;
       _ownerMobile = data.owner.mobile || null;
-      _userId = id || String(data.owner._id || "");
+      _userId = id;
       // Expose the logged-in owner's contact for the shop checkout (inline script
       // in welcome.html runs in a separate scope and can only read via window).
       // Razorpay prefills from this so the sheet shows the CURRENT user, not a
@@ -1475,24 +1479,56 @@ window.removeVehicle = removeVehicle;
 async function signOut() {
   try { await fetch("/api/auth/logout", { method: "POST" }); } catch {}
   sessionStorage.clear();
-  window.location.href = "/owner-login";
+  // replace(), not href: assigning pushes a new entry and leaves the dashboard
+  // sitting directly behind it, so one press of Back returned to the page the
+  // person had just signed out of. Replacing swaps the dashboard's own entry
+  // for the sign-in page, so Back skips past it entirely.
+  window.location.replace("/owner-login");
 }
 window.signOut = signOut;
 
+// Deleting is irreversible, so the session cookie alone does not authorise it.
+// The server wants either the account password, or — when the account has none,
+// which is every OTP sign-up — a fresh code sent to the address already on the
+// account. Which one applies is the server's call, and asking for the code is
+// what reveals it: an account with a password is told to use it instead. That
+// keeps the old behaviour of prompting for a password the owner may never have
+// set out of the flow entirely.
 async function deleteAccount() {
   if (!confirm("Permanently delete your account? This removes your account, all vehicles, tags, and history. This cannot be undone.")) return;
-  const password = prompt("Enter your password to confirm account deletion:");
-  if (password === null) return; // cancelled
+
   try {
+    const sent = await fetch("/api/owner/account/send-delete-code", { method: "POST" });
+    const sentData = await sent.json().catch(() => ({}));
+
+    let proof;
+
+    if (sent.ok && sentData.ok) {
+      const where = sentData.hint ? ` sent to ${sentData.hint}` : "";
+      const otp = prompt(`Enter the 6-digit code${where} to confirm deleting your account:`);
+      if (otp === null) return; // cancelled
+      proof = { otp: String(otp).trim() };
+    } else if (sentData.code === "PASSWORD_REQUIRED") {
+      const password = prompt("Enter your password to confirm account deletion:");
+      if (password === null) return; // cancelled
+      proof = { password };
+    } else {
+      _toast(sentData.error || "Couldn't start account deletion. Try again.", "err");
+      return;
+    }
+
     const res = await fetch("/api/owner/account", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password })
+      body: JSON.stringify(proof)
     });
     const data = await res.json().catch(() => ({}));
+
     if (res.ok && data.ok) {
       sessionStorage.clear();
-      window.location.href = "/owner-login";
+      // replace(), not href: the account is gone, so leaving the dashboard one
+      // Back press away restores a page built from a deleted account's data.
+      window.location.replace("/owner-login");
       return;
     }
     _toast(data.error || "Couldn't delete account. Try again.", "err");

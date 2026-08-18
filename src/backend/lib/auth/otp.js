@@ -4,7 +4,15 @@ import { getCollections } from "../db/repositories.js";
 import { sendOtpEmail } from "../integrations/email.js";
 import { isMetaWhatsappConfigured, sendMetaWhatsappOtp } from "../integrations/meta.js";
 import { clientError } from "../errors.js";
-import { maskIdentifier, redactText, safeEqual } from "./security.js";
+import {
+  maskIdentifier,
+  redactText,
+  safeEqual,
+  createOtpHash,
+  verifyOtpHash,
+  burnHashComparison
+} from "./security.js";
+import { canonicalEmail, findByCanonicalEmail } from "./identity.js";
 
 const OTP_EXPIRY_MS = 10 * 60 * 1000;
 const RATE_LIMIT_MS = 2 * 60 * 1000;
@@ -19,6 +27,29 @@ const MAX_VERIFY_ATTEMPTS = 5;
 // reach this counter, so a normal login/verify flow stays well under the cap.
 const MAX_SENDS_PER_WINDOW = 5;
 const SEND_WINDOW_MS = 60 * 60 * 1000;
+
+// What a code is allowed to do. A code is issued for one purpose and verifies
+// only against that purpose.
+//
+// Without this, every six-digit code in the system is interchangeable: the one
+// mailed out as "your sign-in code" would also confirm permanent deletion of
+// the account. Those two are indistinguishable to someone who has been talked
+// into reading a code down the phone, and only one of them is irreversible.
+// Scoping them means a code obtained under a sign-in pretext buys a sign-in,
+// and deleting still requires a second code the attacker has to intercept
+// separately.
+export const OTP_PURPOSE_AUTH = "auth";
+export const OTP_PURPOSE_DELETE_ACCOUNT = "delete-account";
+
+// Tokens issued before purposes existed carry no `purpose` field at all. They
+// are sign-in codes by definition — nothing else could issue one — so the auth
+// filter has to match a missing field as well as an explicit "auth". In Mongo a
+// `null` inside `$in` matches both null and absent, which is what that does.
+// The branch stops being reachable ten minutes after the deploy that adds this,
+// since no token outlives OTP_EXPIRY_MS.
+function purposeFilter(purpose) {
+  return purpose === OTP_PURPOSE_AUTH ? { $in: [OTP_PURPOSE_AUTH, null] } : purpose;
+}
 
 function generateOtp() {
   return String(crypto.randomInt(100000, 1000000));
@@ -50,18 +81,25 @@ function normalizePhone(input) {
 // login path invites client retries and buries genuine faults in the metrics.)
 export function normalizeIdentifier(identifier) {
   if (isMobileIdentifier(identifier)) return normalizePhone(identifier);
-  return String(identifier ?? "").trim().toLowerCase();
+  // Same canonicaliser the password path uses. Previously this lowercased here
+  // while findUserByEmail matched the raw string, so the two paths resolved the
+  // same address to different accounts.
+  return canonicalEmail(String(identifier ?? ""));
 }
 
-export async function sendOtp(env, identifier) {
+export async function sendOtp(env, identifier, { purpose = OTP_PURPOSE_AUTH } = {}) {
   const collections = await getCollections(env);
   if (!collections) throw new Error("MongoDB is not configured");
 
   const normalized = normalizeIdentifier(identifier);
   const isMobile = isMobileIdentifier(identifier);
 
+  // Per-purpose, so that asking to delete an account moments after signing in
+  // does not hand back "already sent" and leave the person waiting for a
+  // deletion code that was never dispatched.
   const recent = await collections.otpTokens.findOne({
     identifier: normalized,
+    purpose: purposeFilter(purpose),
     used: false,
     expiresAt: { $gt: new Date().toISOString() },
     createdAt: { $gt: new Date(Date.now() - RATE_LIMIT_MS).toISOString() }
@@ -73,6 +111,11 @@ export async function sendOtp(env, identifier) {
   // each real send inserts exactly one token, and reuse hits above return before
   // inserting — so this equals the number of messages dispatched to this
   // destination in the window, across every IP.
+  //
+  // Deliberately NOT filtered by purpose: the cap protects the person receiving
+  // the messages, and their handset does not care what each code was for. One
+  // budget per destination means a second purpose cannot double the number of
+  // messages that can be aimed at one victim.
   const windowStart = new Date(Date.now() - SEND_WINDOW_MS).toISOString();
   const sentInWindow = await collections.otpTokens.countDocuments({
     identifier: normalized,
@@ -87,9 +130,14 @@ export async function sendOtp(env, identifier) {
   const code = generateOtp();
   const now = new Date();
 
+  // `codeHash`, never `code`. The plaintext lives only in this function and in
+  // the message that carries it to the user; nothing recoverable is persisted.
+  // The resend path above returns before reaching here, so no caller ever needs
+  // to read a previously issued code back out.
   const inserted = await collections.otpTokens.insertOne({
     identifier: normalized,
-    code,
+    purpose,
+    codeHash: await createOtpHash(code),
     used: false,
     attempts: 0,
     createdAt: now.toISOString(),
@@ -98,6 +146,11 @@ export async function sendOtp(env, identifier) {
 
   if (isMobile) {
     if (isMetaWhatsappConfigured(env)) {
+      // The WhatsApp body is a Meta-approved template ("parktag_login"), so its
+      // wording cannot be varied per purpose from here — a deletion code still
+      // arrives worded as a sign-in code until a second template is approved.
+      // The scoping above is what actually constrains the code; this is only a
+      // wording gap, and the email channel below does say the right thing.
       try {
         await sendMetaWhatsappOtp(env, { to: normalized, code });
       } catch (err) {
@@ -113,7 +166,7 @@ export async function sendOtp(env, identifier) {
       throw clientError("WhatsApp OTP is not configured on this server.");
     }
   } else {
-    sendOtpEmail(env, { to: normalized, code })
+    sendOtpEmail(env, { to: normalized, code, purpose })
       .catch(err => console.error("[OTP] Email send failed:", redactText(err?.message || String(err))));
   }
 
@@ -209,6 +262,7 @@ export async function chargeExternalOtpSend(env, identifier) {
   const now = new Date();
   await collections.otpTokens.insertOne({
     identifier: normalized,
+    purpose: OTP_PURPOSE_AUTH,
     code: null,
     channel: "firebase",
     used: true,
@@ -220,7 +274,7 @@ export async function chargeExternalOtpSend(env, identifier) {
   return { ok: true };
 }
 
-export async function verifyOtp(env, identifier, code) {
+export async function verifyOtp(env, identifier, code, { purpose = OTP_PURPOSE_AUTH } = {}) {
   const collections = await getCollections(env);
   if (!collections) throw new Error("MongoDB is not configured");
 
@@ -234,11 +288,23 @@ export async function verifyOtp(env, identifier, code) {
   // be checked against a stale token and wrongly rejected as invalid.
   const record = await collections.otpTokens.findOne({
     identifier: normalized,
+    purpose: purposeFilter(purpose),
     used: false,
     expiresAt: { $gt: new Date().toISOString() }
   }, { sort: { createdAt: -1 } });
 
-  if (!record) throw clientError("Invalid or expired code. Please try again.");
+  if (!record) {
+    // Pay for the comparison there is no token to make. Returning straight away
+    // answered in ~30ms where a real check costs ~290ms, and that gap says
+    // whether the address has a code outstanding — i.e. whether that person is
+    // part-way through signing in right now, which is a targeting signal for
+    // someone phoning them pretending to be support.
+    //
+    // The gap existed before codes were hashed, but was small when the compare
+    // was safeEqual; bcrypt widened it to the point of being trivially readable.
+    await burnHashComparison(code);
+    throw clientError("Invalid or expired code. Please try again.");
+  }
 
   // Enforce attempt limit
   if ((record.attempts || 0) >= MAX_VERIFY_ATTEMPTS) {
@@ -249,9 +315,32 @@ export async function verifyOtp(env, identifier, code) {
     throw clientError("Too many incorrect attempts. Please request a new code.");
   }
 
-  // Constant-time compare so the correct code can't be recovered digit-by-digit
-  // by timing responses. safeEqual returns false on any length mismatch too.
-  if (!safeEqual(record.code, code)) {
+  // Codes are stored hashed. `record.code` is only present on tokens issued
+  // before that change; they expire ten minutes after the deploy that
+  // introduced it, so this fallback is short-lived but has to exist — without
+  // it, everyone mid-login at deploy time is told their valid code is wrong.
+  //
+  // Both branches are constant-time: bcrypt.compare is, and safeEqual returns
+  // false on a length mismatch rather than short-circuiting on the first
+  // differing byte, so the correct code can't be recovered digit-by-digit.
+  let matches;
+
+  if (record.codeHash) {
+    matches = await verifyOtpHash(code, record.codeHash);
+  } else {
+    // Legacy path, and it should stop being reached ten minutes after the
+    // deploy that introduced hashing — no token issued since then carries a
+    // plaintext `code`, and none lives longer than OTP_EXPIRY_MS. Logged so its
+    // use is observable: once this stops appearing, the branch (and the
+    // plaintext it accepts) can be deleted.
+    console.warn(
+      "[OTP] verified a pre-hashing token holding a plaintext code — " +
+        "safe to remove this fallback once these stop appearing"
+    );
+    matches = safeEqual(record.code, code);
+  }
+
+  if (!matches) {
     await collections.otpTokens.updateOne(
       { _id: record._id },
       { $inc: { attempts: 1 } }
@@ -267,9 +356,13 @@ export async function verifyOtp(env, identifier, code) {
     { $set: { used: true, usedAt: new Date().toISOString() } }
   );
 
+  // Canonical lookup, so an account stored with a mixed-case address is found
+  // rather than missed. Missing it here is what forked a second, empty account
+  // for someone who registered as "Name@example.com" and later signed in with a
+  // code — the route below creates an owner whenever this returns nothing.
   const owner = isMobile
     ? await collections.owners.findOne({ mobile: normalized })
-    : await collections.owners.findOne({ email: normalized });
+    : await findByCanonicalEmail(collections.owners, normalized);
 
   return {
     ok: true,

@@ -367,7 +367,9 @@ async function resendWhatsappOtp() {
 
 async function logoutOwner() {
   await fetchJson("/api/auth/logout", { method: "POST" });
-  window.location.href = "/owner";
+  // replace(), not href — see signOut() in welcome.js. Assigning leaves the
+  // signed-in page one Back press away.
+  window.location.replace("/owner");
 }
 
 async function requestSticker(tagId, token) {
@@ -465,7 +467,13 @@ if (urlError && hasEl("owner-auth-status")) {
     userinfo_failed: "Failed to get user info from Google. Please try again.",
     db_unavailable: "Database unavailable. Please try again later.",
   };
-  setStatus(messages[urlError] || `Error: ${urlError}. Please try again.`, "error");
+  // Only ever render one of the messages above. The previous fallback echoed
+  // the raw ?error= value, which let anyone put their own words on the real
+  // sign-in page of the real domain — "Your account is locked, call
+  // +91 …" reads as genuine there in a way it never could elsewhere. It went
+  // through textContent so it was not script injection, but a phishing lure
+  // hosted on your own login page is the part that matters.
+  setStatus(messages[urlError] || "Sign-in failed. Please try again.", "error");
 }
 
 if (hasEl("owner-identifier")) {

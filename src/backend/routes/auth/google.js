@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 
 import { createSession, writeSessionCookie } from "../../lib/auth/session.js";
 import { getCollections } from "../../lib/db/repositories.js";
+import { findByCanonicalEmail } from "../../lib/auth/identity.js";
 
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
@@ -164,7 +165,7 @@ export function registerGoogleAuthRoutes(app, env) {
       }
 
       if (role === "admin") {
-        const admin = await collections.admins.findOne({ email });
+        const admin = await findByCanonicalEmail(collections.admins, email);
         if (!admin) {
           reply.redirect("/admin?error=no_account");
           return;
@@ -180,7 +181,7 @@ export function registerGoogleAuthRoutes(app, env) {
         return;
       }
 
-      const owner = await collections.owners.findOne({ email });
+      const owner = await findByCanonicalEmail(collections.owners, email);
 
       if (!owner) {
         reply.redirect("/owner-login?error=no_account");
@@ -246,7 +247,7 @@ export function registerGoogleAuthRoutes(app, env) {
       const collections = await getCollections(env);
       if (!collections) return reply.code(503).send({ error: "db_unavailable" });
 
-      let owner = await collections.owners.findOne({ email });
+      let owner = await findByCanonicalEmail(collections.owners, email);
       if (!owner) {
         return reply.code(404).send({ error: "no_account" });
       }
@@ -310,7 +311,7 @@ export function registerGoogleAuthRoutes(app, env) {
       const collections = await getCollections(env);
       if (!collections) return reply.code(503).send({ error: "db_unavailable" });
 
-      let owner = await collections.owners.findOne({ email });
+      let owner = await findByCanonicalEmail(collections.owners, email);
       if (!owner) {
         return reply.code(404).send({ error: "no_account" });
       }

@@ -4,10 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "test": "node --test --test-concurrency=1 \"src/backend/tests/**/*.test.js\"",
     "dev": "nodemon src/backend/server.js",
     "start": "node src/backend/server.js",
     "seed:demo": "node src/backend/scripts/seed-demo.js",
     "backfill:tag-serials": "node src/backend/scripts/backfill-tag-serials.js",
+    "backfill:owner-emails": "node src/backend/scripts/backfill-owner-emails.js",
     "backfill:issuance-runs": "node src/backend/scripts/backfill-issuance-runs.js",
     "verify:admin-registration": "node src/backend/scripts/verify-admin-registration-visibility.js",
     "verify:exotel-call": "node src/backend/scripts/verify-exotel-call.js",

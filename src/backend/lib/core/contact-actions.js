@@ -17,8 +17,29 @@ const REASON_LABELS = {
   suspicious: "there is a suspicious situation near the vehicle"
 };
 
+// Looked up with hasOwn rather than as a plain property read.
+//
+// `REASON_LABELS[reason]` walks the prototype chain, so "constructor",
+// "toString", "valueOf", "hasOwnProperty" and "__proto__" all come back truthy
+// — and what comes back is a function, which the template below stringifies
+// into the message the owner receives: "someone reported that function
+// Object() { [native code] }". The scanner cannot author this message, and
+// that has to include authoring it indirectly.
+function reasonLabel(reason) {
+  return typeof reason === "string" && Object.hasOwn(REASON_LABELS, reason)
+    ? REASON_LABELS[reason]
+    : null;
+}
+
+// The set the scan page offers, exported so the route can refuse anything else
+// at the boundary instead of storing it and discovering it here. Mirrors
+// isSupportedVehicleType in tag-issuance.js.
+export function isSupportedContactReason(reason) {
+  return reasonLabel(reason) !== null;
+}
+
 function buildOwnerWhatsappMessage(reason) {
-  const label = REASON_LABELS[reason];
+  const label = reasonLabel(reason);
   if (label) {
     return `ParkTag alert: someone reported that ${label}. Please check your vehicle. Log in to your ParkTag dashboard or contact support if needed.`;
   }
@@ -67,7 +88,10 @@ export async function createContactAction(env, input) {
     phone: input.phone || null,
     action: input.action,
     messageChannel: input.messageChannel || null,
-    reason: input.reason || null,
+    // Normalised, not just validated upstream: this is what lands in the
+    // record support reads, so an unrecognised value is stored as absent
+    // however the function was called.
+    reason: isSupportedContactReason(input.reason) ? input.reason : null,
     message: ownerMessage,
     status: "pending",
     ipAddress: input.ipAddress || null,
@@ -94,7 +118,7 @@ export async function createContactAction(env, input) {
       provider = await sendMetaWhatsappAlert(env, {
         to: owner.phone || owner.mobile,
         ownerName: owner.displayName || "there",
-        reason: REASON_LABELS[input.reason] || "an issue has been reported"
+        reason: reasonLabel(input.reason) || "an issue has been reported"
       });
       providerStatus = "provider_started";
     }

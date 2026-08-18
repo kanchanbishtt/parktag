@@ -80,6 +80,39 @@ export function registerProviderRoutes(app, env) {
     const callerPhone = toE164(rawCaller);
     const now = new Date();
 
+    // A number with two live routes pointing at different people, registered
+    // from different clients, is not a number we can route. Either answer would
+    // be a guess, and the wrong guess hands the caller to whoever planted the
+    // other row — on a call the caller believes is reaching a vehicle owner.
+    // Registration refuses to create that state (see claimCallerNumber in
+    // routes/public), so getting here means a row predates that check or two
+    // registrations raced it. Play busy rather than pick.
+    //
+    // Routes registered by the SAME client are left alone: scanning car A and
+    // then car B, or trying the owner and then Emergency, legitimately leaves
+    // two routes for one handset, and newest-wins below is the right answer for
+    // those.
+    const liveRoutes = await collections.pendingCalls
+      .find({ callerPhone, consumed: false, expiresAt: { $gt: now } })
+      .project({ targetPhone: 1, registrantIpHash: 1 })
+      .toArray();
+
+    const targets = new Set(liveRoutes.map((row) => toE164(row.targetPhone)));
+    const registrants = new Set(liveRoutes.map((row) => row.registrantIpHash || ""));
+
+    if (targets.size > 1 && registrants.size > 1) {
+      request.log.warn(
+        {
+          event: "dial-whom-contested",
+          caller: maskPhone(callerPhone),
+          routes: liveRoutes.length,
+          targets: targets.size
+        },
+        "[dial-whom] refusing to route: this number has conflicting routes from different clients"
+      );
+      return reply.send("");
+    }
+
     // Newest registration wins. Without the sort Mongo returns whichever
     // unconsumed row the scan reaches first — in practice the OLDEST — so a
     // scanner who tried Private Call, got no answer, then tapped Emergency was

@@ -16,6 +16,24 @@
 import test, { before, after, beforeEach, describe } from "node:test";
 import assert from "node:assert/strict";
 
+// Pin Razorpay to a throwaway key pair for this process, before anything reads
+// the environment.
+//
+// MEDIUM #5 below needs the key PRESENT: cod-prepay-order refuses without one,
+// and the reuse path under test sits after that gate. The key used to come from
+// the ambient environment — the developer .env locally, and nothing at all in
+// CI, where the gate answered 500 and those tests failed on an environment
+// difference rather than on behaviour.
+//
+// A fake pair is also the safer one. The reuse tests seed prepayOrderId so the
+// route hands back the stored order without calling out — but that reuse is
+// precisely what they assert, so a regression drops them through to
+// createRazorpayOrder, which under the live credentials would mint a real order
+// in the ParkTag account on every run. Compare shop-idempotency.test.js, which
+// removes the key for the mirror-image reason.
+process.env.RAZORPAY_KEY_ID = "rzp_test_ci_placeholder";
+process.env.RAZORPAY_KEY_SECRET = "ci_placeholder_secret";
+
 import { createSession } from "../lib/auth/session.js";
 import {
   startTestApp,

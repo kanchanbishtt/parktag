@@ -18,6 +18,15 @@ import assert from "node:assert/strict";
 import { startTestApp, stopTestApp, uniqueAddress } from "./helpers.js";
 import { isSupportedContactReason } from "../lib/core/contact-actions.js";
 
+// Both register-call routes refuse with 503 when no virtual number is
+// configured, and a CI runner has no telephony credentials. The suite supplies
+// its own rather than inheriting whichever .env happens to be on the machine:
+// that difference is exactly what let these tests pass here and fail on the
+// runner. getEnv() reads process.env afresh inside buildApp(), so setting it
+// before the app is built is enough, and nothing dials either way — these
+// routes only record where a call should be routed and hand the number back.
+process.env.EXOTEL_CALLER_ID = "08000000000";
+
 const PLATE = "DL09QA7731";
 const RIGHT = "7731";
 

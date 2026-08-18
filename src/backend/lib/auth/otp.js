@@ -40,6 +40,15 @@ const SEND_WINDOW_MS = 60 * 60 * 1000;
 // separately.
 export const OTP_PURPOSE_AUTH = "auth";
 export const OTP_PURPOSE_DELETE_ACCOUNT = "delete-account";
+// Proving control of a delivery phone so a COD order can be placed, and proving
+// control of a number before it is linked to an account. Neither is a sign-in,
+// and before they had their own purposes both minted ordinary `auth` codes —
+// so the code the shop sent to a delivery number was a working login credential
+// for whoever held it. The delivery number is typed into the address form by
+// the person checking out, which made it a way to have ParkTag send a
+// login-capable code, worded as a sign-in code, to any number they chose.
+export const OTP_PURPOSE_COD_VERIFY = "cod-verify";
+export const OTP_PURPOSE_LINK_MOBILE = "link-mobile";
 
 // Tokens issued before purposes existed carry no `purpose` field at all. They
 // are sign-in codes by definition — nothing else could issue one — so the auth

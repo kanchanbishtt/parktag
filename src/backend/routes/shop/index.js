@@ -206,8 +206,6 @@ export function registerShopRoutes(app, env) {
     const product = getShopProduct(productId);
     if (!product) { reply.code(400); return { error: "Unknown product." }; }
 
-    if (!isRazorpayConfigured(env)) { reply.code(500); return { error: "Razorpay not configured." }; }
-
     const collections = await getCollections(env);
     if (!collections) { reply.code(500); return { error: "Database not configured." }; }
 
@@ -231,6 +229,45 @@ export function registerShopRoutes(app, env) {
         validReplaceTagId = String(oldTag._id);
       }
     }
+
+    // Reuse an identical checkout the buyer has already started rather than
+    // minting a second one.
+    //
+    // Every call used to create a fresh Razorpay order, a fresh shopOrders row
+    // and consume the atomic order-number counter — so reloading the checkout,
+    // or tapping Pay twice, burnt order numbers and left abandoned orders in the
+    // Razorpay account. At 20 calls a minute per IP, and rotatable, that also
+    // let the visible order sequence be inflated at will.
+    //
+    // The match has to be exact, or reuse would quietly charge for the wrong
+    // thing: same product, same replace-context, same shipping address, still
+    // unpaid, and still priced at the current catalog rate — a stored order
+    // whose price has since moved would be rejected by verify-payment's amount
+    // check, so handing it back would strand the buyer at the payment sheet.
+    const expectedPaise = Math.round(product.amount * 100);
+    const reusable = await collections.shopOrders.findOne({
+      ownerId,
+      status: "created",
+      productId,
+      replaceTagId: validReplaceTagId,
+      amount: expectedPaise
+    }, { sort: { createdAt: -1 } });
+
+    if (reusable && JSON.stringify(reusable.shippingAddress) === JSON.stringify(shipping)) {
+      return {
+        ok: true,
+        orderId: reusable.orderId,
+        orderNumber: reusable.orderNumber,
+        amount: reusable.amount,
+        currency: reusable.currency
+      };
+    }
+
+    // Checked here rather than at the top of the route: everything above this
+    // point — validating the product, the address, the replace-context, and
+    // handing back a checkout the buyer already started — is answerable without
+    // the payment API. Only minting a NEW order needs it.
+    if (!isRazorpayConfigured(env)) { reply.code(500); return { error: "Razorpay not configured." }; }
 
     try {
       const order = await createRazorpayOrder(env, {
@@ -295,10 +332,23 @@ export function registerShopRoutes(app, env) {
     // (M15 Step 5): the order must exist and its stored amount must still equal
     // the current catalog price in paise. This rejects any order that was never
     // minted by us, or whose amount doesn't match the catalog.
+    // Every check that follows lives behind the database, so no database means
+    // this route cannot do its job. It used to wrap the lot in `if (collections)`
+    // and still answer `{ ok: true }` when there was none — the order was never
+    // located, its amount never re-checked, its ownership never confirmed, and
+    // the caller was told the payment was verified anyway. A signature is still
+    // required to get this far, so this was not directly exploitable, but
+    // "cannot check" must not resolve to "checked out fine".
     const collections = await getCollections(env);
+    if (!collections) {
+      request.log.error({ orderId: razorpay_order_id }, "verify-payment reached with no database");
+      reply.code(500);
+      return { ok: false, error: "Could not confirm your payment. Please contact support." };
+    }
+
     let replaced = false;
     let newTagId = null;
-    if (collections) {
+    {
       const order = await collections.shopOrders.findOne({ orderId: razorpay_order_id });
       if (!order) {
         reply.code(400); return { ok: false, error: "No matching order." };

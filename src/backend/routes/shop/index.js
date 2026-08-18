@@ -27,6 +27,27 @@ const FLASH_DISCOUNT_PAISE = 5000;
 // back exactly on the catalog price (e.g. catalog ₹499 → COD ₹549 → online ₹499).
 const COD_SURCHARGE_PAISE = FLASH_DISCOUNT_PAISE;
 
+// Ceiling on how many unpaid COD orders one ACCOUNT can have open in a rolling
+// window. COD takes no money up front and books a real courier shipment, so
+// every order is cost ParkTag carries whether or not the parcel is ever
+// accepted — shipping out, and the return leg when it is refused.
+//
+// The only limit before this was @fastify/rate-limit's 10 per 5 minutes, which
+// is keyed on the caller's IP: rotating addresses walked straight past it. A
+// single account placed 12 orders in one burst in testing. This cap is keyed on
+// the owner, so it holds however many addresses the requests come from, and it
+// sits alongside the per-IP limit rather than replacing it.
+//
+// A ROLLING WINDOW rather than a lifetime total, deliberately: nothing in this
+// app ever transitions a COD order out of "cod" once the parcel is delivered —
+// the courier status is read live from Delhivery and never written back as a
+// terminal state — so a lifetime cap would permanently lock out a genuine
+// repeat customer. Three a day is far more than a real buyer needs and turns
+// unlimited abuse into something that costs an attacker a fresh OTP-verified
+// account per three parcels.
+const MAX_COD_ORDERS_PER_WINDOW = 3;
+const COD_WINDOW_MS = 24 * 60 * 60 * 1000;
+
 // Genuine order reference shown on the confirmation screen: a date prefix plus a
 // real, monotonically increasing sequence — like a standard e-commerce order id
 // (e.g. PT-260728-00042), never a random blob. The sequence comes from an atomic
@@ -185,8 +206,6 @@ export function registerShopRoutes(app, env) {
     const product = getShopProduct(productId);
     if (!product) { reply.code(400); return { error: "Unknown product." }; }
 
-    if (!isRazorpayConfigured(env)) { reply.code(500); return { error: "Razorpay not configured." }; }
-
     const collections = await getCollections(env);
     if (!collections) { reply.code(500); return { error: "Database not configured." }; }
 
@@ -210,6 +229,45 @@ export function registerShopRoutes(app, env) {
         validReplaceTagId = String(oldTag._id);
       }
     }
+
+    // Reuse an identical checkout the buyer has already started rather than
+    // minting a second one.
+    //
+    // Every call used to create a fresh Razorpay order, a fresh shopOrders row
+    // and consume the atomic order-number counter — so reloading the checkout,
+    // or tapping Pay twice, burnt order numbers and left abandoned orders in the
+    // Razorpay account. At 20 calls a minute per IP, and rotatable, that also
+    // let the visible order sequence be inflated at will.
+    //
+    // The match has to be exact, or reuse would quietly charge for the wrong
+    // thing: same product, same replace-context, same shipping address, still
+    // unpaid, and still priced at the current catalog rate — a stored order
+    // whose price has since moved would be rejected by verify-payment's amount
+    // check, so handing it back would strand the buyer at the payment sheet.
+    const expectedPaise = Math.round(product.amount * 100);
+    const reusable = await collections.shopOrders.findOne({
+      ownerId,
+      status: "created",
+      productId,
+      replaceTagId: validReplaceTagId,
+      amount: expectedPaise
+    }, { sort: { createdAt: -1 } });
+
+    if (reusable && JSON.stringify(reusable.shippingAddress) === JSON.stringify(shipping)) {
+      return {
+        ok: true,
+        orderId: reusable.orderId,
+        orderNumber: reusable.orderNumber,
+        amount: reusable.amount,
+        currency: reusable.currency
+      };
+    }
+
+    // Checked here rather than at the top of the route: everything above this
+    // point — validating the product, the address, the replace-context, and
+    // handing back a checkout the buyer already started — is answerable without
+    // the payment API. Only minting a NEW order needs it.
+    if (!isRazorpayConfigured(env)) { reply.code(500); return { error: "Razorpay not configured." }; }
 
     try {
       const order = await createRazorpayOrder(env, {
@@ -274,10 +332,23 @@ export function registerShopRoutes(app, env) {
     // (M15 Step 5): the order must exist and its stored amount must still equal
     // the current catalog price in paise. This rejects any order that was never
     // minted by us, or whose amount doesn't match the catalog.
+    // Every check that follows lives behind the database, so no database means
+    // this route cannot do its job. It used to wrap the lot in `if (collections)`
+    // and still answer `{ ok: true }` when there was none — the order was never
+    // located, its amount never re-checked, its ownership never confirmed, and
+    // the caller was told the payment was verified anyway. A signature is still
+    // required to get this far, so this was not directly exploitable, but
+    // "cannot check" must not resolve to "checked out fine".
     const collections = await getCollections(env);
+    if (!collections) {
+      request.log.error({ orderId: razorpay_order_id }, "verify-payment reached with no database");
+      reply.code(500);
+      return { ok: false, error: "Could not confirm your payment. Please contact support." };
+    }
+
     let replaced = false;
     let newTagId = null;
-    if (collections) {
+    {
       const order = await collections.shopOrders.findOne({ orderId: razorpay_order_id });
       if (!order) {
         reply.code(400); return { ok: false, error: "No matching order." };
@@ -429,6 +500,28 @@ export function registerShopRoutes(app, env) {
     const shipping = addressDoc ? shapeAddress(addressDoc) : null;
     if (!shipping) { reply.code(400); return { error: "Please add a delivery address before ordering." }; }
 
+    // Per-account ceiling (see MAX_COD_ORDERS_PER_WINDOW). Checked before the
+    // OTP step so someone at their limit is told so immediately rather than
+    // being walked through a verification that cannot end in an order.
+    // `createdAt` is an ISO-8601 string, which orders lexicographically, so a
+    // string comparison is a date comparison here.
+    const codWindowStart = new Date(Date.now() - COD_WINDOW_MS).toISOString();
+    const openCodOrders = await collections.shopOrders.countDocuments({
+      ownerId,
+      status: "cod",
+      createdAt: { $gt: codWindowStart }
+    });
+    if (openCodOrders >= MAX_COD_ORDERS_PER_WINDOW) {
+      reply.code(429);
+      return {
+        ok: false,
+        code: "COD_LIMIT",
+        error:
+          "You already have the maximum number of Cash on Delivery orders open. " +
+          "Pay for one online, or try again tomorrow."
+      };
+    }
+
     // COD anti-fraud: the delivery phone must be proven by an OTP sent to that
     // exact number. We skip re-verifying ONLY when this owner has already
     // OTP-verified this same number for a prior COD (owner.codVerifiedPhone) —
@@ -544,6 +637,29 @@ export function registerShopRoutes(app, env) {
 
     const order = await collections.shopOrders.findOne({ orderNumber, ownerId, status: "cod" });
     if (!order) { reply.code(400); return { error: "No matching COD order." }; }
+
+    // Reuse the prepay order already minted for this COD order rather than
+    // minting a second one.
+    //
+    // This used to overwrite `prepayOrderId` on every call, and cod-prepay-verify
+    // only accepts a payment matching the CURRENT one. So opening the flash offer
+    // twice and paying the first sheet — an ordinary thing to do if the sheet is
+    // dismissed and reopened — got the money captured by Razorpay and then
+    // rejected here with "Order mismatch": the order stayed COD, and the courier
+    // still collected cash on delivery. The buyer paid twice.
+    //
+    // Returning the stored order makes the route idempotent, so whichever sheet
+    // the buyer completes is the one verify expects. It also stops each reopen
+    // creating a throwaway order in the Razorpay account.
+    if (order.prepayOrderId && typeof order.prepayAmount === "number") {
+      return {
+        ok: true,
+        orderId: order.prepayOrderId,
+        amount: order.prepayAmount,
+        currency: "INR",
+        keyId: env.razorpayKeyId
+      };
+    }
 
     const discountedPaise = Math.max(order.amount - FLASH_DISCOUNT_PAISE, 100);
     try {

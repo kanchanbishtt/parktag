@@ -70,15 +70,33 @@ function post(url, payload, address = uniqueAddress()) {
 // verifyPassword is pure CPU and shows a spread of a couple of milliseconds.
 // loginUser adds exactly one lookup to each side, so their medians stay
 // comparable. Both are stable enough to assert on honestly.
-async function medianDuration(samples, run) {
-  const timings = [];
+//
+// The candidates are INTERLEAVED — one sample of each per round — rather than
+// measured one group after another. Measuring in blocks silently attributes CPU
+// frequency drift to whichever path happens to be timed last: on a machine warm
+// from a long test run, that produced bcrypt=185ms legacy=186ms none=255ms, a
+// 70ms "oracle" that reversed when the blocks were reversed and vanished to 5ms
+// when interleaved. Interleaving spreads any drift evenly across every
+// candidate, so what is left is the difference between the code paths, which is
+// the only thing this is meant to assert. The thresholds below are unchanged;
+// this makes the measurement honest, not the test easier.
+async function medianDurations(samples, runs) {
+  const timings = new Map(Object.keys(runs).map((name) => [name, []]));
+
   for (let i = 0; i < samples; i += 1) {
-    const started = process.hrtime.bigint();
-    await run();
-    timings.push(Number(process.hrtime.bigint() - started) / 1e6);
+    for (const [name, run] of Object.entries(runs)) {
+      const started = process.hrtime.bigint();
+      await run();
+      timings.get(name).push(Number(process.hrtime.bigint() - started) / 1e6);
+    }
   }
-  timings.sort((a, b) => a - b);
-  return timings[Math.floor(timings.length / 2)];
+
+  const medians = {};
+  for (const [name, values] of timings) {
+    values.sort((a, b) => a - b);
+    medians[name] = values[Math.floor(values.length / 2)];
+  }
+  return medians;
 }
 
 describe("finding #2 — a failed sign-in does not reveal whether the account exists", () => {
@@ -91,15 +109,11 @@ describe("finding #2 — a failed sign-in does not reveal whether the account ex
     const sha256Hash = "a".repeat(64);
     const samples = 7;
 
-    const withBcrypt = await medianDuration(samples, () =>
-      verifyPassword("guess", bcryptHash)
-    );
-    const withLegacy = await medianDuration(samples, () =>
-      verifyPassword("guess", sha256Hash)
-    );
-    const withNothing = await medianDuration(samples, () =>
-      verifyPassword("guess", undefined)
-    );
+    const { withBcrypt, withLegacy, withNothing } = await medianDurations(samples, {
+      withBcrypt: () => verifyPassword("guess", bcryptHash),
+      withLegacy: () => verifyPassword("guess", sha256Hash),
+      withNothing: () => verifyPassword("guess", undefined)
+    });
 
     const slowest = Math.max(withBcrypt, withLegacy, withNothing);
     const fastest = Math.min(withBcrypt, withLegacy, withNothing);
@@ -117,15 +131,11 @@ describe("finding #2 — a failed sign-in does not reveal whether the account ex
     // password comparison and nothing else.
     const samples = 7;
 
-    const unknown = await medianDuration(samples, () =>
-      loginUser(env, "owner", UNKNOWN_EMAIL, "wrong-password")
-    );
-    const registered = await medianDuration(samples, () =>
-      loginUser(env, "owner", OWNER_EMAIL, "wrong-password")
-    );
-    const passwordless = await medianDuration(samples, () =>
-      loginUser(env, "owner", OTP_ONLY_EMAIL, "wrong-password")
-    );
+    const { unknown, registered, passwordless } = await medianDurations(samples, {
+      unknown: () => loginUser(env, "owner", UNKNOWN_EMAIL, "wrong-password"),
+      registered: () => loginUser(env, "owner", OWNER_EMAIL, "wrong-password"),
+      passwordless: () => loginUser(env, "owner", OTP_ONLY_EMAIL, "wrong-password")
+    });
 
     const slowest = Math.max(unknown, registered, passwordless);
     const fastest = Math.min(unknown, registered, passwordless);

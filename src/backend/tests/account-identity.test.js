@@ -154,26 +154,43 @@ describe("finding #2 — OTP verification hides whether a code is outstanding", 
     // counter is a database write, and leaving it inside the measurement added a
     // whole round trip to one side only — which made this test fail on its own
     // scaffolding rather than on a regression.
-    const median = async (setup, run) => {
-      const t = [];
+    //
+    // The candidates are also INTERLEAVED rather than measured one after the
+    // other. Timing one side to completion and then the other lets CPU frequency
+    // drift land entirely on whichever went second, which on a machine warm from
+    // a long run shows up as a gap that looks exactly like the oracle this
+    // asserts against. One sample of each per round spreads that evenly.
+    const median = async (candidates) => {
+      const t = Object.fromEntries(Object.keys(candidates).map((k) => [k, []]));
       for (let i = 0; i < 7; i += 1) {
-        await setup();
-        const s = process.hrtime.bigint();
-        try { await run(); } catch { /* both sides throw */ }
-        t.push(Number(process.hrtime.bigint() - s) / 1e6);
+        for (const [name, candidate] of Object.entries(candidates)) {
+          await candidate.setup();
+          const s = process.hrtime.bigint();
+          try { await candidate.run(); } catch { /* both sides throw */ }
+          t[name].push(Number(process.hrtime.bigint() - s) / 1e6);
+        }
       }
-      t.sort((a, b) => a - b);
-      return t[3];
+      const out = {};
+      for (const [name, values] of Object.entries(t)) {
+        values.sort((a, b) => a - b);
+        out[name] = values[3];
+      }
+      return out;
     };
 
-    const withToken = await median(
-      () => collections.otpTokens.updateOne(
-        { identifier: live },
-        { $set: { attempts: 0, used: false } }
-      ),
-      () => verifyOtp(env, live, "000000")
-    );
-    const withoutToken = await median(async () => {}, () => verifyOtp(env, absent, "000000"));
+    const { withToken, withoutToken } = await median({
+      withToken: {
+        setup: () => collections.otpTokens.updateOne(
+          { identifier: live },
+          { $set: { attempts: 0, used: false } }
+        ),
+        run: () => verifyOtp(env, live, "000000")
+      },
+      withoutToken: {
+        setup: async () => {},
+        run: () => verifyOtp(env, absent, "000000")
+      }
+    });
 
     // A residual gap of roughly one write (~40ms) is expected and fine: the
     // live path increments the attempt counter and the absent path has nothing

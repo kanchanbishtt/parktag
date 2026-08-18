@@ -880,10 +880,14 @@ async function load() {
 
     const data = await res.json();
 
-    // Derive a stable user identifier from the session
-    const userId = data.owner
-      ? (data.owner.email || data.owner.mobile || String(data.owner._id || ""))
-      : null;
+    // Derive a stable user identifier from the session.
+    //
+    // Email or mobile only. This used to fall back to the owner's ObjectId, but
+    // the server no longer sends it — it is the id every owner route keys off,
+    // and no page needs it. The fallback could not fire in any case: an account
+    // with neither an email nor a mobile has no way to sign in, so it cannot be
+    // the one reading this.
+    const userId = data.owner ? (data.owner.email || data.owner.mobile || "") : null;
 
     if (data.owner) {
       // The server decides the name now: what the owner set, then the recipient
@@ -908,7 +912,7 @@ async function load() {
       // Populate burger menu owner header
       _owner       = data.owner;
       _ownerMobile = data.owner.mobile || null;
-      _userId = id || String(data.owner._id || "");
+      _userId = id;
       // Expose the logged-in owner's contact for the shop checkout (inline script
       // in welcome.html runs in a separate scope and can only read via window).
       // Razorpay prefills from this so the sheet shows the CURRENT user, not a

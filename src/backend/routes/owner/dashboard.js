@@ -110,7 +110,14 @@ export function registerOwnerRoutes(app, env) {
     return {
       ok: true,
       owner: {
-        _id: String(owner._id),
+        // No `_id`. It is the ObjectId every /api/owner/* route keys off, and
+        // /api/session already refuses to hand it out for exactly that reason —
+        // this route was quietly undoing that. Nothing in the page needs it: the
+        // browser identifies the signed-in owner by email or mobile, and the
+        // server never accepts an owner id from the client anyway, so sending it
+        // only widened what a script on this page could read. That matters more
+        // here than elsewhere because the dashboard is not one of the
+        // STRICT_SCRIPT_PAGES — its CSP still permits inline script.
         email: owner.email || null,
         mobile: owner.mobile || null,
         // Only a name the owner actually set. A stored identifier reads as
@@ -132,6 +139,14 @@ export function registerOwnerRoutes(app, env) {
         const qrDataUrl = await createQrDataUrl(scanUrl);
         return {
           id: String(tag._id),
+          // Stays, unlike owner._id above, and the difference is worth stating
+          // because an audit will otherwise flag the two together every time.
+          // This token is not withheld from the owner by anything: it is printed
+          // on their own sticker, it is encoded in the QR image returned two
+          // fields down, and `scanUrl` right below spells it out in full. It is
+          // also load-bearing — contact requests reference their tag by token,
+          // so the page matches them on it. Removing it would break that while
+          // leaking nothing, since scanUrl would still carry the same value.
           token: tag.token,
           etagId: etagIdFor(tag._id),
           serial: stickerSerialFor(tag),

@@ -355,7 +355,12 @@ export async function buildApp() {
   //
   // Unsafe methods only. GET is excluded because it is not supposed to change
   // state, and sweeping it in would block ordinary cross-site navigation.
-  const CSRF_PROTECTED_PREFIXES = ["/api/auth/", "/api/owner/", "/api/admin/"];
+  // /api/shop/ was left out when this list was widened, on the assumption that a
+  // payment provider might post to it. It does not: there is no Razorpay webhook
+  // route in this app, and every /api/shop/* route is a fetch from our own
+  // checkout. That left the money routes — place a COD order, start a payment,
+  // confirm one — as the only signed-in surface with no origin check at all.
+  const CSRF_PROTECTED_PREFIXES = ["/api/auth/", "/api/owner/", "/api/admin/", "/api/shop/"];
   const CSRF_PROTECTED_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
   // Both sides of the comparison go through the URL parser. Comparing a parsed
   // origin against a concatenated string does not work: the parser drops a

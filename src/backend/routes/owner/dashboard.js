@@ -6,7 +6,8 @@ import {
   verifyOtp,
   isMobileIdentifier,
   normalizeIdentifier,
-  OTP_PURPOSE_DELETE_ACCOUNT
+  OTP_PURPOSE_DELETE_ACCOUNT,
+  OTP_PURPOSE_LINK_MOBILE
 } from "../../lib/auth/otp.js";
 import { getCollections, ensurePendingCallsIndexes } from "../../lib/db/repositories.js";
 import { clientErrorMessage } from "../../lib/errors.js";
@@ -209,7 +210,11 @@ export function registerOwnerRoutes(app, env) {
       if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
 
       try {
-        await sendOtp(env, mobile);
+        // Scoped: proving control of a number before linking it is not a
+        // sign-in, and this endpoint takes the number straight from the request
+        // body — so as an `auth` code it was a way to have a working sign-in
+        // code sent to any number the caller named.
+        await sendOtp(env, mobile, { purpose: OTP_PURPOSE_LINK_MOBILE });
         return { ok: true, phoneHint: "••••" + String(normalizeIdentifier(mobile)).slice(-4) };
       } catch (err) {
         request.log.error({ err }, "owner mobile OTP send failed");
@@ -239,7 +244,7 @@ export function registerOwnerRoutes(app, env) {
     // Prove control of the number before saving it. verifyOtp throws a
     // client-safe message on a bad/expired/rate-limited code.
     try {
-      await verifyOtp(env, mobile, String(otp));
+      await verifyOtp(env, mobile, String(otp), { purpose: OTP_PURPOSE_LINK_MOBILE });
     } catch (err) {
       reply.code(400);
       return { ok: false, error: err && err.message ? err.message : "Invalid verification code." };

@@ -26,9 +26,23 @@ export const SHOP_PRODUCTS = {
 
 // Look up a shop product by id. Returns { id, name, amount } or null for an
 // unknown id, so callers can 400 on anything not in the catalog.
+//
+// The lookup is an OWN-PROPERTY check, not a plain index, and the id must be a
+// string. A bare `SHOP_PRODUCTS[productId]` also reaches everything on
+// Object.prototype, so "constructor", "__proto__", "toString" and "valueOf" all
+// returned something truthy and sailed past the caller's "Unknown product"
+// check. What came back had no `amount`, so the price arithmetic produced NaN
+// and /api/shop/place-cod wrote a real order for NaN rupees — which in
+// production goes on to book a courier shipment with a broken
+// cash-on-delivery figure, i.e. goods shipped for nothing.
+//
+// The typeof guard matters separately: JSON bodies can carry an array, and
+// `SHOP_PRODUCTS[["pt-car-1"]]` coerces the array to the string "pt-car-1" and
+// matches a real product.
 export function getShopProduct(productId) {
-  const product = SHOP_PRODUCTS[productId];
-  return product ? { id: productId, ...product } : null;
+  if (typeof productId !== "string") return null;
+  if (!Object.prototype.hasOwnProperty.call(SHOP_PRODUCTS, productId)) return null;
+  return { id: productId, ...SHOP_PRODUCTS[productId] };
 }
 
 export function isRazorpayConfigured(env) {

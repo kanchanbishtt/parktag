@@ -1,6 +1,20 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import dotenv from "dotenv";
 
-dotenv.config();
+// The working copy of this repo lives in a cloud-synced folder, so real local
+// secrets are kept outside it at ~/.parktag/.env (override with PARKTAG_ENV_FILE).
+// Production injects env vars directly and reads no file; an in-repo .env is
+// still honoured as a fallback so existing checkouts keep working.
+const localEnvFile =
+  process.env.PARKTAG_ENV_FILE || path.join(os.homedir(), ".parktag", ".env");
+
+if (fs.existsSync(localEnvFile)) {
+  dotenv.config({ path: localEnvFile });
+} else {
+  dotenv.config();
+}
 
 function readPort(value) {
   const parsed = Number(value);

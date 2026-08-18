@@ -1483,20 +1483,48 @@ async function signOut() {
 }
 window.signOut = signOut;
 
+// Deleting is irreversible, so the session cookie alone does not authorise it.
+// The server wants either the account password, or — when the account has none,
+// which is every OTP sign-up — a fresh code sent to the address already on the
+// account. Which one applies is the server's call, and asking for the code is
+// what reveals it: an account with a password is told to use it instead. That
+// keeps the old behaviour of prompting for a password the owner may never have
+// set out of the flow entirely.
 async function deleteAccount() {
   if (!confirm("Permanently delete your account? This removes your account, all vehicles, tags, and history. This cannot be undone.")) return;
-  const password = prompt("Enter your password to confirm account deletion:");
-  if (password === null) return; // cancelled
+
   try {
+    const sent = await fetch("/api/owner/account/send-delete-code", { method: "POST" });
+    const sentData = await sent.json().catch(() => ({}));
+
+    let proof;
+
+    if (sent.ok && sentData.ok) {
+      const where = sentData.hint ? ` sent to ${sentData.hint}` : "";
+      const otp = prompt(`Enter the 6-digit code${where} to confirm deleting your account:`);
+      if (otp === null) return; // cancelled
+      proof = { otp: String(otp).trim() };
+    } else if (sentData.code === "PASSWORD_REQUIRED") {
+      const password = prompt("Enter your password to confirm account deletion:");
+      if (password === null) return; // cancelled
+      proof = { password };
+    } else {
+      _toast(sentData.error || "Couldn't start account deletion. Try again.", "err");
+      return;
+    }
+
     const res = await fetch("/api/owner/account", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password })
+      body: JSON.stringify(proof)
     });
     const data = await res.json().catch(() => ({}));
+
     if (res.ok && data.ok) {
       sessionStorage.clear();
-      window.location.href = "/owner-login";
+      // replace(), not href: the account is gone, so leaving the dashboard one
+      // Back press away restores a page built from a deleted account's data.
+      window.location.replace("/owner-login");
       return;
     }
     _toast(data.error || "Couldn't delete account. Try again.", "err");

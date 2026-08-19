@@ -24,6 +24,7 @@ import { registerVaultRoutes } from "./routes/owner/vault.js";
 import { MAX_FILE_BYTES } from "./lib/core/vault.js";
 import { registerProviderRoutes } from "./routes/webhooks/exotel.js";
 import { registerMetaWebhookRoutes } from "./routes/webhooks/meta.js";
+import { registerRazorpayWebhookRoutes } from "./routes/webhooks/razorpay.js";
 import { registerPublicRoutes } from "./routes/public/index.js";
 import { registerRegistrationRoutes } from "./routes/owner/registration.js";
 import { registerOtpAuthRoutes } from "./routes/auth/otp.js";
@@ -141,6 +142,37 @@ const STRICT_SCRIPT_PAGES = new Set([
   "/reset-password"
 ]);
 
+// The checkout page: no inline <script>, but plenty of inline onclick.
+//
+// /owner-welcome is where money changes hands, and it was running on the
+// app-wide policy — script-src with 'unsafe-inline', which is the one directive
+// standing between an injected <script> and it executing. It could not join the
+// list above because its whole shop half lived in an inline <script> at the
+// bottom of the page, and because fifty-odd controls are wired with onclick
+// attributes.
+//
+// The first of those is now fixed: that block is /scripts/owner/welcome-shop.js,
+// so script-src can drop 'unsafe-inline' here and an injected <script> element
+// no longer runs. The second is not, so script-src-attr keeps 'unsafe-inline' —
+// injecting into an attribute context still works, which is a narrower hole than
+// the one being closed but is not nothing. Converting those handlers is a real
+// refactor of a live checkout and belongs in its own change.
+//
+// style-src is left alone as well: the page opens with an inline <style> block
+// and stripping it would take the layout with it.
+const NO_INLINE_SCRIPT_PAGES = new Set(["/owner-welcome"]);
+
+// Script origins the checkout page actually loads. Not the app-wide list: it
+// needs Razorpay's checkout.js, and nothing else third-party — no Google
+// sign-in, no reCAPTCHA.
+//
+// checkout.js also tries to pull a risk-detection bundle from cdn.razorpay.com,
+// which the app-wide policy already blocks today and this does not change. It is
+// wrapped in a try/catch and loaded async at their end, so checkout works
+// without it; allowing that origin is a decision about Razorpay's fraud signals,
+// not something to slip into a CSP tightening.
+const CHECKOUT_SCRIPT_SOURCES = "'self' https://checkout.razorpay.com";
+
 // Derived from whatever helmet just set, rather than written out again, so a
 // change to the app-wide policy carries over instead of leaving these pages on
 // a stale copy of it.
@@ -183,6 +215,20 @@ function tightenScriptDirectives(policy) {
   }
 
   return out.join(";");
+}
+
+// script-src only. Unlike tightenScriptDirectives above this leaves
+// script-src-attr and style-src exactly as helmet set them — the page needs both
+// — so the only thing it takes away is the ability to run an inline <script>.
+function tightenScriptSrcOnly(policy) {
+  return String(policy)
+    .split(";")
+    .map((directive) => directive.trim())
+    .filter(Boolean)
+    .map((directive) =>
+      directive.startsWith("script-src ") ? `script-src ${CHECKOUT_SCRIPT_SOURCES}` : directive
+    )
+    .join(";");
 }
 
 function isNoStorePage(pathname) {
@@ -437,6 +483,11 @@ export async function buildApp() {
       const policy = reply.getHeader("content-security-policy");
       if (policy) {
         reply.header("content-security-policy", tightenScriptDirectives(policy));
+      }
+    } else if (NO_INLINE_SCRIPT_PAGES.has(pathname)) {
+      const policy = reply.getHeader("content-security-policy");
+      if (policy) {
+        reply.header("content-security-policy", tightenScriptSrcOnly(policy));
       }
     }
 
@@ -819,6 +870,7 @@ export async function buildApp() {
   registerPublicRoutes(app, env);
   registerProviderRoutes(app, env);
   registerMetaWebhookRoutes(app, env);
+  registerRazorpayWebhookRoutes(app, env);
   registerRegistrationRoutes(app, env);
   registerAuthRoutes(app, env);
   registerOtpAuthRoutes(app, env);

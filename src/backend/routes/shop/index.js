@@ -1,4 +1,10 @@
-import { createRazorpayOrder, verifyRazorpaySignature, isRazorpayConfigured, getShopProduct } from "../../lib/integrations/payments.js";
+import {
+  createRazorpayOrder,
+  verifyRazorpaySignature,
+  isRazorpayConfigured,
+  getShopProduct,
+  SHOP_PRODUCTS
+} from "../../lib/integrations/payments.js";
 import { getCollections } from "../../lib/db/repositories.js";
 import { requireSession, toObjectId, tryObjectId } from "../../lib/auth/auth.js";
 import { addressToNotes } from "../../lib/core/address.js";
@@ -6,8 +12,7 @@ import { createPremiumTagForVehicle } from "../../lib/core/tag-issuance.js";
 import { createShipment, isDelhiveryConfigured, updateShipmentToPrepaid, trackingUrl } from "../../lib/integrations/delhivery.js";
 import { getOrderTracking } from "../../lib/core/order-tracking.js";
 import { safeEqual } from "../../lib/auth/security.js";
-import { sendOrderConfirmationEmail } from "../../lib/integrations/email.js";
-import { isMetaWhatsappConfigured, sendMetaWhatsappOrderUpdate } from "../../lib/integrations/meta.js";
+import { fulfilPaidOrder, sendOrderConfirmation } from "../../lib/core/order-fulfilment.js";
 import {
   sendOtp,
   verifyOtp,
@@ -18,7 +23,7 @@ import {
 
 // Flash-offer discount for converting a COD order to prepaid (paise). Kept
 // server-side so the ₹50 saving can't be inflated by a tampered client.
-const FLASH_DISCOUNT_PAISE = 5000;
+export const FLASH_DISCOUNT_PAISE = 5000;
 
 // COD carries a matching +₹50 handling surcharge on top of the catalog price.
 // Paying online — directly, or via the flash offer which subtracts the same
@@ -47,6 +52,88 @@ const COD_SURCHARGE_PAISE = FLASH_DISCOUNT_PAISE;
 // account per three parcels.
 const MAX_COD_ORDERS_PER_WINDOW = 3;
 const COD_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+// How long the "pay now and save Rs 50" offer on the confirmation screen is
+// actually good for.
+//
+// That screen has always shown a sixty-second countdown, and nothing anywhere
+// enforced it. cod-prepay-order handed out the discount to anyone who asked, so
+// the offer was permanent for anybody who called the endpoint directly — the
+// timer existed only as a reason to hurry. Either the deadline is real or it
+// should not be shown; this makes it real.
+export const FLASH_WINDOW_MS = 60 * 1000;
+
+// Slack on the server's side of that deadline. The countdown runs in the
+// browser and a tap at 0:02 still has to survive the round trip; expiring at
+// exactly sixty seconds would quote someone a discounted price and then charge
+// them Rs 50 more — the same class of bug as the COD surcharge the pack sheet
+// used to hide. Wide enough for a slow connection, far too short to make the
+// window meaningless.
+export const FLASH_GRACE_MS = 15 * 1000;
+
+// The discount this order still qualifies for, in paise. Zero once its window
+// has closed.
+//
+// Split out and exported because it is the only part of cod-prepay-order that
+// can be checked without Razorpay: everything downstream of it is behind a call
+// to their API, so a route-level test of the rule would be a test of the
+// network. The rule is the thing that was missing.
+//
+// Orders written before flashOfferExpiresAt existed fall back to their creation
+// time — the same rule applied retroactively, rather than a special case that
+// quietly keeps the old always-discounted behaviour alive for them. An
+// unparseable or absent date yields no discount: this decides who gets money
+// off, so it fails closed.
+export function flashDiscountPaiseFor(order, now = Date.now()) {
+  const stamped = order && order.flashOfferExpiresAt;
+  const deadline = stamped
+    ? Date.parse(stamped)
+    : Date.parse((order && order.createdAt) || "") + FLASH_WINDOW_MS;
+
+  if (!Number.isFinite(deadline)) return 0;
+  return now <= deadline + FLASH_GRACE_MS ? FLASH_DISCOUNT_PAISE : 0;
+}
+
+// Vehicle labels the shop is willing to record against an order.
+//
+// The checkout has always sent the buyer's chosen variant and the server has
+// always thrown it away, so the order never recorded which of "Car" or "Auto"
+// someone actually picked — a choice the UI presents as if it matters. It is
+// stored now, and this is why it is an allowlist rather than a stored string:
+// the value arrives from the browser and ends up on a document that admin views
+// and order e-mails read back, and an arbitrary attacker-chosen string has no
+// business making that trip.
+//
+// One shared set rather than a per-SKU list. Per-SKU is what the browser has,
+// and keeping a second copy of it here is exactly the drift that let the COD
+// surcharge go unmentioned for months; the point of validating is to refuse
+// junk, not to re-litigate which pack offers which label.
+const SHOP_VARIANTS = new Set(["Car", "Auto", "Bike", "Scooter", "Helmet"]);
+
+// The variant to record, or null for anything unrecognised. Never an error:
+// this is a label on an order, and refusing a payment over one would cost the
+// buyer their purchase to fix a cosmetic field.
+function shapeVariant(variant) {
+  return typeof variant === "string" && SHOP_VARIANTS.has(variant) ? variant : null;
+}
+
+// Contact details to prefill Razorpay's sheet with.
+//
+// The browser used to keep these on `window.__ptOwner`, set at dashboard load
+// and left there for the rest of the session — the signed-in owner's name,
+// e-mail and mobile, sitting on a global that every script on the page can
+// read, Razorpay's own checkout.js included. Sending them back with the order
+// the buyer is about to pay for narrows that to the moment they are needed, and
+// makes them the server's copy rather than whatever the page cached at load.
+async function checkoutPrefill(collections, ownerId) {
+  const owner = await collections.owners.findOne({ _id: ownerId });
+  return {
+    // The owner's real name, never a greeting: Razorpay bills against this.
+    name: (owner && owner.displayName) || "",
+    email: (owner && owner.email) || "",
+    contact: (owner && owner.mobile) || ""
+  };
+}
 
 // Genuine order reference shown on the confirmation screen: a date prefix plus a
 // real, monotonically increasing sequence — like a standard e-commerce order id
@@ -119,41 +206,6 @@ function shapeAddress(doc) {
   return { fullName, phone, line1, line2, landmark, city, state, pincode };
 }
 
-// Fire the order-confirmation e-mail without ever blocking the order response —
-// the order already exists, so a mail failure must never turn into a failed
-// checkout. Owners who signed in with a mobile OTP may have no e-mail on file;
-// we skip silently in that case (a WhatsApp confirmation would need its own
-// approved Meta template before it can be wired in here).
-async function sendOrderConfirmation(env, collections, ownerId, details, log) {
-  try {
-    const owner = await collections.owners.findOne({ _id: ownerId });
-    const track = details.waybill ? trackingUrl(details.waybill) : null;
-    const payload = {
-      orderNumber: details.orderNumber,
-      productName: details.productName,
-      amountPaise: details.amountPaise,
-      cod: details.cod,
-      trackingUrl: track
-    };
-    if (owner && owner.email) {
-      await sendOrderConfirmationEmail(env, { to: owner.email, ...payload });
-      return;
-    }
-    // No e-mail on file → WhatsApp the delivery contact instead. Needs the
-    // approved `parktag_order_update` template; best-effort like the e-mail.
-    if (details.deliveryPhone && isMetaWhatsappConfigured(env)) {
-      await sendMetaWhatsappOrderUpdate(env, {
-        to: details.deliveryPhone,
-        name: (owner && (owner.displayName || owner.name)) || "there",
-        orderNumber: details.orderNumber,
-        trackingUrl: track || ""
-      });
-    }
-  } catch (err) {
-    log?.error?.({ err }, "Order confirmation notification failed");
-  }
-}
-
 // Mint the replacement premium tag for an M18 replace-order and soft-remove the
 // old free tag. Shared by online verify-payment and COD flash-prepay verify.
 // Returns { replaced, newTagId }.
@@ -185,6 +237,40 @@ export function registerShopRoutes(app, env) {
     return { keyId: env.razorpayKeyId };
   });
 
+  // The prices the checkout is allowed to show.
+  //
+  // The pack sheet used to carry its OWN hard-coded copy of the catalog and had
+  // no idea COD_SURCHARGE_PAISE existed. So it totalled the catalog price, put
+  // "No extra charge for COD" underneath it, and place-cod then wrote an order
+  // for catalog + ₹50 and told Delhivery to collect exactly that at the door.
+  // The buyer agreed to one price and was asked for a different, higher one
+  // after the goods had already been dispatched — with the app's own text as
+  // the assurance it would not happen.
+  //
+  // Serving the same constants the order routes charge from is what stops that
+  // returning: one place a price can change, and the sheet follows it, so the
+  // display and the charge cannot drift apart again. None of this is secret —
+  // it is a shop's price list — but it stays behind a session like the rest of
+  // /api/shop rather than becoming an unauthenticated endpoint.
+  app.get("/api/shop/pricing", async (request, reply) => {
+    const blocked = await requireSession(app, "owner")(request, reply);
+    if (blocked) return blocked;
+
+    // Paise everywhere, matching every amount the order routes return, so the
+    // client never has to do a unit conversion to compare the two.
+    const products = {};
+    for (const [id, product] of Object.entries(SHOP_PRODUCTS)) {
+      products[id] = { name: product.name, amountPaise: Math.round(product.amount * 100) };
+    }
+
+    return {
+      ok: true,
+      products,
+      codSurchargePaise: COD_SURCHARGE_PAISE,
+      flashDiscountPaise: FLASH_DISCOUNT_PAISE
+    };
+  });
+
   // Create order — the price is resolved SERVER-SIDE from the catalog (M15).
   // The client sends only a productId; any client-supplied `amount` is ignored,
   // so a tampered request can't buy a product for the wrong price.
@@ -205,6 +291,9 @@ export function registerShopRoutes(app, env) {
 
     const product = getShopProduct(productId);
     if (!product) { reply.code(400); return { error: "Unknown product." }; }
+
+    // The checkout has always sent this and the server has always dropped it.
+    const variant = shapeVariant((request.body || {}).variant);
 
     const collections = await getCollections(env);
     if (!collections) { reply.code(500); return { error: "Database not configured." }; }
@@ -249,6 +338,10 @@ export function registerShopRoutes(app, env) {
       ownerId,
       status: "created",
       productId,
+      // Part of "identical" now that the variant is recorded — going back and
+      // changing it is a different order, not the same one resumed. A null here
+      // also matches the orders written before this field existed.
+      variant,
       replaceTagId: validReplaceTagId,
       amount: expectedPaise
     }, { sort: { createdAt: -1 } });
@@ -259,7 +352,8 @@ export function registerShopRoutes(app, env) {
         orderId: reusable.orderId,
         orderNumber: reusable.orderNumber,
         amount: reusable.amount,
-        currency: reusable.currency
+        currency: reusable.currency,
+        prefill: await checkoutPrefill(collections, ownerId)
       };
     }
 
@@ -288,6 +382,7 @@ export function registerShopRoutes(app, env) {
           ownerId,
           productId,
           productName: product.name,
+          variant,
           amount: order.amount, // paise
           currency: order.currency,
           status: "created",
@@ -297,7 +392,14 @@ export function registerShopRoutes(app, env) {
         });
       }
 
-      return { ok: true, orderId: order.id, orderNumber, amount: order.amount, currency: order.currency };
+      return {
+        ok: true,
+        orderId: order.id,
+        orderNumber,
+        amount: order.amount,
+        currency: order.currency,
+        prefill: await checkoutPrefill(collections, ownerId)
+      };
     } catch (err) {
       request.log.error({ err }, "Razorpay order creation failed");
       reply.code(500);
@@ -348,6 +450,11 @@ export function registerShopRoutes(app, env) {
 
     let replaced = false;
     let newTagId = null;
+    // What the confirmation screen shows. It used to display the figures the
+    // browser was holding from create-order — assembled before the payment, and
+    // never checked against anything afterwards. A receipt should say what the
+    // server recorded, so these come off the stored order.
+    let receipt = null;
     {
       const order = await collections.shopOrders.findOne({ orderId: razorpay_order_id });
       if (!order) {
@@ -368,80 +475,25 @@ export function registerShopRoutes(app, env) {
         reply.code(400); return { ok: false, error: "Order amount mismatch." };
       }
 
-      // Atomically flip created → paid so a duplicate verify can't mint twice.
-      const paidTransition = await collections.shopOrders.updateOne(
-        { orderId: razorpay_order_id, status: "created" },
-        { $set: { status: "paid", paymentId: razorpay_payment_id, paidAt: new Date().toISOString() } }
-      );
-      const firstTime = paidTransition.modifiedCount === 1;
-
-      // Tag replacement (M18): mint a new premium tag for the vehicle and
-      // soft-remove the spent free-trial tag. Only on the first paid transition
-      // and only when this order carried a valid replace-context.
-      if (firstTime && order.replaceTagId) {
-        const oldTag = await collections.tags.findOne({
-          _id: toObjectId(order.replaceTagId),
-          ownerId,
-          deletedAt: { $in: [null, undefined] }
-        });
-        if (oldTag && !oldTag.premium) {
-          const premiumTag = await createPremiumTagForVehicle(collections, ownerId, {
-            plateNumber: oldTag.plateNumber,
-            vehicleType: oldTag.vehicleType,
-            vehicleLabel: oldTag.vehicleLabel
-          });
-          const now = new Date().toISOString();
-          await collections.tags.updateOne(
-            { _id: oldTag._id },
-            { $set: { deletedAt: now, status: "inactive", updatedAt: now } }
-          );
-          newTagId = String(premiumTag._id);
-          replaced = true;
-          await collections.shopOrders.updateOne(
-            { orderId: razorpay_order_id },
-            { $set: { mintedTagId: newTagId } }
-          );
-        }
-      }
-
-      // Auto-book the Delhivery shipment for the physical item. Best-effort:
-      // the payment has already succeeded and (if applicable) the tag has
-      // already been minted by this point, so a booking failure here must
-      // never turn into a failed response — it goes on the order for retry
-      // instead. Only runs once, on the actual created→paid transition.
-      let bookedWaybill = null;
-      if (firstTime && isDelhiveryConfigured(env) && order.shippingAddress) {
-        try {
-          const { waybill } = await createShipment(env, {
-            orderId: razorpay_order_id,
-            address: order.shippingAddress,
-            productName: order.productName
-          });
-          bookedWaybill = waybill;
-          await collections.shopOrders.updateOne(
-            { orderId: razorpay_order_id },
-            { $set: { waybill, shipmentBookedAt: new Date().toISOString() }, $unset: { shipmentError: "" } }
-          );
-        } catch (err) {
-          request.log.error({ err, orderId: razorpay_order_id }, "Delhivery shipment booking failed");
-          await collections.shopOrders.updateOne(
-            { orderId: razorpay_order_id },
-            { $set: { shipmentError: err instanceof Error ? err.message : "Unknown error" } }
-          );
-        }
-      }
-
-      // Best-effort confirmation (e-mail, or WhatsApp when no e-mail) — sent
-      // after booking so it can carry the tracking link when a waybill exists.
-      if (firstTime) {
-        await sendOrderConfirmation(env, collections, ownerId, {
-          orderNumber: order.orderNumber, productName: order.productName, amountPaise: order.amount, cod: false,
-          waybill: bookedWaybill, deliveryPhone: order.shippingAddress && order.shippingAddress.phone
-        }, request.log);
-      }
+      // Fulfilment is shared with the Razorpay webhook — see
+      // lib/core/order-fulfilment.js. Whichever of the two arrives first does
+      // the work; the other is a no-op, because the created → paid flip inside
+      // is a single conditional update that only one caller can win.
+      const outcome = await fulfilPaidOrder(env, collections, {
+        order,
+        paymentId: razorpay_payment_id,
+        log: request.log
+      });
+      replaced = outcome.replaced;
+      newTagId = outcome.newTagId;
+      receipt = {
+        orderNumber: order.orderNumber,
+        amountPaise: order.amount,
+        productName: order.productName
+      };
     }
 
-    return { ok: true, paymentId: razorpay_payment_id, replaced, newTagId };
+    return { ok: true, paymentId: razorpay_payment_id, replaced, newTagId, ...receipt };
   });
 
   // Send an OTP to the saved delivery phone so a COD order can be phone-verified
@@ -489,6 +541,7 @@ export function registerShopRoutes(app, env) {
 
     const { productId, replaceTagId, otp } = request.body || {};
     if (!productId) { reply.code(400); return { error: "productId required." }; }
+    const variant = shapeVariant((request.body || {}).variant);
 
     const product = getShopProduct(productId);
     if (!product) { reply.code(400); return { error: "Unknown product." }; }
@@ -570,17 +623,23 @@ export function registerShopRoutes(app, env) {
     const orderNumber = await generateOrderNumber(collections);
     // COD amount = catalog price + ₹50 COD surcharge (the courier collects this).
     const amountPaise = Math.round(product.amount * 100) + COD_SURCHARGE_PAISE;
+    // When the confirmation screen's flash offer stops being valid. Written
+    // down at order time so the deadline the buyer is shown and the one
+    // cod-prepay-order enforces are the same deadline.
+    const flashOfferExpiresAt = new Date(Date.now() + FLASH_WINDOW_MS).toISOString();
     await collections.shopOrders.insertOne({
       orderNumber,
       paymentMethod: "cod",
       ownerId,
       productId,
       productName: product.name,
+      variant,
       amount: amountPaise, // paise (full COD price)
       currency: "INR",
       status: "cod",
       shippingAddress: shipping,
       replaceTagId: validReplaceTagId,
+      flashOfferExpiresAt,
       createdAt: new Date().toISOString()
     });
 
@@ -618,7 +677,16 @@ export function registerShopRoutes(app, env) {
       waybill: bookedWaybill, deliveryPhone: shipping.phone
     }, request.log);
 
-    return { ok: true, orderNumber, amount: amountPaise, productName: product.name };
+    return {
+      ok: true,
+      orderNumber,
+      amount: amountPaise,
+      productName: product.name,
+      // Seconds, not a timestamp: the browser counts down against its own
+      // clock, and a phone whose clock is minutes out would otherwise show a
+      // countdown that had already finished — or one that never did.
+      flashOfferSeconds: Math.round(FLASH_WINDOW_MS / 1000)
+    };
   });
 
   // Flash offer: create a discounted (−₹50) Razorpay order to convert an
@@ -657,11 +725,28 @@ export function registerShopRoutes(app, env) {
         orderId: order.prepayOrderId,
         amount: order.prepayAmount,
         currency: "INR",
-        keyId: env.razorpayKeyId
+        keyId: env.razorpayKeyId,
+        // Whatever this order was already minted at. Reopening the sheet must
+        // not re-price it — the Razorpay order exists at that figure.
+        discountPaise: order.amount - order.prepayAmount,
+        prefill: await checkoutPrefill(collections, ownerId)
       };
     }
 
-    const discountedPaise = Math.max(order.amount - FLASH_DISCOUNT_PAISE, 100);
+    // Is the offer still open?
+    //
+    // The confirmation screen counts down from sixty seconds and then hides the
+    // panel, and that was the entire enforcement: this route applied the ₹50 to
+    // any COD order it was handed, however old, so the "limited time" offer was
+    // permanent to anyone calling the endpoint directly. It cost ₹50 an order
+    // and it made a deadline shown to every buyer a fiction.
+    //
+    // Expired offers still get to prepay, just at the price they owe. Refusing
+    // outright would push someone who wants to pay online back to cash on
+    // delivery, which is worse for everyone; what they must not get is a
+    // discount whose window has closed.
+    const discountPaise = flashDiscountPaiseFor(order);
+    const discountedPaise = Math.max(order.amount - discountPaise, 100);
     try {
       const rzOrder = await createRazorpayOrder(env, {
         amount: discountedPaise / 100, // helper converts INR → paise
@@ -672,7 +757,17 @@ export function registerShopRoutes(app, env) {
         { orderNumber, ownerId },
         { $set: { prepayOrderId: rzOrder.id, prepayAmount: rzOrder.amount } }
       );
-      return { ok: true, orderId: rzOrder.id, amount: rzOrder.amount, currency: rzOrder.currency, keyId: env.razorpayKeyId };
+      return {
+        ok: true,
+        orderId: rzOrder.id,
+        amount: rzOrder.amount,
+        currency: rzOrder.currency,
+        keyId: env.razorpayKeyId,
+        // So the sheet can say what was actually applied instead of promising a
+        // saving it has no way of confirming.
+        discountPaise,
+        prefill: await checkoutPrefill(collections, ownerId)
+      };
     } catch (err) {
       request.log.error({ err }, "COD flash-prepay order creation failed");
       reply.code(500);
@@ -756,7 +851,16 @@ export function registerShopRoutes(app, env) {
       }
     }
 
-    return { ok: true, replaced, newTagId };
+    return {
+      ok: true,
+      replaced,
+      newTagId,
+      orderNumber,
+      // What was charged and what it saved, off the stored order — the toast
+      // used to congratulate the buyer on saving ₹50 whatever the figure was.
+      amountPaise: order.prepayAmount,
+      savedPaise: order.amount - order.prepayAmount
+    };
   });
 
   // ── Public order tracking ────────────────────────────────────────────────

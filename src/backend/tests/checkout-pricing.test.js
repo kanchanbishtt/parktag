@@ -176,11 +176,13 @@ describe("the checkout page reads its prices from the server", () => {
   // back to totalling its own copy of the catalog with no idea a surcharge
   // exists. It cannot check what the sheet renders; the assertions above check
   // that the numbers it is handed are the right ones.
+  // The shop half of the dashboard, which used to be an inline <script> in
+  // welcome.html and now loads from here — see checkout-csp.test.js.
   const here = path.dirname(fileURLToPath(import.meta.url));
-  const CHECKOUT_PAGE = path.join(here, "../../frontend/pages/owner/welcome.html");
+  const CHECKOUT_SCRIPT = path.join(here, "../../frontend/scripts/owner/welcome-shop.js");
 
   test("it asks the server for the price list", async () => {
-    const page = await readFile(CHECKOUT_PAGE, "utf8");
+    const page = await readFile(CHECKOUT_SCRIPT, "utf8");
 
     assert.ok(
       page.includes("/api/shop/pricing"),
@@ -189,7 +191,7 @@ describe("the checkout page reads its prices from the server", () => {
   });
 
   test("the Cash on Delivery total is derived from the server's surcharge", async () => {
-    const page = await readFile(CHECKOUT_PAGE, "utf8");
+    const page = await readFile(CHECKOUT_SCRIPT, "utf8");
 
     assert.ok(
       page.includes("codSurchargePaise"),

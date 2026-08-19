@@ -1,4 +1,10 @@
-import { createRazorpayOrder, verifyRazorpaySignature, isRazorpayConfigured, getShopProduct } from "../../lib/integrations/payments.js";
+import {
+  createRazorpayOrder,
+  verifyRazorpaySignature,
+  isRazorpayConfigured,
+  getShopProduct,
+  SHOP_PRODUCTS
+} from "../../lib/integrations/payments.js";
 import { getCollections } from "../../lib/db/repositories.js";
 import { requireSession, toObjectId, tryObjectId } from "../../lib/auth/auth.js";
 import { addressToNotes } from "../../lib/core/address.js";
@@ -147,6 +153,40 @@ export function registerShopRoutes(app, env) {
   app.get("/api/shop/razorpay-key", async (_request, reply) => {
     if (!isRazorpayConfigured(env)) { reply.code(500); return { error: "Razorpay not configured." }; }
     return { keyId: env.razorpayKeyId };
+  });
+
+  // The prices the checkout is allowed to show.
+  //
+  // The pack sheet used to carry its OWN hard-coded copy of the catalog and had
+  // no idea COD_SURCHARGE_PAISE existed. So it totalled the catalog price, put
+  // "No extra charge for COD" underneath it, and place-cod then wrote an order
+  // for catalog + ₹50 and told Delhivery to collect exactly that at the door.
+  // The buyer agreed to one price and was asked for a different, higher one
+  // after the goods had already been dispatched — with the app's own text as
+  // the assurance it would not happen.
+  //
+  // Serving the same constants the order routes charge from is what stops that
+  // returning: one place a price can change, and the sheet follows it, so the
+  // display and the charge cannot drift apart again. None of this is secret —
+  // it is a shop's price list — but it stays behind a session like the rest of
+  // /api/shop rather than becoming an unauthenticated endpoint.
+  app.get("/api/shop/pricing", async (request, reply) => {
+    const blocked = await requireSession(app, "owner")(request, reply);
+    if (blocked) return blocked;
+
+    // Paise everywhere, matching every amount the order routes return, so the
+    // client never has to do a unit conversion to compare the two.
+    const products = {};
+    for (const [id, product] of Object.entries(SHOP_PRODUCTS)) {
+      products[id] = { name: product.name, amountPaise: Math.round(product.amount * 100) };
+    }
+
+    return {
+      ok: true,
+      products,
+      codSurchargePaise: COD_SURCHARGE_PAISE,
+      flashDiscountPaise: FLASH_DISCOUNT_PAISE
+    };
   });
 
   // Create order — the price is resolved SERVER-SIDE from the catalog (M15).

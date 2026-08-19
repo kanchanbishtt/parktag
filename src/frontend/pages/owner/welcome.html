@@ -2062,6 +2062,7 @@ async function handleBuyNow() {
   const variant = p.variants[_activeVariant];
   // Collect the delivery address FIRST (the physical tag ships home), then open
   // the "Choose your pack" step so the user configures their tags before paying.
+  loadShopPricing(); // warm the price list while the address step is up
   if (typeof window.ptCollectAddress === "function") {
     const haveAddress = await window.ptCollectAddress();
     if (!haveAddress) return; // user backed out of the address step
@@ -2160,8 +2161,48 @@ async function startPayment(productId, variant, label, btn) {
 }
 
 // ── Choose-your-pack step ─────────────────────────────────────
-// Prices here are DISPLAY-ONLY (backend catalog is the source of truth). The
-// selected tier + add-on resolve to one catalog SKU, sent to create-order.
+// The selected tier + add-on resolve to one catalog SKU, which is all that is
+// sent to create-order or place-cod — the server prices it.
+//
+// The prices the sheet SHOWS now come from the server too, and that is the
+// change worth reading about:
+//
+// PACK_PRICES below is a hand-kept copy of the catalog, and it used to be the
+// only thing this sheet had. It totalled those numbers, printed "No extra
+// charge for COD" underneath, and place-cod then wrote the order for ₹50 MORE
+// and told Delhivery to collect exactly that at the door: the buyer agreed to
+// one price and was asked for a higher one after the parcel had shipped, with
+// the app's own line as the assurance it would not happen. The sheet had no
+// idea the surcharge existed, because the only copy of it lived on the server.
+//
+// GET /api/shop/pricing serves the same constants the order routes charge
+// from, so what is shown and what is collected cannot drift apart. The local
+// table is now just the first paint while that request is in flight, and the
+// Cash on Delivery button stays disabled until the real total is known —
+// better to make someone wait a moment than to quote them a price we are not
+// going to honour.
+let _shopPricing = null;
+let _shopPricingInFlight = null;
+
+function loadShopPricing() {
+  if (_shopPricing) return Promise.resolve(_shopPricing);
+  if (!_shopPricingInFlight) {
+    _shopPricingInFlight = fetch("/api/shop/pricing")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { _shopPricing = d && d.ok ? d : null; return _shopPricing; })
+      .catch(() => null)
+      .finally(() => { _shopPricingInFlight = null; });
+  }
+  return _shopPricingInFlight;
+}
+
+// Rupee price for one row of the sheet: the server's figure when we have it,
+// the local table only until then.
+function rowRupees(sku, fallbackRupees) {
+  const paise = _shopPricing && _shopPricing.products[sku] && _shopPricing.products[sku].amountPaise;
+  return typeof paise === "number" ? Math.round(paise / 100) : fallbackRupees;
+}
+
 const PACK_PRICES = { "pt-car-1": 299, "pt-car-2": 499, "pt-car-4": 899, bike: 299 };
 const PACK_NAMES = {
   "pt-car-1": "ParkTag Car Tag (Pack of 1)",
@@ -2192,6 +2233,11 @@ function openPackSheet(preselectId, variant) {
   else { _packTier = "pt-car-2"; _packBike = false; }
   _packVariant = variant || "Car";
   renderPackSheet();
+  // Repaint once the server's prices land, so the Cash on Delivery total is
+  // the real one before anyone can tap it.
+  loadShopPricing().then(() => {
+    if (document.getElementById("ptPackSheet").classList.contains("open")) renderPackSheet();
+  });
   closeProduct(); // leave the product sheet; show the pack step
   document.getElementById("ptPackBackdrop").classList.add("open");
   document.getElementById("ptPackSheet").classList.add("open");
@@ -2228,14 +2274,25 @@ function packProceed() {
 }
 
 function renderPackSheet() {
-  const total = (_packTier ? PACK_PRICES[_packTier] : 0) + (_packBike ? PACK_PRICES.bike : 0);
-  const empty = total === 0;
+  const sku = resolvePackSku();
+  const empty = !sku;
+  // The server prices the whole SKU, so the combined packs are priced as one
+  // item rather than by re-adding the parts here.
+  const localTotal = (_packTier ? PACK_PRICES[_packTier] : 0) + (_packBike ? PACK_PRICES.bike : 0);
+  const total = empty ? 0 : rowRupees(sku, localTotal);
+
+  // What Cash on Delivery actually costs: catalog + the server's handling
+  // surcharge, which is what the courier is told to collect. Null until the
+  // price list has loaded — and while it is null the COD button stays
+  // disabled, because the alternative is quoting a total we will not honour.
+  const codSurcharge = _shopPricing ? Math.round(_shopPricing.codSurchargePaise / 100) : null;
+  const codTotal = !empty && codSurcharge !== null ? total + codSurcharge : null;
   const tiers = PACK_TIERS.map((t) => `
     <button type="button" class="pt-pack-opt${_packTier === t.id ? " active" : ""}" onclick="selectPackTier('${t.id}')">
       <span class="pt-pack-radio"></span>
       <span class="pt-pack-ico">${t.ico}</span>
       <span class="pt-pack-txt"><span class="pt-pack-name">${t.name}${t.badge ? ` <span class="pt-pack-badge">${t.badge}</span>` : ""}</span><span class="pt-pack-desc">${t.desc}</span></span>
-      <span class="pt-pack-price">₹${PACK_PRICES[t.id]}</span>
+      <span class="pt-pack-price">₹${rowRupees(t.id, PACK_PRICES[t.id])}</span>
     </button>`).join("");
   document.getElementById("ptPackSheetBody").innerHTML = `
     <h3 class="pt-pack-title">Choose your pack</h3>
@@ -2249,7 +2306,7 @@ function renderPackSheet() {
       <span class="pt-pack-check"></span>
       <span class="pt-pack-ico">${PACK_BIKE_ICON}</span>
       <span class="pt-pack-txt"><span class="pt-pack-name">Bike tag</span><span class="pt-pack-desc">Front &amp; back · two-wheeler</span></span>
-      <span class="pt-pack-price">₹299</span>
+      <span class="pt-pack-price">₹${rowRupees("pt-bike-1", PACK_PRICES.bike)}</span>
     </button>
 
     <div class="pt-pack-total">
@@ -2258,10 +2315,24 @@ function renderPackSheet() {
     </div>
     <div class="pt-pack-actions">
       <button type="button" class="pt-pack-proceed" onclick="packProceed()"${empty ? " disabled" : ""}>Pay online now</button>
-      <button type="button" class="pt-pack-cod" onclick="packPlaceCod()"${empty ? " disabled" : ""}>Cash on Delivery</button>
+      <button type="button" class="pt-pack-cod" onclick="packPlaceCod()"${empty || codTotal === null ? " disabled" : ""}>${codTotal === null ? "Cash on Delivery" : `Cash on Delivery · ₹${codTotal}`}</button>
     </div>
-    <p class="pt-pack-foot">${empty ? "Select at least one tag to continue." : "Free delivery on all orders. No extra charge for COD."}</p>
+    <p class="pt-pack-foot">${packFootNote(empty, total, codSurcharge, codTotal)}</p>
   `;
+}
+
+// The line under the buttons. It used to read "No extra charge for COD"
+// unconditionally, which was simply not true — so it is now derived from the
+// surcharge the server actually applies. If that is ever set back to zero the
+// old sentence returns on its own, and it is right again, rather than being a
+// claim nobody rechecks.
+function packFootNote(empty, total, codSurcharge, codTotal) {
+  if (empty) return "Select at least one tag to continue.";
+  if (codTotal === null) return "Free delivery on all orders. Checking the Cash on Delivery price…";
+  if (codSurcharge > 0) {
+    return `Free delivery on all orders. Pay online and it is ₹${total}; Cash on Delivery adds a ₹${codSurcharge} handling fee, so the courier collects ₹${codTotal}.`;
+  }
+  return "Free delivery on all orders. No extra charge for COD.";
 }
 
 // ── Order confirmation + COD flash offer ──────────────────────
@@ -2300,6 +2371,9 @@ async function packPlaceCod() {
   const sku = resolvePackSku();
   if (!sku) return;
   const btn = document.querySelector(".pt-pack-cod");
+  // Restore the button's own label afterwards — it now carries the COD total,
+  // so a hard-coded "Cash on Delivery" here would quietly drop the price.
+  const codLabel = btn ? btn.textContent : "";
   if (btn) { btn.disabled = true; btn.textContent = "Placing order…"; }
   try {
     const { res, data } = await placeCodRequest(sku, null);
@@ -2309,7 +2383,7 @@ async function packPlaceCod() {
   } catch (err) {
     showToast(err.message || "Could not place order. Please try again.", "error");
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = "Cash on Delivery"; }
+    if (btn) { btn.disabled = false; btn.textContent = codLabel; }
   }
 }
 
@@ -2371,7 +2445,15 @@ function showConfirmation({ orderNumber, amountPaise, cod }) {
   document.getElementById("ptConfShip").textContent = "Ships in ~24 hours · #" + orderNumber;
   const flash = document.getElementById("ptFlash");
   if (cod) {
-    const online = Math.max(amountPaise - FLASH_DISCOUNT_PAISE, 100);
+    // Same reason the pack sheet stopped trusting its own copy of the catalog:
+    // this figure is quoted on a button the buyer is about to press, and the
+    // charge behind it is computed server-side by cod-prepay-order. Prefer the
+    // server's discount so the two cannot say different things.
+    const discountPaise =
+      _shopPricing && typeof _shopPricing.flashDiscountPaise === "number"
+        ? _shopPricing.flashDiscountPaise
+        : FLASH_DISCOUNT_PAISE;
+    const online = Math.max(amountPaise - discountPaise, 100);
     document.getElementById("ptFlashCod").textContent = rupees(amountPaise);
     document.getElementById("ptFlashOnline").textContent = rupees(online);
     const fbtn = document.getElementById("ptFlashBtn");

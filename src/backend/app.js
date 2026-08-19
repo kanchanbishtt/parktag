@@ -24,6 +24,7 @@ import { registerVaultRoutes } from "./routes/owner/vault.js";
 import { MAX_FILE_BYTES } from "./lib/core/vault.js";
 import { registerProviderRoutes } from "./routes/webhooks/exotel.js";
 import { registerMetaWebhookRoutes } from "./routes/webhooks/meta.js";
+import { registerRazorpayWebhookRoutes } from "./routes/webhooks/razorpay.js";
 import { registerPublicRoutes } from "./routes/public/index.js";
 import { registerRegistrationRoutes } from "./routes/owner/registration.js";
 import { registerOtpAuthRoutes } from "./routes/auth/otp.js";
@@ -819,6 +820,7 @@ export async function buildApp() {
   registerPublicRoutes(app, env);
   registerProviderRoutes(app, env);
   registerMetaWebhookRoutes(app, env);
+  registerRazorpayWebhookRoutes(app, env);
   registerRegistrationRoutes(app, env);
   registerAuthRoutes(app, env);
   registerOtpAuthRoutes(app, env);

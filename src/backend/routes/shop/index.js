@@ -6,8 +6,7 @@ import { createPremiumTagForVehicle } from "../../lib/core/tag-issuance.js";
 import { createShipment, isDelhiveryConfigured, updateShipmentToPrepaid, trackingUrl } from "../../lib/integrations/delhivery.js";
 import { getOrderTracking } from "../../lib/core/order-tracking.js";
 import { safeEqual } from "../../lib/auth/security.js";
-import { sendOrderConfirmationEmail } from "../../lib/integrations/email.js";
-import { isMetaWhatsappConfigured, sendMetaWhatsappOrderUpdate } from "../../lib/integrations/meta.js";
+import { fulfilPaidOrder, sendOrderConfirmation } from "../../lib/core/order-fulfilment.js";
 import {
   sendOtp,
   verifyOtp,
@@ -117,41 +116,6 @@ function bumpTrackGuard(guard) {
 function shapeAddress(doc) {
   const { fullName, phone, line1, line2, landmark, city, state, pincode } = doc;
   return { fullName, phone, line1, line2, landmark, city, state, pincode };
-}
-
-// Fire the order-confirmation e-mail without ever blocking the order response —
-// the order already exists, so a mail failure must never turn into a failed
-// checkout. Owners who signed in with a mobile OTP may have no e-mail on file;
-// we skip silently in that case (a WhatsApp confirmation would need its own
-// approved Meta template before it can be wired in here).
-async function sendOrderConfirmation(env, collections, ownerId, details, log) {
-  try {
-    const owner = await collections.owners.findOne({ _id: ownerId });
-    const track = details.waybill ? trackingUrl(details.waybill) : null;
-    const payload = {
-      orderNumber: details.orderNumber,
-      productName: details.productName,
-      amountPaise: details.amountPaise,
-      cod: details.cod,
-      trackingUrl: track
-    };
-    if (owner && owner.email) {
-      await sendOrderConfirmationEmail(env, { to: owner.email, ...payload });
-      return;
-    }
-    // No e-mail on file → WhatsApp the delivery contact instead. Needs the
-    // approved `parktag_order_update` template; best-effort like the e-mail.
-    if (details.deliveryPhone && isMetaWhatsappConfigured(env)) {
-      await sendMetaWhatsappOrderUpdate(env, {
-        to: details.deliveryPhone,
-        name: (owner && (owner.displayName || owner.name)) || "there",
-        orderNumber: details.orderNumber,
-        trackingUrl: track || ""
-      });
-    }
-  } catch (err) {
-    log?.error?.({ err }, "Order confirmation notification failed");
-  }
 }
 
 // Mint the replacement premium tag for an M18 replace-order and soft-remove the
@@ -368,77 +332,17 @@ export function registerShopRoutes(app, env) {
         reply.code(400); return { ok: false, error: "Order amount mismatch." };
       }
 
-      // Atomically flip created → paid so a duplicate verify can't mint twice.
-      const paidTransition = await collections.shopOrders.updateOne(
-        { orderId: razorpay_order_id, status: "created" },
-        { $set: { status: "paid", paymentId: razorpay_payment_id, paidAt: new Date().toISOString() } }
-      );
-      const firstTime = paidTransition.modifiedCount === 1;
-
-      // Tag replacement (M18): mint a new premium tag for the vehicle and
-      // soft-remove the spent free-trial tag. Only on the first paid transition
-      // and only when this order carried a valid replace-context.
-      if (firstTime && order.replaceTagId) {
-        const oldTag = await collections.tags.findOne({
-          _id: toObjectId(order.replaceTagId),
-          ownerId,
-          deletedAt: { $in: [null, undefined] }
-        });
-        if (oldTag && !oldTag.premium) {
-          const premiumTag = await createPremiumTagForVehicle(collections, ownerId, {
-            plateNumber: oldTag.plateNumber,
-            vehicleType: oldTag.vehicleType,
-            vehicleLabel: oldTag.vehicleLabel
-          });
-          const now = new Date().toISOString();
-          await collections.tags.updateOne(
-            { _id: oldTag._id },
-            { $set: { deletedAt: now, status: "inactive", updatedAt: now } }
-          );
-          newTagId = String(premiumTag._id);
-          replaced = true;
-          await collections.shopOrders.updateOne(
-            { orderId: razorpay_order_id },
-            { $set: { mintedTagId: newTagId } }
-          );
-        }
-      }
-
-      // Auto-book the Delhivery shipment for the physical item. Best-effort:
-      // the payment has already succeeded and (if applicable) the tag has
-      // already been minted by this point, so a booking failure here must
-      // never turn into a failed response — it goes on the order for retry
-      // instead. Only runs once, on the actual created→paid transition.
-      let bookedWaybill = null;
-      if (firstTime && isDelhiveryConfigured(env) && order.shippingAddress) {
-        try {
-          const { waybill } = await createShipment(env, {
-            orderId: razorpay_order_id,
-            address: order.shippingAddress,
-            productName: order.productName
-          });
-          bookedWaybill = waybill;
-          await collections.shopOrders.updateOne(
-            { orderId: razorpay_order_id },
-            { $set: { waybill, shipmentBookedAt: new Date().toISOString() }, $unset: { shipmentError: "" } }
-          );
-        } catch (err) {
-          request.log.error({ err, orderId: razorpay_order_id }, "Delhivery shipment booking failed");
-          await collections.shopOrders.updateOne(
-            { orderId: razorpay_order_id },
-            { $set: { shipmentError: err instanceof Error ? err.message : "Unknown error" } }
-          );
-        }
-      }
-
-      // Best-effort confirmation (e-mail, or WhatsApp when no e-mail) — sent
-      // after booking so it can carry the tracking link when a waybill exists.
-      if (firstTime) {
-        await sendOrderConfirmation(env, collections, ownerId, {
-          orderNumber: order.orderNumber, productName: order.productName, amountPaise: order.amount, cod: false,
-          waybill: bookedWaybill, deliveryPhone: order.shippingAddress && order.shippingAddress.phone
-        }, request.log);
-      }
+      // Fulfilment is shared with the Razorpay webhook — see
+      // lib/core/order-fulfilment.js. Whichever of the two arrives first does
+      // the work; the other is a no-op, because the created → paid flip inside
+      // is a single conditional update that only one caller can win.
+      const outcome = await fulfilPaidOrder(env, collections, {
+        order,
+        paymentId: razorpay_payment_id,
+        log: request.log
+      });
+      replaced = outcome.replaced;
+      newTagId = outcome.newTagId;
     }
 
     return { ok: true, paymentId: razorpay_payment_id, replaced, newTagId };

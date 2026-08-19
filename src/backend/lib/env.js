@@ -146,6 +146,11 @@ export function getEnv() {
     recaptchaV2Secret: process.env.RECAPTCHA_V2_SECRET || "",
     razorpayKeyId: process.env.RAZORPAY_KEY_ID || "",
     razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET || "",
+    // Signs the Razorpay webhook body. A DIFFERENT secret from the key
+    // secret above — it is set against the webhook endpoint in the Razorpay
+    // dashboard. Without it the webhook refuses every callback, and a paid
+    // order whose buyer closed the tab is never fulfilled.
+    razorpayWebhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET || "",
     superAdminBootstrapKey: process.env.SUPER_ADMIN_BOOTSTRAP_KEY || "",
     reviewerSetupEmail: process.env.REVIEWER_SETUP_EMAIL || "",
     reviewerSetupPassword: process.env.REVIEWER_SETUP_PASSWORD || "",

@@ -913,18 +913,12 @@ async function load() {
       _owner       = data.owner;
       _ownerMobile = data.owner.mobile || null;
       _userId = id;
-      // Expose the logged-in owner's contact for the shop checkout (inline script
-      // in welcome.html runs in a separate scope and can only read via window).
-      // Razorpay prefills from this so the sheet shows the CURRENT user, not a
-      // stale cached number.
-      window.__ptOwner = {
-        // The owner's full name, or empty. Never the greeting's first name and
-        // never "there": Razorpay prefills a real checkout field from this, and
-        // a placeholder greeting is not a name to bill.
-        name: data.owner.displayName || "",
-        email: data.owner.email || "",
-        contact: data.owner.mobile || ""
-      };
+      // The shop checkout used to read the owner's name, e-mail and mobile off
+      // a `window.__ptOwner` global set here, which then sat on the page for the
+      // rest of the session within reach of every script running on it —
+      // Razorpay's checkout.js among them. create-order and cod-prepay-order
+      // now return those details with the order being paid for, so they exist
+      // for the length of a checkout rather than a session.
       const mName = document.getElementById("menuName");
       const mId   = document.getElementById("menuId");
       const mAv   = document.getElementById("menuAvatar");

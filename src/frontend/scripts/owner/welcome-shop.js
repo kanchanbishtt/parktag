@@ -315,13 +315,16 @@ async function startPayment(productId, variant, label, btn) {
       // it. This tile fills the container edge-to-edge (navy = brand #03162D),
       // so no white box shows — just the ParkTag logo.
       image: "/images/parktag-checkout-logo.png",
-      // Prefill the logged-in owner's contact (exposed by welcome.js) so the
-      // sheet shows the CURRENT user instead of Razorpay's stale cached number.
-      prefill: {
-        name: (window.__ptOwner && window.__ptOwner.name) || "",
-        email: (window.__ptOwner && window.__ptOwner.email) || "",
-        contact: (window.__ptOwner && window.__ptOwner.contact) || ""
-      },
+      // Prefill the logged-in owner's contact so the sheet shows the CURRENT
+      // user instead of Razorpay's stale cached number.
+      //
+      // This came off `window.__ptOwner` until the checkout audit: a global the
+      // dashboard set at load with the owner's name, e-mail and mobile, and
+      // left there for the whole session where every script on the page could
+      // read it — Razorpay's own checkout.js included. It now rides back with
+      // the order this is about to pay for, so it exists for the length of a
+      // checkout instead of a session, and it is the server's copy.
+      prefill: orderData.prefill || {},
       theme: { color: "#FF2700" },
       handler: async function (response) {
         // 4. Verify on backend
@@ -340,7 +343,17 @@ async function startPayment(productId, variant, label, btn) {
         window._replaceTagId = null; // consume the replace-context either way
         if (verifyData.ok) {
           // Online = already paid → confirmation WITHOUT the flash offer.
-          showConfirmation({ orderNumber: orderData.orderNumber, amountPaise: orderData.amount, cod: false });
+          //
+          // The figures come from verify-payment, i.e. off the order the server
+          // has just marked paid. They used to come from the create-order reply
+          // the browser was still holding — numbers assembled before the payment
+          // and never reconciled with it afterwards. A receipt should say what
+          // was recorded, not what was expected.
+          showConfirmation({
+            orderNumber: verifyData.orderNumber,
+            amountPaise: verifyData.amountPaise,
+            cod: false
+          });
         } else {
           showToast("Payment verification failed. Contact support.", "error");
         }
@@ -552,7 +565,14 @@ async function placeCodRequest(sku, otp) {
   const res = await fetch("/api/shop/place-cod", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ productId: sku, replaceTagId: window._replaceTagId || null, otp: otp || undefined })
+    body: JSON.stringify({
+      productId: sku,
+      // Recorded on the order now, same as the online path — the server
+      // validates it against its own list and drops anything else.
+      variant: _packVariant,
+      replaceTagId: window._replaceTagId || null,
+      otp: otp || undefined
+    })
   });
   const data = await res.json().catch(() => ({}));
   return { res, data };
@@ -562,7 +582,12 @@ function finishCod(data) {
   window._replaceTagId = null;
   closeCodOtp();
   closePackSheet();
-  showConfirmation({ orderNumber: data.orderNumber, amountPaise: data.amount, cod: true });
+  showConfirmation({
+    orderNumber: data.orderNumber,
+    amountPaise: data.amount,
+    cod: true,
+    flashSeconds: data.flashOfferSeconds
+  });
 }
 
 async function packPlaceCod() {
@@ -635,9 +660,11 @@ async function submitCodOtp() {
   }
 }
 
-// Show the confirmation screen. COD orders get the flash offer + 60s timer;
-// already-paid online orders do not.
-function showConfirmation({ orderNumber, amountPaise, cod }) {
+// Show the confirmation screen. COD orders get the flash offer and its
+// countdown — for however long the server says the offer is good for, which is
+// the same deadline cod-prepay-order enforces. Already-paid online orders get
+// neither.
+function showConfirmation({ orderNumber, amountPaise, cod, flashSeconds }) {
   _confState = { orderNumber, amountPaise };
   document.getElementById("ptConfOrdNo").textContent = "Order #" + orderNumber;
   document.getElementById("ptConfShip").textContent = "Ships in ~24 hours · #" + orderNumber;
@@ -660,7 +687,9 @@ function showConfirmation({ orderNumber, amountPaise, cod }) {
     flash.style.display = "";
     document.getElementById("ptCodRemindAmt").textContent = rupees(amountPaise) + " in cash";
     document.getElementById("ptCodRemind").style.display = "";
-    startFlashTimer(60);
+    // The server decides how long the offer lasts and says so in seconds;
+    // this used to be a hard-coded 60 that nothing on the server agreed to.
+    startFlashTimer(flashSeconds > 0 ? flashSeconds : 60);
   } else {
     flash.style.display = "none";
     document.getElementById("ptCodRemind").style.display = "none";
@@ -786,6 +815,21 @@ async function codPrepay() {
     });
     const data = await res.json();
     if (!res.ok || !data.ok || !data.orderId) throw new Error(data.error || "Could not start payment.");
+
+    // The offer window is enforced on the server, and it can have closed between
+    // the countdown running out and this request landing. Stop here rather than
+    // opening a payment sheet for the full amount under a button that promised a
+    // discount — the order simply stays Cash on Delivery, which is what they
+    // already agreed to.
+    if (!data.discountPaise) {
+      clearInterval(_flashTimer);
+      _flashTimer = null;
+      document.getElementById("ptFlash").style.display = "none";
+      showToast("That offer has expired — your order stays Cash on Delivery.", "error");
+      if (btn) btn.disabled = false;
+      return;
+    }
+
     const rzp = new Razorpay({
       key: data.keyId,
       amount: data.amount,
@@ -794,11 +838,7 @@ async function codPrepay() {
       name: "​",
       description: "ParkTag order " + orderNumber + " (prepaid)",
       image: "/images/parktag-checkout-logo.png",
-      prefill: {
-        name: (window.__ptOwner && window.__ptOwner.name) || "",
-        email: (window.__ptOwner && window.__ptOwner.email) || "",
-        contact: (window.__ptOwner && window.__ptOwner.contact) || ""
-      },
+      prefill: data.prefill || {},
       theme: { color: "#FF2700" },
       handler: async function (response) {
         const vr = await fetch("/api/shop/cod-prepay-verify", {
@@ -814,7 +854,9 @@ async function codPrepay() {
         const vd = await vr.json();
         if (vd.ok) {
           clearInterval(_flashTimer); _flashTimer = null;
-          showToast("Paid online — you saved ₹50! 🎉", "success");
+          // What the server recorded as saved, not a hard-coded ₹50 that would
+          // keep congratulating the buyer whatever the discount turned out to be.
+          showToast("Paid online — you saved " + rupees(vd.savedPaise) + "! 🎉", "success");
           // Paid online now → skip the flash offer AND the confirmation window,
           // take the user straight to the "How to activate" guide.
           goToHowto();

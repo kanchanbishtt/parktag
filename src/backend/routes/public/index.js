@@ -23,6 +23,7 @@ import {
 import { verifyRecaptchaV2 } from "../../lib/integrations/recaptcha.js";
 import { clientErrorMessage } from "../../lib/errors.js";
 import { findByCanonicalEmail } from "../../lib/auth/identity.js";
+import { recordDemoActivation } from "../../lib/core/marketing-stock.js";
 
 // Report reasons, matched exactly. An open text field for the reason would let
 // a reporter write anything into a record support reads later.
@@ -728,6 +729,11 @@ export function registerPublicRoutes(app, env) {
       }
     );
 
+    // No-op unless this is a field-demo sticker opened for a demo. When it is,
+    // it records who activated it so the sales screen can wipe them again if
+    // the customer walks away. The account is always new on this path.
+    await recordDemoActivation(collections, { tagId: tag._id, ownerId, isNewOwner: true });
+
     return {
       ok: true,
       owner: {
@@ -918,6 +924,11 @@ export function registerPublicRoutes(app, env) {
         }
       }
     );
+
+    // No-op unless this is a field-demo sticker opened for a demo — see the
+    // matching call in /claim. isNewOwner matters here: a customer who already
+    // had an account keeps it when the sticker is deactivated.
+    await recordDemoActivation(collections, { tagId: tag._id, ownerId: owner._id, isNewOwner });
 
     // Log them straight in so the success screen can hand off to the dashboard.
     const sessionId = await createSession(app, {

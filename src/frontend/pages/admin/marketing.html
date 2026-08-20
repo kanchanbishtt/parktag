@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>ParkTag Admin | Field Demo</title>
+  <style>
+    * { box-sizing: border-box; }
+    /* Like the other admin pages, this one carries its own overflow guard:
+       tokens and serials have no space to break at and would push a card past
+       the viewport on a phone. */
+    body { margin: 0; font-family: "Segoe UI", Tahoma, sans-serif; background: #F1F1F0; color: #03162D; overflow-wrap: break-word; }
+    .wrap { max-width: 1180px; margin: 0 auto; padding: 22px 18px 60px; }
+    .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
+    .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    .brand-logo { height: 30px; width: auto; mix-blend-mode: multiply; }
+    .brand-sep { color: #9aa5b1; }
+    .title { font-size: 1.15rem; margin: 0; }
+    .back { color: #03162D; text-decoration: none; font-weight: 600; font-size: .9rem; }
+    .back:hover { text-decoration: underline; }
+
+    .note { background: #FFF6E8; border: 1px solid #F0D2A0; border-radius: 10px; padding: 12px 14px; font-size: .88rem; line-height: 1.5; margin-bottom: 16px; }
+    .note strong { display: block; margin-bottom: 2px; }
+
+    .counts { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+    .count { background: #fff; border: 1px solid #E3E3E1; border-radius: 10px; padding: 10px 14px; min-width: 92px; }
+    .count b { display: block; font-size: 1.35rem; line-height: 1.1; }
+    .count span { font-size: .74rem; color: #667; text-transform: uppercase; letter-spacing: .04em; }
+
+    #q { width: 100%; padding: 12px 14px; font-size: 1rem; border: 1px solid #D6D6D3; border-radius: 10px; margin-bottom: 16px; background: #fff; }
+    #q:focus { outline: 2px solid #FF2700; outline-offset: -1px; }
+
+    .card { background: #fff; border: 1px solid #E3E3E1; border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+    .card-main { flex: 1 1 240px; min-width: 0; }
+    .serial { font-weight: 700; font-size: 1.02rem; letter-spacing: .01em; }
+    .meta { font-size: .82rem; color: #667; margin-top: 3px; }
+    .prospect { font-size: .84rem; font-weight: 600; color: #8A4B00; margin-top: 4px; }
+    .copies { display: inline-block; background: #EEF2F7; border-radius: 999px; padding: 1px 9px; font-size: .74rem; font-weight: 600; margin-left: 6px; }
+
+    /* The static status chip — ACTIVATED / SOLD / Available. Not a button. */
+    .state { font-size: .78rem; font-weight: 800; padding: 5px 12px; border-radius: 999px; white-space: nowrap; letter-spacing: .03em; }
+    .state.activated { background: #E6F6EC; color: #17663A; }
+    .state.sold { background: #03162D; color: #fff; }
+    .state.available { background: #EDEDEB; color: #5A5A57; font-weight: 600; letter-spacing: 0; }
+
+    /* Field use: thumb-sized target, unambiguous colour. */
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    button.toggle { min-height: 46px; border: 0; border-radius: 10px; font-size: .95rem; font-weight: 700; cursor: pointer; padding: 0 18px; }
+    button.toggle.go { background: #17663A; color: #fff; }
+    button.toggle.stop { background: #FF2700; color: #fff; }
+    button.toggle:disabled { background: #D9D9D6; color: #7A7A76; cursor: not-allowed; }
+    .hint { font-size: .82rem; color: #8A8A86; }
+
+    .blocked { font-size: .8rem; color: #A33; flex-basis: 100%; }
+    .msg { padding: 14px; border-radius: 10px; margin-bottom: 14px; font-size: .9rem; display: none; }
+    .msg.err { background: #FDECEA; border: 1px solid #F5C2C0; color: #8A1F1A; display: block; }
+    .msg.ok { background: #E6F6EC; border: 1px solid #B7E0C6; color: #17663A; display: block; }
+    .empty { background: #fff; border: 1px dashed #CFCFCC; border-radius: 12px; padding: 26px; text-align: center; color: #667; font-size: .9rem; }
+
+    @media (max-width: 560px) {
+      .card { align-items: stretch; }
+      .actions { width: 100%; }
+      button.toggle { flex: 1 1 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <div class="brand">
+        <img class="brand-logo" src="/images/light-logo.png" alt="ParkTag" width="735" height="280" />
+        <span class="brand-sep" aria-hidden="true">·</span>
+        <h1 class="title">Field Demo</h1>
+      </div>
+      <a class="back" href="/admin/overview">← Back to Admin</a>
+    </div>
+
+    <div class="note">
+      <strong>Scan to activate — this list keeps up on its own.</strong>
+      Hand a sticker to the customer and let them activate it the normal way. The
+      unit turns <em>ACTIVATED</em> here by itself. If they buy it, hit
+      <em>Sold</em>. If they don't, hit <em>Deactivate Tag</em> and everything they
+      entered is erased, leaving the sticker as new for the next person.
+    </div>
+
+    <div class="note">
+      <strong>Two stickers, one tag.</strong>
+      Each design was printed twice and both copies carry the same QR, so they are
+      one unit with two bodies. Both copies must always go to the same person —
+      hand them to two customers and the second one's scans will reach the first.
+    </div>
+
+    <div id="msg" class="msg"></div>
+    <div id="counts" class="counts"></div>
+
+    <input id="q" type="search" placeholder="Search sticker serial — e.g. PT-01-001004 or just 1004" autocomplete="off" />
+
+    <div id="list"></div>
+  </div>
+
+  <script src="/scripts/admin/marketing.js"></script>
+</body>
+</html>

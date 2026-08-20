@@ -16,9 +16,12 @@ const DROPDOWNS = {
   products: {
     label: "Products",
     items: [
-      { label: "Solo Tag · ₹199", sub: "1 vehicle", href: `${APP_URL}/shop`, internal: false },
-      { label: "Duo Pack · ₹349", sub: "2 vehicles · saves ₹49", href: `${APP_URL}/shop`, internal: false },
-      { label: "Fleet", sub: "5+ vehicles · custom pricing", href: "mailto:support@parktag.me", internal: false },
+      { label: "Solo Tag · ₹299", sub: "1 vehicle", href: `${APP_URL}/shop`, internal: false },
+      { label: "Duo Pack · ₹499", sub: "1 car · front & back · saves ₹99", href: `${APP_URL}/shop`, internal: false },
+      // Routes to the contact page rather than a mailto:, which does nothing at
+      // all on a machine with no mail client configured. internal:true so it
+      // renders as a next/link and prefetches, like the other in-site entries.
+      { label: "Fleet", sub: "5+ vehicles · custom pricing", href: "/contact", internal: true },
     ],
   },
   more: {
@@ -332,7 +335,7 @@ export function SiteHeader({ defaultDark = true }: { defaultDark?: boolean }) {
               <a
                 href={`${APP_URL}/owner-login`}
                 onClick={navigateSmoothly(`${APP_URL}/owner-login`)}
-                className="bg-[#FF2700] hover:bg-[#D92200] text-white text-sm font-bold px-4 py-2 rounded-lg transition-colors"
+                className="bg-[#FF2700] hover:bg-[var(--red-hover)] text-white text-sm font-bold px-4 py-2 rounded-lg transition-colors"
               >
                 Login
               </a>
@@ -373,9 +376,9 @@ export function SiteHeader({ defaultDark = true }: { defaultDark?: boolean }) {
             <Link href="/contact" onClick={closeAll} className="py-2.5 text-[#03162D] font-medium text-sm hover:text-[#FF2700] transition-colors">Contact</Link>
 
             <div className="text-[10px] font-bold text-[#495B7B]/40 tracking-widest uppercase mt-4 mb-2">Products</div>
-            <a href={`${APP_URL}/shop`} onClick={closeAll} className="py-2.5 text-[#03162D] font-medium text-sm hover:text-[#FF2700] transition-colors">Solo Tag · ₹199</a>
-            <a href={`${APP_URL}/shop`} onClick={closeAll} className="py-2.5 text-[#03162D] font-medium text-sm hover:text-[#FF2700] transition-colors">Duo Pack · ₹349</a>
-            <a href="mailto:support@parktag.me" onClick={closeAll} className="py-2.5 text-[#03162D] font-medium text-sm hover:text-[#FF2700] transition-colors">Fleet</a>
+            <a href={`${APP_URL}/shop`} onClick={closeAll} className="py-2.5 text-[#03162D] font-medium text-sm hover:text-[#FF2700] transition-colors">Solo Tag · ₹299</a>
+            <a href={`${APP_URL}/shop`} onClick={closeAll} className="py-2.5 text-[#03162D] font-medium text-sm hover:text-[#FF2700] transition-colors">Duo Pack · ₹499</a>
+            <Link href="/contact" onClick={closeAll} className="py-2.5 text-[#03162D] font-medium text-sm hover:text-[#FF2700] transition-colors">Fleet</Link>
 
             <div className="text-[10px] font-bold text-[#495B7B]/40 tracking-widest uppercase mt-4 mb-2">More</div>
             <a href="#how-it-works" onClick={closeAll} className="py-2.5 text-[#03162D] font-medium text-sm hover:text-[#FF2700] transition-colors">How it works</a>
@@ -385,7 +388,7 @@ export function SiteHeader({ defaultDark = true }: { defaultDark?: boolean }) {
 
             <div className="mt-5 flex flex-col gap-3">
               <a href={`${APP_URL}/owner-login`} onClick={navigateSmoothly(`${APP_URL}/owner-login`)} className="text-center py-3 rounded-xl border-2 border-[#03162D] text-[#03162D] font-bold text-sm hover:bg-[#03162D] hover:text-white transition-colors">Login</a>
-              <a href={`${APP_URL}/shop`} onClick={closeAll} className="text-center py-3 rounded-xl bg-[#FF2700] text-white font-bold text-sm hover:bg-[#D92200] transition-colors">Order Now</a>
+              <a href={`${APP_URL}/shop`} onClick={closeAll} className="text-center py-3 rounded-xl bg-[#FF2700] text-white font-bold text-sm hover:bg-[var(--red-hover)] transition-colors">Order Now</a>
             </div>
           </nav>
         </div>

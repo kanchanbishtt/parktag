@@ -6,17 +6,6 @@ import { getCollections, ensureCoreIndexes } from "./lib/db/repositories.js";
 const env = getEnv();
 const app = await buildApp();
 
-// Create the indexes the hot query paths depend on (tags.token, owners.email /
-// owners.mobile, the contact-request lookups, and TTLs on the collections that
-// hold live secrets). Idempotent, backgrounded, and non-fatal: a failure here
-// degrades performance but must never stop the service from starting.
-try {
-  const collections = await getCollections(env);
-  await ensureCoreIndexes(collections, app.log);
-} catch (error) {
-  app.log.warn({ err: error }, "[indexes] core index setup skipped");
-}
-
 // Ordering matters, and it was backwards: Mongo was closed BEFORE the HTTP
 // server, so every request still in flight when the platform sent SIGTERM lost
 // its database mid-handler and failed. Railway sends SIGTERM on every deploy,
@@ -85,3 +74,20 @@ try {
   app.log.error(error, "Failed to start WaveTag backend");
   process.exit(1);
 }
+
+// Create the indexes the hot query paths depend on (tags.token, owners.email /
+// owners.mobile, the contact-request lookups, and TTLs on the collections that
+// hold live secrets). Idempotent, backgrounded, and non-fatal: a failure here
+// degrades performance but must never stop the service from starting.
+//
+// This runs AFTER listen and is deliberately not awaited. It used to sit above
+// the listen call with an `await`, which made it neither backgrounded nor
+// non-fatal in practice: with Mongo slow or unreachable, `getCollections` sits
+// on the driver's server-selection timeout (~30s) before the catch is ever
+// reached, so the port stayed closed and health checks failed the whole time.
+// Boot must not depend on the database answering.
+getCollections(env)
+  .then((collections) => ensureCoreIndexes(collections, app.log))
+  .catch((error) => {
+    app.log.warn({ err: error }, "[indexes] core index setup skipped");
+  });

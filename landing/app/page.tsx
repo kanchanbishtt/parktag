@@ -5,6 +5,7 @@ import { AnimateIn } from "./components/AnimateIn";
 import { Marquee } from "./components/Marquee";
 import { VehicleRotator } from "./components/VehicleRotator";
 import { GetStartedButton } from "./components/GetStartedButton";
+import { ScanTagButton } from "./components/ScanTagButton";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.parktag.me";
 
@@ -189,9 +190,7 @@ export default function Home() {
                 </p>
                 <div className="flex flex-wrap gap-3">
                   <GetStartedButton href={`${APP_URL}/owner-login`} />
-                  <a href="#how-it-works" className="border border-white/20 hover:border-white/40 text-white font-semibold px-7 py-3.5 rounded-xl text-base transition-colors">
-                    How it works
-                  </a>
+                  <ScanTagButton appUrl={APP_URL} />
                 </div>
               </AnimateIn>
 

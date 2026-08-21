@@ -63,7 +63,7 @@ export default function PrivacyPage() {
 
           <Section title="5. Security">
             <p>
-              We use industry-standard encryption (TLS in transit, AES at rest), access controls, and regular audits to protect your data. No method of transmission over the internet is 100% secure, but we continuously work to strengthen our safeguards.
+              We encrypt your data in transit with TLS, both between your browser and ParkTag and between ParkTag and our database. The database is hosted on MongoDB Atlas, where the underlying storage is encrypted at rest with AES-256. Passwords are never stored in a readable form &mdash; they are hashed with bcrypt and cannot be recovered, even by us. We do not store full card numbers, CVV or banking credentials at all; those stay with Razorpay. Access to production data is restricted, and we review the Services for security issues on an ongoing basis. No method of transmission or storage is completely secure, but we continue to strengthen our safeguards.
             </p>
           </Section>
 

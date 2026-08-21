@@ -20,6 +20,30 @@
 export const MARKETING_AVAILABLE_STATUS = "unclaimed";
 export const MARKETING_ACTIVATED_STATUS = "active";
 
+// Mongo condition for "not field-demo stock", to keep the demo shelf out of the
+// real inventory surfaces.
+//
+// This is not a cosmetic filter. A demo sticker at rest sits in
+// MARKETING_AVAILABLE_STATUS — which IS "unclaimed" — so it matches, exactly,
+// the queries the print queue and the bulk deletes are built on:
+//
+//   • the print queue selects { status: "unclaimed", printStatus: != printed },
+//     so every deactivation puts the salesperson's sticker back on the list of
+//     things to print;
+//   • DELETE /api/admin/tags/unclaimed/all and /tags/batch/:n delete on that
+//     same shape, so clearing unprinted stock would delete the stickers out of
+//     the bag — the QR codes keep existing physically and resolve to nothing.
+//
+// `$ne: true` rather than `false`: ordinary tags have no marketingStock field
+// at all, and { marketingStock: false } would match none of them.
+export const NOT_MARKETING_STOCK = { marketingStock: { $ne: true } };
+
+// The owner half of the same idea. A demo activation creates a real owner row
+// (the customer runs the real wizard), flagged demoCreatedOwner until the unit
+// is sold. Counting those inflates the owner numbers with people who walked
+// away, and the flag is cleared on sale, so a genuine buyer still counts.
+export const NOT_DEMO_OWNER = { demoCreatedOwner: { $ne: true } };
+
 export function isMarketingStock(tag) {
   return Boolean(tag?.marketingStock);
 }

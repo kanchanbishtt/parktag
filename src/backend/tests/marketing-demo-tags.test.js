@@ -34,6 +34,7 @@ let adminCookie;
 
 const tokens = [];
 const customerEmails = [];
+const customerMobiles = [];
 let nextSerial = 900001;
 
 function makeToken() {
@@ -101,6 +102,37 @@ async function customerActivates(token, { email, phone, plate = "DL01AB1234" }) 
   });
 }
 
+// The scanner's step wizard: plate → vehicle type → mobile → OTP. This is what
+// a customer actually runs after scanning the QR on the sticker, and it is a
+// DIFFERENT route from /claim above — no email, no password, vehicleType
+// mandatory. Both routes attach an owner to a tag, so both have to make the
+// shelf notice; testing only /claim would leave the path used at the roadside
+// unproven.
+async function customerScansAndActivates(
+  token,
+  { phone, plate = "DL05CD5678", vehicleType = "bike", displayName = "Scanned Customer" }
+) {
+  customerMobiles.push(phone);
+  const code = "515151";
+  await collections.otpTokens.insertOne({
+    identifier: normalizeIdentifier(phone),
+    purpose: OTP_PURPOSE_AUTH,
+    codeHash: await createOtpHash(code),
+    used: false,
+    attempts: 0,
+    createdAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString()
+  });
+
+  return app.inject({
+    method: "POST",
+    url: `/api/tags/${token}/activate`,
+    remoteAddress: uniqueAddress(),
+    headers: { origin: ORIGIN },
+    payload: { displayName, phone, code, plateNumber: plate, vehicleType }
+  });
+}
+
 before(async () => {
   ({ app, collections } = await startTestApp());
   await purgeLoginCollections(collections);
@@ -127,6 +159,11 @@ after(async () => {
   await collections.tags.deleteMany({ token: { $in: tokens } });
   if (customerEmails.length) {
     await collections.owners.deleteMany({ email: { $in: customerEmails } });
+  }
+  // The scanner wizard identifies people by mobile and never sets an email, so
+  // those fixtures would survive an email-only cleanup.
+  if (customerMobiles.length) {
+    await collections.owners.deleteMany({ mobile: { $in: customerMobiles } });
   }
   await collections.admins.deleteMany({ email: ADMIN_EMAIL });
   await purgeLoginCollections(collections);
@@ -165,6 +202,71 @@ describe("activation is auto-detected — no unlocking step", () => {
 
     const owner = await collections.owners.findOne({ email });
     assert.equal(owner.demoCreatedOwner, true, "flagged so Deactivate can clean it up");
+  });
+
+  test("scanning the QR and running the step wizard also flips the shelf to ACTIVATED", async () => {
+    // This is the route the roadside demo actually uses. It is a separate
+    // handler from /claim with its own owner-creation branch, so the shelf
+    // noticing on one proves nothing about the other.
+    const sticker = await insertSticker();
+    const phone = "+919876500010";
+
+    const response = await customerScansAndActivates(sticker.token, {
+      phone,
+      plate: "DL07QR4321",
+      vehicleType: "scooter",
+      displayName: "Roadside Customer"
+    });
+    assert.equal(response.statusCode, 200, "the scanner wizard should activate like any real one");
+
+    const after = await collections.tags.findOne({ _id: sticker._id });
+    assert.equal(demoState(after), "activated", "the shelf must notice without any admin step");
+    assert.equal(after.demoCount, 1);
+    assert.equal(after.demoOwnerCreated, true);
+
+    const shelf = (await authed("GET", "/api/admin/marketing")).json();
+    const row = shelf.items.find((i) => i.id === String(sticker._id));
+    assert.equal(row.state, "activated");
+    assert.equal(row.activatedBy, "Roadside Customer", "the salesperson sees who is on it");
+    assert.equal(row.plateNumber, "DL07QR4321");
+  });
+
+  test("a sticker activated by scanning can be wiped and reused, repeatedly", async () => {
+    // The whole point of carrying copies: demo, wipe, demo again. Two full
+    // cycles, because a single one would not catch a wipe that leaves the
+    // previous customer's vehicleType behind for the next person to see.
+    const sticker = await insertSticker();
+
+    for (const [round, phone, plate, type] of [
+      [1, "+919876500011", "DL08AA1111", "car"],
+      [2, "+919876500012", "DL08BB2222", "truck"]
+    ]) {
+      const activated = await customerScansAndActivates(sticker.token, {
+        phone,
+        plate,
+        vehicleType: type,
+        displayName: `Customer ${round}`
+      });
+      assert.equal(activated.statusCode, 200, `round ${round} activation should succeed`);
+
+      const live = await collections.tags.findOne({ _id: sticker._id });
+      assert.equal(demoState(live), "activated", `round ${round} should show as activated`);
+      assert.equal(live.plateNumber, plate);
+      assert.equal(live.demoCount, round, "every demo is counted, including reuses");
+
+      const wiped = await authed("POST", `/api/admin/marketing/${sticker._id}/deactivate`);
+      assert.equal(wiped.statusCode, 200, `round ${round} deactivate should succeed`);
+
+      const reset = await collections.tags.findOne({ _id: sticker._id });
+      assert.equal(demoState(reset), "available", `round ${round} should return to available`);
+      assert.equal(reset.plateNumber, undefined, "the customer's plate must not survive");
+      assert.equal(reset.vehicleType, undefined, "nor their vehicle type");
+      assert.equal(
+        reset.demoCount,
+        round,
+        "the exposure counter survives the wipe — it is the sticker's history, not the customer's"
+      );
+    }
   });
 });
 

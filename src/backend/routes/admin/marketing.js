@@ -2,7 +2,7 @@ import { ObjectId } from "mongodb";
 
 import { requireSession } from "../../lib/auth/auth.js";
 import { getCollections } from "../../lib/db/repositories.js";
-import { etagIdFor, stickerSerialFor } from "../../lib/core/tag-issuance.js";
+import { batchKeyFor, etagIdFor, stickerSerialFor } from "../../lib/core/tag-issuance.js";
 import {
   MARKETING_AVAILABLE_STATUS,
   DEMO_TAG_FIELDS,
@@ -10,6 +10,7 @@ import {
   demoOwnerIsDisposable,
   demoState,
   isDemoActivated,
+  isMarketingStock,
   isSold,
   printedCopies
 } from "../../lib/core/marketing-stock.js";
@@ -131,6 +132,159 @@ export function registerAdminMarketingRoutes(app, env) {
         sold: all.filter((t) => demoState(t) === "sold").length
       },
       items
+    };
+  });
+
+  // Put an already-printed sticker on the shelf, by the serial printed on it.
+  //
+  // The CLI script (scripts/designate-marketing-stock.js) does the same job, but
+  // it requires knowing the serial in advance and having a terminal. Someone
+  // holding a sticker needs to add it from wherever they are, so the same guards
+  // are enforced here rather than left to the caller.
+  //
+  // MAX_COPIES is a typo guard, not a business limit: the quantity control is a
+  // stepper, and a pasted or fat-fingered number should be refused rather than
+  // silently recorded as the size of a print run.
+  const MAX_COPIES = 500;
+
+  // Resolve what the salesperson typed to exactly one tag, or refuse.
+  //
+  // Ambiguity is the danger here: serials are unique per BATCH, not globally, so
+  // a bare "1004" can name a tag in batch 01 and another in batch 02. Adding the
+  // wrong one puts a customer's future sticker on a demo shelf, so a bare number
+  // that matches more than one tag is an error asking for the full serial —
+  // never a best guess.
+  async function resolveTag(collections, raw) {
+    const input = String(raw || "").trim();
+    if (!input) return { error: "Enter the serial printed on the sticker." };
+
+    // A raw token, for the case where the serial is unreadable but the QR is not.
+    if (/^[a-f0-9]{32,}$/i.test(input)) {
+      const byToken = await collections.tags.findOne({ token: input });
+      return byToken ? { tag: byToken } : { error: "No sticker found for that token." };
+    }
+
+    const segments = input.split("-");
+    const unitDigits = String(segments[segments.length - 1]).replace(/\D/g, "");
+    if (!unitDigits) {
+      return { error: `"${input}" is not a serial. Expected something like PT-01-001004.` };
+    }
+
+    const candidates = await collections.tags
+      .find({ serialNumber: Number(unitDigits) })
+      .toArray();
+    if (!candidates.length) {
+      return { error: `No sticker found with serial ${input}.` };
+    }
+
+    // Full PT-<batch>-<unit> form: narrow by batch as well.
+    if (segments.length >= 3) {
+      const wanted = `PT-${batchKeyFor(segments[segments.length - 2])}-${unitDigits.padStart(6, "0")}`;
+      const exact = candidates.filter((t) => stickerSerialFor(t) === wanted);
+      if (!exact.length) return { error: `No sticker found with serial ${wanted}.` };
+      if (exact.length > 1) {
+        return { error: `${wanted} matches more than one tag. Add it by token instead.` };
+      }
+      return { tag: exact[0] };
+    }
+
+    if (candidates.length > 1) {
+      const serials = candidates.map(stickerSerialFor).filter(Boolean).sort();
+      return {
+        error: `"${input}" matches ${candidates.length} stickers (${serials.join(", ")}). Type the full serial.`
+      };
+    }
+    return { tag: candidates[0] };
+  }
+
+  app.post("/api/admin/marketing/add", async (request, reply) => {
+    const blocked = await requireSession(app, "admin")(request, reply);
+    if (blocked) return blocked;
+
+    const collections = await getCollections(env);
+    if (!collections) {
+      reply.code(503);
+      return { ok: false, error: "Database is not available." };
+    }
+
+    const body = request.body || {};
+    const copies = Number(body.copies ?? 1);
+    if (!Number.isInteger(copies) || copies < 1 || copies > MAX_COPIES) {
+      reply.code(400);
+      return { ok: false, error: `Copies must be a whole number between 1 and ${MAX_COPIES}.` };
+    }
+
+    const resolved = await resolveTag(collections, body.serial);
+    if (resolved.error) {
+      reply.code(404);
+      return { ok: false, error: resolved.error };
+    }
+
+    const tag = resolved.tag;
+    const serial = stickerSerialFor(tag) || etagIdFor(tag._id);
+
+    if (tag.deletedAt) {
+      reply.code(409);
+      return { ok: false, error: `${serial} has been deleted and cannot be used for demos.` };
+    }
+
+    // Never take a sticker away from a customer who already owns it. Re-pointing
+    // it at the demo shelf would detach a tag someone is relying on.
+    if (tag.ownerId != null && !isMarketingStock(tag)) {
+      reply.code(409);
+      return { ok: false, error: `${serial} already belongs to a customer.` };
+    }
+
+    const now = new Date().toISOString();
+
+    // Already on the shelf: this is a quantity correction, so touch ONLY the
+    // copy count. Re-running the full designation would set ownerId to null and
+    // status back to unclaimed, which mid-demo would silently wipe the customer
+    // standing in front of the salesperson.
+    if (isMarketingStock(tag)) {
+      await collections.tags.updateOne(
+        { _id: tag._id },
+        { $set: { copiesPrinted: copies, updatedAt: now } }
+      );
+      return {
+        ok: true,
+        added: false,
+        serial,
+        copies,
+        state: demoState({ ...tag, copiesPrinted: copies }),
+        message: `${serial} was already in Field Demo — copies updated to ${copies}.`
+      };
+    }
+
+    await collections.tags.updateOne(
+      { _id: tag._id },
+      {
+        $set: {
+          marketingStock: true,
+          copiesPrinted: copies,
+          // Unowned and claimable: a demo sticker at rest is just a new sticker,
+          // so the customer's scan runs the ordinary activation with no
+          // unlocking step. Same resting state the CLI script writes.
+          ownerId: null,
+          status: MARKETING_AVAILABLE_STATUS,
+          updatedAt: now
+        }
+      }
+    );
+    // Seeded only when absent: a sticker that has been on the shelf before keeps
+    // its exposure history.
+    await collections.tags.updateOne(
+      { _id: tag._id, demoCount: { $exists: false } },
+      { $set: { demoCount: 0 } }
+    );
+
+    return {
+      ok: true,
+      added: true,
+      serial,
+      copies,
+      state: "available",
+      message: `${serial} added to Field Demo${copies > 1 ? ` (${copies} copies)` : ""}.`
     };
   });
 

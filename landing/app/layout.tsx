@@ -6,6 +6,22 @@ export const metadata: Metadata = {
   description:
     "QR-based vehicle identification for modern India. Scan a tag, reach the owner instantly, no app needed to scan.",
   metadataBase: new URL("https://parktag.me"),
+  // One canonical address for every page.
+  //
+  // www.parktag.me and parktag.me both answer 200 with identical content and
+  // the same ETag, so the site lives at two addresses and search engines split
+  // its ranking across them. "./" resolves against metadataBase and the current
+  // path, so every page points at its own apex URL.
+  //
+  // A www -> apex redirect was the obvious alternative and was rejected after
+  // testing: Next applies redirects() BEFORE headers(), so a 308 goes out with
+  // no headers on it at all — no HSTS included. www would then never be pinned
+  // to HTTPS in any browser, leaving http://www.parktag.me strippable forever.
+  // Serving www a real page with the full header set, and naming the apex as
+  // canonical, keeps the TLS posture and fixes the duplicate-content half.
+  // Folding www into the apex properly belongs at DNS/Railway, where the
+  // redirect can carry HSTS of its own.
+  alternates: { canonical: "./" },
   keywords: ["parktag", "smart parking", "QR code", "vehicle", "India", "parking tag"],
   openGraph: {
     title: "ParkTag | Smart Parking. Instant Connection.",

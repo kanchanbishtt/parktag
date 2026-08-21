@@ -107,6 +107,14 @@ const CORE_INDEXES = [
   ["tags", { ownerId: 1, deletedAt: 1 }, { name: "owner_live" }],
   ["tags", { status: 1, printStatus: 1 }, { name: "print_queue" }],
   ["tags", { batchNumber: 1 }, { name: "batch" }],
+  // Serial lookup. Adding a printed sticker to field demo resolves the serial
+  // typed off the sticker, and serialNumber was indexed nowhere — so every add
+  // scanned the whole tags collection.
+  ["tags", { serialNumber: 1 }, { name: "serial" }],
+  // The field-demo shelf: filter on marketingStock, ordered by serial. Both
+  // halves are served here, so listing the shelf stops being a collection scan
+  // on every page load and every search keystroke.
+  ["tags", { marketingStock: 1, serialNumber: 1 }, { name: "marketing_shelf" }],
   ["owners", { email: 1 }, { name: "email" }],
   // Case-insensitive email index. Account lookup matches an address regardless
   // of the case it was stored in (see lib/auth/identity.js), and a collation

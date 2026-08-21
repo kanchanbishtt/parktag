@@ -143,6 +143,39 @@ export async function readSession(app, request) {
   return session;
 }
 
+// Revoke every session belonging to one user, without needing their cookie.
+//
+// Deleting an account does NOT log that account out on its own: the session row
+// is keyed by session id, not by user, so it outlives the owner document and
+// readSession keeps answering from it. The row is what makes the cookie work,
+// so removing it is the revocation — readSession's Mongo fallback already
+// returns null for a session it cannot find.
+//
+// The ids are read out of Mongo first and then deleted from the in-process
+// cache BY KEY. app.sessions is a BoundedTtlMap with get/set/has/delete only —
+// it is not iterable, and a for..of over it throws.
+//
+// Best-effort by design: this runs after the destructive action it accompanies,
+// and failing the whole request because a cleanup query failed would leave the
+// caller thinking nothing happened when the account is already gone.
+export async function revokeSessionsForUser(app, userId) {
+  if (userId == null) return 0;
+  const id = String(userId);
+
+  try {
+    const coll = await sessionCollection();
+    if (!coll) return 0;
+
+    const doomed = await coll.find({ userId: id }, { projection: { _id: 1 } }).toArray();
+    for (const row of doomed) app.sessions.delete(row._id);
+
+    const result = await coll.deleteMany({ userId: id });
+    return result.deletedCount || 0;
+  } catch {
+    return 0;
+  }
+}
+
 export async function clearSession(app, request, reply) {
   const sessionId = request.cookies[SESSION_COOKIE];
   if (sessionId) {

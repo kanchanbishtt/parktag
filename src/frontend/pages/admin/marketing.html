@@ -10,8 +10,11 @@
        tokens and serials have no space to break at and would push a card past
        the viewport on a phone. */
     body { margin: 0; font-family: "Segoe UI", Tahoma, sans-serif; background: #F1F1F0; color: #03162D; overflow-wrap: break-word; }
-    .wrap { max-width: 1180px; margin: 0 auto; padding: 22px 18px 60px; }
-    .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
+    /* Mobile-first. The bottom padding clears the floating action button, which
+       is fixed and would otherwise sit on top of the last row with no way to
+       scroll out from under it. */
+    .wrap { max-width: 1180px; margin: 0 auto; padding: 14px 12px 110px; }
+    .top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
     .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
     .brand-logo { height: 30px; width: auto; mix-blend-mode: multiply; }
     .brand-sep { color: #9aa5b1; }
@@ -19,39 +22,70 @@
     .back { color: #03162D; text-decoration: none; font-weight: 600; font-size: .9rem; }
     .back:hover { text-decoration: underline; }
 
-    .note { background: #FFF6E8; border: 1px solid #F0D2A0; border-radius: 10px; padding: 12px 14px; font-size: .88rem; line-height: 1.5; margin-bottom: 16px; }
-    .note strong { display: block; margin-bottom: 2px; }
+    /* The two guidance notes are collapsed by default. Left open they cost
+       roughly 500px before a single sticker appeared on a phone — the shelf,
+       which is the entire point of the page, started below the fold. Each
+       summary still carries the sentence that matters, including the warning
+       about copies, so nothing safety-relevant is hidden behind a tap. */
+    .note { background: #FFF6E8; border: 1px solid #F0D2A0; border-radius: 10px; font-size: .88rem; line-height: 1.5; margin-bottom: 10px; }
+    .note > summary { padding: 11px 14px; font-weight: 700; cursor: pointer; list-style: none; display: flex; gap: 8px; align-items: flex-start; }
+    .note > summary::-webkit-details-marker { display: none; }
+    /* Own marker, so it can sit at the top of a summary that wraps to two lines
+       rather than floating beside the middle of it. */
+    .note > summary::before { content: "›"; font-size: 1.1rem; line-height: 1.25; transition: transform .15s ease; flex: none; }
+    .note[open] > summary::before { transform: rotate(90deg); }
+    .note > summary:focus-visible { outline: 2px solid #FF2700; outline-offset: -2px; border-radius: 10px; }
+    .note-body { padding: 0 14px 12px 30px; }
 
-    .counts { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
-    .count { background: #fff; border: 1px solid #E3E3E1; border-radius: 10px; padding: 10px 14px; min-width: 92px; }
-    .count b { display: block; font-size: 1.35rem; line-height: 1.1; }
-    .count span { font-size: .74rem; color: #667; text-transform: uppercase; letter-spacing: .04em; }
+    /* Explicit column counts, not auto-fit. There are exactly FIVE tiles, and
+       auto-fit lands on four at most phone widths — which is what stranded
+       "0 SOLD" alone on a second row. 3 then 5 both divide cleanly, so the row
+       is either 3+2 or a single line, never one orphan. */
+    .counts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 12px; }
+    @media (min-width: 420px) { .counts { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+    .count { background: #fff; border: 1px solid #E3E3E1; border-radius: 10px; padding: 9px 8px; min-width: 0; }
+    .count b { display: block; font-size: 1.25rem; line-height: 1.1; }
+    .count span { font-size: .68rem; color: #667; text-transform: uppercase; letter-spacing: .03em; }
 
     #q { width: 100%; padding: 12px 14px; font-size: 1rem; border: 1px solid #D6D6D3; border-radius: 10px; margin-bottom: 16px; background: #fff; }
     #q:focus { outline: 2px solid #FF2700; outline-offset: -1px; }
 
-    .card { background: #fff; border: 1px solid #E3E3E1; border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-    .card-main { flex: 1 1 240px; min-width: 0; }
+    /* Grid, not wrapping flex. On a phone the row is
+         [ serial ........ status ]
+         [ meta .................. ]
+         [ actions, full width .... ]
+       which keeps the status chip beside the serial it describes instead of
+       wrapping to a line of its own. */
+    .card { background: #fff; border: 1px solid #E3E3E1; border-radius: 12px; padding: 12px 14px; margin-bottom: 8px;
+            display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; align-items: start; }
+    .card-main { grid-column: 1; min-width: 0; }
     .serial { font-weight: 700; font-size: 1.02rem; letter-spacing: .01em; }
     .meta { font-size: .82rem; color: #667; margin-top: 3px; }
     .prospect { font-size: .84rem; font-weight: 600; color: #8A4B00; margin-top: 4px; }
     .copies { display: inline-block; background: #EEF2F7; border-radius: 999px; padding: 1px 9px; font-size: .74rem; font-weight: 600; margin-left: 6px; }
 
-    /* The static status chip — ACTIVATED / SOLD / Available. Not a button. */
-    .state { font-size: .78rem; font-weight: 800; padding: 5px 12px; border-radius: 999px; white-space: nowrap; letter-spacing: .03em; }
+    /* The static status chip — ACTIVATED / SOLD / Available. Not a button.
+       `justify-self`/`align-self` keep it pill-shaped: the old mobile rule set
+       align-items:stretch on the card, which stretched this chip into a tall
+       rounded box the height of the whole row and made it read as a button. */
+    .state { grid-column: 2; grid-row: 1; align-self: start; justify-self: end;
+             font-size: .72rem; font-weight: 800; padding: 5px 11px; border-radius: 999px; white-space: nowrap; letter-spacing: .03em; }
     .state.activated { background: #E6F6EC; color: #17663A; }
     .state.sold { background: #03162D; color: #fff; }
     .state.available { background: #EDEDEB; color: #5A5A57; font-weight: 600; letter-spacing: 0; }
 
-    /* Field use: thumb-sized target, unambiguous colour. */
-    .actions { display: flex; gap: 8px; flex-wrap: wrap; }
-    button.toggle { min-height: 46px; border: 0; border-radius: 10px; font-size: .95rem; font-weight: 700; cursor: pointer; padding: 0 18px; }
+    /* Field use: thumb-sized target, unambiguous colour. Full width across both
+       columns on a phone — Deactivate and Sold are the two answers to "did they
+       buy it?", and both should be a confident thumb-press, not a small pill. */
+    .actions { grid-column: 1 / -1; display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+    .actions:empty { display: none; margin: 0; }
+    button.toggle { flex: 1 1 0; min-width: 0; min-height: 46px; border: 0; border-radius: 10px; font-size: .95rem; font-weight: 700; cursor: pointer; padding: 0 14px; }
     button.toggle.go { background: #17663A; color: #fff; }
     button.toggle.stop { background: #FF2700; color: #fff; }
     button.toggle:disabled { background: #D9D9D6; color: #7A7A76; cursor: not-allowed; }
     .hint { font-size: .82rem; color: #8A8A86; }
 
-    .blocked { font-size: .8rem; color: #A33; flex-basis: 100%; }
+    .blocked { grid-column: 1 / -1; font-size: .8rem; color: #A33; }
     .msg { padding: 14px; border-radius: 10px; margin-bottom: 14px; font-size: .9rem; display: none; }
     .msg.err { background: #FDECEA; border: 1px solid #F5C2C0; color: #8A1F1A; display: block; }
     .msg.ok { background: #E6F6EC; border: 1px solid #B7E0C6; color: #17663A; display: block; }
@@ -60,17 +94,21 @@
     /* Floating "add a sticker" action. Fixed to the bottom-right so it stays
        reachable one-handed while scrolling a long shelf, and offset from the
        edge far enough to clear a phone's home indicator. */
-    .fab { position: fixed; right: 20px; bottom: 24px; z-index: 20; display: flex; align-items: center; gap: 9px;
-           min-height: 56px; padding: 0 22px 0 18px; border: 0; border-radius: 999px; cursor: pointer;
-           background: #FF2700; color: #fff; font-size: 1rem; font-weight: 700; font-family: inherit;
+    .fab { position: fixed; right: 14px; z-index: 20; display: flex; align-items: center; gap: 8px;
+           /* env() keeps it above an iPhone's home indicator; the fallback in
+              the first term is what every other browser uses. */
+           bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+           min-height: 54px; padding: 0 20px 0 16px; border: 0; border-radius: 999px; cursor: pointer;
+           background: #FF2700; color: #fff; font-size: .98rem; font-weight: 700; font-family: inherit;
            box-shadow: 0 6px 20px rgba(255, 39, 0, .34), 0 2px 6px rgba(3, 22, 45, .18); }
     .fab:hover { background: #E62300; }
     .fab:focus-visible { outline: 3px solid #03162D; outline-offset: 2px; }
     .fab svg { flex: none; }
-    /* Room to scroll past the last card without the button covering it. */
-    .wrap { padding-bottom: 104px; }
 
-    dialog.sheet { border: 0; border-radius: 14px; padding: 0; width: min(420px, calc(100vw - 32px));
+    /* Bounded height as well as width: on a phone in landscape the form is
+       taller than the viewport, and a dialog cannot be scrolled out of. */
+    dialog.sheet { border: 0; border-radius: 14px; padding: 0; width: min(420px, calc(100vw - 24px));
+                   max-height: calc(100vh - 32px); overflow-y: auto;
                    box-shadow: 0 18px 50px rgba(3, 22, 45, .28); color: #03162D; }
     dialog.sheet::backdrop { background: rgba(3, 22, 45, .45); }
     .sheet-body { padding: 20px; }
@@ -109,11 +147,39 @@
     .sheet-msg { font-size: .86rem; margin-top: 14px; display: none; line-height: 1.45; }
     .sheet-msg.err { display: block; color: #8A1F1A; }
 
-    @media (max-width: 560px) {
-      .card { align-items: stretch; }
-      .actions { width: 100%; }
-      button.toggle { flex: 1 1 0; }
-      .fab { right: 14px; bottom: 16px; }
+    /* Very small phones: the two note headlines are the tallest thing above the
+       shelf, so tighten them and the chrome around them. */
+    @media (max-width: 380px) {
+      .wrap { padding: 12px 10px 104px; }
+      .title { font-size: 1.05rem; }
+      .brand-logo { height: 26px; }
+      .counts { gap: 6px; }
+      .count { padding: 8px 6px; }
+      .count b { font-size: 1.1rem; }
+      .count span { font-size: .62rem; }
+      .fab { padding: 0 16px 0 13px; font-size: .92rem; }
+      .sheet-body { padding: 16px; }
+      .sheet-actions { flex-wrap: wrap; }
+    }
+
+    /* Tablet and up: the card goes back to one horizontal row, which is what
+       the extra width is for. Everything above this point is the phone layout. */
+    @media (min-width: 720px) {
+      .wrap { padding: 22px 18px 120px; }
+      .top { gap: 12px; margin-bottom: 18px; }
+      .note { font-size: .9rem; margin-bottom: 12px; }
+      .counts { gap: 10px; margin-bottom: 14px; }
+      .count { padding: 10px 14px; }
+      .count b { font-size: 1.35rem; }
+      .count span { font-size: .74rem; }
+
+      .card { grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 6px 14px; padding: 14px 16px; }
+      .card-main { grid-row: 1; }
+      .state { grid-row: 1; align-self: center; font-size: .78rem; padding: 5px 12px; }
+      .actions { grid-column: 3; grid-row: 1; margin-top: 0; }
+      button.toggle { flex: 0 0 auto; padding: 0 18px; }
+
+      .fab { right: 20px; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); min-height: 56px; font-size: 1rem; }
     }
   </style>
 </head>
@@ -128,22 +194,25 @@
       <a class="back" href="/admin/overview">← Back to Admin</a>
     </div>
 
-    <div class="note">
-      <strong>Scan to activate — this list keeps up on its own.</strong>
-      Hand a sticker to the customer and let them activate it the normal way. The
-      unit turns <em>ACTIVATED</em> here by itself. If they buy it, hit
-      <em>Sold</em>. If they don't, hit <em>Deactivate Tag</em> and everything they
-      entered is erased, leaving the sticker as new for the next person.
-    </div>
+    <details class="note">
+      <summary>Scan to activate — this list keeps up on its own.</summary>
+      <div class="note-body">
+        Hand a sticker to the customer and let them activate it the normal way. The
+        unit turns <em>ACTIVATED</em> here by itself. If they buy it, hit
+        <em>Sold</em>. If they don't, hit <em>Deactivate Tag</em> and everything they
+        entered is erased, leaving the sticker as new for the next person.
+      </div>
+    </details>
 
-    <div class="note">
-      <strong>Copies share one QR.</strong>
-      Where a row shows a copy count, that design was printed more than once and
-      every copy carries the same QR — one unit with several bodies. They must all
-      go to the same person: hand two copies to two customers and the second one's
-      scans will reach the first. A unit with no copy count is a single sticker and
-      has no such constraint.
-    </div>
+    <details class="note">
+      <summary>Copies share one QR — every copy must go to the same person.</summary>
+      <div class="note-body">
+        Where a row shows a copy count, that design was printed more than once and
+        every copy carries the same QR — one unit with several bodies. Hand two
+        copies to two customers and the second one's scans will reach the first. A
+        unit with no copy count is a single sticker and has no such constraint.
+      </div>
+    </details>
 
     <div id="msg" class="msg"></div>
     <div id="counts" class="counts"></div>

@@ -212,6 +212,25 @@ describe("adding a printed sticker", () => {
     assert.ok(!after.marketingStock, "a rejected request must not half-apply");
   });
 
+  test("a serial that is not a string is refused, not coerced", async () => {
+    // `serial` decides WHICH sticker gets changed, so it is the last input that
+    // should be loosely typed. An array used to String()-coerce to the same
+    // text and be accepted.
+    const tag = await insertTag();
+    const serial = `PT-07-${String(tag.serialNumber).padStart(6, "0")}`;
+
+    for (const bad of [[serial], { toString: () => serial }, 12345, true]) {
+      const response = await add({ serial: bad, copies: 1 });
+      assert.equal(response.statusCode, 404, `serial=${JSON.stringify(bad)} should be refused`);
+    }
+
+    const after = await collections.tags.findOne({ _id: tag._id });
+    assert.ok(!after.marketingStock, "none of those may have taken effect");
+
+    // ...and the plain string still works, so this is typing, not a blanket ban.
+    assert.equal((await add({ serial, copies: 1 })).statusCode, 200);
+  });
+
   test("an omitted copy count means one sticker", async () => {
     // Absent is not the same as invalid: the overwhelmingly common case is a
     // single printed sticker, so no count means one rather than an error.

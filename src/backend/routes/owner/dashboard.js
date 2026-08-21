@@ -70,6 +70,17 @@ export function registerOwnerRoutes(app, env) {
 
     const owner = await collections.owners.findOne({ _id: ownerId });
 
+    // A live session whose account is gone. This is reachable: deactivating a
+    // field-demo sticker deletes the throwaway account the activation wizard
+    // created for the customer, and the cookie outlives it. Everything below
+    // dereferences `owner`, so without this the route threw a TypeError and
+    // answered 500 — a server error where the caller should simply be sent
+    // back to sign in.
+    if (!owner) {
+      reply.code(401);
+      return { ok: false, error: "Authentication required" };
+    }
+
     // Single source of truth: every vehicle is a real tag. Lazily migrate any
     // legacy owner.localVehicles[] into real E-Tags (each gets its own unique
     // secure token + QR), then clear them so they never show twice.

@@ -18,6 +18,7 @@ import { getCollections } from "./lib/db/repositories.js";
 import { stickerSerialFor } from "./lib/core/tag-issuance.js";
 import { registerAdminRoutes } from "./routes/admin/index.js";
 import { registerAdminTrafficRoutes } from "./routes/admin/traffic.js";
+import { registerAdminMarketingRoutes } from "./routes/admin/marketing.js";
 import { registerAuthRoutes } from "./routes/auth/credentials.js";
 import { registerAnalyticsRoutes } from "./routes/system/analytics.js";
 import { registerDemoRoutes } from "./routes/system/demo.js";
@@ -46,6 +47,7 @@ const verifyPage = path.join(pagesRoot, "scanner/verify.html");
 const trackOrderPage = path.join(pagesRoot, "scanner/track-order.html");
 const reportTagPage = path.join(pagesRoot, "scanner/report-tag.html");
 const adminPage = path.join(pagesRoot, "admin/index.html");
+const adminMarketingPage = path.join(pagesRoot, "admin/marketing.html");
 const adminOverviewPage = path.join(pagesRoot, "admin/overview.html");
 const adminTrafficPage = path.join(pagesRoot, "admin/traffic.html");
 const adminEtagsPage = path.join(pagesRoot, "admin/etags.html");
@@ -533,7 +535,13 @@ export async function buildApp() {
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
         formAction: ["'self'"],
-        frameAncestors: ["'self'"]
+        // 'self' alone renders a blank frame in VS Code's Simple Browser: the
+        // page is embedded in a cross-origin webview iframe (vscode-webview://
+        // on desktop, *.vscode-cdn.net on vscode.dev). Dev-only — production
+        // keeps the plain 'self' clickjacking guard.
+        frameAncestors: isProduction
+          ? ["'self'"]
+          : ["'self'", "vscode-webview:", "https://*.vscode-cdn.net"]
       }
     },
     // In dev, allow the app to render inside VS Code's Simple Browser (a
@@ -794,6 +802,10 @@ export async function buildApp() {
     return guardAdmin(request, reply, adminTrafficPage);
   });
 
+  app.get("/admin/marketing", async (request, reply) => {
+    return guardAdmin(request, reply, adminMarketingPage);
+  });
+
   app.get("/admin/owners", async (request, reply) => {
     return guardAdmin(request, reply, adminOwnersPage);
   });
@@ -889,6 +901,7 @@ export async function buildApp() {
   registerVaultRoutes(app, env);
   registerAdminRoutes(app, env);
   registerAdminTrafficRoutes(app, env);
+  registerAdminMarketingRoutes(app, env);
   registerAnalyticsRoutes(app, env);
 
   return app;

@@ -1,10 +1,32 @@
 @import "tailwindcss";
 
+/* ── Brand theme ───────────────────────────────────────────────────────────
+   The exact brand values. Every blue, red and yellow on the site resolves to
+   one of these — nothing may drift to a near-miss shade.
+
+   Note the old names here were actively misleading: `--green` held the RED
+   #FF2700 and `--green-dark` held a second red, which is how an off-theme red
+   crept in. Renamed to what they actually are. Nothing outside this file
+   referenced them (only `--navy`, below), so no call sites change.           */
 :root {
   --navy: #03162D;
-  --navy-deep: #03162D;
-  --green: #FF2700;
-  --green-dark: #D92200;
+  --white: #FFFFFF;
+  --red: #FF2700;
+
+  /* Hover/pressed shade for the red CTA. Derived from --red rather than being a
+     second hardcoded red (#D92200 before), so the only red authored anywhere is
+     the theme red and the hover can never drift away from it.
+
+     No hand-written fallback: a second declaration would be dead code here,
+     because custom properties accept any token sequence at parse time, so the
+     color-mix() line always wins regardless of engine support. Lightning CSS
+     handles it instead — the build emits `--red-hover: var(--red)` plus an
+     @supports guard, so an engine without color-mix() gets the plain theme red
+     (no hover shift) rather than an invalid value and a transparent button.   */
+  --red-hover: color-mix(in srgb, var(--red) 88%, #000);
+
+  /* Body/muted text. Deliberately left as-is — it is neither blue, red nor
+     yellow, so it is out of scope for the brand-colour alignment.             */
   --slate: #495B7B;
 }
 
@@ -36,9 +58,9 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   color: var(--navy);
-  background: #fff;
+  background: var(--white);
   scrollbar-width: thin;
-  scrollbar-color: #FF2700 transparent;
+  scrollbar-color: var(--red) transparent;
 }
 
 /* Webkit — Chrome, Edge, Safari */
@@ -49,11 +71,11 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #FF2700;
+  background: var(--red);
   border-radius: 10px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #D92200;
+  background: var(--red-hover);
 }
 
 /* Remove details marker */

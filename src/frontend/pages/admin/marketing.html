@@ -57,10 +57,63 @@
     .msg.ok { background: #E6F6EC; border: 1px solid #B7E0C6; color: #17663A; display: block; }
     .empty { background: #fff; border: 1px dashed #CFCFCC; border-radius: 12px; padding: 26px; text-align: center; color: #667; font-size: .9rem; }
 
+    /* Floating "add a sticker" action. Fixed to the bottom-right so it stays
+       reachable one-handed while scrolling a long shelf, and offset from the
+       edge far enough to clear a phone's home indicator. */
+    .fab { position: fixed; right: 20px; bottom: 24px; z-index: 20; display: flex; align-items: center; gap: 9px;
+           min-height: 56px; padding: 0 22px 0 18px; border: 0; border-radius: 999px; cursor: pointer;
+           background: #FF2700; color: #fff; font-size: 1rem; font-weight: 700; font-family: inherit;
+           box-shadow: 0 6px 20px rgba(255, 39, 0, .34), 0 2px 6px rgba(3, 22, 45, .18); }
+    .fab:hover { background: #E62300; }
+    .fab:focus-visible { outline: 3px solid #03162D; outline-offset: 2px; }
+    .fab svg { flex: none; }
+    /* Room to scroll past the last card without the button covering it. */
+    .wrap { padding-bottom: 104px; }
+
+    dialog.sheet { border: 0; border-radius: 14px; padding: 0; width: min(420px, calc(100vw - 32px));
+                   box-shadow: 0 18px 50px rgba(3, 22, 45, .28); color: #03162D; }
+    dialog.sheet::backdrop { background: rgba(3, 22, 45, .45); }
+    .sheet-body { padding: 20px; }
+    .sheet h2 { margin: 0 0 4px; font-size: 1.08rem; }
+    .sheet .sub { margin: 0 0 16px; font-size: .86rem; color: #667; line-height: 1.45; }
+    .sheet label { display: block; font-size: .8rem; font-weight: 700; text-transform: uppercase;
+                   letter-spacing: .04em; color: #5A5A57; margin-bottom: 6px; }
+    .sheet input[type="text"] { width: 100%; padding: 12px 14px; font-size: 1rem; font-family: inherit;
+                                border: 1px solid #D6D6D3; border-radius: 10px; background: #fff; }
+    .sheet input[type="text"]:focus { outline: 2px solid #FF2700; outline-offset: -1px; }
+    .sheet label.spaced { margin-top: 16px; }
+
+    /* Quantity stepper, the shape people already know from shopping carts. The
+       number is an input as well as a display so a run of 24 does not need 23
+       taps, but the buttons are what the thumb reaches for. */
+    .qty { display: flex; align-items: center; gap: 0; margin-top: 6px; width: max-content;
+           border: 1px solid #D6D6D3; border-radius: 10px; overflow: hidden; background: #fff; }
+    .qty button { width: 46px; height: 46px; border: 0; background: #F1F1F0; color: #03162D;
+                  font-size: 1.35rem; line-height: 1; font-family: inherit; cursor: pointer; }
+    .qty button:hover:not(:disabled) { background: #E3E3E1; }
+    .qty button:disabled { color: #BDBDBA; cursor: not-allowed; }
+    .qty input { width: 62px; height: 46px; border: 0; border-left: 1px solid #E3E3E1;
+                 border-right: 1px solid #E3E3E1; text-align: center; font-size: 1.02rem;
+                 font-weight: 700; font-family: inherit; background: #fff; color: #03162D;
+                 -moz-appearance: textfield; }
+    .qty input::-webkit-outer-spin-button, .qty input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    .qty input:focus { outline: 2px solid #FF2700; outline-offset: -2px; }
+    .qty-note { font-size: .8rem; color: #8A8A86; margin-top: 8px; line-height: 1.45; }
+
+    .sheet-actions { display: flex; gap: 10px; margin-top: 20px; }
+    .sheet-actions button { flex: 1 1 0; min-height: 48px; border: 0; border-radius: 10px;
+                            font-size: .95rem; font-weight: 700; font-family: inherit; cursor: pointer; }
+    .sheet-actions .cancel { background: #EDEDEB; color: #03162D; }
+    .sheet-actions .submit { background: #FF2700; color: #fff; }
+    .sheet-actions .submit:disabled { background: #D9D9D6; color: #7A7A76; cursor: not-allowed; }
+    .sheet-msg { font-size: .86rem; margin-top: 14px; display: none; line-height: 1.45; }
+    .sheet-msg.err { display: block; color: #8A1F1A; }
+
     @media (max-width: 560px) {
       .card { align-items: stretch; }
       .actions { width: 100%; }
       button.toggle { flex: 1 1 0; }
+      .fab { right: 14px; bottom: 16px; }
     }
   </style>
 </head>
@@ -84,10 +137,12 @@
     </div>
 
     <div class="note">
-      <strong>Two stickers, one tag.</strong>
-      Each design was printed twice and both copies carry the same QR, so they are
-      one unit with two bodies. Both copies must always go to the same person —
-      hand them to two customers and the second one's scans will reach the first.
+      <strong>Copies share one QR.</strong>
+      Where a row shows a copy count, that design was printed more than once and
+      every copy carries the same QR — one unit with several bodies. They must all
+      go to the same person: hand two copies to two customers and the second one's
+      scans will reach the first. A unit with no copy count is a single sticker and
+      has no such constraint.
     </div>
 
     <div id="msg" class="msg"></div>
@@ -97,6 +152,46 @@
 
     <div id="list"></div>
   </div>
+
+  <button id="add-fab" class="fab" type="button" aria-haspopup="dialog">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+    </svg>
+    Add new tag
+  </button>
+
+  <dialog id="add-sheet" class="sheet" aria-labelledby="add-title">
+    <form id="add-form" method="dialog" class="sheet-body">
+      <h2 id="add-title">Add a printed sticker</h2>
+      <p class="sub">
+        Type the serial printed on the sticker. It goes on the shelf unowned, so the
+        customer's scan runs the normal activation with nothing to unlock first.
+      </p>
+
+      <label for="add-serial">Sticker serial</label>
+      <input id="add-serial" type="text" placeholder="PT-01-001004" autocomplete="off"
+             spellcheck="false" autocapitalize="characters" />
+
+      <label for="add-copies" class="spaced">Copies of this design</label>
+      <div class="qty">
+        <button type="button" id="qty-minus" aria-label="One copy fewer">−</button>
+        <input id="add-copies" type="number" inputmode="numeric" min="1" max="500" value="1"
+               aria-label="Number of printed copies" />
+        <button type="button" id="qty-plus" aria-label="One copy more">+</button>
+      </div>
+      <p class="qty-note">
+        How many physical stickers were printed carrying this same QR. They are one
+        unit with that many bodies, so every copy must go to the same person.
+      </p>
+
+      <p id="add-msg" class="sheet-msg"></p>
+
+      <div class="sheet-actions">
+        <button type="button" class="cancel" id="add-cancel">Cancel</button>
+        <button type="submit" class="submit" id="add-submit">Add to Field Demo</button>
+      </div>
+    </form>
+  </dialog>
 
   <script src="/scripts/admin/marketing.js"></script>
 </body>

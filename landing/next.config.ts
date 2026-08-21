@@ -52,6 +52,10 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: __dirname,
   },
+  // Drop `X-Powered-By: Next.js`. It tells anyone who asks which framework and
+  // therefore which CVE list to work through, and buys nothing in return. The
+  // backend has never sent it (helmet removes it there); this site did.
+  poweredByHeader: false,
   async headers() {
     return [
       {

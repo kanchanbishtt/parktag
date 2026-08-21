@@ -1,6 +1,8 @@
 import { ObjectId } from "mongodb";
 
 import { requireSession } from "../../lib/auth/auth.js";
+import { revokeSessionsForUser } from "../../lib/auth/session.js";
+import { isNonEmptyString } from "../../lib/auth/security.js";
 import { getCollections } from "../../lib/db/repositories.js";
 import { batchKeyFor, etagIdFor, stickerSerialFor } from "../../lib/core/tag-issuance.js";
 import {
@@ -155,6 +157,12 @@ export function registerAdminMarketingRoutes(app, env) {
   // that matches more than one tag is an error asking for the full serial —
   // never a best guess.
   async function resolveTag(collections, raw) {
+    // A string, not something String()-able. An array or object here reached
+    // Mongo as a coerced value rather than being refused, which is loose typing
+    // on the one input that decides WHICH sticker gets changed.
+    if (raw != null && !isNonEmptyString(raw)) {
+      return { error: "Enter the serial printed on the sticker." };
+    }
     const input = String(raw || "").trim();
     if (!input) return { error: "Enter the serial printed on the sticker." };
 
@@ -197,7 +205,13 @@ export function registerAdminMarketingRoutes(app, env) {
     return { tag: candidates[0] };
   }
 
-  app.post("/api/admin/marketing/add", async (request, reply) => {
+  // Rate limited like the other admin endpoint that does real work per call
+  // (print-queue/export): resolving a serial reads the tags collection, and an
+  // admin holding the button down should not be able to hammer it.
+  app.post(
+    "/api/admin/marketing/add",
+    { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } },
+    async (request, reply) => {
     const blocked = await requireSession(app, "admin")(request, reply);
     if (blocked) return blocked;
 
@@ -286,7 +300,8 @@ export function registerAdminMarketingRoutes(app, env) {
       state: "available",
       message: `${serial} added to Field Demo${copies > 1 ? ` (${copies} copies)` : ""}.`
     };
-  });
+    }
+  );
 
   // They didn't buy it. Wipe everything activation collected so the unit is
   // indistinguishable from a new sticker for the next customer.
@@ -340,6 +355,16 @@ export function registerAdminMarketingRoutes(app, env) {
     if (demoOwnerIsDisposable(owner, remainingTagCount)) {
       await collections.owners.deleteOne({ _id: demoOwnerId, demoCreatedOwner: true });
       removedAccount = true;
+
+      // Deleting the account does not log it out: the activation wizard signed
+      // this person in, and their session row is keyed by session id, so it
+      // outlives the owner document. Until it expires, that cookie still
+      // answers /api/session with the customer's name and phone number — on
+      // whichever phone ran the demo, which may well be the salesperson's.
+      //
+      // Only when the account is actually deleted. A customer who already had
+      // a ParkTag account keeps it, and must keep their session with it.
+      await revokeSessionsForUser(app, demoOwnerId);
     }
 
     return { ok: true, state: "available", removedAccount };

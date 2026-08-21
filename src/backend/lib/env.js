@@ -117,6 +117,25 @@ export function getEnv() {
     emailSmtpPass: process.env.EMAIL_SMTP_PASS || "",
     emailFrom: process.env.EMAIL_FROM || "noreply@parktag.me",
     appBaseUrl: process.env.APP_BASE_URL || "http://localhost:4000",
+    // The marketing site, a separate Railway service. Used to recognise our own
+    // host so an internal link is not counted as an inbound traffic source.
+    landingBaseUrl: process.env.LANDING_BASE_URL || "",
+    // ── Landing traffic geography ───────────────────────────────────────
+    // Shared secret between the landing site's proxy (landing/proxy.ts) and
+    // POST /api/analytics/landing-visit. The two run as different services, so
+    // the visitor's IP arrives in the request body rather than on the socket —
+    // this key is what makes that forwarded address trustworthy. Unset → the
+    // ingest refuses every beacon (fail closed) and the Traffic page stays
+    // empty; it is never a silent pass-through, because an open ingest would
+    // let anyone invent traffic and write unbounded documents.
+    analyticsIngestKey: process.env.ANALYTICS_INGEST_KEY || "",
+    // Salt for the daily-rotating visitor digest. Optional: falls back to the
+    // ingest key. Set it separately if you'd rather the two not share a value.
+    analyticsHashSalt: process.env.ANALYTICS_HASH_SALT || "",
+    // IP→location provider. Any URL containing `{ip}` that answers JSON with
+    // country / region / city. Defaults to ipwho.is, which needs no key, so
+    // traffic geography works on a fresh deploy with nothing configured.
+    geoipUrl: process.env.GEOIP_URL || "",
     // Optional override for the scan/activation domain used in printed-QR URLs.
     // Empty by default → QR uses the host it was generated on (local→local,
     // production→production). Set SCAN_BASE_URL=https://app.parktag.me in prod

@@ -65,7 +65,13 @@ export async function getCollections(env) {
     // session id. Kept server-side and out of the session document on purpose:
     // readSession serves from an in-process cache for up to 30s, so an unlock
     // written onto the session would not be visible to the very next request.
-    vaultGrants: db.collection(withPrefix(prefix, "vault_grants"))
+    vaultGrants: db.collection(withPrefix(prefix, "vault_grants")),
+    // One document per landing-page view, written by the beacon in
+    // routes/system/analytics.js. Holds a derived country/region/city and a
+    // one-way, daily-rotating visitor digest — never an IP address and never a
+    // raw User-Agent. TTL-expired, so it is a rolling window rather than a
+    // permanent record of who visited.
+    landingVisits: db.collection(withPrefix(prefix, "landing_visits"))
   };
 }
 
@@ -149,7 +155,19 @@ const CORE_INDEXES = [
   ["vaultDocuments", { ownerId: 1 }, { name: "owner" }],
   // A vault unlock is deliberately short-lived; the TTL is what actually
   // re-locks it, so this index is load-bearing rather than housekeeping.
-  ["vaultGrants", { expiresAt: 1 }, { expireAfterSeconds: 0, name: "ttl" }]
+  ["vaultGrants", { expiresAt: 1 }, { expireAfterSeconds: 0, name: "ttl" }],
+  // Every Traffic-page query filters on a day range and then groups, so this
+  // is the one index that matters for the admin summary.
+  ["landingVisits", { day: 1 }, { name: "day" }],
+  // Retention, not housekeeping: analytics rows are only useful as a recent
+  // trend, and holding them forever would turn a rolling traffic count into a
+  // long-term behavioural record. 180 days, dropped automatically.
+  //
+  // NOTE: `createdAt` on THIS collection is a real BSON Date, unlike the ISO
+  // strings the rest of the codebase writes. MongoDB's TTL monitor only acts on
+  // Date-typed fields and silently ignores strings, so a string here would make
+  // the retention above quietly do nothing.
+  ["landingVisits", { createdAt: 1 }, { expireAfterSeconds: 15552000, name: "ttl" }]
 ];
 
 let coreIndexesEnsured = false;

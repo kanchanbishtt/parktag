@@ -17,8 +17,10 @@ import { createSharedRateLimitStore } from "./lib/auth/rate-limit-store.js";
 import { getCollections } from "./lib/db/repositories.js";
 import { stickerSerialFor } from "./lib/core/tag-issuance.js";
 import { registerAdminRoutes } from "./routes/admin/index.js";
+import { registerAdminTrafficRoutes } from "./routes/admin/traffic.js";
 import { registerAdminMarketingRoutes } from "./routes/admin/marketing.js";
 import { registerAuthRoutes } from "./routes/auth/credentials.js";
+import { registerAnalyticsRoutes } from "./routes/system/analytics.js";
 import { registerDemoRoutes } from "./routes/system/demo.js";
 import { registerOwnerRoutes } from "./routes/owner/dashboard.js";
 import { registerVaultRoutes } from "./routes/owner/vault.js";
@@ -47,6 +49,7 @@ const reportTagPage = path.join(pagesRoot, "scanner/report-tag.html");
 const adminPage = path.join(pagesRoot, "admin/index.html");
 const adminMarketingPage = path.join(pagesRoot, "admin/marketing.html");
 const adminOverviewPage = path.join(pagesRoot, "admin/overview.html");
+const adminTrafficPage = path.join(pagesRoot, "admin/traffic.html");
 const adminEtagsPage = path.join(pagesRoot, "admin/etags.html");
 const adminActivationsPage = path.join(pagesRoot, "admin/activations.html");
 const adminIssuancePage = path.join(pagesRoot, "admin/issuance.html");
@@ -795,6 +798,10 @@ export async function buildApp() {
     return guardAdmin(request, reply, adminPrintQueuePage);
   });
 
+  app.get("/admin/traffic", async (request, reply) => {
+    return guardAdmin(request, reply, adminTrafficPage);
+  });
+
   app.get("/admin/marketing", async (request, reply) => {
     return guardAdmin(request, reply, adminMarketingPage);
   });
@@ -893,7 +900,9 @@ export async function buildApp() {
   registerOwnerRoutes(app, env);
   registerVaultRoutes(app, env);
   registerAdminRoutes(app, env);
+  registerAdminTrafficRoutes(app, env);
   registerAdminMarketingRoutes(app, env);
+  registerAnalyticsRoutes(app, env);
 
   return app;
 }

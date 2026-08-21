@@ -58,6 +58,38 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   async headers() {
     return [
+      // How long a shared cache may hold a PAGE.
+      //
+      // Next stamps every prerendered route with `s-maxage=31536000` — one
+      // year. Nothing in front of the app honours it today (responses come back
+      // without an `age` header, so Railway's edge is routing, not caching), and
+      // Next's own cache is rebuilt by each deploy, so the site has never
+      // actually gone stale. It is a landmine rather than a live bug: put a CDN
+      // in front — Cloudflare, or Railway turning caching on — and /privacy,
+      // /terms and /refund freeze for a year at whatever they said that day.
+      // Those three carry legal weight, and a correction that cannot propagate
+      // is the kind of problem discovered from a complaint.
+      //
+      // Ten minutes at a shared cache with a day of stale-while-revalidate: a
+      // CDN still answers instantly from cache and refreshes behind the request,
+      // so this costs nothing and the year-long tail is gone. `max-age=0` keeps
+      // browsers revalidating, which they already do — there is no max-age in
+      // the current header for them to hold on to.
+      //
+      // Listed route by route ON PURPOSE, not as a wildcard: /_next/static
+      // holds content-hashed bundles serving `max-age=31536000, immutable`, and
+      // that is exactly right for them. A pattern that swept those up would
+      // trade a theoretical staleness bug for a real performance regression on
+      // every page load.
+      {
+        source: "/:path(|about|contact|privacy|terms|refund)",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=0, s-maxage=600, stale-while-revalidate=86400",
+          },
+        ],
+      },
       {
         source: "/:path*",
         headers: isDev

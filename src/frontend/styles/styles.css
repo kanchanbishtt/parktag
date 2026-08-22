@@ -2228,30 +2228,77 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
   margin: 0;
 }
 
+/* The one section title that is a QUESTION to the person standing at the car
+   rather than a label over a list, so it drops the uppercase tracking the
+   others use — tracked caps read as a form heading, which is the wrong tone
+   for the only decision on this screen. */
+#scanner-why-title,
+#reason-step-title {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--pt-sub);
+  padding-bottom: 4px;
+}
+
+.scanner-body #scanner-why-title {
+  margin-bottom: 8px;
+}
+
 /* Reason chips */
 .pt-reason-chips {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  padding: 0 24px 16px;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  padding: 0 22px 18px;
 }
 
+/* A row, not a pill: icon, label, and the radio that says only one of these
+   reaches the owner. Full width because the labels are sentences now — two
+   columns of wrapped sentences read as a wall rather than a list. */
 .pt-chip {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 8px;
-  padding: 12px 14px;
+  gap: 12px;
+  padding: 14px 16px;
   border: 1.5px solid var(--pt-border);
-  border-radius: 12px;
+  border-radius: 14px;
   background: var(--pt-white);
   color: var(--pt-ink);
   font: inherit;
-  font-size: 0.85rem;
+  font-size: 0.88rem;
   font-weight: 600;
   cursor: pointer;
-  transition: all 180ms ease;
+  transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
   text-align: left;
   box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  min-height: 56px;
+}
+
+.pt-chip-label {
+  line-height: 1.35;
+}
+
+/* The radio is drawn rather than a real <input>: the row itself is the control
+   (it is a role="radio" button), and a second focusable element inside it
+   would put two tab stops on one choice. */
+.pt-chip-radio {
+  width: 21px;
+  height: 21px;
+  border-radius: 50%;
+  border: 2px solid #C3CCDA;
+  background: var(--pt-white);
+  flex: 0 0 auto;
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.pt-chip-selected .pt-chip-radio {
+  border-color: var(--pt-amber);
+  /* The filled centre is an inset ring, so the dot scales with the border
+     rather than needing a pseudo-element. */
+  box-shadow: inset 0 0 0 4px var(--pt-amber);
 }
 
 .pt-chip:hover {
@@ -2268,7 +2315,6 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
 }
 
 .pt-chip-alert {
-  grid-column: span 2;
   color: #D92200;
   /* Its text and hover already sit in the brand-red family; the border was the
      last rose value on the page. */
@@ -2295,7 +2341,7 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
-  padding: 4px 22px 20px;
+  padding: 8px 22px 28px;
 }
 
 .pt-contact-actions .pt-btn {
@@ -2350,29 +2396,245 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
   .pt-contact-actions .pt-btn-sub { font-size: 0.63rem; }
 }
 
+/* ── Reason popup ──
+   Lives in the same overlay shell as the plate-verification popup and reuses
+   .pt-verify-card, so both steps of the message flow measure the same. Only
+   the insets differ: the rows run wider than the verify form's fields. */
+.pt-reason-card {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.scanner-body #reason-step-title.pt-section-title {
+  margin-bottom: 14px;
+  padding-left: 22px;
+  padding-right: 22px;
+}
+
+/* A tall list on a short phone stays reachable: the card scrolls inside the
+   overlay rather than running off it. */
+.pt-reason-card {
+  max-height: min(86vh, 720px);
+  overflow-y: auto;
+  background: var(--pt-white);
+}
+
+/* Every row is identical until it is chosen — the last one included. It used to
+   carry red text and a red border, which made it the odd one out and read as
+   already selected or already wrong. On a white card the only thing that may
+   look different is the row you actually picked. */
+.pt-reason-card .pt-chip,
+.pt-reason-card .pt-chip-alert {
+  background: var(--pt-white);
+  /* --pt-ink is #03162D — the brand navy. Using the token rather than the raw
+     hex so these rows track the rest of the page if it ever moves. */
+  border-color: var(--pt-ink);
+  color: var(--pt-ink);
+  box-shadow: 0 1px 2px rgba(3, 22, 45, 0.05);
+}
+
+/* Hover keeps the navy edge and only warms the fill: swapping the border to a
+   lighter blue made the row look LESS defined the moment it was pointed at. */
+.pt-reason-card .pt-chip:hover,
+.pt-reason-card .pt-chip-alert:hover {
+  background: #F6F9FE;
+}
+
+/* Selected wins over both of the above — higher specificity, and stated after
+   them, so neither the plain nor the alert rule can take the fill back.
+   Navy rather than red: with every resting border already navy, a red
+   selection was the only red on the card and read as an error rather than as
+   a choice. The border is doubled by an outline-width ring instead of being
+   recoloured, since it is already --pt-ink — that ring is what carries
+   "selected" at a glance, alongside the filled circle. */
+.pt-reason-card .pt-chip.pt-chip-selected,
+.pt-reason-card .pt-chip-alert.pt-chip-selected {
+  border-color: var(--pt-ink);
+  background: #EDF1F7;
+  color: var(--pt-ink);
+  box-shadow: 0 0 0 1.5px var(--pt-ink), 0 2px 10px rgba(3, 22, 45, 0.16);
+}
+
+/* The circle fills with the same navy. Stated here, after the base
+   .pt-chip-selected rule, so the popup's dot is navy while any other chip on
+   the site keeps its own colour. */
+.pt-reason-card .pt-chip-selected .pt-chip-radio {
+  border-color: var(--pt-ink);
+  box-shadow: inset 0 0 0 4px var(--pt-ink);
+}
+
+/* The longest label — "Something wrong with this car." — wrapped to a second
+   line and made that one row taller than the rest, which is exactly the kind of
+   odd-one-out the alert row was just stopped from being. The rows run wider and
+   the type steps down a little so every label sits on one line. */
+.pt-reason-card .pt-reason-chips {
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
+/* Fluid type rather than a fixed size: the reference's labels are long
+   sentences, and one fixed size that fits at 390px wraps at 320px. Scaling with
+   the viewport keeps every row to a single line — and therefore the same
+   height — right down to the narrowest phone. */
+.pt-reason-card .pt-chip {
+  padding: 12px 10px;
+  gap: 7px;
+  font-size: clamp(0.68rem, 3.08vw, 0.86rem);
+}
+
+/* Deliberately NOT nowrap: clipping a reason is worse than wrapping one, and
+   at 320px every label is wider than the row. The rows carry a min-height so a
+   label that does wrap keeps the list evenly spaced instead of one row jumping. */
+.pt-reason-card .pt-chip-label {
+  overflow-wrap: normal;
+}
+
+.pt-reason-card .pt-chip-icon {
+  font-size: clamp(0.82rem, 3.4vw, 0.98rem);
+}
+
+.pt-reason-card .pt-chip-radio {
+  width: 18px;
+  height: 18px;
+  /* Same navy as the row it sits in, so the circle reads as part of the row
+     rather than as a grey control dropped into it. */
+  border-color: var(--pt-ink);
+}
+
+/* Cancel is tinted so that on a white card it cannot be mistaken for a white
+   row that lost its radio. */
+.pt-reason-card .pt-cancel-action {
+  background: #EEF2F8;
+}
+
+.pt-reason-card .pt-cancel-action:hover {
+  background: #E1E8F3;
+}
+
+/* ── Contact tiles ──
+   The icon sits in a badged square ABOVE its label rather than inline beside
+   it: at tile width the badge is what carries the recognition, so the label
+   underneath can be plain dark text instead of reversed-out white. Tinted
+   surfaces rather than saturated fills — two solid slabs made the pair read as
+   primary-and-alternative, when they are peers. */
+.pt-tile {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 10px;
+  padding: 28px 10px 26px;
+  border-radius: 16px;
+  border: 1.5px solid var(--pt-border);
+  background: var(--pt-white);
+  color: var(--pt-ink);
+  font: inherit;
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
+  box-shadow: 0 1px 3px rgba(3, 22, 45, 0.05);
+}
+
+.pt-tile:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.pt-tile-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 54px;
+  height: 54px;
+  border-radius: 16px;
+  flex: 0 0 auto;
+}
+
+.pt-tile-title {
+  font-size: 0.98rem;
+  font-weight: 800;
+  line-height: 1.2;
+  /* A proper noun / short phrase — never hyphenated by the global break-word
+     net just because the tile is narrow. */
+  overflow-wrap: normal;
+  white-space: nowrap;
+}
+
+/* Wraps rather than truncates: this line is the privacy promise, and losing it
+   on the phones people actually scan with would defeat the point. */
+.pt-tile-sub {
+  font-size: 0.72rem;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--pt-sub);
+  overflow-wrap: normal;
+}
+
+/* Masked call — the ink family, so it reads as the product's own voice. */
+.pt-tile-call {
+  border-color: #CBD9EE;
+  background: #F5F8FD;
+}
+.pt-tile-call .pt-tile-icon {
+  background: #E3ECFA;
+  color: #12386F;
+}
+.pt-tile-call:hover:not(:disabled) {
+  border-color: #9DBBE4;
+  background: #EDF3FC;
+  box-shadow: 0 4px 14px rgba(18, 56, 111, 0.14);
+}
+
+/* Message — WhatsApp green, the one place on this card where another brand's
+   colour is the correct signal. */
+.pt-tile-message {
+  border-color: #BFE7CE;
+  background: #F4FCF7;
+}
+.pt-tile-message .pt-tile-icon {
+  background: #DCF5E5;
+  color: #128C46;
+}
+.pt-tile-message:hover:not(:disabled) {
+  border-color: #7FCFA1;
+  background: #ECF9F1;
+  box-shadow: 0 4px 14px rgba(18, 140, 70, 0.16);
+}
+
+@media (max-width: 400px) {
+  .pt-tile { padding: 14px 8px 12px; gap: 6px; }
+  .pt-tile-icon { width: 44px; height: 44px; border-radius: 13px; }
+  .pt-tile-title { font-size: 0.92rem; }
+  .pt-tile-sub { font-size: 0.68rem; }
+}
+
 /* ── Emergency / SOS ──
    Visually quarantined from the two routine actions: its own rule, its own
    colour, and a line of explanatory copy above it. An accident call that
    reaches a stranger's family is not something to trigger by reflex. */
 .pt-sos-block {
   margin: 0 22px 20px;
-  padding: 15px 16px;
-  /* Tints derived from --pt-amber (#FF2700) rather than the rose family, so
-     the block reads as the same red as the button inside it. */
-  border: 1.5px solid #FFB6A8;
-  border-radius: 16px;
-  background: linear-gradient(180deg, #FFF6F4 0%, #FFEDEA 100%);
+  padding: 0;
+  border: 0;
+  background: none;
   display: grid;
-  gap: 11px;
+  gap: 8px;
   justify-items: stretch;
 }
 
+/* Sits UNDER the button now, as a single explanatory line rather than the
+   three-line question that used to stand above it. The caution is unchanged;
+   what changed is that it no longer costs the height that pushed Emergency
+   off the first screen on a 360px phone. */
 .pt-sos-copy {
   margin: 0;
-  font-size: 0.86rem;
-  line-height: 1.5;
-  color: #B31C00;
-  font-weight: 600;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  /* Grey, not red. With the button outlined in red directly above it, a second
+     red line read as a second warning rather than as the note explaining the
+     first one. */
+  color: var(--pt-sub);
+  font-weight: 500;
+  text-align: center;
 }
 
 .pt-btn-sos {
@@ -2387,10 +2649,28 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
   font-size: 0.97rem;
   font-weight: 800;
   line-height: 1.2;
-  min-height: 50px;
+  min-height: 56px;
   white-space: nowrap;
   overflow-wrap: normal;
   box-shadow: 0 4px 14px rgba(255, 39, 0, 0.32);
+}
+
+/* Outlined rather than filled. The red is in the border and the label, which
+   keeps Emergency unmistakable without giving it the visual weight of a
+   primary action sitting under two peers. */
+.pt-btn-sos-outline {
+  background: var(--pt-white);
+  color: var(--pt-amber);
+  border: 1.7px solid #FFB6A8;
+  border-radius: 999px;
+  box-shadow: 0 1px 3px rgba(255, 39, 0, 0.10);
+}
+
+.pt-btn-sos-outline:hover:not(:disabled) {
+  background: var(--pt-amber-bg);
+  border-color: var(--pt-amber);
+  color: var(--pt-amber-dark);
+  box-shadow: 0 4px 14px rgba(255, 39, 0, 0.18);
 }
 
 .pt-btn-sos svg { flex: 0 0 auto; }
@@ -2402,6 +2682,32 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
 
 .pt-panel-sos {
   background: #FFF6F4;
+}
+
+/* ── Card title + closing info panel ──
+   The card names itself, the way the reference does: someone arriving from a
+   QR code has no page title to read, so the first line has to say what this
+   screen is for. */
+.pt-vehicle-title {
+  margin: 0 0 14px;
+  font-size: clamp(1.05rem, 4.6vw, 1.22rem);
+  font-weight: 800;
+  line-height: 1.25;
+  color: var(--pt-ink);
+  text-align: center;
+}
+
+/* The privacy line reads as a quiet panel rather than a floating sentence, so
+   the card closes on something with an edge. */
+.pt-privacy-panel {
+  border-top: 0;
+  margin: 0 22px 24px;
+  padding: 16px 16px;
+  border: 1px solid var(--pt-border);
+  border-radius: 13px;
+  background: #F7F9FC;
+  justify-content: center;
+  text-align: center;
 }
 
 /* ── Emergency confirmation dialog ──
@@ -2726,12 +3032,7 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
 }
 
 @media (max-width: 400px) {
-  .pt-reason-chips {
-    grid-template-columns: 1fr;
-  }
-  .pt-chip-alert {
-    grid-column: span 1;
-  }
+  .pt-chip { padding: 13px 14px; gap: 10px; font-size: 0.84rem; }
   .pt-plate-display {
     font-size: 1.25rem;
     /* Band and strip keep their pixel sizes, so only the plate's own padding
@@ -4469,13 +4770,13 @@ html:has(body.pt-hub-body) {
 }
 
 .scanner-body .pt-vehicle-block {
-  padding: 22px 26px 18px;
+  padding: 34px 26px 30px;
 }
 
 .scanner-body .pt-section-title {
   padding-left: 22px;
   padding-right: 22px;
-  margin-bottom: 14px;
+  margin-bottom: 18px;
 }
 
 .scanner-body .pt-reason-chips {
@@ -4494,7 +4795,7 @@ html:has(body.pt-hub-body) {
 }
 
 .scanner-body .pt-privacy-note {
-  padding-bottom: 18px;
+  padding-bottom: 12px;
 }
 
 /* ── Cards: one radius/padding ratio across the whole flow ── */

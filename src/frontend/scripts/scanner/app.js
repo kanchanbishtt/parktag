@@ -40,6 +40,10 @@ let unlimitedContact = false;
 let emergencyAvailable = false;
 // Optional reason selected via the chips; the message itself is built server-side.
 let selectedReason = "";
+// Handle for the short pause between filling the chosen row's circle and moving
+// on, so the choice is visible before the screen changes. Cleared whenever the
+// popup closes, or a cancel would still be followed by the verification card.
+let reasonAdvanceTimer = null;
 
 // Says "digits", not "characters": the field is `inputmode="numeric"` and the
 // server matches on /^\d{4}$/, so telling someone to type letters would send
@@ -198,7 +202,19 @@ async function fetchJson(url, options) {
 // `body.pt-modal-open` locks the page behind from scrolling: without it, a
 // swipe over the blur scrolls the contact card underneath, which reads as the
 // overlay having come loose.
-function openVerifyModal() {
+// Both overlays on this page — the reason popup and the plate-verification
+// popup — share one open/close, so the scroll lock and the gutter compensation
+// below can never be right for one of them and wrong for the other.
+const OVERLAY_IDS = ["verify-modal", "reason-modal"];
+
+function anyOverlayOpen() {
+  return OVERLAY_IDS.some(id => {
+    const el = byId(id);
+    return Boolean(el) && !el.hidden;
+  });
+}
+
+function openOverlay(id) {
   // Locking the body removes the scrollbar, which widens the viewport: the page
   // behind jumps sideways under the blur, and the card lands a few pixels wider
   // than the card it replaced. Publish the gutter as a custom property and hand
@@ -207,14 +223,31 @@ function openVerifyModal() {
   // assumed: 0 with the overlay scrollbars phones use, ~15px on a desktop.
   const gutter = window.innerWidth - document.documentElement.clientWidth;
   document.documentElement.style.setProperty("--pt-scroll-gutter", `${Math.max(gutter, 0)}px`);
-  setHidden("verify-modal", false);
+  // Only ever one overlay at a time: the reason popup hands straight over to
+  // verification, and two stacked blurs would leave the first one unreachable
+  // behind the second.
+  OVERLAY_IDS.forEach(other => { if (other !== id) setHidden(other, true); });
+  setHidden(id, false);
   document.body.classList.add("pt-modal-open");
 }
 
+function closeOverlay(id) {
+  setHidden(id, true);
+  // The lock belongs to the page, not to one overlay: release it only once
+  // nothing is left up, or closing the reason popup on its way to verification
+  // would unlock the page underneath the card that replaced it.
+  if (!anyOverlayOpen()) {
+    document.body.classList.remove("pt-modal-open");
+    document.documentElement.style.removeProperty("--pt-scroll-gutter");
+  }
+}
+
+function openVerifyModal() {
+  openOverlay("verify-modal");
+}
+
 function closeVerifyModal() {
-  setHidden("verify-modal", true);
-  document.body.classList.remove("pt-modal-open");
-  document.documentElement.style.removeProperty("--pt-scroll-gutter");
+  closeOverlay("verify-modal");
 }
 
 function isVerifyModalOpen() {
@@ -361,7 +394,10 @@ function resetActionState() {
   contactGrant = "";
   contactAvailable = true;
   unlimitedContact = false;
-  selectedReason = "";
+  clearSelectedReason();
+  // Back to the two tiles: a fresh tag must not open on a half-answered
+  // question left over from the previous one.
+  closeReasonStep();
   pendingAction = null;
   setDisabled("call-owner-button", false);
   setDisabled("send-whatsapp-button", false);
@@ -379,7 +415,6 @@ function resetActionState() {
 function setContactAvailability(available) {
   contactAvailable = available;
   setHidden("scanner-why-title", !available);
-  setHidden("pt-reason-chips", !available);
   setHidden("scanner-contact-actions", !available);
   setHidden("purchase-cta", available);
   if (!available) {
@@ -387,6 +422,9 @@ function setContactAvailability(available) {
     setHidden("dial-panel", true);
     setHidden("message-panel", true);
     setHidden("call-popup", true);
+    // Leaving the reason popup up once the free contact is gone would offer a
+    // message the server would refuse.
+    closeReasonStep();
   }
 
   // The SOS block is gated on nothing at all. A used-up free contact must not
@@ -995,6 +1033,54 @@ function showAlert(message, fallbackStatusId = "request-status") {
   }
 }
 
+// ── Reason step ───────────────────────────────────────────────────
+// Tapping Message swaps the two tiles for the reason list in place. Only the
+// message path reads a reason, so only the message path asks for one.
+
+function clearSelectedReason() {
+  selectedReason = "";
+  document.querySelectorAll(".pt-chip").forEach(c => {
+    c.classList.remove("pt-chip-selected");
+    // Mirrored on the element itself, not just the class: the group is a
+    // radiogroup, so the checked state has to be readable without the CSS.
+    if (c.getAttribute("role") === "radio") {
+      c.setAttribute("aria-checked", "false");
+    }
+  });
+}
+
+function isReasonModalOpen() {
+  const el = byId("reason-modal");
+  return Boolean(el) && !el.hidden;
+}
+
+function cancelReasonAdvance() {
+  if (reasonAdvanceTimer !== null) {
+    clearTimeout(reasonAdvanceTimer);
+    reasonAdvanceTimer = null;
+  }
+}
+
+function closeReasonStep() {
+  cancelReasonAdvance();
+  closeOverlay("reason-modal");
+}
+
+// Opened by the Message tile ONLY. It asks a question; it grants nothing.
+// Sending still runs requireVerification("message"), so the plate check stays
+// the single door to every contact action — this step cannot short-circuit it.
+function openReasonStep() {
+  if (actionLocked || !contactAvailable) {
+    return;
+  }
+
+  // Reopening starts clean. A reason carried over from an abandoned attempt
+  // would send the owner a message about something the scanner did not choose
+  // this time.
+  clearSelectedReason();
+  openOverlay("reason-modal");
+}
+
 // The reason is what the owner actually reads — the server builds the WhatsApp
 // message from it, so an alert sent without one says a vehicle needs attention
 // and nothing else. Gate the send rather than deliver an empty one.
@@ -1519,6 +1605,11 @@ byId("plate-verify-cancel")?.addEventListener("click", dismissVerifyModal);
 // Escape closes it, the way the <dialog>-based gates on this page already do —
 // the card should not be the one overlay that traps you.
 document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && isReasonModalOpen()) {
+    clearSelectedReason();
+    closeReasonStep();
+    return;
+  }
   if (event.key === "Escape" && isVerifyModalOpen()) {
     dismissVerifyModal();
   }
@@ -1535,11 +1626,29 @@ byId("verify-modal")?.addEventListener("click", (event) => {
   }
 });
 byId("call-owner-button")?.addEventListener("click", () => requireVerification("call"));
-// The reason is checked before the plate, not after: being sent to verify and
-// then told to pick a reason would be two corrections for one tap.
-byId("send-whatsapp-button")?.addEventListener("click", () => {
-  if (!hasContactReason()) return;
-  requireVerification("message");
+// The reason is asked before the plate, not after: being sent to verify and
+// then told to pick a reason would be two corrections for one tap. The list
+// opens in place of the tiles rather than sitting on the card permanently, so
+// the card can show its three actions without a scroll.
+byId("send-whatsapp-button")?.addEventListener("click", openReasonStep);
+
+// The reason step repeats both actions so the choice can still be changed
+// without a Back control. Message needs a reason; the call ignores it, exactly
+// as the tile above does.
+// Cancel returns to the card, exactly as the verification popup's Cancel does.
+byId("reason-cancel")?.addEventListener("click", () => {
+  clearSelectedReason();
+  closeReasonStep();
+});
+
+// Tapping the blur outside the card closes it — same gesture as the
+// verification popup, so the two do not behave differently.
+byId("reason-modal")?.addEventListener("click", (event) => {
+  const card = byId("reason-step");
+  if (card && !card.contains(event.target)) {
+    clearSelectedReason();
+    closeReasonStep();
+  }
 });
 byId("pt-alert-ok")?.addEventListener("click", () => byId("pt-alert")?.close());
 byId("quick-share")?.addEventListener("click", handleQuickShare);
@@ -1626,17 +1735,31 @@ byId("act-plate")?.addEventListener("input", (event) => {
   input.setSelectionRange(caret, caret);
 });
 
-// Reason chips — select an optional reason (the message itself is server-built).
-// A second tap clears the selection.
+// Reason rows. The popup holds no send button, so a tap IS the answer. The
+// circle fills first and the screen changes a beat later: closing instantly
+// meant nobody ever saw which row they had picked, which is the one piece of
+// feedback confirming the message will say the right thing.
+// The plate check is still the only door — requireVerification is where this
+// lands, exactly as before.
+const REASON_ADVANCE_MS = 320;
+
 document.querySelectorAll(".pt-chip").forEach(chip => {
   chip.addEventListener("click", () => {
-    const wasSelected = chip.classList.contains("pt-chip-selected");
-    document.querySelectorAll(".pt-chip").forEach(c => c.classList.remove("pt-chip-selected"));
-    if (wasSelected) {
-      selectedReason = "";
-    } else {
-      chip.classList.add("pt-chip-selected");
-      selectedReason = chip.dataset.reason || "";
+    // A second tap while the first is still settling must not queue a second
+    // hand-off.
+    if (reasonAdvanceTimer !== null) {
+      return;
     }
+
+    clearSelectedReason();
+    chip.classList.add("pt-chip-selected");
+    chip.setAttribute("aria-checked", "true");
+    selectedReason = chip.dataset.reason || "";
+
+    reasonAdvanceTimer = setTimeout(() => {
+      reasonAdvanceTimer = null;
+      closeReasonStep();
+      requireVerification("message");
+    }, REASON_ADVANCE_MS);
   });
 });

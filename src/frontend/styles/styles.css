@@ -2613,11 +2613,18 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
    reaches a stranger's family is not something to trigger by reflex. */
 .pt-sos-block {
   margin: 0 22px 20px;
-  padding: 0;
-  border: 0;
-  background: none;
+  padding: 15px 16px;
+  /* Tints derived from --pt-amber (#FF2700) rather than the rose family, so
+     the block reads as the same red as the button inside it. The card is what
+     quarantines Emergency from the two routine actions above — an accident
+     call that reaches a stranger's family is not something to trigger by
+     reflex, and its own surface is what makes it a decision rather than a
+     third button in the row. */
+  border: 1.5px solid #FFB6A8;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #FFF6F4 0%, #FFEDEA 100%);
   display: grid;
-  gap: 8px;
+  gap: 11px;
   justify-items: stretch;
 }
 
@@ -2625,16 +2632,15 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
    three-line question that used to stand above it. The caution is unchanged;
    what changed is that it no longer costs the height that pushed Emergency
    off the first screen on a 360px phone. */
+/* Above the button now, and red again: inside the tinted card it is the
+   question the button answers, not a footnote under it. */
 .pt-sos-copy {
   margin: 0;
-  font-size: 0.78rem;
-  line-height: 1.45;
-  /* Grey, not red. With the button outlined in red directly above it, a second
-     red line read as a second warning rather than as the note explaining the
-     first one. */
-  color: var(--pt-sub);
-  font-weight: 500;
-  text-align: center;
+  font-size: 0.86rem;
+  line-height: 1.5;
+  color: #B31C00;
+  font-weight: 600;
+  text-align: left;
 }
 
 .pt-btn-sos {
@@ -2659,6 +2665,9 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
    keeps Emergency unmistakable without giving it the visual weight of a
    primary action sitting under two peers. */
 .pt-btn-sos-outline {
+  /* White, not transparent: on the card's tinted ground a transparent fill
+     would let the gradient through and stop it reading as an outlined
+     control. */
   background: var(--pt-white);
   color: var(--pt-amber);
   border: 1.7px solid #FFB6A8;
@@ -2666,18 +2675,34 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
   box-shadow: 0 1px 3px rgba(255, 39, 0, 0.10);
 }
 
-.pt-btn-sos-outline:hover:not(:disabled) {
+.pt-btn-sos svg { flex: 0 0 auto; }
+
+/* The filled hover belongs to the filled button ONLY. Excluded by selector
+   rather than by source order: both rules were (0,3,0), so whichever came
+   last won — and this one did, painting the outlined button solid red while
+   its label stayed red, which left the word invisible on hover. */
+.pt-btn-sos:hover:not(:disabled):not(.pt-btn-sos-outline) {
+  background: var(--pt-amber-dark);
+  box-shadow: 0 6px 18px rgba(255, 39, 0, 0.42);
+}
+
+/* Hover is gated on a device that actually has one. On a phone :hover sticks
+   after a tap, so without this the Emergency button would stay in its hover
+   state for the rest of the visit. */
+@media (hover: hover) {
+  .pt-btn-sos-outline:hover:not(:disabled) {
+    background: var(--pt-amber-bg);
+    border-color: var(--pt-amber);
+    color: var(--pt-amber-dark);
+    box-shadow: 0 4px 14px rgba(255, 39, 0, 0.18);
+  }
+}
+
+/* Touch gets its feedback from :active instead, which clears on release. */
+.pt-btn-sos-outline:active:not(:disabled) {
   background: var(--pt-amber-bg);
   border-color: var(--pt-amber);
   color: var(--pt-amber-dark);
-  box-shadow: 0 4px 14px rgba(255, 39, 0, 0.18);
-}
-
-.pt-btn-sos svg { flex: 0 0 auto; }
-
-.pt-btn-sos:hover:not(:disabled) {
-  background: var(--pt-amber-dark);
-  box-shadow: 0 6px 18px rgba(255, 39, 0, 0.42);
 }
 
 .pt-panel-sos {

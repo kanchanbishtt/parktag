@@ -3148,6 +3148,12 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
   text-align: center;
 }
 
+/* The status line is empty most of the time, and an empty <p> still charged
+   its 12px of bottom padding to every screen it sat on. */
+.pt-status:empty {
+  display: none;
+}
+
 .pt-status[data-tone="info"] { color: var(--pt-sub); }
 .pt-status[data-tone="success"] { color: #FF2700; }
 .pt-status[data-tone="error"] { color: #DC2626; }
@@ -4959,6 +4965,118 @@ html:has(body.pt-hub-body) {
 
 .scanner-body .pt-privacy-note {
   padding-bottom: 12px;
+}
+
+/* ── Short screens ──
+   The rhythm above is tuned for a 844px viewport. A real phone gives far less:
+   the reported screenshot is a 720x1600 device at dpr 2, which after Chrome-s
+   address bar and the Android nav bar leaves about 360x670 of web — 175px less
+   than the design height. At that size the card ran past the fold and the
+   scanner had to scroll to reach the Emergency block.
+
+   Everything here is spacing, not content: no copy is cut and no tap target
+   shrinks. It is keyed on viewport HEIGHT because that is the constraint —
+   a wide phone in landscape has the same problem a narrow one in portrait does. */
+@media (max-height: 760px) {
+  .scanner-body .pt-main {
+    /* The optical lift is bottom padding that pushes a centred card up the
+       screen. It only makes sense when the card fits with room to spare; when
+       it does not, align-content already top-aligns and the lift is 40px of
+       pure scroll. */
+    --pt-optical-lift: 0px;
+    --pt-pad-y: 8px;
+    gap: 8px;
+  }
+
+  .scanner-body .pt-vehicle-block {
+    padding: 14px 26px 12px;
+  }
+
+  .scanner-body .pt-section-title {
+    margin-bottom: 10px;
+  }
+
+  .scanner-body .pt-tile {
+    padding: 11px 8px 11px;
+  }
+
+  .scanner-body .pt-sos-block {
+    margin-bottom: 12px;
+    padding: 12px 14px;
+    gap: 9px;
+  }
+
+  .scanner-body .pt-privacy-note {
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+
+  /* Both of these were wrapping to one line more than they needed at 360px,
+     and a wrapped line costs more than the type it saves. Stepped down just
+     far enough to close the wrap — the copy itself is untouched. */
+  .scanner-body .pt-sos-copy {
+    font-size: 0.8rem;
+    line-height: 1.45;
+  }
+
+  .scanner-body .pt-privacy-note {
+    font-size: 0.72rem;
+    /* The 24px inset was the last thing keeping this on two lines at 360px. */
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .scanner-body .pt-section-title {
+    padding-top: 10px;
+  }
+
+  .scanner-body .pt-tile-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+  }
+
+  .scanner-body .pt-tile-icon svg,
+  .scanner-body .pt-tile-icon .pt-tile-glyph {
+    width: 19px;
+    height: 19px;
+  }
+
+  /* The verification card is the tallest screen in the flow — 671px against a
+     670px viewport — and it is the one screen nobody can skip: no call and no
+     message happens without it. Left alone it scrolled inside its own popup,
+     putting "Verify & Continue" below the fold on the one step that must not
+     be missed.
+
+     The artwork takes the deepest cut because it is the only decorative thing
+     here; it still shows the plate and the circled digits at 92px. */
+  .scanner-body .pt-verify-media {
+    max-height: 92px;
+    object-position: center 42%;
+    margin-bottom: 10px;
+  }
+
+  .scanner-body .pt-verify-title {
+    font-size: clamp(0.88rem, 3.6vw, 0.98rem);
+    line-height: 1.28;
+  }
+
+  .scanner-body .pt-verify-rule {
+    margin: 9px 0;
+  }
+
+  .scanner-body .pt-verify-callnote {
+    font-size: clamp(0.78rem, 3.1vw, 0.86rem);
+    margin-bottom: 8px;
+  }
+
+  .scanner-body #plate-verify-status {
+    font-size: 0.74rem;
+  }
+
+  .scanner-body .pt-card {
+    padding: clamp(16px, 4.5vw, 20px);
+  }
 }
 
 /* ── Cards: one radius/padding ratio across the whole flow ── */

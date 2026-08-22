@@ -2463,15 +2463,6 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
   box-shadow: inset 0 0 0 4px var(--pt-ink);
 }
 
-/* The longest label — "Something wrong with this car." — wrapped to a second
-   line and made that one row taller than the rest, which is exactly the kind of
-   odd-one-out the alert row was just stopped from being. The rows run wider and
-   the type steps down a little so every label sits on one line. */
-.pt-reason-card .pt-reason-chips {
-  padding-left: 10px;
-  padding-right: 10px;
-}
-
 /* Fluid type rather than a fixed size: the reference's labels are long
    sentences, and one fixed size that fits at 390px wraps at 320px. Scaling with
    the viewport keeps every row to a single line — and therefore the same
@@ -2505,6 +2496,11 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
    row that lost its radio. */
 .pt-reason-card .pt-cancel-action {
   background: #EEF2F8;
+  /* Cancel is a direct child of the card, so it stops at the card's padding —
+     22px short of where '.scanner-body .pt-reason-chips' puts the rows' right
+     edge. Stated here so Cancel's right edge lines up with the rows it sits
+     under; if that padding changes, change this with it. */
+  margin-right: 22px;
 }
 
 .pt-reason-card .pt-cancel-action:hover {
@@ -2524,7 +2520,9 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
   gap: 10px;
   padding: 28px 10px 26px;
   border-radius: 16px;
-  border: 1.5px solid var(--pt-border);
+  /* 2px, not 1.5: both tiles are outlined in a full-strength colour now, and a
+     hairline made those colours read as washed out rather than deliberate. */
+  border: 2px solid var(--pt-border);
   background: var(--pt-white);
   color: var(--pt-ink);
   font: inherit;
@@ -2549,6 +2547,17 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
   flex: 0 0 auto;
 }
 
+/* The badge was 54px with a 22px mark inside it, so the icon read as a small
+   dot in a large square — and the mark stayed 22px even where the badge shrank
+   to 44px, which is the size most phones actually get. Both viewBoxes are
+   cropped to their own ink now, so this one size governs both glyphs and lands
+   them at the same optical size, centred, at roughly half the badge. */
+.pt-tile-icon svg,
+.pt-tile-icon .pt-tile-glyph {
+  width: 26px;
+  height: 26px;
+}
+
 .pt-tile-title {
   font-size: 0.98rem;
   font-weight: 800;
@@ -2571,38 +2580,86 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
 
 /* Masked call — the ink family, so it reads as the product's own voice. */
 .pt-tile-call {
-  border-color: #CBD9EE;
+  /* --pt-ink is #03162D. The border carries it at rest, not only on hover, so
+     the tile is outlined in the brand navy at all times. That leaves the FILL
+     as the only thing that may change on interaction — see below. */
+  border-color: var(--pt-ink);
   background: #F5F8FD;
 }
 .pt-tile-call .pt-tile-icon {
   background: #E3ECFA;
-  color: #12386F;
+  /* The glyph is drawn with fill="currentColor", so the colour is set here, not
+     in the file. Same navy as the tile border, so the icon and the outline
+     around it are the one colour rather than two near-misses. */
+  color: var(--pt-ink);
 }
-.pt-tile-call:hover:not(:disabled) {
-  border-color: #9DBBE4;
-  background: #EDF3FC;
-  box-shadow: 0 4px 14px rgba(18, 56, 111, 0.14);
+/* The border is already navy at rest, so interaction is carried by the fill
+   deepening to a light wash of the same navy. It stays light on purpose — the
+   label, sub-label and icon inside are all dark, so a saturated navy would
+   swallow them. Written once and shared across hover/press/focus, so pressing
+   cannot look different from pointing at it. */
+@media (hover: hover) {
+  .pt-tile-call:hover:not(:disabled) {
+    border-color: var(--pt-ink);
+    background: #E6ECF6;
+    box-shadow: 0 4px 14px rgba(3, 22, 45, 0.16);
+  }
+}
+
+/* Touch has no hover, and a :hover left over from a tap would stick for the
+   rest of the visit — so the press state is its own rule. */
+.pt-tile-call:active:not(:disabled) {
+  border-color: var(--pt-ink);
+  background: #E6ECF6;
+  box-shadow: 0 4px 14px rgba(3, 22, 45, 0.16);
+}
+
+/* Keyboard users get the same signal as everyone else. */
+.pt-tile-call:focus-visible {
+  border-color: var(--pt-ink);
+  background: #E6ECF6;
 }
 
 /* Message — WhatsApp green, the one place on this card where another brand's
    colour is the correct signal. */
 .pt-tile-message {
-  border-color: #BFE7CE;
+  /* Full-strength green at rest, the mirror of the navy on Private Call — and
+     the same #128C46 the WhatsApp mark inside uses, so the tile is outlined in
+     its own icon's colour rather than in a second, near-miss green. */
+  border-color: #128C46;
   background: #F4FCF7;
 }
 .pt-tile-message .pt-tile-icon {
   background: #DCF5E5;
   color: #128C46;
 }
-.pt-tile-message:hover:not(:disabled) {
-  border-color: #7FCFA1;
-  background: #ECF9F1;
-  box-shadow: 0 4px 14px rgba(18, 140, 70, 0.16);
+
+/* Mirrors the Private Call tile exactly: the border is already at full
+   strength, so interaction is carried by the fill deepening. Shared across
+   hover/press/focus so pressing cannot look different from pointing at it. */
+@media (hover: hover) {
+  .pt-tile-message:hover:not(:disabled) {
+    background: #E4F6EB;
+    box-shadow: 0 4px 14px rgba(18, 140, 70, 0.18);
+  }
+}
+
+/* Touch has no hover, and a :hover left over from a tap would stick. */
+.pt-tile-message:active:not(:disabled) {
+  background: #E4F6EB;
+  box-shadow: 0 4px 14px rgba(18, 140, 70, 0.18);
+}
+
+.pt-tile-message:focus-visible {
+  background: #E4F6EB;
 }
 
 @media (max-width: 400px) {
   .pt-tile { padding: 14px 8px 12px; gap: 6px; }
   .pt-tile-icon { width: 44px; height: 44px; border-radius: 13px; }
+  /* Steps down with the badge so the glyph keeps the same share of it. */
+  .pt-tile-icon svg,
+  .pt-tile-icon .pt-tile-glyph { width: 21px; height: 21px; }
   .pt-tile-title { font-size: 0.92rem; }
   .pt-tile-sub { font-size: 0.68rem; }
 }
@@ -2719,19 +2776,6 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
   font-weight: 800;
   line-height: 1.25;
   color: var(--pt-ink);
-  text-align: center;
-}
-
-/* The privacy line reads as a quiet panel rather than a floating sentence, so
-   the card closes on something with an edge. */
-.pt-privacy-panel {
-  border-top: 0;
-  margin: 0 22px 24px;
-  padding: 16px 16px;
-  border: 1px solid var(--pt-border);
-  border-radius: 13px;
-  background: #F7F9FC;
-  justify-content: center;
   text-align: center;
 }
 
@@ -5137,6 +5181,18 @@ body.pt-modal-open {
   justify-self: start;
   width: fit-content;
   margin-top: 2px;
+}
+
+/* Inside a popup Cancel is a dismiss, not a step, so it sits on the trailing
+   edge where a dialog's dismiss is looked for — and away from the thumb's path
+   to the primary action. Block-level rather than the base inline-flex, because
+   'margin-left: auto' only pushes a block-level box; the button still sizes to
+   its own text. Applies to both popups, so the verify card and the reason card
+   put their way out in the same place. */
+.pt-vmodal .pt-cancel-action {
+  display: flex;
+  width: fit-content;
+  margin-left: auto;
 }
 
 /* Country code + number: the code keeps just enough room for its longest

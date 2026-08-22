@@ -2228,12 +2228,13 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
   margin: 0;
 }
 
-/* The one section title that is a QUESTION to the person standing at the car
-   rather than a label over a list, so it drops the uppercase tracking the
-   others use — tracked caps read as a form heading, which is the wrong tone
-   for the only decision on this screen. */
+/* The section titles that SPEAK TO the person standing at the car rather than
+   labelling a list, so they drop the uppercase tracking the others use —
+   tracked caps read as a form heading, which is the wrong tone for a question
+   about the car in front of them or for a call already going through. */
 #scanner-why-title,
-#reason-step-title {
+#reason-step-title,
+#dial-modal-title {
   text-transform: none;
   letter-spacing: 0;
   font-size: 0.92rem;
@@ -2979,6 +2980,99 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
 }
 
 .pt-sos-cancel:hover { color: var(--pt-ink); }
+
+/* Bottom-right of the dial popup: last child of the card, pinned to the
+   trailing edge, which is the same corner Cancel occupies in the verify and
+   reason popups — so "the way out" never moves. display:flex rather than the
+   inline-flex it would otherwise be, because margin-left:auto only pushes a
+   block-level box.
+
+   Smaller than the other secondary buttons on purpose: it leaves a call the
+   scanner asked for, so it must not compete with "Tap to Call" above it. 34px
+   is below the 44px this file uses elsewhere — a deliberate trade, safe here
+   because it sits alone at the foot of the card with no neighbour to mis-tap,
+   and it still clears the 24px minimum. */
+.pt-panel-back {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+  margin-left: auto;
+  min-height: 34px;
+  padding: 7px 12px;
+  border: 1px solid var(--pt-border);
+  border-radius: 10px;
+  background: var(--pt-bg);
+  color: var(--pt-sub);
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* The receipt is one column of stacked blocks, like the verify card it sits in
+   the same overlay as. The gap is what separates the number from the button
+   from the way out, so none of them needs a margin of its own. */
+/* The two receipts a contact ends on — the dial-back number and the "owner
+   notified" confirmation. Both are one column of stacked blocks in the same
+   overlay the verify and reason steps use, so a call and a message finish in
+   the same place and at the same size. The gap is what separates the blocks,
+   so none of them carries a margin of its own. */
+.pt-receipt-card {
+  display: grid;
+  gap: 12px;
+  background: var(--pt-white);
+}
+
+/* The card already carries the inset, so the title must not add its own on
+   top — with it, the heading sat indented past the number underneath it. The
+   grid gap does the vertical spacing for the same reason. */
+.pt-receipt-card #dial-modal-title {
+  padding: 0;
+  margin-bottom: 0;
+}
+
+.pt-receipt-card .pt-panel-label,
+.pt-receipt-card .pt-panel-sub,
+.pt-receipt-card .pt-status {
+  margin: 0;
+}
+
+.pt-receipt-card .pt-dial-number {
+  margin: 4px 0 0;
+}
+
+/* The confirmation has nothing to act on — it is a result, not a step — so it
+   is centred, the way the success panel it replaced was. Back stays pinned
+   right regardless: the way out sits in the same corner on every popup. */
+.pt-receipt-card-center {
+  justify-items: center;
+  text-align: center;
+}
+
+.pt-receipt-card-center .pt-panel-back {
+  justify-self: end;
+}
+
+.pt-receipt-title {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--pt-ink);
+  margin: 0;
+}
+
+.pt-receipt-copy {
+  font-size: 0.88rem;
+  color: var(--pt-sub);
+  line-height: 1.6;
+  margin: 0;
+}
+
+@media (hover: hover) {
+  .pt-panel-back:hover { background: #E9EEF6; color: var(--pt-ink); }
+}
+
+.pt-panel-back:active { background: #E9EEF6; color: var(--pt-ink); }
 
 /* Panel (sub-sections within action card) */
 .pt-panel {

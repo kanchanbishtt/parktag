@@ -306,6 +306,73 @@
         </div>
       </div>
 
+      <!-- Dial receipt. A popup rather than a section on the card: the number,
+           the button and the status line came to ~180px, which was the
+           difference between the call fitting a phone screen and the scanner
+           scrolling to reach it. Same overlay the verify and reason steps
+           use, so every step of a call lands in the same place.
+
+           KEEP IT HERE, a direct child of <main> and a sibling of the other two
+           overlays. #scanner-action-shell below carries a transform, and a
+           transformed ancestor becomes the containing block for position:fixed
+           — nested inside it this "full screen" overlay was sized to the card
+           instead of the viewport, so the blur stopped at the card edges and
+           the header and the links under it stayed sharp. -->
+      <div class="pt-vmodal" id="dial-modal" role="dialog" aria-modal="true"
+           aria-labelledby="dial-modal-title" hidden>
+        <div class="pt-vmodal-inner">
+          <article class="pt-card pt-verify-card pt-receipt-card" id="dial-card">
+            <h2 class="pt-section-title" id="dial-modal-title">Calling the owner privately</h2>
+
+            <div id="dial-number-block" hidden>
+              <p class="pt-panel-label">Virtual number: dial this if your phone doesn't open automatically</p>
+              <p class="pt-dial-number" id="dial-virtual-number"></p>
+            </div>
+            <p class="pt-panel-sub">Your number stays completely private throughout the call.</p>
+            <button id="final-call-button" class="pt-btn pt-btn-primary pt-btn-full" type="button">Call Now</button>
+
+            <!-- The call statuses land in here rather than on the card behind
+                 the blur, where the scanner could not read them. -->
+            <p id="dial-status" class="pt-status" data-tone="info"></p>
+
+            <!-- Last child, so it sits at the bottom of the card, and pinned
+                 right — the same corner Cancel occupies in the other two
+                 popups, so the way out is always in one place. -->
+            <button type="button" id="dial-back" class="pt-panel-back">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M15 5l-7 7 7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              Back
+            </button>
+          </article>
+        </div>
+      </div>
+
+      <!-- Message receipt. Same treatment, and for the same reason, as the dial
+           receipt above: appended to the card it pushed the confirmation and
+           the privacy line off the screen, so the scanner had to scroll to
+           read that their alert had been sent. Kept a direct child of <main>
+           for the position:fixed reason spelled out above. -->
+      <div class="pt-vmodal" id="confirm-modal" role="dialog" aria-modal="true"
+           aria-labelledby="confirmation-title" hidden>
+        <div class="pt-vmodal-inner">
+          <article class="pt-card pt-verify-card pt-receipt-card pt-receipt-card-center" id="confirm-card">
+            <div class="pt-success-icon" aria-hidden="true">✅</div>
+            <h2 class="pt-receipt-title" id="confirmation-title">Owner alerted successfully</h2>
+            <p class="pt-receipt-copy" id="confirmation-copy">Your message has been delivered to the vehicle owner.</p>
+
+            <!-- Same control, same corner, as the dial receipt: whichever way a
+                 contact ends, the way out is in one place. -->
+            <button type="button" id="confirm-back" class="pt-panel-back">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M15 5l-7 7 7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              Back
+            </button>
+          </article>
+        </div>
+      </div>
+
       <!-- Action shell -->
       <article class="pt-card pt-action-card" id="scanner-action-shell" hidden>
 
@@ -495,15 +562,6 @@
           <p>Keep your phone nearby. Your number stays hidden throughout the call.</p>
         </div>
 
-        <!-- Dial panel -->
-        <div id="dial-panel" class="pt-panel" hidden>
-          <div id="dial-number-block" hidden>
-            <p class="pt-panel-label">Virtual number: dial this if your phone doesn't open automatically</p>
-            <p class="pt-dial-number" id="dial-virtual-number"></p>
-          </div>
-          <p class="pt-panel-sub">Your number stays completely private throughout the call.</p>
-          <button id="final-call-button" class="pt-btn pt-btn-primary pt-btn-full" type="button">Call Now</button>
-        </div>
 
         <!-- WhatsApp message panel -->
         <div id="message-panel" class="pt-panel" hidden>
@@ -526,13 +584,6 @@
               Send to owner
             </button>
           </div>
-        </div>
-
-        <!-- Confirmation -->
-        <div id="request-confirmation" class="pt-success-panel" hidden>
-          <div class="pt-success-icon">✅</div>
-          <h3 id="confirmation-title">Owner alerted successfully</h3>
-          <p id="confirmation-copy">Your message has been delivered to the vehicle owner.</p>
         </div>
 
         <p id="request-status" class="pt-status" data-tone="info"></p>

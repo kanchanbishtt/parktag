@@ -205,7 +205,7 @@ async function fetchJson(url, options) {
 // Both overlays on this page — the reason popup and the plate-verification
 // popup — share one open/close, so the scroll lock and the gutter compensation
 // below can never be right for one of them and wrong for the other.
-const OVERLAY_IDS = ["verify-modal", "reason-modal"];
+const OVERLAY_IDS = ["verify-modal", "reason-modal", "dial-modal", "confirm-modal"];
 
 function anyOverlayOpen() {
   return OVERLAY_IDS.some(id => {
@@ -380,11 +380,15 @@ function resetActionState() {
   setHidden("message-panel", true);
   setHidden("message-editor-shell", true);
   setHidden("call-popup", true);
-  setHidden("request-confirmation", true);
-  setHidden("dial-panel", true);
+  closeConfirmModal();
+  closeDialModal();
   setValue("message-template-select", "");
   setValue("message-text", DEFAULT_MESSAGE);
   setValue("contact-phone", "");
+  activeVirtualNumber = "";
+  setText("dial-virtual-number", "");
+  setHidden("dial-number-block", true);
+  setRequestStatus("dial-status", "", "info");
   verifyCapturedPhone = "";
   verifyPhoneOnly = false;
   setHidden("plate-verify-plate-block", false);
@@ -419,7 +423,7 @@ function setContactAvailability(available) {
   setHidden("purchase-cta", available);
   if (!available) {
     // Hide any open contact sub-panels too.
-    setHidden("dial-panel", true);
+    closeDialModal();
     setHidden("message-panel", true);
     setHidden("call-popup", true);
     // Leaving the reason popup up once the free contact is gone would offer a
@@ -497,13 +501,49 @@ function openSosHelplines(note) {
   dialog.showModal();
 }
 
+// The receipt for a call that is already registered. Kept so the popup can be
+// dismissed and brought back: without it, closing the receipt would strand the
+// scanner with the dialer un-opened and no number to type.
+let activeVirtualNumber = "";
+
+function openDialModal() {
+  openOverlay("dial-modal");
+}
+
+// Only ever a view change. actionLocked and the disabled tiles survive, so
+// closing and reopening the receipt cannot buy a second call on one grant.
+function closeDialModal() {
+  closeOverlay("dial-modal");
+}
+
+// The message receipt. Unlike the dial receipt there is nothing here to lose by
+// closing it — no number to type — so it has no reopen path: the WhatsApp tile
+// stays disabled after a send either way.
+function openConfirmModal() {
+  openOverlay("confirm-modal");
+}
+
+function closeConfirmModal() {
+  closeOverlay("confirm-modal");
+}
+
+function isConfirmModalOpen() {
+  const el = byId("confirm-modal");
+  return Boolean(el) && !el.hidden;
+}
+
+function isDialModalOpen() {
+  const el = byId("dial-modal");
+  return Boolean(el) && !el.hidden;
+}
+
 // Closes the ordinary contact panels so only one flow is ever live. Called
 // before the emergency dial panel opens.
 function closeContactPanels() {
-  setHidden("dial-panel", true);
+  closeDialModal();
   setHidden("message-panel", true);
   setHidden("call-popup", true);
-  setHidden("request-confirmation", true);
+  closeConfirmModal();
 }
 
 async function handleSosCall() {
@@ -816,6 +856,15 @@ async function handlePlateVerification(event) {
 // rest of the visit: the server issues a single grant and each action carries
 // it, so a scanner who calls and then messages is not asked twice.
 function requireVerification(action) {
+  // The call is already registered and its number is in hand, so there is
+  // nothing to verify and nothing to ask: put the receipt back up. This is what
+  // makes the receipt safe to dismiss — Escape, the blur and Back can all close
+  // it without stranding the scanner away from the number they need to dial.
+  if (action === "call" && activeVirtualNumber) {
+    openDialModal();
+    return;
+  }
+
   // Both calls need a number to ring back — the owner call and the emergency
   // call are the same masked mechanism pointed at different people. Emergency
   // used to collect its number on a panel of its own (#sos-number-panel), which
@@ -872,7 +921,10 @@ function runVerifiedAction(action) {
       setValue("contact-phone", verifyCapturedPhone);
       verifyCapturedPhone = "";
       setHidden("dial-number-block", true);
-      setHidden("dial-panel", false);
+      // The receipt is raised over the card rather than added to it. Appended,
+      // it pushed "Tap to Call" off an 844px screen — a scroll between a
+      // scanner and the call they came to make.
+      openDialModal();
       handleFinalCallAction();
       return;
     }
@@ -927,14 +979,14 @@ async function handleFinalCallAction() {
   const phone = byId("contact-phone")?.value.trim();
 
   if (!token || !phone) {
-    setRequestStatus("request-status", "Return to the landing page and enter your number.", "error");
+    setRequestStatus("dial-status", "Return to the landing page and enter your number.", "error");
     return;
   }
 
   actionLocked = true;
   setDisabled("final-call-button", true);
   setDisabled("send-whatsapp-button", true);
-  setRequestStatus("request-status", "Preparing your call…", "info");
+  setRequestStatus("dial-status", "Preparing your call…", "info");
 
   let virtualNumber = "";
   try {
@@ -958,12 +1010,13 @@ async function handleFinalCallAction() {
     actionLocked = false;
     setDisabled("final-call-button", false);
     setDisabled("send-whatsapp-button", false);
-    setRequestStatus("request-status", error instanceof Error ? error.message : "Could not start the call.", "error");
+    setRequestStatus("dial-status", error instanceof Error ? error.message : "Could not start the call.", "error");
     return;
   }
 
   // Show the virtual number visibly as a fallback in case tel: doesn't auto-open.
   if (virtualNumber) {
+    activeVirtualNumber = virtualNumber;
     setText("dial-virtual-number", virtualNumber);
     setHidden("dial-number-block", false);
     window.location.href = `tel:${virtualNumber}`;
@@ -977,14 +1030,14 @@ async function handleFinalCallAction() {
     btn.onclick = () => { window.location.href = `tel:${virtualNumber}`; };
   }
 
-  setRequestStatus("request-status", "Your phone dialer should open now.", "success");
+  setRequestStatus("dial-status", "Your phone dialer should open now.", "success");
 }
 
 function openWhatsAppPanel() {
   setHidden("call-popup", true);
   setHidden("message-panel", false);
   setHidden("message-editor-shell", true);
-  setHidden("dial-panel", true);
+  closeDialModal();
   setValue("message-template-select", "");
   setValue("message-text", DEFAULT_MESSAGE);
   setRequestStatus(
@@ -1119,7 +1172,7 @@ async function handleWhatsAppNotify() {
       reason: selectedReason || undefined
     });
 
-    setHidden("request-confirmation", false);
+    openConfirmModal();
     setText("confirmation-title", "Owner notified on WhatsApp");
     setText(
       "confirmation-copy",
@@ -1605,6 +1658,14 @@ byId("plate-verify-cancel")?.addEventListener("click", dismissVerifyModal);
 // Escape closes it, the way the <dialog>-based gates on this page already do —
 // the card should not be the one overlay that traps you.
 document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && isConfirmModalOpen()) {
+    closeConfirmModal();
+    return;
+  }
+  if (event.key === "Escape" && isDialModalOpen()) {
+    closeDialModal();
+    return;
+  }
   if (event.key === "Escape" && isReasonModalOpen()) {
     clearSelectedReason();
     closeReasonStep();
@@ -1655,6 +1716,20 @@ byId("quick-share")?.addEventListener("click", handleQuickShare);
 // Re-dial only. The first dial is fired by the verification card's submit; this
 // button exists for the browser that would not open the dialer by itself.
 byId("final-call-button")?.addEventListener("click", handleFinalCallAction);
+byId("dial-back")?.addEventListener("click", closeDialModal);
+byId("confirm-back")?.addEventListener("click", closeConfirmModal);
+byId("confirm-modal")?.addEventListener("click", (event) => {
+  const card = byId("confirm-card");
+  if (card && !card.contains(event.target)) {
+    closeConfirmModal();
+  }
+});
+byId("dial-modal")?.addEventListener("click", (event) => {
+  const card = byId("dial-card");
+  if (card && !card.contains(event.target)) {
+    closeDialModal();
+  }
+});
 
 // Emergency / SOS — the button opens the confirmation gate, and the gate is the
 // only thing that opens the verification card. The gate runs BEFORE the card,

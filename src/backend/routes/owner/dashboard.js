@@ -29,16 +29,22 @@ function shapeAddress(doc) {
 
 // How long after a scanner makes contact the owner may call them back.
 //
-// Was 60 minutes, and that is the whole of the bug this widens. A missed call
-// is usually noticed later than an hour — the owner opens the dashboard that
-// evening, sees "someone contacted you", and by then the only way to reach them
-// was to wait for the stranger to scan the sticker a second time.
+// Ten minutes, and deliberately much shorter than the 48 hours the activity
+// list shows. Those two spans answer different questions and should not be
+// confused:
 //
-// 48 hours matches the window the activity list already renders, so every row a
-// person can see is a row they can act on. It is a reach limit, not a licence:
-// the call is still masked end to end, still rate-limited, and still routed
-// through a pending_calls row that expires in ten minutes.
-const CALLBACK_WINDOW_MS = 48 * 60 * 60 * 1000;
+//   48 hours — how long the owner can SEE who contacted them, with times.
+//              A log. Nothing about it is actionable on its own.
+//   10 minutes — how long they can RETURN that contact.
+//
+// The person on the other end is a stranger who rang about a parked car and
+// then got on with their day. Ringing them back two days later is a call they
+// have no context for and did not agree to; ringing back within ten minutes is
+// the conversation they were trying to have. The short window is the courtesy,
+// not a limitation.
+//
+// Only the most recent contact is returnable — see the route below.
+const CALLBACK_WINDOW_MS = 10 * 60 * 1000;
 
 // Where a confirmation code for THIS owner may be sent.
 //
@@ -1082,20 +1088,32 @@ export function registerOwnerRoutes(app, env) {
     // -in owner would let anyone holding a session dial the scanner attached to
     // somebody else's tag by guessing an ObjectId.
     const { requestId } = request.body || {};
+
+    // Validate the shape before it is used, so a junk id is a 400 rather than
+    // being quietly ignored and answered as if it had matched.
+    let wanted = null;
+    if (requestId !== undefined && requestId !== null) {
+      wanted = tryObjectId(requestId);
+      if (!wanted) {
+        reply.code(400);
+        return { ok: false, error: "Invalid request id." };
+      }
+    }
+
+    // The MOST RECENT contact, and only that one.
+    //
+    // Not "any contact inside the window": returning an older one means ringing
+    // somebody who reported something, was answered or gave up, and has since
+    // moved on — while the person who just called is left waiting. If two
+    // people contacted the same vehicle, the live conversation is the newer.
+    //
+    // Resolved here rather than trusted from the body, so a stale page holding
+    // yesterday's row id cannot dial its way past this.
     const filter = {
       ownerId,
       phone: { $exists: true, $ne: null },
       createdAt: { $gte: windowStart }
     };
-
-    if (requestId !== undefined && requestId !== null) {
-      const asObjectId = tryObjectId(requestId);
-      if (!asObjectId) {
-        reply.code(400);
-        return { ok: false, error: "Invalid request id." };
-      }
-      filter._id = asObjectId;
-    }
 
     // Note what this filter does NOT do: refuse a call that was answered.
     //
@@ -1115,7 +1133,19 @@ export function registerOwnerRoutes(app, env) {
       return {
         ok: false,
         code: "CALLBACK_WINDOW_EXPIRED",
-        error: "This contact is too old to call back. Callbacks are available for 48 hours."
+        error: "The 10-minute callback window for this contact has passed."
+      };
+    }
+
+    // A named row that is not the newest one. The page should not be offering
+    // it, so this is either a tab left open while another call arrived, or a
+    // request built by hand. Same answer either way.
+    if (wanted && String(recentContact._id) !== String(wanted)) {
+      reply.code(410);
+      return {
+        ok: false,
+        code: "CALLBACK_NOT_LATEST",
+        error: "Only your most recent contact can be called back."
       };
     }
 

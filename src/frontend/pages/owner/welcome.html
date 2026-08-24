@@ -1003,6 +1003,10 @@
   .pt-cb-prompt { margin-bottom: 4px; }
   .pt-cb-prompt-hd { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
   .pt-cb-prompt-label { font-size: .78rem; font-weight: 800; color: #FF2700; letter-spacing: .01em; text-transform: uppercase; }
+  /* Pushed to the far end of the header row, and quieter than the label — it
+     is a deadline, not the headline. margin-left:auto rather than a spacer so
+     it collapses to nothing when the window has no time left to report. */
+  .pt-cb-prompt-left { margin-left: auto; font-size: .72rem; font-weight: 700; color: #9CA3AF; white-space: nowrap; }
   .pt-cb-pulse { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #FF2700; flex-shrink: 0;
     animation: cbPulse 1.4s ease-in-out infinite; }
   @keyframes cbPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(255,39,0,.5); } 50% { box-shadow: 0 0 0 6px rgba(255,39,0,0); } }

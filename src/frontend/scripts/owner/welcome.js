@@ -515,6 +515,19 @@ function formatExactTime(iso) {
   return `${d.toLocaleDateString(undefined, { day: "numeric", month: "short" })} ${time}`;
 }
 
+// How much of the callback window is left, phrased for a glance.
+//
+// Rounded UP, so a window with forty seconds in it reads "1 min left" rather
+// than "0 min left" while the button is still there and still works. Under a
+// minute it stops counting and says so.
+function callbackTimeLeft(target, now) {
+  if (!target) return "";
+  const msLeft = _callbackWindowMs - (now - new Date(target.createdAt).getTime());
+  if (msLeft <= 0) return "";
+  if (msLeft < 60000) return "less than a minute left";
+  return `${Math.ceil(msLeft / 60000)} min left`;
+}
+
 // How long the two of them actually spoke, read as a person would say it.
 //
 // Returns "" for a call with no talk time, so the caller renders nothing rather
@@ -566,34 +579,39 @@ function renderActivity(requests) {
     (now - new Date(r.createdAt).getTime()) <= TWO_DAYS
   );
 
-  // Can this contact still be returned?
+  // Is this contact returnable at all?
   //
-  // Everything except a conversation that already happened. `callOutcome` is
-  // the normalised verdict from lib/core/call-outcome.js — "answered" only when
-  // the two of them demonstrably spoke.
+  // Two separate spans, and keeping them apart is the point. The list shows 48
+  // hours of history; a callback lasts ten minutes. Seeing who called is not
+  // the same permission as ringing them back.
   //
-  // The test is "NOT answered", never "is missed", and the difference is the
-  // whole design. Exotel's status callback has never been configured, so
-  // callOutcome is null on every call in the database today; gating on
-  // `=== "missed"` would hide the button from all of them and quietly retire
-  // the feature. Unknown means keep offering it — we did not measure the call,
-  // which is no reason to withhold the only route back to the person.
+  // "NOT answered", never "is missed". Exotel's status callback has never been
+  // configured, so callOutcome is null on every call in the database; gating on
+  // `=== "missed"` would hide the button from all of them. Unknown means keep
+  // offering it.
   //
-  // Keyed on having a number, NOT on the contact being a call. A scanner who
-  // sends a WhatsApp alert may now leave a callback number too, and those rows
-  // are the ones with nothing else to act on. Rows with no number (anyone who
-  // stayed anonymous) get no button: there is nobody to dial.
-  const canCallBack = (r) =>
+  // Keyed on having a number, not on the contact being a call — a WhatsApp
+  // report that left a callback number is returnable too. Anonymous rows get
+  // nothing, because there is nobody to dial.
+  const isReturnable = (r) =>
     Boolean(r.phone) &&
     r.callOutcome !== "answered" &&
     (now - new Date(r.createdAt).getTime()) <= _callbackWindowMs;
 
-  // The banner keeps its tighter definition of urgent — something that happened
-  // in the last hour and wants attention now. The per-row buttons below are what
-  // give the other 47 hours somewhere to go.
-  const eligible = recent.find(r =>
-    r.action === "call" && (now - new Date(r.createdAt).getTime()) <= WIN_MS
-  );
+  // Exactly one row may be called back: the newest returnable one.
+  //
+  // `recent` is already sorted newest-first by the server, so the first hit is
+  // the live conversation. Offering the others would ring people who reported
+  // something earlier and have since moved on, while the person still waiting
+  // gets no priority at all.
+  const callbackTarget = recent.find(isReturnable) || null;
+  const canCallBack = (r) => callbackTarget !== null && r.id === callbackTarget.id;
+
+  // The banner and the row now point at the same contact. They used to disagree
+  // — the banner had its own 60-minute idea of "urgent" while the rows had
+  // another — so the page could show a prompt to call somebody back above a
+  // list where that row had no button.
+  const eligible = callbackTarget;
 
   // Count how many are within the window (actionable)
   const hotCount = recent.filter(r =>
@@ -622,6 +640,10 @@ function renderActivity(requests) {
   <div class="pt-cb-prompt-hd">
     <span class="pt-cb-pulse"></span>
     <span class="pt-cb-prompt-label">Someone wants you to call back</span>
+    <!-- The window is ten minutes and the button removes itself when it ends.
+         Saying how long is left turns that from something that vanished into
+         something that expired. -->
+    <span class="pt-cb-prompt-left">${esc(callbackTimeLeft(eligible, now))}</span>
   </div>
   <div class="pt-act-card urgent" style="margin:0;border-radius:14px">
     <div class="pt-act-ic" style="background:#FFE3DD;color:#FF2700">
@@ -731,6 +753,36 @@ function renderActivity(requests) {
   }).join("");
 
   container.innerHTML = cards;
+
+  scheduleCallbackExpiry(callbackTarget, now);
+}
+
+// Take the button away the moment the ten minutes are up.
+//
+// Nothing here reloads on its own, so a dashboard left open kept offering a
+// callback long after the server would honour it — the owner taps, waits, and
+// gets an error for something the page told them they could do. A window that
+// closes silently is worse than a short one.
+//
+// Re-renders from the same data rather than refetching: the only thing that
+// changed is the clock, and isReturnable is evaluated against `now` each pass.
+let _callbackExpiryTimer = null;
+function scheduleCallbackExpiry(target, now) {
+  if (_callbackExpiryTimer) {
+    clearTimeout(_callbackExpiryTimer);
+    _callbackExpiryTimer = null;
+  }
+  if (!target) return;
+
+  const msLeft = _callbackWindowMs - (now - new Date(target.createdAt).getTime());
+  if (msLeft <= 0) return;
+
+  // A second past the boundary, so the re-render lands on the far side of it
+  // rather than racing the comparison it is about to make.
+  _callbackExpiryTimer = setTimeout(() => {
+    _callbackExpiryTimer = null;
+    renderActivity(allRequests);
+  }, msLeft + 1000);
 }
 
 // Will `tel:` actually reach a dialer here?
@@ -896,8 +948,14 @@ async function callBack(btnId = "cbBtn") {
       _toast("Add your mobile number to your profile to enable callback.", "err");
       if (btn) { btn.disabled = false; btn.textContent = label; }
     } else if (data.code === "CALLBACK_WINDOW_EXPIRED") {
-      _toast("This contact is too old to call back. Callbacks last 48 hours.", "err");
+      _toast("The 10-minute callback window has passed.", "err");
       renderActivity(allRequests); // re-render to remove the button
+    } else if (data.code === "CALLBACK_NOT_LATEST") {
+      // Another contact arrived while this page sat open, so the row that was
+      // offered is no longer the newest. Re-rendering moves the button to the
+      // one the server will actually honour.
+      _toast("Someone else has contacted you since. Showing the latest.", "err");
+      renderActivity(allRequests);
     } else {
       _toast(data.error || "Couldn't initiate callback. Try again.", "err");
       if (btn) { btn.disabled = false; btn.textContent = label; }

@@ -537,6 +537,49 @@ export async function deleteUsage(collections, ownerId) {
   await collections.vaultUsage.deleteOne({ _id: usageKey(ownerId) }).catch(() => {});
 }
 
+// Move a vehicle's documents onto a different tag.
+//
+// NOT every tag that goes away is a vehicle going away, and telling the two
+// apart is the whole point of this function. When an owner buys a premium tag
+// to replace a free-trial one (M18), the OLD tag is soft-deleted and a NEW tag
+// is minted for the SAME car. Purging there would be exactly wrong: the owner
+// still has the vehicle, still has the paperwork, and has just paid for the
+// upgrade.
+//
+// Before this existed the documents stayed pinned to the dead tag, which
+// ownedTag() refuses — so an owner's RC became unreachable at the moment they
+// bought something. Silent data loss, triggered by a purchase.
+//
+// The owner's byte total does not change: the same owner holds the same
+// documents. Only the per-vehicle counts move.
+export async function reassignVaultDocuments(collections, ownerId, fromTagId, toTagId) {
+  const from = String(fromTagId || "");
+  const to = String(toTagId || "");
+  if (!from || !to || from === to) return { moved: 0 };
+
+  const result = await collections.vaultDocuments.updateMany(
+    { ownerId, tagId: from },
+    { $set: { tagId: to } }
+  );
+
+  const moved = result.modifiedCount || 0;
+  if (!moved) return { moved: 0 };
+
+  await collections.vaultUsage
+    .updateOne(
+      { _id: usageKey(ownerId) },
+      { $inc: { [tagCountField(from)]: -moved, [tagCountField(to)]: moved } }
+    )
+    .catch(() => {
+      // The documents have moved and are reachable, which is the part that
+      // matters. A stale count reads high against the OLD tag, which no longer
+      // exists — so it can only ever cost an upload slot on a vehicle the owner
+      // can no longer reach anyway.
+    });
+
+  return { moved };
+}
+
 // Opaque per-document id used in URLs. The GridFS _id is never exposed: it is
 // the storage key, and keeping it server-side means a leaked URL cannot be
 // turned into a direct bucket reference.

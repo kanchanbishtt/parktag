@@ -3,7 +3,8 @@ import { ObjectId } from "mongodb";
 import { requireSession } from "../../lib/auth/auth.js";
 import { revokeSessionsForUser } from "../../lib/auth/session.js";
 import { isNonEmptyString } from "../../lib/auth/security.js";
-import { getCollections } from "../../lib/db/repositories.js";
+import { getCollections, getVaultBucket } from "../../lib/db/repositories.js";
+import { deleteUsage, purgeVaultDocuments } from "../../lib/core/vault.js";
 import { batchKeyFor, etagIdFor, stickerSerialFor } from "../../lib/core/tag-issuance.js";
 import {
   MARKETING_AVAILABLE_STATUS,
@@ -353,6 +354,27 @@ export function registerAdminMarketingRoutes(app, env) {
 
     let removedAccount = false;
     if (demoOwnerIsDisposable(owner, remainingTagCount)) {
+      // Anything the customer put in the vault during the demo goes with the
+      // account. The sticker itself is recycled to the next customer, so
+      // leaving documents behind would retain a stranger's identity papers
+      // indefinitely, attached to a tag that now belongs to somebody else.
+      // (They would not be readable by that next customer — every vault query
+      // is scoped by ownerId — but they would still be stored, and stored is
+      // what matters for paperwork nobody can reach or delete.)
+      const purged = await purgeVaultDocuments(
+        collections,
+        await getVaultBucket(env),
+        { ownerId: demoOwnerId }
+      );
+      if (purged.orphanedBlobs) {
+        request.log.error(
+          { event: "vault-purge-orphans", orphanedBlobs: purged.orphanedBlobs },
+          "[vault] demo account wiped but some document blobs could not be removed — sweep required"
+        );
+      }
+      await collections.vaultGrants.deleteMany({ ownerId: String(demoOwnerId) }).catch(() => {});
+      await deleteUsage(collections, demoOwnerId);
+
       await collections.owners.deleteOne({ _id: demoOwnerId, demoCreatedOwner: true });
       removedAccount = true;
 

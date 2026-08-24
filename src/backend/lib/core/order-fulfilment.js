@@ -20,6 +20,7 @@
 // other cannot mint two tags or book two shipments.
 import { toObjectId } from "../auth/auth.js";
 import { createPremiumTagForVehicle } from "./tag-issuance.js";
+import { reassignVaultDocuments } from "./vault.js";
 import { createShipment, isDelhiveryConfigured, trackingUrl } from "../integrations/delhivery.js";
 import { sendOrderConfirmationEmail } from "../integrations/email.js";
 import { isMetaWhatsappConfigured, sendMetaWhatsappOrderUpdate } from "../integrations/meta.js";
@@ -100,6 +101,13 @@ export async function fulfilPaidOrder(env, collections, { order, paymentId, log 
       );
       newTagId = String(premiumTag._id);
       replaced = true;
+
+      // Carry the vehicle's documents across to the tag that replaces it. This
+      // is the SAME car — the owner has upgraded its sticker, not sold it — but
+      // the vault files documents against a tag id, and the vault refuses a
+      // soft-deleted tag. Without this the owner's RC, insurance and licence
+      // became unreachable the moment the upgrade was paid for.
+      await reassignVaultDocuments(collections, ownerId, oldTag._id, premiumTag._id);
       await collections.shopOrders.updateOne(
         { orderId: order.orderId },
         { $set: { mintedTagId: newTagId } }

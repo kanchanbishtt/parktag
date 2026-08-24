@@ -230,6 +230,34 @@ test("a scanner who stayed anonymous cannot be dialled", async () => {
   assert.equal(await collections.pendingCalls.countDocuments({}), 0);
 });
 
+test("the number reaches the screen, not just the dialer", async () => {
+  // The desktop half of this feature. `tel:` does nothing in most desktop
+  // browsers, so a success that ONLY navigated there left the button reading
+  // "Opening dialer…" while the number it wanted dialled was never shown --
+  // and the route had already registered a route that expired ten minutes
+  // later, unused and unexplained.
+  const page = await app.inject({
+    method: "GET",
+    url: "/owner-welcome",
+    headers: { cookie: `wavetag_session=${cookie}` }
+  });
+  assert.equal(page.statusCode, 200);
+  for (const id of ["ptCallBackdrop", "ptCallSheet", "ptCallBody"]) {
+    assert.match(page.body, new RegExp(`id="${id}"`), `${id} must ship in the page`);
+  }
+
+  const js = await app.inject({ method: "GET", url: "/scripts/owner/welcome.js" });
+  assert.match(js.body, /function openCallSheet/, "the sheet opener must ship");
+  assert.match(js.body, /window\.closeCallSheet/, "close must be reachable from its inline onclick");
+  assert.match(js.body, /window\.copyCallNumber/, "copy must be reachable from its inline onclick");
+  assert.match(js.body, /openCallSheet\(data\.virtualNumber\)/,
+    "a successful callback must put the number on screen");
+  assert.match(js.body, /if \(deviceCanDial\(\)\)/,
+    "tel: must be gated on the device actually having a dialer");
+  assert.doesNotMatch(js.body, /textContent = "Opening dialer…"/,
+    "the button must not be parked on a state that never resolves without a dialer");
+});
+
 test("the dashboard publishes the window it enforces", async () => {
   const response = await app.inject({
     method: "GET",

@@ -1324,6 +1324,18 @@
   <div class="pt-sheet-body" id="ptTrackBody"></div>
 </div>
 
+<!-- ── Callback sheet ─────────────────────────
+     Shown after a callback is registered. On a phone the dialer opens on its
+     own and this is what is waiting behind it if they need to redial. On a
+     desktop nothing opens — `tel:` does nothing in most browsers — and without
+     this the button sat reading "Opening dialer…" while the number it wanted
+     dialled was never put on screen. -->
+<div class="pt-backdrop" id="ptCallBackdrop" onclick="closeCallSheet()"></div>
+<div class="pt-sheet" id="ptCallSheet">
+  <div class="pt-sheet-handle"></div>
+  <div class="pt-sheet-body" id="ptCallBody"></div>
+</div>
+
 <!-- ── Choose-your-pack sheet (shown after Buy Now for car tags) ── -->
 <div class="pt-backdrop" id="ptPackBackdrop" onclick="closePackSheet()"></div>
 <div class="pt-sheet" id="ptPackSheet">

@@ -705,6 +705,137 @@ function renderActivity(requests) {
   container.innerHTML = cards;
 }
 
+// Will `tel:` actually reach a dialer here?
+//
+// Capability, not user-agent. A coarse pointer with no hover is a touchscreen,
+// which in practice is a device that can place a call; a mouse-driven browser
+// generally cannot, and navigating it to `tel:` either does nothing or raises
+// an "open with…" prompt for an app the person does not have.
+//
+// Wrong either way is survivable, which is why it is safe to guess: the sheet
+// carries the number regardless, so a touch laptop that guesses wrong shows a
+// number nobody needed, and a phone that guesses wrong shows a number the
+// owner can simply tap.
+function deviceCanDial() {
+  try {
+    return window.matchMedia("(hover: none) and (pointer: coarse)").matches;
+  } catch {
+    return false;
+  }
+}
+
+// The number, big enough to read off a screen and copy from.
+//
+// It is the SAME virtual number every time, not a per-call one — what makes
+// this call reach the scanner is the pending_calls row the route just wrote,
+// keyed to the owner's own mobile. So it must be dialled from the phone that
+// number belongs to, and within ten minutes, and the sheet says both. Someone
+// who dials it from a different handset gets nowhere, which is not obvious
+// unless we tell them.
+function openCallSheet(virtualNumber) {
+  const bd = document.getElementById("ptCallBackdrop");
+  const sh = document.getElementById("ptCallSheet");
+  const body = document.getElementById("ptCallBody");
+  if (!bd || !sh || !body) return;
+
+  const pretty = String(virtualNumber);
+  const fromNumber = _ownerMobile ? String(_ownerMobile) : null;
+
+  body.innerHTML = `
+<div style="text-align:center;padding:4px 0 8px">
+  <div style="width:46px;height:46px;border-radius:14px;background:#FFE3DD;color:#FF2700;
+              display:flex;align-items:center;justify-content:center;margin:0 auto 12px">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.62 3.38 2 2 0 0 1 3.6 1.17h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.86a16 16 0 0 0 6 6l.91-.91a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" stroke="currentColor" stroke-width="1.8"/></svg>
+  </div>
+  <p style="font-weight:800;font-size:1.02rem;color:#111;margin:0 0 4px">Call this number to connect</p>
+  <p class="pt-snote" style="margin:0 0 16px">
+    We'll join you to the person who contacted you. Neither of you sees the other's number.
+  </p>
+
+  <a href="tel:${esc(pretty)}" id="cbSheetDial"
+     style="display:block;font-size:1.5rem;font-weight:800;letter-spacing:0.04em;color:#111;
+            text-decoration:none;background:#F7F8FA;border:1px solid #E5E7EB;border-radius:14px;
+            padding:14px 12px;margin-bottom:10px">${esc(pretty)}</a>
+
+  <!-- Number passed by data attribute, not interpolated into the onclick.
+       esc() renders a quote as &#39;, which the HTML parser decodes back to a
+       real quote before JS sees it — inside an inline handler that closes the
+       string early. An attribute value decodes safely. -->
+  <button type="button" id="cbCopyBtn" data-number="${esc(pretty)}" onclick="copyCallNumber()"
+          style="width:100%;background:#111;color:#fff;border:none;border-radius:12px;
+                 padding:13px;font-weight:700;font-size:.9rem;cursor:pointer;font-family:inherit">
+    Copy number
+  </button>
+
+  <div style="text-align:left;background:#FFF9F8;border:1px solid #FFE3DD;border-radius:12px;
+              padding:12px 14px;margin-top:14px">
+    <p style="margin:0 0 6px;font-size:.78rem;font-weight:700;color:#B91C1C">Two things to know</p>
+    <p style="margin:0 0 4px;font-size:.78rem;line-height:1.5;color:#6B7280">
+      Call from ${fromNumber ? `<strong style="color:#374151">${esc(fromNumber)}</strong>` : "the mobile number on your ParkTag account"} — we match the call to you by the number you dial from.
+    </p>
+    <p style="margin:0;font-size:.78rem;line-height:1.5;color:#6B7280">
+      This connection stays open for <strong style="color:#374151">10 minutes</strong>. After that, tap Call Back again.
+    </p>
+  </div>
+
+  <button type="button" onclick="closeCallSheet()"
+          style="width:100%;background:none;border:none;color:#6B7280;font-weight:600;
+                 font-size:.85rem;padding:14px 0 4px;cursor:pointer;font-family:inherit">Done</button>
+</div>`;
+
+  bd.classList.add("open");
+  sh.classList.add("open");
+  document.body.style.overflow = "hidden";
+}
+
+function closeCallSheet() {
+  const bd = document.getElementById("ptCallBackdrop");
+  const sh = document.getElementById("ptCallSheet");
+  if (bd) bd.classList.remove("open");
+  if (sh) sh.classList.remove("open");
+  document.body.style.overflow = "";
+}
+window.closeCallSheet = closeCallSheet;
+
+// Clipboard, with a fallback. navigator.clipboard is undefined on a page served
+// over plain http and can reject when the document is not focused, and this
+// button existing at all is the desktop half of the fix — so it must not be the
+// thing that fails silently.
+async function copyCallNumber() {
+  const btn = document.getElementById("cbCopyBtn");
+  const number = btn?.dataset?.number || "";
+  if (!number) return;
+  const done = () => {
+    if (btn) {
+      btn.textContent = "Copied";
+      setTimeout(() => { if (btn) btn.textContent = "Copy number"; }, 1800);
+    }
+  };
+
+  try {
+    await navigator.clipboard.writeText(number);
+    done();
+    return;
+  } catch { /* fall through */ }
+
+  try {
+    const scratch = document.createElement("textarea");
+    scratch.value = number;
+    scratch.setAttribute("readonly", "");
+    scratch.style.position = "fixed";
+    scratch.style.opacity = "0";
+    document.body.appendChild(scratch);
+    scratch.select();
+    document.execCommand("copy");
+    document.body.removeChild(scratch);
+    done();
+  } catch {
+    // Nothing copied and nothing pretended — the number is on screen to read.
+    _toast("Couldn't copy. The number is shown above.", "err");
+  }
+}
+window.copyCallNumber = copyCallNumber;
+
 async function callBack(btnId = "cbBtn") {
   const btn = document.getElementById(btnId);
   const label = btn?.textContent || "Call Back";
@@ -721,8 +852,18 @@ async function callBack(btnId = "cbBtn") {
     });
     const data = await res.json();
     if (data.ok && data.virtualNumber) {
-      if (btn) { btn.textContent = "Opening dialer…"; btn.classList.add("ok"); }
-      setTimeout(() => { window.location.href = `tel:${data.virtualNumber}`; }, 120);
+      // Put the number on screen FIRST, then try the dialer.
+      //
+      // The old order was dialer-only: on a phone that is invisible and fine,
+      // but `tel:` does nothing in most desktop browsers, so the button sat
+      // reading "Opening dialer…" forever and the number it wanted dialled was
+      // never shown. The route had already registered the call and it expired
+      // ten minutes later, unused and unexplained.
+      openCallSheet(data.virtualNumber);
+      if (btn) { btn.disabled = false; btn.textContent = label; btn.classList.remove("ok"); }
+      if (deviceCanDial()) {
+        setTimeout(() => { window.location.href = `tel:${data.virtualNumber}`; }, 120);
+      }
     } else if (data.code === "NO_PHONE") {
       _toast("Add your mobile number to your profile to enable callback.", "err");
       if (btn) { btn.disabled = false; btn.textContent = label; }

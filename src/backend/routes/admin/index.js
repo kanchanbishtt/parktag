@@ -2,7 +2,8 @@ import { ObjectId } from "mongodb";
 
 import { requireSession } from "../../lib/auth/auth.js";
 import { isNonEmptyString } from "../../lib/auth/security.js";
-import { getCollections } from "../../lib/db/repositories.js";
+import { getCollections, getVaultBucket } from "../../lib/db/repositories.js";
+import { purgeVaultDocuments } from "../../lib/core/vault.js";
 import { findByCanonicalEmail, canonicalEmail } from "../../lib/auth/identity.js";
 import {
   buildIssuedTagOutput,
@@ -381,6 +382,24 @@ export function registerAdminRoutes(app, env) {
       { $set: { deletedAt: new Date().toISOString(), status: "inactive", updatedAt: new Date().toISOString() } }
     );
     if (!result.matchedCount) { reply.code(404); return { ok: false, error: "E-Tag not found" }; }
+
+    // The vehicle's documents go with it, exactly as when the owner deletes it
+    // themselves. A soft-deleted tag is refused by the vault's ownedTag(), so
+    // anything left here is unreachable to the owner AND undeletable by them,
+    // while still holding their storage — and these are identity documents, so
+    // "unreachable" is not the same as "gone".
+    const purged = await purgeVaultDocuments(
+      collections,
+      await getVaultBucket(env),
+      { tagId: String(tagId) }
+    );
+    if (purged.orphanedBlobs) {
+      request.log.error(
+        { event: "vault-purge-orphans", tagId: String(tagId), orphanedBlobs: purged.orphanedBlobs },
+        "[vault] admin deleted an E-Tag but some document blobs could not be removed — sweep required"
+      );
+    }
+
     return { ok: true };
   });
 

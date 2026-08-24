@@ -9,6 +9,7 @@ import { getCollections } from "../../lib/db/repositories.js";
 import { requireSession, toObjectId, tryObjectId } from "../../lib/auth/auth.js";
 import { addressToNotes } from "../../lib/core/address.js";
 import { createPremiumTagForVehicle } from "../../lib/core/tag-issuance.js";
+import { reassignVaultDocuments } from "../../lib/core/vault.js";
 import { createShipment, isDelhiveryConfigured, updateShipmentToPrepaid, trackingUrl } from "../../lib/integrations/delhivery.js";
 import { getOrderTracking } from "../../lib/core/order-tracking.js";
 import { safeEqual } from "../../lib/auth/security.js";
@@ -227,6 +228,13 @@ async function mintReplacementIfNeeded(collections, ownerId, order) {
     { _id: oldTag._id },
     { $set: { deletedAt: now, status: "inactive", updatedAt: now } }
   );
+
+  // Same car, new sticker — so the vehicle's documents move with it. The vault
+  // keys documents by tag id and refuses a soft-deleted tag, so leaving them
+  // behind made the owner's paperwork unreachable as soon as they upgraded.
+  // Mirrors the online path in lib/core/order-fulfilment.js.
+  await reassignVaultDocuments(collections, ownerId, oldTag._id, premiumTag._id);
+
   return { replaced: true, newTagId: String(premiumTag._id) };
 }
 

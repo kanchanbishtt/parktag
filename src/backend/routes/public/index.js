@@ -970,7 +970,11 @@ export function registerPublicRoutes(app, env) {
       };
     }
 
-    const { token, action, messageChannel, reason, grant } = request.body || {};
+    // `phone` is the optional callback number — see where it is validated
+    // below. Read out under a raw name so it is obvious at the call site that
+    // nothing has checked it yet.
+    const { token, action, messageChannel, reason, grant, phone: rawPhone } =
+      request.body || {};
 
     // `token` and `grant` are used as raw Mongo filter values below
     // (`findOne({ token, grantId: grant, ... })` / `findOne({ token })`).
@@ -1079,13 +1083,34 @@ export function registerPublicRoutes(app, env) {
     }
 
     try {
-      // No caller number is taken or stored here. The alert travels one way to
-      // the owner over WhatsApp, so the scanner's number is not needed to
-      // deliver it, and a number this endpoint cannot use is a number it has no
-      // business holding.
+      // A callback number, if the scanner chose to leave one.
+      //
+      // This endpoint used to store none, on the reasoning that a one-way alert
+      // does not need the sender's number and "a number this endpoint cannot
+      // use is a number it has no business holding". The first half still
+      // holds — delivery does not need it. The second no longer does: the owner
+      // can now return contact from their dashboard, and with nothing stored
+      // they were told someone had contacted them and given no way to answer.
+      //
+      // Optional, so the anonymous report stays exactly as it was. Never
+      // revealed: the owner's dashboard shows the last four digits and the call
+      // is bridged by Exotel, the same masking every other ParkTag call uses.
+      //
+      // Validated and normalised HERE rather than trusted from the page,
+      // because this value is later dialled — the browser check is a courtesy
+      // to the person typing, not a control.
+      let callbackPhone = null;
+      if (rawPhone !== undefined && rawPhone !== null && String(rawPhone).trim() !== "") {
+        if (!isMobileIdentifier(rawPhone)) {
+          reply.code(400);
+          return { ok: false, error: "Enter a valid mobile number, or leave it blank." };
+        }
+        callbackPhone = normalizeIdentifier(rawPhone);
+      }
+
       return await createContactAction(env, {
         token,
-        phone: null,
+        phone: callbackPhone,
         action: "message",
         messageChannel: messageChannel || "whatsapp",
         reason: reason || null,

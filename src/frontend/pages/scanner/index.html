@@ -301,6 +301,32 @@
               </button>
             </div>
 
+            <!-- Optional callback number.
+                 A WhatsApp alert reaches the owner but leaves them nowhere to
+                 reply: they see "someone contacted you" and cannot answer it.
+                 Giving a number here is what makes a call back possible.
+
+                 Optional on purpose. Reporting that a stranger's lights are on
+                 is a favour, and demanding a phone number to do it would stop
+                 some people bothering at all. Left blank, the alert still sends
+                 exactly as before.
+
+                 Never shown to the owner. It is dialled the same masked way as
+                 every other ParkTag call — the owner's dashboard shows the last
+                 four digits and the call is bridged by Exotel. -->
+            <div class="pt-reason-callback" id="reason-callback">
+              <label class="pt-reason-cb-label" for="reason-callback-phone">
+                Your number, so the owner can call you back
+                <span class="pt-reason-cb-opt">optional</span>
+              </label>
+              <input id="reason-callback-phone" class="pt-input pt-reason-cb-input"
+                     type="tel" inputmode="tel" autocomplete="tel" maxlength="14"
+                     placeholder="10-digit mobile number" />
+              <p class="pt-reason-cb-note" id="reason-callback-note">
+                Your number stays hidden. The owner can only reach you through ParkTag.
+              </p>
+            </div>
+
             <button class="pt-cancel-action" id="reason-cancel" type="button">Cancel</button>
           </article>
         </div>

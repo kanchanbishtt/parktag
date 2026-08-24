@@ -559,8 +559,14 @@ function renderActivity(requests) {
   // callResult and callDuration are empty on all of them. Gating on a field
   // that is always null would hide the button from everyone. Once the callback
   // is wired and outcomes arrive, this is where the `&& wasMissed(r)` goes.
+  //
+  // Keyed on having a number, NOT on the contact being a call. A scanner who
+  // sends a WhatsApp alert may now leave a callback number too, and those rows
+  // are the ones with nothing else to act on — the owner is told somebody
+  // contacted them and, without this, has no way to answer. Rows with no number
+  // (anyone who stayed anonymous) get no button, which is correct: there is
+  // nobody to dial.
   const canCallBack = (r) =>
-    r.action === "call" &&
     Boolean(r.phone) &&
     (now - new Date(r.createdAt).getTime()) <= _callbackWindowMs;
 

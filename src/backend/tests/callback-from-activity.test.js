@@ -187,6 +187,49 @@ test("an id-less call still resolves the most recent contact", async (t) => {
   assert.equal(routed.targetPhone, SCANNER_B);
 });
 
+test("a WhatsApp report that left a number is callable too", async (t) => {
+  if (!env.exotelCallerId) {
+    t.skip("EXOTEL_CALLER_ID not configured in this environment");
+    return;
+  }
+
+  // The case that prompted this: the owner is told somebody contacted them and
+  // has nothing to act on. A message row carrying a number is exactly the row
+  // that most needs a way back.
+  const contact = await seedContact(owner._id, {
+    phone: SCANNER_B,
+    createdAt: hoursAgo(20),
+    action: "message"
+  });
+
+  const response = await callBack({ requestId: String(contact._id) });
+  assert.equal(response.statusCode, 200, "a message contact with a number must be callable");
+
+  const routed = await collections.pendingCalls.findOne({ requestId: contact._id });
+  assert.ok(routed, "it should register a masked route like any other callback");
+  assert.equal(routed.targetPhone, SCANNER_B);
+});
+
+test("a scanner who stayed anonymous cannot be dialled", async () => {
+  // No number was left, so there is nobody to call. The route must refuse
+  // rather than resolve some other contact and quietly ring the wrong person.
+  const anonymous = {
+    _id: new ObjectId(),
+    tagId: new ObjectId(),
+    token: "cb-tok",
+    ownerId: owner._id,
+    phone: null,
+    action: "message",
+    status: "read",
+    createdAt: hoursAgo(2)
+  };
+  await collections.contactRequests.insertOne(anonymous);
+
+  const response = await callBack({ requestId: String(anonymous._id) });
+  assert.equal(response.statusCode, 410, "no number means no callback");
+  assert.equal(await collections.pendingCalls.countDocuments({}), 0);
+});
+
 test("the dashboard publishes the window it enforces", async () => {
   const response = await app.inject({
     method: "GET",

@@ -1145,9 +1145,43 @@ function hasContactReason() {
   return false;
 }
 
+// Read the optional callback number off the reason step.
+//
+// Returns "" for blank, which is the normal case and sends nothing. Returns
+// null when something was typed that cannot be dialled, so the caller can stop
+// and say so rather than quietly discarding it — a number entered and then
+// silently dropped is worse than never asking, because the scanner leaves
+// believing the owner can reach them.
+function callbackNumberFromReasonStep() {
+  const input = byId("reason-callback-phone");
+  if (!input) return "";
+
+  const raw = input.value.trim();
+  if (!raw) return "";
+
+  const digits = raw.replace(/\D/g, "");
+  const last10 = digits.replace(/^91/, "");
+  if (!/^[6-9]\d{9}$/.test(last10)) return null;
+
+  return `+91${last10}`;
+}
+
+function setCallbackNoteError(message) {
+  const note = byId("reason-callback-note");
+  if (!note) return;
+  if (message) {
+    note.textContent = message;
+    note.dataset.tone = "error";
+  } else {
+    note.textContent = "Your number stays hidden. The owner can only reach you through ParkTag.";
+    delete note.dataset.tone;
+  }
+}
+
 // WhatsApp = notify the owner with a SERVER-BUILT message (spec §6). The scanner
-// never authors the message and never needs to share their own number — the
-// alert goes one-way to the owner. We only pass the reason key.
+// never authors the message. They may now leave a number so the owner can call
+// them back; it is optional, and it is never shown to the owner — the callback
+// is bridged by Exotel exactly like every other ParkTag call.
 async function handleWhatsAppNotify() {
   if (actionLocked) {
     return;
@@ -1157,6 +1191,13 @@ async function handleWhatsAppNotify() {
     return;
   }
 
+  if (callbackNumberFromReasonStep() === null) {
+    setCallbackNoteError("Enter a valid 10-digit mobile number, or clear it to stay anonymous.");
+    byId("reason-callback-phone")?.focus();
+    return;
+  }
+  setCallbackNoteError("");
+
   const token = byId("request-token")?.value.trim() || getTokenFromUrl();
 
   setRequestStatus("request-status", "Notifying the owner on WhatsApp…", "info");
@@ -1164,19 +1205,34 @@ async function handleWhatsAppNotify() {
   setDisabled("call-owner-button", true);
   setDisabled("send-whatsapp-button", true);
 
+  // Read once: the modal is closed further down, and re-reading the input
+  // afterwards would report an empty field and pick the wrong wording.
+  const sharedCallbackNumber = callbackNumberFromReasonStep() || "";
+
   try {
     await createRequest({
       token,
       action: "message",
       messageChannel: "whatsapp",
-      reason: selectedReason || undefined
+      reason: selectedReason || undefined,
+      // Optional. Undefined when left blank, so the request body is byte-for-
+      // byte what it has always been for a scanner who does not want to share
+      // a number.
+      phone: sharedCallbackNumber || undefined
     });
 
     openConfirmModal();
     setText("confirmation-title", "Owner notified on WhatsApp");
+    // Two different promises, and the wrong one is a lie. Someone who left a
+    // number has NOT stayed completely private — they have agreed to be called
+    // back — and telling them otherwise would be the one thing this feature
+    // must not do. The number is still never revealed, which is what the second
+    // wording says instead.
     setText(
       "confirmation-copy",
-      "We've sent a WhatsApp alert to the vehicle owner. Your details stay completely private."
+      sharedCallbackNumber
+        ? "We've sent a WhatsApp alert to the vehicle owner. They can call you back through ParkTag — your number stays hidden from them."
+        : "We've sent a WhatsApp alert to the vehicle owner. Your details stay completely private."
     );
     setRequestStatus("request-status", "WhatsApp alert sent to the owner.", "success");
 

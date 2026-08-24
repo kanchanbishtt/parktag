@@ -208,8 +208,89 @@ export async function sendOtp(env, identifier, { purpose = OTP_PURPOSE_AUTH } = 
 //                already can and link the number from Settings, which is what
 //                the OTP-gated POST /api/owner/mobile is for.
 //   • null     — nobody owns this number yet; the caller creates a new owner.
+// Every spelling a number may have been stored under. Legacy `phone` values
+// were never normalised, so a lookup that only tries the canonical +91 form
+// misses the rows most likely to be duplicates.
+export function storedPhoneVariants(normalizedMobile) {
+  const digits = String(normalizedMobile).replace(/\D/g, "");
+  const last10 = digits.slice(-10);
+  return [normalizedMobile, digits, last10, `+${digits}`].filter(Boolean);
+}
+
+// Is this number already attached to an account?
+//
+// The one guard both account-CREATING routes share. /api/register-owner and
+// /api/tags/:token/claim each checked that the e-mail was free and said nothing
+// about the number, so registering a second time with a new address minted
+// another account holding the same mobile. Two rows, one number, and a sign-in
+// lookup that is `findOne` with no sort — so which account the person landed on
+// came down to row order. That is not a hypothetical: it is what put a real
+// customer on an empty dashboard while their tag sat on the other record.
+//
+// Matches `mobile` OR any legacy `phone` spelling, because a duplicate is a
+// duplicate whichever field it landed in.
+//
+// Deliberately NOT anti-enumeration-shy. Every caller runs this AFTER an OTP
+// has proved control of the number, so the person already knows whether it is
+// theirs — telling them an account exists reveals nothing they did not just
+// demonstrate, and the alternative is a silent duplicate.
+export async function findOwnerHoldingMobile(collections, normalizedMobile) {
+  const variants = storedPhoneVariants(normalizedMobile);
+  return collections.owners.findOne({
+    $or: [{ mobile: { $in: variants } }, { phone: { $in: variants } }]
+  });
+}
+
+// Is there ANOTHER account carrying this number that the sign-in just walked
+// past?
+//
+// The guards above stop new splits; they cannot undo one that already exists.
+// When an old row holds the number as a raw `phone` and a newer row holds it as
+// `mobile`, sign-in resolves the newer one and the older one's vehicles simply
+// do not appear — which is precisely the report that started all this, and it
+// arrived as "my tag is missing" rather than as an error anyone could see.
+//
+// Merging them is not something a login may decide: both rows can carry their
+// own password, and picking one would hand somebody an account another person
+// can also open. So this does not change who signs in. It makes the situation
+// legible — a warning naming both ids, so support can find these before the
+// customer does instead of after.
+export async function findShadowedSiblings(collections, normalizedMobile, resolvedOwnerId) {
+  const variants = storedPhoneVariants(normalizedMobile);
+  return collections.owners
+    .find(
+      {
+        _id: { $ne: resolvedOwnerId },
+        $or: [{ mobile: { $in: variants } }, { phone: { $in: variants } }]
+      },
+      { projection: { _id: 1, email: 1 } }
+    )
+    .toArray();
+}
+
+// Did this write lose a race to the `mobile_unique` index?
+//
+// findOwnerHoldingMobile closes the gap for anything sequential, but two
+// requests carrying the same number can both pass it and only one can insert.
+// Without this the loser surfaced a raw E11000 as a 500 — a server error for
+// something the system handled exactly right.
+//
+// Keyed off `keyPattern` rather than the message text, so it cannot start
+// matching some other collection's duplicate the day a message is reworded.
+export function isDuplicateMobileError(error) {
+  return Boolean(error && error.code === 11000 && error.keyPattern && error.keyPattern.mobile);
+}
+
 export async function resolveOwnerByVerifiedMobile(collections, normalizedMobile) {
-  const owner = await collections.owners.findOne({ mobile: normalizedMobile });
+  // Oldest first, so a number that somehow ends up on two rows always resolves
+  // to the same one. Unsorted findOne let the answer change between calls on
+  // identical data — the tag holder on one request, an empty account on the
+  // next. The unique index in db/repositories.js is what stops the second row
+  // existing; this is what keeps the answer stable if one ever does.
+  const owner = await collections.owners.findOne(
+    { mobile: normalizedMobile },
+    { sort: { createdAt: 1, _id: 1 } }
+  );
   if (owner) return { owner, adopted: false, conflict: false };
 
   const digits = String(normalizedMobile).replace(/\D/g, "");
@@ -370,7 +451,13 @@ export async function verifyOtp(env, identifier, code, { purpose = OTP_PURPOSE_A
   // for someone who registered as "Name@example.com" and later signed in with a
   // code — the route below creates an owner whenever this returns nothing.
   const owner = isMobile
-    ? await collections.owners.findOne({ mobile: normalized })
+    // Same deterministic order as resolveOwnerByVerifiedMobile. These two
+    // lookups decide the same question on the same data and must never
+    // disagree; unsorted, they could pick different rows on the same request.
+    ? await collections.owners.findOne(
+        { mobile: normalized },
+        { sort: { createdAt: 1, _id: 1 } }
+      )
     : await findByCanonicalEmail(collections.owners, normalized);
 
   return {

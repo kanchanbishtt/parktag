@@ -1,7 +1,13 @@
 import { ObjectId } from "mongodb";
 
 import { createPasswordHash, isNonEmptyString } from "../../lib/auth/security.js";
-import { isMobileIdentifier, normalizeIdentifier, verifyOtp } from "../../lib/auth/otp.js";
+import {
+  findOwnerHoldingMobile,
+  isDuplicateMobileError,
+  isMobileIdentifier,
+  normalizeIdentifier,
+  verifyOtp
+} from "../../lib/auth/otp.js";
 import { getCollections } from "../../lib/db/repositories.js";
 import { clientErrorMessage } from "../../lib/errors.js";
 import { findByCanonicalEmail, canonicalEmail } from "../../lib/auth/identity.js";
@@ -108,6 +114,31 @@ export function registerRegistrationRoutes(app, env) {
 
     const ownerId = new ObjectId();
     const verifiedMobile = normalizeIdentifier(phone);
+
+    // One number, one account.
+    //
+    // This route checked the e-mail was free and said nothing about the phone,
+    // so registering again with a new address minted a SECOND account holding
+    // the same number. Sign-in resolves a mobile with findOne, so from then on
+    // which account the person reached depended on row order — and the tags
+    // they had activated sat on whichever one they did not land on.
+    //
+    // Unlike the e-mail check below, this one names the problem plainly. The
+    // OTP above already proved they control this number, so confirming an
+    // account exists on it tells them nothing they have not just demonstrated
+    // — and the silent alternative is the duplicate itself.
+    const numberTaken = await findOwnerHoldingMobile(collections, verifiedMobile);
+
+    if (numberTaken) {
+      reply.code(409);
+      return {
+        ok: false,
+        code: "ACCOUNT_EXISTS",
+        error:
+          "This mobile number is already on a ParkTag account. Please sign in with it instead — you can add this vehicle from your dashboard."
+      };
+    }
+
     const owner = {
       _id: ownerId,
       // Stored canonical so no new mixed-case rows are created. Reads go through
@@ -130,7 +161,21 @@ export function registerRegistrationRoutes(app, env) {
       createdAt: new Date().toISOString()
     };
 
-    await collections.owners.insertOne(owner);
+    try {
+      await collections.owners.insertOne(owner);
+    } catch (error) {
+      // Lost the race to the unique index — another registration with this
+      // number landed between the check above and this insert. Same answer as
+      // the check would have given, rather than a 500.
+      if (!isDuplicateMobileError(error)) throw error;
+      reply.code(409);
+      return {
+        ok: false,
+        code: "ACCOUNT_EXISTS",
+        error:
+          "This mobile number is already on a ParkTag account. Please sign in with it instead — you can add this vehicle from your dashboard."
+      };
+    }
 
     const tag = await createRegisteredOwnerTag(collections, ownerId, {
       vehicleLabel,

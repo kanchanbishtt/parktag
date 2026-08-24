@@ -139,6 +139,32 @@ const CORE_INDEXES = [
     { name: "email_ci", collation: { locale: "en", strength: 2 } }
   ],
   ["owners", { mobile: 1 }, { name: "mobile" }],
+  // One number, one account — enforced by the storage layer, not by every
+  // route remembering to check.
+  //
+  // The guard in lib/auth/otp.js (findOwnerHoldingMobile) is the one that gives
+  // a person a sensible message; this is the one that makes the bad state
+  // impossible if a future route forgets to call it. Sign-in resolves a mobile
+  // with findOne, so two rows holding one number meant the account somebody
+  // reached depended on row order.
+  //
+  // PARTIAL, and that is load-bearing. Most owners have no `mobile` at all —
+  // Google and e-mail sign-ups never set one — and a plain unique index treats
+  // every missing field as the same null, so it would collide on the second
+  // such owner and refuse to build. Indexing only documents where `mobile` is
+  // actually a string leaves those rows alone.
+  //
+  // `$gt: ""` as well as the type check: an empty string is a real string and
+  // several rows carry one, which would collide with each other.
+  [
+    "owners",
+    { mobile: 1 },
+    {
+      name: "mobile_unique",
+      unique: true,
+      partialFilterExpression: { mobile: { $type: "string", $gt: "" } }
+    }
+  ],
   ["owners", { phone: 1 }, { name: "phone" }],
   ["contactRequests", { token: 1, createdAt: -1 }, { name: "token_recent" }],
   ["contactRequests", { ownerId: 1, createdAt: -1 }, { name: "owner_recent" }],

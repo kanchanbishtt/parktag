@@ -2495,6 +2495,57 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
 
 /* Cancel is tinted so that on a white card it cannot be mistaken for a white
    row that lost its radio. */
+/* Optional callback number on the reason step.
+   Sits between the reason rows and Cancel, sharing the rows' right edge (see
+   the margin note below) so the three read as one column rather than the field
+   hanging off the side. */
+.pt-reason-callback {
+  margin: 14px 22px 4px 0;
+  padding-top: 14px;
+  border-top: 1px solid #EEF2F8;
+}
+
+.pt-reason-cb-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #374151;
+  margin-bottom: 8px;
+}
+
+/* "optional" as a quiet chip rather than parenthesised text: it has to be
+   readable at a glance, because the whole point is that skipping is fine. */
+.pt-reason-cb-opt {
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6B7280;
+  background: #F3F4F6;
+  border: 1px solid #E5E7EB;
+  border-radius: 20px;
+  padding: 2px 7px;
+}
+
+.pt-reason-cb-input {
+  width: 100%;
+}
+
+.pt-reason-cb-note {
+  margin: 7px 0 0;
+  font-size: 0.72rem;
+  line-height: 1.45;
+  color: #6B7280;
+}
+
+/* Turns red only when what was typed cannot be dialled. */
+.pt-reason-cb-note[data-tone="error"] {
+  color: #B91C1C;
+  font-weight: 600;
+}
+
 .pt-reason-card .pt-cancel-action {
   background: #EEF2F8;
   /* Cancel is a direct child of the card, so it stops at the card's padding —

@@ -492,6 +492,34 @@ function formatTimeAgo(ms) {
   return `${Math.floor(h / 24)}d ago`;
 }
 
+// The actual clock time a scanner made contact.
+//
+// "12 min ago" alone is fine for something you are looking at as it happens and
+// useless afterwards: an owner reconstructing a missed call wants to know it
+// came at 4:05 pm yesterday, not that it was "1d ago". Both are shown — the
+// relative form still reads faster at a glance.
+//
+// Rendered in the viewer's own locale and timezone; the stored value is UTC ISO
+// and converting it here is the only place that knows where the reader is.
+function formatExactTime(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+
+  const time = d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  const today = new Date();
+  const sameDay = d.toDateString() === today.toDateString();
+  const yesterday = new Date(today.getTime() - 86400000);
+  if (sameDay) return `Today ${time}`;
+  if (d.toDateString() === yesterday.toDateString()) return `Yesterday ${time}`;
+
+  return `${d.toLocaleDateString(undefined, { day: "numeric", month: "short" })} ${time}`;
+}
+
+// How long a call may be returned for. Overwritten from the dashboard payload
+// so the button and the route agree; this is only the fallback for a response
+// that predates the field.
+let _callbackWindowMs = 48 * 60 * 60 * 1000;
+
 function renderActivity(requests) {
   const container = document.getElementById("actCards");
   const badge     = document.getElementById("actBadge");
@@ -522,7 +550,29 @@ function renderActivity(requests) {
     (now - new Date(r.createdAt).getTime()) <= TWO_DAYS
   );
 
-  // Most recent request within the 60-min callback window
+  // Can this contact still be returned? A call, from a number we captured,
+  // inside the window the server will honour.
+  //
+  // Deliberately NOT filtered on "they didn't pick up", even though that is the
+  // case this exists for. Every call in the database sits at status
+  // "connecting" — Exotel's status callback has never reported an outcome, so
+  // callResult and callDuration are empty on all of them. Gating on a field
+  // that is always null would hide the button from everyone. Once the callback
+  // is wired and outcomes arrive, this is where the `&& wasMissed(r)` goes.
+  //
+  // Keyed on having a number, NOT on the contact being a call. A scanner who
+  // sends a WhatsApp alert may now leave a callback number too, and those rows
+  // are the ones with nothing else to act on — the owner is told somebody
+  // contacted them and, without this, has no way to answer. Rows with no number
+  // (anyone who stayed anonymous) get no button, which is correct: there is
+  // nobody to dial.
+  const canCallBack = (r) =>
+    Boolean(r.phone) &&
+    (now - new Date(r.createdAt).getTime()) <= _callbackWindowMs;
+
+  // The banner keeps its tighter definition of urgent — something that happened
+  // in the last hour and wants attention now. The per-row buttons below are what
+  // give the other 47 hours somewhere to go.
   const eligible = recent.find(r =>
     r.action === "call" && (now - new Date(r.createdAt).getTime()) <= WIN_MS
   );
@@ -624,13 +674,19 @@ function renderActivity(requests) {
       resultBadge = `<span class="pt-act-det-badge" style="background:#DCFCE7;color:#14532D">${label}</span>`;
     }
 
-    // CTA
+    // CTA. Every returnable call gets one now, not just the newest — with two
+    // scanners in a day, the older one used to be unreachable no matter how
+    // recently it happened.
     let cta = "";
-    if (isElig) {
+    if (canCallBack(r)) {
       if (!_ownerMobile) {
         cta = `<span class="pt-act-nophone">Add phone<br>to call back</span>`;
       } else {
-        cta = `<button class="pt-act-cta" id="cbBtn" onclick="callBack()">Call Back</button>`;
+        // id carries the row so the handler can name it to the server, and so
+        // the button it disables is this one rather than the first on the page.
+        const btnId = `cbBtn-${r.id}`;
+        cta = `<button class="pt-act-cta" id="${btnId}" data-request-id="${esc(r.id)}"
+          onclick="callBack('${esc(btnId)}')">${isElig ? "Call Back" : "Call"}</button>`;
       }
     }
 
@@ -640,7 +696,7 @@ function renderActivity(requests) {
   <div class="pt-act-body">
     <p class="pt-act-who">${esc(masked)} contacted you</p>
     <p class="pt-act-det">${esc(plate)} · ${isCall ? "Call" : "WhatsApp"} ${resultBadge}</p>
-    <p class="pt-act-time">${formatTimeAgo(ageMs)}</p>
+    <p class="pt-act-time" title="${esc(new Date(r.createdAt).toLocaleString())}">${esc(formatExactTime(r.createdAt))} · ${formatTimeAgo(ageMs)}</p>
   </div>
   ${cta}
 </div>`;
@@ -651,26 +707,35 @@ function renderActivity(requests) {
 
 async function callBack(btnId = "cbBtn") {
   const btn = document.getElementById(btnId);
+  const label = btn?.textContent || "Call Back";
   if (btn) { btn.disabled = true; btn.textContent = "Calling…"; }
   try {
-    const res  = await fetch("/api/owner/callback/register-call", { method: "POST" });
+    // Name the row when the button came from one. The banner button carries no
+    // id and the server falls back to the most recent contact, which is what it
+    // has always done.
+    const requestId = btn?.dataset?.requestId || null;
+    const res = await fetch("/api/owner/callback/register-call", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(requestId ? { requestId } : {})
+    });
     const data = await res.json();
     if (data.ok && data.virtualNumber) {
       if (btn) { btn.textContent = "Opening dialer…"; btn.classList.add("ok"); }
       setTimeout(() => { window.location.href = `tel:${data.virtualNumber}`; }, 120);
     } else if (data.code === "NO_PHONE") {
       _toast("Add your mobile number to your profile to enable callback.", "err");
-      if (btn) { btn.disabled = false; btn.textContent = "Call Back"; }
+      if (btn) { btn.disabled = false; btn.textContent = label; }
     } else if (data.code === "CALLBACK_WINDOW_EXPIRED") {
-      _toast("The 60-minute callback window has passed.", "err");
+      _toast("This contact is too old to call back. Callbacks last 48 hours.", "err");
       renderActivity(allRequests); // re-render to remove the button
     } else {
       _toast(data.error || "Couldn't initiate callback. Try again.", "err");
-      if (btn) { btn.disabled = false; btn.textContent = "Call Back"; }
+      if (btn) { btn.disabled = false; btn.textContent = label; }
     }
   } catch {
     _toast("Network error. Please try again.", "err");
-    if (btn) { btn.disabled = false; btn.textContent = "Call Back"; }
+    if (btn) { btn.disabled = false; btn.textContent = label; }
   }
 }
 window.callBack = callBack;
@@ -977,6 +1042,11 @@ async function load() {
 
     allTags     = [...localOnly, ...dedupedApi];
     allRequests = data.requests || [];
+    // Take the window from the server so the button and the route it calls
+    // agree. Older responses omit it and keep the built-in default.
+    if (typeof data.callbackWindowMs === "number" && data.callbackWindowMs > 0) {
+      _callbackWindowMs = data.callbackWindowMs;
+    }
     renderGrid(getDisplayTags(), true);
     renderNoticeboard(allTags);
     renderActivity(allRequests);

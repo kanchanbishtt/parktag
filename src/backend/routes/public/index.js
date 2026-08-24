@@ -4,6 +4,8 @@ import { createContactAction, isSupportedContactReason } from "../../lib/core/co
 import { createPasswordHash, createSecureToken, safeEqual, hashIp, minutesFromNow, getClientIp, maskPlateNumber, getPlateLastFour, isNonEmptyString } from "../../lib/auth/security.js";
 import { createSession, writeSessionCookie } from "../../lib/auth/session.js";
 import {
+  findOwnerHoldingMobile,
+  isDuplicateMobileError,
   isMobileIdentifier,
   normalizeIdentifier,
   verifyOtp,
@@ -697,6 +699,24 @@ export function registerPublicRoutes(app, env) {
 
     const ownerId = new ObjectId();
     const verifiedMobile = normalizeIdentifier(phone);
+
+    // One number, one account — the same guard /api/register-owner applies.
+    // This route only checked the e-mail, so claiming a tag with a new address
+    // and an already-registered number forked a second account and stranded
+    // the tags on the first. /activate below has always refused this (via
+    // resolveOwnerByVerifiedMobile's `conflict`); this path had not.
+    const numberTaken = await findOwnerHoldingMobile(collections, verifiedMobile);
+
+    if (numberTaken) {
+      reply.code(409);
+      return {
+        ok: false,
+        code: "ACCOUNT_EXISTS",
+        error:
+          "This mobile number is already on a ParkTag account. Please sign in with it instead, then activate this tag from your dashboard."
+      };
+    }
+
     const owner = {
       _id: ownerId,
       email,
@@ -715,7 +735,19 @@ export function registerPublicRoutes(app, env) {
       createdAt: new Date().toISOString()
     };
 
-    await collections.owners.insertOne(owner);
+    try {
+      await collections.owners.insertOne(owner);
+    } catch (error) {
+      // Lost the race to the unique index between the check above and here.
+      if (!isDuplicateMobileError(error)) throw error;
+      reply.code(409);
+      return {
+        ok: false,
+        code: "ACCOUNT_EXISTS",
+        error:
+          "This mobile number is already on a ParkTag account. Please sign in with it instead, then activate this tag from your dashboard."
+      };
+    }
 
     await collections.tags.updateOne(
       { _id: tag._id },
@@ -904,7 +936,28 @@ export function registerPublicRoutes(app, env) {
         role: "owner",
         createdAt: new Date().toISOString()
       };
-      await collections.owners.insertOne(owner);
+      try {
+        await collections.owners.insertOne(owner);
+      } catch (error) {
+        // Two people activating stickers on the same number at once, or the
+        // same person double-tapping. The account exists now either way, and
+        // the OTP proved this number is theirs — so adopt it and carry on
+        // rather than failing an activation that was entirely valid.
+        if (!isDuplicateMobileError(error)) throw error;
+
+        const existing = await collections.owners.findOne(
+          { mobile },
+          { sort: { createdAt: 1, _id: 1 } }
+        );
+        if (!existing) throw error;
+
+        owner = existing;
+        isNewOwner = false;
+        request.log.info(
+          { event: "activate-lost-create-race", ownerId: String(owner._id) },
+          "[activate] concurrent request created this account first — adopting it"
+        );
+      }
     }
 
     // The label follows the type unless the caller supplied one explicitly, so

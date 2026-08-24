@@ -53,6 +53,18 @@ export async function createSession(app, user) {
     userId: user.id,
     role: user.role,
     email: user.email,
+    // The identifier this person actually typed to get in — their email on an
+    // email/Google sign-in, their number on a mobile OTP one.
+    //
+    // `email` above is NOT that: every caller sets it to
+    // `owner.email || owner.mobile || <typed>`, so an account that has an email
+    // on file reports that email no matter which way the person signed in. The
+    // dashboard displays it under the greeting, which is how signing in with a
+    // phone number showed somebody an email address they had not typed.
+    //
+    // Optional: sessions created before this field existed simply lack it, and
+    // every reader falls back to the old email/mobile pair.
+    signInIdentifier: user.signInIdentifier || null,
     displayName: user.displayName || null,
     createdAt: now.toISOString(),
     expiresAt
@@ -73,6 +85,7 @@ export async function createSession(app, user) {
             userId: session.userId,
             role: session.role,
             email: session.email,
+            signInIdentifier: session.signInIdentifier,
             displayName: session.displayName,
             createdAt: now,
             expiresAt
@@ -134,6 +147,7 @@ export async function readSession(app, request) {
     userId: doc.userId,
     role: doc.role,
     email: doc.email,
+    signInIdentifier: doc.signInIdentifier || null,
     displayName: doc.displayName || null,
     createdAt: doc.createdAt,
     expiresAt: doc.expiresAt,

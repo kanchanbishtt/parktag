@@ -115,7 +115,12 @@ export function registerAuthRoutes(app, env) {
 
       await clearLoginFailures(collections, role, email);
 
-      const sessionId = await createSession(app, user);
+      // Password sign-in resolves the account by e-mail only (loginUser →
+      // findUserByEmail), so the address on the account IS what was typed.
+      const sessionId = await createSession(app, {
+        ...user,
+        signInIdentifier: user.email
+      });
       writeSessionCookie(reply, sessionId, env.runtimeMode === "production", Boolean(rememberMe));
 
       return {

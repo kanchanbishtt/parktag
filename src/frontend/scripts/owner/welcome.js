@@ -896,7 +896,16 @@ async function load() {
       // answer stated confidently. A null greetingName means we genuinely do not
       // know, and "Hi there" plus the inline field is the honest response.
       const firstName = data.owner.greetingName || UI.greetFallback;
-      const id = data.owner.email || data.owner.mobile || "";
+      // Echo the identifier they signed in with. Ranking email first showed an
+      // e-mail address to people who had signed in with their phone number —
+      // and on an account carrying somebody else's address, that reads as
+      // being logged into the wrong account.
+      //
+      // DISPLAY ONLY. `userId` above stays on the old email-then-mobile basis
+      // because it keys the `pt_vehicles_*` localStorage entries — deriving it
+      // from the sign-in identifier instead would silently orphan every saved
+      // vehicle the moment somebody switched sign-in method.
+      const id = data.owner.signInIdentifier || data.owner.email || data.owner.mobile || "";
       renderGreetingAffordance(data.owner);
       greetName.textContent = `${UI.greetPrefix} ${firstName}!`;
       greetName.classList.remove("pt-reveal");
@@ -912,7 +921,7 @@ async function load() {
       // Populate burger menu owner header
       _owner       = data.owner;
       _ownerMobile = data.owner.mobile || null;
-      _userId = id;
+      _userId = userId;
       // The shop checkout used to read the owner's name, e-mail and mobile off
       // a `window.__ptOwner` global set here, which then sat on the page for the
       // rest of the session within reach of every script running on it —

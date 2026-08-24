@@ -114,6 +114,7 @@ export function registerFirebasePhoneAuthRoute(app, env) {
         id: String(owner._id),
         role: "owner",
         email: owner.email || owner.mobile || phoneE164,
+        signInIdentifier: phoneE164,
         displayName: owner.displayName
       });
       writeSessionCookie(reply, sessionId, env.runtimeMode === "production");
@@ -246,6 +247,7 @@ export function registerFirebasePhoneAuthRoute(app, env) {
         id: String(owner._id),
         role: "owner",
         email: owner.email || owner.mobile || phoneE164,
+        signInIdentifier: phoneE164,
         displayName: owner.displayName
       });
       writeSessionCookie(reply, sessionId, env.runtimeMode === "production");

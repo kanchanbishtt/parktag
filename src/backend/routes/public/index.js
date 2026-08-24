@@ -935,6 +935,9 @@ export function registerPublicRoutes(app, env) {
       id: String(owner._id),
       role: "owner",
       email: owner.email || owner.mobile || mobile,
+      // Activation is always a mobile-OTP sign-in, so that is what the
+      // dashboard should greet them with.
+      signInIdentifier: mobile,
       displayName: owner.displayName
     });
     writeSessionCookie(reply, sessionId, env.runtimeMode === "production");

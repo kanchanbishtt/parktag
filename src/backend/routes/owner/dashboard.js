@@ -138,6 +138,11 @@ export function registerOwnerRoutes(app, env) {
         // STRICT_SCRIPT_PAGES — its CSP still permits inline script.
         email: owner.email || null,
         mobile: owner.mobile || null,
+        // What this person typed to sign in, so the header can echo it back
+        // instead of ranking email above mobile and showing an address to
+        // somebody who signed in with a phone number. Null on sessions created
+        // before the field existed — the page falls back to email/mobile.
+        signInIdentifier: request.session.signInIdentifier || null,
         // Only a name the owner actually set. A stored identifier reads as
         // "no name", so the dashboard offers to collect one instead of
         // greeting them with their own phone number.

@@ -27,6 +27,19 @@ function shapeAddress(doc) {
   return { fullName, phone, line1, line2, landmark, city, state, pincode };
 }
 
+// How long after a scanner makes contact the owner may call them back.
+//
+// Was 60 minutes, and that is the whole of the bug this widens. A missed call
+// is usually noticed later than an hour — the owner opens the dashboard that
+// evening, sees "someone contacted you", and by then the only way to reach them
+// was to wait for the stranger to scan the sticker a second time.
+//
+// 48 hours matches the window the activity list already renders, so every row a
+// person can see is a row they can act on. It is a reach limit, not a licence:
+// the call is still masked end to end, still rate-limited, and still routed
+// through a pending_calls row that expires in ten minutes.
+const CALLBACK_WINDOW_MS = 48 * 60 * 60 * 1000;
+
 // Where a confirmation code for THIS owner may be sent.
 //
 // Derived from the stored owner record and never from the request body. That is
@@ -205,8 +218,17 @@ export function registerOwnerRoutes(app, env) {
         providerRequestId: item.providerRequestId || null,
         providerWebhookStatus: item.providerWebhookStatus || null,
         providerError: item.providerError || null,
-        createdAt: item.createdAt
-      }))
+        createdAt: item.createdAt,
+        // When the provider last told us anything about this contact. For a
+        // call that is the closest thing we have to when it ended, so the
+        // activity log can show more than the moment it started.
+        updatedAt: item.updatedAt || null
+      })),
+      // Sent rather than duplicated as a constant in the page, so the button
+      // the browser draws and the window the server enforces cannot drift
+      // apart. The route re-checks regardless — a stale button gets a clean
+      // 410, never a call it should not have placed.
+      callbackWindowMs: CALLBACK_WINDOW_MS
     };
   });
 
@@ -1044,23 +1066,42 @@ export function registerOwnerRoutes(app, env) {
       return { ok: false, code: "NO_PHONE", error: "Add your phone number to enable callback." };
     }
 
-    // Most recent scanner contact within the 60-minute window.
-    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-    const recentContact = await collections.contactRequests.findOne(
-      {
-        ownerId,
-        phone: { $exists: true, $ne: null },
-        createdAt: { $gte: oneHourAgo.toISOString() }
-      },
-      { sort: { createdAt: -1 } }
-    );
+    const windowStart = new Date(Date.now() - CALLBACK_WINDOW_MS).toISOString();
+
+    // Which contact are we returning? The activity list now puts a button on
+    // each row, so the caller names one. Without an id this still resolves the
+    // most recent, which is what the single banner button has always sent.
+    //
+    // `ownerId` is part of the filter and NOT taken from the body: an id is a
+    // client-supplied value, and looking it up without scoping it to the signed
+    // -in owner would let anyone holding a session dial the scanner attached to
+    // somebody else's tag by guessing an ObjectId.
+    const { requestId } = request.body || {};
+    const filter = {
+      ownerId,
+      phone: { $exists: true, $ne: null },
+      createdAt: { $gte: windowStart }
+    };
+
+    if (requestId !== undefined && requestId !== null) {
+      const asObjectId = tryObjectId(requestId);
+      if (!asObjectId) {
+        reply.code(400);
+        return { ok: false, error: "Invalid request id." };
+      }
+      filter._id = asObjectId;
+    }
+
+    const recentContact = await collections.contactRequests.findOne(filter, {
+      sort: { createdAt: -1 }
+    });
 
     if (!recentContact) {
       reply.code(410);
       return {
         ok: false,
         code: "CALLBACK_WINDOW_EXPIRED",
-        error: "No recent contact to call back. The 60-minute window has passed."
+        error: "This contact is too old to call back. Callbacks are available for 48 hours."
       };
     }
 

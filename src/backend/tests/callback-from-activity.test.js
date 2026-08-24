@@ -32,6 +32,10 @@ function hoursAgo(h) {
   return new Date(Date.now() - h * 60 * 60 * 1000).toISOString();
 }
 
+function minutesAgo(m) {
+  return new Date(Date.now() - m * 60 * 1000).toISOString();
+}
+
 async function seedContact(forOwnerId, { phone, createdAt, action = "call", token = "cb-tok" }) {
   const doc = {
     _id: new ObjectId(),
@@ -105,16 +109,16 @@ function callBack(body, sessionCookie = cookie) {
   });
 }
 
-test("a call missed hours ago can still be returned", async (t) => {
+test("a call from minutes ago can be returned", async (t) => {
   if (!env.exotelCallerId) {
     t.skip("EXOTEL_CALLER_ID not configured in this environment");
     return;
   }
 
-  const contact = await seedContact(owner._id, { phone: SCANNER_A, createdAt: hoursAgo(6) });
+  const contact = await seedContact(owner._id, { phone: SCANNER_A, createdAt: minutesAgo(4) });
 
   const response = await callBack({ requestId: String(contact._id) });
-  assert.equal(response.statusCode, 200, "six hours old must still be callable");
+  assert.equal(response.statusCode, 200, "four minutes old is inside the window");
   assert.equal(response.json().ok, true);
 
   const routed = await collections.pendingCalls.findOne({ requestId: contact._id });
@@ -123,26 +127,24 @@ test("a call missed hours ago can still be returned", async (t) => {
   assert.equal(routed.type, "owner_to_scanner");
 });
 
-test("an older contact can be picked, not just the newest", async (t) => {
-  if (!env.exotelCallerId) {
-    t.skip("EXOTEL_CALLER_ID not configured in this environment");
-    return;
-  }
-
-  const older = await seedContact(owner._id, { phone: SCANNER_A, createdAt: hoursAgo(10) });
-  await seedContact(owner._id, { phone: SCANNER_B, createdAt: hoursAgo(1) });
+test("only the newest contact can be returned", async () => {
+  // Both are inside the ten minutes, so the window is not what refuses this —
+  // being second is. Ringing the earlier reporter leaves the person still
+  // waiting on the newer call with no priority at all.
+  const older = await seedContact(owner._id, { phone: SCANNER_A, createdAt: minutesAgo(8) });
+  await seedContact(owner._id, { phone: SCANNER_B, createdAt: minutesAgo(1) });
 
   const response = await callBack({ requestId: String(older._id) });
-  assert.equal(response.statusCode, 200);
-
-  const routed = await collections.pendingCalls.findOne({ requestId: older._id });
-  assert.ok(routed, "the row the owner chose should be the one routed");
-  assert.equal(routed.targetPhone, SCANNER_A,
-    "picking the older row must not silently dial the newer caller");
+  assert.equal(response.statusCode, 410);
+  assert.equal(response.json().code, "CALLBACK_NOT_LATEST");
+  assert.equal(
+    await collections.pendingCalls.countDocuments({}), 0,
+    "and nothing may be routed to the older caller"
+  );
 });
 
-test("beyond the window it is refused", async () => {
-  const stale = await seedContact(owner._id, { phone: SCANNER_A, createdAt: hoursAgo(60) });
+test("beyond ten minutes it is refused", async () => {
+  const stale = await seedContact(owner._id, { phone: SCANNER_A, createdAt: minutesAgo(11) });
 
   const response = await callBack({ requestId: String(stale._id) });
   assert.equal(response.statusCode, 410);
@@ -154,7 +156,7 @@ test("another owner's contact cannot be dialled", async () => {
   // The id is real and inside the window — the only thing wrong with it is
   // whose it is. Scoping the lookup by session owner is what refuses it; taking
   // the id on trust would let any signed-in account ring a stranger's scanner.
-  const theirs = await seedContact(intruder._id, { phone: SCANNER_B, createdAt: hoursAgo(1) });
+  const theirs = await seedContact(intruder._id, { phone: SCANNER_B, createdAt: minutesAgo(1) });
 
   const response = await callBack({ requestId: String(theirs._id) });
   assert.equal(response.statusCode, 410, "must not resolve another owner's contact");
@@ -176,8 +178,8 @@ test("an id-less call still resolves the most recent contact", async (t) => {
   }
 
   // The banner button has never sent one, and must keep working.
-  await seedContact(owner._id, { phone: SCANNER_A, createdAt: hoursAgo(10) });
-  const newest = await seedContact(owner._id, { phone: SCANNER_B, createdAt: hoursAgo(1) });
+  await seedContact(owner._id, { phone: SCANNER_A, createdAt: minutesAgo(8) });
+  const newest = await seedContact(owner._id, { phone: SCANNER_B, createdAt: minutesAgo(1) });
 
   const response = await callBack({});
   assert.equal(response.statusCode, 200);
@@ -198,7 +200,7 @@ test("a WhatsApp report that left a number is callable too", async (t) => {
   // that most needs a way back.
   const contact = await seedContact(owner._id, {
     phone: SCANNER_B,
-    createdAt: hoursAgo(20),
+    createdAt: minutesAgo(3),
     action: "message"
   });
 
@@ -221,7 +223,7 @@ test("a scanner who stayed anonymous cannot be dialled", async () => {
     phone: null,
     action: "message",
     status: "read",
-    createdAt: hoursAgo(2)
+    createdAt: minutesAgo(2)
   };
   await collections.contactRequests.insertOne(anonymous);
 
@@ -258,6 +260,40 @@ test("the number reaches the screen, not just the dialer", async () => {
     "the button must not be parked on a state that never resolves without a dialer");
 });
 
+test("seen for 48 hours, callable for ten minutes", async () => {
+  // The rule, stated as one test. These are two different permissions and the
+  // gap between them is deliberate: knowing who rang about your car is a log,
+  // ringing a stranger back is an intrusion with a short shelf life.
+  const old = await seedContact(owner._id, { phone: SCANNER_A, createdAt: hoursAgo(30) });
+
+  const dash = await app.inject({
+    method: "GET",
+    url: "/api/owner/dashboard",
+    headers: { cookie: `wavetag_session=${cookie}` }
+  });
+  const row = dash.json().requests.find((r) => r.id === String(old._id));
+  assert.ok(row, "a contact from 30 hours ago must still appear in the log");
+  assert.ok(row.createdAt, "and must carry its timestamp");
+
+  const response = await callBack({ requestId: String(old._id) });
+  assert.equal(response.statusCode, 410, "but it must not be callable");
+  assert.equal(response.json().code, "CALLBACK_WINDOW_EXPIRED");
+  assert.equal(await collections.pendingCalls.countDocuments({}), 0);
+});
+
+test("the page offers one button and takes it away on time", async () => {
+  const js = await app.inject({ method: "GET", url: "/scripts/owner/welcome.js" });
+
+  assert.match(js.body, /const callbackTarget = recent\.find\(isReturnable\) \|\| null/,
+    "exactly one contact may be offered");
+  assert.match(js.body, /r\.id === callbackTarget\.id/,
+    "and the button must be pinned to that row");
+  assert.match(js.body, /function scheduleCallbackExpiry/,
+    "the button must remove itself when the window closes");
+  assert.match(js.body, /function callbackTimeLeft/,
+    "and say how long is left, so it expires rather than vanishes");
+});
+
 test("the dashboard publishes the window it enforces", async () => {
   const response = await app.inject({
     method: "GET",
@@ -267,6 +303,6 @@ test("the dashboard publishes the window it enforces", async () => {
   const body = response.json();
 
   assert.equal(typeof body.callbackWindowMs, "number");
-  assert.equal(body.callbackWindowMs, 48 * 60 * 60 * 1000,
+  assert.equal(body.callbackWindowMs, 10 * 60 * 1000,
     "the page must not have to guess this — it decides which buttons to draw");
 });

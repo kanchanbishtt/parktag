@@ -213,6 +213,11 @@ export function registerOwnerRoutes(app, env) {
         message: item.message || null,
         status: item.status,
         callResult: item.callResult || null,
+        // Normalised "answered" | "missed" | "failed" | null — see
+        // lib/core/call-outcome.js. The page decides whether to offer a
+        // callback from this, rather than trying to read Exotel's own
+        // vocabulary (which it previously did, and got wrong).
+        callOutcome: item.callOutcome || null,
         callDuration: typeof item.callDuration === "number" ? item.callDuration : null,
         provider: item.provider || null,
         providerRequestId: item.providerRequestId || null,
@@ -1092,6 +1097,15 @@ export function registerOwnerRoutes(app, env) {
       filter._id = asObjectId;
     }
 
+    // Note what this filter does NOT do: refuse a call that was answered.
+    //
+    // The activity list stops OFFERING a callback once a conversation
+    // demonstrably happened (see canCallBack in welcome.js), and that is a
+    // presentation rule. This route's job is authorisation — whose contact it
+    // is, and whether it is still inside the window — and neither is affected
+    // by how the call went. An owner who cuts off after four seconds and wants
+    // to redial is doing something entirely legitimate, and refusing it here
+    // would turn a tidier list into a dead end.
     const recentContact = await collections.contactRequests.findOne(filter, {
       sort: { createdAt: -1 }
     });

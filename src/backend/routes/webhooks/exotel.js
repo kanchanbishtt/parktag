@@ -2,6 +2,7 @@ import { ObjectId } from "mongodb";
 
 import { getCollections } from "../../lib/db/repositories.js";
 import { safeEqual } from "../../lib/auth/security.js";
+import { normalizeCallOutcome, parseCallDuration } from "../../lib/core/call-outcome.js";
 
 // Exotel has no request-signing scheme for callbacks (unlike Twilio/Meta), so
 // the mitigation is a shared secret embedded in the callback URLs configured
@@ -197,12 +198,30 @@ export function registerProviderRoutes(app, env) {
     };
     if (callSid || messageSid) set.providerRequestId = callSid || messageSid;
 
+    // Conversation time first: it is the field that says whether anyone
+    // actually spoke, and DialCallDuration counts ringing as well, so it is the
+    // last resort rather than the first.
     const duration =
       body.ConversationDuration ?? body.Duration ?? body.DialCallDuration ?? null;
-    if (duration !== null && duration !== "") set.callDuration = Number(duration) || 0;
+    const seconds = parseCallDuration(duration);
+    if (seconds !== null) set.callDuration = seconds;
 
     const result = body.CallStatus || body.DialCallStatus || body.Status || null;
     if (result) set.callResult = result;
+
+    // Normalised alongside the raw value, never instead of it.
+    //
+    // `callResult` keeps whatever Exotel actually said, because when this is
+    // wrong the raw word is the only thing that explains why. `callOutcome` is
+    // the three-word vocabulary everything else reads — see lib/core/
+    // call-outcome.js for why the dashboard must not be parsing provider
+    // spellings itself.
+    //
+    // Only written when we can conclude something. A mid-call event that
+    // reports neither a terminal status nor a duration must not overwrite the
+    // outcome an earlier terminal event already established.
+    const outcome = normalizeCallOutcome({ status: result, duration });
+    if (outcome) set.callOutcome = outcome;
 
     if (body.RecordingUrl) set.recordingUrl = body.RecordingUrl;
 

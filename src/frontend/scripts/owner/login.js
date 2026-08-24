@@ -96,7 +96,13 @@ function renderDashboard(data) {
   const menuName = byId("menu-owner-name");
   const menuEmail = byId("menu-owner-email");
   if (menuName) menuName.textContent = owner.displayName;
-  if (menuEmail) menuEmail.textContent = owner.email;
+  // Same rule as the welcome header: show what they signed in with, and fall
+  // back rather than printing an empty line for a mobile-only account (this
+  // read `owner.email` alone, which is null for everyone who signs in by OTP).
+  if (menuEmail) {
+    menuEmail.textContent =
+      owner.signInIdentifier || owner.email || owner.mobile || "—";
+  }
 
   // Show active badge if any tag is active
   const hasActive = tags.some(t => t.status === "active");

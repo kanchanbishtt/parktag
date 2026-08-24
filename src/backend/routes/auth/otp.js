@@ -168,6 +168,9 @@ export function registerOtpAuthRoutes(app, env) {
         id: String(owner._id),
         role: "owner",
         email: owner.email || owner.mobile || identifier,
+        // Normalised, not raw: "8791638854" and "+91 87916 38854" are the same
+        // sign-in and should render the same way afterwards.
+        signInIdentifier: normalized,
         displayName: owner.displayName
       });
       writeSessionCookie(reply, sessionId, env.runtimeMode === "production");

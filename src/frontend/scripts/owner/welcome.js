@@ -515,6 +515,22 @@ function formatExactTime(iso) {
   return `${d.toLocaleDateString(undefined, { day: "numeric", month: "short" })} ${time}`;
 }
 
+// How long the two of them actually spoke, read as a person would say it.
+//
+// Returns "" for a call with no talk time, so the caller renders nothing rather
+// than "0s" — a missed call already says "Missed", and pinning a duration of
+// zero next to it is noise. Absent and zero both mean "nothing to show" here;
+// the difference between them matters when DECIDING the outcome, which is done
+// server-side in lib/core/call-outcome.js, not in this line.
+function formatCallDuration(seconds) {
+  const n = Number(seconds);
+  if (!Number.isFinite(n) || n <= 0) return "";
+  if (n < 60) return `${n}s`;
+  const m = Math.floor(n / 60);
+  const s = n % 60;
+  return s ? `${m}m ${s}s` : `${m}m`;
+}
+
 // How long a call may be returned for. Overwritten from the dashboard payload
 // so the button and the route agree; this is only the fallback for a response
 // that predates the field.
@@ -550,24 +566,26 @@ function renderActivity(requests) {
     (now - new Date(r.createdAt).getTime()) <= TWO_DAYS
   );
 
-  // Can this contact still be returned? A call, from a number we captured,
-  // inside the window the server will honour.
+  // Can this contact still be returned?
   //
-  // Deliberately NOT filtered on "they didn't pick up", even though that is the
-  // case this exists for. Every call in the database sits at status
-  // "connecting" — Exotel's status callback has never reported an outcome, so
-  // callResult and callDuration are empty on all of them. Gating on a field
-  // that is always null would hide the button from everyone. Once the callback
-  // is wired and outcomes arrive, this is where the `&& wasMissed(r)` goes.
+  // Everything except a conversation that already happened. `callOutcome` is
+  // the normalised verdict from lib/core/call-outcome.js — "answered" only when
+  // the two of them demonstrably spoke.
+  //
+  // The test is "NOT answered", never "is missed", and the difference is the
+  // whole design. Exotel's status callback has never been configured, so
+  // callOutcome is null on every call in the database today; gating on
+  // `=== "missed"` would hide the button from all of them and quietly retire
+  // the feature. Unknown means keep offering it — we did not measure the call,
+  // which is no reason to withhold the only route back to the person.
   //
   // Keyed on having a number, NOT on the contact being a call. A scanner who
   // sends a WhatsApp alert may now leave a callback number too, and those rows
-  // are the ones with nothing else to act on — the owner is told somebody
-  // contacted them and, without this, has no way to answer. Rows with no number
-  // (anyone who stayed anonymous) get no button, which is correct: there is
-  // nobody to dial.
+  // are the ones with nothing else to act on. Rows with no number (anyone who
+  // stayed anonymous) get no button: there is nobody to dial.
   const canCallBack = (r) =>
     Boolean(r.phone) &&
+    r.callOutcome !== "answered" &&
     (now - new Date(r.createdAt).getTime()) <= _callbackWindowMs;
 
   // The banner keeps its tighter definition of urgent — something that happened
@@ -659,15 +677,25 @@ function renderActivity(requests) {
     else if (!isCall)        { cardCls = "wa";     icBg = "#DCFCE7"; icCol = "#16A34A"; }
     else                     { cardCls = "idle";   icBg = "#F3F4F6"; icCol = "#9CA3AF"; }
 
-    // Call result badge
+    // Call result badge.
+    //
+    // Driven by the normalised callOutcome, not by Exotel's own wording. This
+    // used to test for `callResult === "connected"` — a value Exotel does not
+    // send; it says "completed" — so the first genuinely answered call would
+    // have been labelled "Failed". Nobody caught it because the status callback
+    // has never fired, so the branch has never run.
     let resultBadge = "";
-    if (isCall && r.callResult) {
-      const label = r.callResult === "connected" ? "Connected"
-                  : r.callResult === "no-answer"  ? "No answer" : "Failed";
-      const bg    = r.callResult === "connected" ? "background:#DCFCE7;color:#14532D"
-                                                 : "background:#FEE2E2;color:#B91C1C";
+    if (isCall && r.callOutcome) {
+      const label = r.callOutcome === "answered" ? "Answered"
+                  : r.callOutcome === "missed"   ? "Missed" : "Failed";
+      const bg    = r.callOutcome === "answered"
+        ? "background:#DCFCE7;color:#14532D"
+        : "background:#FEE2E2;color:#B91C1C";
       resultBadge = `<span class="pt-act-det-badge" style="${bg}">${label}</span>`;
-      if (r.callDuration) resultBadge += `<span style="color:#9CA3AF;font-size:.67rem">${r.callDuration}s</span>`;
+      const spoken = formatCallDuration(r.callDuration);
+      if (spoken) {
+        resultBadge += `<span style="color:#9CA3AF;font-size:.67rem">${esc(spoken)}</span>`;
+      }
     }
     if (!isCall && r.status) {
       const label = r.status === "delivered" ? "Delivered" : r.status === "pending" ? "Pending" : r.status;

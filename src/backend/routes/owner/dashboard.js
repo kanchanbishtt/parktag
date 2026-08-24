@@ -9,7 +9,8 @@ import {
   OTP_PURPOSE_DELETE_ACCOUNT,
   OTP_PURPOSE_LINK_MOBILE
 } from "../../lib/auth/otp.js";
-import { getCollections, ensurePendingCallsIndexes } from "../../lib/db/repositories.js";
+import { getCollections, ensurePendingCallsIndexes, getVaultBucket } from "../../lib/db/repositories.js";
+import { purgeVaultDocuments, deleteUsage } from "../../lib/core/vault.js";
 import { clientErrorMessage } from "../../lib/errors.js";
 import { createQrDataUrl, createPrintQrDataUrl } from "../../lib/core/qr-output.js";
 import { createEtagForVehicle, buildTagScanUrl, VEHICLE_LABELS, etagIdFor, stickerSerialFor } from "../../lib/core/tag-issuance.js";
@@ -76,7 +77,12 @@ export function registerOwnerRoutes(app, env) {
     // dereferences `owner`, so without this the route threw a TypeError and
     // answered 500 — a server error where the caller should simply be sent
     // back to sign in.
+    //
+    // The cookie goes too. Answering 401 while leaving it in place means the
+    // browser keeps replaying a session that can never work again, and every
+    // page load pays for another round trip to be told the same thing.
     if (!owner) {
+      await clearSession(app, request, reply);
       reply.code(401);
       return { ok: false, error: "Authentication required" };
     }
@@ -711,6 +717,24 @@ export function registerOwnerRoutes(app, env) {
       return { ok: false, error: "Tag not found" };
     }
 
+    // The tag is soft-deleted, but its documents must go for real. ownedTag()
+    // in the vault routes requires `deletedAt: null`, so once the tag is
+    // deleted the owner can no longer list, view or delete anything filed under
+    // it — the rows and their bytes would sit there permanently, out of reach
+    // and still counted against the 40MB storage quota. Deleting a vehicle is
+    // the owner asking for its paperwork to go too.
+    const purged = await purgeVaultDocuments(
+      collections,
+      await getVaultBucket(env),
+      { ownerId, tagId: String(tagId) }
+    );
+    if (purged.orphanedBlobs) {
+      request.log.error(
+        { event: "vault-purge-orphans", tagId: String(tagId), orphanedBlobs: purged.orphanedBlobs },
+        "[vault] vehicle deleted but some document blobs could not be removed — sweep required"
+      );
+    }
+
     return { ok: true };
   });
 
@@ -939,14 +963,47 @@ export function registerOwnerRoutes(app, env) {
         }
       }
 
+      // The document vault goes FIRST and is awaited on its own. These are
+      // identity documents — an RC, a driving licence, an insurance policy —
+      // and they used to survive the account outright: this handler wiped the
+      // five collections below and nothing in the app has ever swept the vault.
+      // Failing here must abort the deletion rather than proceed, otherwise the
+      // owner record disappears and takes with it the only link back to the
+      // documents that are still stored.
+      const purged = await purgeVaultDocuments(
+        collections,
+        await getVaultBucket(env),
+        { ownerId }
+      );
+      if (purged.orphanedBlobs) {
+        request.log.error(
+          { event: "vault-purge-orphans", orphanedBlobs: purged.orphanedBlobs },
+          "[vault] account deleted but some document blobs could not be removed — sweep required"
+        );
+      }
+
       await Promise.all([
         collections.tags.deleteMany({ ownerId }),
         collections.contactRequests.deleteMany({ ownerId }),
         collections.shopOrders.deleteMany({ ownerId }),
         collections.addresses.deleteMany({ ownerId }),
-        collections.pendingCalls.deleteMany({ ownerId })
+        collections.pendingCalls.deleteMany({ ownerId }),
+        // Any standing vault unlock. Keyed by session id, so it is not reachable
+        // through the owner record and would otherwise outlive it.
+        collections.vaultGrants.deleteMany({ ownerId: String(ownerId) }),
+        // The storage counter goes with the owner it belongs to.
+        deleteUsage(collections, ownerId)
       ]);
       await collections.owners.deleteOne({ _id: ownerId });
+
+      // EVERY session, not just the one making the request. clearSession below
+      // only removes the caller's, so a second signed-in device kept a working
+      // session for a deleted account for the rest of its 7-day life — and
+      // readSession does not check that the owner still exists, so that session
+      // authenticated normally and could still download the vault.
+      await collections.sessions
+        .deleteMany({ userId: String(ownerId) })
+        .catch(() => {});
 
       // Must be awaited. clearSession only reaches `reply.clearCookie` after an
       // `await` on the session collection, so firing it off unawaited let the

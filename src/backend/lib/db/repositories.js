@@ -66,6 +66,13 @@ export async function getCollections(env) {
     // readSession serves from an in-process cache for up to 30s, so an unlock
     // written onto the session would not be visible to the very next request.
     vaultGrants: db.collection(withPrefix(prefix, "vault_grants")),
+    // One row per owner holding reserved storage: total bytes, and a document
+    // count per vehicle. It is the CAP, not a cache — an upload has to win a
+    // conditional update against this row before its record is written, which
+    // is what makes the limit hold under concurrent uploads. Summing
+    // vault_documents cannot: it is a read, and a read cannot exclude a write
+    // that has not landed yet. See reserveStorage in lib/core/vault.js.
+    vaultUsage: db.collection(withPrefix(prefix, "vault_usage")),
     // One document per landing-page view, written by the beacon in
     // routes/system/analytics.js. Holds a derived country/region/city and a
     // one-way, daily-rotating visitor digest — never an IP address and never a

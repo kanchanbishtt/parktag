@@ -1,3 +1,5 @@
+import { callbackState, CALLABLE, NEEDS_PREMIUM } from "./callback-eligibility.js";
+
 // ── Banners carousel ─────────────────────────────────────────────
 const track    = document.getElementById("carTrack");
 const viewport = document.getElementById("carVp");
@@ -593,31 +595,20 @@ function renderActivity(requests) {
   // Keyed on having a number, not on the contact being a call — a WhatsApp
   // report that left a callback number is returnable too. Anonymous rows get
   // nothing, because there is nobody to dial.
-  // Calling back is a premium feature, and premium belongs to the TAG rather
-  // than the account — the same way contactAvailable and unlimitedContact
-  // already work. A contact that arrived on an E-Tag is not returnable even
-  // when the owner also owns a premium sticker on another vehicle, because it
-  // is the sticker that was paid for, not the account. The server enforces the
-  // same rule; this only decides which buttons get drawn.
-  const arrivedOnPremiumTag = (r) => {
-    const tag = allTags.find(t => t.token === r.token);
-    return Boolean(tag && tag.premium);
-  };
+  // One rule, three answers, and it lives in callback-eligibility.js so it can
+  // be tested on its own rather than inferred from this page. Calling back is a
+  // premium feature and premium belongs to the TAG, not the account — the same
+  // way contactAvailable and unlimitedContact already work. The server enforces
+  // the identical rule; this only decides which controls get drawn.
+  const stateOf = (r) =>
+    callbackState(r, { tags: allTags, now, windowMs: _callbackWindowMs });
 
-  const isReturnable = (r) =>
-    Boolean(r.phone) &&
-    arrivedOnPremiumTag(r) &&
-    r.callOutcome !== "answered" &&
-    (now - new Date(r.createdAt).getTime()) <= _callbackWindowMs;
+  const isReturnable = (r) => stateOf(r) === CALLABLE;
 
-  // Everything a callback needs except the premium tag. Worth naming, because
-  // the alternative is an owner who never finds out the feature exists: the
-  // row would simply have no button and nothing to explain why.
-  const blockedOnlyByPremium = (r) =>
-    Boolean(r.phone) &&
-    !arrivedOnPremiumTag(r) &&
-    r.callOutcome !== "answered" &&
-    (now - new Date(r.createdAt).getTime()) <= _callbackWindowMs;
+  // Everything a callback needs except the premium tag. Worth telling apart,
+  // because the alternative is an owner who never finds out the feature exists:
+  // the row would simply have no button and nothing to explain why.
+  const blockedOnlyByPremium = (r) => stateOf(r) === NEEDS_PREMIUM;
 
   // Exactly one row may be called back: the newest returnable one.
   //

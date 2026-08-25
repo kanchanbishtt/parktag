@@ -228,14 +228,21 @@ test("the id-less form also picks the newest PREMIUM contact", async (t) => {
   assert.equal(String(routed.requestId), String(premiumContact._id));
 });
 
-test("the page draws the button only for premium contacts", async () => {
+test("the page decides from the shared rule, not its own copy", async () => {
+  // The rule itself is covered directly in callback-eligibility.test.js. What
+  // matters here is that the page actually defers to it rather than growing a
+  // second version that can drift from the server's.
   const js = await app.inject({ method: "GET", url: "/scripts/owner/welcome.js" });
   assert.equal(js.statusCode, 200);
 
-  assert.match(js.body, /const arrivedOnPremiumTag = \(r\) => \{/,
-    "the page must decide from the tag the contact arrived on");
-  assert.match(js.body, /arrivedOnPremiumTag\(r\) &&/,
-    "and that must be part of whether a row is returnable");
+  assert.match(js.body, /from "\.\/callback-eligibility\.js"/,
+    "the page must import the shared rule");
+  assert.match(js.body, /stateOf\(r\) === CALLABLE/,
+    "and use it to decide whether a row is returnable");
+
+  const module = await app.inject({ method: "GET", url: "/scripts/owner/callback-eligibility.js" });
+  assert.equal(module.statusCode, 200, "the module it imports must actually be served");
+  assert.match(module.headers["content-type"] || "", /javascript/);
 });
 
 test("an owner is told why, not left with a blank space", async () => {
@@ -243,7 +250,7 @@ test("an owner is told why, not left with a blank space", async () => {
   // exists, which defeats the reason for charging for it.
   const js = await app.inject({ method: "GET", url: "/scripts/owner/welcome.js" });
 
-  assert.match(js.body, /const blockedOnlyByPremium = \(r\) =>/,
+  assert.match(js.body, /stateOf\(r\) === NEEDS_PREMIUM/,
     "the near-miss case has to be recognised before it can be explained");
   assert.match(js.body, /switchTab\('shop'\)/,
     "and the nudge should lead somewhere it can be fixed");

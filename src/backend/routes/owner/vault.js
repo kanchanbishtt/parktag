@@ -4,14 +4,18 @@ import { requireSession, toObjectId, tryObjectId } from "../../lib/auth/auth.js"
 import { getCollections, getVaultBucket } from "../../lib/db/repositories.js";
 import { getSessionCookieName } from "../../lib/auth/session.js";
 import {
+  DOCS_PER_ETAG,
+  DOCS_PER_PREMIUM_TAG,
+  DOCS_PER_SUBSCRIBED_TAG,
   DOC_TYPES,
   MAX_BYTES_PER_OWNER,
-  MAX_DOCS_PER_VEHICLE,
   MAX_FILE_BYTES,
+  PREMIUM_TRIAL_DAYS,
   checkQuota,
   cleanLabel,
   cleanThumbnail,
   createMimeSniffer,
+  documentEntitlement,
   extensionForMime,
   grantVaultAccess,
   hasVaultPin,
@@ -122,16 +126,30 @@ export function registerVaultRoutes(app, env) {
       readVaultGrant(collections, sessionId, ownerId)
     ]);
 
+    // The document allowance is per TAG, so it can only be answered for a
+    // vehicle. The page always asks about one; without a tagId this reports the
+    // tiers and no allowance, rather than guessing a number the upload would
+    // then contradict.
+    const tag = await ownedTag(collections, ownerId, (request.query || {}).tagId);
+
     return {
       ok: true,
       hasPin: pinSet,
       unlocked: Boolean(grant),
       limits: {
         maxFileBytes: MAX_FILE_BYTES,
-        maxDocsPerVehicle: MAX_DOCS_PER_VEHICLE,
         maxBytesPerOwner: MAX_BYTES_PER_OWNER,
-        docTypes: DOC_TYPES
-      }
+        docTypes: DOC_TYPES,
+        // What each tier is worth, so the page can name the next one without
+        // hard-coding numbers that would then drift from the server's.
+        tiers: {
+          etag: DOCS_PER_ETAG,
+          premium: DOCS_PER_PREMIUM_TAG,
+          subscribed: DOCS_PER_SUBSCRIBED_TAG
+        },
+        premiumTrialDays: PREMIUM_TRIAL_DAYS
+      },
+      entitlement: tag ? documentEntitlement(tag) : null
     };
   });
 
@@ -222,10 +240,21 @@ export function registerVaultRoutes(app, env) {
       .aggregate([{ $match: { ownerId } }, { $group: { _id: null, bytes: { $sum: "$size" } } }])
       .toArray();
 
+    // Sent with the list so the page draws the allowance it will actually be
+    // held to. Deriving it client-side from the dashboard's `premium` flag
+    // would be a second copy of the rule, free to disagree with this one.
+    const entitlement = documentEntitlement(tag);
+
     return {
       ok: true,
       documents: docs.map(shapeDocument),
-      usedBytes: (totals[0] && totals[0].bytes) || 0
+      usedBytes: (totals[0] && totals[0].bytes) || 0,
+      entitlement,
+      // Counted from the documents themselves rather than the usage row: this
+      // is what the owner is looking at, and a counter that has drifted high
+      // (see ensureUsageRow) must not make the page claim slots are gone that
+      // the screen plainly shows are free.
+      documentCount: docs.length
     };
   });
 
@@ -280,11 +309,20 @@ export function registerVaultRoutes(app, env) {
       return { ok: false, error: "Only PDF, JPG, PNG or WEBP files can be stored." };
     }
 
-    const quota = await checkQuota(collections, ownerId, String(tag._id));
+    // Read ONCE, here, and carried through to the reservation below. The tier
+    // that authorised the upload is then the tier that binds the write.
+    const entitlement = documentEntitlement(tag);
+
+    const quota = await checkQuota(collections, ownerId, String(tag._id), entitlement);
     if (!quota.ok) {
       await data.file.resume();
       reply.code(409);
-      return { ok: false, error: quota.error };
+      return {
+        ok: false,
+        code: quota.limit === "documents" ? "DOCUMENT_LIMIT_REACHED" : "STORAGE_FULL",
+        entitlement,
+        error: quota.error
+      };
     }
 
     const bucket = await getVaultBucket(env);
@@ -365,11 +403,16 @@ export function registerVaultRoutes(app, env) {
     // single-document update, so a burst of uploads fills the allowance exactly
     // once instead of every request seeing room. Claimed BEFORE the record is
     // written, so a document can never exist without the storage behind it.
-    const reserved = await reserveStorage(collections, ownerId, String(tag._id), size);
+    const reserved = await reserveStorage(collections, ownerId, String(tag._id), size, entitlement);
     if (!reserved.ok) {
       await bucket.delete(uploadStream.id).catch(() => {});
       reply.code(409);
-      return { ok: false, error: reserved.error };
+      return {
+        ok: false,
+        code: reserved.limit === "documents" ? "DOCUMENT_LIMIT_REACHED" : "STORAGE_FULL",
+        entitlement,
+        error: reserved.error
+      };
     }
 
     try {

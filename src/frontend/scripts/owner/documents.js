@@ -41,6 +41,11 @@ const els = {
 
 let limits = null;
 let documents = [];
+// What THIS vehicle's tag is allowed to keep — { tier, maxDocs, premium,
+// subscribed }. Always the server's answer, never derived here: the upload
+// route decides the same thing from the same function, and a second copy of
+// the rule in the browser is a copy free to disagree with it.
+let entitlement = null;
 
 // Labels are owner-supplied free text and go in via innerHTML.
 function esc(s) {
@@ -203,17 +208,99 @@ function docCard(d) {
     </div>`;
 }
 
+// Where an owner goes to buy the premium tag that would enlarge this vehicle's
+// allowance. `replace` carries the tag so the shop opens on the upgrade for
+// THIS vehicle rather than a bare product page — see openShopFromQuery in
+// scripts/owner/welcome.js.
+function upgradeUrl() {
+  return `/owner-welcome?shop=1&replace=${encodeURIComponent(tagId)}`;
+}
+
+// The card that stands where the upload form goes once the vehicle is full.
+//
+// An E-Tag owner is shown the way up, because there is one. A premium owner is
+// told the plain fact and how to make room — there is nothing to sell them
+// today, and inventing a "coming soon" upsell would be worse than silence.
+function fullCard(maxDocs) {
+  const held = `${maxDocs} document${maxDocs === 1 ? "" : "s"}`;
+
+  if (entitlement && !entitlement.premium) {
+    return `
+      <div class="dv-card">
+        <h2>This vehicle is full</h2>
+        <p class="dv-hint">Your E-Tag keeps ${held} for this vehicle. A premium tag keeps up to ${
+          limits && limits.tiers ? limits.tiers.premium : 3
+        } &mdash; or delete a document to swap it for another.</p>
+        <a class="dv-primary dv-linkbtn" href="${upgradeUrl()}">Get a premium tag</a>
+      </div>`;
+  }
+  // Full DURING the free period is the case most worth being straight about:
+  // all ten are kept when it ends, but no eleventh — and no further additions
+  // — until they subscribe or delete one.
+  const daysLeft = trialDaysLeft();
+  const premiumMax = limits && limits.tiers ? limits.tiers.premium : 3;
+  const trialLine = daysLeft === null
+    ? ""
+    : `<p class="dv-hint">Your free period has ${daysLeft} day${daysLeft === 1 ? "" : "s"} left. After that this vehicle keeps ${premiumMax} documents unless you subscribe. Everything saved here stays &mdash; you just won't be able to add more.</p>`;
+
+  return `
+    <div class="dv-card">
+      <h2>This vehicle is full</h2>
+      <p class="dv-hint">This tag keeps ${held} for this vehicle. Delete one to add another.</p>
+      ${trialLine}
+    </div>`;
+}
+
+// Whole days left on the complimentary period, rounded UP so the last partial
+// day still reads as "1 day left" rather than "0".
+function trialDaysLeft() {
+  if (!entitlement || !entitlement.trialEndsAt) return null;
+  const endsAt = new Date(entitlement.trialEndsAt).getTime();
+  if (!Number.isFinite(endsAt)) return null;
+  return Math.max(0, Math.ceil((endsAt - Date.now()) / (24 * 60 * 60 * 1000)));
+}
+
+// Shown under the upload form while there is still room. A nudge, not a wall:
+// nothing here is blocked.
+//
+// Two audiences. An E-Tag owner is shown what the upgrade is worth. A premium
+// owner inside the free period is shown that it ENDS, and what the allowance
+// drops to — they can fill ten slots during the trial and be over the limit on
+// day 46, so being told late would be being told too late.
+function upgradeNote() {
+  if (!entitlement) return "";
+
+  const premiumMax = limits && limits.tiers ? limits.tiers.premium : 3;
+
+  if (!entitlement.premium) {
+    return `<p class="dv-quota">A premium tag keeps up to ${premiumMax} documents for this vehicle. <a href="${upgradeUrl()}">Upgrade</a></p>`;
+  }
+
+  const daysLeft = trialDaysLeft();
+  if (daysLeft === null) return "";
+  return `<p class="dv-quota">Free with your premium tag for another ${daysLeft} day${daysLeft === 1 ? "" : "s"}. After that this vehicle keeps ${premiumMax} documents unless you subscribe &mdash; nothing already saved is removed.</p>`;
+}
+
 function renderList(usedBytes) {
   els.lockBtn.classList.add("dv-on");
 
   const quotaMb = limits ? Math.round(limits.maxBytesPerOwner / (1024 * 1024)) : 40;
+
+  // The listing always carries an entitlement when it succeeds, so null here
+  // means something is wrong rather than that the vehicle has no allowance.
+  // Leave the form up in that case and let the server answer: an owner who has
+  // no room is told so plainly when they try, whereas a page that decides on
+  // its own that the allowance is zero locks them out with no way back.
+  const maxDocs = entitlement ? entitlement.maxDocs : null;
+  const full = maxDocs !== null && documents.length >= maxDocs;
+
   const grid = documents.length
     ? `<div class="dv-grid">${documents.map(docCard).join("")}</div>`
     : `<div class="dv-empty">No documents yet.<br>Add your RC or insurance so it's with you when you need it.</div>`;
 
-  els.body.innerHTML = `
-    ${grid}
-    <div class="dv-card">
+  const addCard = full
+    ? fullCard(maxDocs)
+    : `<div class="dv-card">
       <h2 style="text-align:left;margin-bottom:14px">Add a document</h2>
       <div class="dv-f"><label for="dv-type">Document type</label>
         <select id="dv-type">${Object.keys(TYPE_LABELS).map((k) => `<option value="${k}">${TYPE_LABELS[k]}</option>`).join("")}</select></div>
@@ -223,7 +310,23 @@ function renderList(usedBytes) {
         <input id="dv-file" type="file" accept="application/pdf,image/jpeg,image/png,image/webp"></div>
       <button class="dv-primary" id="dv-add">Add document</button>
     </div>
-    <p class="dv-quota">Using ${fmtSize(usedBytes)} of ${quotaMb} MB &middot; up to ${limits ? limits.maxDocsPerVehicle : 6} documents per vehicle</p>`;
+    ${upgradeNote()}`;
+
+  // "6 of 1 document" is what an owner who filed six under the old flat cap
+  // would otherwise be shown, which reads like a fault rather than a grandfathered
+  // vehicle. Over the allowance, state the holding and the allowance separately.
+  const count = documents.length;
+  let tally = `${count} document${count === 1 ? "" : "s"} on this vehicle`;
+  if (maxDocs !== null) {
+    tally = count > maxDocs
+      ? `${tally} &middot; this tag's allowance is ${maxDocs}`
+      : `${count} of ${maxDocs} document${maxDocs === 1 ? "" : "s"} on this vehicle`;
+  }
+
+  els.body.innerHTML = `
+    ${grid}
+    ${addCard}
+    <p class="dv-quota">${tally} &middot; using ${fmtSize(usedBytes)} of ${quotaMb} MB</p>`;
 
   // Two things open the viewer: the preview itself and the View button. Only
   // the preview needs the keyboard handler — it is a div playing the part of a
@@ -249,7 +352,10 @@ function renderList(usedBytes) {
     n.addEventListener("click", () => openEditor(n.getAttribute("data-edit"))));
   els.body.querySelectorAll("[data-del]").forEach((n) =>
     n.addEventListener("click", () => removeDocument(n.getAttribute("data-del"))));
-  document.getElementById("dv-add").addEventListener("click", addDocument);
+  // Absent once the vehicle is full — the upload form is replaced by fullCard()
+  // rather than left on screen with a disabled button.
+  const addBtn = document.getElementById("dv-add");
+  if (addBtn) addBtn.addEventListener("click", addDocument);
 }
 
 async function loadDocuments() {
@@ -265,6 +371,10 @@ async function loadDocuments() {
     return;
   }
   documents = r.data.documents || [];
+  // Re-read on every load, not just at boot: an owner who buys a premium tag
+  // in another tab and comes back should see the larger allowance without
+  // signing out and in again.
+  if (r.data.entitlement) entitlement = r.data.entitlement;
   renderList(r.data.usedBytes || 0);
 }
 
@@ -397,6 +507,17 @@ async function addDocument() {
   btn.textContent = "Add document";
 
   if (r.status === 423) { renderUnlock(); return; }
+  // The vehicle filled up under us — another tab, or an allowance that shrank.
+  // Take the server's word for the tier and redraw, so the form the owner is
+  // looking at stops offering something that will be refused again.
+  if (r.status === 409 && r.data.code === "DOCUMENT_LIMIT_REACHED") {
+    if (r.data.entitlement) entitlement = r.data.entitlement;
+    // Redraw FIRST: loadDocuments() clears the banner on the way in, so an
+    // error set before it would flash and disappear.
+    await loadDocuments();
+    showError(r.data.error || "This vehicle is full.");
+    return;
+  }
   if (r.status !== 200) { showError(r.data.error || "Could not save the document."); return; }
   showOk("Document added.");
   loadDocuments();
@@ -450,7 +571,9 @@ async function start() {
   }
   showVehicleName();
 
-  const r = await api("/status");
+  // tagId is sent so the allowance comes back with the status: it is per
+  // vehicle, so it cannot be answered without one.
+  const r = await api(`/status?tagId=${encodeURIComponent(tagId)}`);
   if (r.status === 401) { window.location.href = "/owner-login"; return; }
   if (r.status !== 200) {
     els.body.innerHTML = "";
@@ -458,6 +581,7 @@ async function start() {
     return;
   }
   limits = r.data.limits || null;
+  entitlement = r.data.entitlement || null;
   if (!r.data.hasPin) { renderSetPin(); return; }
   if (!r.data.unlocked) { renderUnlock(); return; }
   loadDocuments();

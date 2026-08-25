@@ -45,8 +45,64 @@ const PIN_MAX_DIGITS = 8;
 // without a ceiling a few hundred owners would fill the cluster and take the
 // whole app down with them. Revisit these if the vault ever moves to S3/R2.
 export const MAX_FILE_BYTES = 5 * 1024 * 1024; // 5MB per document
-export const MAX_DOCS_PER_VEHICLE = 6;
 export const MAX_BYTES_PER_OWNER = 40 * 1024 * 1024; // 40MB across all vehicles
+
+// ── How many documents one vehicle may hold ────────────────────────────────
+//
+// The allowance belongs to the TAG, not the account, exactly as `premium`,
+// `contactAvailable` and `freeContactUsed` already do. It is the sticker that
+// was paid for, so a premium tag on one car does not enlarge the vault of an
+// E-Tag on another.
+//
+// Three tiers:
+//
+//   E-Tag                    1 document   — enough to keep the RC to hand, so
+//                                           the feature is real rather than a
+//                                           locked door, and small enough that
+//                                           free vehicles cannot fill GridFS.
+//   Premium tag              3 documents  — RC, insurance and PUC, which is the
+//                                           set an owner is actually asked for.
+//   Premium, first 45 days   the lot      — buying a premium tag includes the
+//                                           subscription tier free for 45 days,
+//                                           so the add-on is something an owner
+//                                           has used before being asked to pay
+//                                           for it.
+//   Premium + subscription   the lot      — the paid add-on. See
+//                                           hasActiveDocumentSubscription: the
+//                                           entitlement is read here, but
+//                                           nothing SELLS it yet, so today this
+//                                           tier is only reachable by stamping
+//                                           the field directly.
+//
+// The per-owner BYTE cap is deliberately not tiered with these. It exists to
+// stop the Atlas cluster filling up, and that reason does not change with what
+// somebody paid; a subscriber who wants 10 slots is still bounded by 40MB in
+// total. Revisit together, when the vault moves off GridFS.
+export const DOCS_PER_ETAG = 1;
+export const DOCS_PER_PREMIUM_TAG = 3;
+export const DOCS_PER_SUBSCRIBED_TAG = 10;
+
+// The complimentary period that comes with a premium tag.
+//
+// It is a TRIAL, and the honest consequence of that is worth stating: an owner
+// who fills all ten slots during it is over their allowance on day 46. Nothing
+// is deleted — they keep every document and simply cannot add another until
+// they subscribe or delete one — but they must be TOLD the period ends while
+// they still have room, which is why the entitlement carries trialEndsAt and
+// the page counts it down. A trial that silently becomes a wall is a worse
+// product than no trial.
+export const PREMIUM_TRIAL_DAYS = 45;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// There is deliberately no single MAX_DOCS_PER_VEHICLE any more. It used to be
+// the one number the whole vault was written against, and leaving it behind as
+// a synonym for the top tier would invite exactly the bug the tiers exist to
+// prevent: code checking "the cap" instead of the cap for THIS tag.
+export const TIER_ETAG = "etag";
+export const TIER_PREMIUM = "premium";
+export const TIER_TRIAL = "premium-trial";
+export const TIER_SUBSCRIBED = "premium-subscription";
 
 // Allowlist, not a blocklist. SVG is excluded on purpose despite being an
 // image: it can carry script, and these files are served back from our own
@@ -353,13 +409,111 @@ export async function revokeVaultAccess(collections, sessionId) {
   await collections.vaultGrants.deleteOne({ _id: sessionId });
 }
 
+// ── Document allowance ─────────────────────────────────────────────────────
+
+// Is a paid document subscription running on this tag right now?
+//
+// The subscription is not sold yet — there is no checkout, no renewal job and
+// no webhook that writes this field. What exists is the SHAPE it will be
+// written in, read from one place, so that turning it on later is a matter of
+// stamping the tag rather than threading a new rule through the upload path,
+// the reservation and the page.
+//
+//   tag.documentSubscription = { status: "active", currentPeriodEnd: <ISO> }
+//
+// Expiry is checked against the clock rather than trusting a job to have
+// downgraded the tag on time: a renewal that fails at 3am must not quietly
+// leave the larger allowance open until somebody notices.
+export function hasActiveDocumentSubscription(tag, now = Date.now()) {
+  const sub = tag && tag.documentSubscription;
+  if (!sub || sub.status !== "active") return false;
+
+  // An ABSENT end date means open-ended, which is what a comped tag looks like.
+  // Tested for absence specifically, not for falsiness: an empty string is a
+  // blank field, not a decision to give somebody unlimited storage, and a
+  // truthiness check reads the two as the same thing.
+  if (sub.currentPeriodEnd === null || sub.currentPeriodEnd === undefined) return true;
+
+  // Anything else present must parse to a future instant. An unparseable date
+  // reads as expired rather than unlimited — junk in this field must never be
+  // the thing that hands storage out.
+  const endsAt = new Date(sub.currentPeriodEnd).getTime();
+  return Number.isFinite(endsAt) && endsAt > now;
+}
+
+// When a premium tag's complimentary period runs out, as epoch ms — or null if
+// this tag never had one.
+//
+// Dated from `premiumSince`, which createPremiumTagForVehicle stamps at the
+// moment the tag is minted. `createdAt` is the fallback for premium tags issued
+// by an admin batch, which have no premiumSince. Both are only ever a fallback
+// TOWARDS expiry: an unparseable or missing date yields no trial at all rather
+// than an open-ended one, so a malformed tag cannot mint free storage.
+export function premiumTrialEndsAt(tag) {
+  if (!tag || !tag.premium) return null;
+  const startedAt = new Date(tag.premiumSince || tag.createdAt || "").getTime();
+  if (!Number.isFinite(startedAt)) return null;
+  return startedAt + PREMIUM_TRIAL_DAYS * DAY_MS;
+}
+
+export function isInPremiumTrial(tag, now = Date.now()) {
+  const endsAt = premiumTrialEndsAt(tag);
+  return endsAt !== null && now < endsAt;
+}
+
+// What one tag is allowed to hold. The single place the tiers are decided —
+// the upload route, the atomic reservation and the page all read this, so they
+// cannot drift into disagreeing about who may store what.
+export function documentEntitlement(tag, now = Date.now()) {
+  // `premium: true` is the single source of truth for a premium tag. Tags
+  // issued before the flag existed have no field at all, so this reads as
+  // falsy — which is correct: they are E-Tags.
+  if (!tag || !tag.premium) {
+    return { tier: TIER_ETAG, maxDocs: DOCS_PER_ETAG, premium: false, subscribed: false };
+  }
+
+  // A paying subscriber is never labelled as being on a trial, even inside the
+  // first 45 days. Same allowance either way, but the page says something
+  // different about each, and telling somebody who has paid that their access
+  // expires in a fortnight would be alarming and wrong.
+  if (hasActiveDocumentSubscription(tag, now)) {
+    return { tier: TIER_SUBSCRIBED, maxDocs: DOCS_PER_SUBSCRIBED_TAG, premium: true, subscribed: true };
+  }
+
+  if (isInPremiumTrial(tag, now)) {
+    return {
+      tier: TIER_TRIAL,
+      maxDocs: DOCS_PER_SUBSCRIBED_TAG,
+      premium: true,
+      subscribed: false,
+      trialEndsAt: new Date(premiumTrialEndsAt(tag)).toISOString()
+    };
+  }
+
+  return { tier: TIER_PREMIUM, maxDocs: DOCS_PER_PREMIUM_TAG, premium: true, subscribed: false };
+}
+
+// What the owner is told when the vehicle is full. Says which tier they are on
+// and what the next one gives them, because "you can keep up to 1 document" on
+// its own reads like a fault rather than a plan.
+export function documentLimitMessage(entitlement) {
+  const { tier, maxDocs } = entitlement;
+  const held = `${maxDocs} document${maxDocs === 1 ? "" : "s"}`;
+
+  if (tier === TIER_ETAG) {
+    return `Your E-Tag can keep ${held} for this vehicle. Upgrade to a premium tag to keep up to ${DOCS_PER_PREMIUM_TAG}, or delete this one to add another.`;
+  }
+  return `This vehicle can keep ${held}. Delete one to add another.`;
+}
+
 // ── Quota ──────────────────────────────────────────────────────────────────
 
 // Checked BEFORE a file is streamed into GridFS, using the declared size, and
 // again after the write against the real byte count — a multipart client can
 // declare anything, so the pre-check is only there to reject the obvious case
 // cheaply.
-export async function checkQuota(collections, ownerId, tagId) {
+export async function checkQuota(collections, ownerId, tagId, entitlement) {
+  const allowance = entitlement || { tier: TIER_ETAG, maxDocs: DOCS_PER_ETAG };
   const [vehicleCount, totals] = await Promise.all([
     collections.vaultDocuments.countDocuments({ ownerId, tagId }),
     collections.vaultDocuments
@@ -372,10 +526,12 @@ export async function checkQuota(collections, ownerId, tagId) {
 
   const usedBytes = (totals[0] && totals[0].bytes) || 0;
 
-  if (vehicleCount >= MAX_DOCS_PER_VEHICLE) {
+  if (vehicleCount >= allowance.maxDocs) {
     return {
       ok: false,
-      error: `You can keep up to ${MAX_DOCS_PER_VEHICLE} documents per vehicle. Delete one to add another.`
+      limit: "documents",
+      tier: allowance.tier,
+      error: documentLimitMessage(allowance)
     };
   }
   if (usedBytes >= MAX_BYTES_PER_OWNER) {
@@ -467,7 +623,13 @@ async function ensureUsageRow(collections, ownerId) {
 
 // Claim room for one document of `size` bytes against `tagId`. Returns
 // { ok: true } only if the reservation was actually taken.
-export async function reserveStorage(collections, ownerId, tagId, size) {
+// `entitlement` is what documentEntitlement() returned for the tag being filed
+// under. It is passed in rather than looked up here so the tier that was read
+// when the tag was authorised is the same one that binds the write — re-reading
+// the tag mid-upload would open a gap where a subscription expiring between the
+// two checks refuses an upload the owner was told they could make.
+export async function reserveStorage(collections, ownerId, tagId, size, entitlement) {
+  const allowance = entitlement || { tier: TIER_ETAG, maxDocs: DOCS_PER_ETAG };
   await ensureUsageRow(collections, ownerId);
 
   const field = tagCountField(tagId);
@@ -480,7 +642,12 @@ export async function reserveStorage(collections, ownerId, tagId, size) {
       // $not also matches a MISSING field, which is what the first document for
       // a vehicle looks like. A bare $lt would not match it and would reject
       // every owner's very first upload.
-      [field]: { $not: { $gte: MAX_DOCS_PER_VEHICLE } }
+      //
+      // The bound is the TAG's allowance, not a global constant, which is what
+      // makes the tiers hold under concurrency as well: an E-Tag firing ten
+      // uploads at once still lands exactly one, for the same reason a premium
+      // tag lands exactly three.
+      [field]: { $not: { $gte: allowance.maxDocs } }
     },
     { $inc: { bytes: size, [field]: 1 } }
   );
@@ -492,10 +659,12 @@ export async function reserveStorage(collections, ownerId, tagId, size) {
   const row = await collections.vaultUsage.findOne({ _id: usageKey(ownerId) });
   const vehicleCount = (row && row.tags && row.tags[String(tagId)]) || 0;
 
-  if (vehicleCount >= MAX_DOCS_PER_VEHICLE) {
+  if (vehicleCount >= allowance.maxDocs) {
     return {
       ok: false,
-      error: `You can keep up to ${MAX_DOCS_PER_VEHICLE} documents per vehicle. Delete one to add another.`
+      limit: "documents",
+      tier: allowance.tier,
+      error: documentLimitMessage(allowance)
     };
   }
   return {

@@ -11,6 +11,8 @@
 // app.js) and every document call needs the vault PIN on top of that. Nothing
 // here is reachable from a tag scan.
 
+import { prepareDocument, MAX_DECODE_BYTES } from "./document-compress.js";
+
 const params = new URLSearchParams(location.search);
 const tagId = params.get("id") || "";
 
@@ -21,12 +23,6 @@ const TYPE_LABELS = {
   licence: "Driving licence",
   other: "Other"
 };
-
-// Thumbnails are generated here, in the browser, and uploaded alongside the
-// file. Painting a grid from the documents themselves would mean downloading up
-// to 30MB of photos to draw one screen; a canvas-scaled JPEG is a few KB.
-const THUMB_MAX_EDGE = 320;
-const THUMB_QUALITY = 0.7;
 
 const els = {
   body: document.getElementById("dv-body"),
@@ -446,31 +442,13 @@ function openEditor(docId) {
 
 // ── Upload ─────────────────────────────────────────────────────────────────
 
-// Draw the picked image into a canvas at thumbnail size and read it back as a
-// small JPEG. Resolves to null for PDFs, and for anything the browser cannot
-// decode — the card then falls back to a type icon, which is only cosmetic.
-function makeThumbnail(file) {
-  return new Promise((resolve) => {
-    if (!file.type.startsWith("image/")) { resolve(null); return; }
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      try {
-        const scale = Math.min(1, THUMB_MAX_EDGE / Math.max(img.width, img.height));
-        const canvas = document.createElement("canvas");
-        canvas.width = Math.max(1, Math.round(img.width * scale));
-        canvas.height = Math.max(1, Math.round(img.height * scale));
-        canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL("image/jpeg", THUMB_QUALITY));
-      } catch (_) {
-        resolve(null);
-      } finally {
-        URL.revokeObjectURL(url);
-      }
-    };
-    img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
-    img.src = url;
-  });
+// Both the stored document and its card thumbnail now come out of one pass in
+// document-compress.js, off a single decode. See that module for why the
+// shrinking happens here rather than on the server.
+
+function fmtSaving(originalBytes, storedBytes) {
+  const cut = Math.round((1 - storedBytes / originalBytes) * 100);
+  return `${fmtSize(originalBytes)} → ${fmtSize(storedBytes)} (${cut}% smaller)`;
 }
 
 async function addDocument() {
@@ -482,16 +460,36 @@ async function addDocument() {
   showError("");
   if (!fileEl.files || !fileEl.files.length) { showError("Choose a file to upload."); return; }
 
-  const file = fileEl.files[0];
-  if (limits && file.size > limits.maxFileBytes) {
-    showError(`Each document must be under ${Math.floor(limits.maxFileBytes / (1024 * 1024))}MB.`);
+  const picked = fileEl.files[0];
+  const maxFileBytes = (limits && limits.maxFileBytes) || MAX_DECODE_BYTES;
+
+  // Deliberately NOT checked against the picked file. A 6MB photo shrinks to
+  // well under the cap, and refusing it before trying would turn a file we can
+  // comfortably store into an error message. The compressed size is what has to
+  // fit, so that is what is measured — below, once it exists.
+  if (picked.size > MAX_DECODE_BYTES) {
+    showError(`That file is too large to process. Choose a photo or PDF under ${Math.floor(MAX_DECODE_BYTES / (1024 * 1024))}MB.`);
     return;
   }
 
   btn.disabled = true;
-  btn.textContent = "Uploading…";
+  btn.textContent = "Preparing…";
 
-  const thumb = await makeThumbnail(file);
+  const prepared = await prepareDocument(picked);
+  const { file, thumb } = prepared;
+
+  if (file.size > maxFileBytes) {
+    btn.disabled = false;
+    btn.textContent = "Add document";
+    // A PDF, or an image that could not be compressed. Either way the number
+    // the owner is shown is the size of the thing that was actually refused.
+    showError(
+      `This document is ${fmtSize(file.size)}. Each one must be under ${Math.floor(maxFileBytes / (1024 * 1024))}MB.`
+    );
+    return;
+  }
+
+  btn.textContent = "Uploading…";
 
   // Order matters: the server reads these text fields off the multipart stream
   // as they arrive, so they must all be appended BEFORE the file part.
@@ -519,7 +517,11 @@ async function addDocument() {
     return;
   }
   if (r.status !== 200) { showError(r.data.error || "Could not save the document."); return; }
-  showOk("Document added.");
+  // Say what the compression bought. It explains the wait, and it is the only
+  // visible sign that the feature is working at all.
+  showOk(prepared.compressed
+    ? `Document added — ${fmtSaving(prepared.originalBytes, prepared.storedBytes)}.`
+    : "Document added.");
   loadDocuments();
 }
 

@@ -618,6 +618,36 @@ describe("the page reads the allowance rather than working it out", () => {
     assert.match(js, /\/owner-welcome\?shop=1&replace=/,
       "the upsell must carry the tag, or it lands on a generic shop page");
   });
+
+  test("every upload goes through the compression pass", async () => {
+    // A 4.79MB photo of an RC is stored as an 89KB WebP. That is what makes the
+    // allowances above affordable at all, so an upload path that quietly stopped
+    // compressing would not fail anything — it would just cost 50x the storage.
+    const js = await documentsScript();
+    assert.match(js, /from "\.\/document-compress\.js"/, "the page must import the compression module");
+    assert.match(js, /await prepareDocument\(/, "and actually run it on the picked file");
+    assert.doesNotMatch(js, /function makeThumbnail/,
+      "the old second decode is gone — one decode now feeds both the document and its thumbnail");
+  });
+
+  test("the compression module is served where the page imports it from", async () => {
+    // A bare module specifier is resolved by the browser without the page's
+    // version stamp, so this file is fetched by its own path and must exist there.
+    const r = await app.inject({ method: "GET", url: "/scripts/owner/document-compress.js" });
+    assert.equal(r.statusCode, 200);
+    assert.match(r.headers["content-type"] || "", /javascript/);
+    assert.match(r.body, /export async function prepareDocument/);
+  });
+
+  test("the size limit is applied to what is stored, not to what was picked", async () => {
+    // A 6MB photo compresses to well under the cap. Checking the picked file
+    // would refuse a document we can comfortably store.
+    const js = await documentsScript();
+    assert.match(js, /if \(file\.size > maxFileBytes\)/,
+      "the cap must be measured against the compressed file");
+    assert.doesNotMatch(js, /picked\.size > maxFileBytes/,
+      "the picked file's size is not what gets stored");
+  });
 });
 
 describe("owners who already hold more than their new allowance", () => {

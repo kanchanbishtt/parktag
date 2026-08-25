@@ -35,6 +35,12 @@ import {
   weakPinMessage
 } from "../../lib/core/vault.js";
 
+// An image above this has almost certainly skipped the browser's compression
+// pass: the ladder in scripts/owner/document-compress.js aims at 250KB and a
+// realistic RC photo lands at 89KB. Set well clear of that so ordinary
+// variation is quiet and only a genuine miss is logged.
+const LARGE_IMAGE_WARN_BYTES = 1024 * 1024;
+
 // Shape sent to the client. The GridFS id never leaves the server — see
 // newDocumentId in lib/core/vault.js for why.
 function shapeDocument(doc) {
@@ -382,6 +388,19 @@ export function registerVaultRoutes(app, env) {
     // size — the per-owner quota is summed from these values.
     const stored = await bucket.find({ _id: uploadStream.id }).next();
     const size = (stored && stored.length) || 0;
+
+    // Images are compressed in the browser before they are sent — see
+    // scripts/owner/document-compress.js, where a 4.79MB photo becomes 89KB.
+    // The server cannot re-encode without an image library in the API process,
+    // so it cannot ENFORCE that. What it can do is notice: a large image
+    // arriving means compression did not run, and the only way that becomes
+    // visible before the cluster fills is if somebody says so here.
+    if (size > LARGE_IMAGE_WARN_BYTES && isInlineViewable(data.mimetype)) {
+      request.log.warn(
+        { event: "vault-uncompressed-image", bytes: size, mime: data.mimetype },
+        "[vault] a large image was stored — client-side compression did not run"
+      );
+    }
 
     const record = {
       docId,

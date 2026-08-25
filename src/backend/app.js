@@ -25,6 +25,7 @@ import { registerDemoRoutes } from "./routes/system/demo.js";
 import { registerOwnerRoutes } from "./routes/owner/dashboard.js";
 import { registerVaultRoutes } from "./routes/owner/vault.js";
 import { MAX_FILE_BYTES } from "./lib/core/vault.js";
+import { cacheControlFor, resolveAssetVersion } from "./lib/core/asset-version.js";
 import { registerProviderRoutes } from "./routes/webhooks/exotel.js";
 import { registerMetaWebhookRoutes } from "./routes/webhooks/meta.js";
 import { registerRazorpayWebhookRoutes } from "./routes/webhooks/razorpay.js";
@@ -67,11 +68,13 @@ const ownerVerifyPage = path.join(pagesRoot, "owner/verify.html");
 const ownerWelcomePage = path.join(pagesRoot, "owner/welcome.html");
 const ownerVehicleDetailPage = path.join(pagesRoot, "owner/vehicle-detail.html");
 const ownerDocumentsPage = path.join(pagesRoot, "owner/documents.html");
-// Bumped with the scan-flow reorder, then again when the call moved onto the
-// verification card: without it a returning scanner keeps the cached app.js and
-// lands on the old plate-first screen, or on the retired number panel.
-const scannerAssetVersion = "parktag-ui-10";
-const hubAssetVersion = "hub-shell-1";
+// The token every page writes into its stylesheet and script URLs. It is
+// replaced on the way out (see the onSend hook) with a digest of the asset tree,
+// so the URL changes whenever the bytes do and a returning visitor can never be
+// left holding a stale script. This replaced two hand-bumped constants
+// ("parktag-ui-10", "hub-shell-1") that covered only the scanner and hub pages
+// and relied on somebody remembering to change them.
+const ASSET_VERSION_TOKEN = "__ASSET_VERSION__";
 
 // Every request is logged with its URL, and several sensitive values travel in
 // the query string: the Exotel webhook secret (?token=), the inbound caller's
@@ -299,6 +302,11 @@ export async function buildApp() {
     trustProxy: 1
   });
 
+  // Hashed once at boot rather than per request: the asset tree cannot change
+  // under a running process, and every HTML response substitutes this.
+  const assetVersion = await resolveAssetVersion(frontendRoot, app.log);
+  app.log.info({ event: "asset-version", assetVersion }, "[assets] versioned URLs stamped");
+
   // In-process cache in front of the MongoDB-backed session store (see
   // lib/auth/session.js). Sessions themselves live in Mongo, so a restart or a
   // second instance no longer logs users out — this is just a fast path.
@@ -496,7 +504,25 @@ export async function buildApp() {
       }
     }
 
-    return payload;
+    const isHtml = String(reply.getHeader("content-type") || "").startsWith("text/html");
+    if (!isHtml) return payload;
+
+    // A page carries the asset stamp, and the URLs it stamps are cached for a
+    // year — so the page itself must never be the stale part. Only set this
+    // when the route has not already made a stronger choice: the signed-in and
+    // scanner pages send no-store, which additionally keeps them out of the
+    // back/forward store, and must not be softened to no-cache here.
+    if (!reply.getHeader("cache-control")) {
+      reply.header("Cache-Control", "no-cache");
+    }
+
+    // One substitution for every page, instead of a replaceAll remembered at
+    // the bottom of each route. Pages read straight off disk by the static
+    // handler arrive here as a stream and keep the literal token, which is
+    // harmless: an unmatched stamp is refused immutability and revalidated.
+    return typeof payload === "string"
+      ? payload.replaceAll(ASSET_VERSION_TOKEN, assetVersion)
+      : payload;
   });
 
   const isProduction = env.runtimeMode === "production";
@@ -628,9 +654,30 @@ export async function buildApp() {
   await app.register(fastifyStatic, {
     root: frontendRoot,
     prefix: "/",
+    // Both were off, which is why nothing was ever reused: with no validator
+    // there is nothing for a browser to revalidate against, so every stylesheet,
+    // script and image came back in full on every visit. With them on, an
+    // unchanged file answers a conditional request with a 304 and no body.
+    etag: true,
+    lastModified: true,
+    // The real policy is per file, below. This stays 0 so that anything the
+    // callback somehow does not classify is asked about rather than assumed
+    // fresh — the safe direction to be wrong in.
     maxAge: 0,
-    etag: false,
-    lastModified: false
+    setHeaders(reply, _filePath, _stat) {
+      const url = reply.request?.url ?? "";
+      const split = url.indexOf("?");
+      const pathname = split === -1 ? url : url.slice(0, split);
+      const query = split === -1 ? "" : url.slice(split + 1);
+      reply.header(
+        "Cache-Control",
+        cacheControlFor({
+          pathname,
+          requestedVersion: new URLSearchParams(query).get("v"),
+          assetVersion
+        })
+      );
+    }
   });
 
   app.get("/", async (request, reply) => {
@@ -640,7 +687,7 @@ export async function buildApp() {
   app.get("/hub", async (_request, reply) => {
     const html = await fs.readFile(hubPage, "utf8");
     reply.type("text/html");
-    return html.replaceAll("__HUB_ASSET_VERSION__", hubAssetVersion);
+    return html;
   });
 
   app.get("/verify", async (_request, reply) => {
@@ -656,7 +703,7 @@ export async function buildApp() {
   app.get("/track-order", async (_request, reply) => {
     const html = await fs.readFile(trackOrderPage, "utf8");
     reply.type("text/html");
-    return html.replaceAll("__SCANNER_ASSET_VERSION__", scannerAssetVersion);
+    return html;
   });
 
   // Public tag report. Like /track-order, deliberately unauthenticated — the
@@ -665,7 +712,7 @@ export async function buildApp() {
   app.get("/report-tag", async (_request, reply) => {
     const html = await fs.readFile(reportTagPage, "utf8");
     reply.type("text/html");
-    return html.replaceAll("__SCANNER_ASSET_VERSION__", scannerAssetVersion);
+    return html;
   });
 
   app.get("/owner-login", async (_request, reply) => {
@@ -872,7 +919,7 @@ export async function buildApp() {
     const html = await fs.readFile(scannerPage, "utf8");
     setScannerNoCache(reply);
     reply.type("text/html");
-    return html.replaceAll("__SCANNER_ASSET_VERSION__", scannerAssetVersion);
+    return html;
   }
 
   app.get("/tag/:token([A-Za-z0-9]{12,64})", async (_request, reply) => {

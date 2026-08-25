@@ -85,9 +85,10 @@ const activation = { plate: "", name: "", phone: "", type: "" };
 //
 // Copied rather than imported: scripts/owner/welcome.js and
 // scripts/owner/register.js each already carry their own copy of this map, and
-// the scanner bundle is cache-busted through scannerAssetVersion while a bare
-// import would not be. Worth consolidating into one shared module when those
-// two files are next touched.
+// this file is fetched through a stamped URL (?v=<asset digest>) while a bare
+// import inside it would not be -- the browser resolves module specifiers
+// without the query. Worth consolidating into one shared module when those two
+// files are next touched.
 const VEHICLE_ICON_SRC = {
   car: "/images/car-tag.svg",
   bike: "/images/bike-tag.svg",

@@ -1,4 +1,5 @@
 import { getCaptchaToken } from "../recaptcha.js";
+import { requestJson, offlineMessage } from "../net-retry.js";
 
 const DEFAULT_MESSAGE =
   "Hi, your vehicle is blocking my way. Please move it when possible.";
@@ -184,11 +185,20 @@ function getTokenFromUrl() {
   return params.get("token") || "";
 }
 
-async function fetchJson(url, options) {
-  const response = await fetch(url, options);
-  const data = await response.json();
+// Every request on this page now has a deadline. Without one a stalled
+// connection -- the normal way mobile data fails in a basement car park --
+// never settled at all, so the page sat on a disabled button forever.
+//
+// A GET is safe to repeat, so the tag lookup this page cannot start without
+// gets a few attempts. Anything else defaults to none: send-otp, activate,
+// register-call and the contact POSTs all have effects that a replay would
+// duplicate. See net-retry.js.
+async function fetchJson(url, options = {}) {
+  const isRead = !options.method || options.method === "GET";
+  const { retries = isRead ? 3 : 0, ...rest } = options;
+  const { ok, data } = await requestJson(url, { ...rest, retries });
 
-  if (!response.ok) {
+  if (!ok) {
     throw new Error(data.error || "Request failed");
   }
 
@@ -564,12 +574,13 @@ async function handleSosCall() {
 
   let virtualNumber = "";
   try {
-    const res = await fetch(`/api/tags/${token}/register-emergency-call`, {
+    const { ok, data } = await requestJson(`/api/tags/${token}/register-emergency-call`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ phone, grant: contactGrant })
+      body: JSON.stringify({ phone, grant: contactGrant }),
+      onSlow: () =>
+        setRequestStatus("request-status", "Still connecting… signal is weak here.", "info")
     });
-    const data = await res.json().catch(() => ({}));
 
     if (data.code === "NO_EMERGENCY_CONTACT") {
       // The owner cleared it between page load and the tap. The block stays —
@@ -598,11 +609,22 @@ async function handleSosCall() {
       );
       return;
     }
-    if (!res.ok) throw new Error(data.error || "Could not start the emergency call.");
+    if (!ok) throw new Error(data.error || "Could not start the emergency call.");
     virtualNumber = data.virtualNumber || "";
   } catch (error) {
     actionLocked = false;
     setDisabled("sos-final-call-button", false);
+    // Someone is standing at an accident. If the line is dead, say so plainly
+    // and point at the helplines rather than leaving them reading "Connecting…"
+    // at a button that is never going to move.
+    if (error?.isTimeout || error?.isNetworkDown) {
+      closeSosPanels();
+      setRequestStatus("request-status", "", "info");
+      openSosHelplines(
+        `${offlineMessage(error, { action: "the emergency call" })} You can still dial the All India helplines below directly.`
+      );
+      return;
+    }
     setRequestStatus(
       "request-status",
       error instanceof Error ? error.message : "Could not start the emergency call.",
@@ -653,22 +675,27 @@ function setSummaryForTag(tag) {
 }
 
 async function createRequest(payload) {
-  const response = await fetch("/api/contact-requests", {
+  // Not retried, for the same reason as register-call: this sends the owner a
+  // WhatsApp alert and spends an E-Tag's one free contact before its answer
+  // leaves the server, so a replay would message the owner twice and then
+  // report 402 for a message that was in fact delivered.
+  const { ok, status, data } = await requestJson("/api/contact-requests", {
     method: "POST",
     headers: { "content-type": "application/json" },
     // Attach the verification grant so the server authorises the contact.
-    body: JSON.stringify({ ...payload, grant: contactGrant })
+    body: JSON.stringify({ ...payload, grant: contactGrant }),
+    onSlow: () =>
+      setRequestStatus("request-status", "Still sending… signal is weak here.", "info")
   });
-  const data = await response.json().catch(() => ({}));
 
   // 402 = free contact used up. Server is authoritative; flip the UI to the CTA.
-  if (response.status === 402) {
+  if (status === 402) {
     setContactAvailability(false);
     const err = new Error(data.error || "This E-Tag's free contact has been used.");
     err.freeUsed = true;
     throw err;
   }
-  if (!response.ok) {
+  if (!ok) {
     throw new Error(data.error || "Request failed");
   }
   return data;
@@ -732,11 +759,36 @@ async function loadScannerView() {
     showOnly("scanner-action-shell");
     setRequestStatus("request-status", "", "info");
   } catch (error) {
-    setText("scanner-load-status", "This WaveTag could not be loaded.");
+    // Two different failures wearing one face until now. A tag that genuinely
+    // is not there deserves "Tag not found"; a scan in a basement that never
+    // reached the server does not, and sending that scanner off to inspect a
+    // perfectly good sticker is the wrong instruction. The lookup is a plain
+    // read, so the connection case gets a button instead of a dead end.
+    const unreachable = error?.isTimeout || error?.isNetworkDown;
+
+    setText("scanner-load-status", unreachable
+      ? "We could not reach ParkTag."
+      : "This WaveTag could not be loaded.");
+    setText("error-title", unreachable ? "No connection" : "Tag not found");
     setText(
       "error-message",
-      error instanceof Error ? error.message : "Failed to load the tag"
+      unreachable
+        ? offlineMessage(error, { action: "loading this tag" })
+        : (error instanceof Error ? error.message : "Failed to load the tag")
     );
+
+    const retry = byId("error-retry");
+    if (retry) {
+      retry.hidden = !unreachable;
+      retry.disabled = false;
+      retry.textContent = "Try again";
+      retry.onclick = () => {
+        retry.disabled = true;
+        retry.textContent = "Trying…";
+        loadScannerView();
+      };
+    }
+
     showOnly("error-card");
   }
 }
@@ -794,22 +846,30 @@ async function handlePlateVerification(event) {
 
   // Verification happens entirely server-side — the correct digits are never
   // sent to the browser. The server returns a grant we attach to contact calls.
-  let response;
+  // Not retried: each attempt is counted against the plate brute-force
+  // lockout, so a silent replay would spend somebody's attempts for them.
+  let ok;
+  let status;
+  let data;
   try {
-    response = await fetch(`/api/tags/${token}/verify`, {
+    ({ ok, status, data } = await requestJson(`/api/tags/${token}/verify`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ lastFour: entered })
-    });
-  } catch (_) {
+      body: JSON.stringify({ lastFour: entered }),
+      onSlow: () =>
+        setRequestStatus("plate-verify-status", "Still checking… signal is weak here.", "info")
+    }));
+  } catch (error) {
     setDisabled("plate-verify-submit", false);
-    setRequestStatus("plate-verify-status", "Network error. Please try again.", "error");
+    setRequestStatus(
+      "plate-verify-status",
+      offlineMessage(error, { action: "the check" }),
+      "error"
+    );
     return;
   }
 
-  const data = await response.json().catch(() => ({}));
-
-  if (!response.ok) {
+  if (!ok) {
     setDisabled("plate-verify-submit", false);
     let msg = data.error || "Verification failed. Please try again.";
     if (typeof data.attemptsRemaining === "number") {
@@ -822,7 +882,7 @@ async function handlePlateVerification(event) {
     // lockout (423) or a server fault has nothing to correct, so those stay on
     // the status line. The line keeps the attempts count either way — it is
     // the warning before the lockout, and the dialog copy does not carry it.
-    if (response.status === 401) {
+    if (status === 401) {
       showAlert(PLATE_MISMATCH_MESSAGE, "plate-verify-status");
     }
     return;
@@ -991,27 +1051,42 @@ async function handleFinalCallAction() {
 
   let virtualNumber = "";
   try {
-    const res = await fetch(`/api/tags/${token}/register-call`, {
+    // No retry here on purpose. The server sets freeContactUsed before this
+    // answer leaves it, so replaying a request whose response was lost would
+    // come back 402 "free contact already used" for a call that in fact
+    // worked -- and the page would then tell the scanner their one contact is
+    // spent. A deadline and an honest failure are the safe half of the fix.
+    const { ok, status, data } = await requestJson(`/api/tags/${token}/register-call`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ phone, grant: contactGrant })
+      body: JSON.stringify({ phone, grant: contactGrant }),
+      onSlow: () =>
+        setRequestStatus("dial-status", "Still setting up your call… signal is weak here.", "info")
     });
-    const data = await res.json().catch(() => ({}));
 
-    if (res.status === 402) {
+    if (status === 402) {
       setContactAvailability(false);
       actionLocked = false;
       setDisabled("final-call-button", false);
       setDisabled("send-whatsapp-button", false);
       return;
     }
-    if (!res.ok) throw new Error(data.error || "Could not register the call.");
+    if (!ok) throw new Error(data.error || "Could not register the call.");
     virtualNumber = data.virtualNumber || "";
   } catch (error) {
     actionLocked = false;
     setDisabled("final-call-button", false);
     setDisabled("send-whatsapp-button", false);
-    setRequestStatus("dial-status", error instanceof Error ? error.message : "Could not start the call.", "error");
+    // A request that never got an answer is a different thing from one the
+    // server refused, and only the second has a message worth showing. The
+    // first used to surface the browser's own words -- "Failed to fetch".
+    setRequestStatus(
+      "dial-status",
+      error?.isTimeout || error?.isNetworkDown
+        ? offlineMessage(error, { action: "your call" })
+        : (error instanceof Error ? error.message : "Could not start the call."),
+      "error"
+    );
     return;
   }
 
@@ -1260,7 +1335,9 @@ async function handleWhatsAppNotify() {
     if (!error.freeUsed) {
       setRequestStatus(
         "request-status",
-        error instanceof Error ? error.message : "Could not notify the owner.",
+        error?.isTimeout || error?.isNetworkDown
+          ? offlineMessage(error, { action: "the alert" })
+          : (error instanceof Error ? error.message : "Could not notify the owner."),
         "error"
       );
     }

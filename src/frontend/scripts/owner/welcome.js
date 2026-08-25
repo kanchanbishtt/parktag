@@ -1,3 +1,5 @@
+import { callbackState, CALLABLE, NEEDS_PREMIUM } from "./callback-eligibility.js";
+
 // ── Banners carousel ─────────────────────────────────────────────
 const track    = document.getElementById("carTrack");
 const viewport = document.getElementById("carVp");
@@ -593,10 +595,20 @@ function renderActivity(requests) {
   // Keyed on having a number, not on the contact being a call — a WhatsApp
   // report that left a callback number is returnable too. Anonymous rows get
   // nothing, because there is nobody to dial.
-  const isReturnable = (r) =>
-    Boolean(r.phone) &&
-    r.callOutcome !== "answered" &&
-    (now - new Date(r.createdAt).getTime()) <= _callbackWindowMs;
+  // One rule, three answers, and it lives in callback-eligibility.js so it can
+  // be tested on its own rather than inferred from this page. Calling back is a
+  // premium feature and premium belongs to the TAG, not the account — the same
+  // way contactAvailable and unlimitedContact already work. The server enforces
+  // the identical rule; this only decides which controls get drawn.
+  const stateOf = (r) =>
+    callbackState(r, { tags: allTags, now, windowMs: _callbackWindowMs });
+
+  const isReturnable = (r) => stateOf(r) === CALLABLE;
+
+  // Everything a callback needs except the premium tag. Worth telling apart,
+  // because the alternative is an owner who never finds out the feature exists:
+  // the row would simply have no button and nothing to explain why.
+  const blockedOnlyByPremium = (r) => stateOf(r) === NEEDS_PREMIUM;
 
   // Exactly one row may be called back: the newest returnable one.
   //
@@ -728,7 +740,13 @@ function renderActivity(requests) {
     // scanners in a day, the older one used to be unreachable no matter how
     // recently it happened.
     let cta = "";
-    if (canCallBack(r)) {
+    if (blockedOnlyByPremium(r)) {
+      // Same slot and same treatment as the "Add phone" nudge above it: this is
+      // the one thing standing between the owner and reaching this person, so
+      // it says so and goes straight to where that is fixed.
+      cta = `<button class="pt-act-nophone pt-act-upsell" onclick="switchTab('shop')"
+        title="Callback is available on premium tags">Premium<br>to call back</button>`;
+    } else if (canCallBack(r)) {
       if (!_ownerMobile) {
         cta = `<span class="pt-act-nophone">Add phone<br>to call back</span>`;
       } else {
@@ -944,6 +962,11 @@ async function callBack(btnId = "cbBtn") {
       if (deviceCanDial()) {
         setTimeout(() => { window.location.href = `tel:${data.virtualNumber}`; }, 120);
       }
+    } else if (data.code === "PREMIUM_REQUIRED") {
+      // A stale tab, or a tag that stopped being premium since the page loaded.
+      // Re-rendering swaps the button for the upgrade nudge.
+      _toast("Calling back is a premium feature. Upgrade this vehicle to use it.", "err");
+      renderActivity(allRequests);
     } else if (data.code === "NO_PHONE") {
       _toast("Add your mobile number to your profile to enable callback.", "err");
       if (btn) { btn.disabled = false; btn.textContent = label; }

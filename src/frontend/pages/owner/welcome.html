@@ -1066,6 +1066,17 @@
     white-space: nowrap;
   }
 
+  /* The same nudge, but this one is actionable: callback is a premium feature,
+     and the shop is one tap away. Shares .pt-act-nophone's look so the activity
+     column keeps one visual language for "nearly, but not yet"; only the parts
+     a <button> resets differently are restated. */
+  .pt-act-upsell {
+    border: none; cursor: pointer; font-family: inherit; line-height: 1.25;
+    transition: background .15s, color .15s;
+  }
+  .pt-act-upsell:hover { background: #FDE68A; }
+  .pt-act-upsell:focus-visible { outline: 2px solid #D97706; outline-offset: 2px; }
+
   /* ── E-Tag print styles ── */
   #wl-etag-print { display: none; }
   @media print {

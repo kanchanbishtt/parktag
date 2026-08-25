@@ -36,6 +36,24 @@ function minutesAgo(m) {
   return new Date(Date.now() - m * 60 * 1000).toISOString();
 }
 
+// Callback is premium-only, and premium lives on the tag, so a contact is only
+// callable when the tag it arrived on exists and is premium. Every contact in
+// this file therefore needs a tag behind it.
+async function seedTag(forOwnerId, { token, premium = true, deletedAt = null }) {
+  const doc = {
+    _id: new ObjectId(),
+    token,
+    ownerId: forOwnerId,
+    status: "active",
+    premium,
+    plateNumber: "DL5CB1234",
+    createdAt: new Date().toISOString()
+  };
+  if (deletedAt) doc.deletedAt = deletedAt;
+  await collections.tags.insertOne(doc);
+  return doc;
+}
+
 async function seedContact(forOwnerId, { phone, createdAt, action = "call", token = "cb-tok" }) {
   const doc = {
     _id: new ObjectId(),
@@ -56,6 +74,7 @@ test.before(async () => {
   await collections.owners.deleteMany({});
   await collections.contactRequests.deleteMany({});
   await collections.pendingCalls.deleteMany({});
+  await collections.tags.deleteMany({});
 
   owner = await createTestOwner(collections, {
     email: "cb-owner@example.invalid",
@@ -81,6 +100,14 @@ test.before(async () => {
 });
 
 test.beforeEach(async () => {
+  // Rebuilt per test so the premium cases can replace it without leaking into
+  // the next one.
+  await collections.tags.deleteMany({});
+  await seedTag(owner._id, { token: "cb-tok", premium: true });
+  await seedTag(intruder._id, { token: "cb-tok-intruder", premium: true });
+});
+
+test.beforeEach(async () => {
   await collections.contactRequests.deleteMany({});
   await collections.pendingCalls.deleteMany({});
   // The route allows 5 callbacks per 5 minutes and the counters live in Mongo
@@ -93,6 +120,7 @@ test.after(async () => {
   await collections.owners.deleteMany({});
   await collections.contactRequests.deleteMany({});
   await collections.pendingCalls.deleteMany({});
+  await collections.tags.deleteMany({});
   await stopTestApp(app);
 });
 
@@ -156,7 +184,9 @@ test("another owner's contact cannot be dialled", async () => {
   // The id is real and inside the window — the only thing wrong with it is
   // whose it is. Scoping the lookup by session owner is what refuses it; taking
   // the id on trust would let any signed-in account ring a stranger's scanner.
-  const theirs = await seedContact(intruder._id, { phone: SCANNER_B, createdAt: minutesAgo(1) });
+  const theirs = await seedContact(intruder._id, {
+    phone: SCANNER_B, createdAt: minutesAgo(1), token: "cb-tok-intruder"
+  });
 
   const response = await callBack({ requestId: String(theirs._id) });
   assert.equal(response.statusCode, 410, "must not resolve another owner's contact");

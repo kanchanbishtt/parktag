@@ -5217,6 +5217,9 @@ html:has(body.pt-hub-body) {
      the image lands, which stops everything below it jumping on load. Update
      this alongside the file if the artwork is ever re-cut. */
   aspect-ratio: 1134 / 496;
+  /* Companion to the width/height attributes on the <img>: those are
+     presentational hints for height and would otherwise beat aspect-ratio. */
+  height: auto;
   object-fit: cover;
   /* Painted behind the image so a slow or failed load leaves a neutral block
      rather than a collapsed gap that shifts everything below it. */

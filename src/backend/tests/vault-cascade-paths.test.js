@@ -231,8 +231,11 @@ describe("upgrading a tag moves the vehicle's documents, it does not lose them",
   });
 
   test("the per-vehicle count follows the documents", async () => {
-    await upload(tagId, cookie);
-    await upload(tagId, cookie, "Second");
+    // One document, because that is an E-Tag's whole allowance — and an E-Tag
+    // is what this path requires: fulfilPaidOrder only mints a replacement for
+    // a tag that is not already premium.
+    const up = await upload(tagId, cookie);
+    assert.equal(up.statusCode, 200, `precondition: the document did not upload — ${up.body}`);
 
     const order = {
       orderId: "order_cascade_counts",
@@ -251,7 +254,7 @@ describe("upgrading a tag moves the vehicle's documents, it does not lose them",
 
     const usage = await collections.vaultUsage.findOne({ _id: String(owner._id) });
     assert.equal(usage.tags[tagId], 0, "the old tag still reserves vehicle slots");
-    assert.equal(usage.tags[outcome.newTagId], 2, "the new tag did not inherit the slots");
+    assert.equal(usage.tags[outcome.newTagId], 1, "the new tag did not inherit the slots");
   });
 });
 

@@ -21,7 +21,7 @@ import assert from "node:assert/strict";
 
 import { createSession } from "../lib/auth/session.js";
 import { getVaultBucket } from "../lib/db/repositories.js";
-import { MAX_BYTES_PER_OWNER, MAX_DOCS_PER_VEHICLE } from "../lib/core/vault.js";
+import { MAX_BYTES_PER_OWNER, DOCS_PER_SUBSCRIBED_TAG } from "../lib/core/vault.js";
 import {
   startTestApp,
   stopTestApp,
@@ -35,6 +35,10 @@ const OWNER_EMAIL = assertUndeliverableIdentifier("qa-vault-upload@parktag-test.
 const VAULT_PIN = "5938";
 const ORIGIN = "http://localhost:3000";
 const BOUNDARY = "----vaultUploadBoundary";
+
+// The cap these tests push against: the largest any single vehicle can hold.
+// Which tag gets which allowance is vault-document-tiers.test.js's subject.
+const MAX_DOCS_PER_VEHICLE = DOCS_PER_SUBSCRIBED_TAG;
 
 // ── Fixtures: real container signatures, and things pretending to be them ────
 const PNG = Buffer.from(
@@ -111,12 +115,21 @@ function upload({ body, contentType, filename = "doc", tag = tagId, docType = "r
   });
 }
 
+// The vehicles in THIS file all sit on the top tier — a premium tag with a
+// live document subscription — so MAX_DOCS_PER_VEHICLE is genuinely the cap
+// being tested. What each tier is worth is vault-document-tiers.test.js's job;
+// what is checked here is that whatever the cap is, concurrency cannot beat it.
 async function makeTag(plate, token) {
   const tag = await collections.tags.insertOne({
     ownerId: owner._id,
     plateNumber: plate,
     status: "active",
     token,
+    premium: true,
+    documentSubscription: {
+      status: "active",
+      currentPeriodEnd: new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString()
+    },
     createdAt: new Date().toISOString()
   });
   return String(tag.insertedId);

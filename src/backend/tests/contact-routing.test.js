@@ -61,6 +61,20 @@ async function createTag({ premium = false, withOwner = true, ownerPhone = OWNER
 
   let ownerId = null;
   if (withOwner) {
+    // `owners.mobile` carries a partial unique index (mobile_unique, added with
+    // one-number-one-account), and this fixture hands every tag the same
+    // constant number — so the second call in the file collided on it and took
+    // eleven tests down with it. The collision was invisible for a while
+    // because the index itself was failing to build on the shared test cluster,
+    // which meant the fixture was only ever exercised without the constraint it
+    // now has to satisfy.
+    //
+    // Cleared rather than reused: each tag still gets its own owner document,
+    // which is what the routing tests assume. Safe because no single test asks
+    // for two tags on the SAME number — the two that build a second tag pass
+    // SECOND_OWNER_PHONE for it.
+    await collections.owners.deleteMany({ mobile: ownerPhone });
+
     const { insertedId } = await collections.owners.insertOne({
       displayName: "QA Route Fixture",
       mobile: ownerPhone,

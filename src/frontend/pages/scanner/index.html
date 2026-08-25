@@ -647,8 +647,16 @@
         <div class="pt-card-icon pt-icon-error">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M12 8v4M12 16h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
         </div>
-        <h1 class="pt-card-title">Tag not found</h1>
+        <!-- The title is set from script as well: on a network failure the tag
+             is very probably fine and only the connection was not, so telling
+             the scanner it was "not found" sends them off checking a sticker
+             that has nothing wrong with it. -->
+        <h1 class="pt-card-title" id="error-title">Tag not found</h1>
         <p class="pt-card-sub" id="error-message">This QR code could not be linked to an active vehicle. Please check and try again.</p>
+        <!-- Only shown when the load failed for want of a connection. Reading a
+             tag is a plain lookup with nothing to undo, so it is safe to offer
+             as a button rather than asking someone to reload the page. -->
+        <button type="button" class="pt-btn pt-btn-primary pt-btn-full" id="error-retry" hidden>Try again</button>
       </article>
 
     </main>

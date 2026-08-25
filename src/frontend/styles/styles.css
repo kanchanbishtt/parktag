@@ -1696,6 +1696,16 @@ pre {
   text-align: center;
 }
 
+/* Shown only when the tag lookup failed for want of a connection.
+   Spacing lives here, on the id, rather than on .pt-card-sub above it:
+   .pt-card-sub is declared three times in this sheet and the later pair reset
+   it to `margin: 0`, so the 20px in the base rule never reaches this card and
+   the button came up flush against the last line of text. Same trap the
+   .pt-track-intro comment further down describes. */
+#error-retry {
+  margin-top: 20px;
+}
+
 /* Card icon */
 .pt-card-icon {
   width: 48px;

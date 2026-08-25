@@ -199,13 +199,25 @@
     }
     .pt-slide-blank-lbl { font-size: 0.78rem; font-weight: 600; color: #D1D5DB; margin: 0; }
 
-    /* Desktop banner images replace the placeholders at >=600px. Banners are
-       2480x1085 (~16:7), matching the slide frame, so cover fits with no crop. */
-    .pt-slide-desk-img { display: none; width: 100%; aspect-ratio: 16/7; object-fit: cover; }
-    .pt-slide-mob-img  { display: block; width: 100%; aspect-ratio: 16/7; object-fit: cover; }
+    /* One <picture> per slide so the browser fetches only the cut it will show.
+       This used to be two <img>s with the unwanted one on display:none, which
+       hides an image but does not stop it downloading -- every dashboard visit
+       paid for the mobile and the desktop banner. Banners are 2480x1085
+       (~16:7), matching the slide frame, so cover fits with no crop, and the
+       600px switch below is the same breakpoint that pair of rules used. */
+    .pt-slide-pic { display: block; width: 100%; }
+    .pt-slide-photo {
+      display: block; width: 100%; aspect-ratio: 16/7; object-fit: cover;
+      /* height:auto is required, not tidiness. The width/height attributes on
+         the <img> are presentational hints, so without it the height attribute
+         wins, aspect-ratio is ignored, and the banner renders full-bleed tall.
+         The attributes earn their place by giving the ratio before the image
+         lands, which is also why the slot is painted: neither the carousel nor
+         anything below it moves when the picture arrives. */
+      height: auto;
+      background: #F3F4F6;
+    }
     @media (min-width: 600px) {
-      .pt-slide-desk-img { display: block; }
-      .pt-slide-mob-img  { display: none; }
       .pt-slide-hide-desk { display: none; }
     }
 
@@ -1194,21 +1206,33 @@
             <!-- Slide 1 -->
             <div class="pt-car-slide">
               <div class="pt-slide-img">
-                <img class="pt-slide-mob-img" src="/images/Parktag%20Mobil%20Banner%201.svg" alt="ParkTag banner 1">
-                <img class="pt-slide-desk-img" src="/images/Parktag%20Desktop%20Banner%201.svg" alt="ParkTag banner 1">
+                <picture class="pt-slide-pic">
+                  <source media="(min-width: 600px)" srcset="/images/banner-1-desktop.webp"
+                          width="2480" height="1085">
+                  <img class="pt-slide-photo" src="/images/banner-1.webp"
+                       width="1134" height="496" alt="ParkTag banner 1">
+                </picture>
               </div>
             </div>
 
             <!-- Slide 2 -->
             <div class="pt-car-slide">
-              <img class="pt-slide-mob-img" src="/images/Parktag%20Mobil%20Banner%202.svg" alt="ParkTag banner 2">
-              <img class="pt-slide-desk-img" src="/images/Parktag%20Desktop%20Banner%202.svg" alt="ParkTag banner 2">
+              <picture class="pt-slide-pic">
+                <source media="(min-width: 600px)" srcset="/images/banner-2-desktop.webp"
+                        width="2480" height="1085">
+                <img class="pt-slide-photo" src="/images/banner-2.webp"
+                     width="1134" height="496" alt="ParkTag banner 2">
+              </picture>
             </div>
 
             <!-- Slide 3 -->
             <div class="pt-car-slide">
-              <img class="pt-slide-mob-img" src="/images/Parktag%20Mobil%20Banner%203.svg" alt="ParkTag banner 3">
-              <img class="pt-slide-desk-img" src="/images/Parktag%20Desktop%20Banner%203.svg" alt="ParkTag banner 3">
+              <picture class="pt-slide-pic">
+                <source media="(min-width: 600px)" srcset="/images/banner-3-desktop.webp"
+                        width="2480" height="1085">
+                <img class="pt-slide-photo" src="/images/banner-3.webp"
+                     width="1134" height="496" alt="ParkTag banner 3">
+              </picture>
             </div>
 
           </div>

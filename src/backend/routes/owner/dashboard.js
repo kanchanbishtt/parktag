@@ -46,6 +46,12 @@ function shapeAddress(doc) {
 // Only the most recent contact is returnable — see the route below.
 const CALLBACK_WINDOW_MS = 10 * 60 * 1000;
 
+// Said in two places below — when the account holds no premium tag at all, and
+// when the contact they named arrived on an E-Tag — and the owner should not be
+// able to tell those apart by the wording. Both mean the same thing to them.
+const PREMIUM_REQUIRED_MESSAGE =
+  "Calling someone back is a premium feature. Upgrade this vehicle to a premium tag to use it.";
+
 // Where a confirmation code for THIS owner may be sent.
 //
 // Derived from the stored owner record and never from the request body. That is
@@ -1071,6 +1077,37 @@ export function registerOwnerRoutes(app, env) {
     const ownerId = toObjectId(request.session.userId);
     const owner = await collections.owners.findOne({ _id: ownerId });
 
+    // Calling a scanner back is a premium feature.
+    //
+    // Premium is a property of the TAG, never of the account: every other paid
+    // behaviour in the app (contactAvailable, unlimitedContact, the free-contact
+    // gate) is decided by `tag.premium` for the specific tag that was scanned,
+    // and there is no owner-level premium flag anywhere. So eligibility is
+    // scoped to contacts that ARRIVED ON a premium tag, not to owners who
+    // happen to own one — otherwise a single premium purchase would quietly
+    // unlock callback for every E-Tag on the account.
+    //
+    // Deleted tags are excluded so that this agrees with the dashboard, which
+    // builds its own tag list the same way. A button the page draws and a route
+    // that refuses it is worse than either answer on its own.
+    const premiumTokens = (
+      await collections.tags
+        .find(
+          { ownerId, premium: true, deletedAt: { $in: [null, undefined] } },
+          { projection: { token: 1 } }
+        )
+        .toArray()
+    ).map((tag) => tag.token);
+
+    if (!premiumTokens.length) {
+      reply.code(402);
+      return {
+        ok: false,
+        code: "PREMIUM_REQUIRED",
+        error: PREMIUM_REQUIRED_MESSAGE
+      };
+    }
+
     const ownerPhone = owner?.mobile || null;
     if (!ownerPhone) {
       reply.code(402);
@@ -1111,6 +1148,7 @@ export function registerOwnerRoutes(app, env) {
     // yesterday's row id cannot dial its way past this.
     const filter = {
       ownerId,
+      token: { $in: premiumTokens },
       phone: { $exists: true, $ne: null },
       createdAt: { $gte: windowStart }
     };
@@ -1127,6 +1165,22 @@ export function registerOwnerRoutes(app, env) {
     const recentContact = await collections.contactRequests.findOne(filter, {
       sort: { createdAt: -1 }
     });
+
+    // Before falling back to "the window has passed": if the row they named is
+    // real and theirs and simply arrived on an E-Tag, say THAT. Telling an owner
+    // their ten minutes ran out on a contact from one minute ago would send them
+    // looking for a bug instead of at the upgrade that would fix it.
+    if (wanted) {
+      const named = await collections.contactRequests.findOne({ _id: wanted, ownerId });
+      if (named && !premiumTokens.includes(named.token)) {
+        reply.code(402);
+        return {
+          ok: false,
+          code: "PREMIUM_REQUIRED",
+          error: PREMIUM_REQUIRED_MESSAGE
+        };
+      }
+    }
 
     if (!recentContact) {
       reply.code(410);

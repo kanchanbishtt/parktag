@@ -593,8 +593,29 @@ function renderActivity(requests) {
   // Keyed on having a number, not on the contact being a call — a WhatsApp
   // report that left a callback number is returnable too. Anonymous rows get
   // nothing, because there is nobody to dial.
+  // Calling back is a premium feature, and premium belongs to the TAG rather
+  // than the account — the same way contactAvailable and unlimitedContact
+  // already work. A contact that arrived on an E-Tag is not returnable even
+  // when the owner also owns a premium sticker on another vehicle, because it
+  // is the sticker that was paid for, not the account. The server enforces the
+  // same rule; this only decides which buttons get drawn.
+  const arrivedOnPremiumTag = (r) => {
+    const tag = allTags.find(t => t.token === r.token);
+    return Boolean(tag && tag.premium);
+  };
+
   const isReturnable = (r) =>
     Boolean(r.phone) &&
+    arrivedOnPremiumTag(r) &&
+    r.callOutcome !== "answered" &&
+    (now - new Date(r.createdAt).getTime()) <= _callbackWindowMs;
+
+  // Everything a callback needs except the premium tag. Worth naming, because
+  // the alternative is an owner who never finds out the feature exists: the
+  // row would simply have no button and nothing to explain why.
+  const blockedOnlyByPremium = (r) =>
+    Boolean(r.phone) &&
+    !arrivedOnPremiumTag(r) &&
     r.callOutcome !== "answered" &&
     (now - new Date(r.createdAt).getTime()) <= _callbackWindowMs;
 
@@ -728,7 +749,13 @@ function renderActivity(requests) {
     // scanners in a day, the older one used to be unreachable no matter how
     // recently it happened.
     let cta = "";
-    if (canCallBack(r)) {
+    if (blockedOnlyByPremium(r)) {
+      // Same slot and same treatment as the "Add phone" nudge above it: this is
+      // the one thing standing between the owner and reaching this person, so
+      // it says so and goes straight to where that is fixed.
+      cta = `<button class="pt-act-nophone pt-act-upsell" onclick="switchTab('shop')"
+        title="Callback is available on premium tags">Premium<br>to call back</button>`;
+    } else if (canCallBack(r)) {
       if (!_ownerMobile) {
         cta = `<span class="pt-act-nophone">Add phone<br>to call back</span>`;
       } else {
@@ -944,6 +971,11 @@ async function callBack(btnId = "cbBtn") {
       if (deviceCanDial()) {
         setTimeout(() => { window.location.href = `tel:${data.virtualNumber}`; }, 120);
       }
+    } else if (data.code === "PREMIUM_REQUIRED") {
+      // A stale tab, or a tag that stopped being premium since the page loaded.
+      // Re-rendering swaps the button for the upgrade nudge.
+      _toast("Calling back is a premium feature. Upgrade this vehicle to use it.", "err");
+      renderActivity(allRequests);
     } else if (data.code === "NO_PHONE") {
       _toast("Add your mobile number to your profile to enable callback.", "err");
       if (btn) { btn.disabled = false; btn.textContent = label; }

@@ -235,8 +235,22 @@ test("today's data is untouched and keeps its callback", async () => {
 test("the page reads the verdict, not Exotel's wording", async () => {
   const js = await app.inject({ method: "GET", url: "/scripts/owner/welcome.js" });
 
-  assert.match(js.body, /r\.callOutcome !== "answered"/,
+  // The not-answered gate moved out of this page and into the shared rule when
+  // callback became premium-only, so it is asserted where it now lives —
+  // callback-eligibility.js, which is also covered directly by
+  // callback-eligibility.test.js ("missed and unknown outcomes both stay
+  // callable"). Same rule, same reason: Exotel's status callback has never been
+  // configured, so callOutcome is null on every call in the database and
+  // gating on `=== "missed"` would hide the button from all of them.
+  const rule = await app.inject({
+    method: "GET", url: "/scripts/owner/callback-eligibility.js"
+  });
+  assert.equal(rule.statusCode, 200, "the shared rule must be served");
+  assert.match(rule.body, /callOutcome === "answered"/,
     "the gate must be NOT-answered, never is-missed");
+  assert.doesNotMatch(rule.body, /callOutcome === "missed"/,
+    "gating on is-missed would hide the button from every call in the database");
+
   assert.match(js.body, /function formatCallDuration/,
     "durations must be rendered as a person would say them");
   assert.match(js.body, /if \(isCall && r\.callOutcome\)/,

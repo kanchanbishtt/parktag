@@ -1,0 +1,39 @@
+:root {
+  --space-0: 0;
+  --space-2: 2px;
+  --space-4: 4px;
+  --space-5: 5px;
+  --space-6: 6px;
+  --space-8: 8px;
+  --space-10: 10px;
+  --space-12: 12px;
+  --space-14: 14px;
+  --space-16: 16px;
+  --space-18: 18px;
+  --space-20: 20px;
+  --space-22: 22px;
+  --space-24: 24px;
+  --space-28: 28px;
+  --space-32: 32px;
+  --space-42: 42px;
+  --space-48: 48px;
+  --space-56: 56px;
+
+  /* Layout measures taken from the shipped pages */
+  --width-scanner: 480px;   /* public scan / claim column */
+  --width-owner: 420px;     /* owner dashboard column */
+  --width-auth: 400px;      /* login + password cards */
+  --width-activate: 460px;  /* premium activation flow */
+  --width-form: 560px;      /* admin single-column form card */
+  --width-table: 1180px;    /* full-width admin table page */
+  --table-min-width: 860px;
+
+  --sidebar-width: 240px;
+  --header-height: 64px;
+  --drawer-width: 280px;
+
+  --pad-card: 24px;
+  --pad-card-admin: 20px 24px;
+  --pad-main-admin: 28px 32px 48px;
+  --hit-min: 44px;
+}

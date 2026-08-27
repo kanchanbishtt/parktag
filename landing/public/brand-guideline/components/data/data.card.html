@@ -1,0 +1,87 @@
+<!-- @dsCard group="Components" viewport="700x360" name="Cards, stats &amp; tables" subtitle="Owner card, admin card, stat row, detail rows, data table" -->
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../styles.css" />
+<style>
+  body { margin: 0; padding: 18px 20px; background: var(--surface-card); font-family: var(--font-ui); color: var(--text-strong); }
+  .cap { margin: 0 0 8px; font-size: 9.5px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-admin-faint); }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: none; border-radius: var(--radius-button); padding: 14px 20px; font-family: inherit; font-size: var(--text-md-plus); font-weight: var(--weight-bold); cursor: pointer; }
+  .btn-primary { background: var(--accent); color: #fff; box-shadow: var(--shadow-accent); }
+  .btn-activate { background: var(--action-dark); color: #fff; padding: 15px 24px; font-size: var(--text-lg); }
+  .btn-outline { background: #fff; color: var(--text-strong); border: 1.5px solid var(--border-default); box-shadow: var(--shadow-soft); }
+  .btn-whatsapp { background: var(--pt-gradient-whatsapp); color: #fff; padding: 18px 20px; border-radius: var(--radius-2xl); box-shadow: var(--shadow-whatsapp); flex-direction: column; gap: 2px; }
+  .btn-call { background: var(--pt-gradient-call); color: #fff; padding: 18px 20px; border-radius: var(--radius-2xl); border: 1px solid rgba(255,255,255,0.09); box-shadow: var(--shadow-call); flex-direction: column; gap: 2px; }
+  .btn-sub { font-size: var(--text-xs-plus); font-weight: 400; opacity: 0.85; }
+  .btn[disabled] { opacity: 0.6; }
+  .abtn { padding: 10px 18px; border-radius: var(--radius-button-admin); font-family: inherit; font-size: var(--text-base-plus); font-weight: 700; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+  .abtn-primary { background: var(--action-dark); color: #fff; }
+  .abtn-secondary { background: var(--pt-gray-100); color: var(--pt-gray-700); border: 1px solid var(--border-admin); }
+  .abtn-ghost { background: var(--pt-gray-100); color: var(--pt-gray-700); }
+  .abtn-red { background: var(--pt-danger-bg); color: var(--pt-danger); border: 1px solid var(--pt-danger-border); }
+  .spinner { width: 18px; height: 18px; border: 2.5px solid rgba(255,255,255,0.35); border-top-color: #fff; border-radius: 50%; animation: pt-spin-inline var(--duration-spin) linear infinite; }
+  .badge { display: inline-flex; align-items: center; gap: 5px; font-size: var(--text-xs); font-weight: 700; padding: 4px 10px; border-radius: 999px; }
+  .pill { display: inline-block; font-size: var(--text-2xs); font-weight: 800; padding: 2px 9px; border-radius: 999px; }
+  .tile { width: 48px; height: 48px; border-radius: var(--radius-icon-tile); display: grid; place-items: center; background: var(--pt-red-200); color: var(--accent); }
+  .tile-sm { width: 34px; height: 34px; border-radius: var(--radius-sm); }
+  label.field { display: grid; gap: 5px; font-size: var(--text-base-plus); font-weight: 600; }
+  label.field.admin { font-size: var(--text-sm-plus); color: var(--pt-gray-700); }
+  .field input, .field select { width: 100%; padding: 11px 13px; border: 1.5px solid var(--border-default); border-radius: var(--radius-input); font-family: inherit; font-size: var(--text-md-plus); background: var(--pt-bg); color: var(--text-strong); outline: none; }
+  .field.admin input, .field.admin select { padding: 9px 12px; border-radius: var(--radius-button-admin); border-color: var(--border-admin); font-size: var(--text-md); }
+  .field input:focus, .field select:focus { border-color: var(--accent); background: #fff; }
+  select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236B7280' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 36px !important; }
+  .check { display: flex; align-items: center; gap: 10px; font-size: var(--text-base-plus); cursor: pointer; }
+  .check input { width: 18px; height: 18px; accent-color: var(--accent); }
+  svg { display: block; }
+body { background: var(--surface-page-admin); }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .stat { background: #fff; border-radius: var(--radius-card-admin); border: 1px solid var(--border-admin); padding: 18px 20px; box-shadow: var(--shadow-admin-card); }
+  .stat p { margin: 0; }
+  .stat .l { font-size: var(--text-xs-plus); font-weight: 600; text-transform: uppercase; letter-spacing: var(--tracking-caps); color: var(--text-admin-muted); margin-bottom: 6px !important; }
+  .stat .v { font: var(--type-stat); color: var(--text-admin); }
+  .acard { background: #fff; border-radius: var(--radius-card-admin); border: 1px solid var(--border-admin); padding: var(--pad-card-admin); box-shadow: var(--shadow-admin-card); }
+  .acard h2 { margin: 0; display: flex; align-items: center; gap: 10px; font-family: var(--font-display); font-size: var(--text-lg); font-weight: 800; color: var(--text-admin); }
+  .acard .s { margin: 4px 0 16px; font-size: var(--text-sm-plus); color: var(--text-admin-muted); }
+  .ocard { background: #fff; border-radius: var(--radius-2xl); border: 1.5px solid var(--border-default); padding: 20px; box-shadow: var(--shadow-soft); }
+  table { width: 100%; border-collapse: collapse; font-size: var(--text-base); }
+  th { text-align: left; padding: 11px 12px; border-bottom: 1px solid var(--pt-hairline); font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-admin-faint); background: var(--pt-gray-50); font-weight: 700; }
+  td { padding: 11px 12px; border-bottom: 1px solid var(--pt-hairline); white-space: nowrap; }
+  tr:last-child td { border-bottom: none; }
+  .detail { display: flex; align-items: center; padding: 10px 0; border-bottom: 1px solid rgba(111,104,95,0.14); font-size: var(--text-md); }
+  .detail:last-child { border-bottom: none; }
+  .detail .l { color: var(--text-muted); font-weight: 600; }
+  .detail .v { margin-left: auto; font-weight: 700; }
+  .label { margin: 0 0 14px; font-size: var(--text-sm); font-weight: 800; text-transform: uppercase; letter-spacing: var(--tracking-label); color: var(--text-muted); }</style>
+</head>
+<body>
+<div style="display:grid;gap:14px">
+  <div class="stats">
+    <div class="stat"><p class="l">Owners</p><p class="v">842</p></div>
+    <div class="stat"><p class="l">Active tags</p><p class="v">1,284</p></div>
+    <div class="stat"><p class="l">Requests · 24h</p><p class="v">63</p></div>
+    <div class="stat"><p class="l">Print queue</p><p class="v">128</p></div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start">
+    <div class="acard">
+      <h2>Current queue <span class="badge" style="background:var(--pt-gray-100);color:var(--pt-gray-700)">128</span></h2>
+      <p class="s">Unclaimed tags ready for the printing vendor.</p>
+      <table>
+        <thead><tr><th>E-Tag ID</th><th>Batch</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td style="font-family:var(--font-plate);font-weight:700">PT-0042-9KQ</td><td>BATCH-014</td><td><span class="pill" style="background:var(--pt-red-200);color:#3730A3">Unclaimed</span></td></tr>
+          <tr><td style="font-family:var(--font-plate);font-weight:700">PT-0043-2XM</td><td>BATCH-014</td><td><span class="pill" style="background:var(--pt-warn-bg);color:var(--pt-warn)">Premium</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="ocard">
+      <p class="label">Your vehicle details</p>
+      <div class="detail"><span class="l">Vehicle number</span><span class="v" style="letter-spacing:0.08em">DL 8C AB 1234</span></div>
+      <div class="detail"><span class="l">Vehicle type</span><span class="v">Hatchback</span></div>
+      <div class="detail"><span class="l">E-Tag ID</span><span class="v" style="font-family:var(--font-plate);font-size:var(--text-base)">PT-0042-9KQ</span></div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

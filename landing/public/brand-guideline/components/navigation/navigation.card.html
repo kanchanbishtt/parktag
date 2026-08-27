@@ -1,0 +1,94 @@
+<!-- @dsCard group="Components" viewport="700x400" name="Navigation &amp; chrome" subtitle="Navy header, admin sidebar, drawer items, step strip" -->
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../styles.css" />
+<style>
+  body { margin: 0; padding: 18px 20px; background: var(--surface-card); font-family: var(--font-ui); color: var(--text-strong); }
+  .cap { margin: 0 0 8px; font-size: 9.5px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-admin-faint); }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: none; border-radius: var(--radius-button); padding: 14px 20px; font-family: inherit; font-size: var(--text-md-plus); font-weight: var(--weight-bold); cursor: pointer; }
+  .btn-primary { background: var(--accent); color: #fff; box-shadow: var(--shadow-accent); }
+  .btn-activate { background: var(--action-dark); color: #fff; padding: 15px 24px; font-size: var(--text-lg); }
+  .btn-outline { background: #fff; color: var(--text-strong); border: 1.5px solid var(--border-default); box-shadow: var(--shadow-soft); }
+  .btn-whatsapp { background: var(--pt-gradient-whatsapp); color: #fff; padding: 18px 20px; border-radius: var(--radius-2xl); box-shadow: var(--shadow-whatsapp); flex-direction: column; gap: 2px; }
+  .btn-call { background: var(--pt-gradient-call); color: #fff; padding: 18px 20px; border-radius: var(--radius-2xl); border: 1px solid rgba(255,255,255,0.09); box-shadow: var(--shadow-call); flex-direction: column; gap: 2px; }
+  .btn-sub { font-size: var(--text-xs-plus); font-weight: 400; opacity: 0.85; }
+  .btn[disabled] { opacity: 0.6; }
+  .abtn { padding: 10px 18px; border-radius: var(--radius-button-admin); font-family: inherit; font-size: var(--text-base-plus); font-weight: 700; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+  .abtn-primary { background: var(--action-dark); color: #fff; }
+  .abtn-secondary { background: var(--pt-gray-100); color: var(--pt-gray-700); border: 1px solid var(--border-admin); }
+  .abtn-ghost { background: var(--pt-gray-100); color: var(--pt-gray-700); }
+  .abtn-red { background: var(--pt-danger-bg); color: var(--pt-danger); border: 1px solid var(--pt-danger-border); }
+  .spinner { width: 18px; height: 18px; border: 2.5px solid rgba(255,255,255,0.35); border-top-color: #fff; border-radius: 50%; animation: pt-spin-inline var(--duration-spin) linear infinite; }
+  .badge { display: inline-flex; align-items: center; gap: 5px; font-size: var(--text-xs); font-weight: 700; padding: 4px 10px; border-radius: 999px; }
+  .pill { display: inline-block; font-size: var(--text-2xs); font-weight: 800; padding: 2px 9px; border-radius: 999px; }
+  .tile { width: 48px; height: 48px; border-radius: var(--radius-icon-tile); display: grid; place-items: center; background: var(--pt-red-200); color: var(--accent); }
+  .tile-sm { width: 34px; height: 34px; border-radius: var(--radius-sm); }
+  label.field { display: grid; gap: 5px; font-size: var(--text-base-plus); font-weight: 600; }
+  label.field.admin { font-size: var(--text-sm-plus); color: var(--pt-gray-700); }
+  .field input, .field select { width: 100%; padding: 11px 13px; border: 1.5px solid var(--border-default); border-radius: var(--radius-input); font-family: inherit; font-size: var(--text-md-plus); background: var(--pt-bg); color: var(--text-strong); outline: none; }
+  .field.admin input, .field.admin select { padding: 9px 12px; border-radius: var(--radius-button-admin); border-color: var(--border-admin); font-size: var(--text-md); }
+  .field input:focus, .field select:focus { border-color: var(--accent); background: #fff; }
+  select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236B7280' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 36px !important; }
+  .check { display: flex; align-items: center; gap: 10px; font-size: var(--text-base-plus); cursor: pointer; }
+  .check input { width: 18px; height: 18px; accent-color: var(--accent); }
+  svg { display: block; }
+body { padding: 0; background: var(--surface-page-admin); }
+  .wrap { display: grid; grid-template-columns: 240px 1fr; height: 400px; }
+  .sb { background: #fff; border-right: 1px solid var(--border-admin); display: flex; flex-direction: column; }
+  .sb-brand { padding: 20px 20px 16px; border-bottom: 1px solid var(--border-admin); display: flex; align-items: center; gap: 10px; }
+  .sb-brand img { height: 26px; }
+  .sb-nav { padding: 12px; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+  .sb-sec { font-size: var(--text-2xs); font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-admin-faint); padding: 12px 12px 4px; }
+  .sb-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--radius-md); font-size: var(--text-base-plus); font-weight: 600; color: var(--pt-gray-700); }
+  .sb-item.on { background: var(--pt-red-200); color: var(--accent-ink); font-weight: 700; }
+  .sb-foot { padding: 12px; border-top: 1px solid var(--border-admin); display: grid; gap: 6px; }
+  .hdr { display: flex; align-items: center; height: 64px; padding: 0 16px; background: var(--surface-chrome); box-shadow: var(--shadow-chrome); position: relative; }
+  .hdr img { height: 42px; mix-blend-mode: lighten; }
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; background: var(--pt-gradient-activate); padding: 10px; border-radius: 20px; }
+  .step { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 12px; border-radius: var(--radius-3xl); background: rgba(255,255,255,0.72); border: 1px solid rgba(0,25,53,0.08); color: var(--text-muted); font-size: var(--text-sm-plus); font-weight: 700; }
+  .step.on { background: rgba(255,39,0,0.14); border-color: rgba(255,39,0,0.3); color: var(--accent-ink); }
+  .step-n { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 999px; background: rgba(255,255,255,0.92); border: 1px solid rgba(0,25,53,0.12); font-size: var(--text-xs-plus); font-weight: 800; }
+  .menu-item { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: var(--radius-md); font-size: var(--text-md-plus); font-weight: 600; }
+  .menu-item.on { background: var(--pt-red-200); color: var(--accent-ink); }
+  .menu-item.danger { color: var(--pt-danger); }</style>
+</head>
+<body>
+<div class="wrap">
+  <aside class="sb">
+    <div class="sb-brand"><img src="../../assets/logo/parktag-logo-light-bg.png" alt="ParkTag" /><span class="badge" style="background:var(--pt-danger-bg);color:var(--pt-danger)">Admin</span></div>
+    <nav class="sb-nav">
+      <span class="sb-sec">Management</span>
+      <span class="sb-item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="display:block"><path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Overview</span>
+      <span class="sb-item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="display:block"><path d="M3 7a2 2 0 0 1 2-2h6l8 8a2 2 0 0 1 0 2.8l-4.2 4.2a2 2 0 0 1-2.8 0L4 12V7Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="7.5" cy="9.5" r="1.5" fill="currentColor"/></svg> E-Tags</span>
+      <span class="sb-item on"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="display:block"><path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h2v2h-2zM18 14h3M14 18v3M18 18h3v3h-3z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Batch Issuance</span>
+      <span class="sb-item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="display:block"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v8H6z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Print Queue</span>
+      <span class="sb-sec">Monitoring</span>
+      <span class="sb-item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="display:block"><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="2"/></svg> Owners</span>
+      <span class="sb-item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="display:block"><path d="M22 12h-4l-3 9L9 3l-3 9H2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Activity Feed</span>
+    </nav>
+    <div class="sb-foot"><button class="abtn abtn-ghost" style="justify-content:center">Refresh</button><button class="abtn abtn-red" style="justify-content:center">Sign out</button></div>
+  </aside>
+  <div>
+    <header class="hdr">
+      <span style="color:#fff"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="display:block"><path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      <span style="position:absolute;left:50%;transform:translateX(-50%)"><img src="../../assets/logo/parktag-logo-dark-bg.png" alt="ParkTag" /></span>
+      <span style="margin-left:auto"><span class="badge" style="background:var(--pt-red-100);color:var(--accent)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="display:block"><path d="M12 2L4 6v6c0 5.25 3.5 9.74 8 11 4.5-1.26 8-5.75 8-11V6l-8-4Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Active</span></span>
+    </header>
+    <div style="padding:18px;display:grid;gap:16px;align-content:start">
+      <div class="steps">
+        <div class="step"><span class="step-n">1</span> Scan tag</div>
+        <div class="step on"><span class="step-n">2</span> Add vehicle</div>
+        <div class="step"><span class="step-n">3</span> Activate</div>
+      </div>
+      <div style="background:#fff;border-radius:12px;padding:8px;display:grid;gap:4px;max-width:280px;box-shadow:var(--shadow-admin-card)">
+        <span class="menu-item on"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="display:block"><path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Dashboard</span>
+        <span class="menu-item danger"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="display:block"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Sign out</span>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

@@ -258,7 +258,7 @@ export default function Home() {
 
             <div className="grid md:grid-cols-2 gap-5">
               <AnimateIn from="left">
-                <div className="rounded-2xl border border-red-100 bg-white overflow-hidden h-full flex flex-col">
+                <div className="rounded-2xl border border-[#FF2700]/20 bg-white overflow-hidden h-full flex flex-col">
                   <div className="relative overflow-hidden" style={{ aspectRatio: "4/3" }}>
                     <img
                       src="/old-way.jpg"
@@ -271,11 +271,11 @@ export default function Home() {
                     </div>
                   </div>
                   <div className="p-7 flex-1">
-                    <div className="text-[11px] font-bold text-red-400 tracking-[0.15em] uppercase mb-5">The old way</div>
+                    <div className="text-[11px] font-bold text-[#FF2700] tracking-[0.15em] uppercase mb-5">The old way</div>
                     <ul className="space-y-3 text-sm text-[#495B7B]">
-                      <li className="flex gap-2.5 items-start"><span className="text-red-400 font-bold flex-shrink-0 mt-0.5">✕</span> Your number visible to every passerby</li>
-                      <li className="flex gap-2.5 items-start"><span className="text-red-400 font-bold flex-shrink-0 mt-0.5">✕</span> No control over who saved it</li>
-                      <li className="flex gap-2.5 items-start"><span className="text-red-400 font-bold flex-shrink-0 mt-0.5">✕</span> Calls at odd hours long after the incident</li>
+                      <li className="flex gap-2.5 items-start"><span className="text-[#FF2700] font-bold flex-shrink-0 mt-0.5">✕</span> Your number visible to every passerby</li>
+                      <li className="flex gap-2.5 items-start"><span className="text-[#FF2700] font-bold flex-shrink-0 mt-0.5">✕</span> No control over who saved it</li>
+                      <li className="flex gap-2.5 items-start"><span className="text-[#FF2700] font-bold flex-shrink-0 mt-0.5">✕</span> Calls at odd hours long after the incident</li>
                     </ul>
                   </div>
                 </div>

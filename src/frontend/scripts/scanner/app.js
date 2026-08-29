@@ -31,6 +31,12 @@ let verifyPhoneOnly = false;
 let contactGrant = "";
 // Whether this E-Tag still has its free contact available (server-authoritative).
 let contactAvailable = true;
+// Which panel a blocked scanner is shown. Set from the verify response before
+// setContactAvailability runs; null means the E-Tag case, which is what this
+// page did for every block before premium tags could lapse. Declared here with
+// the rest of the scan state rather than beside the function that reads it, so
+// resetScanState() below cannot assign it before its declaration is evaluated.
+let contactBlockedCode = null;
 // Premium tags are paid for and have no contact limit, so an action must not
 // consume the scanner's only turn. Defaults to false so a tag is treated as
 // one-shot unless /verify positively says otherwise — a missing or malformed
@@ -409,6 +415,9 @@ function resetActionState() {
   contactGrant = "";
   contactAvailable = true;
   unlimitedContact = false;
+  // Cleared with the rest: a scanner who reads a lapsed tag and then a
+  // different one must not carry the first tag's panel across to the second.
+  contactBlockedCode = null;
   clearSelectedReason();
   // Back to the two tiles: a fresh tag must not open on a half-answered
   // question left over from the previous one.
@@ -431,7 +440,13 @@ function setContactAvailability(available) {
   contactAvailable = available;
   setHidden("scanner-why-title", !available);
   setHidden("scanner-contact-actions", !available);
-  setHidden("purchase-cta", available);
+
+  // Two reasons to be blocked, two panels, and never both at once. An unknown
+  // or missing code falls back to the sticker CTA — the behaviour this page has
+  // always had — rather than showing nothing at all.
+  const lapsed = !available && contactBlockedCode === "CALL_SUBSCRIPTION_REQUIRED";
+  setHidden("purchase-cta", available || lapsed);
+  setHidden("contact-unavailable-cta", !lapsed);
   if (!available) {
     // Hide any open contact sub-panels too.
     closeDialModal();
@@ -899,6 +914,7 @@ async function handlePlateVerification(event) {
   // Whether this tag has anything left is only knowable after the plate
   // checks out — the load payload deliberately withholds it, so that scanning
   // a stranger's tag cannot be used to probe how it has been used.
+  contactBlockedCode = data.contactBlockedCode || null;
   setContactAvailability(data.contactAvailable !== false);
 
   if (data.contactAvailable === false) {

@@ -1,6 +1,7 @@
 import { ObjectId } from "mongodb";
 
 import { createContactAction, isSupportedContactReason } from "../../lib/core/contact-actions.js";
+import { callEntitlement, callBlockedCode, callBlockedMessage } from "../../lib/core/call-access.js";
 import { createPasswordHash, createSecureToken, safeEqual, hashIp, minutesFromNow, getClientIp, maskPlateNumber, getPlateLastFour, isNonEmptyString } from "../../lib/auth/security.js";
 import { createSession, writeSessionCookie } from "../../lib/auth/session.js";
 import {
@@ -588,21 +589,38 @@ export function registerPublicRoutes(app, env) {
       { $set: { attempts: 0, windowStart: now.toISOString(), lockedUntil: null } }
     );
 
+    const callAccess = callEntitlement(tag);
+
     return {
       ok: true,
       grant: grantId,
       vehicleLabel: tag.vehicleLabel || "Registered vehicle",
       maskedPlateNumber: maskPlateNumber(tag.plateNumber),
       // Free-usage state for the UI (authoritative check is still server-side
-      // on the contact endpoint). Premium tags always have contact available.
-      contactAvailable: Boolean(tag.premium) || !tag.freeContactUsed,
+      // on the contact endpoint). A premium tag no longer implies contact is
+      // available: masking runs for 45 days from purchase and then needs a
+      // subscription, so this is decided by callEntitlement rather than by
+      // `tag.premium` alone.
+      contactAvailable: callAccess.masking,
       // Whether contact is unlimited — i.e. whether ONE action is all this
       // scanner gets. `contactAvailable` only answers "may you act right now",
       // which is true for both products before the first action, so the client
       // could not tell them apart afterwards and locked the paid tag like a
       // free one. The client uses this for nothing but re-enabling the call
       // button; every actual permission check stays server-side below.
-      unlimitedContact: Boolean(tag.premium)
+      //
+      // Reads from the entitlement too: a lapsed premium tag has no masking at
+      // all, so telling the client its contact is unlimited would leave the
+      // call button enabled for something the server refuses.
+      unlimitedContact: callAccess.masking && callAccess.premium,
+      // Why contact is off, when it is. The page shows a different panel for
+      // each: telling a scanner standing at a premium vehicle to go and buy the
+      // official sticker is wrong twice over — that car already has one, and it
+      // is not a stranger's purchase to make.
+      //
+      // Only the reason is sent, never the tier or any date. It is enough to
+      // pick the right words and it says nothing about the owner's billing.
+      contactBlockedCode: callAccess.masking ? null : callBlockedCode(callAccess)
     };
   });
 
@@ -1123,15 +1141,16 @@ export function registerPublicRoutes(app, env) {
       };
     }
 
-    // Free-usage policy (server-enforced, cannot be bypassed from the client):
-    // each E-Tag includes one free masked contact. Once used, contact is blocked
-    // until the owner activates the official sticker (premium).
-    if (tag.freeContactUsed && !tag.premium) {
+    // Masking policy (server-enforced, cannot be bypassed from the client):
+    // an E-Tag includes one free masked contact; a premium tag includes 45 days
+    // and then needs a subscription. callEntitlement decides both.
+    const callAccess = callEntitlement(tag);
+    if (!callAccess.masking) {
       reply.code(402);
       return {
         ok: false,
-        code: "FREE_USED",
-        error: "This E-Tag's free contact has already been used. The owner can re-enable contact with the official ParkTag sticker."
+        code: callBlockedCode(callAccess),
+        error: callBlockedMessage(callAccess)
       };
     }
 
@@ -1244,12 +1263,13 @@ export function registerPublicRoutes(app, env) {
       return { ok: false, error: "Tag not found or not active" };
     }
 
-    if (tag.freeContactUsed && !tag.premium) {
+    const callAccess = callEntitlement(tag);
+    if (!callAccess.masking) {
       reply.code(402);
       return {
         ok: false,
-        code: "FREE_USED",
-        error: "This E-Tag's free contact has already been used. The owner can re-enable contact with the official ParkTag sticker."
+        code: callBlockedCode(callAccess),
+        error: callBlockedMessage(callAccess)
       };
     }
 

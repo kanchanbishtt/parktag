@@ -1,4 +1,4 @@
-import { callbackState, CALLABLE, NEEDS_PREMIUM } from "./callback-eligibility.js";
+import { callbackState, CALLABLE, NEEDS_PREMIUM, NEEDS_SUBSCRIPTION } from "./callback-eligibility.js";
 
 // ── Banners carousel ─────────────────────────────────────────────
 const track    = document.getElementById("carTrack");
@@ -726,6 +726,11 @@ function renderActivity(requests) {
   // the row would simply have no button and nothing to explain why.
   const blockedOnlyByPremium = (r) => stateOf(r) === NEEDS_PREMIUM;
 
+  // Owns the premium tag already; the call window on it has closed. A separate
+  // nudge because sending them to the shop to buy a sticker they are holding is
+  // the kind of prompt that reads as a bug.
+  const blockedOnlySubscription = (r) => stateOf(r) === NEEDS_SUBSCRIPTION;
+
   // Exactly one row may be called back: the newest returnable one.
   //
   // `recent` is already sorted newest-first by the server, so the first hit is
@@ -869,6 +874,11 @@ function renderActivity(requests) {
       // it says so and goes straight to where that is fixed.
       cta = `<button class="pt-act-nophone pt-act-upsell" onclick="switchTab('shop')"
         title="Callback is available on premium tags">Premium<br>to call back</button>`;
+    } else if (blockedOnlySubscription(r)) {
+      // Same slot and treatment, different destination: this owner already has
+      // the tag, so the thing standing in the way is the subscription.
+      cta = `<button class="pt-act-nophone pt-act-upsell" onclick="switchTab('shop')"
+        title="Your call service for this vehicle has ended">Renew<br>to call back</button>`;
     } else if (canCallBack(r)) {
       if (!_ownerMobile) {
         cta = `<span class="pt-act-nophone">Add phone<br>to call back</span>`;

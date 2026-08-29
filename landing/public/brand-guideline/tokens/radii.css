@@ -1,0 +1,22 @@
+:root {
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 14px;
+  --radius-2xl: 16px;
+  --radius-3xl: 18px;
+  --radius-4xl: 20px;
+  --radius-5xl: 24px;
+  --radius-6xl: 26px;
+  --radius-pill: 999px;
+
+  /* Role aliases: admin chrome stays tighter than owner-facing surfaces */
+  --radius-input: var(--radius-md);
+  --radius-input-scanner: var(--radius-lg);
+  --radius-button: var(--radius-xl);
+  --radius-button-admin: var(--radius-sm);
+  --radius-card: var(--radius-4xl);
+  --radius-card-admin: var(--radius-xl);
+  --radius-card-premium: var(--radius-6xl);
+  --radius-icon-tile: var(--radius-xl);
+}

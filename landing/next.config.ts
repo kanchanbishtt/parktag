@@ -105,6 +105,11 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  async rewrites() {
+    return [
+      { source: "/brand-guideline", destination: "/brand-guideline/index.html" },
+    ];
+  },
 };
 
 export default nextConfig;

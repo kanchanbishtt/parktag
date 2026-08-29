@@ -1,0 +1,529 @@
+<!-- @dsCard group="Admin console" viewport="1440x860" name="Admin console" subtitle="Overview, E-Tags, issuance, print queue, owners, activity" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ParkTag Admin Console — UI kit</title>
+<link rel="stylesheet" href="../../styles.css" />
+<style>
+  html, body { margin: 0; background: var(--surface-page-admin); color: var(--text-admin); font-family: var(--font-ui); }
+  #root { display: flex; min-height: 100vh; }
+
+  /* ── sidebar ── */
+  .sb { width: var(--sidebar-width); flex-shrink: 0; background: var(--surface-card); border-right: 1px solid var(--border-admin); display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+  .sb-brand { padding: 20px 20px 16px; border-bottom: 1px solid var(--border-admin); display: flex; align-items: center; gap: var(--space-10); }
+  .sb-brand img { height: 26px; width: auto; display: block; }
+  .sb-role { font-size: var(--text-xs); font-weight: var(--weight-bold); color: var(--pt-danger); background: var(--pt-danger-bg); padding: 2px 8px; border-radius: var(--radius-pill); }
+  .sb-nav { padding: var(--space-12); flex: 1; display: flex; flex-direction: column; gap: var(--space-2); }
+  .sb-sec { font-size: var(--text-2xs); font-weight: var(--weight-heavy); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-admin-faint); padding: 12px 12px 4px; }
+  .sb-item { display: flex; align-items: center; gap: var(--space-10); padding: 10px 12px; border-radius: var(--radius-md); font-size: var(--text-base-plus); font-weight: var(--weight-semibold); color: var(--pt-gray-700); background: none; border: none; cursor: pointer; font-family: inherit; text-align: left; transition: background var(--duration-fast), color var(--duration-fast); }
+  .sb-item:hover { background: var(--pt-gray-100); }
+  .sb-item.on { background: var(--pt-red-200); color: var(--accent-ink); font-weight: var(--weight-bold); }
+  .sb-foot { padding: var(--space-12); border-top: 1px solid var(--border-admin); display: flex; flex-direction: column; gap: var(--space-6); }
+
+  /* ── main ── */
+  main { flex: 1; min-width: 0; padding: var(--pad-main-admin); overflow-y: auto; }
+  .ph { margin-bottom: var(--space-24); }
+  .eyebrow { margin: 0 0 4px; font-size: var(--text-xs); font-weight: var(--weight-heavy); text-transform: uppercase; letter-spacing: var(--tracking-eyebrow); color: var(--accent); }
+  h1 { margin: 0 0 6px; font-family: var(--font-display); font-size: var(--text-4xl-plus); font-weight: var(--weight-black); color: var(--text-admin); }
+  .sub { margin: 0; font-size: var(--text-md); color: var(--text-admin-muted); }
+
+  /* ── buttons ── */
+  .btn { padding: 10px 18px; border-radius: var(--radius-button-admin); font-family: inherit; font-size: var(--text-base-plus); font-weight: var(--weight-bold); cursor: pointer; border: none; display: inline-flex; align-items: center; gap: var(--space-6); transition: background var(--duration-fast), transform var(--duration-instant); }
+  .btn:active { transform: scale(var(--press-scale)); }
+  .btn-primary { background: var(--action-dark); color: #fff; }
+  .btn-primary:hover { background: var(--action-dark-hover); }
+  .btn-secondary { background: var(--pt-gray-100); color: var(--pt-gray-700); border: 1px solid var(--border-admin); }
+  .btn-secondary:hover { background: var(--pt-gray-200); }
+  .btn-ghost { background: var(--pt-gray-100); color: var(--pt-gray-700); }
+  .btn-ghost:hover { background: var(--pt-gray-200); }
+  .btn-red { background: var(--pt-danger-bg); color: var(--pt-danger); border: 1px solid var(--pt-danger-border); }
+  .btn-red:hover { background: var(--pt-danger-border); }
+  .btn-full { width: 100%; justify-content: center; }
+  .btn-sm { padding: 5px 10px; font-size: var(--text-xs-plus); }
+
+  /* ── cards ── */
+  .card { background: var(--surface-card); border-radius: var(--radius-card-admin); border: 1px solid var(--border-admin); padding: var(--pad-card-admin); margin-bottom: var(--space-12); box-shadow: var(--shadow-admin-card); }
+  .card-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-12); flex-wrap: wrap; margin-bottom: var(--space-16); }
+  .card-title { margin: 0; display: flex; align-items: center; gap: var(--space-10); font-family: var(--font-display); font-size: var(--text-lg); font-weight: var(--weight-heavy); color: var(--text-admin); }
+  .card-sub { margin: 4px 0 0; font-size: var(--text-sm-plus); color: var(--text-admin-muted); }
+  .card-actions { display: flex; gap: var(--space-8); flex-wrap: wrap; }
+
+  .stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: var(--space-14); margin-bottom: var(--space-24); }
+  .stat { background: var(--surface-card); border-radius: var(--radius-card-admin); border: 1px solid var(--border-admin); padding: 18px 20px; box-shadow: var(--shadow-admin-card); }
+  .stat-label { margin: 0 0 var(--space-6); font-size: var(--text-xs-plus); font-weight: var(--weight-semibold); text-transform: uppercase; letter-spacing: var(--tracking-caps); color: var(--text-admin-muted); }
+  .stat-value { margin: 0; font: var(--type-stat); color: var(--text-admin); }
+
+  /* ── rows, tables, pills ── */
+  .row { display: flex; align-items: center; gap: var(--space-12); padding: 14px 0; border-bottom: 1px solid var(--pt-hairline); }
+  .row:last-child { border-bottom: none; }
+  .row-title { margin: 0 0 4px; font-size: var(--text-md); font-weight: var(--weight-bold); color: var(--text-admin); }
+  .row-meta { margin: 0; font-size: var(--text-sm); color: var(--text-admin-muted); }
+  .row-right { margin-left: auto; display: flex; align-items: center; gap: var(--space-10); flex-shrink: 0; }
+  .when { font-size: var(--text-sm); color: var(--text-admin-faint); min-width: 76px; text-align: right; }
+
+  table { width: 100%; border-collapse: collapse; font-size: var(--text-base); min-width: var(--table-min-width); }
+  .table-wrap { overflow: auto; }
+  th { text-align: left; padding: 11px 12px; border-bottom: 1px solid var(--pt-hairline); white-space: nowrap; font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-admin-faint); background: var(--pt-gray-50); font-weight: var(--weight-bold); }
+  td { padding: 11px 12px; border-bottom: 1px solid var(--pt-hairline); white-space: nowrap; color: var(--text-strong); }
+  tr:last-child td { border-bottom: none; }
+
+  .pill { display: inline-block; font-size: var(--text-2xs); font-weight: var(--weight-heavy); padding: 2px 9px; border-radius: var(--radius-pill); }
+  .pill-active { background: var(--pt-red-200); color: var(--accent-ink); }
+  .pill-inactive { background: var(--pt-danger-bg); color: var(--pt-danger-strong); }
+  .pill-premium { background: var(--pt-warn-bg); color: var(--pt-warn); }
+  .pill-free { background: var(--pt-red-200); color: #3730A3; }
+  .pill-deleted { background: var(--pt-gray-100); color: var(--pt-gray-500); }
+  .badge { display: inline-flex; align-items: center; gap: var(--space-5); font-size: var(--text-xs); font-weight: var(--weight-bold); padding: 4px 10px; border-radius: var(--radius-pill); background: var(--pt-gray-100); color: var(--pt-gray-700); }
+  .badge-red { background: var(--pt-danger-bg); color: var(--pt-danger); }
+
+  .mono { font-family: var(--font-plate); }
+  .plate { font-family: var(--font-plate); font-size: var(--text-sm-plus); font-weight: var(--weight-bold); letter-spacing: 0.04em; }
+  .empty { margin: 0; text-align: center; font-size: var(--text-base); color: var(--text-admin-faint); padding: 24px 0; }
+  .status { margin: 0; padding: 8px 0; font-size: var(--text-sm-plus); font-weight: var(--weight-semibold); }
+  .status-success { color: var(--accent); }
+
+  /* ── forms ── */
+  .form { display: grid; gap: var(--space-14); }
+  .form-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-12); }
+  label.field { display: grid; gap: var(--space-5); font-size: var(--text-sm-plus); font-weight: var(--weight-semibold); color: var(--pt-gray-700); }
+  input[type="text"], input[type="number"], input[type="search"], input[type="email"], select { width: 100%; padding: 9px 12px; border: 1.5px solid var(--border-admin); border-radius: var(--radius-button-admin); font-family: inherit; font-size: var(--text-md); color: var(--text-strong); background: var(--pt-bg); outline: none; transition: border-color var(--duration-base); }
+  input:focus, select:focus { border-color: var(--accent); background: #fff; }
+  select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236B7280' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 36px; cursor: pointer; }
+  .check { display: flex; align-items: center; gap: var(--space-10); font-size: var(--text-base-plus); color: var(--text-strong); cursor: pointer; }
+  .check input { width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; }
+  .toggle-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-12); padding: 14px 16px; background: #F9FAFB; border: 1.5px solid var(--border-admin); border-radius: var(--radius-lg); cursor: pointer; transition: background var(--duration-base), border-color var(--duration-base); }
+  .toggle-row.on { background: var(--pt-red-50); border-color: var(--accent); }
+  .toggle-row p { margin: 0; }
+  .toggle-title { font-size: var(--text-base); font-weight: var(--weight-bold); color: var(--text-strong); }
+  .toggle-desc { margin-top: 3px !important; font-size: var(--text-xs-plus); color: var(--text-admin-muted); }
+  .track { width: 44px; height: 24px; background: var(--pt-gray-300); border-radius: 12px; position: relative; flex-shrink: 0; transition: background var(--duration-slower); }
+  .toggle-row.on .track { background: var(--accent); }
+  .thumb { position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; background: #fff; border-radius: 50%; box-shadow: 0 1px 4px rgba(0,0,0,0.25); transition: left var(--duration-slower); }
+  .toggle-row.on .thumb { left: 22px; }
+
+  .tags-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--space-10); }
+  .tag-chip { border: 1px solid var(--border-admin); border-radius: var(--radius-md); padding: 10px 12px; background: var(--pt-gray-50); }
+  .tag-chip p { margin: 0; }
+  .tag-chip .id { font-family: var(--font-plate); font-size: var(--text-sm-plus); font-weight: var(--weight-bold); margin-bottom: 3px !important; }
+  .tag-chip .url { font-size: var(--text-2xs); color: var(--text-admin-muted); }
+
+  .qr-slot { width: 44px; height: 44px; border-radius: var(--radius-sm); border: 2px dashed var(--border-admin); display: grid; place-items: center; color: var(--text-admin-faint); flex-shrink: 0; }
+  .toolbar { display: flex; gap: var(--space-10); margin-bottom: var(--space-14); flex-wrap: wrap; align-items: center; }
+  .toolbar input[type="search"] { flex: 1; min-width: 260px; height: 42px; }
+  .toolbar select { width: 170px; height: 42px; }
+  .tabs { display: flex; gap: var(--space-8); margin: 4px 0 var(--space-16); }
+  .icon-tile { width: 34px; height: 34px; border-radius: var(--radius-sm); display: grid; place-items: center; flex-shrink: 0; background: var(--pt-red-200); color: var(--accent); }
+  .icon-tile.soft { background: var(--pt-red-100); }
+  svg { display: block; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+/* ParkTag admin console — dependency-free recreation.
+   Mirrors ui_kits/admin-console/*.jsx (the React source for consumers) so the
+   kit previews and clicks through with no network access. */
+
+const ICONS = {
+  grid: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z",
+  tag: "M3 7a2 2 0 0 1 2-2h6l8 8a2 2 0 0 1 0 2.8l-4.2 4.2a2 2 0 0 1-2.8 0L4 12V7Z",
+  qr: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h2v2h-2zM18 14h3M14 18v3M18 18h3v3h-3z",
+  printer: "M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v8H6z",
+  users: "M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2",
+  activity: "M22 12h-4l-3 9L9 3l-3 9H2",
+  shield: "M12 2L4 6v6c0 5.25 3.5 9.74 8 11 4.5-1.26 8-5.75 8-11V6l-8-4Z",
+  plus: "M12 5v14M5 12h14",
+  download: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3",
+  share: "M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13",
+  user: "M4 20c0-4 3.6-7 8-7s8 3 8 7",
+};
+
+function icon(name, size) {
+  const s = size || 16;
+  const extra =
+    name === "users" ? '<circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="2"/>'
+    : name === "user" ? '<circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="2"/>'
+    : name === "tag" ? '<circle cx="7.5" cy="9.5" r="1.5" fill="currentColor"/>'
+    : "";
+  return '<svg width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+    '<path d="' + ICONS[name] + '" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
+    extra + '</svg>';
+}
+
+const NAV = [
+  { label: "Management", items: [
+    { id: "overview", label: "Overview", icon: "grid" },
+    { id: "etags", label: "E-Tags", icon: "tag" },
+    { id: "issuance", label: "Batch Issuance", icon: "qr" },
+    { id: "print-queue", label: "Print Queue", icon: "printer" },
+  ] },
+  { label: "Monitoring", items: [
+    { id: "owners", label: "Owners", icon: "users" },
+    { id: "activity", label: "Activity Feed", icon: "activity" },
+    { id: "admins", label: "Admin Management", icon: "shield" },
+  ] },
+];
+
+const COUNTS = [
+  { label: "Owners", value: "842" },
+  { label: "Active tags", value: "1,284" },
+  { label: "Requests · 24h", value: "63" },
+  { label: "Print queue", value: "128" },
+];
+
+const REGISTRATIONS = [
+  { name: "Rohit Sharma", contact: "rohit.sharma@gmail.com · +91 98104 22187", plate: "DL 8C AB 1234", tag: "PT-0042-9KQ", when: "6 min ago" },
+  { name: "Ananya Iyer", contact: "ananya.iyer@outlook.com · +91 99872 40113", plate: "KA 03 MH 8891", tag: "PT-0041-3TB", when: "38 min ago" },
+  { name: "Imran Qureshi", contact: "imran.q@gmail.com · +91 90045 77621", plate: "MH 12 QR 0456", tag: "PT-0039-8LC", when: "2 hours ago" },
+  { name: "Sneha Patil", contact: "sneha.patil@yahoo.in · +91 88790 31204", plate: "MH 14 GT 7720", tag: "PT-0038-1VX", when: "5 hours ago" },
+];
+
+const REQUESTS = [
+  { plate: "DL 8C AB 1234", reason: "Blocking my car", channel: "WhatsApp", when: "2 min ago", state: "delivered" },
+  { plate: "KA 05 JN 4412", reason: "Lights left on", channel: "Masked call", when: "24 min ago", state: "connected" },
+  { plate: "MH 12 QR 0456", reason: "Accident or emergency", channel: "Masked call", when: "1 hour ago", state: "connected" },
+  { plate: "TN 09 BZ 6690", reason: "Parked in my spot", channel: "WhatsApp", when: "3 hours ago", state: "delivered" },
+  { plate: "UP 16 CE 2201", reason: "Blocking my car", channel: "WhatsApp", when: "yesterday", state: "no answer" },
+];
+
+const ETAGS = [
+  { id: "PT-0042-9KQ", plate: "DL 8C AB 1234", owner: "Rohit Sharma", status: "active", plan: "premium", contacts: 7, created: "30 Jul 2026" },
+  { id: "PT-0041-3TB", plate: "KA 03 MH 8891", owner: "Ananya Iyer", status: "active", plan: "free", contacts: 2, created: "30 Jul 2026" },
+  { id: "PT-0039-8LC", plate: "MH 12 QR 0456", owner: "Imran Qureshi", status: "active", plan: "free", contacts: 11, created: "29 Jul 2026" },
+  { id: "PT-0038-1VX", plate: "MH 14 GT 7720", owner: "Sneha Patil", status: "inactive", plan: "free", contacts: 0, created: "28 Jul 2026" },
+  { id: "PT-0036-5RD", plate: "TN 09 BZ 6690", owner: "Karthik Menon", status: "active", plan: "premium", contacts: 4, created: "27 Jul 2026" },
+  { id: "PT-0031-7WQ", plate: "UP 16 CE 2201", owner: "Farah Ahmed", status: "deleted", plan: "free", contacts: 1, created: "21 Jul 2026" },
+];
+
+const OWNERS = [
+  { name: "Rohit Sharma", email: "rohit.sharma@gmail.com", mobile: "+91 98104 22187", tags: 2, active: 2, plan: "premium", joined: "30 Jul 2026" },
+  { name: "Ananya Iyer", email: "ananya.iyer@outlook.com", mobile: "+91 99872 40113", tags: 1, active: 1, plan: "free", joined: "30 Jul 2026" },
+  { name: "Imran Qureshi", email: "imran.q@gmail.com", mobile: "+91 90045 77621", tags: 3, active: 2, plan: "free", joined: "29 Jul 2026" },
+  { name: "Sneha Patil", email: "sneha.patil@yahoo.in", mobile: "+91 88790 31204", tags: 1, active: 0, plan: "free", joined: "28 Jul 2026" },
+  { name: "Karthik Menon", email: "k.menon@fleetco.in", mobile: "+91 96322 88410", tags: 14, active: 14, plan: "premium", joined: "22 Jul 2026" },
+];
+
+const ADMINS = [
+  { email: "girish@parktag.me", role: "Owner", added: "12 Jun 2026" },
+  { email: "ops@parktag.me", role: "Admin", added: "02 Jul 2026" },
+  { email: "print.vendor@parktag.me", role: "Print only", added: "18 Jul 2026" },
+];
+
+const state = {
+  page: "overview",
+  q: "",
+  status: "",
+  showDeleted: false,
+  printedTab: false,
+  queue: [
+    { id: "PT-0121-4KD", batch: "BATCH-014", label: "July 2026 print run", requested: "30 Jul 2026", sticker: true },
+    { id: "PT-0122-8XN", batch: "BATCH-014", label: "July 2026 print run", requested: "30 Jul 2026", sticker: true },
+    { id: "PT-0123-2QP", batch: "BATCH-014", label: "July 2026 print run", requested: "30 Jul 2026", sticker: false },
+    { id: "PT-0124-6BM", batch: "BATCH-015", label: "Fleet · Menon", requested: "29 Jul 2026", sticker: true },
+    { id: "PT-0125-9TL", batch: "BATCH-015", label: "Fleet · Menon", requested: "29 Jul 2026", sticker: true },
+  ],
+  done: [
+    { id: "PT-0098-3AS", batch: "BATCH-012", label: "June 2026 print run", requested: "12 Jul 2026", sticker: true },
+    { id: "PT-0099-7GH", batch: "BATCH-012", label: "June 2026 print run", requested: "12 Jul 2026", sticker: true },
+  ],
+  batch: "BATCH-016",
+  quantity: 10,
+  batchLabel: "",
+  sticker: true,
+  premium: false,
+  result: null,
+};
+
+const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const pill = (tone, text) => '<span class="pill pill-' + tone + '">' + esc(text) + "</span>";
+
+function header(eyebrow, title, sub) {
+  return '<div class="ph"><p class="eyebrow">' + eyebrow + "</p><h1>" + title + "</h1>" +
+    (sub ? '<p class="sub">' + sub + "</p>" : "") + "</div>";
+}
+
+function card(opts) {
+  const head = opts.title
+    ? '<div class="card-head"><div><h2 class="card-title">' + opts.title + (opts.badge || "") + "</h2>" +
+      (opts.sub ? '<p class="card-sub">' + opts.sub + "</p>" : "") + "</div>" +
+      (opts.actions ? '<div class="card-actions">' + opts.actions + "</div>" : "") + "</div>"
+    : "";
+  return '<section class="card"' + (opts.style ? ' style="' + opts.style + '"' : "") + ">" + head + opts.body + "</section>";
+}
+
+function table(columns, rows) {
+  if (!rows.length) return '<p class="empty">Nothing to show yet.</p>';
+  return '<div class="table-wrap"><table><thead><tr>' +
+    columns.map((c) => "<th>" + c + "</th>").join("") +
+    "</tr></thead><tbody>" +
+    rows.map((r) => "<tr>" + r.map((c) => "<td>" + c + "</td>").join("") + "</tr>").join("") +
+    "</tbody></table></div>";
+}
+
+function feedRow(o) {
+  return '<div class="row">' +
+    (o.tile ? '<span class="icon-tile' + (o.soft ? " soft" : "") + '">' + o.tile + "</span>" : "") +
+    '<div style="min-width:0"><p class="row-title">' + esc(o.title) + '</p><p class="row-meta">' + esc(o.meta) + "</p></div>" +
+    '<div class="row-right">' + (o.right || "") + '<span class="when">' + esc(o.when) + "</span></div>" +
+  "</div>";
+}
+
+/* ── screens ── */
+const screens = {
+  overview() {
+    return header("Overview", "Platform snapshot", "Owners, tags, requests, and print queue at a glance.") +
+      '<div class="stats">' + COUNTS.map((c) =>
+        '<div class="stat"><p class="stat-label">' + c.label + '</p><p class="stat-value">' + c.value + "</p></div>").join("") +
+      "</div>" +
+      card({
+        title: "Recent Registrations",
+        sub: "Newest owners and their tags.",
+        actions: '<button class="btn btn-ghost" data-go="owners">View all owners</button>',
+        body: REGISTRATIONS.map((r) => feedRow({
+          title: r.name, meta: r.contact, when: r.when,
+          right: '<span class="plate">' + r.plate + "</span>" + pill("active", r.tag),
+        })).join(""),
+      }) +
+      card({
+        title: "Recent Contact Requests",
+        badge: '<span class="badge">last 24h</span>',
+        sub: "Scanner activity across every active tag.",
+        actions: '<button class="btn btn-ghost" data-go="activity">Open activity feed</button>',
+        body: REQUESTS.map((r) => feedRow({
+          title: r.reason, meta: r.plate + " · " + r.channel, when: r.when,
+          right: pill(r.state === "no answer" ? "deleted" : "active", r.state),
+        })).join(""),
+      });
+  },
+
+  etags() {
+    const rows = ETAGS.filter((t) => {
+      if (!state.showDeleted && t.status === "deleted") return false;
+      if (state.status && t.status !== state.status) return false;
+      if (!state.q) return true;
+      return (t.id + " " + t.plate + " " + t.owner).toLowerCase().includes(state.q.toLowerCase());
+    });
+    return header("Management", "E-Tags", "Every tag issued, claimed or otherwise — searchable by vehicle, tag ID or owner.") +
+      '<div class="toolbar">' +
+        '<input type="search" id="q" value="' + esc(state.q) + '" placeholder="Search by vehicle number, E-Tag ID, owner email/mobile…" />' +
+        '<select id="status">' +
+          ['<option value="">All statuses</option>', '<option value="active">Active</option>', '<option value="inactive">Inactive</option>']
+            .map((o) => o.replace('value="' + state.status + '"', 'value="' + state.status + '" selected')).join("") +
+        "</select>" +
+        '<label class="check" style="font-size:var(--text-sm-plus);color:var(--text-admin-muted)"><input type="checkbox" id="showDeleted"' + (state.showDeleted ? " checked" : "") + " /> Show deleted</label>" +
+      "</div>" +
+      '<p class="sub" style="margin-bottom:var(--space-10);font-size:var(--text-sm-plus)">Showing ' + rows.length + " of " + ETAGS.length + " tags</p>" +
+      card({
+        body: rows.length
+          ? table(["E-Tag ID", "Vehicle", "Owner", "Status", "Plan", "Contacts", "Created", "Actions"],
+              rows.map((t) => [
+                '<span class="mono" style="font-weight:var(--weight-bold)">' + t.id + "</span>",
+                '<span style="font-weight:var(--weight-heavy);letter-spacing:0.04em">' + t.plate + "</span>",
+                esc(t.owner),
+                pill(t.status, t.status),
+                pill(t.plan, t.plan),
+                t.contacts,
+                '<span style="color:var(--text-admin-muted)">' + t.created + "</span>",
+                '<span style="display:inline-flex;gap:6px"><button class="btn btn-secondary btn-sm">Logs</button><button class="btn btn-red btn-sm">Disable</button></span>',
+              ]))
+          : '<p class="empty">No tags match that search.</p>',
+      });
+  },
+
+  issuance() {
+    const out = state.result
+      ? '<div class="tags-grid">' + state.result.tags.map((t) =>
+          '<div class="tag-chip"><p class="id">' + t.id + '</p><p class="url">' + t.url + "</p></div>").join("") + "</div>"
+      : '<p class="empty">No batch generated yet.</p>';
+    return header("Batch Issuance", "Generate QR tags", "Create unclaimed tags in bulk for physical sticker printing.") +
+      card({
+        style: "max-width:var(--width-form)",
+        title: "New batch",
+        sub: "Tags are created unowned. Owners claim them by scanning the printed sticker.",
+        body: '<div class="form">' +
+            '<div class="form-2">' +
+              '<label class="field">Batch number<input type="text" id="batch" value="' + esc(state.batch) + '" placeholder="BATCH-001" /></label>' +
+              '<label class="field">Quantity<input type="number" id="quantity" min="1" max="500" value="' + state.quantity + '" /></label>' +
+            "</div>" +
+            '<label class="field">Batch label<input type="text" id="batchLabel" value="' + esc(state.batchLabel) + '" placeholder="e.g. July 2026 print run" /></label>' +
+            '<label class="check"><input type="checkbox" id="sticker"' + (state.sticker ? " checked" : "") + " /> Physical sticker requested</label>" +
+            '<label class="toggle-row' + (state.premium ? " on" : "") + '"><span><p class="toggle-title">Premium access</p>' +
+              '<p class="toggle-desc">Owners who claim this batch get unlimited contact (no free-call limit)</p></span>' +
+              '<input type="checkbox" id="premium" style="position:absolute;opacity:0;width:0;height:0"' + (state.premium ? " checked" : "") + " />" +
+              '<span class="track"><span class="thumb"></span></span></label>' +
+            '<button class="btn btn-primary" data-act="generate" style="width:fit-content">' + icon("plus", 16) + " Generate QR batch</button>" +
+          "</div>" +
+          (state.result ? '<p class="status status-success">' + state.result.tags.length + " tags created in " + esc(state.result.batch) + ".</p>" : ""),
+      }) +
+      card({
+        title: "Generated batch",
+        badge: state.result ? pill(state.result.premium ? "premium" : "free", state.result.premium ? "Premium" : "Free") : "",
+        actions: state.result ? '<button class="btn btn-secondary" data-go="print-queue">Send to print queue</button>' : "",
+        body: out,
+      });
+  },
+
+  "print-queue"() {
+    const rows = state.printedTab ? state.done : state.queue;
+    const body = rows.length
+      ? rows.map((t) => '<div class="row">' +
+          '<span class="qr-slot">' + icon("qr", 18) + "</span>" +
+          '<div style="min-width:0"><p class="row-title mono">' + t.id + '</p><p class="row-meta">' + esc(t.batch + " · " + t.label + " · requested " + t.requested) + "</p></div>" +
+          '<div class="row-right">' + pill(t.sticker ? "active" : "deleted", t.sticker ? "Sticker requested" : "Digital only") +
+            (state.printedTab ? pill("premium", "Awaiting claim") : '<button class="btn btn-secondary" data-print="' + t.id + '">Mark printed</button>') +
+          "</div></div>").join("")
+      : '<p class="empty">Nothing waiting to print yet.</p>';
+    return header("Print Queue", "Unprinted tags", "Review sticker-ready unclaimed tags and prepare them for the printing company.") +
+      card({
+        title: "Current queue",
+        badge: '<span class="badge">' + state.queue.length + "</span>",
+        sub: "Unclaimed tags ready for the printing vendor.",
+        actions: '<button class="btn btn-primary">' + icon("download", 15) + ' Export QRs</button>' +
+          '<button class="btn btn-red">Clear all unprinted</button><button class="btn btn-ghost">Refresh</button>',
+        body: '<div class="tabs">' +
+            '<button class="btn ' + (state.printedTab ? "btn-ghost" : "btn-primary") + '" data-tab="0">To Print</button>' +
+            '<button class="btn ' + (state.printedTab ? "btn-primary" : "btn-ghost") + '" data-tab="1">Printed · awaiting claim</button>' +
+          "</div>" + body,
+      });
+  },
+
+  owners() {
+    return header("Monitoring", "Owner accounts", "Review owners, tag counts, active tags, and activity.") +
+      card({
+        title: "All owners",
+        sub: "Every registered owner on the platform.",
+        actions: '<button class="btn btn-ghost">Export CSV</button>',
+        body: table(["Owner", "Email", "Mobile", "Tags", "Active", "Plan", "Joined"],
+          OWNERS.map((o) => [
+            '<span style="font-weight:var(--weight-bold)">' + esc(o.name) + "</span>",
+            '<span style="color:var(--text-admin-muted)">' + esc(o.email) + "</span>",
+            '<span class="plate">' + o.mobile + "</span>",
+            o.tags, o.active, pill(o.plan, o.plan),
+            '<span style="color:var(--text-admin-muted)">' + o.joined + "</span>",
+          ])),
+      });
+  },
+
+  activity() {
+    return header("Monitoring", "Activity feed", "Latest owner registrations and contact requests across the platform.") +
+      card({
+        title: "Recent Registrations",
+        sub: "New owners and their tags.",
+        body: REGISTRATIONS.map((r, i) => feedRow({
+          tile: icon("user", 16), soft: i % 2 === 1,
+          title: r.name + " claimed " + r.tag, meta: r.plate + " · " + r.contact, when: r.when,
+        })).join(""),
+      }) +
+      card({
+        title: "Recent Contact Requests",
+        sub: "Scanner activity and contact attempts.",
+        body: REQUESTS.map((r, i) => feedRow({
+          tile: icon(r.channel === "WhatsApp" ? "share" : "activity", 16), soft: i % 2 === 1,
+          title: r.reason, meta: r.plate + " · " + r.channel, when: r.when,
+          right: pill(r.state === "no answer" ? "deleted" : "active", r.state),
+        })).join(""),
+      });
+  },
+
+  admins() {
+    return header("Monitoring", "Admin management", "Who can issue tags, review the queue, and see owner data.") +
+      card({
+        style: "max-width:var(--width-form)",
+        title: "Invite an admin",
+        sub: "They sign in with Google using this address.",
+        body: '<div class="form"><label class="field">Email address<input type="email" placeholder="name@parktag.me" /></label>' +
+          '<button class="btn btn-primary" style="width:fit-content">' + icon("plus", 16) + " Send invite</button></div>",
+      }) +
+      card({
+        title: "Current admins",
+        badge: '<span class="badge">' + ADMINS.length + "</span>",
+        body: table(["Email", "Role", "Added", "Actions"],
+          ADMINS.map((a) => [
+            '<span style="font-weight:var(--weight-bold)">' + a.email + "</span>",
+            '<span class="badge' + (a.role === "Owner" ? " badge-red" : "") + '">' + a.role + "</span>",
+            '<span style="color:var(--text-admin-muted)">' + a.added + "</span>",
+            '<button class="btn btn-red btn-sm">Revoke</button>',
+          ])),
+      });
+  },
+};
+
+function sidebar() {
+  return '<aside class="sb"><div class="sb-brand">' +
+      '<img src="../../assets/logo/parktag-logo-light-bg.png" alt="ParkTag" />' +
+      '<span class="sb-role">Admin</span></div>' +
+    '<nav class="sb-nav">' +
+      NAV.map((s) => '<span class="sb-sec">' + s.label + "</span>" +
+        s.items.map((i) => '<button class="sb-item' + (i.id === state.page ? " on" : "") + '" data-go="' + i.id + '">' +
+          icon(i.icon, 16) + " " + i.label + "</button>").join("")).join("") +
+    "</nav>" +
+    '<div class="sb-foot"><button class="btn btn-ghost btn-full">Refresh</button>' +
+      '<button class="btn btn-red btn-full">Sign out</button></div></aside>';
+}
+
+function render() {
+  document.getElementById("root").innerHTML = sidebar() + "<main>" + screens[state.page]() + "</main>";
+}
+
+function randomCode() {
+  const letters = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+  let s = "";
+  for (let i = 0; i < 3; i++) s += letters[Math.floor(Math.random() * letters.length)];
+  return s;
+}
+
+document.addEventListener("click", (e) => {
+  const go = e.target.closest("[data-go]");
+  if (go) { state.page = go.dataset.go; render(); return; }
+
+  const tab = e.target.closest("[data-tab]");
+  if (tab) { state.printedTab = tab.dataset.tab === "1"; render(); return; }
+
+  const mark = e.target.closest("[data-print]");
+  if (mark) {
+    const id = mark.dataset.print;
+    const t = state.queue.find((x) => x.id === id);
+    state.queue = state.queue.filter((x) => x.id !== id);
+    if (t) state.done = [t, ...state.done];
+    render();
+    return;
+  }
+
+  if (e.target.closest('[data-act="generate"]')) {
+    const n = Math.max(1, Math.min(500, Number(state.quantity) || 1));
+    state.result = {
+      batch: state.batch,
+      premium: state.premium,
+      tags: Array.from({ length: n }, (_, i) => ({
+        id: "PT-0" + (200 + i) + "-" + randomCode(),
+        url: "parktag.me/t/" + randomCode().toLowerCase() + (700 + i),
+      })),
+    };
+    render();
+  }
+});
+
+document.addEventListener("input", (e) => {
+  const id = e.target.id;
+  if (!id) return;
+  if (id === "q") { state.q = e.target.value; const at = e.target.selectionStart; render();
+    const q = document.getElementById("q"); if (q) { q.focus(); q.setSelectionRange(at, at); } return; }
+  if (id === "batch") state.batch = e.target.value;
+  if (id === "quantity") state.quantity = e.target.value;
+  if (id === "batchLabel") state.batchLabel = e.target.value;
+});
+
+document.addEventListener("change", (e) => {
+  const id = e.target.id;
+  if (id === "status") { state.status = e.target.value; render(); }
+  if (id === "showDeleted") { state.showDeleted = e.target.checked; render(); }
+  if (id === "sticker") { state.sticker = e.target.checked; }
+  if (id === "premium") { state.premium = e.target.checked; render(); }
+});
+
+render();
+</script>
+</body>
+</html>

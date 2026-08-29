@@ -1,0 +1,34 @@
+:root {
+  --duration-instant: 100ms;
+  --duration-fast: 120ms;
+  --duration-base: 150ms;
+  --duration-slow: 180ms;
+  --duration-slower: 200ms;
+  --duration-bar: 250ms;
+  --duration-spin: 650ms;
+  --duration-shimmer: 1400ms;
+
+  --ease-default: ease;
+  --ease-out: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Press feedback: ParkTag scales down, it never changes colour on press */
+  --press-scale: 0.97;
+  --press-scale-soft: 0.98;
+  --lift-hover: translateY(-1px);
+  --hover-brighten: brightness(1.06);
+}
+
+/* Matches the product's .pt-btn-loading::after, which is pre-offset with left/top:50%. */
+@keyframes pt-spin {
+  to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+/* Same spin for an in-flow spinner (no centring offset). */
+@keyframes pt-spin-inline {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pt-shimmer {
+  0%   { background-position: -600px 0; }
+  100% { background-position: 600px 0; }
+}

@@ -1,0 +1,96 @@
+:root {
+  color-scheme: light;
+
+  /* ── Brand red — the single accent. Signal, never decoration. ── */
+  --pt-red-500: #FF2700;   /* accent / primary action */
+  --pt-red-600: #D92200;   /* hover */
+  --pt-red-700: #B31C00;   /* text on red tints */
+  --pt-red-300: #FFB6A8;   /* quiet border */
+  --pt-red-250: #FFD8D0;
+  --pt-red-200: #FFE3DD;   /* icon tiles, active nav */
+  --pt-red-150: #FFEDEA;
+  --pt-red-100: #FFF2EF;
+  --pt-red-50:  #FFF5F3;
+
+  /* ── Navy — ink, chrome, plates ── */
+  --pt-navy-900: #010D1A;
+  --pt-navy-800: #03162D;  /* ink */
+  --pt-navy-700: #0B2244;
+  --pt-navy-600: #0A2040;
+  --pt-navy-500: #162F60;
+  --pt-navy-300: #495B7B;  /* secondary text */
+
+  /* ── Owner + scanner neutrals ── */
+  --pt-white: #FFFFFF;
+  --pt-bg: #F1F1F0;
+  --pt-border: #E2E8F0;
+
+  /* ── Admin console neutrals (cooler, tighter) ── */
+  --pt-admin-bg: #F8F9FA;
+  --pt-gray-900: #323232;
+  --pt-gray-700: #374151;
+  --pt-gray-500: #6B7280;
+  --pt-gray-400: #9CA3AF;
+  --pt-gray-300: #D1D5DB;
+  --pt-gray-200: #E5E7EB;
+  --pt-gray-100: #F3F4F6;
+  --pt-gray-50:  #FAFBFC;
+  --pt-hairline: #F1F2F4;
+
+  /* ── Contact channels ── */
+  --pt-whatsapp: #25D366;
+  --pt-whatsapp-dark: #128C7E;
+
+  /* ── Status ── */
+  --pt-success: #047857;
+  --pt-success-bg: #ECFDF5;
+  --pt-success-border: #A7F3D0;
+  --pt-danger: #DC2626;
+  --pt-danger-strong: #B91C1C;
+  --pt-danger-bg: #FEE2E2;
+  --pt-danger-bg-soft: #FEF2F2;
+  --pt-danger-border: #FECACA;
+  --pt-warn: #92400E;
+  --pt-warn-bg: #FEF3C7;
+
+  /* ── Semantic aliases ── */
+  --text-strong: var(--pt-navy-800);
+  --text-muted: var(--pt-navy-300);
+  --text-on-dark: var(--pt-white);
+  --text-quiet-on-dark: rgba(255, 255, 255, 0.55);
+  --text-admin: var(--pt-gray-900);
+  --text-admin-muted: var(--pt-gray-500);
+  --text-admin-faint: var(--pt-gray-400);
+
+  --surface-page: var(--pt-bg);
+  --surface-page-admin: var(--pt-admin-bg);
+  --surface-card: var(--pt-white);
+  --surface-inset: var(--pt-gray-100);
+  --surface-chrome: var(--pt-navy-800);
+
+  --border-default: var(--pt-border);
+  --border-admin: var(--pt-gray-200);
+  --border-strong: rgba(0, 25, 53, 0.14);
+  --border-hairline: rgba(0, 25, 53, 0.07);
+
+  --accent: var(--pt-red-500);
+  --accent-hover: var(--pt-red-600);
+  --accent-ink: var(--pt-red-700);
+  --accent-quiet: var(--pt-red-200);
+  --focus-ring: rgba(255, 39, 0, 0.15);
+
+  /* Neutral "commit" button used across owner + admin primary actions */
+  --action-dark: var(--pt-gray-900);
+  --action-dark-hover: #292524;
+
+  /* ── Gradients (copied verbatim from the product CSS) ── */
+  --pt-gradient-header: linear-gradient(135deg, #010D1A 0%, #03162D 55%, #0B2244 100%);
+  --pt-gradient-hero: linear-gradient(145deg, #010D1A 0%, #03162D 40%, #0e1f3d 70%, #1a1035 100%);
+  --pt-gradient-plate: linear-gradient(135deg, #03162D 0%, #0A2040 100%);
+  --pt-gradient-call: linear-gradient(135deg, #03162D 0%, #0A2040 60%, #162F60 100%);
+  --pt-gradient-whatsapp: linear-gradient(135deg, #25D366 0%, #1DA851 60%, #128C7E 100%);
+  --pt-gradient-sticker: linear-gradient(180deg, #FFFFFF, #F1F1F0);
+  --pt-gradient-scanner: linear-gradient(170deg, #EAF0F7 0%, #E4EDF5 40%, #EEF3F7 100%);
+  --pt-gradient-activate: radial-gradient(circle at top, rgba(255, 39, 0, 0.2), transparent 24%),
+    linear-gradient(180deg, #F0F4F8 0%, #E1EBF4 52%, #D4E4F4 100%);
+}

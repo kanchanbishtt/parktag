@@ -1,0 +1,25 @@
+<!-- @dsCard group="Colors" viewport="700x140" name="Brand red" subtitle="One accent. Action, live state, focus — never decoration." -->
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { margin: 0; padding: 16px 18px; background: var(--surface-card); font-family: var(--font-ui); color: var(--text-strong); }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .sw { display: grid; gap: 6px; }
+  .chip { width: 96px; height: 52px; border-radius: var(--radius-md); }
+  .name { font-size: 10px; font-weight: 700; letter-spacing: 0.02em; }
+  .hex { font-family: var(--font-plate); font-size: 9.5px; color: var(--text-admin-muted); }
+  .cap { font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-admin-faint); font-weight: 700; }
+  
+</style>
+</head>
+<body>
+<div class="row">
+  <div class="sw"><div class="chip" style="background:var(--pt-red-500);"></div><span class="name">red-500 · accent</span><span class="hex">#FF2700</span></div>
+  <div class="sw"><div class="chip" style="background:var(--pt-red-600);"></div><span class="name">red-600 · hover</span><span class="hex">#D92200</span></div>
+  <div class="sw"><div class="chip" style="background:var(--pt-red-700);"></div><span class="name">red-700 · ink</span><span class="hex">#B31C00</span></div>
+  <div class="sw"><div class="chip" style="background:var(--pt-red-300);"></div><span class="name">red-300 · border</span><span class="hex">#FFB6A8</span></div>
+</div>
+</body></html>

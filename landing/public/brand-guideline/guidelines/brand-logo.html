@@ -1,0 +1,25 @@
+<!-- @dsCard group="Brand" viewport="700x170" name="Logo" subtitle="Wordmark only — red 'park', navy 'tag'. Two PNGs plus the SVG." -->
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { margin: 0; padding: 16px 18px; background: var(--surface-card); font-family: var(--font-ui); color: var(--text-strong); }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .sw { display: grid; gap: 6px; }
+  .chip { width: 96px; height: 52px; border-radius: var(--radius-md); }
+  .name { font-size: 10px; font-weight: 700; letter-spacing: 0.02em; }
+  .hex { font-family: var(--font-plate); font-size: 9.5px; color: var(--text-admin-muted); }
+  .cap { font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-admin-faint); font-weight: 700; }
+  
+</style>
+</head>
+<body>
+<div style="display:flex;gap:16px;align-items:stretch">
+  <div style="flex:1;background:#fff;border:1px solid var(--border-admin);border-radius:var(--radius-lg);padding:18px;display:grid;place-items:center"><img src="../assets/logo/parktag-logo-light-bg.png" alt="ParkTag" style="height:30px" /></div>
+  <div style="flex:1;background:var(--pt-gradient-header);border-radius:var(--radius-lg);padding:18px;display:grid;place-items:center"><img src="../assets/logo/parktag-logo-dark-bg.png" alt="ParkTag" style="height:30px;mix-blend-mode:lighten" /></div>
+  <div style="flex:1;background:var(--pt-bg);border-radius:var(--radius-lg);padding:18px;display:grid;place-items:center"><img src="../assets/logo/parktag-wordmark.svg" alt="ParkTag" style="height:26px" /></div>
+</div>
+<p style="margin:10px 0 0;font-size:11px;color:var(--text-admin-muted)">On navy, the light-on-dark PNG carries mix-blend-mode: lighten. Clear space = the height of the 'p'. Never recolour or set the name in another typeface.</p>
+</body></html>

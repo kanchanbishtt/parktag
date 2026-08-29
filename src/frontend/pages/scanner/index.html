@@ -576,6 +576,18 @@
           </a>
         </div>
 
+        <!-- Shown instead of the panel above when the vehicle HAS an official
+             sticker but its call service is not running. Deliberately says
+             nothing about subscriptions, payment or the owner's account: the
+             person reading this is a stranger at a car who can do nothing about
+             any of it, and someone else's billing is not their business. It
+             points at the one thing they can still do instead. -->
+        <div id="contact-unavailable-cta" class="pt-panel" hidden style="text-align:center">
+          <div class="pt-success-icon">🔒</div>
+          <h3>Calling isn't available</h3>
+          <p>You can't call this vehicle's owner right now. If it's urgent, the emergency options below still work.</p>
+        </div>
+
         <!-- The scanner's number is asked for once, on the verification card,
              and nowhere else. What used to be a second "Your phone number"
              panel here is now just the field that carries the number the card

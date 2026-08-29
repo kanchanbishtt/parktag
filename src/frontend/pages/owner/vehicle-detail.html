@@ -141,11 +141,15 @@
       padding: 20px; margin-bottom: 12px;
       box-shadow: 0 1px 3px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.04);
     }
-    .vd-plate {
-      font-size: clamp(1.35rem, 5vw, 1.7rem);
-      font-weight: 900; color: var(--ink);
-      letter-spacing: .03em; line-height: 1.1; margin-bottom: 6px;
-    }
+    /* The plate itself is drawn by .pt-plate-display in styles.css — the very
+       element the contact page hands a scanner, so the IND band, the tricolour
+       strip, the border and the type metrics stay identical across the two
+       pages by construction rather than by being copied and kept in sync.
+
+       Only the surrounding spacing belongs here. Nothing in this rule may touch
+       the plate's own font, padding, border or colours: an override here is
+       exactly how the two would drift apart. */
+    .vd-plate-row { margin-bottom: 10px; }
     .vd-tagid {
       font-size: 0.78rem; color: var(--ink-4);
       font-family: "SF Mono", "Fira Code", monospace; letter-spacing: .04em;
@@ -418,7 +422,7 @@
 
     <!-- Top card -->
     <div class="vd-top-card">
-      <p class="vd-plate" id="vd-plate">—</p>
+      <div class="vd-plate-row"><span class="pt-plate-display" id="vd-plate">—</span></div>
       <p class="vd-tagid" id="vd-tagid">Tag id: —</p>
     </div>
 

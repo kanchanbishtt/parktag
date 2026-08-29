@@ -70,7 +70,11 @@ setTimeout(async () => {
 function populateContent() {
   const displayTagId = realToken || ("DEMO-" + plate.replace(/\s/g, "").toUpperCase().slice(0, 8));
 
-  document.getElementById("vd-plate").textContent  = "#" + plate;
+  // No "#" prefix any more: this is drawn as the number plate itself, and a
+  // real plate carries no such mark. textContent is safe against the plate
+  // graphic — the IND band and tricolour strip are pseudo-elements, so they
+  // survive the write.
+  document.getElementById("vd-plate").textContent  = plate;
   document.getElementById("vd-tagid").textContent  = "Tag id: " + displayTagId;
   document.getElementById("info-plate").textContent = plate;
   document.getElementById("info-type").textContent  = label;

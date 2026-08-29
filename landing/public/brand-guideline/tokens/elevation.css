@@ -1,0 +1,25 @@
+:root {
+  /* Owner + scanner: wide, navy-tinted lifts */
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.04), 0 12px 36px rgba(0, 25, 53, 0.11);
+  --shadow-soft: 0 4px 24px rgba(0, 25, 53, 0.08);
+  --shadow-lg: 0 8px 40px rgba(0, 25, 53, 0.12);
+  --shadow-premium: 0 18px 42px rgba(0, 25, 53, 0.1);
+  --shadow-sticker: 0 18px 42px rgba(0, 25, 53, 0.12);
+  --shadow-chrome: 0 2px 12px rgba(0, 0, 0, 0.18);
+  --shadow-drawer: 4px 0 24px rgba(0, 0, 0, 0.12);
+  --shadow-bottom-bar: 0 -4px 16px rgba(0, 0, 0, 0.06);
+
+  /* Admin console: one flat hairline lift, nothing more */
+  --shadow-admin-card: 0 1px 3px rgba(0, 0, 0, 0.05);
+  --shadow-admin-hover: 0 2px 8px rgba(0, 0, 0, 0.1);
+
+  /* Coloured action shadows */
+  --shadow-accent: 0 4px 16px rgba(255, 39, 0, 0.35);
+  --shadow-accent-hover: 0 6px 20px rgba(255, 39, 0, 0.45);
+  --shadow-whatsapp: 0 6px 24px rgba(37, 211, 102, 0.38), 0 2px 8px rgba(0, 0, 0, 0.1);
+  --shadow-call: 0 6px 24px rgba(0, 25, 53, 0.32), 0 2px 8px rgba(0, 0, 0, 0.1);
+  --shadow-plate: 0 3px 12px rgba(0, 25, 53, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  --shadow-chip: 0 1px 3px rgba(0, 0, 0, 0.05);
+
+  --ring-focus: 0 0 0 3px rgba(255, 39, 0, 0.15);
+}

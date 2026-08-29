@@ -1,0 +1,23 @@
+<!-- @dsCard group="Spacing" viewport="700x150" name="Spacing scale" subtitle="A dense 2px-stepped ramp — 10, 14, 18, 22 are all real values here" -->
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { margin: 0; padding: 16px 18px; background: var(--surface-card); font-family: var(--font-ui); color: var(--text-strong); }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .sw { display: grid; gap: 6px; }
+  .chip { width: 96px; height: 52px; border-radius: var(--radius-md); }
+  .name { font-size: 10px; font-weight: 700; letter-spacing: 0.02em; }
+  .hex { font-family: var(--font-plate); font-size: 9.5px; color: var(--text-admin-muted); }
+  .cap { font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-admin-faint); font-weight: 700; }
+  .b { background: var(--pt-red-200); border-radius: 3px; height: 34px; }
+</style>
+</head>
+<body>
+<div style="display:flex;align-items:flex-end;gap:8px">
+  <div class="sw"><div class="b" style="width:4px"></div><span class="hex">4</span></div><div class="sw"><div class="b" style="width:6px"></div><span class="hex">6</span></div><div class="sw"><div class="b" style="width:8px"></div><span class="hex">8</span></div><div class="sw"><div class="b" style="width:10px"></div><span class="hex">10</span></div><div class="sw"><div class="b" style="width:12px"></div><span class="hex">12</span></div><div class="sw"><div class="b" style="width:14px"></div><span class="hex">14</span></div><div class="sw"><div class="b" style="width:16px"></div><span class="hex">16</span></div><div class="sw"><div class="b" style="width:18px"></div><span class="hex">18</span></div><div class="sw"><div class="b" style="width:20px"></div><span class="hex">20</span></div><div class="sw"><div class="b" style="width:22px"></div><span class="hex">22</span></div><div class="sw"><div class="b" style="width:24px"></div><span class="hex">24</span></div><div class="sw"><div class="b" style="width:28px"></div><span class="hex">28</span></div><div class="sw"><div class="b" style="width:32px"></div><span class="hex">32</span></div>
+</div>
+<p style="margin:12px 0 0;font-size:11px;color:var(--text-admin-muted)">Do not snap to a 4/8 grid — the product's real values include 5, 9, 11, 13 and 18px paddings.</p>
+</body></html>

@@ -108,17 +108,28 @@ async function decodeImage(file) {
     }
   }
 
-  const url = URL.createObjectURL(file);
-  try {
-    return await new Promise((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => resolve(img);
-      img.onerror = () => reject(new Error("decode failed"));
-      img.src = url;
-    });
-  } finally {
-    URL.revokeObjectURL(url);
-  }
+  // Read as a data: URI rather than an object URL. This is not a style choice:
+  // the app's CSP is `img-src 'self' data:` with no `blob:`, so an <img> given
+  // a createObjectURL() blob is refused by the browser and fires onerror. That
+  // would leave this fallback permanently broken on exactly the old browsers it
+  // exists for — failing safe, since the uncompressed original is then
+  // uploaded, but silently never compressing.
+  //
+  // Base64 costs a third more memory than the blob would. Only browsers with no
+  // createImageBitmap reach this at all, and MAX_DECODE_BYTES bounds it.
+  const dataUrl = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error("read failed"));
+    reader.readAsDataURL(file);
+  });
+
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("decode failed"));
+    img.src = dataUrl;
+  });
 }
 
 function drawTo(source, width, height) {

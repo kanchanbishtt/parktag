@@ -1,0 +1,66 @@
+<!-- @dsCard group="Components" viewport="700x330" name="Form controls" subtitle="Fields, plate + phone inputs, select, checkbox, toggle row" -->
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../styles.css" />
+<style>
+  body { margin: 0; padding: 18px 20px; background: var(--surface-card); font-family: var(--font-ui); color: var(--text-strong); }
+  .cap { margin: 0 0 8px; font-size: 9.5px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-admin-faint); }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: none; border-radius: var(--radius-button); padding: 14px 20px; font-family: inherit; font-size: var(--text-md-plus); font-weight: var(--weight-bold); cursor: pointer; }
+  .btn-primary { background: var(--accent); color: #fff; box-shadow: var(--shadow-accent); }
+  .btn-activate { background: var(--action-dark); color: #fff; padding: 15px 24px; font-size: var(--text-lg); }
+  .btn-outline { background: #fff; color: var(--text-strong); border: 1.5px solid var(--border-default); box-shadow: var(--shadow-soft); }
+  .btn-whatsapp { background: var(--pt-gradient-whatsapp); color: #fff; padding: 18px 20px; border-radius: var(--radius-2xl); box-shadow: var(--shadow-whatsapp); flex-direction: column; gap: 2px; }
+  .btn-call { background: var(--pt-gradient-call); color: #fff; padding: 18px 20px; border-radius: var(--radius-2xl); border: 1px solid rgba(255,255,255,0.09); box-shadow: var(--shadow-call); flex-direction: column; gap: 2px; }
+  .btn-sub { font-size: var(--text-xs-plus); font-weight: 400; opacity: 0.85; }
+  .btn[disabled] { opacity: 0.6; }
+  .abtn { padding: 10px 18px; border-radius: var(--radius-button-admin); font-family: inherit; font-size: var(--text-base-plus); font-weight: 700; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+  .abtn-primary { background: var(--action-dark); color: #fff; }
+  .abtn-secondary { background: var(--pt-gray-100); color: var(--pt-gray-700); border: 1px solid var(--border-admin); }
+  .abtn-ghost { background: var(--pt-gray-100); color: var(--pt-gray-700); }
+  .abtn-red { background: var(--pt-danger-bg); color: var(--pt-danger); border: 1px solid var(--pt-danger-border); }
+  .spinner { width: 18px; height: 18px; border: 2.5px solid rgba(255,255,255,0.35); border-top-color: #fff; border-radius: 50%; animation: pt-spin-inline var(--duration-spin) linear infinite; }
+  .badge { display: inline-flex; align-items: center; gap: 5px; font-size: var(--text-xs); font-weight: 700; padding: 4px 10px; border-radius: 999px; }
+  .pill { display: inline-block; font-size: var(--text-2xs); font-weight: 800; padding: 2px 9px; border-radius: 999px; }
+  .tile { width: 48px; height: 48px; border-radius: var(--radius-icon-tile); display: grid; place-items: center; background: var(--pt-red-200); color: var(--accent); }
+  .tile-sm { width: 34px; height: 34px; border-radius: var(--radius-sm); }
+  label.field { display: grid; gap: 5px; font-size: var(--text-base-plus); font-weight: 600; }
+  label.field.admin { font-size: var(--text-sm-plus); color: var(--pt-gray-700); }
+  .field input, .field select { width: 100%; padding: 11px 13px; border: 1.5px solid var(--border-default); border-radius: var(--radius-input); font-family: inherit; font-size: var(--text-md-plus); background: var(--pt-bg); color: var(--text-strong); outline: none; }
+  .field.admin input, .field.admin select { padding: 9px 12px; border-radius: var(--radius-button-admin); border-color: var(--border-admin); font-size: var(--text-md); }
+  .field input:focus, .field select:focus { border-color: var(--accent); background: #fff; }
+  select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236B7280' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 36px !important; }
+  .check { display: flex; align-items: center; gap: 10px; font-size: var(--text-base-plus); cursor: pointer; }
+  .check input { width: 18px; height: 18px; accent-color: var(--accent); }
+  svg { display: block; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 24px; align-items: start; }
+  .phone-wrap { display: flex; border: 1.5px solid var(--border-default); border-radius: var(--radius-input); overflow: hidden; background: var(--pt-bg); }
+  .phone-wrap:focus-within { border-color: var(--accent); background: #fff; }
+  .phone-prefix { display: flex; align-items: center; padding: 0 12px; font-size: var(--text-md); font-weight: 600; background: var(--pt-gray-100); border-right: 1.5px solid var(--border-default); }
+  .phone-wrap input { border: none; background: transparent; border-radius: 0; }
+  .toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; background: var(--pt-red-50); border: 1.5px solid var(--accent); border-radius: var(--radius-lg); cursor: pointer; }
+  .track { width: 44px; height: 24px; background: var(--accent); border-radius: 12px; position: relative; flex-shrink: 0; }
+  .thumb { position: absolute; top: 2px; left: 22px; width: 20px; height: 20px; background: #fff; border-radius: 50%; box-shadow: 0 1px 4px rgba(0,0,0,0.25); }
+  .plate-input { font-family: var(--font-plate) !important; font-size: var(--text-lg-plus) !important; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; border-radius: var(--radius-input-scanner) !important; background: #fff !important; }</style>
+</head>
+<body>
+<div class="grid">
+  <label class="field"><span>Email address</span><input type="email" placeholder="your@email.com" /></label>
+  <label class="field"><span>Mobile number</span><span class="phone-wrap"><span class="phone-prefix">+91</span><input type="tel" placeholder="98765 43210" /></span></label>
+  <label class="field"><span>Vehicle number</span><input class="plate-input" type="text" placeholder="DL 8C AB 1234" /></label>
+  <label class="field"><span>Select tag</span><select><option>DL 8C AB 1234 · PT-0042-9KQ</option></select></label>
+  <label class="field admin"><span>Batch number</span><input type="text" placeholder="BATCH-001" /></label>
+  <label class="field admin"><span>Quantity</span><input type="number" value="10" /></label>
+  <div style="grid-column:1 / -1;display:grid;gap:12px">
+    <label class="check"><input type="checkbox" checked /> Physical sticker requested</label>
+    <label class="toggle-row">
+      <span><span style="display:block;font-size:var(--text-base);font-weight:700">Premium access</span>
+      <span style="display:block;margin-top:3px;font-size:var(--text-xs-plus);color:var(--text-admin-muted)">Owners who claim this batch get unlimited contact (no free-call limit)</span></span>
+      <span class="track"><span class="thumb"></span></span>
+    </label>
+  </div>
+</div>
+</body>
+</html>

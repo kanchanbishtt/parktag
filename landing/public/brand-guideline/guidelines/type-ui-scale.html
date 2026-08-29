@@ -1,0 +1,27 @@
+<!-- @dsCard group="Type" viewport="700x200" name="UI scale" subtitle="Body and meta sizes, all in rem as the product declares them" -->
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { margin: 0; padding: 16px 18px; background: var(--surface-card); font-family: var(--font-ui); color: var(--text-strong); }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .sw { display: grid; gap: 6px; }
+  .chip { width: 96px; height: 52px; border-radius: var(--radius-md); }
+  .name { font-size: 10px; font-weight: 700; letter-spacing: 0.02em; }
+  .hex { font-family: var(--font-plate); font-size: 9.5px; color: var(--text-admin-muted); }
+  .cap { font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-admin-faint); font-weight: 700; }
+  p { margin: 0; }
+</style>
+</head>
+<body>
+<div style="display:grid;gap:7px">
+  <p style="font-size:var(--text-md-plus)">0.95rem · input text, primary button label</p>
+  <p style="font-size:var(--text-md)">0.9rem · body copy, table-free prose</p>
+  <p style="font-size:var(--text-base-plus);font-weight:600">0.88rem · field labels, nav items</p>
+  <p style="font-size:var(--text-base);color:var(--text-muted)">0.85rem · secondary copy, empty states</p>
+  <p style="font-size:var(--text-sm-plus);color:var(--text-muted)">0.82rem · card subtitles, status lines</p>
+  <p style="font-size:var(--text-xs);color:var(--text-admin-muted)">0.72rem · badges, table headers</p>
+</div>
+</body></html>

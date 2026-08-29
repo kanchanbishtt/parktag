@@ -1,0 +1,33 @@
+<!-- @dsCard group="Spacing" viewport="700x170" name="Motion &amp; states" subtitle="120–200ms, ease. Press = scale down. Hover = brighten or tint." -->
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { margin: 0; padding: 16px 18px; background: var(--surface-card); font-family: var(--font-ui); color: var(--text-strong); }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .sw { display: grid; gap: 6px; }
+  .chip { width: 96px; height: 52px; border-radius: var(--radius-md); }
+  .name { font-size: 10px; font-weight: 700; letter-spacing: 0.02em; }
+  .hex { font-family: var(--font-plate); font-size: 9.5px; color: var(--text-admin-muted); }
+  .cap { font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-admin-faint); font-weight: 700; }
+  
+  .btn { border: none; border-radius: var(--radius-xl); padding: 12px 18px; font: 700 0.95rem var(--font-ui); color: #fff; background: var(--accent); box-shadow: var(--shadow-accent); transition: transform 120ms, box-shadow 120ms, background 150ms; cursor: pointer; }
+  .btn:hover { background: var(--accent-hover); box-shadow: var(--shadow-accent-hover); }
+  .btn:active { transform: scale(0.97); }
+  .bar { height: 3px; background: var(--accent); box-shadow: 0 0 8px rgba(255,39,0,.6); border-radius: 0 2px 2px 0; width: 62%; }
+  .sk { height: 12px; border-radius: 8px; background: linear-gradient(90deg,#EEE 25%,#E2E2E2 37%,#EEE 63%); background-size: 600px 100%; animation: pt-shimmer 1.4s ease infinite; }
+  .sp { width: 18px; height: 18px; border: 2.5px solid rgba(255,39,0,.2); border-top-color: var(--accent); border-radius: 50%; animation: spin .65s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+</style>
+</head>
+<body>
+<div style="display:flex;gap:26px;align-items:center;flex-wrap:wrap">
+  <button class="btn">Hover &amp; press me</button>
+  <div class="sp"></div>
+  <div style="display:grid;gap:8px;min-width:200px"><span class="cap">progress bar 250ms</span><div class="bar"></div><span class="cap">skeleton 1.4s</span><div class="sk"></div></div>
+  <div style="font-size:11px;color:var(--text-admin-muted);line-height:1.7;max-width:200px">Nav + colour: 120–150ms<br />Chips: 180ms ease<br />Toggles: 200ms<br />No bounce, no spring, no entrance animation on load.</div>
+</div>
+</body></html>

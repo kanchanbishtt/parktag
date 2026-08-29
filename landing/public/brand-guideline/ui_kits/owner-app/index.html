@@ -1,0 +1,358 @@
+<!-- @dsCard group="Owner app" viewport="520x860" name="Owner app" subtitle="Sign in, tag activation, owner dashboard" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ParkTag Owner App — UI kit</title>
+<link rel="stylesheet" href="../../styles.css" />
+<style>
+  html, body { margin: 0; background: var(--surface-page); color: var(--text-strong); font-family: var(--font-ui); }
+
+  /* ── chrome ── */
+  .hdr { position: relative; display: flex; align-items: center; height: var(--header-height); padding: 0 var(--space-16); background: var(--surface-chrome); box-shadow: var(--shadow-chrome); }
+  .hdr img { height: 42px; width: auto; mix-blend-mode: lighten; }
+  .hdr-center { position: absolute; left: 50%; transform: translateX(-50%); display: inline-flex; align-items: center; }
+  .icon-btn { background: none; border: none; cursor: pointer; color: #fff; padding: var(--space-6); border-radius: var(--radius-sm); display: flex; align-items: center; }
+  .icon-btn.quiet { color: var(--text-muted); }
+
+  .badge { display: inline-flex; align-items: center; gap: var(--space-5); font-size: var(--text-xs); font-weight: var(--weight-bold); padding: 4px 10px; border-radius: var(--radius-pill); }
+  .badge-active { background: var(--pt-red-100); color: var(--accent); }
+  .badge-gray { background: var(--pt-gray-100); color: var(--pt-gray-700); }
+
+  /* ── drawer ── */
+  .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 100; }
+  .drawer { position: fixed; top: 0; left: 0; bottom: 0; width: var(--drawer-width); background: var(--surface-card); z-index: 101; display: flex; flex-direction: column; box-shadow: var(--shadow-drawer); }
+  .drawer-head { display: flex; align-items: center; justify-content: space-between; padding: 24px 20px 16px; border-bottom: 1px solid var(--border-default); }
+  .drawer-name { margin: 0 0 2px; font-size: var(--text-lg); font-weight: var(--weight-heavy); }
+  .drawer-email { margin: 0; font-size: var(--text-sm); color: var(--text-muted); }
+  .drawer-items { display: flex; flex-direction: column; padding: var(--space-12); gap: var(--space-4); }
+  .menu-item { display: flex; align-items: center; gap: var(--space-12); padding: 12px 14px; border-radius: var(--radius-md); font-family: inherit; font-size: var(--text-md-plus); font-weight: var(--weight-semibold); color: var(--text-strong); background: none; border: none; cursor: pointer; text-align: left; transition: background var(--duration-fast); }
+  .menu-item:hover { background: var(--pt-bg); }
+  .menu-item.on { background: var(--pt-red-200); color: var(--accent-ink); }
+  .menu-item.danger { color: var(--pt-danger); }
+
+  /* ── cards ── */
+  .card { background: var(--surface-card); border-radius: var(--radius-2xl); border: 1.5px solid var(--border-default); padding: 20px; box-shadow: var(--shadow-soft); }
+  .card-lg { border-radius: var(--radius-4xl); padding: 28px 24px; box-shadow: var(--shadow-lg); border: 1px solid var(--border-default); }
+  .card-premium { border-radius: var(--radius-card-premium); padding: 22px 18px; box-shadow: var(--shadow-premium); border: 1px solid var(--border-strong); background: #fff; }
+  .section-label { margin: 0 0 14px; font-size: var(--text-sm); font-weight: var(--weight-heavy); text-transform: uppercase; letter-spacing: var(--tracking-label); color: var(--text-muted); }
+  .card-title { margin: 0 0 4px; font-family: var(--font-display); font-size: var(--text-3xl); font-weight: var(--weight-black); }
+  .card-sub { margin: 0 0 20px; font-size: var(--text-md); line-height: var(--leading-body); color: var(--text-muted); }
+
+  /* ── buttons ── */
+  .btn { display: flex; align-items: center; justify-content: center; gap: var(--space-8); border: none; border-radius: var(--radius-button); padding: 14px 20px; font-family: inherit; font-size: var(--text-md-plus); font-weight: var(--weight-bold); cursor: pointer; transition: transform var(--duration-fast), box-shadow var(--duration-fast), background var(--duration-base); }
+  .btn:active { transform: scale(var(--press-scale-soft)); }
+  .btn[disabled] { opacity: 0.6; cursor: not-allowed; }
+  .btn-primary { background: var(--accent); color: #fff; box-shadow: var(--shadow-accent); }
+  .btn-primary:hover:not([disabled]) { background: var(--accent-hover); box-shadow: var(--shadow-accent-hover); }
+  .btn-activate { background: var(--action-dark); color: #fff; padding: 15px 24px; font-size: var(--text-lg); }
+  .btn-activate:hover:not([disabled]) { background: var(--action-dark-hover); transform: var(--lift-hover); }
+  .btn-outline { background: var(--surface-card); color: var(--text-strong); border: 1.5px solid var(--border-default); box-shadow: var(--shadow-soft); }
+  .btn-outline:hover { border-color: var(--pt-gray-300); background: var(--pt-bg); }
+  .btn-full { width: 100%; }
+  .btn-google { display: flex; align-items: center; justify-content: center; gap: var(--space-10); width: 100%; padding: 11px 16px; border-radius: var(--radius-lg); border: 1.5px solid var(--border-admin); background: #fff; color: var(--pt-gray-900); font-family: inherit; font-size: 0.92rem; font-weight: var(--weight-semibold); cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.06); transition: box-shadow var(--duration-base), border-color var(--duration-base); }
+  .btn-google:hover { border-color: var(--pt-gray-300); box-shadow: var(--shadow-admin-hover); }
+  .link { background: none; border: none; color: var(--accent); font-weight: var(--weight-bold); font-size: var(--text-base); cursor: pointer; padding: 0; font-family: inherit; }
+
+  /* ── forms ── */
+  label.field { display: grid; gap: var(--space-5); font-size: var(--text-base-plus); font-weight: var(--weight-semibold); color: var(--text-strong); }
+  .field input, .field select { width: 100%; padding: 11px 13px; border: 1.5px solid var(--border-default); border-radius: var(--radius-input); font-family: inherit; font-size: var(--text-md-plus); color: var(--text-strong); background: var(--pt-bg); outline: none; transition: border-color var(--duration-base); }
+  .field input:focus, .field select:focus { border-color: var(--accent); background: #fff; }
+  .field .hint { font-size: var(--text-xs-plus); font-weight: var(--weight-regular); color: var(--text-admin-muted); }
+  .input-plate { font-family: var(--font-plate) !important; font-size: var(--text-lg-plus) !important; font-weight: var(--weight-bold); letter-spacing: 0.08em; text-transform: uppercase; }
+  .input-code { text-align: center; font-size: 1.4rem !important; letter-spacing: 0.25em; font-weight: var(--weight-bold); }
+  select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236B7280' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 36px !important; cursor: pointer; }
+  .phone-wrap { display: flex; border: 1.5px solid var(--border-default); border-radius: var(--radius-input); overflow: hidden; background: var(--pt-bg); }
+  .phone-wrap:focus-within { border-color: var(--accent); background: #fff; }
+  .phone-prefix { display: flex; align-items: center; padding: 0 var(--space-12); font-size: var(--text-md); font-weight: var(--weight-semibold); background: var(--pt-gray-100); border-right: 1.5px solid var(--border-default); }
+  .phone-wrap input { border: none !important; background: transparent !important; border-radius: 0 !important; }
+  .check { display: flex; align-items: center; gap: var(--space-10); font-size: var(--text-base-plus); cursor: pointer; }
+  .check input { width: 18px; height: 18px; accent-color: var(--accent); flex-shrink: 0; cursor: pointer; }
+  .consent { padding: 14px 14px 14px 12px; border-radius: var(--radius-3xl); background: rgba(255,39,0,0.08); border: 1px solid rgba(255,39,0,0.16); }
+  .or { display: flex; align-items: center; gap: var(--space-12); margin-top: var(--space-20); }
+  .or span:first-child, .or span:last-child { flex: 1; height: 1px; background: var(--border-admin); }
+  .or b { font-size: 0.78rem; color: var(--text-admin-faint); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-caps); }
+
+  /* ── tag elements ── */
+  .plate { font-family: var(--font-plate); font-weight: var(--weight-black); font-size: var(--text-2xl-plus); letter-spacing: var(--tracking-plate); color: #fff; background: var(--pt-gradient-plate); border-radius: var(--radius-md); padding: 8px 16px; display: inline-block; border: 1.5px solid rgba(255,255,255,0.12); box-shadow: var(--shadow-plate); text-shadow: 0 1px 3px rgba(0,0,0,0.4); }
+  .qr-card { background: var(--surface-card); border-radius: var(--radius-2xl); border: 1.5px solid var(--border-default); padding: var(--pad-card); text-align: center; box-shadow: var(--shadow-soft); }
+  .qr-slot { width: 180px; height: 180px; margin: 0 auto var(--space-8); border-radius: var(--radius-sm); border: 2px dashed var(--border-default); display: grid; place-items: center; font-family: var(--font-plate); font-size: var(--text-xs); color: var(--text-admin-faint); line-height: 1.5; }
+  .qr-hint { margin: 0; font-size: var(--text-sm); color: var(--text-muted); }
+  .check-disc { width: 64px; height: 64px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; margin: 0 auto; box-shadow: 0 4px 16px rgba(255,39,0,0.3); }
+  .tile { width: 48px; height: 48px; border-radius: var(--radius-icon-tile); display: grid; place-items: center; background: var(--pt-red-200); color: var(--accent); }
+  .tile-sm { width: 34px; height: 34px; border-radius: var(--radius-sm); }
+  .tile.soft { background: var(--pt-red-100); }
+  .detail { display: flex; align-items: center; gap: var(--space-10); padding: 10px 0; border-bottom: 1px solid rgba(111,104,95,0.14); font-size: var(--text-md); }
+  .detail:last-child { border-bottom: none; }
+  .detail-label { color: var(--text-muted); font-weight: var(--weight-semibold); }
+  .detail-value { margin-left: auto; text-align: right; font-weight: var(--weight-bold); }
+  .pill { display: inline-block; font-size: var(--text-2xs); font-weight: var(--weight-heavy); padding: 2px 9px; border-radius: var(--radius-pill); }
+  .pill-active { background: var(--pt-red-200); color: var(--accent-ink); }
+  .pill-premium { background: var(--pt-warn-bg); color: var(--pt-warn); }
+  .notice { display: flex; align-items: flex-start; gap: var(--space-10); background: var(--pt-red-200); border-radius: var(--radius-lg); padding: 14px 16px; font-size: var(--text-base); font-weight: var(--weight-medium); line-height: var(--leading-snug); color: var(--accent-ink); }
+  .status { margin: 0; padding: 8px 0; font-size: var(--text-sm-plus); font-weight: var(--weight-semibold); text-align: center; }
+  .status-success { color: var(--accent); }
+  .status-info { color: var(--text-muted); }
+  .bottom-bar { position: fixed; bottom: 0; left: 0; right: 0; padding: var(--space-12) var(--space-16); background: var(--surface-card); border-top: 1px solid var(--border-default); box-shadow: var(--shadow-bottom-bar); max-width: var(--width-owner); margin: 0 auto; }
+  .steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-8); }
+  .step { display: flex; align-items: center; justify-content: center; gap: var(--space-8); padding: 10px 12px; border-radius: var(--radius-3xl); background: rgba(255,255,255,0.72); border: 1px solid rgba(0,25,53,0.08); color: var(--text-muted); font-size: var(--text-sm-plus); font-weight: var(--weight-bold); }
+  .step.on { background: rgba(255,39,0,0.14); border-color: rgba(255,39,0,0.3); color: var(--accent-ink); }
+  .step-n { display: grid; place-items: center; width: 22px; height: 22px; border-radius: var(--radius-pill); background: rgba(255,255,255,0.92); border: 1px solid rgba(0,25,53,0.12); font-size: var(--text-xs-plus); font-weight: var(--weight-heavy); }
+  .sticker-card { display: flex; flex-direction: column; gap: var(--space-12); padding: 18px; border-radius: var(--radius-5xl); background: var(--pt-gradient-sticker); border: 1px solid var(--border-strong); box-shadow: var(--shadow-sticker); }
+  .sticker-card img { height: 22px; width: auto; }
+
+  /* ── screen switcher ── */
+  .switch { position: fixed; right: 14px; bottom: 14px; z-index: 200; display: flex; gap: 6px; background: rgba(255,255,255,0.92); border: 1px solid var(--border-admin); border-radius: 999px; padding: 5px; box-shadow: var(--shadow-soft); }
+  .switch button { border: none; border-radius: 999px; padding: 6px 12px; font-family: inherit; font-size: 0.78rem; font-weight: 700; cursor: pointer; background: transparent; color: var(--text-admin-muted); }
+  .switch button.on { background: var(--accent); color: #fff; }
+  svg { display: block; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+/* ParkTag owner app — dependency-free recreation.
+   Mirrors ui_kits/owner-app/*.jsx (the React source for consumers). */
+
+const ICONS = {
+  menu: "M3 6h18M3 12h18M3 18h18",
+  close: "M6 6l12 12M6 18L18 6",
+  grid: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z",
+  logout: "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9",
+  shield: "M12 2L4 6v6c0 5.25 3.5 9.74 8 11 4.5-1.26 8-5.75 8-11V6l-8-4Z",
+  share: "M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13",
+  user: "M4 20c0-4 3.6-7 8-7s8 3 8 7",
+  bell: "M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0",
+  chevronRight: "M9 18l6-6-6-6",
+};
+
+function icon(name, size) {
+  const s = size || 18;
+  const extra = name === "user" ? '<circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="2"/>' : "";
+  return '<svg width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+    '<path d="' + ICONS[name] + '" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' + extra + "</svg>";
+}
+
+const GOOGLE_G = '<svg width="20" height="20" viewBox="0 0 48 48" fill="none" aria-hidden="true">' +
+  '<path d="M47.532 24.552c0-1.636-.134-3.218-.389-4.742H24.48v8.978h12.985c-.56 3.016-2.255 5.574-4.806 7.288v6.056h7.779c4.548-4.19 7.094-10.36 7.094-17.58z" fill="#4285F4"/>' +
+  '<path d="M24.48 48c6.516 0 11.982-2.162 15.977-5.868l-7.779-6.056c-2.157 1.446-4.914 2.298-8.198 2.298-6.304 0-11.642-4.258-13.55-9.982H2.906v6.248C6.882 42.918 15.116 48 24.48 48z" fill="#34A853"/>' +
+  '<path d="M10.93 28.392A14.464 14.464 0 0 1 9.9 24c0-1.524.261-3.004.73-4.392v-6.248H2.906A23.988 23.988 0 0 0 .48 24c0 3.878.928 7.546 2.426 10.64l8.024-6.248z" fill="#FBBC05"/>' +
+  '<path d="M24.48 9.626c3.552 0 6.74 1.222 9.248 3.622l6.942-6.942C36.456 2.392 30.992 0 24.48 0 15.116 0 6.882 5.082 2.906 13.36l8.024 6.248c1.908-5.724 7.246-9.982 13.55-9.982z" fill="#EA4335"/></svg>';
+
+const OWNER = { name: "Rohit Sharma", email: "rohit.sharma@gmail.com" };
+const TAG = { id: "PT-0042-9KQ", plate: "DL 8C AB 1234", type: "Hatchback", model: "Maruti Swift · White", plan: "Premium" };
+const OWNER_REQUESTS = [
+  { reason: "Blocking my car", channel: "WhatsApp", when: "2 min ago", state: "delivered" },
+  { reason: "Lights left on", channel: "Masked call", when: "Yesterday, 9:40 pm", state: "connected" },
+  { reason: "Parked in my spot", channel: "WhatsApp", when: "26 Jul", state: "delivered" },
+];
+const NEXT_STEPS = [
+  { icon: "share", title: "Share the QR with trusted contacts", sub: "Help others contact you in an emergency." },
+  { icon: "shield", title: "Keep your vehicle details updated", sub: "Ensure your info is always accurate." },
+  { icon: "user", title: "View your emergency profile", sub: "See what others will view when they scan." },
+];
+
+const state = { screen: "login", step: "identifier", identifier: "", menu: false, active: true, consent: false };
+
+const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const LOGO_DARK = "../../assets/logo/parktag-logo-dark-bg.png";
+const LOGO_LIGHT = "../../assets/logo/parktag-logo-light-bg.png";
+
+function switcher() {
+  const items = [["login", "Sign in"], ["activate", "Activate"], ["dashboard", "Dashboard"]];
+  return '<div class="switch">' + items.map(([id, label]) =>
+    '<button class="' + (state.screen === id ? "on" : "") + '" data-screen="' + id + '">' + label + "</button>").join("") + "</div>";
+}
+
+/* ── sign in ── */
+function loginScreen() {
+  const titles = { identifier: "Owner Sign In", code: "Enter your code", password: "Enter your password" };
+  const subs = {
+    identifier: "Enter your email or mobile number and we'll send you a verification code.",
+    code: "We sent a 6-digit code to " + esc(state.identifier || "your number") + ".",
+    password: "Signing in with the password you set for " + esc(state.identifier || "your account") + ".",
+  };
+  let form = "";
+  if (state.step === "identifier") {
+    form = '<div style="display:grid;gap:var(--space-14)">' +
+      '<label class="field"><span>Email or mobile number</span>' +
+        '<input type="text" id="identifier" value="' + esc(state.identifier) + '" placeholder="Enter email or mobile number" /></label>' +
+      '<button class="btn btn-primary btn-full" data-act="continue">Continue</button></div>' +
+      '<div class="or"><span></span><b>OR</b><span></span></div>' +
+      '<button class="btn-google" style="margin-top:14px" data-act="signin">' + GOOGLE_G + " Continue with Google</button>";
+  } else if (state.step === "code") {
+    form = '<div style="display:grid;gap:var(--space-8)">' +
+      '<label class="field"><span>Verification code</span><input class="input-code" type="text" maxlength="6" placeholder="000000" /></label>' +
+      '<button class="btn btn-primary btn-full" style="margin-top:8px" data-act="signin">Verify</button>' +
+      '<p class="status status-info">Didn&rsquo;t receive the code? <button class="link" data-act="noop">Resend</button></p>' +
+      '<p class="status status-info">Know your password? <button class="link" data-step="password">Sign in with password</button></p>' +
+      '<p class="status"><button class="link" style="font-weight:var(--weight-semibold)" data-step="identifier">← Back to sign in</button></p></div>';
+  } else {
+    form = '<div style="display:grid;gap:var(--space-10)">' +
+      '<label class="field"><span>Password</span><input type="password" placeholder="Enter your password" /></label>' +
+      '<label class="check" style="font-size:0.84rem;font-weight:var(--weight-semibold);color:var(--pt-gray-700)"><input type="checkbox" /> Remember me on this device</label>' +
+      '<button class="btn btn-primary btn-full" style="margin-top:4px" data-act="signin">Sign in</button>' +
+      '<p class="status"><button class="link" style="font-weight:var(--weight-semibold)" data-step="code">← Back to verification code</button></p></div>';
+  }
+  return '<header class="hdr"><img src="' + LOGO_DARK + '" alt="ParkTag" /></header>' +
+    '<main style="display:flex;align-items:flex-start;justify-content:center;padding:24px 16px">' +
+      '<section class="card card-lg" style="width:100%;max-width:var(--width-auth)">' +
+        '<span class="tile" style="margin-bottom:12px">' + icon("user", 22) + "</span>" +
+        '<h1 class="card-title">' + titles[state.step] + "</h1>" +
+        '<p class="card-sub">' + subs[state.step] + "</p>" + form +
+      "</section></main>";
+}
+
+/* ── activation ── */
+function activateScreen() {
+  return '<div style="min-height:100vh;padding:18px 14px 42px;background:var(--pt-gradient-activate)">' +
+    '<div style="width:min(460px,100%);margin:0 auto;display:grid;gap:var(--space-16)">' +
+      '<div style="display:grid;gap:var(--space-14)">' +
+        '<div style="display:grid;gap:var(--space-10)">' +
+          '<p style="margin:0;color:var(--accent);font-size:var(--text-sm-plus);font-weight:var(--weight-heavy);letter-spacing:var(--tracking-eyebrow);text-transform:uppercase">Activate your tag</p>' +
+          '<h1 style="margin:0;font-family:var(--font-display);font-size:var(--text-display);font-weight:var(--weight-black);line-height:0.94;letter-spacing:var(--tracking-tightest)">Link this sticker to your vehicle.</h1>' +
+          '<p style="margin:0;color:var(--text-muted);font-size:var(--text-lg);line-height:var(--leading-loose);max-width:34ch">Two minutes, then anyone who scans it can reach you — without ever seeing your number.</p>' +
+        "</div>" +
+        '<div class="sticker-card"><img src="' + LOGO_LIGHT + '" alt="ParkTag" />' +
+          '<div style="display:grid;gap:var(--space-6)">' +
+            '<span style="font-size:var(--text-sm-plus);font-weight:var(--weight-bold);letter-spacing:0.04em;text-transform:uppercase;color:var(--text-muted)">E-Tag ID</span>' +
+            '<span class="mono" style="font-family:var(--font-plate);font-size:var(--text-lg);font-weight:var(--weight-bold);letter-spacing:0.04em">' + TAG.id + "</span>" +
+          "</div></div>" +
+        '<div class="steps">' +
+          '<div class="step"><span class="step-n">1</span> Scan tag</div>' +
+          '<div class="step on"><span class="step-n">2</span> Add vehicle</div>' +
+          '<div class="step"><span class="step-n">3</span> Activate</div>' +
+        "</div>" +
+      "</div>" +
+      '<section class="card-premium">' +
+        '<div style="display:grid;gap:8px;margin-bottom:18px">' +
+          '<h2 style="margin:0;font-family:var(--font-display);font-size:var(--text-2xl-plus);font-weight:var(--weight-heavy);line-height:var(--leading-display);letter-spacing:var(--tracking-tighter)">Your details</h2>' +
+          '<p style="margin:0;color:var(--text-muted);font-size:var(--text-md);line-height:var(--leading-body)">Only your name is ever shown to a scanner. Never your number.</p>' +
+        "</div>" +
+        '<div style="display:grid;gap:var(--space-20)">' +
+          '<div style="display:grid;gap:var(--space-14)">' +
+            '<p style="margin:0;color:var(--accent-ink);font-size:var(--text-sm);font-weight:var(--weight-heavy);letter-spacing:var(--tracking-eyebrow-wide);text-transform:uppercase">Owner details</p>' +
+            '<label class="field"><span>Full name</span><input type="text" placeholder="Rohit Sharma" /></label>' +
+            '<label class="field"><span>Email address</span><input type="email" placeholder="you@example.com" /></label>' +
+            '<label class="field"><span>Mobile number</span><span class="phone-wrap"><span class="phone-prefix">+91</span><input type="tel" placeholder="98765 43210" /></span></label>' +
+          "</div>" +
+          '<div style="display:grid;gap:var(--space-14)">' +
+            '<p style="margin:0;color:var(--accent-ink);font-size:var(--text-sm);font-weight:var(--weight-heavy);letter-spacing:var(--tracking-eyebrow-wide);text-transform:uppercase">Vehicle details</p>' +
+            '<label class="field"><span>Vehicle number</span><input class="input-plate" type="text" placeholder="DL 8C AB 1234" /></label>' +
+            '<label class="field"><span>Vehicle type</span><select><option>Hatchback</option><option>Sedan</option><option>SUV</option><option>Two-wheeler</option></select></label>' +
+            '<label class="field"><span>Make &amp; colour</span><input type="text" placeholder="Maruti Swift · White" /><span class="hint">Optional — helps a scanner confirm they have the right vehicle.</span></label>' +
+          "</div>" +
+          '<label class="consent check"><input type="checkbox" id="consent"' + (state.consent ? " checked" : "") + " /> I agree to ParkTag contacting me on this number when someone scans my tag.</label>" +
+          '<button class="btn btn-activate btn-full" style="min-height:54px;border-radius:var(--radius-3xl);box-shadow:0 14px 30px rgba(0,25,53,0.18)"' +
+            (state.consent ? ' data-act="activated"' : " disabled") + ">Activate my tag</button>" +
+          '<div style="display:flex;gap:10px;align-items:flex-start;padding:14px 15px;border-radius:var(--radius-3xl);background:rgba(255,255,255,0.72);border:1px solid rgba(111,104,95,0.12);color:var(--text-muted);font-size:0.92rem;line-height:1.55">' +
+            '<span style="color:var(--accent);flex-shrink:0">' + icon("shield", 18) + "</span>" +
+            "Your number is stored encrypted and never shown to whoever scans the tag — calls are masked and messages route through WhatsApp.</div>" +
+        "</div></section></div></div>";
+}
+
+/* ── dashboard ── */
+function dashboardScreen() {
+  const drawer = state.menu
+    ? '<div class="overlay" data-act="closeMenu"></div><nav class="drawer">' +
+        '<div class="drawer-head"><div><p class="drawer-name">' + OWNER.name + '</p><p class="drawer-email">' + OWNER.email + "</p></div>" +
+          '<button class="icon-btn quiet" data-act="closeMenu" aria-label="Close menu">' + icon("close", 20) + "</button></div>" +
+        '<div class="drawer-items">' +
+          '<button class="menu-item on">' + icon("grid") + " Dashboard</button>" +
+          '<button class="menu-item danger" data-screen="login">' + icon("logout") + " Sign out</button>" +
+        "</div></nav>"
+    : "";
+
+  return drawer +
+    '<header class="hdr">' +
+      '<button class="icon-btn" data-act="openMenu" aria-label="Menu">' + icon("menu", 20) + "</button>" +
+      '<span class="hdr-center"><img src="' + LOGO_DARK + '" alt="ParkTag" /></span>' +
+      '<span style="margin-left:auto">' + (state.active
+        ? '<span class="badge badge-active">' + icon("shield", 13) + " Active</span>"
+        : '<span class="badge badge-gray">Inactive</span>') + "</span>" +
+    "</header>" +
+    '<main style="max-width:var(--width-owner);margin:0 auto;padding:0 var(--space-16) 92px;display:grid;gap:var(--space-12)">' +
+      '<div style="text-align:center;padding:28px 0 20px">' +
+        '<span class="check-disc"><svg width="32" height="32" viewBox="0 0 24 24" fill="none"><path d="M5 12l4 4L19 7" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>' +
+        '<h1 style="margin:16px 0 8px;font-family:var(--font-display);font-size:var(--text-4xl);font-weight:var(--weight-black);line-height:var(--leading-title)">Tag Activated</h1>' +
+        '<p style="margin:0;font-size:var(--text-md);line-height:var(--leading-body);color:var(--text-muted)">Your ParkTag is now active and ready to help keep you connected and safe.</p>' +
+      "</div>" +
+
+      '<div class="qr-card"><div class="qr-slot">QR CODE<br />180 × 180</div><p class="qr-hint">Scan to contact owner</p></div>' +
+
+      '<section class="card"><h3 class="section-label">Your Vehicle Details</h3>' +
+        '<div style="display:grid;justify-items:center;margin-bottom:10px"><span class="plate">' + TAG.plate + "</span></div>" +
+        '<div class="detail"><span class="detail-label">Vehicle</span><span class="detail-value">' + TAG.model + "</span></div>" +
+        '<div class="detail"><span class="detail-label">Type</span><span class="detail-value">' + TAG.type + "</span></div>" +
+        '<div class="detail"><span class="detail-label">E-Tag ID</span><span class="detail-value" style="font-family:var(--font-plate);font-size:var(--text-base)">' + TAG.id + "</span></div>" +
+        '<div class="detail"><span class="detail-label">Plan</span><span class="detail-value"><span class="pill pill-premium">' + TAG.plan + "</span></span></div>" +
+      "</section>" +
+
+      '<section class="card"><h3 class="section-label">Tag Controls</h3>' +
+        '<label class="field" style="margin-bottom:12px"><span>Select tag</span><select><option>' + TAG.plate + " · " + TAG.id + "</option></select></label>" +
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">' +
+          '<button class="btn btn-activate" style="font-size:0.88rem;padding:11px" data-act="setActive">Set Active</button>' +
+          '<button class="btn btn-outline" style="font-size:0.88rem;padding:11px" data-act="setInactive">Set Inactive</button>' +
+        "</div>" +
+        '<p class="status ' + (state.active ? "status-success" : "status-info") + '">' +
+          (state.active ? "Tag is live — scans reach you." : "Tag is paused — scanners see an unavailable notice.") + "</p>" +
+      "</section>" +
+
+      '<section class="card"><h3 class="section-label">What&rsquo;s Next?</h3><div style="display:grid;gap:14px">' +
+        NEXT_STEPS.map((s, i) => '<div style="display:flex;align-items:flex-start;gap:12px">' +
+          '<span class="tile tile-sm' + (i % 2 ? " soft" : "") + '">' + icon(s.icon, 16) + "</span>" +
+          '<div style="flex:1"><p style="margin:0 0 2px;font-size:var(--text-base-plus);font-weight:var(--weight-bold)">' + s.title + "</p>" +
+          '<p style="margin:0;font-size:var(--text-sm);line-height:var(--leading-snug);color:var(--text-muted)">' + s.sub + "</p></div>" +
+          '<span style="color:var(--text-muted)">' + icon("chevronRight", 16) + "</span></div>").join("") +
+      "</div></section>" +
+
+      '<section class="card"><h3 class="section-label">Recent Contact Requests</h3><div style="display:grid;gap:10px">' +
+        OWNER_REQUESTS.map((r, i) => '<div style="display:flex;align-items:center;gap:10px;padding-bottom:10px;' +
+          (i === OWNER_REQUESTS.length - 1 ? "" : "border-bottom:1px solid var(--border-default)") + '">' +
+          '<div style="min-width:0"><p style="margin:0 0 2px;font-size:var(--text-base-plus);font-weight:var(--weight-bold)">' + r.reason + "</p>" +
+          '<p style="margin:0;font-size:var(--text-sm);color:var(--text-muted)">' + r.channel + " · " + r.when + "</p></div>" +
+          '<span style="margin-left:auto"><span class="pill pill-active">' + r.state + "</span></span></div>").join("") +
+      "</div></section>" +
+
+      '<div class="notice">' + icon("bell", 18) + " In an emergency, others can scan your tag to contact you quickly and securely.</div>" +
+    "</main>" +
+    '<div class="bottom-bar"><button class="btn btn-activate btn-full">Done</button></div>';
+}
+
+function render() {
+  const screen = state.screen === "login" ? loginScreen() : state.screen === "activate" ? activateScreen() : dashboardScreen();
+  document.getElementById("root").innerHTML = screen + switcher();
+}
+
+document.addEventListener("click", (e) => {
+  const s = e.target.closest("[data-screen]");
+  if (s) { state.screen = s.dataset.screen; state.step = "identifier"; state.menu = false; render(); return; }
+  const step = e.target.closest("[data-step]");
+  if (step) { state.step = step.dataset.step; render(); return; }
+  const act = e.target.closest("[data-act]");
+  if (!act) return;
+  const a = act.dataset.act;
+  if (a === "continue") { if (!state.identifier.trim()) return; state.step = "code"; }
+  else if (a === "signin") { state.screen = "dashboard"; }
+  else if (a === "activated") { state.screen = "dashboard"; }
+  else if (a === "openMenu") { state.menu = true; }
+  else if (a === "closeMenu") { state.menu = false; }
+  else if (a === "setActive") { state.active = true; }
+  else if (a === "setInactive") { state.active = false; }
+  else return;
+  render();
+});
+
+document.addEventListener("input", (e) => {
+  if (e.target.id === "identifier") state.identifier = e.target.value;
+});
+
+document.addEventListener("change", (e) => {
+  if (e.target.id === "consent") { state.consent = e.target.checked; render(); }
+});
+
+render();
+</script>
+</body>
+</html>

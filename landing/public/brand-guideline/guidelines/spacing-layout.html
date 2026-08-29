@@ -1,0 +1,27 @@
+<!-- @dsCard group="Spacing" viewport="700x170" name="Layout widths" subtitle="Every surface has one fixed measure" -->
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { margin: 0; padding: 16px 18px; background: var(--surface-card); font-family: var(--font-ui); color: var(--text-strong); }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .sw { display: grid; gap: 6px; }
+  .chip { width: 96px; height: 52px; border-radius: var(--radius-md); }
+  .name { font-size: 10px; font-weight: 700; letter-spacing: 0.02em; }
+  .hex { font-family: var(--font-plate); font-size: 9.5px; color: var(--text-admin-muted); }
+  .cap { font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-admin-faint); font-weight: 700; }
+  .m { background: var(--pt-red-150); border: 1px solid var(--pt-red-300); border-radius: 4px; height: 15px; }
+</style>
+</head>
+<body>
+<div style="display:grid;gap:7px;font-size:11px">
+  <div style="display:flex;align-items:center;gap:10px"><div class="m" style="width:400px"></div><span class="hex">400px · auth card</span></div>
+  <div style="display:flex;align-items:center;gap:10px"><div class="m" style="width:420px"></div><span class="hex">420px · owner dashboard column</span></div>
+  <div style="display:flex;align-items:center;gap:10px"><div class="m" style="width:460px"></div><span class="hex">460px · activation flow</span></div>
+  <div style="display:flex;align-items:center;gap:10px"><div class="m" style="width:480px"></div><span class="hex">480px · public scan column</span></div>
+  <div style="display:flex;align-items:center;gap:10px"><div class="m" style="width:560px"></div><span class="hex">560px · admin form card</span></div>
+  <div style="display:flex;align-items:center;gap:10px"><div class="m" style="width:240px;background:var(--pt-gray-100);border-color:var(--pt-gray-200)"></div><span class="hex">240px · admin sidebar · 64px header</span></div>
+</div>
+</body></html>

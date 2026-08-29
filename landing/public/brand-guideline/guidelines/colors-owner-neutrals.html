@@ -1,0 +1,25 @@
+<!-- @dsCard group="Colors" viewport="700x140" name="Owner neutrals" subtitle="Warm-grey page, white cards, cool hairline border" -->
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { margin: 0; padding: 16px 18px; background: var(--surface-card); font-family: var(--font-ui); color: var(--text-strong); }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .sw { display: grid; gap: 6px; }
+  .chip { width: 96px; height: 52px; border-radius: var(--radius-md); }
+  .name { font-size: 10px; font-weight: 700; letter-spacing: 0.02em; }
+  .hex { font-family: var(--font-plate); font-size: 9.5px; color: var(--text-admin-muted); }
+  .cap { font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-admin-faint); font-weight: 700; }
+  
+</style>
+</head>
+<body>
+<div class="row">
+  <div class="sw"><div class="chip" style="background:var(--pt-bg);border:1px solid var(--border-admin);"></div><span class="name">bg</span><span class="hex">#F1F1F0</span></div>
+  <div class="sw"><div class="chip" style="background:var(--pt-white);border:1px solid var(--border-admin);"></div><span class="name">white · card</span><span class="hex">#FFFFFF</span></div>
+  <div class="sw"><div class="chip" style="background:var(--pt-border);"></div><span class="name">border</span><span class="hex">#E2E8F0</span></div>
+</div>
+<p style="margin:12px 0 0;font-size:11px;color:var(--text-admin-muted)">Owner and scanner screens sit on #F1F1F0 — a warm neutral, not a blue-grey. Cards are pure white.</p>
+</body></html>

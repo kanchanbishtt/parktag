@@ -4,13 +4,18 @@ import { requireSession, toObjectId, tryObjectId } from "../../lib/auth/auth.js"
 import { getCollections, getVaultBucket } from "../../lib/db/repositories.js";
 import { getSessionCookieName } from "../../lib/auth/session.js";
 import {
+  DOCS_PER_ETAG,
+  DOCS_PER_PREMIUM_TAG,
+  DOCS_PER_SUBSCRIBED_TAG,
   DOC_TYPES,
   MAX_BYTES_PER_OWNER,
-  MAX_DOCS_PER_VEHICLE,
   MAX_FILE_BYTES,
+  PREMIUM_TRIAL_DAYS,
   checkQuota,
   cleanLabel,
   cleanThumbnail,
+  createMimeSniffer,
+  documentEntitlement,
   extensionForMime,
   grantVaultAccess,
   hasVaultPin,
@@ -18,13 +23,23 @@ import {
   isInlineViewable,
   isValidDocType,
   isValidPin,
+  isWeakPin,
   newDocumentId,
   pinRequirementMessage,
   readVaultGrant,
+  releaseStorage,
+  reserveStorage,
   revokeVaultAccess,
   setVaultPin,
-  verifyVaultPin
+  verifyVaultPin,
+  weakPinMessage
 } from "../../lib/core/vault.js";
+
+// An image above this has almost certainly skipped the browser's compression
+// pass: the ladder in scripts/owner/document-compress.js aims at 250KB and a
+// realistic RC photo lands at 89KB. Set well clear of that so ordinary
+// variation is quiet and only a genuine miss is logged.
+const LARGE_IMAGE_WARN_BYTES = 1024 * 1024;
 
 // Shape sent to the client. The GridFS id never leaves the server — see
 // newDocumentId in lib/core/vault.js for why.
@@ -62,6 +77,22 @@ export function registerVaultRoutes(app, env) {
     }
 
     const ownerId = toObjectId(request.session.userId);
+
+    // The owner must still exist. A session does not prove that: readSession
+    // validates the session document alone, so a session that outlives its
+    // account authenticates perfectly well. Deleting an account now revokes its
+    // sessions and its grants, which closes that path at the source — this is
+    // the second lock on the door, and it is worth one indexed read because
+    // what is behind it is an RC, a driving licence and an insurance policy.
+    const ownerExists = await collections.owners.findOne(
+      { _id: ownerId },
+      { projection: { _id: 1 } }
+    );
+    if (!ownerExists) {
+      reply.code(401);
+      return { blocked: { ok: false, error: "Authentication required" } };
+    }
+
     const sessionId = request.cookies[getSessionCookieName()];
     const grant = await readVaultGrant(collections, sessionId, ownerId);
     if (!grant) {
@@ -101,16 +132,30 @@ export function registerVaultRoutes(app, env) {
       readVaultGrant(collections, sessionId, ownerId)
     ]);
 
+    // The document allowance is per TAG, so it can only be answered for a
+    // vehicle. The page always asks about one; without a tagId this reports the
+    // tiers and no allowance, rather than guessing a number the upload would
+    // then contradict.
+    const tag = await ownedTag(collections, ownerId, (request.query || {}).tagId);
+
     return {
       ok: true,
       hasPin: pinSet,
       unlocked: Boolean(grant),
       limits: {
         maxFileBytes: MAX_FILE_BYTES,
-        maxDocsPerVehicle: MAX_DOCS_PER_VEHICLE,
         maxBytesPerOwner: MAX_BYTES_PER_OWNER,
-        docTypes: DOC_TYPES
-      }
+        docTypes: DOC_TYPES,
+        // What each tier is worth, so the page can name the next one without
+        // hard-coding numbers that would then drift from the server's.
+        tiers: {
+          etag: DOCS_PER_ETAG,
+          premium: DOCS_PER_PREMIUM_TAG,
+          subscribed: DOCS_PER_SUBSCRIBED_TAG
+        },
+        premiumTrialDays: PREMIUM_TRIAL_DAYS
+      },
+      entitlement: tag ? documentEntitlement(tag) : null
     };
   });
 
@@ -128,6 +173,7 @@ export function registerVaultRoutes(app, env) {
     const { pin, currentPin } = request.body || {};
 
     if (!isValidPin(pin)) { reply.code(400); return { ok: false, error: pinRequirementMessage() }; }
+    if (isWeakPin(pin)) { reply.code(400); return { ok: false, error: weakPinMessage() }; }
 
     if (await hasVaultPin(collections, ownerId)) {
       const check = await verifyVaultPin(collections, ownerId, currentPin);
@@ -200,10 +246,21 @@ export function registerVaultRoutes(app, env) {
       .aggregate([{ $match: { ownerId } }, { $group: { _id: null, bytes: { $sum: "$size" } } }])
       .toArray();
 
+    // Sent with the list so the page draws the allowance it will actually be
+    // held to. Deriving it client-side from the dashboard's `premium` flag
+    // would be a second copy of the rule, free to disagree with this one.
+    const entitlement = documentEntitlement(tag);
+
     return {
       ok: true,
       documents: docs.map(shapeDocument),
-      usedBytes: (totals[0] && totals[0].bytes) || 0
+      usedBytes: (totals[0] && totals[0].bytes) || 0,
+      entitlement,
+      // Counted from the documents themselves rather than the usage row: this
+      // is what the owner is looking at, and a counter that has drifted high
+      // (see ensureUsageRow) must not make the page claim slots are gone that
+      // the screen plainly shows are free.
+      documentCount: docs.length
     };
   });
 
@@ -258,11 +315,20 @@ export function registerVaultRoutes(app, env) {
       return { ok: false, error: "Only PDF, JPG, PNG or WEBP files can be stored." };
     }
 
-    const quota = await checkQuota(collections, ownerId, String(tag._id));
+    // Read ONCE, here, and carried through to the reservation below. The tier
+    // that authorised the upload is then the tier that binds the write.
+    const entitlement = documentEntitlement(tag);
+
+    const quota = await checkQuota(collections, ownerId, String(tag._id), entitlement);
     if (!quota.ok) {
       await data.file.resume();
       reply.code(409);
-      return { ok: false, error: quota.error };
+      return {
+        ok: false,
+        code: quota.limit === "documents" ? "DOCUMENT_LIMIT_REACHED" : "STORAGE_FULL",
+        entitlement,
+        error: quota.error
+      };
     }
 
     const bucket = await getVaultBucket(env);
@@ -279,8 +345,13 @@ export function registerVaultRoutes(app, env) {
       metadata: { ownerId: String(ownerId), tagId: String(tag._id), docId }
     });
 
+    // Corroborates the CLIENT-DECLARED content type against the actual bytes.
+    // See createMimeSniffer — it records a verdict rather than erroring, so the
+    // request body is always fully consumed and the connection cannot hang.
+    const sniffer = createMimeSniffer(data.mimetype);
+
     try {
-      await pipeline(data.file, uploadStream);
+      await pipeline(data.file, sniffer, uploadStream);
     } catch (err) {
       request.log.error({ err }, "Vault upload failed while writing to storage");
       await bucket.delete(uploadStream.id).catch(() => {});
@@ -298,10 +369,38 @@ export function registerVaultRoutes(app, env) {
       return { ok: false, error: `Each document must be under ${Math.floor(MAX_FILE_BYTES / (1024 * 1024))}MB.` };
     }
 
+    // The bytes did not match what the upload said they were. Checked after the
+    // write for the streaming reason above; the blob goes straight back out.
+    if (!sniffer.matches) {
+      await bucket.delete(uploadStream.id).catch(() => {});
+      request.log.warn(
+        { event: "vault-content-mismatch", declared: data.mimetype },
+        "[vault] upload rejected — file contents do not match the declared type"
+      );
+      reply.code(415);
+      return {
+        ok: false,
+        error: "That file isn't a valid PDF, JPG, PNG or WEBP. Please upload the original document."
+      };
+    }
+
     // Trust the byte count storage actually recorded, never a client-declared
     // size — the per-owner quota is summed from these values.
     const stored = await bucket.find({ _id: uploadStream.id }).next();
     const size = (stored && stored.length) || 0;
+
+    // Images are compressed in the browser before they are sent — see
+    // scripts/owner/document-compress.js, where a 4.79MB photo becomes 89KB.
+    // The server cannot re-encode without an image library in the API process,
+    // so it cannot ENFORCE that. What it can do is notice: a large image
+    // arriving means compression did not run, and the only way that becomes
+    // visible before the cluster fills is if somebody says so here.
+    if (size > LARGE_IMAGE_WARN_BYTES && isInlineViewable(data.mimetype)) {
+      request.log.warn(
+        { event: "vault-uncompressed-image", bytes: size, mime: data.mimetype },
+        "[vault] a large image was stored — client-side compression did not run"
+      );
+    }
 
     const record = {
       docId,
@@ -317,7 +416,35 @@ export function registerVaultRoutes(app, env) {
       fileId: uploadStream.id,
       createdAt: new Date().toISOString()
     };
-    await collections.vaultDocuments.insertOne(record);
+    // The quota that actually holds. checkQuota() above ran before the bytes
+    // were streamed and is only a cheap early reject — it reads a total that
+    // any concurrent upload is about to invalidate. This one is a conditional
+    // single-document update, so a burst of uploads fills the allowance exactly
+    // once instead of every request seeing room. Claimed BEFORE the record is
+    // written, so a document can never exist without the storage behind it.
+    const reserved = await reserveStorage(collections, ownerId, String(tag._id), size, entitlement);
+    if (!reserved.ok) {
+      await bucket.delete(uploadStream.id).catch(() => {});
+      reply.code(409);
+      return {
+        ok: false,
+        code: reserved.limit === "documents" ? "DOCUMENT_LIMIT_REACHED" : "STORAGE_FULL",
+        entitlement,
+        error: reserved.error
+      };
+    }
+
+    try {
+      await collections.vaultDocuments.insertOne(record);
+    } catch (err) {
+      // Give the reservation back, or it would count against the owner forever
+      // for a document that does not exist.
+      await releaseStorage(collections, ownerId, { tagId: String(tag._id), size });
+      await bucket.delete(uploadStream.id).catch(() => {});
+      request.log.error({ err }, "Vault upload failed while recording the document");
+      reply.code(500);
+      return { ok: false, error: "Could not save the document. Please try again." };
+    }
 
     return { ok: true, document: shapeDocument(record) };
   });
@@ -400,6 +527,9 @@ export function registerVaultRoutes(app, env) {
     // orphaned blob to sweep, rather than a listed document whose bytes have
     // already vanished.
     await collections.vaultDocuments.deleteOne({ _id: doc._id });
+    // Hand the reserved storage back, or the owner would pay for this document
+    // for the rest of the account's life.
+    await releaseStorage(collections, ownerId, { tagId: doc.tagId, size: doc.size });
     try {
       await bucketDelete(env, doc.fileId);
     } catch (err) {

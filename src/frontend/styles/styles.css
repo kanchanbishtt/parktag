@@ -1696,6 +1696,16 @@ pre {
   text-align: center;
 }
 
+/* Shown only when the tag lookup failed for want of a connection.
+   Spacing lives here, on the id, rather than on .pt-card-sub above it:
+   .pt-card-sub is declared three times in this sheet and the later pair reset
+   it to `margin: 0`, so the 20px in the base rule never reaches this card and
+   the button came up flush against the last line of text. Same trap the
+   .pt-track-intro comment further down describes. */
+#error-retry {
+  margin-top: 20px;
+}
+
 /* Card icon */
 .pt-card-icon {
   width: 48px;
@@ -2228,30 +2238,78 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
   margin: 0;
 }
 
+/* The section titles that SPEAK TO the person standing at the car rather than
+   labelling a list, so they drop the uppercase tracking the others use —
+   tracked caps read as a form heading, which is the wrong tone for a question
+   about the car in front of them or for a call already going through. */
+#scanner-why-title,
+#reason-step-title,
+#dial-modal-title {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--pt-sub);
+  padding-bottom: 4px;
+}
+
+.scanner-body #scanner-why-title {
+  margin-bottom: 8px;
+}
+
 /* Reason chips */
 .pt-reason-chips {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  padding: 0 24px 16px;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  padding: 0 22px 18px;
 }
 
+/* A row, not a pill: icon, label, and the radio that says only one of these
+   reaches the owner. Full width because the labels are sentences now — two
+   columns of wrapped sentences read as a wall rather than a list. */
 .pt-chip {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 8px;
-  padding: 12px 14px;
+  gap: 12px;
+  padding: 14px 16px;
   border: 1.5px solid var(--pt-border);
-  border-radius: 12px;
+  border-radius: 14px;
   background: var(--pt-white);
   color: var(--pt-ink);
   font: inherit;
-  font-size: 0.85rem;
+  font-size: 0.88rem;
   font-weight: 600;
   cursor: pointer;
-  transition: all 180ms ease;
+  transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
   text-align: left;
   box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  min-height: 56px;
+}
+
+.pt-chip-label {
+  line-height: 1.35;
+}
+
+/* The radio is drawn rather than a real <input>: the row itself is the control
+   (it is a role="radio" button), and a second focusable element inside it
+   would put two tab stops on one choice. */
+.pt-chip-radio {
+  width: 21px;
+  height: 21px;
+  border-radius: 50%;
+  border: 2px solid #C3CCDA;
+  background: var(--pt-white);
+  flex: 0 0 auto;
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.pt-chip-selected .pt-chip-radio {
+  border-color: var(--pt-amber);
+  /* The filled centre is an inset ring, so the dot scales with the border
+     rather than needing a pseudo-element. */
+  box-shadow: inset 0 0 0 4px var(--pt-amber);
 }
 
 .pt-chip:hover {
@@ -2268,7 +2326,6 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
 }
 
 .pt-chip-alert {
-  grid-column: span 2;
   color: #D92200;
   /* Its text and hover already sit in the brand-red family; the border was the
      last rose value on the page. */
@@ -2295,7 +2352,7 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
-  padding: 4px 22px 20px;
+  padding: 8px 22px 28px;
 }
 
 .pt-contact-actions .pt-btn {
@@ -2350,6 +2407,325 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
   .pt-contact-actions .pt-btn-sub { font-size: 0.63rem; }
 }
 
+/* ── Reason popup ──
+   Lives in the same overlay shell as the plate-verification popup and reuses
+   .pt-verify-card, so both steps of the message flow measure the same. Only
+   the insets differ: the rows run wider than the verify form's fields. */
+.pt-reason-card {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.scanner-body #reason-step-title.pt-section-title {
+  margin-bottom: 14px;
+  padding-left: 22px;
+  padding-right: 22px;
+}
+
+/* A tall list on a short phone stays reachable: the card scrolls inside the
+   overlay rather than running off it. */
+.pt-reason-card {
+  max-height: min(86vh, 720px);
+  overflow-y: auto;
+  background: var(--pt-white);
+}
+
+/* Every row is identical until it is chosen — the last one included. It used to
+   carry red text and a red border, which made it the odd one out and read as
+   already selected or already wrong. On a white card the only thing that may
+   look different is the row you actually picked. */
+.pt-reason-card .pt-chip,
+.pt-reason-card .pt-chip-alert {
+  background: var(--pt-white);
+  /* --pt-ink is #03162D — the brand navy. Using the token rather than the raw
+     hex so these rows track the rest of the page if it ever moves. */
+  border-color: var(--pt-ink);
+  color: var(--pt-ink);
+  box-shadow: 0 1px 2px rgba(3, 22, 45, 0.05);
+}
+
+/* Hover keeps the navy edge and only warms the fill: swapping the border to a
+   lighter blue made the row look LESS defined the moment it was pointed at. */
+.pt-reason-card .pt-chip:hover,
+.pt-reason-card .pt-chip-alert:hover {
+  background: #F6F9FE;
+}
+
+/* Selected wins over both of the above — higher specificity, and stated after
+   them, so neither the plain nor the alert rule can take the fill back.
+   Navy rather than red: with every resting border already navy, a red
+   selection was the only red on the card and read as an error rather than as
+   a choice. The border is doubled by an outline-width ring instead of being
+   recoloured, since it is already --pt-ink — that ring is what carries
+   "selected" at a glance, alongside the filled circle. */
+.pt-reason-card .pt-chip.pt-chip-selected,
+.pt-reason-card .pt-chip-alert.pt-chip-selected {
+  border-color: var(--pt-ink);
+  background: #EDF1F7;
+  color: var(--pt-ink);
+  box-shadow: 0 0 0 1.5px var(--pt-ink), 0 2px 10px rgba(3, 22, 45, 0.16);
+}
+
+/* The circle fills with the same navy. Stated here, after the base
+   .pt-chip-selected rule, so the popup's dot is navy while any other chip on
+   the site keeps its own colour. */
+.pt-reason-card .pt-chip-selected .pt-chip-radio {
+  border-color: var(--pt-ink);
+  box-shadow: inset 0 0 0 4px var(--pt-ink);
+}
+
+/* Fluid type rather than a fixed size: the reference's labels are long
+   sentences, and one fixed size that fits at 390px wraps at 320px. Scaling with
+   the viewport keeps every row to a single line — and therefore the same
+   height — right down to the narrowest phone. */
+.pt-reason-card .pt-chip {
+  padding: 12px 10px;
+  gap: 7px;
+  font-size: clamp(0.68rem, 3.08vw, 0.86rem);
+}
+
+/* Deliberately NOT nowrap: clipping a reason is worse than wrapping one, and
+   at 320px every label is wider than the row. The rows carry a min-height so a
+   label that does wrap keeps the list evenly spaced instead of one row jumping. */
+.pt-reason-card .pt-chip-label {
+  overflow-wrap: normal;
+}
+
+.pt-reason-card .pt-chip-icon {
+  font-size: clamp(0.82rem, 3.4vw, 0.98rem);
+}
+
+.pt-reason-card .pt-chip-radio {
+  width: 18px;
+  height: 18px;
+  /* Same navy as the row it sits in, so the circle reads as part of the row
+     rather than as a grey control dropped into it. */
+  border-color: var(--pt-ink);
+}
+
+/* Cancel is tinted so that on a white card it cannot be mistaken for a white
+   row that lost its radio. */
+/* Optional callback number on the reason step.
+   Sits between the reason rows and Cancel, sharing the rows' right edge (see
+   the margin note below) so the three read as one column rather than the field
+   hanging off the side. */
+.pt-reason-callback {
+  margin: 14px 22px 4px 0;
+  padding-top: 14px;
+  border-top: 1px solid #EEF2F8;
+}
+
+.pt-reason-cb-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #374151;
+  margin-bottom: 8px;
+}
+
+/* "optional" as a quiet chip rather than parenthesised text: it has to be
+   readable at a glance, because the whole point is that skipping is fine. */
+.pt-reason-cb-opt {
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6B7280;
+  background: #F3F4F6;
+  border: 1px solid #E5E7EB;
+  border-radius: 20px;
+  padding: 2px 7px;
+}
+
+.pt-reason-cb-input {
+  width: 100%;
+}
+
+.pt-reason-cb-note {
+  margin: 7px 0 0;
+  font-size: 0.72rem;
+  line-height: 1.45;
+  color: #6B7280;
+}
+
+/* Turns red only when what was typed cannot be dialled. */
+.pt-reason-cb-note[data-tone="error"] {
+  color: #B91C1C;
+  font-weight: 600;
+}
+
+.pt-reason-card .pt-cancel-action {
+  background: #EEF2F8;
+  /* Cancel is a direct child of the card, so it stops at the card's padding —
+     22px short of where '.scanner-body .pt-reason-chips' puts the rows' right
+     edge. Stated here so Cancel's right edge lines up with the rows it sits
+     under; if that padding changes, change this with it. */
+  margin-right: 22px;
+}
+
+.pt-reason-card .pt-cancel-action:hover {
+  background: #E1E8F3;
+}
+
+/* ── Contact tiles ──
+   The icon sits in a badged square ABOVE its label rather than inline beside
+   it: at tile width the badge is what carries the recognition, so the label
+   underneath can be plain dark text instead of reversed-out white. Tinted
+   surfaces rather than saturated fills — two solid slabs made the pair read as
+   primary-and-alternative, when they are peers. */
+.pt-tile {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 10px;
+  padding: 28px 10px 26px;
+  border-radius: 16px;
+  /* 2px, not 1.5: both tiles are outlined in a full-strength colour now, and a
+     hairline made those colours read as washed out rather than deliberate. */
+  border: 2px solid var(--pt-border);
+  background: var(--pt-white);
+  color: var(--pt-ink);
+  font: inherit;
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
+  box-shadow: 0 1px 3px rgba(3, 22, 45, 0.05);
+}
+
+.pt-tile:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.pt-tile-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 54px;
+  height: 54px;
+  border-radius: 16px;
+  flex: 0 0 auto;
+}
+
+/* The badge was 54px with a 22px mark inside it, so the icon read as a small
+   dot in a large square — and the mark stayed 22px even where the badge shrank
+   to 44px, which is the size most phones actually get. Both viewBoxes are
+   cropped to their own ink now, so this one size governs both glyphs and lands
+   them at the same optical size, centred, at roughly half the badge. */
+.pt-tile-icon svg,
+.pt-tile-icon .pt-tile-glyph {
+  width: 26px;
+  height: 26px;
+}
+
+.pt-tile-title {
+  font-size: 0.98rem;
+  font-weight: 800;
+  line-height: 1.2;
+  /* A proper noun / short phrase — never hyphenated by the global break-word
+     net just because the tile is narrow. */
+  overflow-wrap: normal;
+  white-space: nowrap;
+}
+
+/* Wraps rather than truncates: this line is the privacy promise, and losing it
+   on the phones people actually scan with would defeat the point. */
+.pt-tile-sub {
+  font-size: 0.72rem;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--pt-sub);
+  overflow-wrap: normal;
+}
+
+/* Masked call — the ink family, so it reads as the product's own voice. */
+.pt-tile-call {
+  /* --pt-ink is #03162D. The border carries it at rest, not only on hover, so
+     the tile is outlined in the brand navy at all times. That leaves the FILL
+     as the only thing that may change on interaction — see below. */
+  border-color: var(--pt-ink);
+  background: #F5F8FD;
+}
+.pt-tile-call .pt-tile-icon {
+  background: #E3ECFA;
+  /* The glyph is drawn with fill="currentColor", so the colour is set here, not
+     in the file. Same navy as the tile border, so the icon and the outline
+     around it are the one colour rather than two near-misses. */
+  color: var(--pt-ink);
+}
+/* The border is already navy at rest, so interaction is carried by the fill
+   deepening to a light wash of the same navy. It stays light on purpose — the
+   label, sub-label and icon inside are all dark, so a saturated navy would
+   swallow them. Written once and shared across hover/press/focus, so pressing
+   cannot look different from pointing at it. */
+@media (hover: hover) {
+  .pt-tile-call:hover:not(:disabled) {
+    border-color: var(--pt-ink);
+    background: #E6ECF6;
+    box-shadow: 0 4px 14px rgba(3, 22, 45, 0.16);
+  }
+}
+
+/* Touch has no hover, and a :hover left over from a tap would stick for the
+   rest of the visit — so the press state is its own rule. */
+.pt-tile-call:active:not(:disabled) {
+  border-color: var(--pt-ink);
+  background: #E6ECF6;
+  box-shadow: 0 4px 14px rgba(3, 22, 45, 0.16);
+}
+
+/* Keyboard users get the same signal as everyone else. */
+.pt-tile-call:focus-visible {
+  border-color: var(--pt-ink);
+  background: #E6ECF6;
+}
+
+/* Message — WhatsApp green, the one place on this card where another brand's
+   colour is the correct signal. */
+.pt-tile-message {
+  /* Full-strength green at rest, the mirror of the navy on Private Call — and
+     the same #128C46 the WhatsApp mark inside uses, so the tile is outlined in
+     its own icon's colour rather than in a second, near-miss green. */
+  border-color: #128C46;
+  background: #F4FCF7;
+}
+.pt-tile-message .pt-tile-icon {
+  background: #DCF5E5;
+  color: #128C46;
+}
+
+/* Mirrors the Private Call tile exactly: the border is already at full
+   strength, so interaction is carried by the fill deepening. Shared across
+   hover/press/focus so pressing cannot look different from pointing at it. */
+@media (hover: hover) {
+  .pt-tile-message:hover:not(:disabled) {
+    background: #E4F6EB;
+    box-shadow: 0 4px 14px rgba(18, 140, 70, 0.18);
+  }
+}
+
+/* Touch has no hover, and a :hover left over from a tap would stick. */
+.pt-tile-message:active:not(:disabled) {
+  background: #E4F6EB;
+  box-shadow: 0 4px 14px rgba(18, 140, 70, 0.18);
+}
+
+.pt-tile-message:focus-visible {
+  background: #E4F6EB;
+}
+
+@media (max-width: 400px) {
+  .pt-tile { padding: 14px 8px 12px; gap: 6px; }
+  .pt-tile-icon { width: 44px; height: 44px; border-radius: 13px; }
+  /* Steps down with the badge so the glyph keeps the same share of it. */
+  .pt-tile-icon svg,
+  .pt-tile-icon .pt-tile-glyph { width: 21px; height: 21px; }
+  .pt-tile-title { font-size: 0.92rem; }
+  .pt-tile-sub { font-size: 0.68rem; }
+}
+
 /* ── Emergency / SOS ──
    Visually quarantined from the two routine actions: its own rule, its own
    colour, and a line of explanatory copy above it. An accident call that
@@ -2358,7 +2734,11 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
   margin: 0 22px 20px;
   padding: 15px 16px;
   /* Tints derived from --pt-amber (#FF2700) rather than the rose family, so
-     the block reads as the same red as the button inside it. */
+     the block reads as the same red as the button inside it. The card is what
+     quarantines Emergency from the two routine actions above — an accident
+     call that reaches a stranger's family is not something to trigger by
+     reflex, and its own surface is what makes it a decision rather than a
+     third button in the row. */
   border: 1.5px solid #FFB6A8;
   border-radius: 16px;
   background: linear-gradient(180deg, #FFF6F4 0%, #FFEDEA 100%);
@@ -2367,12 +2747,19 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
   justify-items: stretch;
 }
 
+/* Sits UNDER the button now, as a single explanatory line rather than the
+   three-line question that used to stand above it. The caution is unchanged;
+   what changed is that it no longer costs the height that pushed Emergency
+   off the first screen on a 360px phone. */
+/* Above the button now, and red again: inside the tinted card it is the
+   question the button answers, not a footnote under it. */
 .pt-sos-copy {
   margin: 0;
   font-size: 0.86rem;
   line-height: 1.5;
   color: #B31C00;
   font-weight: 600;
+  text-align: left;
 }
 
 .pt-btn-sos {
@@ -2387,21 +2774,71 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
   font-size: 0.97rem;
   font-weight: 800;
   line-height: 1.2;
-  min-height: 50px;
+  min-height: 56px;
   white-space: nowrap;
   overflow-wrap: normal;
   box-shadow: 0 4px 14px rgba(255, 39, 0, 0.32);
 }
 
+/* Outlined rather than filled. The red is in the border and the label, which
+   keeps Emergency unmistakable without giving it the visual weight of a
+   primary action sitting under two peers. */
+.pt-btn-sos-outline {
+  /* White, not transparent: on the card's tinted ground a transparent fill
+     would let the gradient through and stop it reading as an outlined
+     control. */
+  background: var(--pt-white);
+  color: var(--pt-amber);
+  border: 1.7px solid #FFB6A8;
+  border-radius: 999px;
+  box-shadow: 0 1px 3px rgba(255, 39, 0, 0.10);
+}
+
 .pt-btn-sos svg { flex: 0 0 auto; }
 
-.pt-btn-sos:hover:not(:disabled) {
+/* The filled hover belongs to the filled button ONLY. Excluded by selector
+   rather than by source order: both rules were (0,3,0), so whichever came
+   last won — and this one did, painting the outlined button solid red while
+   its label stayed red, which left the word invisible on hover. */
+.pt-btn-sos:hover:not(:disabled):not(.pt-btn-sos-outline) {
   background: var(--pt-amber-dark);
   box-shadow: 0 6px 18px rgba(255, 39, 0, 0.42);
 }
 
+/* Hover is gated on a device that actually has one. On a phone :hover sticks
+   after a tap, so without this the Emergency button would stay in its hover
+   state for the rest of the visit. */
+@media (hover: hover) {
+  .pt-btn-sos-outline:hover:not(:disabled) {
+    background: var(--pt-amber-bg);
+    border-color: var(--pt-amber);
+    color: var(--pt-amber-dark);
+    box-shadow: 0 4px 14px rgba(255, 39, 0, 0.18);
+  }
+}
+
+/* Touch gets its feedback from :active instead, which clears on release. */
+.pt-btn-sos-outline:active:not(:disabled) {
+  background: var(--pt-amber-bg);
+  border-color: var(--pt-amber);
+  color: var(--pt-amber-dark);
+}
+
 .pt-panel-sos {
   background: #FFF6F4;
+}
+
+/* ── Card title + closing info panel ──
+   The card names itself, the way the reference does: someone arriving from a
+   QR code has no page title to read, so the first line has to say what this
+   screen is for. */
+.pt-vehicle-title {
+  margin: 0 0 14px;
+  font-size: clamp(1.05rem, 4.6vw, 1.22rem);
+  font-weight: 800;
+  line-height: 1.25;
+  color: var(--pt-ink);
+  text-align: center;
 }
 
 /* ── Emergency confirmation dialog ──
@@ -2605,6 +3042,99 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
 
 .pt-sos-cancel:hover { color: var(--pt-ink); }
 
+/* Bottom-right of the dial popup: last child of the card, pinned to the
+   trailing edge, which is the same corner Cancel occupies in the verify and
+   reason popups — so "the way out" never moves. display:flex rather than the
+   inline-flex it would otherwise be, because margin-left:auto only pushes a
+   block-level box.
+
+   Smaller than the other secondary buttons on purpose: it leaves a call the
+   scanner asked for, so it must not compete with "Tap to Call" above it. 34px
+   is below the 44px this file uses elsewhere — a deliberate trade, safe here
+   because it sits alone at the foot of the card with no neighbour to mis-tap,
+   and it still clears the 24px minimum. */
+.pt-panel-back {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+  margin-left: auto;
+  min-height: 34px;
+  padding: 7px 12px;
+  border: 1px solid var(--pt-border);
+  border-radius: 10px;
+  background: var(--pt-bg);
+  color: var(--pt-sub);
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* The receipt is one column of stacked blocks, like the verify card it sits in
+   the same overlay as. The gap is what separates the number from the button
+   from the way out, so none of them needs a margin of its own. */
+/* The two receipts a contact ends on — the dial-back number and the "owner
+   notified" confirmation. Both are one column of stacked blocks in the same
+   overlay the verify and reason steps use, so a call and a message finish in
+   the same place and at the same size. The gap is what separates the blocks,
+   so none of them carries a margin of its own. */
+.pt-receipt-card {
+  display: grid;
+  gap: 12px;
+  background: var(--pt-white);
+}
+
+/* The card already carries the inset, so the title must not add its own on
+   top — with it, the heading sat indented past the number underneath it. The
+   grid gap does the vertical spacing for the same reason. */
+.pt-receipt-card #dial-modal-title {
+  padding: 0;
+  margin-bottom: 0;
+}
+
+.pt-receipt-card .pt-panel-label,
+.pt-receipt-card .pt-panel-sub,
+.pt-receipt-card .pt-status {
+  margin: 0;
+}
+
+.pt-receipt-card .pt-dial-number {
+  margin: 4px 0 0;
+}
+
+/* The confirmation has nothing to act on — it is a result, not a step — so it
+   is centred, the way the success panel it replaced was. Back stays pinned
+   right regardless: the way out sits in the same corner on every popup. */
+.pt-receipt-card-center {
+  justify-items: center;
+  text-align: center;
+}
+
+.pt-receipt-card-center .pt-panel-back {
+  justify-self: end;
+}
+
+.pt-receipt-title {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--pt-ink);
+  margin: 0;
+}
+
+.pt-receipt-copy {
+  font-size: 0.88rem;
+  color: var(--pt-sub);
+  line-height: 1.6;
+  margin: 0;
+}
+
+@media (hover: hover) {
+  .pt-panel-back:hover { background: #E9EEF6; color: var(--pt-ink); }
+}
+
+.pt-panel-back:active { background: #E9EEF6; color: var(--pt-ink); }
+
 /* Panel (sub-sections within action card) */
 .pt-panel {
   padding: 16px 24px;
@@ -2679,6 +3209,12 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
   text-align: center;
 }
 
+/* The status line is empty most of the time, and an empty <p> still charged
+   its 12px of bottom padding to every screen it sat on. */
+.pt-status:empty {
+  display: none;
+}
+
 .pt-status[data-tone="info"] { color: var(--pt-sub); }
 .pt-status[data-tone="success"] { color: #FF2700; }
 .pt-status[data-tone="error"] { color: #DC2626; }
@@ -2726,12 +3262,7 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
 }
 
 @media (max-width: 400px) {
-  .pt-reason-chips {
-    grid-template-columns: 1fr;
-  }
-  .pt-chip-alert {
-    grid-column: span 1;
-  }
+  .pt-chip { padding: 13px 14px; gap: 10px; font-size: 0.84rem; }
   .pt-plate-display {
     font-size: 1.25rem;
     /* Band and strip keep their pixel sizes, so only the plate's own padding
@@ -4469,13 +5000,13 @@ html:has(body.pt-hub-body) {
 }
 
 .scanner-body .pt-vehicle-block {
-  padding: 22px 26px 18px;
+  padding: 34px 26px 30px;
 }
 
 .scanner-body .pt-section-title {
   padding-left: 22px;
   padding-right: 22px;
-  margin-bottom: 14px;
+  margin-bottom: 18px;
 }
 
 .scanner-body .pt-reason-chips {
@@ -4494,7 +5025,119 @@ html:has(body.pt-hub-body) {
 }
 
 .scanner-body .pt-privacy-note {
-  padding-bottom: 18px;
+  padding-bottom: 12px;
+}
+
+/* ── Short screens ──
+   The rhythm above is tuned for a 844px viewport. A real phone gives far less:
+   the reported screenshot is a 720x1600 device at dpr 2, which after Chrome-s
+   address bar and the Android nav bar leaves about 360x670 of web — 175px less
+   than the design height. At that size the card ran past the fold and the
+   scanner had to scroll to reach the Emergency block.
+
+   Everything here is spacing, not content: no copy is cut and no tap target
+   shrinks. It is keyed on viewport HEIGHT because that is the constraint —
+   a wide phone in landscape has the same problem a narrow one in portrait does. */
+@media (max-height: 760px) {
+  .scanner-body .pt-main {
+    /* The optical lift is bottom padding that pushes a centred card up the
+       screen. It only makes sense when the card fits with room to spare; when
+       it does not, align-content already top-aligns and the lift is 40px of
+       pure scroll. */
+    --pt-optical-lift: 0px;
+    --pt-pad-y: 8px;
+    gap: 8px;
+  }
+
+  .scanner-body .pt-vehicle-block {
+    padding: 14px 26px 12px;
+  }
+
+  .scanner-body .pt-section-title {
+    margin-bottom: 10px;
+  }
+
+  .scanner-body .pt-tile {
+    padding: 11px 8px 11px;
+  }
+
+  .scanner-body .pt-sos-block {
+    margin-bottom: 12px;
+    padding: 12px 14px;
+    gap: 9px;
+  }
+
+  .scanner-body .pt-privacy-note {
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+
+  /* Both of these were wrapping to one line more than they needed at 360px,
+     and a wrapped line costs more than the type it saves. Stepped down just
+     far enough to close the wrap — the copy itself is untouched. */
+  .scanner-body .pt-sos-copy {
+    font-size: 0.8rem;
+    line-height: 1.45;
+  }
+
+  .scanner-body .pt-privacy-note {
+    font-size: 0.72rem;
+    /* The 24px inset was the last thing keeping this on two lines at 360px. */
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .scanner-body .pt-section-title {
+    padding-top: 10px;
+  }
+
+  .scanner-body .pt-tile-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+  }
+
+  .scanner-body .pt-tile-icon svg,
+  .scanner-body .pt-tile-icon .pt-tile-glyph {
+    width: 19px;
+    height: 19px;
+  }
+
+  /* The verification card is the tallest screen in the flow — 671px against a
+     670px viewport — and it is the one screen nobody can skip: no call and no
+     message happens without it. Left alone it scrolled inside its own popup,
+     putting "Verify & Continue" below the fold on the one step that must not
+     be missed.
+
+     The artwork takes the deepest cut because it is the only decorative thing
+     here; it still shows the plate and the circled digits at 92px. */
+  .scanner-body .pt-verify-media {
+    max-height: 92px;
+    object-position: center 42%;
+    margin-bottom: 10px;
+  }
+
+  .scanner-body .pt-verify-title {
+    font-size: clamp(0.88rem, 3.6vw, 0.98rem);
+    line-height: 1.28;
+  }
+
+  .scanner-body .pt-verify-rule {
+    margin: 9px 0;
+  }
+
+  .scanner-body .pt-verify-callnote {
+    font-size: clamp(0.78rem, 3.1vw, 0.86rem);
+    margin-bottom: 8px;
+  }
+
+  .scanner-body #plate-verify-status {
+    font-size: 0.74rem;
+  }
+
+  .scanner-body .pt-card {
+    padding: clamp(16px, 4.5vw, 20px);
+  }
 }
 
 /* ── Cards: one radius/padding ratio across the whole flow ── */
@@ -4584,6 +5227,9 @@ html:has(body.pt-hub-body) {
      the image lands, which stops everything below it jumping on load. Update
      this alongside the file if the artwork is ever re-cut. */
   aspect-ratio: 1134 / 496;
+  /* Companion to the width/height attributes on the <img>: those are
+     presentational hints for height and would otherwise beat aspect-ratio. */
+  height: auto;
   object-fit: cover;
   /* Painted behind the image so a slow or failed load leaves a neutral block
      rather than a collapsed gap that shifts everything below it. */
@@ -4811,6 +5457,18 @@ body.pt-modal-open {
   justify-self: start;
   width: fit-content;
   margin-top: 2px;
+}
+
+/* Inside a popup Cancel is a dismiss, not a step, so it sits on the trailing
+   edge where a dialog's dismiss is looked for — and away from the thumb's path
+   to the primary action. Block-level rather than the base inline-flex, because
+   'margin-left: auto' only pushes a block-level box; the button still sizes to
+   its own text. Applies to both popups, so the verify card and the reason card
+   put their way out in the same place. */
+.pt-vmodal .pt-cancel-action {
+  display: flex;
+  width: fit-content;
+  margin-left: auto;
 }
 
 /* Country code + number: the code keeps just enough room for its longest

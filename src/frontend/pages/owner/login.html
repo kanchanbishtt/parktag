@@ -4,14 +4,14 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>ParkTag | Owner Sign In</title>
-    <link rel="stylesheet" href="/styles/styles.css" />
+    <link rel="stylesheet" href="/styles/styles.css?v=__ASSET_VERSION__" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/styles/owner-login.css" />
+    <link rel="stylesheet" href="/styles/owner-login.css?v=__ASSET_VERSION__" />
     <!-- Show skeleton immediately, fade it out once DOM is ready. In a file, not
          inline, so this page can be served without script-src 'unsafe-inline'. -->
-    <script src="/scripts/owner/login-skeleton.js" defer></script>
+    <script src="/scripts/owner/login-skeleton.js?v=__ASSET_VERSION__" defer></script>
   </head>
   <body class="pt-hub-body">
 
@@ -45,16 +45,21 @@
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="2"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
         </div>
         <h1 class="pt-card-title" id="card-title">Owner Sign In</h1>
-        <p class="pt-card-sub" id="card-sub" style="margin-bottom:20px">Enter your email or mobile number and we'll send you a verification code.</p>
+        <p class="pt-card-sub" id="card-sub" style="margin-bottom:20px">Enter your mobile number and we'll send you a code on WhatsApp.</p>
 
         <div class="pt-form" id="owner-form-step1">
           <label class="pt-field">
-            <span id="identifier-label">Email or mobile number</span>
+            <span id="identifier-label">Mobile number</span>
             <div style="position:relative">
+              <!-- Mobile is the default deliberately. The number is the one
+                   identity every route agrees on: activating a sticker proves
+                   it by OTP and writes it to the account, so signing in with it
+                   lands on the account that actually holds the tags. Offering
+                   email first invited people onto a second, emptier record. -->
               <input id="owner-identifier" type="text" class="pt-input"
-                placeholder="Enter email or mobile number"
-                autocomplete="username"
-                inputmode="email" />
+                placeholder="10-digit mobile number"
+                autocomplete="tel"
+                inputmode="tel" />
               <span id="identifier-badge" style="
                 position:absolute;right:10px;top:50%;transform:translateY(-50%);
                 font-size:0.7rem;font-weight:700;letter-spacing:0.04em;
@@ -65,6 +70,13 @@
             </div>
           </label>
           <button id="owner-login-button" class="pt-btn pt-btn-primary pt-btn-full" style="margin-top:4px">Continue</button>
+          <!-- Email stays a first-class way in, just not the default one.
+               Anyone who only ever had an email account must still be able to
+               reach it, so this is a visible switch rather than a hidden one. -->
+          <p style="text-align:center;margin-top:14px;margin-bottom:0;font-size:0.85rem;color:#6B7280">
+            <button type="button" id="identifier-mode-toggle"
+              style="background:none;border:none;color:#FF2700;font-weight:700;font-size:0.85rem;cursor:pointer;padding:0;font-family:inherit">Use email address instead</button>
+          </p>
         </div>
 
         <p id="owner-auth-status" class="pt-status" data-tone="info" style="padding:12px 0 0;text-align:center"></p>
@@ -109,7 +121,7 @@
       </div>
     </main>
 
-    <script type="module" src="/scripts/owner/login.js"></script>
-    <script src="/scripts/ux-feedback.js"></script>
+    <script type="module" src="/scripts/owner/login.js?v=__ASSET_VERSION__"></script>
+    <script src="/scripts/ux-feedback.js?v=__ASSET_VERSION__"></script>
 </body>
 </html>

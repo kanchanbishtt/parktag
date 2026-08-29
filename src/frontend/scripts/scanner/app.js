@@ -1,4 +1,5 @@
 import { getCaptchaToken } from "../recaptcha.js";
+import { requestJson, offlineMessage } from "../net-retry.js";
 
 const DEFAULT_MESSAGE =
   "Hi, your vehicle is blocking my way. Please move it when possible.";
@@ -40,6 +41,10 @@ let unlimitedContact = false;
 let emergencyAvailable = false;
 // Optional reason selected via the chips; the message itself is built server-side.
 let selectedReason = "";
+// Handle for the short pause between filling the chosen row's circle and moving
+// on, so the choice is visible before the screen changes. Cleared whenever the
+// popup closes, or a cancel would still be followed by the verification card.
+let reasonAdvanceTimer = null;
 
 // Says "digits", not "characters": the field is `inputmode="numeric"` and the
 // server matches on /^\d{4}$/, so telling someone to type letters would send
@@ -81,9 +86,10 @@ const activation = { plate: "", name: "", phone: "", type: "" };
 //
 // Copied rather than imported: scripts/owner/welcome.js and
 // scripts/owner/register.js each already carry their own copy of this map, and
-// the scanner bundle is cache-busted through scannerAssetVersion while a bare
-// import would not be. Worth consolidating into one shared module when those
-// two files are next touched.
+// this file is fetched through a stamped URL (?v=<asset digest>) while a bare
+// import inside it would not be -- the browser resolves module specifiers
+// without the query. Worth consolidating into one shared module when those two
+// files are next touched.
 const VEHICLE_ICON_SRC = {
   car: "/images/car-tag.svg",
   bike: "/images/bike-tag.svg",
@@ -179,11 +185,20 @@ function getTokenFromUrl() {
   return params.get("token") || "";
 }
 
-async function fetchJson(url, options) {
-  const response = await fetch(url, options);
-  const data = await response.json();
+// Every request on this page now has a deadline. Without one a stalled
+// connection -- the normal way mobile data fails in a basement car park --
+// never settled at all, so the page sat on a disabled button forever.
+//
+// A GET is safe to repeat, so the tag lookup this page cannot start without
+// gets a few attempts. Anything else defaults to none: send-otp, activate,
+// register-call and the contact POSTs all have effects that a replay would
+// duplicate. See net-retry.js.
+async function fetchJson(url, options = {}) {
+  const isRead = !options.method || options.method === "GET";
+  const { retries = isRead ? 3 : 0, ...rest } = options;
+  const { ok, data } = await requestJson(url, { ...rest, retries });
 
-  if (!response.ok) {
+  if (!ok) {
     throw new Error(data.error || "Request failed");
   }
 
@@ -198,7 +213,19 @@ async function fetchJson(url, options) {
 // `body.pt-modal-open` locks the page behind from scrolling: without it, a
 // swipe over the blur scrolls the contact card underneath, which reads as the
 // overlay having come loose.
-function openVerifyModal() {
+// Both overlays on this page — the reason popup and the plate-verification
+// popup — share one open/close, so the scroll lock and the gutter compensation
+// below can never be right for one of them and wrong for the other.
+const OVERLAY_IDS = ["verify-modal", "reason-modal", "dial-modal", "confirm-modal"];
+
+function anyOverlayOpen() {
+  return OVERLAY_IDS.some(id => {
+    const el = byId(id);
+    return Boolean(el) && !el.hidden;
+  });
+}
+
+function openOverlay(id) {
   // Locking the body removes the scrollbar, which widens the viewport: the page
   // behind jumps sideways under the blur, and the card lands a few pixels wider
   // than the card it replaced. Publish the gutter as a custom property and hand
@@ -207,14 +234,31 @@ function openVerifyModal() {
   // assumed: 0 with the overlay scrollbars phones use, ~15px on a desktop.
   const gutter = window.innerWidth - document.documentElement.clientWidth;
   document.documentElement.style.setProperty("--pt-scroll-gutter", `${Math.max(gutter, 0)}px`);
-  setHidden("verify-modal", false);
+  // Only ever one overlay at a time: the reason popup hands straight over to
+  // verification, and two stacked blurs would leave the first one unreachable
+  // behind the second.
+  OVERLAY_IDS.forEach(other => { if (other !== id) setHidden(other, true); });
+  setHidden(id, false);
   document.body.classList.add("pt-modal-open");
 }
 
+function closeOverlay(id) {
+  setHidden(id, true);
+  // The lock belongs to the page, not to one overlay: release it only once
+  // nothing is left up, or closing the reason popup on its way to verification
+  // would unlock the page underneath the card that replaced it.
+  if (!anyOverlayOpen()) {
+    document.body.classList.remove("pt-modal-open");
+    document.documentElement.style.removeProperty("--pt-scroll-gutter");
+  }
+}
+
+function openVerifyModal() {
+  openOverlay("verify-modal");
+}
+
 function closeVerifyModal() {
-  setHidden("verify-modal", true);
-  document.body.classList.remove("pt-modal-open");
-  document.documentElement.style.removeProperty("--pt-scroll-gutter");
+  closeOverlay("verify-modal");
 }
 
 function isVerifyModalOpen() {
@@ -347,11 +391,15 @@ function resetActionState() {
   setHidden("message-panel", true);
   setHidden("message-editor-shell", true);
   setHidden("call-popup", true);
-  setHidden("request-confirmation", true);
-  setHidden("dial-panel", true);
+  closeConfirmModal();
+  closeDialModal();
   setValue("message-template-select", "");
   setValue("message-text", DEFAULT_MESSAGE);
   setValue("contact-phone", "");
+  activeVirtualNumber = "";
+  setText("dial-virtual-number", "");
+  setHidden("dial-number-block", true);
+  setRequestStatus("dial-status", "", "info");
   verifyCapturedPhone = "";
   verifyPhoneOnly = false;
   setHidden("plate-verify-plate-block", false);
@@ -361,7 +409,10 @@ function resetActionState() {
   contactGrant = "";
   contactAvailable = true;
   unlimitedContact = false;
-  selectedReason = "";
+  clearSelectedReason();
+  // Back to the two tiles: a fresh tag must not open on a half-answered
+  // question left over from the previous one.
+  closeReasonStep();
   pendingAction = null;
   setDisabled("call-owner-button", false);
   setDisabled("send-whatsapp-button", false);
@@ -379,14 +430,16 @@ function resetActionState() {
 function setContactAvailability(available) {
   contactAvailable = available;
   setHidden("scanner-why-title", !available);
-  setHidden("pt-reason-chips", !available);
   setHidden("scanner-contact-actions", !available);
   setHidden("purchase-cta", available);
   if (!available) {
     // Hide any open contact sub-panels too.
-    setHidden("dial-panel", true);
+    closeDialModal();
     setHidden("message-panel", true);
     setHidden("call-popup", true);
+    // Leaving the reason popup up once the free contact is gone would offer a
+    // message the server would refuse.
+    closeReasonStep();
   }
 
   // The SOS block is gated on nothing at all. A used-up free contact must not
@@ -459,13 +512,49 @@ function openSosHelplines(note) {
   dialog.showModal();
 }
 
+// The receipt for a call that is already registered. Kept so the popup can be
+// dismissed and brought back: without it, closing the receipt would strand the
+// scanner with the dialer un-opened and no number to type.
+let activeVirtualNumber = "";
+
+function openDialModal() {
+  openOverlay("dial-modal");
+}
+
+// Only ever a view change. actionLocked and the disabled tiles survive, so
+// closing and reopening the receipt cannot buy a second call on one grant.
+function closeDialModal() {
+  closeOverlay("dial-modal");
+}
+
+// The message receipt. Unlike the dial receipt there is nothing here to lose by
+// closing it — no number to type — so it has no reopen path: the WhatsApp tile
+// stays disabled after a send either way.
+function openConfirmModal() {
+  openOverlay("confirm-modal");
+}
+
+function closeConfirmModal() {
+  closeOverlay("confirm-modal");
+}
+
+function isConfirmModalOpen() {
+  const el = byId("confirm-modal");
+  return Boolean(el) && !el.hidden;
+}
+
+function isDialModalOpen() {
+  const el = byId("dial-modal");
+  return Boolean(el) && !el.hidden;
+}
+
 // Closes the ordinary contact panels so only one flow is ever live. Called
 // before the emergency dial panel opens.
 function closeContactPanels() {
-  setHidden("dial-panel", true);
+  closeDialModal();
   setHidden("message-panel", true);
   setHidden("call-popup", true);
-  setHidden("request-confirmation", true);
+  closeConfirmModal();
 }
 
 async function handleSosCall() {
@@ -485,12 +574,13 @@ async function handleSosCall() {
 
   let virtualNumber = "";
   try {
-    const res = await fetch(`/api/tags/${token}/register-emergency-call`, {
+    const { ok, data } = await requestJson(`/api/tags/${token}/register-emergency-call`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ phone, grant: contactGrant })
+      body: JSON.stringify({ phone, grant: contactGrant }),
+      onSlow: () =>
+        setRequestStatus("request-status", "Still connecting… signal is weak here.", "info")
     });
-    const data = await res.json().catch(() => ({}));
 
     if (data.code === "NO_EMERGENCY_CONTACT") {
       // The owner cleared it between page load and the tap. The block stays —
@@ -519,11 +609,22 @@ async function handleSosCall() {
       );
       return;
     }
-    if (!res.ok) throw new Error(data.error || "Could not start the emergency call.");
+    if (!ok) throw new Error(data.error || "Could not start the emergency call.");
     virtualNumber = data.virtualNumber || "";
   } catch (error) {
     actionLocked = false;
     setDisabled("sos-final-call-button", false);
+    // Someone is standing at an accident. If the line is dead, say so plainly
+    // and point at the helplines rather than leaving them reading "Connecting…"
+    // at a button that is never going to move.
+    if (error?.isTimeout || error?.isNetworkDown) {
+      closeSosPanels();
+      setRequestStatus("request-status", "", "info");
+      openSosHelplines(
+        `${offlineMessage(error, { action: "the emergency call" })} You can still dial the All India helplines below directly.`
+      );
+      return;
+    }
     setRequestStatus(
       "request-status",
       error instanceof Error ? error.message : "Could not start the emergency call.",
@@ -574,22 +675,27 @@ function setSummaryForTag(tag) {
 }
 
 async function createRequest(payload) {
-  const response = await fetch("/api/contact-requests", {
+  // Not retried, for the same reason as register-call: this sends the owner a
+  // WhatsApp alert and spends an E-Tag's one free contact before its answer
+  // leaves the server, so a replay would message the owner twice and then
+  // report 402 for a message that was in fact delivered.
+  const { ok, status, data } = await requestJson("/api/contact-requests", {
     method: "POST",
     headers: { "content-type": "application/json" },
     // Attach the verification grant so the server authorises the contact.
-    body: JSON.stringify({ ...payload, grant: contactGrant })
+    body: JSON.stringify({ ...payload, grant: contactGrant }),
+    onSlow: () =>
+      setRequestStatus("request-status", "Still sending… signal is weak here.", "info")
   });
-  const data = await response.json().catch(() => ({}));
 
   // 402 = free contact used up. Server is authoritative; flip the UI to the CTA.
-  if (response.status === 402) {
+  if (status === 402) {
     setContactAvailability(false);
     const err = new Error(data.error || "This E-Tag's free contact has been used.");
     err.freeUsed = true;
     throw err;
   }
-  if (!response.ok) {
+  if (!ok) {
     throw new Error(data.error || "Request failed");
   }
   return data;
@@ -653,11 +759,36 @@ async function loadScannerView() {
     showOnly("scanner-action-shell");
     setRequestStatus("request-status", "", "info");
   } catch (error) {
-    setText("scanner-load-status", "This WaveTag could not be loaded.");
+    // Two different failures wearing one face until now. A tag that genuinely
+    // is not there deserves "Tag not found"; a scan in a basement that never
+    // reached the server does not, and sending that scanner off to inspect a
+    // perfectly good sticker is the wrong instruction. The lookup is a plain
+    // read, so the connection case gets a button instead of a dead end.
+    const unreachable = error?.isTimeout || error?.isNetworkDown;
+
+    setText("scanner-load-status", unreachable
+      ? "We could not reach ParkTag."
+      : "This WaveTag could not be loaded.");
+    setText("error-title", unreachable ? "No connection" : "Tag not found");
     setText(
       "error-message",
-      error instanceof Error ? error.message : "Failed to load the tag"
+      unreachable
+        ? offlineMessage(error, { action: "loading this tag" })
+        : (error instanceof Error ? error.message : "Failed to load the tag")
     );
+
+    const retry = byId("error-retry");
+    if (retry) {
+      retry.hidden = !unreachable;
+      retry.disabled = false;
+      retry.textContent = "Try again";
+      retry.onclick = () => {
+        retry.disabled = true;
+        retry.textContent = "Trying…";
+        loadScannerView();
+      };
+    }
+
     showOnly("error-card");
   }
 }
@@ -715,22 +846,30 @@ async function handlePlateVerification(event) {
 
   // Verification happens entirely server-side — the correct digits are never
   // sent to the browser. The server returns a grant we attach to contact calls.
-  let response;
+  // Not retried: each attempt is counted against the plate brute-force
+  // lockout, so a silent replay would spend somebody's attempts for them.
+  let ok;
+  let status;
+  let data;
   try {
-    response = await fetch(`/api/tags/${token}/verify`, {
+    ({ ok, status, data } = await requestJson(`/api/tags/${token}/verify`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ lastFour: entered })
-    });
-  } catch (_) {
+      body: JSON.stringify({ lastFour: entered }),
+      onSlow: () =>
+        setRequestStatus("plate-verify-status", "Still checking… signal is weak here.", "info")
+    }));
+  } catch (error) {
     setDisabled("plate-verify-submit", false);
-    setRequestStatus("plate-verify-status", "Network error. Please try again.", "error");
+    setRequestStatus(
+      "plate-verify-status",
+      offlineMessage(error, { action: "the check" }),
+      "error"
+    );
     return;
   }
 
-  const data = await response.json().catch(() => ({}));
-
-  if (!response.ok) {
+  if (!ok) {
     setDisabled("plate-verify-submit", false);
     let msg = data.error || "Verification failed. Please try again.";
     if (typeof data.attemptsRemaining === "number") {
@@ -743,7 +882,7 @@ async function handlePlateVerification(event) {
     // lockout (423) or a server fault has nothing to correct, so those stay on
     // the status line. The line keeps the attempts count either way — it is
     // the warning before the lockout, and the dialog copy does not carry it.
-    if (response.status === 401) {
+    if (status === 401) {
       showAlert(PLATE_MISMATCH_MESSAGE, "plate-verify-status");
     }
     return;
@@ -778,6 +917,15 @@ async function handlePlateVerification(event) {
 // rest of the visit: the server issues a single grant and each action carries
 // it, so a scanner who calls and then messages is not asked twice.
 function requireVerification(action) {
+  // The call is already registered and its number is in hand, so there is
+  // nothing to verify and nothing to ask: put the receipt back up. This is what
+  // makes the receipt safe to dismiss — Escape, the blur and Back can all close
+  // it without stranding the scanner away from the number they need to dial.
+  if (action === "call" && activeVirtualNumber) {
+    openDialModal();
+    return;
+  }
+
   // Both calls need a number to ring back — the owner call and the emergency
   // call are the same masked mechanism pointed at different people. Emergency
   // used to collect its number on a panel of its own (#sos-number-panel), which
@@ -834,7 +982,10 @@ function runVerifiedAction(action) {
       setValue("contact-phone", verifyCapturedPhone);
       verifyCapturedPhone = "";
       setHidden("dial-number-block", true);
-      setHidden("dial-panel", false);
+      // The receipt is raised over the card rather than added to it. Appended,
+      // it pushed "Tap to Call" off an 844px screen — a scroll between a
+      // scanner and the call they came to make.
+      openDialModal();
       handleFinalCallAction();
       return;
     }
@@ -889,43 +1040,59 @@ async function handleFinalCallAction() {
   const phone = byId("contact-phone")?.value.trim();
 
   if (!token || !phone) {
-    setRequestStatus("request-status", "Return to the landing page and enter your number.", "error");
+    setRequestStatus("dial-status", "Return to the landing page and enter your number.", "error");
     return;
   }
 
   actionLocked = true;
   setDisabled("final-call-button", true);
   setDisabled("send-whatsapp-button", true);
-  setRequestStatus("request-status", "Preparing your call…", "info");
+  setRequestStatus("dial-status", "Preparing your call…", "info");
 
   let virtualNumber = "";
   try {
-    const res = await fetch(`/api/tags/${token}/register-call`, {
+    // No retry here on purpose. The server sets freeContactUsed before this
+    // answer leaves it, so replaying a request whose response was lost would
+    // come back 402 "free contact already used" for a call that in fact
+    // worked -- and the page would then tell the scanner their one contact is
+    // spent. A deadline and an honest failure are the safe half of the fix.
+    const { ok, status, data } = await requestJson(`/api/tags/${token}/register-call`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ phone, grant: contactGrant })
+      body: JSON.stringify({ phone, grant: contactGrant }),
+      onSlow: () =>
+        setRequestStatus("dial-status", "Still setting up your call… signal is weak here.", "info")
     });
-    const data = await res.json().catch(() => ({}));
 
-    if (res.status === 402) {
+    if (status === 402) {
       setContactAvailability(false);
       actionLocked = false;
       setDisabled("final-call-button", false);
       setDisabled("send-whatsapp-button", false);
       return;
     }
-    if (!res.ok) throw new Error(data.error || "Could not register the call.");
+    if (!ok) throw new Error(data.error || "Could not register the call.");
     virtualNumber = data.virtualNumber || "";
   } catch (error) {
     actionLocked = false;
     setDisabled("final-call-button", false);
     setDisabled("send-whatsapp-button", false);
-    setRequestStatus("request-status", error instanceof Error ? error.message : "Could not start the call.", "error");
+    // A request that never got an answer is a different thing from one the
+    // server refused, and only the second has a message worth showing. The
+    // first used to surface the browser's own words -- "Failed to fetch".
+    setRequestStatus(
+      "dial-status",
+      error?.isTimeout || error?.isNetworkDown
+        ? offlineMessage(error, { action: "your call" })
+        : (error instanceof Error ? error.message : "Could not start the call."),
+      "error"
+    );
     return;
   }
 
   // Show the virtual number visibly as a fallback in case tel: doesn't auto-open.
   if (virtualNumber) {
+    activeVirtualNumber = virtualNumber;
     setText("dial-virtual-number", virtualNumber);
     setHidden("dial-number-block", false);
     window.location.href = `tel:${virtualNumber}`;
@@ -939,14 +1106,14 @@ async function handleFinalCallAction() {
     btn.onclick = () => { window.location.href = `tel:${virtualNumber}`; };
   }
 
-  setRequestStatus("request-status", "Your phone dialer should open now.", "success");
+  setRequestStatus("dial-status", "Your phone dialer should open now.", "success");
 }
 
 function openWhatsAppPanel() {
   setHidden("call-popup", true);
   setHidden("message-panel", false);
   setHidden("message-editor-shell", true);
-  setHidden("dial-panel", true);
+  closeDialModal();
   setValue("message-template-select", "");
   setValue("message-text", DEFAULT_MESSAGE);
   setRequestStatus(
@@ -995,6 +1162,54 @@ function showAlert(message, fallbackStatusId = "request-status") {
   }
 }
 
+// ── Reason step ───────────────────────────────────────────────────
+// Tapping Message swaps the two tiles for the reason list in place. Only the
+// message path reads a reason, so only the message path asks for one.
+
+function clearSelectedReason() {
+  selectedReason = "";
+  document.querySelectorAll(".pt-chip").forEach(c => {
+    c.classList.remove("pt-chip-selected");
+    // Mirrored on the element itself, not just the class: the group is a
+    // radiogroup, so the checked state has to be readable without the CSS.
+    if (c.getAttribute("role") === "radio") {
+      c.setAttribute("aria-checked", "false");
+    }
+  });
+}
+
+function isReasonModalOpen() {
+  const el = byId("reason-modal");
+  return Boolean(el) && !el.hidden;
+}
+
+function cancelReasonAdvance() {
+  if (reasonAdvanceTimer !== null) {
+    clearTimeout(reasonAdvanceTimer);
+    reasonAdvanceTimer = null;
+  }
+}
+
+function closeReasonStep() {
+  cancelReasonAdvance();
+  closeOverlay("reason-modal");
+}
+
+// Opened by the Message tile ONLY. It asks a question; it grants nothing.
+// Sending still runs requireVerification("message"), so the plate check stays
+// the single door to every contact action — this step cannot short-circuit it.
+function openReasonStep() {
+  if (actionLocked || !contactAvailable) {
+    return;
+  }
+
+  // Reopening starts clean. A reason carried over from an abandoned attempt
+  // would send the owner a message about something the scanner did not choose
+  // this time.
+  clearSelectedReason();
+  openOverlay("reason-modal");
+}
+
 // The reason is what the owner actually reads — the server builds the WhatsApp
 // message from it, so an alert sent without one says a vehicle needs attention
 // and nothing else. Gate the send rather than deliver an empty one.
@@ -1006,9 +1221,43 @@ function hasContactReason() {
   return false;
 }
 
+// Read the optional callback number off the reason step.
+//
+// Returns "" for blank, which is the normal case and sends nothing. Returns
+// null when something was typed that cannot be dialled, so the caller can stop
+// and say so rather than quietly discarding it — a number entered and then
+// silently dropped is worse than never asking, because the scanner leaves
+// believing the owner can reach them.
+function callbackNumberFromReasonStep() {
+  const input = byId("reason-callback-phone");
+  if (!input) return "";
+
+  const raw = input.value.trim();
+  if (!raw) return "";
+
+  const digits = raw.replace(/\D/g, "");
+  const last10 = digits.replace(/^91/, "");
+  if (!/^[6-9]\d{9}$/.test(last10)) return null;
+
+  return `+91${last10}`;
+}
+
+function setCallbackNoteError(message) {
+  const note = byId("reason-callback-note");
+  if (!note) return;
+  if (message) {
+    note.textContent = message;
+    note.dataset.tone = "error";
+  } else {
+    note.textContent = "Your number stays hidden. The owner can only reach you through ParkTag.";
+    delete note.dataset.tone;
+  }
+}
+
 // WhatsApp = notify the owner with a SERVER-BUILT message (spec §6). The scanner
-// never authors the message and never needs to share their own number — the
-// alert goes one-way to the owner. We only pass the reason key.
+// never authors the message. They may now leave a number so the owner can call
+// them back; it is optional, and it is never shown to the owner — the callback
+// is bridged by Exotel exactly like every other ParkTag call.
 async function handleWhatsAppNotify() {
   if (actionLocked) {
     return;
@@ -1018,6 +1267,13 @@ async function handleWhatsAppNotify() {
     return;
   }
 
+  if (callbackNumberFromReasonStep() === null) {
+    setCallbackNoteError("Enter a valid 10-digit mobile number, or clear it to stay anonymous.");
+    byId("reason-callback-phone")?.focus();
+    return;
+  }
+  setCallbackNoteError("");
+
   const token = byId("request-token")?.value.trim() || getTokenFromUrl();
 
   setRequestStatus("request-status", "Notifying the owner on WhatsApp…", "info");
@@ -1025,19 +1281,34 @@ async function handleWhatsAppNotify() {
   setDisabled("call-owner-button", true);
   setDisabled("send-whatsapp-button", true);
 
+  // Read once: the modal is closed further down, and re-reading the input
+  // afterwards would report an empty field and pick the wrong wording.
+  const sharedCallbackNumber = callbackNumberFromReasonStep() || "";
+
   try {
     await createRequest({
       token,
       action: "message",
       messageChannel: "whatsapp",
-      reason: selectedReason || undefined
+      reason: selectedReason || undefined,
+      // Optional. Undefined when left blank, so the request body is byte-for-
+      // byte what it has always been for a scanner who does not want to share
+      // a number.
+      phone: sharedCallbackNumber || undefined
     });
 
-    setHidden("request-confirmation", false);
+    openConfirmModal();
     setText("confirmation-title", "Owner notified on WhatsApp");
+    // Two different promises, and the wrong one is a lie. Someone who left a
+    // number has NOT stayed completely private — they have agreed to be called
+    // back — and telling them otherwise would be the one thing this feature
+    // must not do. The number is still never revealed, which is what the second
+    // wording says instead.
     setText(
       "confirmation-copy",
-      "We've sent a WhatsApp alert to the vehicle owner. Your details stay completely private."
+      sharedCallbackNumber
+        ? "We've sent a WhatsApp alert to the vehicle owner. They can call you back through ParkTag — your number stays hidden from them."
+        : "We've sent a WhatsApp alert to the vehicle owner. Your details stay completely private."
     );
     setRequestStatus("request-status", "WhatsApp alert sent to the owner.", "success");
 
@@ -1064,7 +1335,9 @@ async function handleWhatsAppNotify() {
     if (!error.freeUsed) {
       setRequestStatus(
         "request-status",
-        error instanceof Error ? error.message : "Could not notify the owner.",
+        error?.isTimeout || error?.isNetworkDown
+          ? offlineMessage(error, { action: "the alert" })
+          : (error instanceof Error ? error.message : "Could not notify the owner."),
         "error"
       );
     }
@@ -1519,6 +1792,19 @@ byId("plate-verify-cancel")?.addEventListener("click", dismissVerifyModal);
 // Escape closes it, the way the <dialog>-based gates on this page already do —
 // the card should not be the one overlay that traps you.
 document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && isConfirmModalOpen()) {
+    closeConfirmModal();
+    return;
+  }
+  if (event.key === "Escape" && isDialModalOpen()) {
+    closeDialModal();
+    return;
+  }
+  if (event.key === "Escape" && isReasonModalOpen()) {
+    clearSelectedReason();
+    closeReasonStep();
+    return;
+  }
   if (event.key === "Escape" && isVerifyModalOpen()) {
     dismissVerifyModal();
   }
@@ -1535,17 +1821,49 @@ byId("verify-modal")?.addEventListener("click", (event) => {
   }
 });
 byId("call-owner-button")?.addEventListener("click", () => requireVerification("call"));
-// The reason is checked before the plate, not after: being sent to verify and
-// then told to pick a reason would be two corrections for one tap.
-byId("send-whatsapp-button")?.addEventListener("click", () => {
-  if (!hasContactReason()) return;
-  requireVerification("message");
+// The reason is asked before the plate, not after: being sent to verify and
+// then told to pick a reason would be two corrections for one tap. The list
+// opens in place of the tiles rather than sitting on the card permanently, so
+// the card can show its three actions without a scroll.
+byId("send-whatsapp-button")?.addEventListener("click", openReasonStep);
+
+// The reason step repeats both actions so the choice can still be changed
+// without a Back control. Message needs a reason; the call ignores it, exactly
+// as the tile above does.
+// Cancel returns to the card, exactly as the verification popup's Cancel does.
+byId("reason-cancel")?.addEventListener("click", () => {
+  clearSelectedReason();
+  closeReasonStep();
+});
+
+// Tapping the blur outside the card closes it — same gesture as the
+// verification popup, so the two do not behave differently.
+byId("reason-modal")?.addEventListener("click", (event) => {
+  const card = byId("reason-step");
+  if (card && !card.contains(event.target)) {
+    clearSelectedReason();
+    closeReasonStep();
+  }
 });
 byId("pt-alert-ok")?.addEventListener("click", () => byId("pt-alert")?.close());
 byId("quick-share")?.addEventListener("click", handleQuickShare);
 // Re-dial only. The first dial is fired by the verification card's submit; this
 // button exists for the browser that would not open the dialer by itself.
 byId("final-call-button")?.addEventListener("click", handleFinalCallAction);
+byId("dial-back")?.addEventListener("click", closeDialModal);
+byId("confirm-back")?.addEventListener("click", closeConfirmModal);
+byId("confirm-modal")?.addEventListener("click", (event) => {
+  const card = byId("confirm-card");
+  if (card && !card.contains(event.target)) {
+    closeConfirmModal();
+  }
+});
+byId("dial-modal")?.addEventListener("click", (event) => {
+  const card = byId("dial-card");
+  if (card && !card.contains(event.target)) {
+    closeDialModal();
+  }
+});
 
 // Emergency / SOS — the button opens the confirmation gate, and the gate is the
 // only thing that opens the verification card. The gate runs BEFORE the card,
@@ -1626,17 +1944,31 @@ byId("act-plate")?.addEventListener("input", (event) => {
   input.setSelectionRange(caret, caret);
 });
 
-// Reason chips — select an optional reason (the message itself is server-built).
-// A second tap clears the selection.
+// Reason rows. The popup holds no send button, so a tap IS the answer. The
+// circle fills first and the screen changes a beat later: closing instantly
+// meant nobody ever saw which row they had picked, which is the one piece of
+// feedback confirming the message will say the right thing.
+// The plate check is still the only door — requireVerification is where this
+// lands, exactly as before.
+const REASON_ADVANCE_MS = 320;
+
 document.querySelectorAll(".pt-chip").forEach(chip => {
   chip.addEventListener("click", () => {
-    const wasSelected = chip.classList.contains("pt-chip-selected");
-    document.querySelectorAll(".pt-chip").forEach(c => c.classList.remove("pt-chip-selected"));
-    if (wasSelected) {
-      selectedReason = "";
-    } else {
-      chip.classList.add("pt-chip-selected");
-      selectedReason = chip.dataset.reason || "";
+    // A second tap while the first is still settling must not queue a second
+    // hand-off.
+    if (reasonAdvanceTimer !== null) {
+      return;
     }
+
+    clearSelectedReason();
+    chip.classList.add("pt-chip-selected");
+    chip.setAttribute("aria-checked", "true");
+    selectedReason = chip.dataset.reason || "";
+
+    reasonAdvanceTimer = setTimeout(() => {
+      reasonAdvanceTimer = null;
+      closeReasonStep();
+      requireVerification("message");
+    }, REASON_ADVANCE_MS);
   });
 });

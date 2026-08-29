@@ -2,6 +2,8 @@ import { ObjectId } from "mongodb";
 import {
   sendOtp,
   verifyOtp,
+  findShadowedSiblings,
+  isDuplicateMobileError,
   isMobileIdentifier,
   normalizeIdentifier,
   resolveOwnerByVerifiedMobile
@@ -161,13 +163,57 @@ export function registerOtpAuthRoutes(app, env) {
         } else {
           owner.email = normalized;
         }
-        await collections.owners.insertOne(owner);
+        try {
+          await collections.owners.insertOne(owner);
+        } catch (error) {
+          // Two sign-ins for the same brand-new number arrived together and the
+          // other one inserted first. Nothing is wrong: the account this person
+          // was about to get now exists, so sign them into it rather than
+          // failing a request that did everything right.
+          if (!isDuplicateMobileError(error)) throw error;
+
+          const existing = await collections.owners.findOne(
+            { mobile: normalized },
+            { sort: { createdAt: 1, _id: 1 } }
+          );
+          if (!existing) throw error;
+
+          owner = existing;
+          isNewUser = false;
+          request.log.info(
+            { event: "otp-login-lost-create-race", ownerId: String(owner._id) },
+            "[auth] concurrent sign-in created this account first — adopting it"
+          );
+        }
+      }
+
+      // A split that predates the guards is invisible from the inside: the
+      // person just sees a dashboard missing their vehicles. Say so in the log,
+      // with both ids, so it is findable without a customer having to report
+      // it. Never fatal — this is observability, not a gate.
+      if (isMobile && owner?._id) {
+        try {
+          const shadowed = await findShadowedSiblings(collections, normalized, owner._id);
+          if (shadowed.length) {
+            request.log.warn(
+              {
+                event: "split-account-on-one-number",
+                signedInAs: String(owner._id),
+                alsoHoldingThisNumber: shadowed.map((o) => String(o._id))
+              },
+              "[auth] this number is on more than one account — vehicles on the others will not appear"
+            );
+          }
+        } catch (_) { /* never block a valid sign-in to write a log line */ }
       }
 
       const sessionId = await createSession(app, {
         id: String(owner._id),
         role: "owner",
         email: owner.email || owner.mobile || identifier,
+        // Normalised, not raw: "8791638854" and "+91 87916 38854" are the same
+        // sign-in and should render the same way afterwards.
+        signInIdentifier: normalized,
         displayName: owner.displayName
       });
       writeSessionCookie(reply, sessionId, env.runtimeMode === "production");

@@ -17,13 +17,18 @@ import { createSharedRateLimitStore } from "./lib/auth/rate-limit-store.js";
 import { getCollections } from "./lib/db/repositories.js";
 import { stickerSerialFor } from "./lib/core/tag-issuance.js";
 import { registerAdminRoutes } from "./routes/admin/index.js";
+import { registerAdminTrafficRoutes } from "./routes/admin/traffic.js";
+import { registerAdminMarketingRoutes } from "./routes/admin/marketing.js";
 import { registerAuthRoutes } from "./routes/auth/credentials.js";
+import { registerAnalyticsRoutes } from "./routes/system/analytics.js";
 import { registerDemoRoutes } from "./routes/system/demo.js";
 import { registerOwnerRoutes } from "./routes/owner/dashboard.js";
 import { registerVaultRoutes } from "./routes/owner/vault.js";
 import { MAX_FILE_BYTES } from "./lib/core/vault.js";
+import { cacheControlFor, resolveAssetVersion } from "./lib/core/asset-version.js";
 import { registerProviderRoutes } from "./routes/webhooks/exotel.js";
 import { registerMetaWebhookRoutes } from "./routes/webhooks/meta.js";
+import { registerRazorpayWebhookRoutes } from "./routes/webhooks/razorpay.js";
 import { registerPublicRoutes } from "./routes/public/index.js";
 import { registerRegistrationRoutes } from "./routes/owner/registration.js";
 import { registerOtpAuthRoutes } from "./routes/auth/otp.js";
@@ -43,7 +48,9 @@ const verifyPage = path.join(pagesRoot, "scanner/verify.html");
 const trackOrderPage = path.join(pagesRoot, "scanner/track-order.html");
 const reportTagPage = path.join(pagesRoot, "scanner/report-tag.html");
 const adminPage = path.join(pagesRoot, "admin/index.html");
+const adminMarketingPage = path.join(pagesRoot, "admin/marketing.html");
 const adminOverviewPage = path.join(pagesRoot, "admin/overview.html");
+const adminTrafficPage = path.join(pagesRoot, "admin/traffic.html");
 const adminEtagsPage = path.join(pagesRoot, "admin/etags.html");
 const adminActivationsPage = path.join(pagesRoot, "admin/activations.html");
 const adminIssuancePage = path.join(pagesRoot, "admin/issuance.html");
@@ -61,11 +68,13 @@ const ownerVerifyPage = path.join(pagesRoot, "owner/verify.html");
 const ownerWelcomePage = path.join(pagesRoot, "owner/welcome.html");
 const ownerVehicleDetailPage = path.join(pagesRoot, "owner/vehicle-detail.html");
 const ownerDocumentsPage = path.join(pagesRoot, "owner/documents.html");
-// Bumped with the scan-flow reorder, then again when the call moved onto the
-// verification card: without it a returning scanner keeps the cached app.js and
-// lands on the old plate-first screen, or on the retired number panel.
-const scannerAssetVersion = "parktag-ui-10";
-const hubAssetVersion = "hub-shell-1";
+// The token every page writes into its stylesheet and script URLs. It is
+// replaced on the way out (see the onSend hook) with a digest of the asset tree,
+// so the URL changes whenever the bytes do and a returning visitor can never be
+// left holding a stale script. This replaced two hand-bumped constants
+// ("parktag-ui-10", "hub-shell-1") that covered only the scanner and hub pages
+// and relied on somebody remembering to change them.
+const ASSET_VERSION_TOKEN = "__ASSET_VERSION__";
 
 // Every request is logged with its URL, and several sensitive values travel in
 // the query string: the Exotel webhook secret (?token=), the inbound caller's
@@ -141,6 +150,37 @@ const STRICT_SCRIPT_PAGES = new Set([
   "/reset-password"
 ]);
 
+// The checkout page: no inline <script>, but plenty of inline onclick.
+//
+// /owner-welcome is where money changes hands, and it was running on the
+// app-wide policy — script-src with 'unsafe-inline', which is the one directive
+// standing between an injected <script> and it executing. It could not join the
+// list above because its whole shop half lived in an inline <script> at the
+// bottom of the page, and because fifty-odd controls are wired with onclick
+// attributes.
+//
+// The first of those is now fixed: that block is /scripts/owner/welcome-shop.js,
+// so script-src can drop 'unsafe-inline' here and an injected <script> element
+// no longer runs. The second is not, so script-src-attr keeps 'unsafe-inline' —
+// injecting into an attribute context still works, which is a narrower hole than
+// the one being closed but is not nothing. Converting those handlers is a real
+// refactor of a live checkout and belongs in its own change.
+//
+// style-src is left alone as well: the page opens with an inline <style> block
+// and stripping it would take the layout with it.
+const NO_INLINE_SCRIPT_PAGES = new Set(["/owner-welcome"]);
+
+// Script origins the checkout page actually loads. Not the app-wide list: it
+// needs Razorpay's checkout.js, and nothing else third-party — no Google
+// sign-in, no reCAPTCHA.
+//
+// checkout.js also tries to pull a risk-detection bundle from cdn.razorpay.com,
+// which the app-wide policy already blocks today and this does not change. It is
+// wrapped in a try/catch and loaded async at their end, so checkout works
+// without it; allowing that origin is a decision about Razorpay's fraud signals,
+// not something to slip into a CSP tightening.
+const CHECKOUT_SCRIPT_SOURCES = "'self' https://checkout.razorpay.com";
+
 // Derived from whatever helmet just set, rather than written out again, so a
 // change to the app-wide policy carries over instead of leaving these pages on
 // a stale copy of it.
@@ -183,6 +223,20 @@ function tightenScriptDirectives(policy) {
   }
 
   return out.join(";");
+}
+
+// script-src only. Unlike tightenScriptDirectives above this leaves
+// script-src-attr and style-src exactly as helmet set them — the page needs both
+// — so the only thing it takes away is the ability to run an inline <script>.
+function tightenScriptSrcOnly(policy) {
+  return String(policy)
+    .split(";")
+    .map((directive) => directive.trim())
+    .filter(Boolean)
+    .map((directive) =>
+      directive.startsWith("script-src ") ? `script-src ${CHECKOUT_SCRIPT_SOURCES}` : directive
+    )
+    .join(";");
 }
 
 function isNoStorePage(pathname) {
@@ -247,6 +301,11 @@ export async function buildApp() {
     // front of Railway), bump this to match the real number of trusted hops.
     trustProxy: 1
   });
+
+  // Hashed once at boot rather than per request: the asset tree cannot change
+  // under a running process, and every HTML response substitutes this.
+  const assetVersion = await resolveAssetVersion(frontendRoot, app.log);
+  app.log.info({ event: "asset-version", assetVersion }, "[assets] versioned URLs stamped");
 
   // In-process cache in front of the MongoDB-backed session store (see
   // lib/auth/session.js). Sessions themselves live in Mongo, so a restart or a
@@ -438,9 +497,32 @@ export async function buildApp() {
       if (policy) {
         reply.header("content-security-policy", tightenScriptDirectives(policy));
       }
+    } else if (NO_INLINE_SCRIPT_PAGES.has(pathname)) {
+      const policy = reply.getHeader("content-security-policy");
+      if (policy) {
+        reply.header("content-security-policy", tightenScriptSrcOnly(policy));
+      }
     }
 
-    return payload;
+    const isHtml = String(reply.getHeader("content-type") || "").startsWith("text/html");
+    if (!isHtml) return payload;
+
+    // A page carries the asset stamp, and the URLs it stamps are cached for a
+    // year — so the page itself must never be the stale part. Only set this
+    // when the route has not already made a stronger choice: the signed-in and
+    // scanner pages send no-store, which additionally keeps them out of the
+    // back/forward store, and must not be softened to no-cache here.
+    if (!reply.getHeader("cache-control")) {
+      reply.header("Cache-Control", "no-cache");
+    }
+
+    // One substitution for every page, instead of a replaceAll remembered at
+    // the bottom of each route. Pages read straight off disk by the static
+    // handler arrive here as a stream and keep the literal token, which is
+    // harmless: an unmatched stamp is refused immutability and revalidated.
+    return typeof payload === "string"
+      ? payload.replaceAll(ASSET_VERSION_TOKEN, assetVersion)
+      : payload;
   });
 
   const isProduction = env.runtimeMode === "production";
@@ -572,9 +654,30 @@ export async function buildApp() {
   await app.register(fastifyStatic, {
     root: frontendRoot,
     prefix: "/",
+    // Both were off, which is why nothing was ever reused: with no validator
+    // there is nothing for a browser to revalidate against, so every stylesheet,
+    // script and image came back in full on every visit. With them on, an
+    // unchanged file answers a conditional request with a 304 and no body.
+    etag: true,
+    lastModified: true,
+    // The real policy is per file, below. This stays 0 so that anything the
+    // callback somehow does not classify is asked about rather than assumed
+    // fresh — the safe direction to be wrong in.
     maxAge: 0,
-    etag: false,
-    lastModified: false
+    setHeaders(reply, _filePath, _stat) {
+      const url = reply.request?.url ?? "";
+      const split = url.indexOf("?");
+      const pathname = split === -1 ? url : url.slice(0, split);
+      const query = split === -1 ? "" : url.slice(split + 1);
+      reply.header(
+        "Cache-Control",
+        cacheControlFor({
+          pathname,
+          requestedVersion: new URLSearchParams(query).get("v"),
+          assetVersion
+        })
+      );
+    }
   });
 
   app.get("/", async (request, reply) => {
@@ -584,7 +687,7 @@ export async function buildApp() {
   app.get("/hub", async (_request, reply) => {
     const html = await fs.readFile(hubPage, "utf8");
     reply.type("text/html");
-    return html.replaceAll("__HUB_ASSET_VERSION__", hubAssetVersion);
+    return html;
   });
 
   app.get("/verify", async (_request, reply) => {
@@ -600,7 +703,7 @@ export async function buildApp() {
   app.get("/track-order", async (_request, reply) => {
     const html = await fs.readFile(trackOrderPage, "utf8");
     reply.type("text/html");
-    return html.replaceAll("__SCANNER_ASSET_VERSION__", scannerAssetVersion);
+    return html;
   });
 
   // Public tag report. Like /track-order, deliberately unauthenticated — the
@@ -609,7 +712,7 @@ export async function buildApp() {
   app.get("/report-tag", async (_request, reply) => {
     const html = await fs.readFile(reportTagPage, "utf8");
     reply.type("text/html");
-    return html.replaceAll("__SCANNER_ASSET_VERSION__", scannerAssetVersion);
+    return html;
   });
 
   app.get("/owner-login", async (_request, reply) => {
@@ -742,6 +845,14 @@ export async function buildApp() {
     return guardAdmin(request, reply, adminPrintQueuePage);
   });
 
+  app.get("/admin/traffic", async (request, reply) => {
+    return guardAdmin(request, reply, adminTrafficPage);
+  });
+
+  app.get("/admin/marketing", async (request, reply) => {
+    return guardAdmin(request, reply, adminMarketingPage);
+  });
+
   app.get("/admin/owners", async (request, reply) => {
     return guardAdmin(request, reply, adminOwnersPage);
   });
@@ -808,7 +919,7 @@ export async function buildApp() {
     const html = await fs.readFile(scannerPage, "utf8");
     setScannerNoCache(reply);
     reply.type("text/html");
-    return html.replaceAll("__SCANNER_ASSET_VERSION__", scannerAssetVersion);
+    return html;
   }
 
   app.get("/tag/:token([A-Za-z0-9]{12,64})", async (_request, reply) => {
@@ -825,6 +936,7 @@ export async function buildApp() {
   registerPublicRoutes(app, env);
   registerProviderRoutes(app, env);
   registerMetaWebhookRoutes(app, env);
+  registerRazorpayWebhookRoutes(app, env);
   registerRegistrationRoutes(app, env);
   registerAuthRoutes(app, env);
   registerOtpAuthRoutes(app, env);
@@ -835,6 +947,9 @@ export async function buildApp() {
   registerOwnerRoutes(app, env);
   registerVaultRoutes(app, env);
   registerAdminRoutes(app, env);
+  registerAdminTrafficRoutes(app, env);
+  registerAdminMarketingRoutes(app, env);
+  registerAnalyticsRoutes(app, env);
 
   return app;
 }

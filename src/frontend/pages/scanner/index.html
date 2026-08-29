@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>ParkTag | Contact Vehicle Owner</title>
-    <link rel="stylesheet" href="/styles/styles.css?v=__SCANNER_ASSET_VERSION__" />
+    <link rel="stylesheet" href="/styles/styles.css?v=__ASSET_VERSION__" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -60,7 +60,8 @@
       <article class="pt-card pt-verify-card" id="scanner-verification-shell">
         <!-- Decorative: the heading and label below say the same thing in words,
              so a screen reader gains nothing from describing the picture again. -->
-        <img class="pt-verify-media" src="/images/verify-vehicle.svg" alt="" />
+        <img class="pt-verify-media" src="/images/verify-vehicle.webp"
+             width="1134" height="496" alt="" />
 
         <h1 class="pt-verify-title" id="plate-verify-title">Please verify the plate number of the vehicle.</h1>
 
@@ -255,11 +256,156 @@
         </a>
       </article>
 
+      <!-- Reason popup. Opened by the Message tile, and built on the SAME
+           overlay + card shell as the plate-verification popup (.pt-vmodal >
+           .pt-vmodal-inner > .pt-card.pt-verify-card), so the two steps of the
+           message flow are the same size and land in the same place instead of
+           one being a sheet and the next a card.
+           The reason is only ever read on the message path — the server builds
+           the owner's WhatsApp text from it — so it is only ever asked for
+           there. The popup holds the question and nothing else: picking a row
+           IS the answer, so it closes and hands straight to verification.
+           Cancel is the only other control, exactly as on the verify card. -->
+      <div class="pt-vmodal" id="reason-modal" role="dialog" aria-modal="true"
+           aria-labelledby="reason-step-title" hidden>
+        <div class="pt-vmodal-inner">
+          <article class="pt-card pt-verify-card pt-reason-card" id="reason-step">
+  <h2 class="pt-section-title" id="reason-step-title">Reason to contact the vehicle owner</h2>
+
+            <!-- A radiogroup, not five toggles: exactly one reason reaches the
+                 owner, and the control should say so to a screen reader too. -->
+            <div class="pt-reason-chips" id="pt-reason-chips" role="radiogroup" aria-labelledby="reason-step-title">
+              <button class="pt-chip" data-reason="lights" type="button" role="radio" aria-checked="false">
+                <span class="pt-chip-icon" aria-hidden="true">💡</span>
+                <span class="pt-chip-label">The lights of this car is on.</span>
+                <span class="pt-chip-radio" aria-hidden="true"></span>
+              </button>
+              <button class="pt-chip" data-reason="parking" type="button" role="radio" aria-checked="false">
+                <span class="pt-chip-icon" aria-hidden="true">🅿️</span>
+                <span class="pt-chip-label">The car is in no parking.</span>
+                <span class="pt-chip-radio" aria-hidden="true"></span>
+              </button>
+              <button class="pt-chip" data-reason="towing" type="button" role="radio" aria-checked="false">
+                <span class="pt-chip-icon" aria-hidden="true">🚗</span>
+                <span class="pt-chip-label">The car is getting towed.</span>
+                <span class="pt-chip-radio" aria-hidden="true"></span>
+              </button>
+              <button class="pt-chip" data-reason="window" type="button" role="radio" aria-checked="false">
+                <span class="pt-chip-icon" aria-hidden="true">🪟</span>
+                <span class="pt-chip-label">The window or car is open.</span>
+                <span class="pt-chip-radio" aria-hidden="true"></span>
+              </button>
+              <button class="pt-chip pt-chip-alert" data-reason="suspicious" type="button" role="radio" aria-checked="false">
+                <span class="pt-chip-icon" aria-hidden="true">⚠️</span>
+                <span class="pt-chip-label">Something wrong with this car.</span>
+                <span class="pt-chip-radio" aria-hidden="true"></span>
+              </button>
+            </div>
+
+            <!-- Optional callback number.
+                 A WhatsApp alert reaches the owner but leaves them nowhere to
+                 reply: they see "someone contacted you" and cannot answer it.
+                 Giving a number here is what makes a call back possible.
+
+                 Optional on purpose. Reporting that a stranger's lights are on
+                 is a favour, and demanding a phone number to do it would stop
+                 some people bothering at all. Left blank, the alert still sends
+                 exactly as before.
+
+                 Never shown to the owner. It is dialled the same masked way as
+                 every other ParkTag call — the owner's dashboard shows the last
+                 four digits and the call is bridged by Exotel. -->
+            <div class="pt-reason-callback" id="reason-callback">
+              <label class="pt-reason-cb-label" for="reason-callback-phone">
+                Your number, so the owner can call you back
+                <span class="pt-reason-cb-opt">optional</span>
+              </label>
+              <input id="reason-callback-phone" class="pt-input pt-reason-cb-input"
+                     type="tel" inputmode="tel" autocomplete="tel" maxlength="14"
+                     placeholder="10-digit mobile number" />
+              <p class="pt-reason-cb-note" id="reason-callback-note">
+                Your number stays hidden. The owner can only reach you through ParkTag.
+              </p>
+            </div>
+
+            <button class="pt-cancel-action" id="reason-cancel" type="button">Cancel</button>
+          </article>
+        </div>
+      </div>
+
+      <!-- Dial receipt. A popup rather than a section on the card: the number,
+           the button and the status line came to ~180px, which was the
+           difference between the call fitting a phone screen and the scanner
+           scrolling to reach it. Same overlay the verify and reason steps
+           use, so every step of a call lands in the same place.
+
+           KEEP IT HERE, a direct child of <main> and a sibling of the other two
+           overlays. #scanner-action-shell below carries a transform, and a
+           transformed ancestor becomes the containing block for position:fixed
+           — nested inside it this "full screen" overlay was sized to the card
+           instead of the viewport, so the blur stopped at the card edges and
+           the header and the links under it stayed sharp. -->
+      <div class="pt-vmodal" id="dial-modal" role="dialog" aria-modal="true"
+           aria-labelledby="dial-modal-title" hidden>
+        <div class="pt-vmodal-inner">
+          <article class="pt-card pt-verify-card pt-receipt-card" id="dial-card">
+            <h2 class="pt-section-title" id="dial-modal-title">Calling the owner privately</h2>
+
+            <div id="dial-number-block" hidden>
+              <p class="pt-panel-label">Virtual number: dial this if your phone doesn't open automatically</p>
+              <p class="pt-dial-number" id="dial-virtual-number"></p>
+            </div>
+            <p class="pt-panel-sub">Your number stays completely private throughout the call.</p>
+            <button id="final-call-button" class="pt-btn pt-btn-primary pt-btn-full" type="button">Call Now</button>
+
+            <!-- The call statuses land in here rather than on the card behind
+                 the blur, where the scanner could not read them. -->
+            <p id="dial-status" class="pt-status" data-tone="info"></p>
+
+            <!-- Last child, so it sits at the bottom of the card, and pinned
+                 right — the same corner Cancel occupies in the other two
+                 popups, so the way out is always in one place. -->
+            <button type="button" id="dial-back" class="pt-panel-back">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M15 5l-7 7 7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              Back
+            </button>
+          </article>
+        </div>
+      </div>
+
+      <!-- Message receipt. Same treatment, and for the same reason, as the dial
+           receipt above: appended to the card it pushed the confirmation and
+           the privacy line off the screen, so the scanner had to scroll to
+           read that their alert had been sent. Kept a direct child of <main>
+           for the position:fixed reason spelled out above. -->
+      <div class="pt-vmodal" id="confirm-modal" role="dialog" aria-modal="true"
+           aria-labelledby="confirmation-title" hidden>
+        <div class="pt-vmodal-inner">
+          <article class="pt-card pt-verify-card pt-receipt-card pt-receipt-card-center" id="confirm-card">
+            <div class="pt-success-icon" aria-hidden="true">✅</div>
+            <h2 class="pt-receipt-title" id="confirmation-title">Owner alerted successfully</h2>
+            <p class="pt-receipt-copy" id="confirmation-copy">Your message has been delivered to the vehicle owner.</p>
+
+            <!-- Same control, same corner, as the dial receipt: whichever way a
+                 contact ends, the way out is in one place. -->
+            <button type="button" id="confirm-back" class="pt-panel-back">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M15 5l-7 7 7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              Back
+            </button>
+          </article>
+        </div>
+      </div>
+
       <!-- Action shell -->
       <article class="pt-card pt-action-card" id="scanner-action-shell" hidden>
 
         <!-- Vehicle identity block -->
         <div class="pt-vehicle-block" id="pt-vehicle-block">
+          <h2 class="pt-vehicle-title">Contact vehicle owner</h2>
           <div class="pt-vehicle-id-row">
             <div class="pt-plate-display" id="pt-plate-display">••••</div>
             <div class="pt-verified-badge" id="pt-verified-badge" hidden>
@@ -270,47 +416,43 @@
           <p class="pt-vehicle-label" id="pt-vehicle-label">Vehicle</p>
         </div>
 
-        <h2 class="pt-section-title" id="scanner-why-title">Why are you contacting?</h2>
+        <h2 class="pt-section-title" id="scanner-why-title">How would you like to reach the owner?</h2>
 
-        <div class="pt-reason-chips" id="pt-reason-chips">
-          <button class="pt-chip" data-reason="lights" type="button">
-            <span class="pt-chip-icon">💡</span> Lights left on
-          </button>
-          <button class="pt-chip" data-reason="towing" type="button">
-            <span class="pt-chip-icon">🚗</span> Getting towed
-          </button>
-          <button class="pt-chip" data-reason="parking" type="button">
-            <span class="pt-chip-icon">🅿️</span> Parked badly
-          </button>
-          <button class="pt-chip" data-reason="window" type="button">
-            <span class="pt-chip-icon">🪟</span> Window open
-          </button>
-          <button class="pt-chip pt-chip-alert" data-reason="suspicious" type="button">
-            <span class="pt-chip-icon">⚠️</span> Suspicious issue
-          </button>
-        </div>
-
-        <!-- Two peer actions, side by side: neither is a fallback for the other. -->
+        <!-- Two peer actions, side by side: neither is a fallback for the other.
+             Tiles rather than solid buttons — a tinted surface with the icon
+             badged above its label reads as a choice between two routes, where
+             two saturated slabs read as one primary and one alternative.
+             Message leads: it is the one that costs the owner nothing to
+             receive and the scanner nothing to send. -->
         <div class="pt-contact-actions" id="scanner-contact-actions">
-          <button id="send-whatsapp-button" class="pt-btn pt-btn-whatsapp" type="button">
-            <span class="pt-btn-line">
-              <svg width="19" height="19" viewBox="0 0 32 32" fill="currentColor" aria-hidden="true">
-                <path d="M27 15.6c0 6.1-5 11.1-11.1 11.1-1.9 0-3.7-.5-5.3-1.4L5 27l1.8-5.2a11 11 0 0 1-2-6.2C4.8 9.5 9.8 4.5 15.9 4.5S27 9.5 27 15.6Z"/>
-                <path d="M12.7 10.8c-.2-.5-.4-.5-.6-.5h-.6c-.2 0-.6.1-.9.5-.3.3-1.1 1.1-1.1 2.7s1.1 3.1 1.2 3.3c.2.2 2.2 3.6 5.4 4.9 2.6 1 3.1.8 3.7.8.6-.1 1.8-.7 2-1.4.3-.7.3-1.4.2-1.5-.1-.1-.4-.2-.9-.5s-1.8-.9-2-.9c-.3-.1-.5-.1-.7.2-.2.3-.8.9-1 .9-.2 0-.4 0-.8-.2-.4-.2-1.5-.6-2.8-2-.8-.9-1.4-2-1.5-2.3-.2-.3 0-.4.1-.6.2-.2.3-.4.5-.6.2-.2.2-.3.3-.5.1-.2 0-.4 0-.6-.1-.1-.7-1.7-1-2.3Z" fill="#fff"/>
-              </svg>
-              <span>WhatsApp</span>
+          <button id="send-whatsapp-button" class="pt-tile pt-tile-message" type="button">
+            <span class="pt-tile-icon" aria-hidden="true">
+              <!-- Supplied artwork rather than a drawn path. Cropped to its own ink and
+                   resampled to 96px (from 828x698) so the file is sized for the ~26px it
+                   renders at instead of shipping a 74KB original. Square, so it centres
+                   in the badge on its own. Decorative: the parent span is aria-hidden and
+                   the tile carries the label "WhatsApp" in text. -->
+              <img class="pt-tile-glyph" src="/images/whatsapp-mark.png" alt="" width="26" height="26" />
             </span>
-            <span class="pt-btn-sub">Message the owner privately</span>
+            <span class="pt-tile-title">WhatsApp</span>
+            <span class="pt-tile-sub">Message the vehicle owner privately</span>
           </button>
 
-          <button id="call-owner-button" class="pt-btn pt-btn-call" type="button">
-            <span class="pt-btn-line">
-              <svg width="17" height="17" viewBox="0 0 32 32" fill="currentColor" aria-hidden="true">
-                <path d="M10.6 5.7c-.7-.8-1.8-1-2.6-.5-1.4.8-2.5 2.7-2.4 4.5.1 2.9 1.4 6.2 4 8.8 2.6 2.6 5.9 3.9 8.8 4 1.8.1 3.7-1 4.5-2.4.5-.9.3-1.9-.5-2.6l-2.8-2.5c-.7-.6-1.7-.7-2.5-.2l-1.8 1.1c-.4.3-1 .2-1.4-.2l-2.8-2.8c-.4-.4-.5-1-.2-1.4l1.1-1.8c.5-.8.4-1.8-.2-2.5l-2.5-2.8Z"/>
+          <button id="call-owner-button" class="pt-tile pt-tile-call" type="button">
+            <span class="pt-tile-icon" aria-hidden="true">
+              <!-- Supplied artwork. Same treatment as the WhatsApp mark: the viewBox is
+                   cropped to the glyph's own ink (measured 18.75 units square inside a 24
+                   box, offset to 4,1.25) so one shared CSS size renders both tiles at the
+                   same optical size, centred, with no nudge. Colour comes from the badge
+                   via currentColor, not from the file. -->
+              <svg width="26" height="26" viewBox="4 1.25 18.75 18.75" fill="currentColor">
+                <path d="M10.0376 5.31617L10.6866 6.4791C11.2723 7.52858 11.0372 8.90532 10.1147 9.8278C10.1147 9.8278 10.1147 9.8278 10.1147 9.8278C10.1146 9.82792 8.99588 10.9468 11.0245 12.9755C13.0525 15.0035 14.1714 13.8861 14.1722 13.8853C14.1722 13.8853 14.1722 13.8853 14.1722 13.8853C15.0947 12.9628 16.4714 12.7277 17.5209 13.3134L18.6838 13.9624C20.2686 14.8468 20.4557 17.0692 19.0628 18.4622C18.2258 19.2992 17.2004 19.9505 16.0669 19.9934C14.1588 20.0658 10.9183 19.5829 7.6677 16.3323C4.41713 13.0817 3.93421 9.84122 4.00655 7.93309C4.04952 6.7996 4.7008 5.77423 5.53781 4.93723C6.93076 3.54428 9.15317 3.73144 10.0376 5.31617Z"/>
+                <path d="M13.2595 1.87983C13.3257 1.47094 13.7122 1.19357 14.1211 1.25976C14.1464 1.26461 14.2279 1.27983 14.2705 1.28933C14.3559 1.30834 14.4749 1.33759 14.6233 1.38082C14.9201 1.46726 15.3347 1.60967 15.8323 1.8378C16.8286 2.29456 18.1544 3.09356 19.5302 4.46936C20.906 5.84516 21.705 7.17097 22.1617 8.16725C22.3899 8.66487 22.5323 9.07947 22.6187 9.37625C22.6619 9.52466 22.6912 9.64369 22.7102 9.72901C22.7197 9.77168 22.7267 9.80594 22.7315 9.83125L22.7373 9.86245C22.8034 10.2713 22.5286 10.6739 22.1197 10.7401C21.712 10.8061 21.3279 10.53 21.2601 10.1231C21.258 10.1121 21.2522 10.0828 21.2461 10.0551C21.2337 9.9997 21.2124 9.91188 21.1786 9.79572C21.1109 9.56339 20.9934 9.21806 20.7982 8.79238C20.4084 7.94207 19.7074 6.76789 18.4695 5.53002C17.2317 4.29216 16.0575 3.59117 15.2072 3.20134C14.7815 3.00618 14.4362 2.88865 14.2038 2.82097C14.0877 2.78714 13.9417 2.75363 13.8863 2.7413C13.4793 2.67347 13.1935 2.28755 13.2595 1.87983Z"/>
+                <path fill-rule="evenodd" clip-rule="evenodd" d="M13.4857 5.3293C13.5995 4.93102 14.0146 4.7004 14.4129 4.81419L14.2069 5.53534C14.4129 4.81419 14.4129 4.81419 14.4129 4.81419L14.4144 4.81461L14.4159 4.81505L14.4192 4.81602L14.427 4.81834L14.4468 4.8245C14.4618 4.82932 14.4807 4.8356 14.5031 4.84357C14.548 4.85951 14.6074 4.88217 14.6802 4.91337C14.8259 4.97581 15.0249 5.07223 15.2695 5.21694C15.7589 5.50662 16.4271 5.9878 17.2121 6.77277C17.9971 7.55775 18.4782 8.22593 18.7679 8.7154C18.9126 8.95991 19.009 9.15897 19.0715 9.30466C19.1027 9.37746 19.1254 9.43682 19.1413 9.48173C19.1493 9.50418 19.1555 9.52301 19.1604 9.53809L19.1665 9.55788L19.1688 9.56563L19.1698 9.56896L19.1702 9.5705C19.1702 9.5705 19.1707 9.57194 18.4495 9.77798L19.1707 9.57194C19.2845 9.97021 19.0538 10.3853 18.6556 10.4991C18.2607 10.6119 17.8492 10.3862 17.7313 9.99413L17.7276 9.98335C17.7223 9.96832 17.7113 9.93874 17.6928 9.89554C17.6558 9.8092 17.5887 9.66797 17.4771 9.47938C17.2541 9.10264 16.8514 8.53339 16.1514 7.83343C15.4515 7.13348 14.8822 6.73078 14.5055 6.50781C14.3169 6.39619 14.1757 6.32909 14.0893 6.29209C14.0461 6.27358 14.0165 6.26254 14.0015 6.25721L13.9907 6.25352C13.5987 6.13564 13.3729 5.72419 13.4857 5.3293Z"/>
               </svg>
-              <span>Private Call</span>
             </span>
-            <span class="pt-btn-sub">Call the owner privately</span>
+            <span class="pt-tile-title">Private Call</span>
+            <span class="pt-tile-sub">Call the vehicle owner privately</span>
           </button>
         </div>
 
@@ -322,7 +464,7 @@
             Do you think the vehicle has had an accident and the owner's family or
             emergency contact needs to be reached?
           </p>
-          <button id="sos-button" class="pt-btn pt-btn-sos" type="button">
+          <button id="sos-button" class="pt-btn pt-btn-sos pt-btn-sos-outline" type="button">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path d="M12 3.2 2.6 19.4a1 1 0 0 0 .87 1.5h17.06a1 1 0 0 0 .87-1.5L12 3.2Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
               <path d="M12 9.6v4.2M12 17.1h.01" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
@@ -447,15 +589,6 @@
           <p>Keep your phone nearby. Your number stays hidden throughout the call.</p>
         </div>
 
-        <!-- Dial panel -->
-        <div id="dial-panel" class="pt-panel" hidden>
-          <div id="dial-number-block" hidden>
-            <p class="pt-panel-label">Virtual number: dial this if your phone doesn't open automatically</p>
-            <p class="pt-dial-number" id="dial-virtual-number"></p>
-          </div>
-          <p class="pt-panel-sub">Your number stays completely private throughout the call.</p>
-          <button id="final-call-button" class="pt-btn pt-btn-primary pt-btn-full" type="button">Call Now</button>
-        </div>
 
         <!-- WhatsApp message panel -->
         <div id="message-panel" class="pt-panel" hidden>
@@ -478,13 +611,6 @@
               Send to owner
             </button>
           </div>
-        </div>
-
-        <!-- Confirmation -->
-        <div id="request-confirmation" class="pt-success-panel" hidden>
-          <div class="pt-success-icon">✅</div>
-          <h3 id="confirmation-title">Owner alerted successfully</h3>
-          <p id="confirmation-copy">Your message has been delivered to the vehicle owner.</p>
         </div>
 
         <p id="request-status" class="pt-status" data-tone="info"></p>
@@ -521,8 +647,16 @@
         <div class="pt-card-icon pt-icon-error">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M12 8v4M12 16h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
         </div>
-        <h1 class="pt-card-title">Tag not found</h1>
+        <!-- The title is set from script as well: on a network failure the tag
+             is very probably fine and only the connection was not, so telling
+             the scanner it was "not found" sends them off checking a sticker
+             that has nothing wrong with it. -->
+        <h1 class="pt-card-title" id="error-title">Tag not found</h1>
         <p class="pt-card-sub" id="error-message">This QR code could not be linked to an active vehicle. Please check and try again.</p>
+        <!-- Only shown when the load failed for want of a connection. Reading a
+             tag is a plain lookup with nothing to undo, so it is safe to offer
+             as a button rather than asking someone to reload the page. -->
+        <button type="button" class="pt-btn pt-btn-primary pt-btn-full" id="error-retry" hidden>Try again</button>
       </article>
 
     </main>
@@ -837,8 +971,8 @@
       </div>
     </nav>
 
-    <script type="module" src="/scripts/scanner/app.js?v=__SCANNER_ASSET_VERSION__"></script>
-    <script type="module" src="/scripts/scanner/menu.js?v=__SCANNER_ASSET_VERSION__"></script>
-    <script src="/scripts/ux-feedback.js"></script>
+    <script type="module" src="/scripts/scanner/app.js?v=__ASSET_VERSION__"></script>
+    <script type="module" src="/scripts/scanner/menu.js?v=__ASSET_VERSION__"></script>
+    <script src="/scripts/ux-feedback.js?v=__ASSET_VERSION__"></script>
 </body>
 </html>

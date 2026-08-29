@@ -1,3 +1,5 @@
+import { callbackState, CALLABLE, NEEDS_PREMIUM } from "./callback-eligibility.js";
+
 // ── Banners carousel ─────────────────────────────────────────────
 const track    = document.getElementById("carTrack");
 const viewport = document.getElementById("carVp");
@@ -492,6 +494,63 @@ function formatTimeAgo(ms) {
   return `${Math.floor(h / 24)}d ago`;
 }
 
+// The actual clock time a scanner made contact.
+//
+// "12 min ago" alone is fine for something you are looking at as it happens and
+// useless afterwards: an owner reconstructing a missed call wants to know it
+// came at 4:05 pm yesterday, not that it was "1d ago". Both are shown — the
+// relative form still reads faster at a glance.
+//
+// Rendered in the viewer's own locale and timezone; the stored value is UTC ISO
+// and converting it here is the only place that knows where the reader is.
+function formatExactTime(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+
+  const time = d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  const today = new Date();
+  const sameDay = d.toDateString() === today.toDateString();
+  const yesterday = new Date(today.getTime() - 86400000);
+  if (sameDay) return `Today ${time}`;
+  if (d.toDateString() === yesterday.toDateString()) return `Yesterday ${time}`;
+
+  return `${d.toLocaleDateString(undefined, { day: "numeric", month: "short" })} ${time}`;
+}
+
+// How much of the callback window is left, phrased for a glance.
+//
+// Rounded UP, so a window with forty seconds in it reads "1 min left" rather
+// than "0 min left" while the button is still there and still works. Under a
+// minute it stops counting and says so.
+function callbackTimeLeft(target, now) {
+  if (!target) return "";
+  const msLeft = _callbackWindowMs - (now - new Date(target.createdAt).getTime());
+  if (msLeft <= 0) return "";
+  if (msLeft < 60000) return "less than a minute left";
+  return `${Math.ceil(msLeft / 60000)} min left`;
+}
+
+// How long the two of them actually spoke, read as a person would say it.
+//
+// Returns "" for a call with no talk time, so the caller renders nothing rather
+// than "0s" — a missed call already says "Missed", and pinning a duration of
+// zero next to it is noise. Absent and zero both mean "nothing to show" here;
+// the difference between them matters when DECIDING the outcome, which is done
+// server-side in lib/core/call-outcome.js, not in this line.
+function formatCallDuration(seconds) {
+  const n = Number(seconds);
+  if (!Number.isFinite(n) || n <= 0) return "";
+  if (n < 60) return `${n}s`;
+  const m = Math.floor(n / 60);
+  const s = n % 60;
+  return s ? `${m}m ${s}s` : `${m}m`;
+}
+
+// How long a call may be returned for. Overwritten from the dashboard payload
+// so the button and the route agree; this is only the fallback for a response
+// that predates the field.
+let _callbackWindowMs = 48 * 60 * 60 * 1000;
+
 function renderActivity(requests) {
   const container = document.getElementById("actCards");
   const badge     = document.getElementById("actBadge");
@@ -522,10 +581,49 @@ function renderActivity(requests) {
     (now - new Date(r.createdAt).getTime()) <= TWO_DAYS
   );
 
-  // Most recent request within the 60-min callback window
-  const eligible = recent.find(r =>
-    r.action === "call" && (now - new Date(r.createdAt).getTime()) <= WIN_MS
-  );
+  // Is this contact returnable at all?
+  //
+  // Two separate spans, and keeping them apart is the point. The list shows 48
+  // hours of history; a callback lasts ten minutes. Seeing who called is not
+  // the same permission as ringing them back.
+  //
+  // "NOT answered", never "is missed". Exotel's status callback has never been
+  // configured, so callOutcome is null on every call in the database; gating on
+  // `=== "missed"` would hide the button from all of them. Unknown means keep
+  // offering it.
+  //
+  // Keyed on having a number, not on the contact being a call — a WhatsApp
+  // report that left a callback number is returnable too. Anonymous rows get
+  // nothing, because there is nobody to dial.
+  // One rule, three answers, and it lives in callback-eligibility.js so it can
+  // be tested on its own rather than inferred from this page. Calling back is a
+  // premium feature and premium belongs to the TAG, not the account — the same
+  // way contactAvailable and unlimitedContact already work. The server enforces
+  // the identical rule; this only decides which controls get drawn.
+  const stateOf = (r) =>
+    callbackState(r, { tags: allTags, now, windowMs: _callbackWindowMs });
+
+  const isReturnable = (r) => stateOf(r) === CALLABLE;
+
+  // Everything a callback needs except the premium tag. Worth telling apart,
+  // because the alternative is an owner who never finds out the feature exists:
+  // the row would simply have no button and nothing to explain why.
+  const blockedOnlyByPremium = (r) => stateOf(r) === NEEDS_PREMIUM;
+
+  // Exactly one row may be called back: the newest returnable one.
+  //
+  // `recent` is already sorted newest-first by the server, so the first hit is
+  // the live conversation. Offering the others would ring people who reported
+  // something earlier and have since moved on, while the person still waiting
+  // gets no priority at all.
+  const callbackTarget = recent.find(isReturnable) || null;
+  const canCallBack = (r) => callbackTarget !== null && r.id === callbackTarget.id;
+
+  // The banner and the row now point at the same contact. They used to disagree
+  // — the banner had its own 60-minute idea of "urgent" while the rows had
+  // another — so the page could show a prompt to call somebody back above a
+  // list where that row had no button.
+  const eligible = callbackTarget;
 
   // Count how many are within the window (actionable)
   const hotCount = recent.filter(r =>
@@ -554,6 +652,10 @@ function renderActivity(requests) {
   <div class="pt-cb-prompt-hd">
     <span class="pt-cb-pulse"></span>
     <span class="pt-cb-prompt-label">Someone wants you to call back</span>
+    <!-- The window is ten minutes and the button removes itself when it ends.
+         Saying how long is left turns that from something that vanished into
+         something that expired. -->
+    <span class="pt-cb-prompt-left">${esc(callbackTimeLeft(eligible, now))}</span>
   </div>
   <div class="pt-act-card urgent" style="margin:0;border-radius:14px">
     <div class="pt-act-ic" style="background:#FFE3DD;color:#FF2700">
@@ -609,28 +711,50 @@ function renderActivity(requests) {
     else if (!isCall)        { cardCls = "wa";     icBg = "#DCFCE7"; icCol = "#16A34A"; }
     else                     { cardCls = "idle";   icBg = "#F3F4F6"; icCol = "#9CA3AF"; }
 
-    // Call result badge
+    // Call result badge.
+    //
+    // Driven by the normalised callOutcome, not by Exotel's own wording. This
+    // used to test for `callResult === "connected"` — a value Exotel does not
+    // send; it says "completed" — so the first genuinely answered call would
+    // have been labelled "Failed". Nobody caught it because the status callback
+    // has never fired, so the branch has never run.
     let resultBadge = "";
-    if (isCall && r.callResult) {
-      const label = r.callResult === "connected" ? "Connected"
-                  : r.callResult === "no-answer"  ? "No answer" : "Failed";
-      const bg    = r.callResult === "connected" ? "background:#DCFCE7;color:#14532D"
-                                                 : "background:#FEE2E2;color:#B91C1C";
+    if (isCall && r.callOutcome) {
+      const label = r.callOutcome === "answered" ? "Answered"
+                  : r.callOutcome === "missed"   ? "Missed" : "Failed";
+      const bg    = r.callOutcome === "answered"
+        ? "background:#DCFCE7;color:#14532D"
+        : "background:#FEE2E2;color:#B91C1C";
       resultBadge = `<span class="pt-act-det-badge" style="${bg}">${label}</span>`;
-      if (r.callDuration) resultBadge += `<span style="color:#9CA3AF;font-size:.67rem">${r.callDuration}s</span>`;
+      const spoken = formatCallDuration(r.callDuration);
+      if (spoken) {
+        resultBadge += `<span style="color:#9CA3AF;font-size:.67rem">${esc(spoken)}</span>`;
+      }
     }
     if (!isCall && r.status) {
       const label = r.status === "delivered" ? "Delivered" : r.status === "pending" ? "Pending" : r.status;
       resultBadge = `<span class="pt-act-det-badge" style="background:#DCFCE7;color:#14532D">${label}</span>`;
     }
 
-    // CTA
+    // CTA. Every returnable call gets one now, not just the newest — with two
+    // scanners in a day, the older one used to be unreachable no matter how
+    // recently it happened.
     let cta = "";
-    if (isElig) {
+    if (blockedOnlyByPremium(r)) {
+      // Same slot and same treatment as the "Add phone" nudge above it: this is
+      // the one thing standing between the owner and reaching this person, so
+      // it says so and goes straight to where that is fixed.
+      cta = `<button class="pt-act-nophone pt-act-upsell" onclick="switchTab('shop')"
+        title="Callback is available on premium tags">Premium<br>to call back</button>`;
+    } else if (canCallBack(r)) {
       if (!_ownerMobile) {
         cta = `<span class="pt-act-nophone">Add phone<br>to call back</span>`;
       } else {
-        cta = `<button class="pt-act-cta" id="cbBtn" onclick="callBack()">Call Back</button>`;
+        // id carries the row so the handler can name it to the server, and so
+        // the button it disables is this one rather than the first on the page.
+        const btnId = `cbBtn-${r.id}`;
+        cta = `<button class="pt-act-cta" id="${btnId}" data-request-id="${esc(r.id)}"
+          onclick="callBack('${esc(btnId)}')">${isElig ? "Call Back" : "Call"}</button>`;
       }
     }
 
@@ -640,37 +764,228 @@ function renderActivity(requests) {
   <div class="pt-act-body">
     <p class="pt-act-who">${esc(masked)} contacted you</p>
     <p class="pt-act-det">${esc(plate)} · ${isCall ? "Call" : "WhatsApp"} ${resultBadge}</p>
-    <p class="pt-act-time">${formatTimeAgo(ageMs)}</p>
+    <p class="pt-act-time" title="${esc(new Date(r.createdAt).toLocaleString())}">${esc(formatExactTime(r.createdAt))} · ${formatTimeAgo(ageMs)}</p>
   </div>
   ${cta}
 </div>`;
   }).join("");
 
   container.innerHTML = cards;
+
+  scheduleCallbackExpiry(callbackTarget, now);
 }
+
+// Take the button away the moment the ten minutes are up.
+//
+// Nothing here reloads on its own, so a dashboard left open kept offering a
+// callback long after the server would honour it — the owner taps, waits, and
+// gets an error for something the page told them they could do. A window that
+// closes silently is worse than a short one.
+//
+// Re-renders from the same data rather than refetching: the only thing that
+// changed is the clock, and isReturnable is evaluated against `now` each pass.
+let _callbackExpiryTimer = null;
+function scheduleCallbackExpiry(target, now) {
+  if (_callbackExpiryTimer) {
+    clearTimeout(_callbackExpiryTimer);
+    _callbackExpiryTimer = null;
+  }
+  if (!target) return;
+
+  const msLeft = _callbackWindowMs - (now - new Date(target.createdAt).getTime());
+  if (msLeft <= 0) return;
+
+  // A second past the boundary, so the re-render lands on the far side of it
+  // rather than racing the comparison it is about to make.
+  _callbackExpiryTimer = setTimeout(() => {
+    _callbackExpiryTimer = null;
+    renderActivity(allRequests);
+  }, msLeft + 1000);
+}
+
+// Will `tel:` actually reach a dialer here?
+//
+// Capability, not user-agent. A coarse pointer with no hover is a touchscreen,
+// which in practice is a device that can place a call; a mouse-driven browser
+// generally cannot, and navigating it to `tel:` either does nothing or raises
+// an "open with…" prompt for an app the person does not have.
+//
+// Wrong either way is survivable, which is why it is safe to guess: the sheet
+// carries the number regardless, so a touch laptop that guesses wrong shows a
+// number nobody needed, and a phone that guesses wrong shows a number the
+// owner can simply tap.
+function deviceCanDial() {
+  try {
+    return window.matchMedia("(hover: none) and (pointer: coarse)").matches;
+  } catch {
+    return false;
+  }
+}
+
+// The number, big enough to read off a screen and copy from.
+//
+// It is the SAME virtual number every time, not a per-call one — what makes
+// this call reach the scanner is the pending_calls row the route just wrote,
+// keyed to the owner's own mobile. So it must be dialled from the phone that
+// number belongs to, and within ten minutes, and the sheet says both. Someone
+// who dials it from a different handset gets nowhere, which is not obvious
+// unless we tell them.
+function openCallSheet(virtualNumber) {
+  const bd = document.getElementById("ptCallBackdrop");
+  const sh = document.getElementById("ptCallSheet");
+  const body = document.getElementById("ptCallBody");
+  if (!bd || !sh || !body) return;
+
+  const pretty = String(virtualNumber);
+  const fromNumber = _ownerMobile ? String(_ownerMobile) : null;
+
+  body.innerHTML = `
+<div style="text-align:center;padding:4px 0 8px">
+  <div style="width:46px;height:46px;border-radius:14px;background:#FFE3DD;color:#FF2700;
+              display:flex;align-items:center;justify-content:center;margin:0 auto 12px">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.62 3.38 2 2 0 0 1 3.6 1.17h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.86a16 16 0 0 0 6 6l.91-.91a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" stroke="currentColor" stroke-width="1.8"/></svg>
+  </div>
+  <p style="font-weight:800;font-size:1.02rem;color:#111;margin:0 0 4px">Call this number to connect</p>
+  <p class="pt-snote" style="margin:0 0 16px">
+    We'll join you to the person who contacted you. Neither of you sees the other's number.
+  </p>
+
+  <a href="tel:${esc(pretty)}" id="cbSheetDial"
+     style="display:block;font-size:1.5rem;font-weight:800;letter-spacing:0.04em;color:#111;
+            text-decoration:none;background:#F7F8FA;border:1px solid #E5E7EB;border-radius:14px;
+            padding:14px 12px;margin-bottom:10px">${esc(pretty)}</a>
+
+  <!-- Number passed by data attribute, not interpolated into the onclick.
+       esc() renders a quote as &#39;, which the HTML parser decodes back to a
+       real quote before JS sees it — inside an inline handler that closes the
+       string early. An attribute value decodes safely. -->
+  <button type="button" id="cbCopyBtn" data-number="${esc(pretty)}" onclick="copyCallNumber()"
+          style="width:100%;background:#111;color:#fff;border:none;border-radius:12px;
+                 padding:13px;font-weight:700;font-size:.9rem;cursor:pointer;font-family:inherit">
+    Copy number
+  </button>
+
+  <div style="text-align:left;background:#FFF9F8;border:1px solid #FFE3DD;border-radius:12px;
+              padding:12px 14px;margin-top:14px">
+    <p style="margin:0 0 6px;font-size:.78rem;font-weight:700;color:#B91C1C">Two things to know</p>
+    <p style="margin:0 0 4px;font-size:.78rem;line-height:1.5;color:#6B7280">
+      Call from ${fromNumber ? `<strong style="color:#374151">${esc(fromNumber)}</strong>` : "the mobile number on your ParkTag account"} — we match the call to you by the number you dial from.
+    </p>
+    <p style="margin:0;font-size:.78rem;line-height:1.5;color:#6B7280">
+      This connection stays open for <strong style="color:#374151">10 minutes</strong>. After that, tap Call Back again.
+    </p>
+  </div>
+
+  <button type="button" onclick="closeCallSheet()"
+          style="width:100%;background:none;border:none;color:#6B7280;font-weight:600;
+                 font-size:.85rem;padding:14px 0 4px;cursor:pointer;font-family:inherit">Done</button>
+</div>`;
+
+  bd.classList.add("open");
+  sh.classList.add("open");
+  document.body.style.overflow = "hidden";
+}
+
+function closeCallSheet() {
+  const bd = document.getElementById("ptCallBackdrop");
+  const sh = document.getElementById("ptCallSheet");
+  if (bd) bd.classList.remove("open");
+  if (sh) sh.classList.remove("open");
+  document.body.style.overflow = "";
+}
+window.closeCallSheet = closeCallSheet;
+
+// Clipboard, with a fallback. navigator.clipboard is undefined on a page served
+// over plain http and can reject when the document is not focused, and this
+// button existing at all is the desktop half of the fix — so it must not be the
+// thing that fails silently.
+async function copyCallNumber() {
+  const btn = document.getElementById("cbCopyBtn");
+  const number = btn?.dataset?.number || "";
+  if (!number) return;
+  const done = () => {
+    if (btn) {
+      btn.textContent = "Copied";
+      setTimeout(() => { if (btn) btn.textContent = "Copy number"; }, 1800);
+    }
+  };
+
+  try {
+    await navigator.clipboard.writeText(number);
+    done();
+    return;
+  } catch { /* fall through */ }
+
+  try {
+    const scratch = document.createElement("textarea");
+    scratch.value = number;
+    scratch.setAttribute("readonly", "");
+    scratch.style.position = "fixed";
+    scratch.style.opacity = "0";
+    document.body.appendChild(scratch);
+    scratch.select();
+    document.execCommand("copy");
+    document.body.removeChild(scratch);
+    done();
+  } catch {
+    // Nothing copied and nothing pretended — the number is on screen to read.
+    _toast("Couldn't copy. The number is shown above.", "err");
+  }
+}
+window.copyCallNumber = copyCallNumber;
 
 async function callBack(btnId = "cbBtn") {
   const btn = document.getElementById(btnId);
+  const label = btn?.textContent || "Call Back";
   if (btn) { btn.disabled = true; btn.textContent = "Calling…"; }
   try {
-    const res  = await fetch("/api/owner/callback/register-call", { method: "POST" });
+    // Name the row when the button came from one. The banner button carries no
+    // id and the server falls back to the most recent contact, which is what it
+    // has always done.
+    const requestId = btn?.dataset?.requestId || null;
+    const res = await fetch("/api/owner/callback/register-call", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(requestId ? { requestId } : {})
+    });
     const data = await res.json();
     if (data.ok && data.virtualNumber) {
-      if (btn) { btn.textContent = "Opening dialer…"; btn.classList.add("ok"); }
-      setTimeout(() => { window.location.href = `tel:${data.virtualNumber}`; }, 120);
+      // Put the number on screen FIRST, then try the dialer.
+      //
+      // The old order was dialer-only: on a phone that is invisible and fine,
+      // but `tel:` does nothing in most desktop browsers, so the button sat
+      // reading "Opening dialer…" forever and the number it wanted dialled was
+      // never shown. The route had already registered the call and it expired
+      // ten minutes later, unused and unexplained.
+      openCallSheet(data.virtualNumber);
+      if (btn) { btn.disabled = false; btn.textContent = label; btn.classList.remove("ok"); }
+      if (deviceCanDial()) {
+        setTimeout(() => { window.location.href = `tel:${data.virtualNumber}`; }, 120);
+      }
+    } else if (data.code === "PREMIUM_REQUIRED") {
+      // A stale tab, or a tag that stopped being premium since the page loaded.
+      // Re-rendering swaps the button for the upgrade nudge.
+      _toast("Calling back is a premium feature. Upgrade this vehicle to use it.", "err");
+      renderActivity(allRequests);
     } else if (data.code === "NO_PHONE") {
       _toast("Add your mobile number to your profile to enable callback.", "err");
-      if (btn) { btn.disabled = false; btn.textContent = "Call Back"; }
+      if (btn) { btn.disabled = false; btn.textContent = label; }
     } else if (data.code === "CALLBACK_WINDOW_EXPIRED") {
-      _toast("The 60-minute callback window has passed.", "err");
+      _toast("The 10-minute callback window has passed.", "err");
       renderActivity(allRequests); // re-render to remove the button
+    } else if (data.code === "CALLBACK_NOT_LATEST") {
+      // Another contact arrived while this page sat open, so the row that was
+      // offered is no longer the newest. Re-rendering moves the button to the
+      // one the server will actually honour.
+      _toast("Someone else has contacted you since. Showing the latest.", "err");
+      renderActivity(allRequests);
     } else {
       _toast(data.error || "Couldn't initiate callback. Try again.", "err");
-      if (btn) { btn.disabled = false; btn.textContent = "Call Back"; }
+      if (btn) { btn.disabled = false; btn.textContent = label; }
     }
   } catch {
     _toast("Network error. Please try again.", "err");
-    if (btn) { btn.disabled = false; btn.textContent = "Call Back"; }
+    if (btn) { btn.disabled = false; btn.textContent = label; }
   }
 }
 window.callBack = callBack;
@@ -896,7 +1211,16 @@ async function load() {
       // answer stated confidently. A null greetingName means we genuinely do not
       // know, and "Hi there" plus the inline field is the honest response.
       const firstName = data.owner.greetingName || UI.greetFallback;
-      const id = data.owner.email || data.owner.mobile || "";
+      // Echo the identifier they signed in with. Ranking email first showed an
+      // e-mail address to people who had signed in with their phone number —
+      // and on an account carrying somebody else's address, that reads as
+      // being logged into the wrong account.
+      //
+      // DISPLAY ONLY. `userId` above stays on the old email-then-mobile basis
+      // because it keys the `pt_vehicles_*` localStorage entries — deriving it
+      // from the sign-in identifier instead would silently orphan every saved
+      // vehicle the moment somebody switched sign-in method.
+      const id = data.owner.signInIdentifier || data.owner.email || data.owner.mobile || "";
       renderGreetingAffordance(data.owner);
       greetName.textContent = `${UI.greetPrefix} ${firstName}!`;
       greetName.classList.remove("pt-reveal");
@@ -912,19 +1236,13 @@ async function load() {
       // Populate burger menu owner header
       _owner       = data.owner;
       _ownerMobile = data.owner.mobile || null;
-      _userId = id;
-      // Expose the logged-in owner's contact for the shop checkout (inline script
-      // in welcome.html runs in a separate scope and can only read via window).
-      // Razorpay prefills from this so the sheet shows the CURRENT user, not a
-      // stale cached number.
-      window.__ptOwner = {
-        // The owner's full name, or empty. Never the greeting's first name and
-        // never "there": Razorpay prefills a real checkout field from this, and
-        // a placeholder greeting is not a name to bill.
-        name: data.owner.displayName || "",
-        email: data.owner.email || "",
-        contact: data.owner.mobile || ""
-      };
+      _userId = userId;
+      // The shop checkout used to read the owner's name, e-mail and mobile off
+      // a `window.__ptOwner` global set here, which then sat on the page for the
+      // rest of the session within reach of every script running on it —
+      // Razorpay's checkout.js among them. create-order and cod-prepay-order
+      // now return those details with the order being paid for, so they exist
+      // for the length of a checkout rather than a session.
       const mName = document.getElementById("menuName");
       const mId   = document.getElementById("menuId");
       const mAv   = document.getElementById("menuAvatar");
@@ -974,6 +1292,11 @@ async function load() {
 
     allTags     = [...localOnly, ...dedupedApi];
     allRequests = data.requests || [];
+    // Take the window from the server so the button and the route it calls
+    // agree. Older responses omit it and keep the built-in default.
+    if (typeof data.callbackWindowMs === "number" && data.callbackWindowMs > 0) {
+      _callbackWindowMs = data.callbackWindowMs;
+    }
     renderGrid(getDisplayTags(), true);
     renderNoticeboard(allTags);
     renderActivity(allRequests);

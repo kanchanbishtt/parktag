@@ -96,7 +96,13 @@ function renderDashboard(data) {
   const menuName = byId("menu-owner-name");
   const menuEmail = byId("menu-owner-email");
   if (menuName) menuName.textContent = owner.displayName;
-  if (menuEmail) menuEmail.textContent = owner.email;
+  // Same rule as the welcome header: show what they signed in with, and fall
+  // back rather than printing an empty line for a mobile-only account (this
+  // read `owner.email` alone, which is null for everyone who signs in by OTP).
+  if (menuEmail) {
+    menuEmail.textContent =
+      owner.signInIdentifier || owner.email || owner.mobile || "—";
+  }
 
   // Show active badge if any tag is active
   const hasActive = tags.some(t => t.status === "active");
@@ -281,6 +287,55 @@ function detectIdentifierType(value) {
   return null;
 }
 
+// Which identifier the form is currently offering. Mobile is the default: it is
+// the identity every write path agrees on, so it is the one that reliably lands
+// on the account holding the tags.
+//
+// Presentation only. detectIdentifierType below stays authoritative, so a
+// pasted email is still accepted while the form is in mobile mode — the mode
+// decides what we ASK for, never what we allow.
+let _identifierMode = "mobile";
+
+const IDENTIFIER_MODES = {
+  mobile: {
+    label: "Mobile number",
+    placeholder: "10-digit mobile number",
+    sub: "Enter your mobile number and we'll send you a code on WhatsApp.",
+    inputmode: "tel",
+    autocomplete: "tel",
+    toggle: "Use email address instead"
+  },
+  email: {
+    label: "Email address",
+    placeholder: "name@example.com",
+    sub: "Enter your email address and we'll send you a verification code.",
+    inputmode: "email",
+    autocomplete: "username",
+    toggle: "Use mobile number instead"
+  }
+};
+
+function applyIdentifierMode(mode) {
+  const conf = IDENTIFIER_MODES[mode];
+  if (!conf) return;
+  _identifierMode = mode;
+
+  const input = byId("owner-identifier");
+  const label = byId("identifier-label");
+  const sub = byId("card-sub");
+  const toggle = byId("identifier-mode-toggle");
+
+  if (label) label.textContent = conf.label;
+  if (sub) sub.textContent = conf.sub;
+  if (toggle) toggle.textContent = conf.toggle;
+  if (input) {
+    input.placeholder = conf.placeholder;
+    input.setAttribute("inputmode", conf.inputmode);
+    input.setAttribute("autocomplete", conf.autocomplete);
+  }
+  updateIdentifierBadge();
+}
+
 function updateIdentifierBadge() {
   const input = byId("owner-identifier");
   const badge = byId("identifier-badge");
@@ -299,14 +354,21 @@ function updateIdentifierBadge() {
   } else {
     badge.style.display = "none";
     input.style.paddingRight = "";
-    input.setAttribute("inputmode", "email");
+    // Back to whatever this mode asks for, NOT a hardcoded email keypad —
+    // clearing a half-typed number used to hand mobile users a QWERTY layout.
+    input.setAttribute("inputmode", IDENTIFIER_MODES[_identifierMode].inputmode);
   }
 }
 
 async function loginOwner() {
   const raw = byId("owner-identifier")?.value?.trim();
   if (!raw) {
-    setStatus("Please enter your email or mobile number.", "error");
+    setStatus(
+      _identifierMode === "email"
+        ? "Please enter your email address."
+        : "Please enter your mobile number.",
+      "error"
+    );
     return;
   }
   const type = detectIdentifierType(raw);
@@ -477,11 +539,30 @@ if (urlError && hasEl("owner-auth-status")) {
 }
 
 if (hasEl("owner-identifier")) {
+  // Mobile first. Set from script rather than trusting the markup so the two
+  // cannot drift apart.
+  applyIdentifierMode("mobile");
+
   byId("owner-identifier").addEventListener("input", () => {
+    // Somebody typing an "@" while the form is asking for a number is telling
+    // us which identifier they have. Follow them instead of making them find
+    // the toggle first — a dead end here is how people end up creating a
+    // second account rather than signing in to the one they already have.
+    if (_identifierMode === "mobile" && byId("owner-identifier").value.includes("@")) {
+      applyIdentifierMode("email");
+    }
     updateIdentifierBadge();
     setStatus("", "info");
   });
   byId("owner-identifier").addEventListener("keydown", (e) => { if (e.key === "Enter") loginOwner(); });
+}
+if (hasEl("identifier-mode-toggle")) {
+  byId("identifier-mode-toggle").addEventListener("click", () => {
+    applyIdentifierMode(_identifierMode === "mobile" ? "email" : "mobile");
+    setStatus("", "info");
+    const input = byId("owner-identifier");
+    if (input) { input.value = ""; input.focus(); }
+  });
 }
 if (hasEl("owner-login-button")) byId("owner-login-button").addEventListener("click", loginOwner);
 if (hasEl("phone-verify-btn")) byId("phone-verify-btn").addEventListener("click", verifyWhatsappOtp);
@@ -495,8 +576,11 @@ if (hasEl("phone-back-btn")) {
     setStatus("", "info");
     const btn = byId("owner-login-button");
     if (btn) { btn.disabled = false; btn.classList.remove("pt-btn-loading"); }
+    // Restore the prompt for whichever identifier the form is offering, rather
+    // than a fixed line that would contradict the label right below it.
     const sub = byId("card-sub");
-    if (sub) { sub.innerHTML = "Enter your email or mobile number and we'll send you a verification code."; sub.style.marginBottom = "20px"; }
+    if (sub) sub.style.marginBottom = "20px";
+    applyIdentifierMode(_identifierMode);
   });
 }
 if (hasEl("use-password-btn")) {

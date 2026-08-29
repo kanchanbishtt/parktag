@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>ParkTag Admin | Traffic</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Segoe UI", Tahoma, sans-serif; background: #F1F1F0; color: #03162D; overflow-wrap: break-word; }
+    .wrap { max-width: 1180px; margin: 0 auto; padding: 22px 18px 60px; }
+    .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
+    .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    .brand-logo { height: 30px; width: auto; mix-blend-mode: multiply; }
+    .brand-sep { color: #9aa5b1; }
+    .title { font-size: 1.15rem; margin: 0; }
+    .back { color: #03162D; text-decoration: none; font-weight: 600; font-size: .9rem; }
+    .back:hover { text-decoration: underline; }
+
+    .note { background: #FFF6E8; border: 1px solid #F0D2A0; border-radius: 10px; padding: 12px 14px; font-size: .88rem; line-height: 1.5; margin-bottom: 16px; }
+    .note strong { display: block; margin-bottom: 2px; }
+    .note code { background: #fff; border: 1px solid #E8D8BC; border-radius: 4px; padding: 1px 5px; font-size: .85em; }
+
+    .ranges { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+    .range { border: 1px solid #D6D6D3; background: #fff; border-radius: 999px; padding: 7px 16px; font-size: .88rem; font-weight: 600; cursor: pointer; color: #03162D; }
+    .range[aria-pressed="true"] { background: #03162D; color: #fff; border-color: #03162D; }
+
+    .counts { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+    .count { background: #fff; border: 1px solid #E3E3E1; border-radius: 10px; padding: 10px 14px; min-width: 108px; }
+    .count b { display: block; font-size: 1.35rem; line-height: 1.1; }
+    .count span { font-size: .74rem; color: #667; text-transform: uppercase; letter-spacing: .04em; }
+
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+    .card { background: #fff; border: 1px solid #E3E3E1; border-radius: 12px; padding: 14px 16px; }
+    .card h2 { font-size: .82rem; margin: 0 0 10px; text-transform: uppercase; letter-spacing: .05em; color: #667; }
+
+    /* Each row is a labelled bar: the bar length is the share of the top entry,
+       so the shape of the list is readable before any number is. */
+    .row { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center; padding: 5px 0; }
+    .row + .row { border-top: 1px solid #F1F1F0; }
+    .row-name { font-size: .9rem; min-width: 0; }
+    .row-num { font-size: .86rem; font-weight: 700; white-space: nowrap; }
+    .row-sub { font-size: .74rem; color: #8A8A86; }
+    .bar { grid-column: 1 / -1; height: 4px; border-radius: 999px; background: #EDEDEB; overflow: hidden; }
+    .bar i { display: block; height: 100%; background: #FF2700; border-radius: 999px; }
+
+    .spark { display: flex; align-items: flex-end; gap: 2px; height: 74px; margin-top: 4px; }
+    .spark div { flex: 1 1 0; background: #03162D; border-radius: 2px 2px 0 0; min-height: 2px; }
+
+    .msg { padding: 14px; border-radius: 10px; margin-bottom: 14px; font-size: .9rem; display: none; }
+    .msg.err { background: #FDECEA; border: 1px solid #F5C2C0; color: #8A1F1A; display: block; }
+    .empty { background: #fff; border: 1px dashed #CFCFCC; border-radius: 12px; padding: 26px; text-align: center; color: #667; font-size: .9rem; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <div class="brand">
+        <img class="brand-logo" src="/images/light-logo.png" alt="ParkTag" width="735" height="280" />
+        <span class="brand-sep" aria-hidden="true">·</span>
+        <h1 class="title">Traffic</h1>
+      </div>
+      <a class="back" href="/admin/overview">← Back to Admin</a>
+    </div>
+
+    <div class="note">
+      <strong>Where landing-page visitors are coming from.</strong>
+      Worked out on the server from each visitor's IP address, which is resolved
+      to a city and then discarded. Nobody is asked for permission, nothing is
+      stored in their browser, and no IP address or device fingerprint is kept —
+      so this covers every visitor rather than only the few who would accept a
+      location prompt.
+    </div>
+
+    <div id="msg" class="msg"></div>
+
+    <div class="ranges" id="ranges">
+      <button class="range" type="button" data-days="7">7 days</button>
+      <button class="range" type="button" data-days="30" aria-pressed="true">30 days</button>
+      <button class="range" type="button" data-days="90">90 days</button>
+    </div>
+
+    <div id="counts" class="counts"></div>
+    <div id="body"></div>
+  </div>
+
+  <script src="/scripts/admin/traffic.js?v=__ASSET_VERSION__"></script>
+</body>
+</html>

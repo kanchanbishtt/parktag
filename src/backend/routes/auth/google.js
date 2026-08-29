@@ -174,6 +174,7 @@ export function registerGoogleAuthRoutes(app, env) {
           id: String(admin._id),
           role: "admin",
           email: admin.email,
+          signInIdentifier: admin.email,
           displayName: admin.displayName || email
         });
         writeSessionCookie(reply, sessionId, env.runtimeMode === "production");
@@ -204,6 +205,7 @@ export function registerGoogleAuthRoutes(app, env) {
         id: String(resolvedOwner._id),
         role: "owner",
         email: resolvedOwner.email,
+        signInIdentifier: resolvedOwner.email,
         displayName: resolvedOwner.displayName || displayName
       });
       writeSessionCookie(reply, sessionId, env.runtimeMode === "production");
@@ -264,7 +266,8 @@ export function registerGoogleAuthRoutes(app, env) {
 
       const sessionId = await createSession(app, {
         id: String(owner._id), role: "owner",
-        email: owner.email, displayName: owner.displayName || displayName
+        email: owner.email, signInIdentifier: owner.email,
+        displayName: owner.displayName || displayName
       });
       writeSessionCookie(reply, sessionId, env.runtimeMode === "production");
       reply.send({ redirect: "/owner-welcome" });
@@ -328,7 +331,8 @@ export function registerGoogleAuthRoutes(app, env) {
 
       const sessionId = await createSession(app, {
         id: String(owner._id), role: "owner",
-        email: owner.email, displayName: owner.displayName || displayName
+        email: owner.email, signInIdentifier: owner.email,
+        displayName: owner.displayName || displayName
       });
       writeSessionCookie(reply, sessionId, env.runtimeMode === "production");
       reply.send({ redirect: "/owner-welcome" });

@@ -65,7 +65,20 @@ export async function getCollections(env) {
     // session id. Kept server-side and out of the session document on purpose:
     // readSession serves from an in-process cache for up to 30s, so an unlock
     // written onto the session would not be visible to the very next request.
-    vaultGrants: db.collection(withPrefix(prefix, "vault_grants"))
+    vaultGrants: db.collection(withPrefix(prefix, "vault_grants")),
+    // One row per owner holding reserved storage: total bytes, and a document
+    // count per vehicle. It is the CAP, not a cache — an upload has to win a
+    // conditional update against this row before its record is written, which
+    // is what makes the limit hold under concurrent uploads. Summing
+    // vault_documents cannot: it is a read, and a read cannot exclude a write
+    // that has not landed yet. See reserveStorage in lib/core/vault.js.
+    vaultUsage: db.collection(withPrefix(prefix, "vault_usage")),
+    // One document per landing-page view, written by the beacon in
+    // routes/system/analytics.js. Holds a derived country/region/city and a
+    // one-way, daily-rotating visitor digest — never an IP address and never a
+    // raw User-Agent. TTL-expired, so it is a rolling window rather than a
+    // permanent record of who visited.
+    landingVisits: db.collection(withPrefix(prefix, "landing_visits"))
   };
 }
 
@@ -101,6 +114,14 @@ const CORE_INDEXES = [
   ["tags", { ownerId: 1, deletedAt: 1 }, { name: "owner_live" }],
   ["tags", { status: 1, printStatus: 1 }, { name: "print_queue" }],
   ["tags", { batchNumber: 1 }, { name: "batch" }],
+  // Serial lookup. Adding a printed sticker to field demo resolves the serial
+  // typed off the sticker, and serialNumber was indexed nowhere — so every add
+  // scanned the whole tags collection.
+  ["tags", { serialNumber: 1 }, { name: "serial" }],
+  // The field-demo shelf: filter on marketingStock, ordered by serial. Both
+  // halves are served here, so listing the shelf stops being a collection scan
+  // on every page load and every search keystroke.
+  ["tags", { marketingStock: 1, serialNumber: 1 }, { name: "marketing_shelf" }],
   ["owners", { email: 1 }, { name: "email" }],
   // Case-insensitive email index. Account lookup matches an address regardless
   // of the case it was stored in (see lib/auth/identity.js), and a collation
@@ -118,6 +139,32 @@ const CORE_INDEXES = [
     { name: "email_ci", collation: { locale: "en", strength: 2 } }
   ],
   ["owners", { mobile: 1 }, { name: "mobile" }],
+  // One number, one account — enforced by the storage layer, not by every
+  // route remembering to check.
+  //
+  // The guard in lib/auth/otp.js (findOwnerHoldingMobile) is the one that gives
+  // a person a sensible message; this is the one that makes the bad state
+  // impossible if a future route forgets to call it. Sign-in resolves a mobile
+  // with findOne, so two rows holding one number meant the account somebody
+  // reached depended on row order.
+  //
+  // PARTIAL, and that is load-bearing. Most owners have no `mobile` at all —
+  // Google and e-mail sign-ups never set one — and a plain unique index treats
+  // every missing field as the same null, so it would collide on the second
+  // such owner and refuse to build. Indexing only documents where `mobile` is
+  // actually a string leaves those rows alone.
+  //
+  // `$gt: ""` as well as the type check: an empty string is a real string and
+  // several rows carry one, which would collide with each other.
+  [
+    "owners",
+    { mobile: 1 },
+    {
+      name: "mobile_unique",
+      unique: true,
+      partialFilterExpression: { mobile: { $type: "string", $gt: "" } }
+    }
+  ],
   ["owners", { phone: 1 }, { name: "phone" }],
   ["contactRequests", { token: 1, createdAt: -1 }, { name: "token_recent" }],
   ["contactRequests", { ownerId: 1, createdAt: -1 }, { name: "owner_recent" }],
@@ -149,7 +196,19 @@ const CORE_INDEXES = [
   ["vaultDocuments", { ownerId: 1 }, { name: "owner" }],
   // A vault unlock is deliberately short-lived; the TTL is what actually
   // re-locks it, so this index is load-bearing rather than housekeeping.
-  ["vaultGrants", { expiresAt: 1 }, { expireAfterSeconds: 0, name: "ttl" }]
+  ["vaultGrants", { expiresAt: 1 }, { expireAfterSeconds: 0, name: "ttl" }],
+  // Every Traffic-page query filters on a day range and then groups, so this
+  // is the one index that matters for the admin summary.
+  ["landingVisits", { day: 1 }, { name: "day" }],
+  // Retention, not housekeeping: analytics rows are only useful as a recent
+  // trend, and holding them forever would turn a rolling traffic count into a
+  // long-term behavioural record. 180 days, dropped automatically.
+  //
+  // NOTE: `createdAt` on THIS collection is a real BSON Date, unlike the ISO
+  // strings the rest of the codebase writes. MongoDB's TTL monitor only acts on
+  // Date-typed fields and silently ignores strings, so a string here would make
+  // the retention above quietly do nothing.
+  ["landingVisits", { createdAt: 1 }, { expireAfterSeconds: 15552000, name: "ttl" }]
 ];
 
 let coreIndexesEnsured = false;

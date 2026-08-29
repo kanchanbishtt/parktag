@@ -4,6 +4,8 @@ import { createContactAction, isSupportedContactReason } from "../../lib/core/co
 import { createPasswordHash, createSecureToken, safeEqual, hashIp, minutesFromNow, getClientIp, maskPlateNumber, getPlateLastFour, isNonEmptyString } from "../../lib/auth/security.js";
 import { createSession, writeSessionCookie } from "../../lib/auth/session.js";
 import {
+  findOwnerHoldingMobile,
+  isDuplicateMobileError,
   isMobileIdentifier,
   normalizeIdentifier,
   verifyOtp,
@@ -23,6 +25,7 @@ import {
 import { verifyRecaptchaV2 } from "../../lib/integrations/recaptcha.js";
 import { clientErrorMessage } from "../../lib/errors.js";
 import { findByCanonicalEmail } from "../../lib/auth/identity.js";
+import { recordDemoActivation } from "../../lib/core/marketing-stock.js";
 
 // Report reasons, matched exactly. An open text field for the reason would let
 // a reporter write anything into a record support reads later.
@@ -696,6 +699,24 @@ export function registerPublicRoutes(app, env) {
 
     const ownerId = new ObjectId();
     const verifiedMobile = normalizeIdentifier(phone);
+
+    // One number, one account — the same guard /api/register-owner applies.
+    // This route only checked the e-mail, so claiming a tag with a new address
+    // and an already-registered number forked a second account and stranded
+    // the tags on the first. /activate below has always refused this (via
+    // resolveOwnerByVerifiedMobile's `conflict`); this path had not.
+    const numberTaken = await findOwnerHoldingMobile(collections, verifiedMobile);
+
+    if (numberTaken) {
+      reply.code(409);
+      return {
+        ok: false,
+        code: "ACCOUNT_EXISTS",
+        error:
+          "This mobile number is already on a ParkTag account. Please sign in with it instead, then activate this tag from your dashboard."
+      };
+    }
+
     const owner = {
       _id: ownerId,
       email,
@@ -714,7 +735,19 @@ export function registerPublicRoutes(app, env) {
       createdAt: new Date().toISOString()
     };
 
-    await collections.owners.insertOne(owner);
+    try {
+      await collections.owners.insertOne(owner);
+    } catch (error) {
+      // Lost the race to the unique index between the check above and here.
+      if (!isDuplicateMobileError(error)) throw error;
+      reply.code(409);
+      return {
+        ok: false,
+        code: "ACCOUNT_EXISTS",
+        error:
+          "This mobile number is already on a ParkTag account. Please sign in with it instead, then activate this tag from your dashboard."
+      };
+    }
 
     await collections.tags.updateOne(
       { _id: tag._id },
@@ -727,6 +760,11 @@ export function registerPublicRoutes(app, env) {
         }
       }
     );
+
+    // No-op unless this is a field-demo sticker opened for a demo. When it is,
+    // it records who activated it so the sales screen can wipe them again if
+    // the customer walks away. The account is always new on this path.
+    await recordDemoActivation(collections, { tagId: tag._id, ownerId, isNewOwner: true });
 
     return {
       ok: true,
@@ -898,7 +936,28 @@ export function registerPublicRoutes(app, env) {
         role: "owner",
         createdAt: new Date().toISOString()
       };
-      await collections.owners.insertOne(owner);
+      try {
+        await collections.owners.insertOne(owner);
+      } catch (error) {
+        // Two people activating stickers on the same number at once, or the
+        // same person double-tapping. The account exists now either way, and
+        // the OTP proved this number is theirs — so adopt it and carry on
+        // rather than failing an activation that was entirely valid.
+        if (!isDuplicateMobileError(error)) throw error;
+
+        const existing = await collections.owners.findOne(
+          { mobile },
+          { sort: { createdAt: 1, _id: 1 } }
+        );
+        if (!existing) throw error;
+
+        owner = existing;
+        isNewOwner = false;
+        request.log.info(
+          { event: "activate-lost-create-race", ownerId: String(owner._id) },
+          "[activate] concurrent request created this account first — adopting it"
+        );
+      }
     }
 
     // The label follows the type unless the caller supplied one explicitly, so
@@ -919,11 +978,19 @@ export function registerPublicRoutes(app, env) {
       }
     );
 
+    // No-op unless this is a field-demo sticker opened for a demo — see the
+    // matching call in /claim. isNewOwner matters here: a customer who already
+    // had an account keeps it when the sticker is deactivated.
+    await recordDemoActivation(collections, { tagId: tag._id, ownerId: owner._id, isNewOwner });
+
     // Log them straight in so the success screen can hand off to the dashboard.
     const sessionId = await createSession(app, {
       id: String(owner._id),
       role: "owner",
       email: owner.email || owner.mobile || mobile,
+      // Activation is always a mobile-OTP sign-in, so that is what the
+      // dashboard should greet them with.
+      signInIdentifier: mobile,
       displayName: owner.displayName
     });
     writeSessionCookie(reply, sessionId, env.runtimeMode === "production");
@@ -956,7 +1023,11 @@ export function registerPublicRoutes(app, env) {
       };
     }
 
-    const { token, action, messageChannel, reason, grant } = request.body || {};
+    // `phone` is the optional callback number — see where it is validated
+    // below. Read out under a raw name so it is obvious at the call site that
+    // nothing has checked it yet.
+    const { token, action, messageChannel, reason, grant, phone: rawPhone } =
+      request.body || {};
 
     // `token` and `grant` are used as raw Mongo filter values below
     // (`findOne({ token, grantId: grant, ... })` / `findOne({ token })`).
@@ -1065,13 +1136,34 @@ export function registerPublicRoutes(app, env) {
     }
 
     try {
-      // No caller number is taken or stored here. The alert travels one way to
-      // the owner over WhatsApp, so the scanner's number is not needed to
-      // deliver it, and a number this endpoint cannot use is a number it has no
-      // business holding.
+      // A callback number, if the scanner chose to leave one.
+      //
+      // This endpoint used to store none, on the reasoning that a one-way alert
+      // does not need the sender's number and "a number this endpoint cannot
+      // use is a number it has no business holding". The first half still
+      // holds — delivery does not need it. The second no longer does: the owner
+      // can now return contact from their dashboard, and with nothing stored
+      // they were told someone had contacted them and given no way to answer.
+      //
+      // Optional, so the anonymous report stays exactly as it was. Never
+      // revealed: the owner's dashboard shows the last four digits and the call
+      // is bridged by Exotel, the same masking every other ParkTag call uses.
+      //
+      // Validated and normalised HERE rather than trusted from the page,
+      // because this value is later dialled — the browser check is a courtesy
+      // to the person typing, not a control.
+      let callbackPhone = null;
+      if (rawPhone !== undefined && rawPhone !== null && String(rawPhone).trim() !== "") {
+        if (!isMobileIdentifier(rawPhone)) {
+          reply.code(400);
+          return { ok: false, error: "Enter a valid mobile number, or leave it blank." };
+        }
+        callbackPhone = normalizeIdentifier(rawPhone);
+      }
+
       return await createContactAction(env, {
         token,
-        phone: null,
+        phone: callbackPhone,
         action: "message",
         messageChannel: messageChannel || "whatsapp",
         reason: reason || null,

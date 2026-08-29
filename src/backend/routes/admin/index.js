@@ -2,7 +2,8 @@ import { ObjectId } from "mongodb";
 
 import { requireSession } from "../../lib/auth/auth.js";
 import { isNonEmptyString } from "../../lib/auth/security.js";
-import { getCollections } from "../../lib/db/repositories.js";
+import { getCollections, getVaultBucket } from "../../lib/db/repositories.js";
+import { purgeVaultDocuments } from "../../lib/core/vault.js";
 import { findByCanonicalEmail, canonicalEmail } from "../../lib/auth/identity.js";
 import {
   buildIssuedTagOutput,
@@ -12,6 +13,7 @@ import {
   batchKeyFor,
   stickerSerialFor
 } from "../../lib/core/tag-issuance.js";
+import { NOT_MARKETING_STOCK, NOT_DEMO_OWNER } from "../../lib/core/marketing-stock.js";
 
 // Order the print queue the way the sheets should come off the printer: newest
 // batch first, and inside a batch ascending by the serial printed on the sticker.
@@ -116,6 +118,13 @@ export function registerAdminRoutes(app, env) {
 
     if (!includeDeleted) filter.deletedAt = { $in: [null, undefined] };
     if (statusFilter) filter.status = statusFilter;
+
+    // Field-demo stock is not inventory and has its own page (/admin/marketing).
+    // It has to be excluded here explicitly, not just left to the claim filter:
+    // an ACTIVATED demo sticker has a real ownerId, so it would otherwise show
+    // up in the default "claimed" view as an ordinary customer tag — and the
+    // customer it names may well have walked away without buying.
+    Object.assign(filter, NOT_MARKETING_STOCK);
 
     // Category filter. `premium: true` is the single source of truth for a
     // premium tag, so an E-Tag is anything NOT flagged premium — written as
@@ -373,6 +382,24 @@ export function registerAdminRoutes(app, env) {
       { $set: { deletedAt: new Date().toISOString(), status: "inactive", updatedAt: new Date().toISOString() } }
     );
     if (!result.matchedCount) { reply.code(404); return { ok: false, error: "E-Tag not found" }; }
+
+    // The vehicle's documents go with it, exactly as when the owner deletes it
+    // themselves. A soft-deleted tag is refused by the vault's ownedTag(), so
+    // anything left here is unreachable to the owner AND undeletable by them,
+    // while still holding their storage — and these are identity documents, so
+    // "unreachable" is not the same as "gone".
+    const purged = await purgeVaultDocuments(
+      collections,
+      await getVaultBucket(env),
+      { tagId: String(tagId) }
+    );
+    if (purged.orphanedBlobs) {
+      request.log.error(
+        { event: "vault-purge-orphans", tagId: String(tagId), orphanedBlobs: purged.orphanedBlobs },
+        "[vault] admin deleted an E-Tag but some document blobs could not be removed — sweep required"
+      );
+    }
+
     return { ok: true };
   });
 
@@ -390,8 +417,12 @@ export function registerAdminRoutes(app, env) {
     // real premium activation (the paid upgrade that mints the tag). We surface
     // ALL premium tags and label each by whether it is live (status active) or
     // sitting inactive, so the list is accurate to the tag data, not inferred.
+    // Demo stock is premium too, so without this exclusion the shelf shows up
+    // here as ordinary premium inventory: sitting "inactive" at rest, and
+    // mid-demo appearing as a live activation belonging to a customer who may
+    // well have walked away without buying anything.
     const premiumTags = await collections.tags
-      .find({ premium: true, deletedAt: { $in: [null, undefined] } })
+      .find({ premium: true, deletedAt: { $in: [null, undefined] }, ...NOT_MARKETING_STOCK })
       .sort({ premiumSince: -1, createdAt: -1 })
       .toArray();
 
@@ -517,14 +548,16 @@ export function registerAdminRoutes(app, env) {
     // Headline counts come from the server, not from measuring arrays we had to
     // load first. `requests` in particular used to report the length of a
     // 20-item page as if it were the total.
+    // Headline counts describe the real business, so demo stock and the
+    // throwaway accounts a demo creates are excluded from both.
     const [ownerCount, tagCount, requestCount] = await Promise.all([
-      collections.owners.countDocuments(),
-      collections.tags.countDocuments(),
+      collections.owners.countDocuments(NOT_DEMO_OWNER),
+      collections.tags.countDocuments(NOT_MARKETING_STOCK),
       collections.contactRequests.countDocuments()
     ]);
 
     const owners = await collections.owners
-      .find({})
+      .find(NOT_DEMO_OWNER)
       .sort({ createdAt: -1 })
       .limit(500)
       .toArray();
@@ -545,10 +578,11 @@ export function registerAdminRoutes(app, env) {
 
     const pendingPrint = await collections.tags.countDocuments({
       status: "unclaimed",
-      printStatus: { $ne: "printed" }
+      printStatus: { $ne: "printed" },
+      ...NOT_MARKETING_STOCK
     });
     const pendingPrintTags = await collections.tags
-      .find({ status: "unclaimed", printStatus: { $ne: "printed" } })
+      .find({ status: "unclaimed", printStatus: { $ne: "printed" }, ...NOT_MARKETING_STOCK })
       .sort({ createdAt: -1 })
       .limit(500)
       .toArray();
@@ -674,7 +708,11 @@ export function registerAdminRoutes(app, env) {
       await collections.tags
         .find({
           status: "unclaimed",
-          printStatus: printedOnly ? "printed" : { $ne: "printed" }
+          printStatus: printedOnly ? "printed" : { $ne: "printed" },
+          // A demo sticker's resting state IS "unclaimed", so without this every
+          // Deactivate hands the salesperson's sticker back to the print queue
+          // as something still to be printed. It is already printed and in a bag.
+          ...NOT_MARKETING_STOCK
         })
         .toArray()
     );
@@ -780,9 +818,14 @@ export function registerAdminRoutes(app, env) {
     }
 
     const collections = await getCollections(env);
+    // Never delete field-demo stock as part of a batch. Those stickers are
+    // physically in a salesperson's bag; deleting the record does not recall
+    // the sticker, it just makes the QR on it resolve to nothing in front of a
+    // customer. They are retired from /admin/marketing instead.
     const result = await collections.tags.deleteMany({
       status: "unclaimed",
-      batchNumber: request.params.batchNumber
+      batchNumber: request.params.batchNumber,
+      ...NOT_MARKETING_STOCK
     });
 
     return { ok: true, deleted: result.deletedCount };
@@ -801,9 +844,13 @@ export function registerAdminRoutes(app, env) {
     // Only delete UNPRINTED tags — already-printed unclaimed tags are preserved
     // (they live in the separate "Printed" view) so this can't wipe them.
     const collections = await getCollections(env);
+    // Same reasoning as the batch delete: demo stock rests in "unclaimed" and
+    // is not marked printed, so it sits squarely inside this filter and would
+    // be wiped by a routine "clear unprinted stock".
     const result = await collections.tags.deleteMany({
       status: "unclaimed",
-      printStatus: { $ne: "printed" }
+      printStatus: { $ne: "printed" },
+      ...NOT_MARKETING_STOCK
     });
 
     return { ok: true, deleted: result.deletedCount };

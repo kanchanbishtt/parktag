@@ -53,6 +53,18 @@ export async function createSession(app, user) {
     userId: user.id,
     role: user.role,
     email: user.email,
+    // The identifier this person actually typed to get in — their email on an
+    // email/Google sign-in, their number on a mobile OTP one.
+    //
+    // `email` above is NOT that: every caller sets it to
+    // `owner.email || owner.mobile || <typed>`, so an account that has an email
+    // on file reports that email no matter which way the person signed in. The
+    // dashboard displays it under the greeting, which is how signing in with a
+    // phone number showed somebody an email address they had not typed.
+    //
+    // Optional: sessions created before this field existed simply lack it, and
+    // every reader falls back to the old email/mobile pair.
+    signInIdentifier: user.signInIdentifier || null,
     displayName: user.displayName || null,
     createdAt: now.toISOString(),
     expiresAt
@@ -73,6 +85,7 @@ export async function createSession(app, user) {
             userId: session.userId,
             role: session.role,
             email: session.email,
+            signInIdentifier: session.signInIdentifier,
             displayName: session.displayName,
             createdAt: now,
             expiresAt
@@ -134,6 +147,7 @@ export async function readSession(app, request) {
     userId: doc.userId,
     role: doc.role,
     email: doc.email,
+    signInIdentifier: doc.signInIdentifier || null,
     displayName: doc.displayName || null,
     createdAt: doc.createdAt,
     expiresAt: doc.expiresAt,
@@ -141,6 +155,39 @@ export async function readSession(app, request) {
   };
   app.sessions.set(sessionId, session); // warm the cache
   return session;
+}
+
+// Revoke every session belonging to one user, without needing their cookie.
+//
+// Deleting an account does NOT log that account out on its own: the session row
+// is keyed by session id, not by user, so it outlives the owner document and
+// readSession keeps answering from it. The row is what makes the cookie work,
+// so removing it is the revocation — readSession's Mongo fallback already
+// returns null for a session it cannot find.
+//
+// The ids are read out of Mongo first and then deleted from the in-process
+// cache BY KEY. app.sessions is a BoundedTtlMap with get/set/has/delete only —
+// it is not iterable, and a for..of over it throws.
+//
+// Best-effort by design: this runs after the destructive action it accompanies,
+// and failing the whole request because a cleanup query failed would leave the
+// caller thinking nothing happened when the account is already gone.
+export async function revokeSessionsForUser(app, userId) {
+  if (userId == null) return 0;
+  const id = String(userId);
+
+  try {
+    const coll = await sessionCollection();
+    if (!coll) return 0;
+
+    const doomed = await coll.find({ userId: id }, { projection: { _id: 1 } }).toArray();
+    for (const row of doomed) app.sessions.delete(row._id);
+
+    const result = await coll.deleteMany({ userId: id });
+    return result.deletedCount || 0;
+  } catch {
+    return 0;
+  }
 }
 
 export async function clearSession(app, request, reply) {

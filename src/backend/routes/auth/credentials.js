@@ -4,9 +4,11 @@ import {
 import {
   clearSession,
   createSession,
+  getSessionCookieName,
   readSession,
   writeSessionCookie
 } from "../../lib/auth/session.js";
+import { revokeVaultAccess } from "../../lib/core/vault.js";
 import {
   clearLoginFailures,
   getLoginLock,
@@ -113,7 +115,12 @@ export function registerAuthRoutes(app, env) {
 
       await clearLoginFailures(collections, role, email);
 
-      const sessionId = await createSession(app, user);
+      // Password sign-in resolves the account by e-mail only (loginUser →
+      // findUserByEmail), so the address on the account IS what was typed.
+      const sessionId = await createSession(app, {
+        ...user,
+        signInIdentifier: user.email
+      });
       writeSessionCookie(reply, sessionId, env.runtimeMode === "production", Boolean(rememberMe));
 
       return {
@@ -129,6 +136,19 @@ export function registerAuthRoutes(app, env) {
   app.post("/api/auth/admin/login", loginRateLimit, credentialLogin("admin"));
 
   app.post("/api/auth/logout", async (request, reply) => {
+    // Drop any standing vault unlock before the session goes. The grant is
+    // keyed by session id, so once the session is deleted nothing can present
+    // it — it is inert either way, and never reachable by a recycled id
+    // because session ids are 192 bits of randomness and are never reissued.
+    // It is removed here so signing out does not leave a row behind that says
+    // an unlocked vault exists, which is both untrue and confusing to read in
+    // the database.
+    const sessionId = request.cookies[getSessionCookieName()];
+    if (sessionId) {
+      const collections = await getCollections(env);
+      if (collections) await revokeVaultAccess(collections, sessionId);
+    }
+
     await clearSession(app, request, reply);
 
     return {

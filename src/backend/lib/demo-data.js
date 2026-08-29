@@ -1,6 +1,6 @@
 import { ObjectId } from "mongodb";
 
-import { getCollections } from "./db/repositories.js";
+import { getCollections, getVaultBucket } from "./db/repositories.js";
 import { createToken, createPasswordHash } from "./auth/security.js";
 
 const DEMO_OWNER_EMAIL = "owner@wavetag.local";
@@ -95,6 +95,21 @@ export async function seedDemoData(env) {
   await collections.tags.deleteMany({});
   await collections.owners.deleteMany({});
   await collections.admins.deleteMany({});
+
+  // The vault too. This wipes every owner, so anything left in vault_documents
+  // belongs to an account that no longer exists — and the stored bytes and the
+  // storage counters would survive a "reset" that is supposed to leave a clean
+  // slate. A stale counter is the one with teeth: it reserves storage against
+  // an owner id that is never coming back.
+  await collections.vaultDocuments.deleteMany({});
+  await collections.vaultGrants.deleteMany({});
+  await collections.vaultUsage.deleteMany({});
+  const bucket = await getVaultBucket(env);
+  if (bucket) {
+    for (const file of await bucket.find({}).toArray()) {
+      await bucket.delete(file._id).catch(() => {});
+    }
+  }
 
   await collections.owners.insertOne(owner);
   await collections.admins.insertOne(admin);

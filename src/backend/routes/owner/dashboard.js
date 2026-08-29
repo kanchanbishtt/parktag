@@ -9,7 +9,8 @@ import {
   OTP_PURPOSE_DELETE_ACCOUNT,
   OTP_PURPOSE_LINK_MOBILE
 } from "../../lib/auth/otp.js";
-import { getCollections, ensurePendingCallsIndexes } from "../../lib/db/repositories.js";
+import { getCollections, ensurePendingCallsIndexes, getVaultBucket } from "../../lib/db/repositories.js";
+import { purgeVaultDocuments, deleteUsage } from "../../lib/core/vault.js";
 import { clientErrorMessage } from "../../lib/errors.js";
 import { createQrDataUrl, createPrintQrDataUrl } from "../../lib/core/qr-output.js";
 import { createEtagForVehicle, buildTagScanUrl, VEHICLE_LABELS, etagIdFor, stickerSerialFor } from "../../lib/core/tag-issuance.js";
@@ -25,6 +26,31 @@ function shapeAddress(doc) {
   const { fullName, phone, line1, line2, landmark, city, state, pincode } = doc;
   return { fullName, phone, line1, line2, landmark, city, state, pincode };
 }
+
+// How long after a scanner makes contact the owner may call them back.
+//
+// Ten minutes, and deliberately much shorter than the 48 hours the activity
+// list shows. Those two spans answer different questions and should not be
+// confused:
+//
+//   48 hours — how long the owner can SEE who contacted them, with times.
+//              A log. Nothing about it is actionable on its own.
+//   10 minutes — how long they can RETURN that contact.
+//
+// The person on the other end is a stranger who rang about a parked car and
+// then got on with their day. Ringing them back two days later is a call they
+// have no context for and did not agree to; ringing back within ten minutes is
+// the conversation they were trying to have. The short window is the courtesy,
+// not a limitation.
+//
+// Only the most recent contact is returnable — see the route below.
+const CALLBACK_WINDOW_MS = 10 * 60 * 1000;
+
+// Said in two places below — when the account holds no premium tag at all, and
+// when the contact they named arrived on an E-Tag — and the owner should not be
+// able to tell those apart by the wording. Both mean the same thing to them.
+const PREMIUM_REQUIRED_MESSAGE =
+  "Calling someone back is a premium feature. Upgrade this vehicle to a premium tag to use it.";
 
 // Where a confirmation code for THIS owner may be sent.
 //
@@ -69,6 +95,22 @@ export function registerOwnerRoutes(app, env) {
     const ownerId = toObjectId(request.session.userId);
 
     const owner = await collections.owners.findOne({ _id: ownerId });
+
+    // A live session whose account is gone. This is reachable: deactivating a
+    // field-demo sticker deletes the throwaway account the activation wizard
+    // created for the customer, and the cookie outlives it. Everything below
+    // dereferences `owner`, so without this the route threw a TypeError and
+    // answered 500 — a server error where the caller should simply be sent
+    // back to sign in.
+    //
+    // The cookie goes too. Answering 401 while leaving it in place means the
+    // browser keeps replaying a session that can never work again, and every
+    // page load pays for another round trip to be told the same thing.
+    if (!owner) {
+      await clearSession(app, request, reply);
+      reply.code(401);
+      return { ok: false, error: "Authentication required" };
+    }
 
     // Single source of truth: every vehicle is a real tag. Lazily migrate any
     // legacy owner.localVehicles[] into real E-Tags (each gets its own unique
@@ -121,6 +163,11 @@ export function registerOwnerRoutes(app, env) {
         // STRICT_SCRIPT_PAGES — its CSP still permits inline script.
         email: owner.email || null,
         mobile: owner.mobile || null,
+        // What this person typed to sign in, so the header can echo it back
+        // instead of ranking email above mobile and showing an address to
+        // somebody who signed in with a phone number. Null on sessions created
+        // before the field existed — the page falls back to email/mobile.
+        signInIdentifier: request.session.signInIdentifier || null,
         // Only a name the owner actually set. A stored identifier reads as
         // "no name", so the dashboard offers to collect one instead of
         // greeting them with their own phone number.
@@ -178,13 +225,27 @@ export function registerOwnerRoutes(app, env) {
         message: item.message || null,
         status: item.status,
         callResult: item.callResult || null,
+        // Normalised "answered" | "missed" | "failed" | null — see
+        // lib/core/call-outcome.js. The page decides whether to offer a
+        // callback from this, rather than trying to read Exotel's own
+        // vocabulary (which it previously did, and got wrong).
+        callOutcome: item.callOutcome || null,
         callDuration: typeof item.callDuration === "number" ? item.callDuration : null,
         provider: item.provider || null,
         providerRequestId: item.providerRequestId || null,
         providerWebhookStatus: item.providerWebhookStatus || null,
         providerError: item.providerError || null,
-        createdAt: item.createdAt
-      }))
+        createdAt: item.createdAt,
+        // When the provider last told us anything about this contact. For a
+        // call that is the closest thing we have to when it ended, so the
+        // activity log can show more than the moment it started.
+        updatedAt: item.updatedAt || null
+      })),
+      // Sent rather than duplicated as a constant in the page, so the button
+      // the browser draws and the window the server enforces cannot drift
+      // apart. The route re-checks regardless — a stale button gets a clean
+      // 410, never a call it should not have placed.
+      callbackWindowMs: CALLBACK_WINDOW_MS
     };
   });
 
@@ -700,6 +761,24 @@ export function registerOwnerRoutes(app, env) {
       return { ok: false, error: "Tag not found" };
     }
 
+    // The tag is soft-deleted, but its documents must go for real. ownedTag()
+    // in the vault routes requires `deletedAt: null`, so once the tag is
+    // deleted the owner can no longer list, view or delete anything filed under
+    // it — the rows and their bytes would sit there permanently, out of reach
+    // and still counted against the 40MB storage quota. Deleting a vehicle is
+    // the owner asking for its paperwork to go too.
+    const purged = await purgeVaultDocuments(
+      collections,
+      await getVaultBucket(env),
+      { ownerId, tagId: String(tagId) }
+    );
+    if (purged.orphanedBlobs) {
+      request.log.error(
+        { event: "vault-purge-orphans", tagId: String(tagId), orphanedBlobs: purged.orphanedBlobs },
+        "[vault] vehicle deleted but some document blobs could not be removed — sweep required"
+      );
+    }
+
     return { ok: true };
   });
 
@@ -928,14 +1007,47 @@ export function registerOwnerRoutes(app, env) {
         }
       }
 
+      // The document vault goes FIRST and is awaited on its own. These are
+      // identity documents — an RC, a driving licence, an insurance policy —
+      // and they used to survive the account outright: this handler wiped the
+      // five collections below and nothing in the app has ever swept the vault.
+      // Failing here must abort the deletion rather than proceed, otherwise the
+      // owner record disappears and takes with it the only link back to the
+      // documents that are still stored.
+      const purged = await purgeVaultDocuments(
+        collections,
+        await getVaultBucket(env),
+        { ownerId }
+      );
+      if (purged.orphanedBlobs) {
+        request.log.error(
+          { event: "vault-purge-orphans", orphanedBlobs: purged.orphanedBlobs },
+          "[vault] account deleted but some document blobs could not be removed — sweep required"
+        );
+      }
+
       await Promise.all([
         collections.tags.deleteMany({ ownerId }),
         collections.contactRequests.deleteMany({ ownerId }),
         collections.shopOrders.deleteMany({ ownerId }),
         collections.addresses.deleteMany({ ownerId }),
-        collections.pendingCalls.deleteMany({ ownerId })
+        collections.pendingCalls.deleteMany({ ownerId }),
+        // Any standing vault unlock. Keyed by session id, so it is not reachable
+        // through the owner record and would otherwise outlive it.
+        collections.vaultGrants.deleteMany({ ownerId: String(ownerId) }),
+        // The storage counter goes with the owner it belongs to.
+        deleteUsage(collections, ownerId)
       ]);
       await collections.owners.deleteOne({ _id: ownerId });
+
+      // EVERY session, not just the one making the request. clearSession below
+      // only removes the caller's, so a second signed-in device kept a working
+      // session for a deleted account for the rest of its 7-day life — and
+      // readSession does not check that the owner still exists, so that session
+      // authenticated normally and could still download the vault.
+      await collections.sessions
+        .deleteMany({ userId: String(ownerId) })
+        .catch(() => {});
 
       // Must be awaited. clearSession only reaches `reply.clearCookie` after an
       // `await` on the session collection, so firing it off unawaited let the
@@ -965,29 +1077,129 @@ export function registerOwnerRoutes(app, env) {
     const ownerId = toObjectId(request.session.userId);
     const owner = await collections.owners.findOne({ _id: ownerId });
 
+    // Calling a scanner back is a premium feature.
+    //
+    // Premium is a property of the TAG, never of the account: every other paid
+    // behaviour in the app (contactAvailable, unlimitedContact, the free-contact
+    // gate) is decided by `tag.premium` for the specific tag that was scanned,
+    // and there is no owner-level premium flag anywhere. So eligibility is
+    // scoped to contacts that ARRIVED ON a premium tag, not to owners who
+    // happen to own one — otherwise a single premium purchase would quietly
+    // unlock callback for every E-Tag on the account.
+    //
+    // Deleted tags are excluded so that this agrees with the dashboard, which
+    // builds its own tag list the same way. A button the page draws and a route
+    // that refuses it is worse than either answer on its own.
+    const premiumTokens = (
+      await collections.tags
+        .find(
+          { ownerId, premium: true, deletedAt: { $in: [null, undefined] } },
+          { projection: { token: 1 } }
+        )
+        .toArray()
+    ).map((tag) => tag.token);
+
+    if (!premiumTokens.length) {
+      reply.code(402);
+      return {
+        ok: false,
+        code: "PREMIUM_REQUIRED",
+        error: PREMIUM_REQUIRED_MESSAGE
+      };
+    }
+
     const ownerPhone = owner?.mobile || null;
     if (!ownerPhone) {
       reply.code(402);
       return { ok: false, code: "NO_PHONE", error: "Add your phone number to enable callback." };
     }
 
-    // Most recent scanner contact within the 60-minute window.
-    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-    const recentContact = await collections.contactRequests.findOne(
-      {
-        ownerId,
-        phone: { $exists: true, $ne: null },
-        createdAt: { $gte: oneHourAgo.toISOString() }
-      },
-      { sort: { createdAt: -1 } }
-    );
+    const windowStart = new Date(Date.now() - CALLBACK_WINDOW_MS).toISOString();
+
+    // Which contact are we returning? The activity list now puts a button on
+    // each row, so the caller names one. Without an id this still resolves the
+    // most recent, which is what the single banner button has always sent.
+    //
+    // `ownerId` is part of the filter and NOT taken from the body: an id is a
+    // client-supplied value, and looking it up without scoping it to the signed
+    // -in owner would let anyone holding a session dial the scanner attached to
+    // somebody else's tag by guessing an ObjectId.
+    const { requestId } = request.body || {};
+
+    // Validate the shape before it is used, so a junk id is a 400 rather than
+    // being quietly ignored and answered as if it had matched.
+    let wanted = null;
+    if (requestId !== undefined && requestId !== null) {
+      wanted = tryObjectId(requestId);
+      if (!wanted) {
+        reply.code(400);
+        return { ok: false, error: "Invalid request id." };
+      }
+    }
+
+    // The MOST RECENT contact, and only that one.
+    //
+    // Not "any contact inside the window": returning an older one means ringing
+    // somebody who reported something, was answered or gave up, and has since
+    // moved on — while the person who just called is left waiting. If two
+    // people contacted the same vehicle, the live conversation is the newer.
+    //
+    // Resolved here rather than trusted from the body, so a stale page holding
+    // yesterday's row id cannot dial its way past this.
+    const filter = {
+      ownerId,
+      token: { $in: premiumTokens },
+      phone: { $exists: true, $ne: null },
+      createdAt: { $gte: windowStart }
+    };
+
+    // Note what this filter does NOT do: refuse a call that was answered.
+    //
+    // The activity list stops OFFERING a callback once a conversation
+    // demonstrably happened (see canCallBack in welcome.js), and that is a
+    // presentation rule. This route's job is authorisation — whose contact it
+    // is, and whether it is still inside the window — and neither is affected
+    // by how the call went. An owner who cuts off after four seconds and wants
+    // to redial is doing something entirely legitimate, and refusing it here
+    // would turn a tidier list into a dead end.
+    const recentContact = await collections.contactRequests.findOne(filter, {
+      sort: { createdAt: -1 }
+    });
+
+    // Before falling back to "the window has passed": if the row they named is
+    // real and theirs and simply arrived on an E-Tag, say THAT. Telling an owner
+    // their ten minutes ran out on a contact from one minute ago would send them
+    // looking for a bug instead of at the upgrade that would fix it.
+    if (wanted) {
+      const named = await collections.contactRequests.findOne({ _id: wanted, ownerId });
+      if (named && !premiumTokens.includes(named.token)) {
+        reply.code(402);
+        return {
+          ok: false,
+          code: "PREMIUM_REQUIRED",
+          error: PREMIUM_REQUIRED_MESSAGE
+        };
+      }
+    }
 
     if (!recentContact) {
       reply.code(410);
       return {
         ok: false,
         code: "CALLBACK_WINDOW_EXPIRED",
-        error: "No recent contact to call back. The 60-minute window has passed."
+        error: "The 10-minute callback window for this contact has passed."
+      };
+    }
+
+    // A named row that is not the newest one. The page should not be offering
+    // it, so this is either a tab left open while another call arrived, or a
+    // request built by hand. Same answer either way.
+    if (wanted && String(recentContact._id) !== String(wanted)) {
+      reply.code(410);
+      return {
+        ok: false,
+        code: "CALLBACK_NOT_LATEST",
+        error: "Only your most recent contact can be called back."
       };
     }
 

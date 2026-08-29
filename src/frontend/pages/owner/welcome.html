@@ -1047,6 +1047,48 @@
   .pt-act-det-badge {
     font-size: .6rem; font-weight: 700; padding: 2px 7px; border-radius: 20px;
   }
+
+  /* The plate an activity row belongs to.
+     Monospaced and letter-spaced so it reads as a registration rather than as
+     another word in the line, and tinted with that vehicle's own colour from
+     the list above — an owner with several tags scans this feed by vehicle
+     first, so the identity has to survive a glance. */
+  .pt-act-plate {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: .67rem; font-weight: 800; letter-spacing: .05em;
+    padding: 3px 8px; border-radius: 7px; border: 1.5px solid;
+    white-space: nowrap; line-height: 1.35;
+  }
+  .pt-act-plate img { display: block; flex-shrink: 0; }
+
+  /* Per-vehicle filter chips.
+     Scrolls sideways rather than wrapping: on a phone with five vehicles a
+     wrapping row pushes the feed itself below the fold, which defeats the
+     point of a control meant to get you to it faster. */
+  .pt-act-vfilter {
+    display: flex; gap: 8px; margin-bottom: 14px;
+    overflow-x: auto; padding-bottom: 2px;
+    scrollbar-width: none; -ms-overflow-style: none;
+  }
+  .pt-act-vfilter::-webkit-scrollbar { display: none; }
+  .pt-act-vchip {
+    flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px;
+    background: #fff; border: 1.5px solid #E5E7EB; border-radius: 20px;
+    padding: 6px 11px; font-size: .73rem; font-weight: 700; color: #6B7280;
+    cursor: pointer; font-family: inherit; white-space: nowrap;
+    transition: background .15s, border-color .15s, color .15s;
+  }
+  .pt-act-vchip:hover:not(.active) { background: #F9FAFB; border-color: #D1D5DB; }
+  .pt-act-vchip:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
+  .pt-act-vchip img { display: block; flex-shrink: 0; }
+  .pt-act-vchip-n {
+    font-size: .62rem; font-weight: 800; background: #F3F4F6; color: #6B7280;
+    padding: 1px 6px; border-radius: 20px; line-height: 1.5;
+  }
+  /* Inherits the chip's white text when selected, so the count stays readable
+     against whichever vehicle colour the chip just took on. */
+  .pt-act-vchip.active .pt-act-vchip-n { background: rgba(255,255,255,.25); color: inherit; }
   .pt-act-time { font-size: .67rem; color: #9CA3AF; font-weight: 600; margin: 0; }
 
   .pt-act-cta {
@@ -1313,6 +1355,10 @@
             </div>
           </div>
         </div>
+        <!-- Per-vehicle filter, populated by renderActivityFilter(). Hidden
+             until at least two vehicles have activity in the window. -->
+        <div class="pt-act-vfilter" id="actVehicleFilter" role="group"
+             aria-label="Filter activity by vehicle" style="display:none"></div>
         <div id="actCards">
           <!-- skeleton -->
           <div class="pt-act-card idle" style="pointer-events:none">

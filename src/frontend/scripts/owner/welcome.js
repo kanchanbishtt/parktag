@@ -163,6 +163,13 @@ let allRequests  = [];
 let _ownerMobile = null;
 let _nbFilter    = null; // "active" | "premium" | "free" | "used" | null
 
+// Which vehicle the activity feed is narrowed to, by tag token; null = all.
+//
+// Separate from _nbFilter on purpose. That one filters the vehicle list by
+// plan state; this one answers a different question — "what happened to THIS
+// car" — and an owner asking it should not lose their place in the list above.
+let _actVehicle  = null;
+
 // ── Burger menu state ─────────────────────────────────────────────
 let _owner  = null;
 let _userId = null;
@@ -551,6 +558,114 @@ function formatCallDuration(seconds) {
 // that predates the field.
 let _callbackWindowMs = 48 * 60 * 60 * 1000;
 
+// A contact that no longer maps to a tag the owner holds — a deleted vehicle,
+// or a tag transferred away. Grey rather than a palette colour, so it never
+// impersonates one of the vehicles still in the list above.
+const UNKNOWN_VEHICLE_COLOR = { bg: "#F3F4F6", accent: "#6B7280" };
+
+// Which vehicle an activity row belongs to, in that vehicle's own colour.
+//
+// The index into allTags is what picks the colour, exactly as vehicleCard()
+// does it — so a row in the feed and the card further up the page are the same
+// shade of the same car. That correspondence is the whole feature: with three
+// tags on one account, "someone contacted you" is not actionable until you
+// know which windscreen they were standing at.
+function vehicleOf(token) {
+  const idx = allTags.findIndex(t => t.token === token);
+  const tag = idx >= 0 ? allTags[idx] : null;
+  return {
+    tag,
+    plate: tag ? (tag.plateNumber || tag.number || tag.token || "—") : "Unknown vehicle",
+    color: tag ? VEHICLE_COLORS[idx % VEHICLE_COLORS.length] : UNKNOWN_VEHICLE_COLOR,
+    icon:  tag ? iconFor(tag) : VEHICLE_SVGS.car,
+  };
+}
+
+// The plate, as a plate: monospaced and letter-spaced so it reads as a
+// registration rather than as a word in the sentence next to it.
+function plateChip(v) {
+  const icon = v.icon.replace(/width="28"/, 'width="13"').replace(/height="28"/, 'height="13"');
+  const style = `background:${v.color.bg};color:${v.color.accent};border-color:${v.color.accent}33`;
+  return `<span class="pt-act-plate" style="${style}">${icon}${esc(v.plate)}</span>`;
+}
+
+function hideActivityFilter() {
+  const row = document.getElementById("actVehicleFilter");
+  if (row) { row.style.display = "none"; row.innerHTML = ""; }
+}
+
+// Per-vehicle filter chips above the feed.
+//
+// Only drawn when at least two vehicles actually have activity — one car makes
+// every chip a no-op, and a filter that can only ever return everything is
+// noise. Counts are on the chips because "which car is getting scanned" is the
+// question an owner opens this section to answer, and the answer should not
+// require tapping through each one to find out.
+function renderActivityFilter(recent) {
+  const row = document.getElementById("actVehicleFilter");
+  if (!row) return;
+
+  const counts = new Map();
+  for (const r of recent) counts.set(r.token, (counts.get(r.token) || 0) + 1);
+
+  // A filter pinned to a vehicle that has since dropped out of the 48-hour
+  // window would leave the owner staring at an empty feed with no clue why.
+  // Falling back to "All" is the honest answer: there is nothing to show for
+  // that car any more.
+  if (_actVehicle !== null && !counts.has(_actVehicle)) _actVehicle = null;
+
+  // allTags order, so chip colours run in the same sequence as the cards above.
+  const withActivity = allTags.filter(t => counts.has(t.token));
+  const orphanCount  = recent.length - withActivity.reduce((n, t) => n + counts.get(t.token), 0);
+
+  if (withActivity.length + (orphanCount ? 1 : 0) < 2) {
+    row.style.display = "none";
+    row.innerHTML     = "";
+    return;
+  }
+
+  // Chips address a vehicle by its index in allTags, never by interpolating the
+  // token into the onclick. A token is server-generated and in practice
+  // alphanumeric, but esc() turns a quote into `&#39;`, which the HTML parser
+  // hands back to the JS parser as a real quote — escaping would not save an
+  // attribute built this way. An integer cannot break out of anything.
+  const chip = (idx, label, count, color, icon) => {
+    const on = idx >= 0 ? _actVehicle === allTags[idx].token : _actVehicle === null;
+    const style = on
+      ? (idx >= 0 ? `background:${color.accent};border-color:${color.accent};color:#fff`
+                  : "background:#03162D;border-color:#03162D;color:#fff")
+      : "";
+    const ic = icon ? icon.replace(/width="28"/, 'width="14"').replace(/height="28"/, 'height="14"') : "";
+    return `<button class="pt-act-vchip${on ? " active" : ""}" style="${style}"
+      aria-pressed="${on}" onclick="filterActivityBy(${idx})">
+      ${ic}${esc(label)}<span class="pt-act-vchip-n">${count}</span></button>`;
+  };
+
+  const all = chip(-1, "All", recent.length, null, null);
+
+  const chips = withActivity.map(t => {
+    const idx = allTags.indexOf(t);
+    const v   = vehicleOf(t.token);
+    return chip(idx, v.plate, counts.get(t.token), v.color, v.icon);
+  });
+
+  row.style.display = "flex";
+  row.innerHTML = all + chips.join("");
+}
+
+// Chips call this with an index into allTags, or -1 for "All". It only swaps
+// the filter and repaints from data already in memory, so switching vehicles
+// costs no network round-trip.
+function filterActivityBy(idx) {
+  const tag = idx >= 0 ? allTags[idx] : null;
+  // Tapping the vehicle you are already filtered to clears the filter, the way
+  // the noticeboard tiles above already behave.
+  const next = tag ? tag.token : null;
+  _actVehicle = (next !== null && _actVehicle === next) ? null : next;
+  renderActivity(allRequests);
+}
+window.filterActivityBy = filterActivityBy;
+
 function renderActivity(requests) {
   const container = document.getElementById("actCards");
   const badge     = document.getElementById("actBadge");
@@ -569,6 +684,7 @@ function renderActivity(requests) {
         <p class="pt-act-empty-s">Contact requests from scanners will appear here</p>
       </div>`;
     if (badge) badge.style.display = "none";
+    hideActivityFilter();
     return;
   }
 
@@ -640,8 +756,7 @@ function renderActivity(requests) {
   if (prompt) {
     if (eligible) {
       const ageMs  = Date.now() - new Date(eligible.createdAt).getTime();
-      const tag    = allTags.find(t => t.token === eligible.token);
-      const plate  = tag?.plateNumber || tag?.number || "your vehicle";
+      const v      = vehicleOf(eligible.token);
       const masked = eligible.phone ? `•••• ${String(eligible.phone).slice(-4)}` : "Unknown caller";
       const cta    = _ownerMobile
         ? `<button class="pt-act-cta" id="cbBtnPrompt" onclick="callBack('cbBtnPrompt')" style="flex-shrink:0">Call Back</button>`
@@ -663,7 +778,7 @@ function renderActivity(requests) {
     </div>
     <div class="pt-act-body">
       <p class="pt-act-who">${esc(masked)} contacted you</p>
-      <p class="pt-act-det">${esc(plate)} · Call</p>
+      <p class="pt-act-det">${plateChip(v)}<span>Call</span></p>
       <p class="pt-act-time">${formatTimeAgo(ageMs)}</p>
     </div>
     ${cta}
@@ -691,18 +806,26 @@ function renderActivity(requests) {
         <p class="pt-act-empty-s">Activity older than 2 days is hidden</p>
       </div>`;
     if (badge) badge.style.display = "none";
+    hideActivityFilter();
     return;
   }
 
-  const cards = recent.slice(0, 20).map(r => {
+  // Chips are built from the whole window, not from what the filter leaves —
+  // otherwise selecting a vehicle would erase every other chip and strand the
+  // owner with no way back.
+  renderActivityFilter(recent);
+  const visible = _actVehicle === null
+    ? recent
+    : recent.filter(r => r.token === _actVehicle);
+
+  const cards = visible.slice(0, 20).map(r => {
     const ageMs  = now - new Date(r.createdAt).getTime();
     const within = ageMs <= WIN_MS;
     const isCall = r.action === "call";
     const isElig = r === eligible;
 
-    // Match token → vehicle plate
-    const tag    = allTags.find(t => t.token === r.token);
-    const plate  = tag?.plateNumber || tag?.number || "your vehicle";
+    // Match token → vehicle, and carry its colour into the row
+    const v      = vehicleOf(r.token);
     const masked = r.phone ? `•••• ${String(r.phone).slice(-4)}` : "Unknown caller";
 
     let cardCls, icBg, icCol;
@@ -763,7 +886,7 @@ function renderActivity(requests) {
   <div class="pt-act-ic" style="background:${icBg};color:${icCol}">${isCall ? callSvg : waSvg}</div>
   <div class="pt-act-body">
     <p class="pt-act-who">${esc(masked)} contacted you</p>
-    <p class="pt-act-det">${esc(plate)} · ${isCall ? "Call" : "WhatsApp"} ${resultBadge}</p>
+    <p class="pt-act-det">${plateChip(v)}<span>${isCall ? "Call" : "WhatsApp"}</span>${resultBadge}</p>
     <p class="pt-act-time" title="${esc(new Date(r.createdAt).toLocaleString())}">${esc(formatExactTime(r.createdAt))} · ${formatTimeAgo(ageMs)}</p>
   </div>
   ${cta}

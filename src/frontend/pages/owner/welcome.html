@@ -1099,6 +1099,17 @@
      against whichever vehicle colour the chip just took on. */
   .pt-act-vchip.active .pt-act-vchip-n { background: rgba(255,255,255,.25); color: inherit; }
   .pt-act-time { font-size: .67rem; color: #9CA3AF; font-weight: 600; margin: 0; }
+  /* Where the scanner contacted from. Sits between the detail line and the
+     timestamp, quieter than the detail row and a shade darker than the time, so
+     it reads as context on the contact rather than as another status badge.
+     min-width:0 + overflow lets a long "City, Region, Country" ellipsis inside
+     a narrow card instead of widening it. */
+  .pt-act-loc {
+    font-size: .69rem; color: #6B7280; margin: 0 0 3px;
+    display: flex; align-items: center; gap: 4px; min-width: 0;
+  }
+  .pt-act-loc svg { flex-shrink: 0; color: #9CA3AF; }
+  .pt-act-loc span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
   .pt-act-cta {
     flex-shrink: 0; padding: 9px 16px; border-radius: 11px; border: none;

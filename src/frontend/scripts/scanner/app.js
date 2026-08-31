@@ -440,6 +440,10 @@ function setContactAvailability(available) {
   contactAvailable = available;
   setHidden("scanner-why-title", !available);
   setHidden("scanner-contact-actions", !available);
+  // The area notice belongs to the tiles, not to the page: a tag that cannot be
+  // contacted records no location, so promising one would be a lie, and warning
+  // about a sharing that is not happening is its own kind of wrong.
+  setHidden("scanner-location-notice", !available);
 
   // Two reasons to be blocked, two panels, and never both at once. An unknown
   // or missing code falls back to the sticker CTA — the behaviour this page has

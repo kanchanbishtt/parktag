@@ -316,8 +316,12 @@
                  every other ParkTag call — the owner's dashboard shows the last
                  four digits and the call is bridged by Exotel. -->
             <div class="pt-reason-callback" id="reason-callback">
+              <!-- Leads with what the SCANNER gets: a WhatsApp alert is one-way,
+                   so without a number they report a problem and never learn
+                   whether anyone came. "Optional" stays, and stays visible —
+                   the nudge on send is a prompt, never a wall. -->
               <label class="pt-reason-cb-label" for="reason-callback-phone">
-                Your number, so the owner can call you back
+                Add your number so the owner can reply
                 <span class="pt-reason-cb-opt">optional</span>
               </label>
               <input id="reason-callback-phone" class="pt-input pt-reason-cb-input"
@@ -325,6 +329,13 @@
                      placeholder="10-digit mobile number" />
               <p class="pt-reason-cb-note" id="reason-callback-note">
                 Your number stays hidden. The owner can only reach you through ParkTag.
+              </p>
+              <!-- Shown once, only when Notify is tapped with the field empty.
+                   Sending anonymously then takes a second, deliberate tap rather
+                   than being the default an empty box quietly produces. -->
+              <p class="pt-reason-cb-nudge" id="reason-callback-nudge" hidden>
+                Without a number the owner can’t reply — you won’t hear whether anyone came.
+                <strong>Tap Notify again to send anonymously.</strong>
               </p>
             </div>
 

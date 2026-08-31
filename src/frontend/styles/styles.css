@@ -2534,10 +2534,17 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
    Sits between the reason rows and Cancel, sharing the rows' right edge (see
    the margin note below) so the three read as one column rather than the field
    hanging off the side. */
+/* Given a surface of its own rather than sitting under a hairline.
+   As a bare rule-plus-input it read as trailing small print and got skipped;
+   a tinted panel makes it part of the task without turning it into a demand.
+   The right margin drops to match the left so the panel is symmetrical — the
+   old 22px was compensating for a divider that no longer runs edge to edge. */
 .pt-reason-callback {
-  margin: 14px 22px 4px 0;
-  padding-top: 14px;
-  border-top: 1px solid #EEF2F8;
+  margin: 14px 0 4px;
+  padding: 12px 14px;
+  background: #F8FAFC;
+  border: 1px solid #E8EDF5;
+  border-radius: 10px;
 }
 
 .pt-reason-cb-label {
@@ -2579,6 +2586,27 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
 .pt-reason-cb-note[data-tone="error"] {
   color: #B91C1C;
   font-weight: 600;
+}
+
+/* The one-time prompt shown when Notify is tapped with the field empty.
+   Amber, not red: nothing has gone wrong and the scanner has done nothing
+   incorrect — this is a question, and sending anonymously is a valid answer.
+   Red here would read as an error and is exactly the pressure this must not
+   apply to somebody doing a stranger a favour. */
+.pt-reason-cb-nudge {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: #92400E;
+  background: #FFFBEB;
+  border: 1px solid #FDE68A;
+  border-radius: 8px;
+}
+
+.pt-reason-cb-nudge strong {
+  font-weight: 700;
+  color: #78350F;
 }
 
 .pt-reason-card .pt-cancel-action {

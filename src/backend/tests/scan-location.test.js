@@ -189,6 +189,37 @@ describe("what a captured location contains", () => {
     }
   });
 
+  test("a slow provider does not hold up the contact", async () => {
+    // /register-call and /register-emergency-call do not place a call — they
+    // write a pendingCall and hand back a number to dial. Both were pure
+    // database work, so an unbounded lookup in front of them would leave
+    // somebody standing at a car watching a spinner, and on the SOS path
+    // that somebody may be dealing with an accident.
+    const original = globalThis.fetch;
+    let settled = false;
+    globalThis.fetch = () =>
+      new Promise((resolve) => {
+        // Longer than the budget and longer than lookupGeo's own ceiling, so
+        // only the budget can end this.
+        setTimeout(() => {
+          settled = true;
+          resolve({ ok: true, json: async () => OK_PAYLOAD });
+        }, 5000).unref();
+      });
+
+    try {
+      const startedAt = Date.now();
+      const loc = await resolveScannerLocation({}, PREMIUM_TRIAL, PUBLIC_IP);
+      const waited = Date.now() - startedAt;
+
+      assert.equal(loc, null, "a slow lookup yields no location rather than a wait");
+      assert.ok(waited < 2000, `waited ${waited}ms — the budget did not apply`);
+      assert.equal(settled, false, "the provider had not answered; the budget ended it");
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
+
   test("a provider outage costs the contact nothing", async () => {
     // This runs on the path that places a call. It must never throw.
     const original = globalThis.fetch;

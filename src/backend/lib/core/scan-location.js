@@ -44,6 +44,43 @@
 import { callEntitlement } from "./call-access.js";
 import { lookupGeo } from "../integrations/geoip.js";
 
+// How long a contact may wait on the geo provider before giving up on it.
+//
+// Much shorter than lookupGeo's own 2.5s ceiling, and the reason is the shape of
+// the routes this sits on. /register-call and /register-emergency-call do NOT
+// place a call — they write a pendingCall and hand the scanner a virtual number
+// to dial. Both were pure database work, so an unbounded provider call in front
+// of them turns a fast route into a spinner while somebody stands at a car, and
+// on the SOS path that somebody may be dealing with an accident.
+//
+// A location is a nice-to-have on an activity row; getting the number dialled is
+// not. So the lookup races a deadline and the row is simply written without a
+// location when the provider is slow. Nothing is lost by abandoning it: the
+// lookup completes in the background and populates geoip's own cache, so the
+// next contact from that address resolves instantly.
+const LOOKUP_BUDGET_MS = 800;
+
+// Resolve `promise`, or null if it has not settled within `ms`.
+//
+// The timer is always cleared: left running it would hold the event loop open
+// past the response, which in a test run means the process does not exit.
+//
+// The abandoned promise is not a leak and cannot become an unhandled rejection —
+// lookupGeo is documented to always resolve and never throw, precisely so a
+// provider outage cannot cost somebody their call.
+async function withinBudget(promise, ms) {
+  let timer;
+  const deadline = new Promise((resolve) => {
+    timer = setTimeout(() => resolve(null), ms);
+  });
+
+  try {
+    return await Promise.race([promise, deadline]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // Resolve the scanner's coarse location for a contact about to be recorded.
 //
 // Returns null for "no location on this row", which is the shape every caller
@@ -58,7 +95,7 @@ import { lookupGeo } from "../integrations/geoip.js";
 export async function resolveScannerLocation(env, tag, rawIp) {
   if (!callEntitlement(tag).masking) return null;
 
-  const geo = await lookupGeo(env, rawIp);
+  const geo = await withinBudget(lookupGeo(env, rawIp), LOOKUP_BUDGET_MS);
   if (!geo) return null;
 
   // A private, loopback or unresolvable address comes back as all-nulls. Storing

@@ -12,6 +12,7 @@ import {
 import { getCollections, ensurePendingCallsIndexes, getVaultBucket } from "../../lib/db/repositories.js";
 import { purgeVaultDocuments, deleteUsage } from "../../lib/core/vault.js";
 import { callEntitlement } from "../../lib/core/call-access.js";
+import { formatScannerLocation } from "../../lib/core/scan-location.js";
 import { clientErrorMessage } from "../../lib/errors.js";
 import { createQrDataUrl, createPrintQrDataUrl } from "../../lib/core/qr-output.js";
 import { createEtagForVehicle, buildTagScanUrl, VEHICLE_LABELS, etagIdFor, stickerSerialFor } from "../../lib/core/tag-issuance.js";
@@ -245,6 +246,16 @@ export function registerOwnerRoutes(app, env) {
         // vocabulary (which it previously did, and got wrong).
         callOutcome: item.callOutcome || null,
         callDuration: typeof item.callDuration === "number" ? item.callDuration : null,
+        // Where the scanner contacted from, at city precision, or null when the
+        // tag was not entitled to it, the address did not resolve, or the row
+        // predates the feature. Sent as the already-derived fields plus a
+        // ready-made line so the page cannot assemble the same row two ways.
+        //
+        // `item.ipAddress` is deliberately NOT sent. It is on the record for
+        // abuse handling; giving one user another user's network address is a
+        // different act from naming the city, and only the second was asked for.
+        scannerLocation: item.scannerLocation || null,
+        scannerLocationLabel: formatScannerLocation(item.scannerLocation),
         provider: item.provider || null,
         providerRequestId: item.providerRequestId || null,
         providerWebhookStatus: item.providerWebhookStatus || null,

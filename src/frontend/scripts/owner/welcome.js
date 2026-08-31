@@ -797,6 +797,9 @@ function renderActivity(requests) {
 
   const callSvg = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.62 3.38 2 2 0 0 1 3.6 1.17h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.86a16 16 0 0 0 6 6l.91-.91a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" stroke="currentColor" stroke-width="1.8"/></svg>`;
   const waSvg  = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  // Smaller than the row icons above: this sits inside the body as a marker for
+  // a line of text, not as the card's own symbol.
+  const pinSvg = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="10" r="2.6" stroke="currentColor" stroke-width="2"/></svg>`;
 
   if (!recent.length) {
     container.innerHTML = `
@@ -891,12 +894,25 @@ function renderActivity(requests) {
       }
     }
 
+    // Where they contacted from, when the row carries it. Absent on rows from
+    // before this shipped, on tags that were not entitled, and on addresses no
+    // provider could place — all of which render as nothing rather than as
+    // "Unknown", because a missing city is not a fact worth a line of its own.
+    //
+    // The label is built server-side so this page and the admin console cannot
+    // describe the same row differently. Escaped like any other third-party
+    // string: it originates from a geo provider, not from us.
+    const locLine = r.scannerLocationLabel
+      ? `<p class="pt-act-loc" title="Approximate area, from the scanner's network connection">${pinSvg}<span>${esc(r.scannerLocationLabel)}</span></p>`
+      : "";
+
     return `
 <div class="pt-act-card ${cardCls}">
   <div class="pt-act-ic" style="background:${icBg};color:${icCol}">${isCall ? callSvg : waSvg}</div>
   <div class="pt-act-body">
     <p class="pt-act-who">${esc(masked)} contacted you</p>
     <p class="pt-act-det">${plateChip(v)}<span>${isCall ? "Call" : "WhatsApp"}</span>${resultBadge}</p>
+    ${locLine}
     <p class="pt-act-time" title="${esc(new Date(r.createdAt).toLocaleString())}">${esc(formatExactTime(r.createdAt))} · ${formatTimeAgo(ageMs)}</p>
   </div>
   ${cta}

@@ -44,42 +44,25 @@
 import { callEntitlement } from "./call-access.js";
 import { lookupGeo } from "../integrations/geoip.js";
 
-// How long a contact may wait on the geo provider before giving up on it.
+// Why this does not block the response.
 //
-// Much shorter than lookupGeo's own 2.5s ceiling, and the reason is the shape of
-// the routes this sits on. /register-call and /register-emergency-call do NOT
-// place a call — they write a pendingCall and hand the scanner a virtual number
-// to dial. Both were pure database work, so an unbounded provider call in front
-// of them turns a fast route into a spinner while somebody stands at a car, and
-// on the SOS path that somebody may be dealing with an accident.
+// The contact routes are fast. /register-call and /register-emergency-call do
+// NOT place a call — they write a pendingCall and hand the scanner a virtual
+// number to dial — so both were pure database work. Putting a provider call in
+// front of them leaves somebody standing at a car watching a spinner, and on the
+// SOS path that somebody may be dealing with an accident.
 //
-// A location is a nice-to-have on an activity row; getting the number dialled is
-// not. So the lookup races a deadline and the row is simply written without a
-// location when the provider is slow. Nothing is lost by abandoning it: the
-// lookup completes in the background and populates geoip's own cache, so the
-// next contact from that address resolves instantly.
-const LOOKUP_BUDGET_MS = 800;
-
-// Resolve `promise`, or null if it has not settled within `ms`.
+// An earlier attempt raced the lookup against an 800ms deadline. That was worse
+// than either option: the default provider answers in about 1.5s from
+// production, so the deadline expired on essentially every real contact and the
+// feature silently never worked, while still costing 800ms on the SOS path.
+// Measured, not guessed — a live lookup of a real scanner's address took 1.505s.
 //
-// The timer is always cleared: left running it would hold the event loop open
-// past the response, which in a test run means the process does not exit.
-//
-// The abandoned promise is not a leak and cannot become an unhandled rejection —
-// lookupGeo is documented to always resolve and never throw, precisely so a
-// provider outage cannot cost somebody their call.
-async function withinBudget(promise, ms) {
-  let timer;
-  const deadline = new Promise((resolve) => {
-    timer = setTimeout(() => resolve(null), ms);
-  });
-
-  try {
-    return await Promise.race([promise, deadline]);
-  } finally {
-    clearTimeout(timer);
-  }
-}
+// So the row is written immediately with no location, and the lookup runs after
+// the response and updates the row when it lands. Nothing waits on it. The owner
+// reads their activity log minutes or hours later, by which time a lookup that
+// took two seconds has long since arrived; and when the provider is down the row
+// simply keeps the null it was born with.
 
 // Resolve the scanner's coarse location for a contact about to be recorded.
 //
@@ -95,7 +78,7 @@ async function withinBudget(promise, ms) {
 export async function resolveScannerLocation(env, tag, rawIp) {
   if (!callEntitlement(tag).masking) return null;
 
-  const geo = await withinBudget(lookupGeo(env, rawIp), LOOKUP_BUDGET_MS);
+  const geo = await lookupGeo(env, rawIp);
   if (!geo) return null;
 
   // A private, loopback or unresolvable address comes back as all-nulls. Storing
@@ -112,6 +95,53 @@ export async function resolveScannerLocation(env, tag, rawIp) {
     region: geo.region || null,
     city: geo.city || null
   };
+}
+
+// In-flight background captures.
+//
+// Kept only so tests can wait for them. Production never looks at this: the
+// routes fire a capture and return, and the write lands whenever it lands.
+const inFlight = new Set();
+
+// Resolve the location for a contact row that has ALREADY been written, and
+// stamp it on when it arrives. Returns a promise, but callers on a request path
+// must NOT await it — that is the entire point.
+//
+// Every failure is swallowed. This runs after the response has been decided, so
+// there is nobody left to tell: a throw here could only become an unhandled
+// rejection and take the process down over a missing city. The row keeps the
+// null it was inserted with, which is exactly how a row from before this feature
+// reads, and the activity log renders both as nothing.
+//
+// The entitlement is checked before anything else, so an unentitled tag still
+// costs no lookup at all — capture is gated, not display.
+export function captureScannerLocation(env, collections, contactRequestId, tag, rawIp) {
+  const task = (async () => {
+    const location = await resolveScannerLocation(env, tag, rawIp);
+    // Nothing to say. Leave the null already on the row rather than writing one
+    // over it, so this never touches a document it has no news for.
+    if (!location) return;
+
+    await collections.contactRequests.updateOne(
+      { _id: contactRequestId },
+      { $set: { scannerLocation: location } }
+    );
+  })().catch(() => {});
+
+  inFlight.add(task);
+  void task.finally(() => inFlight.delete(task));
+  return task;
+}
+
+// Wait for every background capture started so far. Tests only.
+//
+// Without this a test would have to poll the row and hope, which is how a suite
+// becomes flaky. Loops rather than awaiting once, because settling one capture
+// can start another.
+export async function settleScannerLocations() {
+  while (inFlight.size > 0) {
+    await Promise.all([...inFlight]);
+  }
 }
 
 // One line for a human, most specific part first.

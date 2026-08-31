@@ -11,7 +11,12 @@
 import test, { describe, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 
-import { resolveScannerLocation, formatScannerLocation } from "../lib/core/scan-location.js";
+import {
+  resolveScannerLocation,
+  captureScannerLocation,
+  settleScannerLocations,
+  formatScannerLocation
+} from "../lib/core/scan-location.js";
 import { resetGeoipCache } from "../lib/integrations/geoip.js";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -189,37 +194,6 @@ describe("what a captured location contains", () => {
     }
   });
 
-  test("a slow provider does not hold up the contact", async () => {
-    // /register-call and /register-emergency-call do not place a call — they
-    // write a pendingCall and hand back a number to dial. Both were pure
-    // database work, so an unbounded lookup in front of them would leave
-    // somebody standing at a car watching a spinner, and on the SOS path
-    // that somebody may be dealing with an accident.
-    const original = globalThis.fetch;
-    let settled = false;
-    globalThis.fetch = () =>
-      new Promise((resolve) => {
-        // Longer than the budget and longer than lookupGeo's own ceiling, so
-        // only the budget can end this.
-        setTimeout(() => {
-          settled = true;
-          resolve({ ok: true, json: async () => OK_PAYLOAD });
-        }, 5000).unref();
-      });
-
-    try {
-      const startedAt = Date.now();
-      const loc = await resolveScannerLocation({}, PREMIUM_TRIAL, PUBLIC_IP);
-      const waited = Date.now() - startedAt;
-
-      assert.equal(loc, null, "a slow lookup yields no location rather than a wait");
-      assert.ok(waited < 2000, `waited ${waited}ms — the budget did not apply`);
-      assert.equal(settled, false, "the provider had not answered; the budget ended it");
-    } finally {
-      globalThis.fetch = original;
-    }
-  });
-
   test("a provider outage costs the contact nothing", async () => {
     // This runs on the path that places a call. It must never throw.
     const original = globalThis.fetch;
@@ -267,5 +241,94 @@ describe("how a location reads", () => {
     assert.equal(formatScannerLocation(undefined), null);
     assert.equal(formatScannerLocation({}), null);
     assert.equal(formatScannerLocation({ city: "  ", region: null, country: "" }), null);
+  });
+});
+
+// Records what the background capture tried to write, without a database.
+function fakeCollections() {
+  const writes = [];
+  return {
+    writes,
+    contactRequests: {
+      async updateOne(filter, update) {
+        writes.push({ filter, update });
+        return { modifiedCount: 1 };
+      }
+    }
+  };
+}
+
+describe("the background capture stamps the row afterwards", () => {
+  beforeEach(() => resetGeoipCache());
+
+  test("an entitled tag gets its row updated", async () => {
+    const provider = stubProvider(OK_PAYLOAD);
+    const collections = fakeCollections();
+    try {
+      await captureScannerLocation({}, collections, "row-1", PREMIUM_TRIAL, PUBLIC_IP);
+      assert.equal(collections.writes.length, 1);
+      assert.deepEqual(collections.writes[0].filter, { _id: "row-1" });
+      assert.equal(collections.writes[0].update.$set.scannerLocation.city, "Andheri East");
+    } finally {
+      provider.restore();
+    }
+  });
+
+  test("an unentitled tag is neither looked up nor written", async () => {
+    const provider = stubProvider(OK_PAYLOAD);
+    const collections = fakeCollections();
+    try {
+      await captureScannerLocation({}, collections, "row-2", PREMIUM_LAPSED, PUBLIC_IP);
+      assert.equal(provider.calls.length, 0);
+      assert.equal(collections.writes.length, 0);
+    } finally {
+      provider.restore();
+    }
+  });
+
+  test("an unresolvable address leaves the null already on the row", async () => {
+    // Writing null over null would touch a document we have no news for.
+    const provider = stubProvider({ success: true, country: "", region: null, city: "" });
+    const collections = fakeCollections();
+    try {
+      await captureScannerLocation({}, collections, "row-3", PREMIUM_TRIAL, PUBLIC_IP);
+      assert.equal(collections.writes.length, 0);
+    } finally {
+      provider.restore();
+    }
+  });
+
+  test("a database failure cannot escape as an unhandled rejection", async () => {
+    // This runs after the response has been decided, so there is nobody left to
+    // tell. A throw here could only take the process down over a missing city.
+    const provider = stubProvider(OK_PAYLOAD);
+    const collections = {
+      contactRequests: {
+        async updateOne() {
+          throw new Error("mongo is gone");
+        }
+      }
+    };
+    try {
+      await captureScannerLocation({}, collections, "row-4", PREMIUM_TRIAL, PUBLIC_IP);
+      // Reaching here at all is the assertion: it resolved rather than rejected.
+      assert.ok(true);
+    } finally {
+      provider.restore();
+    }
+  });
+
+  test("settleScannerLocations waits for work started but not awaited", async () => {
+    // The seam the route tests rely on. Without it they would poll and hope.
+    const provider = stubProvider(OK_PAYLOAD);
+    const collections = fakeCollections();
+    try {
+      captureScannerLocation({}, collections, "row-5", PREMIUM_TRIAL, PUBLIC_IP);
+      assert.equal(collections.writes.length, 0, "not written synchronously");
+      await settleScannerLocations();
+      assert.equal(collections.writes.length, 1, "written once settled");
+    } finally {
+      provider.restore();
+    }
   });
 });

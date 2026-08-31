@@ -17,11 +17,14 @@ import { ObjectId } from "mongodb";
 import { startTestApp, stopTestApp, createTestOwner, TEST_ORIGIN } from "./helpers.js";
 import { createSession } from "../lib/auth/session.js";
 import { resetGeoipCache } from "../lib/integrations/geoip.js";
+import { settleScannerLocations } from "../lib/core/scan-location.js";
 
 let app;
 let collections;
 let geoServer;
 let geoRequests = [];
+// Lets one test make the provider as slow as the real one is (~1.5s).
+let geoDelayMs = 0;
 
 // Public, so it survives geoip's private-address short circuit and actually
 // reaches the stub. The test helpers' own uniqueAddress() is 10.x, which would
@@ -42,8 +45,9 @@ let fixtureCounter = 0;
 function startGeoStub() {
   geoServer = http.createServer((req, res) => {
     geoRequests.push(decodeURIComponent(req.url.replace(/^\//, "")));
-    res.writeHead(200, { "content-type": "application/json" });
-    res.end(
+    const send = () => {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(
       JSON.stringify({
         success: true,
         country: "India",
@@ -51,7 +55,10 @@ function startGeoStub() {
         region: "Maharashtra",
         city: "Andheri East"
       })
-    );
+      );
+    };
+    if (geoDelayMs > 0) setTimeout(send, geoDelayMs).unref();
+    else send();
   });
   return new Promise((resolve) => {
     geoServer.listen(0, "127.0.0.1", () => resolve(geoServer.address().port));
@@ -93,8 +100,13 @@ async function grantFor(token) {
   return res.json().grant;
 }
 
-function rowFor(token) {
-  return collections.contactRequests.findOne({ token });
+// The location is stamped on AFTER the response, so a read taken the instant a
+// route returns would race it and see the null the row was born with. This waits
+// for the capture the route started — deterministically, rather than polling.
+async function rowFor(token, action = null) {
+  await settleScannerLocations();
+  const filter = action ? { token, action } : { token };
+  return collections.contactRequests.findOne(filter);
 }
 
 function daysAgo(n) {
@@ -127,6 +139,7 @@ before(async () => {
 
 beforeEach(async () => {
   geoRequests = [];
+  geoDelayMs = 0;
   // The resolver caches by address for 12 hours; without this the second test
   // would be answered by the first one's lookup and the request-count
   // assertions would be meaningless.
@@ -232,7 +245,7 @@ describe("an SOS on a lapsed tag still connects, and carries no location", () =>
     // The SOS is not refused for being out of subscription — that is the point.
     assert.notEqual(res.statusCode, 402);
 
-    const row = await collections.contactRequests.findOne({ token, action: "emergency_call" });
+    const row = await rowFor(token, "emergency_call");
     assert.ok(row, "an emergency contact row should exist");
     assert.equal(row.scannerLocation, null);
     assert.equal(geoRequests.length, 0, "a lapsed tag must not be looked up at all");
@@ -300,5 +313,42 @@ describe("what the owner's dashboard sends", () => {
     assert.ok(row, "the seeded contact should be in the payload");
     assert.equal(row.scannerLocation, null);
     assert.equal(row.scannerLocationLabel, null);
+  });
+});
+
+describe("a slow provider must not slow the route down", () => {
+  test("register-call answers well before the lookup finishes", async () => {
+    // The regression this exists for. A previous attempt resolved the location
+    // BEFORE writing the row, bounded by an 800ms race; the real provider takes
+    // about 1.5s, so every real contact lost its location AND the SOS path paid
+    // the 800ms anyway. The location now lands after the reply, so the route's
+    // speed no longer depends on the provider at all.
+    geoDelayMs = 1500;
+
+    const token = await createTag({ premium: true, premiumSince: daysAgo(1) });
+    const grant = await grantFor(token);
+
+    const startedAt = Date.now();
+    await app.inject({
+      method: "POST",
+      url: `/api/tags/${token}/register-call`,
+      remoteAddress: SCANNER_IP,
+      payload: { phone: SCANNER_PHONE, grant }
+    });
+    const waited = Date.now() - startedAt;
+
+    assert.ok(
+      waited < geoDelayMs,
+      `route took ${waited}ms with a ${geoDelayMs}ms provider — it is waiting on the lookup`
+    );
+
+    // Written immediately without one...
+    const early = await collections.contactRequests.findOne({ token });
+    assert.equal(early.scannerLocation, null);
+
+    // ...and stamped once the lookup lands.
+    await settleScannerLocations();
+    const settled = await collections.contactRequests.findOne({ token });
+    assert.equal(settled.scannerLocation.city, "Andheri East");
   });
 });

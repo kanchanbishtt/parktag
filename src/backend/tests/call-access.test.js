@@ -176,6 +176,81 @@ describe("call masking entitlement", () => {
   });
 });
 
+// The owner's masking switch in the app is gated on `masking` — the same field
+// the scanner gate reads, so the control is live exactly when a masked call is
+// actually available. This suite walks the ladder an owner climbs, because the
+// UI branches on it and getting a rung wrong either hands somebody a feature
+// they have not got or hides one they have.
+describe("the owner's masking switch follows the ladder", () => {
+  test("an E-Tag with its free contact unspent may — on by default", () => {
+    // The free masked contact is the owner's to use. The switch is live and
+    // starts on; it is not withheld until they buy something.
+    const e = callEntitlement({ premium: false });
+    assert.equal(e.tier, CALL_TIER_ETAG_FREE);
+    assert.equal(e.masking, true);
+  });
+
+  test("once the free contact is spent it takes a premium tag", () => {
+    const e = callEntitlement({ premium: false, freeContactUsed: true });
+    assert.equal(e.tier, CALL_TIER_ETAG_USED);
+    assert.equal(e.masking, false);
+    // The copy for this rung points at the sticker, not at a subscription.
+    assert.match(callBlockedMessage(e), /official ParkTag sticker/);
+  });
+
+  test("a premium tag inside its 45 days may", () => {
+    const e = callEntitlement({ premium: true, premiumSince: daysAgo(1) });
+    assert.equal(e.tier, CALL_TIER_TRIAL);
+    assert.equal(e.masking, true);
+  });
+
+  test("past 45 days it takes a subscription", () => {
+    const e = callEntitlement({ premium: true, premiumSince: daysAgo(60) });
+    assert.equal(e.tier, CALL_TIER_LAPSED);
+    assert.equal(e.masking, false);
+  });
+
+  test("a premium tag on a live subscription may", () => {
+    const e = callEntitlement({
+      premium: true,
+      premiumSince: daysAgo(200),
+      callSubscription: { status: "active", currentPeriodEnd: new Date(Date.now() + 30 * DAY).toISOString() }
+    });
+    assert.equal(e.tier, CALL_TIER_SUBSCRIBED);
+    assert.equal(e.masking, true);
+  });
+
+  test("every tier gives the switch an explicit answer", () => {
+    // The page treats a missing field as "no control". Correct, but it would
+    // silently hide a tier that forgot to declare itself, so every branch must
+    // return a real boolean — including for junk input.
+    const tags = [
+      { premium: false },
+      { premium: false, freeContactUsed: true },
+      { premium: true, premiumSince: daysAgo(1) },
+      { premium: true, premiumSince: daysAgo(60) },
+      { premium: true, callSubscription: { status: "active", currentPeriodEnd: null } },
+      { premium: true },
+      {},
+      null
+    ];
+    for (const tag of tags) {
+      assert.equal(typeof callEntitlement(tag).masking, "boolean");
+    }
+  });
+
+  test("the two locked rungs are told apart, because the ask differs", () => {
+    // A spent E-Tag needs a sticker; a lapsed premium tag needs a
+    // subscription. The UI copy branches on tier, so these must not collapse
+    // into one another.
+    const spent = callEntitlement({ premium: false, freeContactUsed: true });
+    const lapsed = callEntitlement({ premium: true, premiumSince: daysAgo(60) });
+    assert.equal(spent.masking, false);
+    assert.equal(lapsed.masking, false);
+    assert.notEqual(spent.tier, lapsed.tier);
+  });
+});
+
 describe("what a blocked scanner is told", () => {
   test("the E-Tag code stays FREE_USED", () => {
     // The scanner page already branches on this string; renaming it would

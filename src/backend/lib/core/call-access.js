@@ -65,6 +65,22 @@ export function hasActiveCallSubscription(tag, now = Date.now()) {
 // about who may call whom.
 //
 // `masking` is the only field a gate should branch on. The tier is for copy.
+//
+// `masking` is also what gates the owner's own masking switch in the app, and
+// it is deliberately the SAME field the scanner gate reads rather than a
+// second owner-facing boolean beside it. The ladder an owner climbs is:
+//
+//   E-Tag, free contact unused   switch live, on by default — the one free
+//                                masked contact is theirs to use.
+//   E-Tag, free contact spent    locked. Needs a premium tag.
+//   Premium, first 45 days       switch live.
+//   Premium, past 45 days        locked. Needs a subscription.
+//   Premium + subscription       switch live.
+//
+// Which is "may this tag mask a call right now?" asked from the other side of
+// the glass. Two booleans agreeing in every row would only be two things to
+// keep in step, so there is one. The tier says WHY a locked switch is locked,
+// and that is what the upgrade copy branches on.
 export function callEntitlement(tag, now = Date.now()) {
   // `premium: true` is the single source of truth for a premium tag. Tags
   // issued before the flag existed have no field at all, which reads falsy —

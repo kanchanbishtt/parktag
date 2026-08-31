@@ -274,6 +274,14 @@
     .vd-switch input:checked + .vd-switch-track { background: var(--amber); }
     .vd-switch input:checked + .vd-switch-track::after { transform: translateX(22px); }
 
+    /* A switch the owner has not paid for. Visible so the feature can still be
+       discovered, but plainly not operable. The cursor sits on the track since
+       the input itself is 0x0 and never takes the pointer. */
+    .vd-switch input:disabled + .vd-switch-track { cursor: not-allowed; background: #E5E7EB; }
+    .vd-toggle-locked .vd-toggle-label,
+    .vd-toggle-locked .vd-toggle-sub { color: var(--ink-4); }
+    .vd-toggle-locked .vd-switch { opacity: .55; }
+
     /* ── Sub-panel helper elements ───────────────────────── */
     .vd-sub-note { font-size: 0.825rem; color: var(--ink-3); line-height: 1.6; margin-bottom: 14px; }
 
@@ -646,10 +654,10 @@
         </div>
         <div class="vd-sub-panel">
           <div class="vd-sub-inner">
-            <p class="vd-sub-note">Call masking hides your real number from callers. Disabling it will reveal your actual phone number.</p>
+            <p class="vd-sub-note" id="vd-masking-note">Call masking hides your real number from callers. Disabling it will reveal your actual phone number.</p>
             <div class="vd-toggle-row">
               <div><div class="vd-toggle-label">Call Masking</div><div class="vd-toggle-sub">Keep your number private</div></div>
-              <label class="vd-switch"><input type="checkbox" id="toggle-masking" checked><span class="vd-switch-track"></span></label>
+              <label class="vd-switch"><input type="checkbox" id="toggle-masking" disabled><span class="vd-switch-track"></span></label>
             </div>
           </div>
         </div>

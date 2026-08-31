@@ -31,6 +31,22 @@ export function assertDisposableDatabase() {
   }
 }
 
+// The Origin header a test must send on a state-changing request.
+//
+// app.js refuses any POST/PUT/PATCH/DELETE under /api/auth/, /api/owner/,
+// /api/admin/ or /api/shop/ whose Origin is neither APP_BASE_URL nor the
+// request's own Host. Under fastify's inject() there is no socket, so Host
+// defaults to "localhost" on the default port and the app's self-origin is
+// exactly this string. APP_BASE_URL is not usable as the reference here: it is
+// unset in CI (so it falls back to :4000) and points at the live site in a
+// developer's .env, so neither would match a hardcoded one.
+//
+// A suite that invents its own origin — "http://localhost:3000" was the one
+// that got copied around — gets a 403 on every authenticated write, which
+// surfaces as an unrelated-looking failure in a fixture ("admin fixture must be
+// able to sign in") rather than as a CSRF error. Import this instead.
+export const TEST_ORIGIN = "http://localhost";
+
 // Every request that matters here is rate limited per IP, and the counters live
 // in Mongo — so they outlive the process and would leak between runs. Handing
 // each call its own source address keeps one test's 429s out of the next test's

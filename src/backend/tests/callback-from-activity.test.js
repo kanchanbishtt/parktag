@@ -12,14 +12,14 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { ObjectId } from "mongodb";
 
-import { startTestApp, stopTestApp, createTestOwner } from "./helpers.js";
+import { startTestApp, stopTestApp, createTestOwner, TEST_ORIGIN } from "./helpers.js";
 import { createSession } from "../lib/auth/session.js";
 
 let app;
 let env;
 let collections;
 
-const ORIGIN = "http://localhost:3000";
+const ORIGIN = TEST_ORIGIN;
 const OWNER_MOBILE = "+919000005510";
 const SCANNER_A = "+919000005511";
 const SCANNER_B = "+919000005512";

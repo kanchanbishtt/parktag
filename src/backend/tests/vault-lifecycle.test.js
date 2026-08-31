@@ -30,13 +30,14 @@ import {
   createTestOwner,
   purgeLoginCollections,
   uniqueAddress,
-  assertUndeliverableIdentifier
+  assertUndeliverableIdentifier,
+  TEST_ORIGIN
 } from "./helpers.js";
 
 const OWNER_EMAIL = assertUndeliverableIdentifier("qa-vault-life@parktag-test.invalid");
 const OWNER_PASSWORD = "VaultLifecycle1!";
 const VAULT_PIN = "5533";
-const ORIGIN = "http://localhost:3000";
+const ORIGIN = TEST_ORIGIN;
 const BOUNDARY = "----vaultLifecycleBoundary";
 
 // A one-pixel PNG. Real magic bytes, so it survives the content sniff.

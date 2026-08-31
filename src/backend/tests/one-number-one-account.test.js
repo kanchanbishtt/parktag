@@ -16,7 +16,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { ObjectId } from "mongodb";
 
-import { startTestApp, stopTestApp } from "./helpers.js";
+import { startTestApp, stopTestApp, TEST_ORIGIN } from "./helpers.js";
 import { createOtpHash } from "../lib/auth/security.js";
 import { ensureCoreIndexes } from "../lib/db/repositories.js";
 
@@ -26,7 +26,7 @@ let collections;
 const PHONE10 = "9000004410";
 const E164 = "+919000004410";
 const CODE = "246813";
-const ORIGIN = "http://localhost:3000";
+const ORIGIN = TEST_ORIGIN;
 
 test.before(async () => {
   ({ app, collections } = await startTestApp());

@@ -829,6 +829,15 @@
     .pt-sw input:checked + .pt-sw-t { background: #FF2700; }
     .pt-sw input:checked + .pt-sw-t::after { transform: translateX(19px); }
 
+    /* A switch the owner has not paid for. Dimmed and not-allowed rather than
+       hidden: the feature should stay visible so it can be discovered, but it
+       must not look operable. The cursor override is on the track because the
+       input itself is 0x0 and never receives the pointer. */
+    .pt-sw input:disabled + .pt-sw-t { cursor: not-allowed; background: #E5E7EB; }
+    .pt-tog-locked .pt-tog-lb,
+    .pt-tog-locked .pt-tog-sb { color: #9CA3AF; }
+    .pt-tog-locked .pt-sw { opacity: .55; }
+
     /* Sub-panel helpers */
     /* Required marker, same red as the delivery form's so the two read as one
        convention rather than two separate decorations. */
@@ -1724,10 +1733,14 @@
         <span class="pt-mi-ar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>
       </div>
       <div class="pt-mi-s"><div class="pt-mi-si">
-        <p class="pt-snote">Hides your real number from callers. Disable to expose your actual phone number.</p>
+        <p class="pt-snote" id="masking-note">Hides your real number from callers. Disable to expose your actual phone number.</p>
         <div class="pt-tog">
           <div><div class="pt-tog-lb">Keep number private</div><div class="pt-tog-sb">Your number stays hidden from callers</div></div>
-          <label class="pt-sw"><input type="checkbox" id="sw-masking" onchange="saveSw(this,'callMasking')"><span class="pt-sw-t"></span></label>
+          <!-- Ships locked and is opened by applyMaskingSw once the tag's
+               entitlement is known. _fillMenu returns early when there is no
+               vehicle selected, so an enabled default would leave a switch that
+               flips and does nothing. -->
+          <label class="pt-sw"><input type="checkbox" id="sw-masking" disabled onchange="saveSw(this,'callMasking')"><span class="pt-sw-t"></span></label>
         </div>
       </div></div>
     </div>

@@ -34,13 +34,14 @@ import {
   createTestOwner,
   purgeLoginCollections,
   uniqueAddress,
-  assertUndeliverableIdentifier
+  assertUndeliverableIdentifier,
+  TEST_ORIGIN
 } from "./helpers.js";
 
 const OWNER_EMAIL = assertUndeliverableIdentifier("qa-vault-cascade@parktag-test.invalid");
 const ADMIN_EMAIL = "qa-vault-cascade-admin@parktag-test.invalid";
 const VAULT_PIN = "6472";
-const ORIGIN = "http://localhost:3000";
+const ORIGIN = TEST_ORIGIN;
 const BOUNDARY = "----vaultCascadeBoundary";
 const PNG = Buffer.from(
   "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000a4944415478" +

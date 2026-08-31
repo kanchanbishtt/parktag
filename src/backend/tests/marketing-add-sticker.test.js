@@ -14,12 +14,12 @@
 import test, { before, after, describe } from "node:test";
 import assert from "node:assert/strict";
 
-import { startTestApp, stopTestApp, uniqueAddress, purgeLoginCollections } from "./helpers.js";
+import { startTestApp, stopTestApp, uniqueAddress, purgeLoginCollections, TEST_ORIGIN } from "./helpers.js";
 import { createPasswordHash } from "../lib/auth/security.js";
 
 const ADMIN_EMAIL = "marketing-add-admin@parktag.test";
 const PASSWORD = "test-password-123";
-const ORIGIN = "http://localhost:3000";
+const ORIGIN = TEST_ORIGIN;
 
 let app;
 let collections;

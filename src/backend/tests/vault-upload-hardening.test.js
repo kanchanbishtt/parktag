@@ -28,12 +28,13 @@ import {
   createTestOwner,
   purgeLoginCollections,
   uniqueAddress,
-  assertUndeliverableIdentifier
+  assertUndeliverableIdentifier,
+  TEST_ORIGIN
 } from "./helpers.js";
 
 const OWNER_EMAIL = assertUndeliverableIdentifier("qa-vault-upload@parktag-test.invalid");
 const VAULT_PIN = "5938";
-const ORIGIN = "http://localhost:3000";
+const ORIGIN = TEST_ORIGIN;
 const BOUNDARY = "----vaultUploadBoundary";
 
 // The cap these tests push against: the largest any single vehicle can hold.

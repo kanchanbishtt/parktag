@@ -19,13 +19,13 @@
 import test, { before, after } from "node:test";
 import assert from "node:assert/strict";
 
-import { startTestApp, stopTestApp, uniqueAddress, purgeLoginCollections } from "./helpers.js";
+import { startTestApp, stopTestApp, uniqueAddress, purgeLoginCollections, TEST_ORIGIN } from "./helpers.js";
 import { createPasswordHash } from "../lib/auth/security.js";
 import { stickerSerialFor } from "../lib/core/tag-issuance.js";
 
 const ADMIN_EMAIL = "marketing-separation-admin@parktag.test";
 const PASSWORD = "test-password-123";
-const ORIGIN = "http://localhost:3000";
+const ORIGIN = TEST_ORIGIN;
 
 // Own batch number so the delete test cannot touch another suite's fixtures on
 // a shared cluster.

@@ -105,9 +105,14 @@ test("a contact from the future is not treated as expired", () => {
 test("junk in does not become a callable row", () => {
   assert.equal(callbackState(null, { tags: TAGS, now: NOW, windowMs: TEN_MIN }), NOT_CALLABLE);
   assert.equal(stateOf({ createdAt: "not a date" }), NOT_CALLABLE);
-  // Called with nothing: no tag can match, so the honest answer is that this
-  // account has no premium tag — not that the contact is unreachable.
-  assert.equal(callbackState(contact(), {}), NEEDS_PREMIUM);
+  // No tag list: nothing can match, so the honest answer is that this account
+  // has no premium tag — not that the contact is unreachable.
+  //
+  // The clock and the window are still passed. Omitting them is not the same
+  // test: `now` would default to the wall clock and `windowMs` to 0, so the
+  // window check above would answer first and every contact would read as
+  // NOT_CALLABLE — including on the day this was written.
+  assert.equal(callbackState(contact(), { now: NOW, windowMs: TEN_MIN }), NEEDS_PREMIUM);
 });
 
 test("a WhatsApp report that left a number is callable on a premium tag", () => {

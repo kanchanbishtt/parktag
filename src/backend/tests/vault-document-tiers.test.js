@@ -47,12 +47,13 @@ import {
   createTestOwner,
   purgeLoginCollections,
   uniqueAddress,
-  assertUndeliverableIdentifier
+  assertUndeliverableIdentifier,
+  TEST_ORIGIN
 } from "./helpers.js";
 
 const OWNER_EMAIL = assertUndeliverableIdentifier("qa-vault-tiers@parktag-test.invalid");
 const VAULT_PIN = "7261";
-const ORIGIN = "http://localhost:3000";
+const ORIGIN = TEST_ORIGIN;
 const BOUNDARY = "----vaultTiersBoundary";
 
 const PNG = Buffer.from(

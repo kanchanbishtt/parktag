@@ -1,4 +1,4 @@
-import { callbackState, CALLABLE, NEEDS_PREMIUM } from "./callback-eligibility.js";
+import { callbackState, CALLABLE, NEEDS_PREMIUM, NEEDS_SUBSCRIPTION } from "./callback-eligibility.js";
 
 // ── Banners carousel ─────────────────────────────────────────────
 const track    = document.getElementById("carTrack");
@@ -726,6 +726,11 @@ function renderActivity(requests) {
   // the row would simply have no button and nothing to explain why.
   const blockedOnlyByPremium = (r) => stateOf(r) === NEEDS_PREMIUM;
 
+  // Owns the premium tag already; the call window on it has closed. A separate
+  // nudge because sending them to the shop to buy a sticker they are holding is
+  // the kind of prompt that reads as a bug.
+  const blockedOnlySubscription = (r) => stateOf(r) === NEEDS_SUBSCRIPTION;
+
   // Exactly one row may be called back: the newest returnable one.
   //
   // `recent` is already sorted newest-first by the server, so the first hit is
@@ -869,6 +874,11 @@ function renderActivity(requests) {
       // it says so and goes straight to where that is fixed.
       cta = `<button class="pt-act-nophone pt-act-upsell" onclick="switchTab('shop')"
         title="Callback is available on premium tags">Premium<br>to call back</button>`;
+    } else if (blockedOnlySubscription(r)) {
+      // Same slot and treatment, different destination: this owner already has
+      // the tag, so the thing standing in the way is the subscription.
+      cta = `<button class="pt-act-nophone pt-act-upsell" onclick="switchTab('shop')"
+        title="Your call service for this vehicle has ended">Renew<br>to call back</button>`;
     } else if (canCallBack(r)) {
       if (!_ownerMobile) {
         cta = `<span class="pt-act-nophone">Add phone<br>to call back</span>`;
@@ -1514,9 +1524,77 @@ function _loadSw(tag) {
   catch { return def; }
 }
 
+// Whether THIS owner may work the call-masking switch.
+//
+// The same field the scanner gate reads: the switch is live exactly when a
+// masked call is actually available on this tag. Read straight off the
+// entitlement the dashboard API sends rather than re-derived from tag.premium
+// here — the server owns the free contact, the 45-day window and the
+// subscription, and a second copy of those rules on the page would eventually
+// disagree with it. A tag from an older payload has no callAccess at all,
+// which reads as false: when we do not know, do not offer the control.
+function _maskingAvailable(tag) {
+  return Boolean(tag && tag.callAccess && tag.callAccess.masking);
+}
+
+// Points a locked switch at the reason it is locked, which is the next rung of
+// the ladder rather than a generic "upgrade". A spent E-Tag needs a premium
+// tag; a premium tag past its window needs a subscription. Those are different
+// asks and reading the wrong one would send an owner to the wrong place.
+//
+// Neither names a price: nothing sells the call subscription yet, so quoting
+// one here would be inventing it.
+function _maskingNote(tag) {
+  const ca = (tag && tag.callAccess) || null;
+  // A vehicle saved on this device but not yet on the server has no
+  // entitlement to report. It is not a spent E-Tag and must not be told it is
+  // one — there is simply nothing to mask until its tag exists.
+  if (!ca) {
+    return "Call masking starts once this vehicle's tag is active.";
+  }
+  if (ca.masking) {
+    return "Hides your real number from callers. Disable to expose your actual phone number.";
+  }
+  if (ca.tier === "premium-lapsed") {
+    return "Call masking has ended for this tag. It continues on a subscription — we'll let you know when that's available.";
+  }
+  return "This E-Tag's one free masked contact has been used. Get the official ParkTag sticker to keep your number hidden.";
+}
+
+// The switch is live whenever masking is: an E-Tag with its free contact still
+// unspent (on by default — that contact is theirs to use), a premium tag inside
+// its 45 days, or a premium tag on a subscription. Everyone else sees the true
+// state (off) and cannot turn it on from here — the server would ignore them
+// anyway, and a switch that flips but changes nothing is worse than one that
+// plainly does not apply.
+function applyMaskingSw(tag, s) {
+  const el = document.getElementById("sw-masking");
+  if (!el) return;
+
+  const allowed = _maskingAvailable(tag);
+  el.checked = allowed ? s.callMasking !== false : false;
+  el.disabled = !allowed;
+
+  const row = el.closest(".pt-tog");
+  if (row) row.classList.toggle("pt-tog-locked", !allowed);
+
+  const note = document.getElementById("masking-note");
+  if (note) note.textContent = _maskingNote(tag);
+}
+
 function saveSw(el, key) {
   const tag = allTags[_selIdx];
   if (!tag) return;
+
+  // Belt and braces for the one switch that is gated. The control is disabled
+  // for an owner without masking, but a disabled attribute is a DOM state and
+  // this re-checks the entitlement rather than trusting it.
+  if (key === "callMasking" && !_maskingAvailable(tag)) {
+    el.checked = false;
+    _toast(_maskingNote(tag), "err");
+    return;
+  }
+
   const s = _loadSw(tag);
   s[key] = el.checked;
   localStorage.setItem(_vKey(tag), JSON.stringify(s));
@@ -1683,7 +1761,7 @@ function _fillMenu() {
   const sw = (id, v) => { const el = document.getElementById(id); if (el) el.checked = v; };
   sw("sw-tag",      tag.status ? tag.status === "active" : s.tagActive);
   sw("sw-calls",    s.callsActive);
-  sw("sw-masking",  s.callMasking);
+  applyMaskingSw(tag, s);
   sw("sw-push",     s.pushNotif);
   sw("sw-email",    s.emailAlerts);
   sw("sw-whatsapp", s.whatsapp);

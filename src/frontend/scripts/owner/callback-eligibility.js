@@ -16,6 +16,11 @@
 
 export const CALLABLE = "callable";
 export const NEEDS_PREMIUM = "needs-premium";
+// Owns a premium tag, but its call window has closed. Kept apart from
+// NEEDS_PREMIUM because "upgrade this vehicle to a premium tag" is useless
+// advice to somebody who already bought one — they need a subscription, not a
+// sticker, and being told otherwise reads as the app not knowing what they own.
+export const NEEDS_SUBSCRIPTION = "needs-subscription";
 export const NOT_CALLABLE = "not-callable";
 
 /**
@@ -53,5 +58,25 @@ export function callbackState(request, { tags = [], now = Date.now(), windowMs =
   // excluded from its premium list as well, so both refuse. Agreeing with the
   // server matters more here than finding a fourth word for a rare case.
   const tag = tags.find((candidate) => candidate && candidate.token === request.token);
-  return tag && tag.premium ? CALLABLE : NEEDS_PREMIUM;
+  if (!tag) return NEEDS_PREMIUM;
+
+  // Masking is no longer permanent: a premium tag includes it for 45 days and
+  // then needs a subscription. The answer is NOT re-derived here — the server
+  // sends `callAccess` per tag from the one function that decides it, so this
+  // page cannot reach a different verdict than the route it is drawing a button
+  // for. Re-implementing the 45-day arithmetic in the client is exactly how the
+  // two would drift.
+  if (tag.callAccess) {
+    if (tag.callAccess.masking) return CALLABLE;
+    // Premium but out of window is a different message from never having
+    // bought one at all.
+    return tag.callAccess.premium ? NEEDS_SUBSCRIPTION : NEEDS_PREMIUM;
+  }
+
+  // No `callAccess` in the payload: a page loaded from a cached response served
+  // before this field existed. Falling back to the old rule keeps behaviour
+  // exactly as it is today rather than hiding the button from someone who has
+  // paid — of the two ways to be wrong here, the strict one is the quieter and
+  // worse bug, and the server refuses anything this lets through regardless.
+  return tag.premium ? CALLABLE : NEEDS_PREMIUM;
 }

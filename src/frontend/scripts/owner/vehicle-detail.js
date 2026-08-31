@@ -32,6 +32,11 @@ const skeleton  = document.getElementById("skeleton");
 const content   = document.getElementById("vd-content");
 
 setTimeout(async () => {
+  // The tag this page is showing, once the dashboard has been read. Stays null
+  // for a local (unsaved) vehicle, for a tag the API does not return, and for a
+  // failed fetch — all of which mean "no entitlement to report".
+  let loadedCallAccess = null;
+
   // If this is a real tag, fetch its QR from the dashboard API
   if (realId) {
     try {
@@ -43,6 +48,7 @@ setTimeout(async () => {
         realScanUrl   = tag.scanUrl   || "";
         isPremium     = Boolean(tag.premium);
         isFreeUsed    = Boolean(tag.freeContactUsed);
+        loadedCallAccess = tag.callAccess || null;
         // Stamp the unique E-Tag ID + activation status onto the print sticker (spec §9).
         const idEl = document.getElementById("print-etag-id");
         if (idEl && tag.etagId) idEl.textContent = String(tag.etagId).replace(/^PT-/, "");
@@ -54,6 +60,9 @@ setTimeout(async () => {
       }
     } catch {}
   }
+  // Run unconditionally: the switch ships locked, so a path that never reached
+  // the gate would leave it locked under copy that describes a working control.
+  applyMaskingGate(loadedCallAccess);
   updatePremiumUI();
 
   skeleton.style.transition = "opacity .25s ease";
@@ -166,12 +175,56 @@ function saveToggles(state) {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch {}
 }
 
+// The masking switch is live exactly when masking is actually available: an
+// E-Tag whose one free contact is unspent, a premium tag inside its 45 days, or
+// a premium tag on a subscription. `masking` is the server's answer and the
+// same field the scanner gate reads; the page does not re-derive the window.
+//
+// The switch ships locked in the markup and is only opened here, so the order
+// this lands in relative to initToggles (which runs on a timer, while this
+// waits on the dashboard fetch) cannot leave an unentitled owner with a
+// working control.
+function applyMaskingGate(callAccess) {
+  const cb = document.getElementById("toggle-masking");
+  if (!cb) return;
+
+  const allowed = Boolean(callAccess && callAccess.masking);
+  cb.disabled = !allowed;
+  // On by default where it is available — an E-Tag's free masked contact is
+  // theirs to use, so it starts hidden rather than exposed.
+  cb.checked = allowed ? loadToggles()[cb.id] !== false : false;
+
+  const row = cb.closest(".vd-toggle-row");
+  if (row) row.classList.toggle("vd-toggle-locked", !allowed);
+
+  // The reason names the next rung: a spent E-Tag needs a premium tag, a
+  // lapsed premium tag needs a subscription. No price on either — nothing
+  // sells the subscription yet.
+  const note = document.getElementById("vd-masking-note");
+  if (note) {
+    if (allowed) {
+      note.textContent = "Call masking hides your real number from callers. Disabling it will reveal your actual phone number.";
+    } else if (!callAccess) {
+      // No entitlement to report — a local vehicle, or the dashboard did not
+      // load. Not a spent E-Tag, so it must not be told it is one.
+      note.textContent = "Call masking starts once this vehicle's tag is active.";
+    } else if (callAccess.tier === "premium-lapsed") {
+      note.textContent = "Call masking has ended for this tag. It continues on a subscription — we'll let you know when that's available.";
+    } else {
+      note.textContent = "This E-Tag's one free masked contact has been used. Get the official ParkTag sticker to keep your number hidden.";
+    }
+  }
+}
+
 function initToggles() {
   const state = loadToggles();
   document.querySelectorAll(".vd-switch input[type=checkbox]").forEach(cb => {
     const id = cb.id;
-    if (id in state) cb.checked = state[id];
+    // A locked switch is locked because the owner has not paid for it, so a
+    // remembered value from this browser must not put it back on.
+    if (id in state && !cb.disabled) cb.checked = state[id];
     cb.addEventListener("change", () => {
+      if (cb.disabled) return;
       const s = loadToggles();
       s[id] = cb.checked;
       saveToggles(s);

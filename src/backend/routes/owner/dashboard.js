@@ -11,6 +11,7 @@ import {
 } from "../../lib/auth/otp.js";
 import { getCollections, ensurePendingCallsIndexes, getVaultBucket } from "../../lib/db/repositories.js";
 import { purgeVaultDocuments, deleteUsage } from "../../lib/core/vault.js";
+import { callEntitlement } from "../../lib/core/call-access.js";
 import { clientErrorMessage } from "../../lib/errors.js";
 import { createQrDataUrl, createPrintQrDataUrl } from "../../lib/core/qr-output.js";
 import { createEtagForVehicle, buildTagScanUrl, VEHICLE_LABELS, etagIdFor, stickerSerialFor } from "../../lib/core/tag-issuance.js";
@@ -51,6 +52,13 @@ const CALLBACK_WINDOW_MS = 10 * 60 * 1000;
 // able to tell those apart by the wording. Both mean the same thing to them.
 const PREMIUM_REQUIRED_MESSAGE =
   "Calling someone back is a premium feature. Upgrade this vehicle to a premium tag to use it.";
+
+// Said when the owner DOES hold a premium tag but its call window has closed.
+// Kept apart from the message above on purpose: telling somebody who has
+// already bought the sticker to go and buy the sticker is the kind of reply
+// that ends up in a support ticket.
+const CALL_SUBSCRIPTION_REQUIRED_MESSAGE =
+  "Your call service has ended for this vehicle. Subscribe to call scanners back again.";
 
 // Where a confirmation code for THIS owner may be sent.
 //
@@ -207,6 +215,12 @@ export function registerOwnerRoutes(app, env) {
           premium: tag.premium || false,
           purchaseStatus: tag.purchaseStatus || "none",
           freeContactUsed: tag.freeContactUsed || false,
+          // Whether masked calling is running on this tag, and why. The page
+          // needs the reason as well as the answer: "not available" and "ends
+          // in 5 days" are the same boolean and completely different messages.
+          // Sent as the entitlement rather than as a bare flag so the UI cannot
+          // re-derive the rule and get a different answer from the server.
+          callAccess: callEntitlement(tag),
           // Returned in full (not masked) because this is the owner's own
           // session reading back a number they typed, so the SOS field can
           // prefill on any device instead of only where it was first saved.
@@ -1090,21 +1104,36 @@ export function registerOwnerRoutes(app, env) {
     // Deleted tags are excluded so that this agrees with the dashboard, which
     // builds its own tag list the same way. A button the page draws and a route
     // that refuses it is worse than either answer on its own.
-    const premiumTokens = (
-      await collections.tags
-        .find(
-          { ownerId, premium: true, deletedAt: { $in: [null, undefined] } },
-          { projection: { token: 1 } }
-        )
-        .toArray()
-    ).map((tag) => tag.token);
+    // Premium alone is no longer enough. Masking runs for 45 days from purchase
+    // and then needs a subscription, and calling a scanner back IS a masked
+    // call — so a tag whose window has closed must not still offer one. The
+    // decision comes from callEntitlement so this route, the scanner's
+    // availability check and register-call cannot disagree about the same tag.
+    //
+    // The extra fields are projected because the entitlement needs them; a
+    // token-only projection would make every tag look like it had no trial and
+    // no subscription, which reads as lapsed and would switch callback off for
+    // everyone.
+    const callableTags = await collections.tags
+      .find(
+        { ownerId, premium: true, deletedAt: { $in: [null, undefined] } },
+        { projection: { token: 1, premium: 1, premiumSince: 1, createdAt: 1, callSubscription: 1, freeContactUsed: 1 } }
+      )
+      .toArray();
+
+    const premiumTokens = callableTags
+      .filter((tag) => callEntitlement(tag).masking)
+      .map((tag) => tag.token);
 
     if (!premiumTokens.length) {
+      // Distinguishing the two cases matters: "buy a premium tag" is useless
+      // advice to somebody who already owns one and whose 45 days have run out.
+      const lapsed = callableTags.length > 0;
       reply.code(402);
       return {
         ok: false,
-        code: "PREMIUM_REQUIRED",
-        error: PREMIUM_REQUIRED_MESSAGE
+        code: lapsed ? "CALL_SUBSCRIPTION_REQUIRED" : "PREMIUM_REQUIRED",
+        error: lapsed ? CALL_SUBSCRIPTION_REQUIRED_MESSAGE : PREMIUM_REQUIRED_MESSAGE
       };
     }
 
@@ -1173,11 +1202,17 @@ export function registerOwnerRoutes(app, env) {
     if (wanted) {
       const named = await collections.contactRequests.findOne({ _id: wanted, ownerId });
       if (named && !premiumTokens.includes(named.token)) {
+        // Same split as the account-level check above. A contact that arrived
+        // on a premium tag whose call window has closed is NOT an upgrade
+        // prompt — that owner is holding the sticker this would tell them to
+        // buy. `callableTags` is the unfiltered premium list, so presence there
+        // with absence from premiumTokens is exactly "premium but lapsed".
+        const lapsedTag = callableTags.some((tag) => tag.token === named.token);
         reply.code(402);
         return {
           ok: false,
-          code: "PREMIUM_REQUIRED",
-          error: PREMIUM_REQUIRED_MESSAGE
+          code: lapsedTag ? "CALL_SUBSCRIPTION_REQUIRED" : "PREMIUM_REQUIRED",
+          error: lapsedTag ? CALL_SUBSCRIPTION_REQUIRED_MESSAGE : PREMIUM_REQUIRED_MESSAGE
         };
       }
     }

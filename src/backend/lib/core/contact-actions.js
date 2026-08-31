@@ -2,6 +2,7 @@ import { ObjectId } from "mongodb";
 
 import { sendMetaWhatsappAlert, isMetaWhatsappConfigured } from "../integrations/meta.js";
 import { getCollections } from "../db/repositories.js";
+import { resolveScannerLocation } from "./scan-location.js";
 
 // The WhatsApp message is built ENTIRELY server-side (spec §6) — the scanner can
 // never author it. The optional reason is constrained to this fixed whitelist,
@@ -79,6 +80,12 @@ export async function createContactAction(env, input) {
   const ownerMessage =
     input.action === "message" ? buildOwnerWhatsappMessage(input.reason) : null;
 
+  // Resolved before the insert so the row is complete the moment it exists —
+  // the alternative, filling it in afterwards, leaves a window where the owner
+  // reads a contact with no location and no way to tell whether one is coming.
+  // Costs one capped, cached lookup on a path that already calls WhatsApp.
+  const scannerLocation = await resolveScannerLocation(env, tag, input.ipAddress);
+
   const requestId = new ObjectId();
   const contactRequest = {
     _id: requestId,
@@ -95,6 +102,10 @@ export async function createContactAction(env, input) {
     message: ownerMessage,
     status: "pending",
     ipAddress: input.ipAddress || null,
+    // Derived from ipAddress above, gated by the tag's entitlement, and null
+    // whenever that gate is shut or the address does not resolve. The owner is
+    // shown this; the ipAddress it came from stays server-side.
+    scannerLocation,
     userAgent: input.userAgent || null,
     createdAt: new Date().toISOString()
   };

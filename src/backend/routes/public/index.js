@@ -2,6 +2,7 @@ import { ObjectId } from "mongodb";
 
 import { createContactAction, isSupportedContactReason } from "../../lib/core/contact-actions.js";
 import { callEntitlement, callBlockedCode, callBlockedMessage } from "../../lib/core/call-access.js";
+import { resolveScannerLocation } from "../../lib/core/scan-location.js";
 import { createPasswordHash, createSecureToken, safeEqual, hashIp, minutesFromNow, getClientIp, maskPlateNumber, getPlateLastFour, isNonEmptyString } from "../../lib/auth/security.js";
 import { createSession, writeSessionCookie } from "../../lib/auth/session.js";
 import {
@@ -1311,6 +1312,13 @@ export function registerPublicRoutes(app, env) {
       };
     }
 
+    // Resolved before the insert, from the same address stored below. Reached
+    // only on an entitled tag here (the 402 above), but the gate lives inside
+    // resolveScannerLocation rather than being assumed from position, so moving
+    // this call cannot silently start capturing for a tag that may not.
+    const callerIp = getClientIp(request);
+    const scannerLocation = await resolveScannerLocation(env, tag, callerIp);
+
     const { insertedId: requestId } = await collections.contactRequests.insertOne({
       token,
       ownerId: tag.ownerId,
@@ -1318,7 +1326,8 @@ export function registerPublicRoutes(app, env) {
       action: "call",
       status: "initiated",
       provider: "exotel",
-      ipAddress: getClientIp(request),
+      ipAddress: callerIp,
+      scannerLocation,
       userAgent: request.headers["user-agent"] || null,
       createdAt: now.toISOString(),
       updatedAt: now.toISOString()
@@ -1531,6 +1540,13 @@ export function registerPublicRoutes(app, env) {
       return refuseOverCap(usedToday);
     }
 
+    // This route deliberately does NOT gate on masking — an SOS connects
+    // whatever the tag's billing state — so it is the one path that can write a
+    // contact row for a lapsed tag. The location gate therefore does real work
+    // here: the call still goes through, it simply carries no location.
+    const callerIp = getClientIp(request);
+    const scannerLocation = await resolveScannerLocation(env, tag, callerIp);
+
     const { insertedId: requestId } = await collections.contactRequests.insertOne({
       token,
       ownerId: tag.ownerId || null,
@@ -1538,7 +1554,8 @@ export function registerPublicRoutes(app, env) {
       action: "emergency_call",
       status: "initiated",
       provider: "exotel",
-      ipAddress: getClientIp(request),
+      ipAddress: callerIp,
+      scannerLocation,
       userAgent: request.headers["user-agent"] || null,
       createdAt: now.toISOString(),
       updatedAt: now.toISOString()

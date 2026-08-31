@@ -2355,6 +2355,29 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
   padding: 8px 22px 28px;
 }
 
+/* The area-sharing notice under the contact tiles.
+   Pulled up into the tiles' 28px bottom padding so it reads as a footnote to
+   that choice rather than as a new block, and matched to their 22px gutters so
+   the text edges line up with the tiles above. Quiet by design: it must be
+   readable and honest, not a warning that frightens someone out of reporting a
+   car with its lights left on. */
+.pt-contact-privacy {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: -20px 0 0;
+  padding: 0 22px 22px;
+  font-size: 0.68rem;
+  line-height: 1.5;
+  color: #8A94A6;
+}
+
+.pt-contact-privacy svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: #AAB2C0;
+}
+
 .pt-contact-actions .pt-btn {
   flex-direction: column;
   justify-content: center;
@@ -2401,6 +2424,8 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
    width, so the label steps down rather than being allowed to clip. */
 @media (max-width: 400px) {
   .pt-contact-actions { gap: 9px; padding-left: 16px; padding-right: 16px; }
+  /* Follow the tiles in to 16px so the notice stays flush with them. */
+  .pt-contact-privacy { padding-left: 16px; padding-right: 16px; }
   .pt-contact-actions .pt-btn { min-height: 64px; padding: 10px 6px; }
   .pt-btn-line { font-size: 0.86rem; gap: 5px; }
   .pt-btn-line svg { width: 15px; height: 15px; }

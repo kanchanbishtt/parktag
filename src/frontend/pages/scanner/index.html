@@ -456,6 +456,19 @@
           </button>
         </div>
 
+        <!-- Told before the choice is made, not after, because afterwards is too
+             late to decline. Shown on exactly the tags that record it: this is
+             toggled with the contact tiles above, and both follow the same
+             server-side entitlement that decides whether a location is captured
+             at all — so this can never claim a sharing that is not happening.
+             "Area" and "from your internet connection" are the honest words: it
+             is a city-level estimate off the IP, not the phone's GPS, and
+             saying "location" would imply a precision this does not have. -->
+        <p class="pt-contact-privacy" id="scanner-location-notice">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="10" r="2.6" stroke="currentColor" stroke-width="2"/></svg>
+          <span>Your approximate area, from your internet connection, is shared with the vehicle owner. Your number stays private.</span>
+        </p>
+
         <!-- Emergency / SOS — only rendered when the owner has set a next-of-kin
              number (tag.emergencyAvailable). Deliberately separated from the two
              routine actions above so it cannot be tapped by reflex. -->

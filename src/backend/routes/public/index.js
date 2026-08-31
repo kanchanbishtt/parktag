@@ -2,7 +2,7 @@ import { ObjectId } from "mongodb";
 
 import { createContactAction, isSupportedContactReason } from "../../lib/core/contact-actions.js";
 import { callEntitlement, callBlockedCode, callBlockedMessage } from "../../lib/core/call-access.js";
-import { resolveScannerLocation } from "../../lib/core/scan-location.js";
+import { captureScannerLocation } from "../../lib/core/scan-location.js";
 import { createPasswordHash, createSecureToken, safeEqual, hashIp, minutesFromNow, getClientIp, maskPlateNumber, getPlateLastFour, isNonEmptyString } from "../../lib/auth/security.js";
 import { createSession, writeSessionCookie } from "../../lib/auth/session.js";
 import {
@@ -1312,12 +1312,7 @@ export function registerPublicRoutes(app, env) {
       };
     }
 
-    // Resolved before the insert, from the same address stored below. Reached
-    // only on an entitled tag here (the 402 above), but the gate lives inside
-    // resolveScannerLocation rather than being assumed from position, so moving
-    // this call cannot silently start capturing for a tag that may not.
     const callerIp = getClientIp(request);
-    const scannerLocation = await resolveScannerLocation(env, tag, callerIp);
 
     const { insertedId: requestId } = await collections.contactRequests.insertOne({
       token,
@@ -1327,11 +1322,17 @@ export function registerPublicRoutes(app, env) {
       status: "initiated",
       provider: "exotel",
       ipAddress: callerIp,
-      scannerLocation,
+      // Filled in by the background capture just below.
+      scannerLocation: null,
       userAgent: request.headers["user-agent"] || null,
       createdAt: now.toISOString(),
       updatedAt: now.toISOString()
     });
+
+    // Deliberately NOT awaited: the scanner is waiting on the virtual number and
+    // the provider takes about 1.5s. The owner reads the row later, so the
+    // location can land after the reply. Entitlement is checked inside.
+    captureScannerLocation(env, collections, requestId, tag, callerIp);
 
     await collections.tags.updateOne(
       { _id: tag._id },
@@ -1540,12 +1541,7 @@ export function registerPublicRoutes(app, env) {
       return refuseOverCap(usedToday);
     }
 
-    // This route deliberately does NOT gate on masking — an SOS connects
-    // whatever the tag's billing state — so it is the one path that can write a
-    // contact row for a lapsed tag. The location gate therefore does real work
-    // here: the call still goes through, it simply carries no location.
     const callerIp = getClientIp(request);
-    const scannerLocation = await resolveScannerLocation(env, tag, callerIp);
 
     const { insertedId: requestId } = await collections.contactRequests.insertOne({
       token,
@@ -1555,11 +1551,18 @@ export function registerPublicRoutes(app, env) {
       status: "initiated",
       provider: "exotel",
       ipAddress: callerIp,
-      scannerLocation,
+      // Filled in by the background capture just below.
+      scannerLocation: null,
       userAgent: request.headers["user-agent"] || null,
       createdAt: now.toISOString(),
       updatedAt: now.toISOString()
     });
+
+    // Not awaited, and it matters most here: this is the accident path. The SOS
+    // must be registered and the number returned at once. Entitlement is checked
+    // inside — this route does not gate on masking, so a lapsed tag connects but
+    // records no location.
+    captureScannerLocation(env, collections, requestId, tag, callerIp);
 
     // Note the absence of a tags.freeContactUsed write here — see (1) above.
     await collections.tags.updateOne(

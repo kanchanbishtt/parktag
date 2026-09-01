@@ -14,6 +14,7 @@
     "verify:admin-registration": "node src/backend/scripts/verify-admin-registration-visibility.js",
     "verify:exotel-call": "node src/backend/scripts/verify-exotel-call.js",
     "verify:exotel-whatsapp": "node src/backend/scripts/verify-exotel-whatsapp.js",
+    "verify:meta-capi": "node src/backend/scripts/verify-meta-capi.js",
     "verify:qa-hardening": "node src/backend/scripts/verify-qa-hardening.js",
     "verify:document-tiers": "node src/backend/scripts/verify-document-tiers.js",
     "dev:mail": "maildev",

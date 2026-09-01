@@ -152,6 +152,14 @@ export function getEnv() {
     // → /pt-analytics.js ships a no-op and ptTrack() does nothing.
     ga4MeasurementId: process.env.GA4_MEASUREMENT_ID || "",
     metaPixelId: process.env.META_PIXEL_ID || "",
+    // Conversions API. Unlike the two IDs above this one IS a secret — it is a
+    // system-user access token from Events Manager and can write events to the
+    // dataset. Unset → lib/integrations/meta-capi.js no-ops, which is the
+    // correct state for dev and staging.
+    metaCapiAccessToken: process.env.META_CAPI_ACCESS_TOKEN || "",
+    // Optional. Set it only while verifying in Events Manager → Test Events;
+    // events carrying it are routed to the test view instead of live reporting.
+    metaCapiTestEventCode: process.env.META_CAPI_TEST_EVENT_CODE || "",
     googleClientId: process.env.GOOGLE_CLIENT_ID || "",
     googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
     googleCallbackUrl: process.env.GOOGLE_CALLBACK_URL || "http://127.0.0.1:4000/api/auth/google/callback",

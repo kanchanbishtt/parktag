@@ -732,6 +732,17 @@ async function createRequest(payload) {
     });
   }
 
+  // Retargeting, and only from here — after the contact actually went through.
+  //
+  // Someone who has just reached a vehicle owner through a ParkTag has seen the
+  // product work from the outside, which makes them the best-qualified prospect
+  // this business gets. Loading the Pixel on page arrival would have swept in
+  // everyone who scanned and left, and would have sent Meta the tag token in
+  // the URL. This runs once, after success, and strips the token first.
+  if (window.ptScannerEngaged) {
+    ptScannerEngaged({ reason: payload.reason || "none" });
+  }
+
   return data;
 }
 

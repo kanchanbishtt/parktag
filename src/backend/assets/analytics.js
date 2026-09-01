@@ -25,16 +25,36 @@
   // Declared rather than inferred from the URL because getting this wrong has a
   // real cost (see the pixel rule below) and a path regex silently rots the
   // first time a route is renamed.
-  var surface = (document.currentScript &&
-                 document.currentScript.getAttribute("data-surface")) || "app";
+  // Found by query rather than through document.currentScript, which is null
+  // for any script marked `defer` or `async`.
+  //
+  // This is not a style preference. Every one of these tags carries `defer` so
+  // it cannot block first paint, and currentScript would therefore hand back
+  // null on all of them — collapsing the surface to the "app" default and
+  // loading the Meta Pixel on the scan page, which is the one thing the
+  // surface flag exists to prevent. The failure would be silent: no error, no
+  // console warning, just a Pixel where there must never be one.
+  var selfScript =
+    document.currentScript ||
+    document.querySelector('script[src*="pt-analytics.js"]');
 
-  // The scan pages are used by STRANGERS standing at someone else's vehicle.
-  // They did not buy anything, did not sign up, and have consented to nothing.
-  // Loading the Meta Pixel there would ship Meta a record of an identified
-  // person scanning a specific vehicle tag, from a product whose entire promise
-  // is privacy. So the Pixel does not load on the scanner surface at all, and
-  // the two scanner events below additionally carry `pixel: null` — the rule is
-  // enforced twice, because someone will eventually add a third scanner event.
+  var surface = (selfScript && selfScript.getAttribute("data-surface")) || "app";
+
+  // The scan pages are used by STRANGERS standing at someone else's vehicle,
+  // so the Pixel is not loaded there on arrival. Two separate reasons:
+  //
+  //   1. Consent. Someone who scans a tag and leaves has not asked for
+  //      anything and should not be added to an advertising audience for it.
+  //
+  //   2. The URL. fbq sends document.location with every event, and a scan page
+  //      lives at /vehicle/:token — so a PageView here would ship vehicle tag
+  //      tokens to Meta on every scan. That is a data leak, not a preference.
+  //
+  // Someone who USES the product is a different case, and is handled by
+  // enableScannerRetargeting() at the bottom of this file: after a successful
+  // contact action the token is stripped from the URL, the Pixel is loaded, and
+  // one event is sent. That audience is both smaller and better — people who
+  // actually experienced the product rather than everyone who loaded a page.
   var pixelAllowed = surface !== "scanner";
 
   var gaReady = !!GA4_ID;
@@ -93,9 +113,18 @@
     return out;
   }
 
-  // Shared id so the same logical event sent from the browser and (later) from
-  // the server can be de-duplicated by Meta instead of double-counted.
-  function eventId() {
+  // Shared id so the same logical event sent from the browser and from the
+  // server (lib/integrations/meta-capi.js) is de-duplicated by Meta rather than
+  // counted twice.
+  //
+  // Where the event has a natural key, the id is DERIVED from it rather than
+  // random, so both halves arrive at the same string without having to pass
+  // anything between them. A purchase is keyed on its order number; the server
+  // builds the identical string in purchaseEventId(). A random id here would
+  // make every server-side purchase a second, phantom conversion.
+  function eventId(name, params) {
+    if (params && params.transaction_id) return name + ":" + params.transaction_id;
+
     try {
       if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
     } catch (_) { /* fall through */ }
@@ -142,7 +171,7 @@
     }
 
     var clean = sanitize(params);
-    var id = eventId();
+    var id = eventId(map.ga, clean);
 
     if (gaReady) {
       try {
@@ -159,4 +188,65 @@
 
   // The only export. Call sites do: ptTrack("purchase", { value: 449, ... })
   window.ptTrack = dispatch;
+
+  // ------------------------------------------------ scanner retargeting
+  //
+  // Called ONLY from the scan page, and ONLY after a contact action succeeded.
+  // Someone who scanned a tag and actually reached an owner has experienced the
+  // product from the outside and is the best-qualified prospect this business
+  // has. Retargeting them is worth doing; doing it on page load is not.
+  //
+  // Three things have to be true before the Pixel is allowed to load here, and
+  // all three are enforced below rather than assumed:
+  //
+  //   1. The person engaged. Page load alone never triggers this.
+  //   2. The tag token is out of the URL first. fbq sends document.location
+  //      with every event, so stripping has to happen BEFORE init, not after —
+  //      otherwise the very first PageView carries the token.
+  //   3. It happens once per page.
+  //
+  // No tag token, no plate, no phone number is ever passed. The event carries
+  // the reason chosen from the fixed five-item list and nothing else.
+  var scannerRetargetingDone = false;
+
+  window.ptScannerEngaged = function (params) {
+    if (scannerRetargetingDone) return;
+    if (surface !== "scanner") return;
+    if (!PIXEL_ID) return;
+    scannerRetargetingDone = true;
+
+    // Strip the token from the address bar before anything can read it.
+    // replaceState leaves the page and its JS untouched — the token was already
+    // read into memory long before this runs — and only rewrites what fbq will
+    // later report as the page URL.
+    // Absence is checked BEFORE the try, not inside it.
+    //
+    // The earlier shape wrapped an `if (replaceState)` in a try and returned
+    // only from the catch, which fails closed when the call THROWS but falls
+    // straight through when the API is simply missing — skipping the strip and
+    // then loading the Pixel on a URL that still carries the token. That is the
+    // exact leak this function exists to prevent, so the missing case has to
+    // return too.
+    if (!(window.history && typeof window.history.replaceState === "function")) return;
+
+    try {
+      window.history.replaceState(null, "", "/vehicle");
+    } catch (_) {
+      // Present but refused. Same rule: no strip, no Pixel.
+      return;
+    }
+
+    /* eslint-disable */
+    !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+    n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
+    n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
+    t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}
+    (window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
+    /* eslint-enable */
+
+    try {
+      window.fbq("init", PIXEL_ID);
+      window.fbq("trackCustom", "ScannerEngaged", sanitize(params), { eventID: eventId("ScannerEngaged", null) });
+    } catch (_) { /* analytics must never break the page */ }
+  };
 })();

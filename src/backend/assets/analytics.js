@@ -58,8 +58,17 @@
   //             login-wall measurement needs, and GA4 still provides it; the
   //             Pixel buys nothing a login screen is worth the risk for.
   //
-  // Both surfaces still report to GA4. This governs Meta only.
-  var PIXEL_FREE_SURFACES = { scanner: 1, auth: 1 };
+  //   billing — the membership/upgrade screen. Named separately from "auth"
+  //             because the reason is different and would otherwise be
+  //             misread: nothing sensitive is typed here, the Pixel is absent
+  //             only because /owner-membership sits in STRICT_SCRIPT_PAGES,
+  //             whose script-src does not carry connect.facebook.net. Declaring
+  //             "app" here would have the bundle request a script the browser
+  //             then refuses, logging a CSP error on every view for no gain.
+  //             GA4 measures the upgrade funnel, which is what it is for.
+  //
+  // All of these still report to GA4. This governs Meta only.
+  var PIXEL_FREE_SURFACES = { scanner: 1, auth: 1, billing: 1 };
   var pixelAllowed = !PIXEL_FREE_SURFACES[surface];
 
   var gaReady = !!GA4_ID;

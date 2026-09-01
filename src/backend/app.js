@@ -184,7 +184,15 @@ const NO_INLINE_SCRIPT_PAGES = new Set(["/owner-welcome"]);
 // wrapped in a try/catch and loaded async at their end, so checkout works
 // without it; allowing that origin is a decision about Razorpay's fraud signals,
 // not something to slip into a CSP tightening.
-const CHECKOUT_SCRIPT_SOURCES = "'self' https://checkout.razorpay.com";
+//
+// The analytics loaders are here because /owner-welcome is where the entire
+// commerce funnel reports from: view_item, begin_checkout, purchase and
+// sign_up all fire on this page. Tightening script-src to Razorpay alone left
+// the single most valuable page in the app unable to load either tracker, so
+// the conversions the Pixel exists to optimise on would never have been sent.
+// This page is data-surface="app", so unlike the credential pages it gets both.
+const CHECKOUT_SCRIPT_SOURCES =
+  "'self' https://checkout.razorpay.com https://www.googletagmanager.com https://connect.facebook.net";
 
 // Derived from whatever helmet just set, rather than written out again, so a
 // change to the app-wide policy carries over instead of leaving these pages on

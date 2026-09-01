@@ -92,6 +92,31 @@ describe("CSP permits the analytics the app ships", () => {
     }
   });
 
+  test("the checkout page allows both trackers", async () => {
+    // /owner-welcome is where view_item, begin_checkout, purchase and sign_up
+    // all fire — the whole commerce funnel. It gets its own tightened script-src
+    // (NO_INLINE_SCRIPT_PAGES), which originally allowed Razorpay and nothing
+    // else, leaving the most valuable page in the app unable to load either
+    // tracker. A policy that blocks the purchase conversion is worse than no
+    // Pixel at all, because it looks configured.
+    const response = await app.inject({ method: "GET", url: "/owner-welcome" });
+
+    // Signed out this redirects; follow the policy on whatever it serves.
+    const header = response.headers["content-security-policy"];
+    if (!header) return; // no CSP on a redirect body — nothing to assert
+
+    const csp = Object.fromEntries(
+      String(header).split(";").map((part) => {
+        const [name, ...values] = part.trim().split(/\s+/);
+        return [name, values.join(" ")];
+      })
+    );
+
+    assert.match(csp["script-src"], /https:\/\/www\.googletagmanager\.com/, "checkout must allow GA4");
+    assert.match(csp["script-src"], /https:\/\/connect\.facebook\.net/, "checkout must allow the Pixel");
+    assert.match(csp["script-src"], /checkout\.razorpay\.com/, "and must not have lost Razorpay");
+  });
+
   test("it is still a real policy, not a wildcard", async () => {
     // Widening for analytics must not become widening for everything. If a
     // later fix reaches for `*`, this is the thing that objects.

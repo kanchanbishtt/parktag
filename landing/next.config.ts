@@ -19,7 +19,19 @@ const isDev = process.env.NODE_ENV !== "production";
 // The app's own origin has to be listed because the bundle is served from
 // app.parktag.me, not from here — a cross-origin script, which `'self'` alone
 // does not cover.
-const APP_ORIGIN = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.parktag.me";
+// Normalised to a bare origin. A CSP source expression that carries a path —
+// which "https://app.parktag.me/" with its trailing slash is — matches only
+// that path, so the bundle at /pt-analytics.js would be blocked and the policy
+// would look correct while doing nothing. Env values pick up trailing slashes
+// routinely, so this cannot rely on whoever sets it being careful.
+const APP_ORIGIN = (() => {
+  const raw = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.parktag.me";
+  try {
+    return new URL(raw).origin;
+  } catch {
+    return "https://app.parktag.me";
+  }
+})();
 
 // Where GA4 and the Meta Pixel fetch their code, and where they report to.
 // Split out so the app's CSP (src/backend/app.js) can be read against the same

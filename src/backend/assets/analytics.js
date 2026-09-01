@@ -25,8 +25,20 @@
   // Declared rather than inferred from the URL because getting this wrong has a
   // real cost (see the pixel rule below) and a path regex silently rots the
   // first time a route is renamed.
-  var surface = (document.currentScript &&
-                 document.currentScript.getAttribute("data-surface")) || "app";
+  // Found by query rather than through document.currentScript, which is null
+  // for any script marked `defer` or `async`.
+  //
+  // This is not a style preference. Every one of these tags carries `defer` so
+  // it cannot block first paint, and currentScript would therefore hand back
+  // null on all of them — collapsing the surface to the "app" default and
+  // loading the Meta Pixel on the scan page, which is the one thing the
+  // surface flag exists to prevent. The failure would be silent: no error, no
+  // console warning, just a Pixel where there must never be one.
+  var selfScript =
+    document.currentScript ||
+    document.querySelector('script[src*="pt-analytics.js"]');
+
+  var surface = (selfScript && selfScript.getAttribute("data-surface")) || "app";
 
   // The scan pages are used by STRANGERS standing at someone else's vehicle,
   // so the Pixel is not loaded there on arrival. Two separate reasons:

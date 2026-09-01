@@ -143,3 +143,49 @@ describe("event id determinism", () => {
     assert.match(source, /if \(params && params\.transaction_id\) return name \+ ":" \+ params\.transaction_id;/);
   });
 });
+
+describe("surface detection survives defer", () => {
+  test("the surface is not read from document.currentScript alone", () => {
+    // Every analytics tag is deferred so it cannot block first paint, and
+    // currentScript is null for a deferred script. Reading the surface from it
+    // alone would collapse every page to the "app" default — which on the scan
+    // page means loading the Meta Pixel where it must never load. Silently: no
+    // error, no warning, just a Pixel that should not be there.
+    assert.match(source, /document\.querySelector\('script\[src\*="pt-analytics\.js"\]'\)/);
+  });
+
+  test("every page tag is deferred and declares a surface", async () => {
+    const pagesDir = path.join(currentDir, "../../frontend/pages");
+    const files = [];
+
+    async function walk(dir) {
+      for (const entry of await fs.readdir(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) await walk(full);
+        else if (entry.name.endsWith(".html")) files.push(full);
+      }
+    }
+    await walk(pagesDir);
+
+    let tagged = 0;
+    for (const file of files) {
+      const html = await fs.readFile(file, "utf8");
+      const tag = html.match(/<script src="\/pt-analytics\.js"[^>]*>/);
+      if (!tag) continue;
+      tagged += 1;
+
+      assert.match(tag[0], /data-surface="(app|scanner)"/, `${path.basename(file)} must declare a surface`);
+      assert.match(tag[0], /\bdefer\b/, `${path.basename(file)} must defer the analytics bundle`);
+    }
+
+    assert.ok(tagged > 0, "expected at least one page to carry the analytics tag");
+  });
+
+  test("the scan page declares the scanner surface", async () => {
+    // Named explicitly rather than left to the sweep above: this is the page
+    // the whole privacy rule is about, so it gets an assertion that fails by
+    // name if someone re-tags it.
+    const html = await fs.readFile(path.join(currentDir, "../../frontend/pages/scanner/index.html"), "utf8");
+    assert.match(html, /<script src="\/pt-analytics\.js" data-surface="scanner" defer><\/script>/);
+  });
+});

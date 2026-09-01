@@ -1816,11 +1816,46 @@ function setSosMissing(missing) {
   if (row) row.dataset.sosMissing = missing ? "1" : "0";
 }
 
+// Exactly one pill is lit in the bottom nav, always.
+//
+// The Profile tab lights while the drawer it opens is open, the same way Tags
+// and Shop light for the view they are showing. Lighting it is not enough on
+// its own: the view behind the drawer still had its own pill lit, so opening
+// the drawer put TWO red pills in a three-button bar and the row stopped
+// reading as a single control. So opening dims the view tab, and closing gives
+// it back.
+//
+// Closing re-derives which of the two it was from what is actually on screen
+// rather than restoring a value stashed on open. A stashed value is a second
+// copy of the truth, and it goes stale the moment the drawer's own buttons
+// change the view underneath it — which they do: "Buy Premium Tag" on a vehicle
+// card calls goToShopForReplace while the drawer is still open.
+//
+// Null-guarded throughout: the header burger calls these too, and this script
+// is loaded by pages that have the drawer but no bottom nav.
+function _syncNavTabs(menuOpen) {
+  const profile = document.getElementById("navProfile");
+  const tags = document.getElementById("navTags");
+  const shop = document.getElementById("navShop");
+  if (!profile || !tags || !shop) return;
+
+  profile.classList.toggle("active", menuOpen);
+  profile.setAttribute("aria-expanded", menuOpen ? "true" : "false");
+
+  // `display` is "" for the visible view and "none" for the hidden one, which
+  // is exactly what switchTab writes — so this reads the same fact it set.
+  const shopView = document.getElementById("view-shop");
+  const onShop = Boolean(shopView) && shopView.style.display !== "none";
+  tags.classList.toggle("active", !menuOpen && !onShop);
+  shop.classList.toggle("active", !menuOpen && onShop);
+}
+
 function openMenu() {
   _fillMenu();
   document.getElementById("menuBackdrop").classList.add("open");
   document.getElementById("menuDrawer").classList.add("open");
   document.body.style.overflow = "hidden";
+  _syncNavTabs(true);
 }
 window.openMenu = openMenu;
 
@@ -1828,6 +1863,7 @@ function closeMenu() {
   document.getElementById("menuBackdrop").classList.remove("open");
   document.getElementById("menuDrawer").classList.remove("open");
   document.body.style.overflow = "";
+  _syncNavTabs(false);
 }
 window.closeMenu = closeMenu;
 

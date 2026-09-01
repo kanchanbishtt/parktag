@@ -12,7 +12,11 @@
     * { scrollbar-width: none; -ms-overflow-style: none; }
     *::-webkit-scrollbar { display: none; }
 
-    .pt-wp { width: 100%; min-height: 100vh; background: #fff; padding-bottom: 72px; }
+    /* Clears the floating nav: 56px capsule + 14px lift + 14px breathing room,
+   plus the inset on a notched phone. It was 72px when the bar sat flush on
+   the bottom edge and nothing had to clear the gap underneath it. */
+    .pt-wp { width: 100%; min-height: 100vh; background: #fff;
+      padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
 
     /* ── Header ──────────────────────────────────── */
     /* Flat brand navy. This was a four-stop gradient that only passed through
@@ -338,23 +342,51 @@
     }
 
     /* ── Bottom nav ────────────────────────────────── */
+    /* A floating capsule, lifted off the bottom edge rather than welded to it.
+       The wrapper only POSITIONS — it is transparent and paints nothing. The
+       capsule people actually see is .pt-bottom-nav-inner.
+
+       pointer-events matters here and is easy to miss: the wrapper still spans
+       the full width, so while it was invisible it would have gone on swallowing
+       taps in the empty strip either side of the capsule. It passes them
+       through; the capsule takes its own back. */
     .pt-bottom-nav {
       position: fixed; bottom: 0; left: 0; right: 0;
+      display: flex; justify-content: center; z-index: 100;
+      padding: 0 14px calc(env(safe-area-inset-bottom, 0px) + 14px);
+      pointer-events: none;
+    }
+    .pt-bottom-nav-inner {
+      pointer-events: auto;
+      display: flex; width: 100%; max-width: 480px;
+      padding: 8px 10px; gap: 6px; align-items: center;
       background: rgba(255,255,255,0.92);
       backdrop-filter: blur(20px) saturate(180%);
       -webkit-backdrop-filter: blur(20px) saturate(180%);
-      border-top: none;
-      box-shadow: 0 -1px 0 rgba(0,0,0,0.07), 0 -8px 30px rgba(0,0,0,0.06);
-      display: flex; justify-content: center; z-index: 100;
-      padding-bottom: env(safe-area-inset-bottom, 0);
+      /* Fully round, so it reads as one object floating over the page instead
+         of a panel with its corners cut. */
+      border-radius: 999px;
+      /* Cast downwards and outwards now that there is nothing under it — a
+         top-only shadow is what an attached bar has. */
+      box-shadow: 0 12px 32px rgba(3,22,45,0.16), 0 2px 8px rgba(3,22,45,0.07);
+      border: 1px solid rgba(255,255,255,0.65);
     }
-    .pt-bottom-nav-inner {
-      display: flex; width: 100%; max-width: 480px;
-      padding: 10px 16px; gap: 8px; align-items: center;
-    }
+    /* Equal thirds at every width. `flex: 1` alone gives equal SHARES, but a
+       flex item will not shrink below its own content, and only the active tab
+       carries a label — so at three tabs the lit one would swell past the other
+       two on a narrow phone and the row would stop reading as one control.
+       `min-width: 0` lets the share win instead of the content.
+
+       The padding and gap are sized so the widest label ("Profile", ~51px at
+       13px bold) plus a 20px icon fits inside one third of a 360px screen. The
+       capsule inset costs width the full-bleed bar did not: 360 - 28 wrapper
+       - 20 capsule - 12 gaps = 300, so a third is 100px, and
+       10 + 20 + 6 + 51 + 10 = 97. Anything narrower drops the label below
+       rather than clipping the word in half. */
     .pt-nav-tab {
-      flex: 1; display: flex; align-items: center; justify-content: center; gap: 7px;
-      padding: 10px 16px; border-radius: 14px;
+      flex: 1 1 0; min-width: 0;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+      padding: 10px 10px; border-radius: 999px;
       border: none; cursor: pointer; font-family: inherit;
       background: transparent; color: #B0B7C3;
       font-size: 0.82rem; font-weight: 700; letter-spacing: .01em;
@@ -364,6 +396,12 @@
     .pt-nav-tab.active { background: #FF2700; color: #fff; }
     .pt-nav-tab.active .pt-nav-lbl { display: block; }
     .pt-nav-tab:not(.active):hover { background: rgba(0,0,0,0.05); color: #374151; }
+    /* Below the common Android floor a third of the capsule is ~87px and the
+       label no longer fits. Icon-only for all three, pill and all — a
+       deliberate degradation rather than "Profi…". */
+    @media (max-width: 359px) {
+      .pt-nav-tab.active .pt-nav-lbl { display: none; }
+    }
 
     /* ── Shop grid ─────────────────────────────────── */
     .pt-shop-hd { padding: 22px 0 0; }
@@ -1578,6 +1616,18 @@
         <path d="M16 10a4 4 0 0 1-8 0" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
       <span class="pt-nav-lbl">Shop</span>
+    </button>
+    <!-- Opens the drawer rather than swapping the view, so this is a disclosure
+         control and not a third page: aria-expanded, not aria-current. The
+         burger in the header does the same thing — this is the same door where
+         a thumb already is. -->
+    <button class="pt-nav-tab" id="navProfile" onclick="openMenu()" aria-label="Profile"
+            aria-controls="menuDrawer" aria-expanded="false">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="2"/>
+        <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <span class="pt-nav-lbl">Profile</span>
     </button>
   </div>
 </nav>

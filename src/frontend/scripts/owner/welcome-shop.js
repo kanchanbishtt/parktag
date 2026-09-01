@@ -894,6 +894,18 @@ function showToast(message, tone) {
 // ── Tab switching ─────────────────────────────────────────────
 function switchTab(tab) {
   const isShop = tab === "shop";
+
+  // Changing view closes the profile drawer with it. The drawer's own controls
+  // can switch tab — "Buy Premium Tag" on a vehicle card calls
+  // goToShopForReplace — and leaving it open over the view it just navigated to
+  // hides that view behind a sheet the owner has to dismiss before they can see
+  // what their tap did. It also keeps the Profile pill honest: exactly one of
+  // the three is lit at any moment.
+  const drawer = document.getElementById("menuDrawer");
+  if (drawer && drawer.classList.contains("open") && typeof closeMenu === "function") {
+    closeMenu();
+  }
+
   document.getElementById("view-tags").style.display = isShop ? "none" : "";
   document.getElementById("view-shop").style.display = isShop ? "" : "none";
   document.getElementById("navTags").classList.toggle("active", !isShop);

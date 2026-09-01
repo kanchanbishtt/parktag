@@ -18,6 +18,8 @@ import { startTestApp, stopTestApp, createTestOwner, TEST_ORIGIN } from "./helpe
 import { createSession } from "../lib/auth/session.js";
 import { resetGeoipCache } from "../lib/integrations/geoip.js";
 import { settleScannerLocations } from "../lib/core/scan-location.js";
+// Dated from the real window, not a literal — see scan-location.test.js.
+import { PREMIUM_TRIAL_DAYS } from "../lib/core/vault.js";
 
 let app;
 let collections;
@@ -65,7 +67,7 @@ function startGeoStub() {
   });
 }
 
-// `premiumSince` is what callEntitlement reads for the 45-day window, so it is
+// `premiumSince` is what callEntitlement reads for the 90-day window, so it is
 // the single knob that moves a fixture up and down the ladder.
 async function createTag({ premium = false, premiumSince = null, emergencyContact = null } = {}) {
   fixtureCounter += 1;
@@ -231,7 +233,7 @@ describe("an SOS on a lapsed tag still connects, and carries no location", () =>
     // this is where it would leak.
     const token = await createTag({
       premium: true,
-      premiumSince: daysAgo(60),
+      premiumSince: daysAgo(PREMIUM_TRIAL_DAYS + 15),
       emergencyContact: EMERGENCY_NUMBER
     });
 

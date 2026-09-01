@@ -4,23 +4,43 @@ const isDev = process.env.NODE_ENV !== "production";
 
 // Content-Security-Policy for the marketing site.
 //
-// Everything this site loads is same-origin — no CDN, no web fonts, no
-// analytics — so `default-src 'self'` holds and each directive below only
-// widens it where the framework genuinely needs it.
-//
 // `'unsafe-inline'` is required in both script-src and style-src: Next streams
 // hydration data through inline <script> tags, and <AnimateIn> animates via a
 // `style` attribute. Nonces would be stricter but need a request-time
 // middleware, which this fully static site otherwise does without.
+//
+// This policy used to say "everything is same-origin — no analytics" and be
+// right about it. It stopped being right the moment the analytics bundle was
+// added, and the result was silent: the browser blocked GA4 and the Meta Pixel
+// with no server-side error and no failed request anyone was watching. The tag
+// was present in the HTML, the IDs were correct, and nothing was ever reported.
+// A CSP that lags the code it protects fails exactly this way.
+//
+// The app's own origin has to be listed because the bundle is served from
+// app.parktag.me, not from here — a cross-origin script, which `'self'` alone
+// does not cover.
+const APP_ORIGIN = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.parktag.me";
+
+// Where GA4 and the Meta Pixel fetch their code, and where they report to.
+// Split out so the app's CSP (src/backend/app.js) can be read against the same
+// list; the two are separate policies on separate services and drifting apart
+// is how one of them silently stops collecting.
+const ANALYTICS_SCRIPT = `${APP_ORIGIN} https://www.googletagmanager.com https://connect.facebook.net`;
+const ANALYTICS_CONNECT =
+  "https://*.google-analytics.com https://*.analytics.google.com " +
+  "https://*.googletagmanager.com https://www.facebook.com https://connect.facebook.net";
+const ANALYTICS_IMG =
+  "https://*.google-analytics.com https://*.googletagmanager.com https://www.facebook.com";
+
 const csp = [
   "default-src 'self'",
   // 'unsafe-eval' is dev-only: Turbopack's HMR client evaluates modules.
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
+  `script-src 'self' 'unsafe-inline' ${ANALYTICS_SCRIPT}${isDev ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob:",
+  `img-src 'self' data: blob: ${ANALYTICS_IMG}`,
   "font-src 'self' data:",
   // ws:/wss: are dev-only, for the HMR socket.
-  `connect-src 'self'${isDev ? " ws: wss:" : ""}`,
+  `connect-src 'self' ${ANALYTICS_CONNECT}${isDev ? " ws: wss:" : ""}`,
   // blob: covers the camera preview in the tag scanner.
   "media-src 'self' blob:",
   "object-src 'none'",

@@ -549,7 +549,15 @@ export async function buildApp() {
           // Google reCAPTCHA v3 loader + its runtime assets (invisible bot check
           // on the OTP-send flow). Inert unless RECAPTCHA_SITE_KEY is set.
           "https://www.google.com",
-          "https://www.gstatic.com"
+          "https://www.gstatic.com",
+          // GA4 and the Meta Pixel fetch their runtime from these two.
+          //
+          // Without them the browser blocks both loaders outright, which is a
+          // failure with no symptom on this side: /pt-analytics.js is served
+          // correctly, the IDs are right, and every dashboard stays empty. The
+          // policy has to be widened in step with the code it protects.
+          "https://www.googletagmanager.com",
+          "https://connect.facebook.net"
         ],
         // The owner/admin pages wire controls with inline onclick handlers.
         // Helmet defaults script-src-attr to 'none', which blocks ALL inline
@@ -560,8 +568,28 @@ export async function buildApp() {
         scriptSrcAttr: ["'unsafe-inline'"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
-        imgSrc: ["'self'", "data:", "https://api.qrserver.com"],
-        connectSrc: ["'self'", "https://www.google.com"],
+        // Both trackers still deliver some hits as image beacons, which
+        // img-src governs rather than connect-src.
+        imgSrc: [
+          "'self'",
+          "data:",
+          "https://api.qrserver.com",
+          "https://*.google-analytics.com",
+          "https://*.googletagmanager.com",
+          "https://www.facebook.com"
+        ],
+        // Where the trackers actually POST. Blocking these is subtler than
+        // blocking the loaders: the scripts run, ptTrack() reports success, and
+        // the events die at the network boundary.
+        connectSrc: [
+          "'self'",
+          "https://www.google.com",
+          "https://*.google-analytics.com",
+          "https://*.analytics.google.com",
+          "https://*.googletagmanager.com",
+          "https://www.facebook.com",
+          "https://connect.facebook.net"
+        ],
         frameSrc: ["https://accounts.google.com", "https://*.razorpay.com", "https://www.google.com"],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],

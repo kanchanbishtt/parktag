@@ -1,10 +1,20 @@
 name: CI
 
+# Both long-lived branches, not just main.
+#
+# Feature branches are PR'd into `staging` and only reach `main` in the
+# staging -> main release PR. Watching `main` alone therefore ran the suite for
+# the first time AFTER every feature had already been merged and deployed —
+# the tests were reporting history rather than gating anything.
+#
+# It is also what "Wait for CI" on a Railway service needs: that setting holds a
+# deploy until the branch's GitHub checks pass, so a service tracking `staging`
+# with no workflow watching `staging` would wait for a check that never runs.
 on:
   pull_request:
-    branches: [main]
+    branches: [main, staging]
   push:
-    branches: [main]
+    branches: [main, staging]
 
 jobs:
   verify:

@@ -262,7 +262,7 @@ function trialDaysLeft() {
 // Two audiences. An E-Tag owner is shown what the upgrade is worth. A premium
 // owner inside the free period is shown that it ENDS, and what the allowance
 // drops to — they can fill ten slots during the trial and be over the limit on
-// day 46, so being told late would be being told too late.
+// day 91, so being told late would be being told too late.
 function upgradeNote() {
   if (!entitlement) return "";
 

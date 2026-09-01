@@ -385,7 +385,7 @@ describe(`the ${PREMIUM_TRIAL_DAYS}-day free period that comes with a premium ta
 
   test("the page is told when the period ends, not merely that it is on", async () => {
     // An owner can fill all ten slots during the trial and be over the
-    // allowance on day 46. They keep everything, but they must be able to see
+    // allowance on day 91. They keep everything, but they must be able to see
     // that coming while they still have room to plan around it.
     const tagId = await trialTag(5);
     const body = JSON.parse((await call("GET", `/api/owner/vault/documents?tagId=${tagId}`)).body);
@@ -401,7 +401,7 @@ describe(`the ${PREMIUM_TRIAL_DAYS}-day free period that comes with a premium ta
 
   test("paying during the free period reads as subscribed, not as a trial", async () => {
     // Same allowance either way. But telling somebody who has just paid that
-    // their access expires in a fortnight would be alarming and wrong.
+    // their access expires in three months would be alarming and wrong.
     const tagId = await makeTag({
       premium: true,
       premiumSince: new Date().toISOString(),

@@ -8,7 +8,7 @@
 //   E-Tag                    one free masked contact, then blocked. Unchanged;
 //                            this is what makes an unactivated sticker useful
 //                            at all, and it is the whole upgrade prompt.
-//   Premium, first 45 days   masking included. Buying a premium tag pays for
+//   Premium, first 90 days   masking included. Buying a premium tag pays for
 //                            this window, so an owner has used the service
 //                            before being asked to pay again for it.
 //   Premium + subscription   masking, for as long as the subscription runs.
@@ -16,7 +16,7 @@
 //                            scanner still sees the vehicle and can leave a
 //                            message — but the masked call is off.
 //
-// The 45 days are deliberately the SAME window as the document vault's, read
+// The 90 days are deliberately the SAME window as the document vault's, read
 // from the same premiumTrialEndsAt(). One tag has one trial; documents and
 // calls expiring on different days off the same purchase would be impossible
 // to explain on a receipt.
@@ -27,6 +27,7 @@
 // stamping the tag rather than threading a new rule through three routes.
 
 import { isInPremiumTrial, premiumTrialEndsAt } from "./vault.js";
+import { hasActiveSubscription } from "./subscription.js";
 
 export const CALL_TIER_ETAG_FREE = "etag-free";
 export const CALL_TIER_ETAG_USED = "etag-used";
@@ -50,13 +51,7 @@ export const CALL_TIER_LAPSED = "premium-lapsed";
 // downgraded the tag: a renewal that fails at 3am must not leave masking open
 // until somebody notices.
 export function hasActiveCallSubscription(tag, now = Date.now()) {
-  const sub = tag && tag.callSubscription;
-  if (!sub || sub.status !== "active") return false;
-
-  if (sub.currentPeriodEnd === null || sub.currentPeriodEnd === undefined) return true;
-
-  const endsAt = new Date(sub.currentPeriodEnd).getTime();
-  return Number.isFinite(endsAt) && endsAt > now;
+  return hasActiveSubscription(tag, now);
 }
 
 // What one tag may do about calls. The single place this is decided — the
@@ -73,8 +68,8 @@ export function hasActiveCallSubscription(tag, now = Date.now()) {
 //   E-Tag, free contact unused   switch live, on by default — the one free
 //                                masked contact is theirs to use.
 //   E-Tag, free contact spent    locked. Needs a premium tag.
-//   Premium, first 45 days       switch live.
-//   Premium, past 45 days        locked. Needs a subscription.
+//   Premium, first 90 days       switch live.
+//   Premium, past 90 days        locked. Needs a subscription.
 //   Premium + subscription       switch live.
 //
 // Which is "may this tag mask a call right now?" asked from the other side of
@@ -96,9 +91,9 @@ export function callEntitlement(tag, now = Date.now()) {
   }
 
   // A paying subscriber is never labelled as being on a trial, even inside the
-  // first 45 days. Same access either way, but the page says something
+  // first 90 days. Same access either way, but the page says something
   // different about each, and telling somebody who has paid that their calls
-  // stop in a fortnight would be alarming and wrong.
+  // stop in three months would be alarming and wrong.
   if (hasActiveCallSubscription(tag, now)) {
     return { tier: CALL_TIER_SUBSCRIBED, masking: true, premium: true, subscribed: true };
   }
@@ -109,7 +104,7 @@ export function callEntitlement(tag, now = Date.now()) {
       masking: true,
       premium: true,
       subscribed: false,
-      trialEndsAt: new Date(premiumTrialEndsAt(tag)).toISOString()
+      trialEndsAt: new Date(premiumTrialEndsAt(tag, now)).toISOString()
     };
   }
 

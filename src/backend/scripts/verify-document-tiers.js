@@ -9,6 +9,7 @@
 import { createSession } from "../lib/auth/session.js";
 import { getVaultBucket } from "../lib/db/repositories.js";
 import { startTestApp, stopTestApp, createTestOwner, uniqueAddress } from "../tests/helpers.js";
+import { PREMIUM_TRIAL_DAYS } from "../lib/core/vault.js";
 
 const ORIGIN = process.env.APP_BASE_URL || "http://localhost:3000";
 const BOUNDARY = "----verifyTiers";
@@ -77,17 +78,28 @@ const pin = await call("POST", "/api/owner/vault/pin", { pin: PIN });
 if (pin.statusCode !== 200) throw new Error(`could not set PIN: ${pin.body}`);
 
 const now = Date.now();
+// Every date below is a distance from the real window rather than a literal
+// number of days. The window has already moved once, 45 days to 90, and a
+// script that hard-codes "50 days ago" as its expired case quietly becomes a
+// second in-trial case when that happens: it reports NO free period while the
+// free period is working perfectly.
+const bought = (daysAgo) => new Date(now - daysAgo * DAY).toISOString();
+const JUST_INSIDE = PREMIUM_TRIAL_DAYS - 1;
+const JUST_OUTSIDE = PREMIUM_TRIAL_DAYS + 1;
+const WELL_OUTSIDE = PREMIUM_TRIAL_DAYS + 5;
+const EXPIRED_LABEL = `Premium, bought ${WELL_OUTSIDE} days ago`;
+
 // The subscription cases are dated OUTSIDE the free period on purpose. A tag
 // bought today is inside its trial, so a subscription stamped on one would be
 // indistinguishable from the trial granting the same allowance.
-const OLD = new Date(now - 60 * DAY).toISOString();
+const OLD = bought(PREMIUM_TRIAL_DAYS + 15);
 const CASES = [
   ["E-Tag", { premium: false }],
   ["Premium, bought today", { premium: true, premiumSince: new Date(now).toISOString() }],
-  ["Premium, bought 20 days ago", { premium: true, premiumSince: new Date(now - 20 * DAY).toISOString() }],
-  ["Premium, bought 44 days ago", { premium: true, premiumSince: new Date(now - 44 * DAY).toISOString() }],
-  ["Premium, bought 46 days ago", { premium: true, premiumSince: new Date(now - 46 * DAY).toISOString() }],
-  ["Premium, bought 50 days ago", { premium: true, premiumSince: new Date(now - 50 * DAY).toISOString() }],
+  ["Premium, bought 20 days ago", { premium: true, premiumSince: bought(20) }],
+  [`Premium, bought ${JUST_INSIDE} days ago`, { premium: true, premiumSince: bought(JUST_INSIDE) }],
+  [`Premium, bought ${JUST_OUTSIDE} days ago`, { premium: true, premiumSince: bought(JUST_OUTSIDE) }],
+  [EXPIRED_LABEL, { premium: true, premiumSince: bought(WELL_OUTSIDE) }],
   ["Past trial + live subscription", {
     premium: true, premiumSince: OLD,
     documentSubscription: { status: "active", currentPeriodEnd: new Date(now + 30 * DAY).toISOString() }
@@ -108,14 +120,14 @@ for (const [label, extra] of CASES) {
   console.log(`  ${label.padEnd(32)} ${String(stored).padStart(4)}    ${refusal}`);
 }
 
-// The 45-day question, answered from the measurements above rather than from
-// reading the source: a trial would show as a brand-new premium tag holding
-// more than one bought 50 days ago.
+// The free-period question, answered from the measurements above rather than from
+// reading the source: a trial shows as a brand-new premium tag holding more
+// than one bought after the window closed.
 const fresh = results["Premium, bought today"];
-const old = results["Premium, bought 50 days ago"];
-console.log("\n  45-day free period for a new premium tag: " +
-  (fresh > old ? `YES — a new tag holds ${fresh}, a 50-day-old one holds ${old}`
-               : `NO — a new tag and a 50-day-old one both hold ${old}`));
+const old = results[EXPIRED_LABEL];
+console.log(`\n  ${PREMIUM_TRIAL_DAYS}-day free period for a new premium tag: ` +
+  (fresh > old ? `YES — a new tag holds ${fresh}, a ${WELL_OUTSIDE}-day-old one holds ${old}`
+               : `NO — a new tag and a ${WELL_OUTSIDE}-day-old one both hold ${old}`));
 
 // Leave nothing behind.
 await collections.vaultDocuments.deleteMany({ ownerId: owner._id });

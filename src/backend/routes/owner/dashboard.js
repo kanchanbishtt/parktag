@@ -12,6 +12,11 @@ import {
 import { getCollections, ensurePendingCallsIndexes, getVaultBucket } from "../../lib/db/repositories.js";
 import { purgeVaultDocuments, deleteUsage } from "../../lib/core/vault.js";
 import { callEntitlement } from "../../lib/core/call-access.js";
+import {
+  cleanGender,
+  cleanDateOfBirth,
+  shapeProfileDetails
+} from "../../lib/core/profile-details.js";
 import { formatScannerLocation } from "../../lib/core/scan-location.js";
 import { clientErrorMessage } from "../../lib/errors.js";
 import { createQrDataUrl, createPrintQrDataUrl } from "../../lib/core/qr-output.js";
@@ -189,7 +194,10 @@ export function registerOwnerRoutes(app, env) {
         // dashboard knows to offer "add your name" rather than "edit".
         hasOwnName: Boolean(cleanName(owner.displayName) &&
           !isIdentifierNotAName(owner.displayName, owner)),
-        credits: owner.credits || 0
+        credits: owner.credits || 0,
+        // Optional, owner-supplied, and never required to use the product. Age
+        // rides along derived rather than stored — see profile-details.js.
+        profile: shapeProfileDetails(owner)
       },
       tags: await Promise.all(tags.map(async (tag) => {
         const scanUrl = buildTagScanUrl(request, tag.token);
@@ -458,10 +466,31 @@ export function registerOwnerRoutes(app, env) {
       return { ok: false, error: "Please enter your name, not your phone number or email." };
     }
 
-    await collections.owners.updateOne(
-      { _id: ownerId },
-      { $set: { displayName: name, updatedAt: new Date().toISOString() } }
-    );
+    // The optional "about you" fields, applied only when the caller actually
+    // sent them. `undefined` means "not part of this request" and `null`/"" mean
+    // "clear it" — collapsing those two would make the inline name field, which
+    // sends displayName alone, wipe a gender the owner set on the details sheet.
+    const patch = { displayName: name, updatedAt: new Date().toISOString() };
+
+    if ("gender" in (request.body || {})) {
+      patch.gender = cleanGender(request.body.gender);
+    }
+
+    if ("dateOfBirth" in (request.body || {})) {
+      const dob = cleanDateOfBirth(request.body.dateOfBirth);
+      if (!dob.ok) {
+        reply.code(400);
+        return { ok: false, error: dob.error };
+      }
+      patch.dateOfBirth = dob.value;
+    }
+
+    // Note what is NOT here: email and mobile. Both are login identifiers with
+    // their own indexes, so changing either is an account change that needs
+    // verification — /api/owner/mobile already does that for the phone, with an
+    // OTP. Accepting them on this route would let a details form quietly move
+    // an account to a new address.
+    await collections.owners.updateOne({ _id: ownerId }, { $set: patch });
 
     // The session carries displayName for other screens; leaving it stale would
     // show the old name until the owner signed out and back in.
@@ -473,7 +502,11 @@ export function registerOwnerRoutes(app, env) {
       ok: true,
       displayName: name,
       greetingName: firstNameOf(resolved),
-      hasOwnName: Boolean(name)
+      hasOwnName: Boolean(name),
+      // Echoed back from the merged document rather than from the request, so
+      // the sheet renders what was actually stored — including a value it did
+      // not send and the normalisation applied to one it did.
+      profile: shapeProfileDetails({ ...owner, ...patch })
     };
   });
 
@@ -1115,7 +1148,7 @@ export function registerOwnerRoutes(app, env) {
     // Deleted tags are excluded so that this agrees with the dashboard, which
     // builds its own tag list the same way. A button the page draws and a route
     // that refuses it is worse than either answer on its own.
-    // Premium alone is no longer enough. Masking runs for 45 days from purchase
+    // Premium alone is no longer enough. Masking runs for 90 days from purchase
     // and then needs a subscription, and calling a scanner back IS a masked
     // call — so a tag whose window has closed must not still offer one. The
     // decision comes from callEntitlement so this route, the scanner's
@@ -1124,11 +1157,15 @@ export function registerOwnerRoutes(app, env) {
     // The extra fields are projected because the entitlement needs them; a
     // token-only projection would make every tag look like it had no trial and
     // no subscription, which reads as lapsed and would switch callback off for
-    // everyone.
+    // everyone. `activatedAt` is on that list for the same reason: leave it out
+    // and a retail tag falls back to its print date here while every other
+    // surface counts from activation, so callback alone would refuse a tag the
+    // dashboard is still drawing a button for. Anything premiumTrialEndsAt()
+    // reads has to be named here.
     const callableTags = await collections.tags
       .find(
         { ownerId, premium: true, deletedAt: { $in: [null, undefined] } },
-        { projection: { token: 1, premium: 1, premiumSince: 1, createdAt: 1, callSubscription: 1, freeContactUsed: 1 } }
+        { projection: { token: 1, premium: 1, premiumSince: 1, activatedAt: 1, createdAt: 1, callSubscription: 1, freeContactUsed: 1 } }
       )
       .toArray();
 
@@ -1138,7 +1175,7 @@ export function registerOwnerRoutes(app, env) {
 
     if (!premiumTokens.length) {
       // Distinguishing the two cases matters: "buy a premium tag" is useless
-      // advice to somebody who already owns one and whose 45 days have run out.
+      // advice to somebody who already owns one and whose 90 days have run out.
       const lapsed = callableTags.length > 0;
       reply.code(402);
       return {

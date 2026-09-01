@@ -25,6 +25,7 @@ import {
   recordLoginFailure,
   clearLoginFailures
 } from "../auth/login-lockout.js";
+import { hasActiveSubscription } from "./subscription.js";
 
 // Reuses the per-account lockout that already guards sign-in, keyed under its
 // own "vault" role so vault guesses and login guesses never share a counter —
@@ -62,8 +63,8 @@ export const MAX_BYTES_PER_OWNER = 40 * 1024 * 1024; // 40MB across all vehicles
 //                                           free vehicles cannot fill GridFS.
 //   Premium tag              3 documents  — RC, insurance and PUC, which is the
 //                                           set an owner is actually asked for.
-//   Premium, first 45 days   the lot      — buying a premium tag includes the
-//                                           subscription tier free for 45 days,
+//   Premium, first 90 days   the lot      — buying a premium tag includes the
+//                                           subscription tier free for 90 days,
 //                                           so the add-on is something an owner
 //                                           has used before being asked to pay
 //                                           for it.
@@ -85,15 +86,20 @@ export const DOCS_PER_SUBSCRIBED_TAG = 10;
 // The complimentary period that comes with a premium tag.
 //
 // It is a TRIAL, and the honest consequence of that is worth stating: an owner
-// who fills all ten slots during it is over their allowance on day 46. Nothing
+// who fills all ten slots during it is over their allowance on day 91. Nothing
 // is deleted — they keep every document and simply cannot add another until
 // they subscribe or delete one — but they must be TOLD the period ends while
 // they still have room, which is why the entitlement carries trialEndsAt and
 // the page counts it down. A trial that silently becomes a wall is a worse
 // product than no trial.
-export const PREMIUM_TRIAL_DAYS = 45;
+export const PREMIUM_TRIAL_DAYS = 90;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+// How far ahead of our own clock a stored start date may sit before it is
+// treated as corrupt rather than as drift. Generous next to real NTP skew
+// between app instances (seconds), tight next to the 90-day window it guards.
+const TRIAL_START_SKEW_GRACE_MS = 5 * 60 * 1000;
 
 // There is deliberately no single MAX_DOCS_PER_VEHICLE any more. It used to be
 // the one number the whole vault was written against, and leaving it behind as
@@ -424,40 +430,61 @@ export async function revokeVaultAccess(collections, sessionId) {
 // Expiry is checked against the clock rather than trusting a job to have
 // downgraded the tag on time: a renewal that fails at 3am must not quietly
 // leave the larger allowance open until somebody notices.
+// Kept as the name the vault reads, but it no longer owns the rule: the tag has
+// ONE subscription and hasActiveSubscription() is the only thing that decides
+// whether it is live. It used to look at `tag.documentSubscription` alone,
+// which meant a tag renewed for calls kept a lapsed vault — see subscription.js
+// for why that was never a choice anybody made.
 export function hasActiveDocumentSubscription(tag, now = Date.now()) {
-  const sub = tag && tag.documentSubscription;
-  if (!sub || sub.status !== "active") return false;
-
-  // An ABSENT end date means open-ended, which is what a comped tag looks like.
-  // Tested for absence specifically, not for falsiness: an empty string is a
-  // blank field, not a decision to give somebody unlimited storage, and a
-  // truthiness check reads the two as the same thing.
-  if (sub.currentPeriodEnd === null || sub.currentPeriodEnd === undefined) return true;
-
-  // Anything else present must parse to a future instant. An unparseable date
-  // reads as expired rather than unlimited — junk in this field must never be
-  // the thing that hands storage out.
-  const endsAt = new Date(sub.currentPeriodEnd).getTime();
-  return Number.isFinite(endsAt) && endsAt > now;
+  return hasActiveSubscription(tag, now);
 }
 
 // When a premium tag's complimentary period runs out, as epoch ms — or null if
 // this tag never had one.
 //
-// Dated from `premiumSince`, which createPremiumTagForVehicle stamps at the
-// moment the tag is minted. `createdAt` is the fallback for premium tags issued
-// by an admin batch, which have no premiumSince. Both are only ever a fallback
-// TOWARDS expiry: an unparseable or missing date yields no trial at all rather
-// than an open-ended one, so a malformed tag cannot mint free storage.
-export function premiumTrialEndsAt(tag) {
+// The window opens when the tag reaches a customer, NOT when it is printed.
+// Three sources, in the order they answer that question:
+//
+//   premiumSince   stamped by createPremiumTagForVehicle when somebody buys a
+//                  premium tag from the shop. That tag is born already owned,
+//                  so the purchase IS the activation.
+//   activatedAt    stamped by /claim and /activate the first time a stock tag
+//                  is registered to an owner. This is the one that matters for
+//                  retail: an admin batch mints premium tags with `premium:
+//                  true` and NO premiumSince, so before this existed the whole
+//                  window was measured from the print run. A batch printed in
+//                  September and sold in December arrived with its free period
+//                  already spent, which reads to the customer as a tag that
+//                  never worked rather than as a tag that expired on a shelf.
+//   createdAt      last resort, for tags activated before activatedAt existed.
+//                  Same behaviour those tags already had, so nothing they were
+//                  granted is withdrawn by this ordering.
+//
+// All three are only ever a fallback TOWARDS expiry: an unparseable or missing
+// date yields no trial at all rather than an open-ended one, so a malformed tag
+// cannot mint free storage.
+export function premiumTrialEndsAt(tag, now = Date.now()) {
   if (!tag || !tag.premium) return null;
-  const startedAt = new Date(tag.premiumSince || tag.createdAt || "").getTime();
+  const startedAt = new Date(tag.premiumSince || tag.activatedAt || tag.createdAt || "").getTime();
   if (!Number.isFinite(startedAt)) return null;
-  return startedAt + PREMIUM_TRIAL_DAYS * DAY_MS;
+
+  // A start date in the future is bad data, and the shape of the bug matters:
+  // the window is start + 90 days, so a date a year out grants a year and a
+  // clamp to `now` on every read would slide the end forwards forever — an
+  // unbounded free tier from a single mistyped field. Beyond the skew grace it
+  // is refused outright, which is the same answer this function already gives
+  // an unparseable date: no trial rather than an endless one.
+  //
+  // The grace is there because these dates are written by the app from its own
+  // clock and read back by any instance. A few seconds of drift between two
+  // instances must not deny a customer the window they just activated, so
+  // anything inside the grace counts as "now" instead of being thrown out.
+  if (startedAt > now + TRIAL_START_SKEW_GRACE_MS) return null;
+  return Math.min(startedAt, now) + PREMIUM_TRIAL_DAYS * DAY_MS;
 }
 
 export function isInPremiumTrial(tag, now = Date.now()) {
-  const endsAt = premiumTrialEndsAt(tag);
+  const endsAt = premiumTrialEndsAt(tag, now);
   return endsAt !== null && now < endsAt;
 }
 
@@ -473,9 +500,9 @@ export function documentEntitlement(tag, now = Date.now()) {
   }
 
   // A paying subscriber is never labelled as being on a trial, even inside the
-  // first 45 days. Same allowance either way, but the page says something
+  // first 90 days. Same allowance either way, but the page says something
   // different about each, and telling somebody who has paid that their access
-  // expires in a fortnight would be alarming and wrong.
+  // expires in three months would be alarming and wrong.
   if (hasActiveDocumentSubscription(tag, now)) {
     return { tier: TIER_SUBSCRIBED, maxDocs: DOCS_PER_SUBSCRIBED_TAG, premium: true, subscribed: true };
   }
@@ -486,7 +513,7 @@ export function documentEntitlement(tag, now = Date.now()) {
       maxDocs: DOCS_PER_SUBSCRIBED_TAG,
       premium: true,
       subscribed: false,
-      trialEndsAt: new Date(premiumTrialEndsAt(tag)).toISOString()
+      trialEndsAt: new Date(premiumTrialEndsAt(tag, now)).toISOString()
     };
   }
 

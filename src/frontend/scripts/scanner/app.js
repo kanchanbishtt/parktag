@@ -1227,6 +1227,9 @@ function openReasonStep() {
   // would send the owner a message about something the scanner did not choose
   // this time.
   clearSelectedReason();
+  // The nudge is per attempt: someone who backed out and returned is asked once
+  // more rather than silently inheriting the previous "send anyway".
+  resetAnonymousNudge();
   openOverlay("reason-modal");
 }
 
@@ -1262,6 +1265,18 @@ function callbackNumberFromReasonStep() {
   return `+91${last10}`;
 }
 
+// Has the scanner already been shown the "no number" nudge on this reason step?
+//
+// Reset every time the step opens, so the prompt is once per attempt rather than
+// once per session — and a scanner who abandons and comes back is asked again.
+let anonymousSendConfirmed = false;
+
+function resetAnonymousNudge() {
+  anonymousSendConfirmed = false;
+  const nudge = byId("reason-callback-nudge");
+  if (nudge) nudge.hidden = true;
+}
+
 function setCallbackNoteError(message) {
   const note = byId("reason-callback-note");
   if (!note) return;
@@ -1293,6 +1308,18 @@ async function handleWhatsAppNotify() {
     return;
   }
   setCallbackNoteError("");
+
+  // Empty is allowed — reporting a stranger's lights is a favour and demanding a
+  // number would stop some people bothering at all. But an empty box is a
+  // default, not a decision, so the first tap asks and the second sends. One
+  // prompt only: after this the flag is set and Notify behaves normally.
+  if (callbackNumberFromReasonStep() === "" && !anonymousSendConfirmed) {
+    anonymousSendConfirmed = true;
+    const nudge = byId("reason-callback-nudge");
+    if (nudge) nudge.hidden = false;
+    byId("reason-callback-phone")?.focus();
+    return;
+  }
 
   const token = byId("request-token")?.value.trim() || getTokenFromUrl();
 
@@ -1858,6 +1885,14 @@ byId("reason-cancel")?.addEventListener("click", () => {
 
 // Tapping the blur outside the card closes it — same gesture as the
 // verification popup, so the two do not behave differently.
+// Typing answers the nudge, so it should not sit there contradicting the field.
+// The confirmed flag is deliberately NOT reset: having once chosen to send
+// anonymously, a scanner who then adds a number should not be asked again.
+byId("reason-callback-phone")?.addEventListener("input", () => {
+  const nudge = byId("reason-callback-nudge");
+  if (nudge && !nudge.hidden) nudge.hidden = true;
+});
+
 byId("reason-modal")?.addEventListener("click", (event) => {
   const card = byId("reason-step");
   if (card && !card.contains(event.target)) {

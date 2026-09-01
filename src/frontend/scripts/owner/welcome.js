@@ -149,12 +149,394 @@ const PENCIL_SVG =
 
 // Bound here rather than beside the handlers above: these run at module load,
 // and the elements they attach to are declared in this block.
-nameEdit?.addEventListener("click", openNameEditor);
+// The pencil opens the full details sheet now, not the one-field editor. The
+// editor stays: it is what the "Add your name" prompt still uses on a first
+// visit, where asking for a gender and a birthday before somebody has even told
+// us their name would be the wrong first question.
+nameEdit?.addEventListener("click", () => {
+  if (nameEdit.dataset.mode === "add") { openNameEditor(); return; }
+  openProfile();
+});
 nameForm?.addEventListener("submit", saveOwnerName);
 nameCancel?.addEventListener("click", closeNameEditor);
 // Escape backs out, the same as Cancel — the field is dismissible by design.
 nameInput?.addEventListener("keydown", (e) => {
   if (e.key === "Escape") { e.preventDefault(); closeNameEditor(); }
+});
+
+// ── Profile details sheet ────────────────────────────────────────
+// Everything an owner may tell us about themselves, in one place, reached from
+// the pencil beside the greeting.
+//
+// Email and phone appear here but are READ-ONLY, and that is deliberate rather
+// than an omission: both are login identifiers, so changing either moves the
+// account and needs verification. The phone already has that flow, with an OTP,
+// under Menu > User Info — the hint points there rather than dead-ending.
+const pf = {
+  sheet:  () => document.getElementById("pfSheet"),
+  bk:     () => document.getElementById("pfBackdrop"),
+  form:   () => document.getElementById("pfForm"),
+  name:   () => document.getElementById("pfName"),
+  email:  () => document.getElementById("pfEmail"),
+  phone:  () => document.getElementById("pfPhone"),
+  gender: () => document.getElementById("pfGender"),
+  dob:    () => document.getElementById("pfDob"),
+  age:    () => document.getElementById("pfAge"),
+  save:   () => document.getElementById("pfSave"),
+  status: () => document.getElementById("pfStatus")
+};
+
+const DOB_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+// Whole years from a YYYY-MM-DD string. Deliberately the same arithmetic as the
+// server's ageFromDateOfBirth — the box updates as a birthday is typed, and a
+// round trip for that would leave it a keystroke behind.
+function _ageFrom(dob) {
+  if (!DOB_PATTERN.test(String(dob || ""))) return null;
+  const parts = String(dob).split("-").map(Number);
+  const now = new Date();
+  let age = now.getFullYear() - parts[0];
+  const monthsIn = now.getMonth() + 1 - parts[1];
+  if (monthsIn < 0 || (monthsIn === 0 && now.getDate() < parts[2])) age -= 1;
+  return age;
+}
+
+function _pfSetError(inputId, errId, message) {
+  const input = document.getElementById(inputId);
+  const err = document.getElementById(errId);
+  if (input) input.classList.toggle("bad", Boolean(message));
+  if (err) { err.textContent = message || ""; err.classList.toggle("on", Boolean(message)); }
+}
+
+function _pfSyncAge() {
+  const age = _ageFrom(pf.dob()?.value);
+  const box = pf.age();
+  if (box) box.value = age === null ? "" : String(age);
+}
+
+function _pfStatus(message, tone) {
+  const el = pf.status();
+  if (!el) return;
+  el.textContent = message || "";
+  el.style.color = tone === "err" ? "#DC2626" : "#16A34A";
+}
+
+function openProfile() {
+  const sheet = pf.sheet();
+  if (!sheet) return;
+
+  const o = _owner || {};
+  const details = o.profile || {};
+
+  if (pf.name()) pf.name().value = o.displayName || "";
+  if (pf.gender()) pf.gender().value = details.gender || "";
+  if (pf.dob()) pf.dob().value = details.dateOfBirth || "";
+
+  // An identifier that is not set reads as "Not set" rather than as a blank box
+  // somebody forgot to fill, and the email field is dropped entirely when there
+  // is nothing to show.
+  const emailField = document.getElementById("pfEmailField");
+  if (pf.email()) pf.email().value = o.email || "";
+  if (emailField) emailField.hidden = !o.email;
+
+  _pfRenderPhone();
+
+  // A birthday cannot be in the future, and the browser's own picker can say so
+  // before anything is typed.
+  if (pf.dob()) pf.dob().max = new Date().toISOString().slice(0, 10);
+
+  _pfSyncAge();
+  _pfSetError("pfName", "pfNameErr", "");
+  _pfSetError("pfDob", "pfDobErr", "");
+  _pfStatus("");
+
+  sheet.hidden = false;
+  // Next frame, so the browser lays the sheet out at translateY(100%) before the
+  // class that animates it to 0 lands. Set in the same tick there is nothing to
+  // transition from and the sheet simply appears.
+  requestAnimationFrame(() => {
+    pf.bk()?.classList.add("open");
+    sheet.classList.add("open");
+  });
+  document.body.style.overflow = "hidden";
+  setTimeout(() => pf.name()?.focus(), 340);
+}
+window.openProfile = openProfile;
+
+function closeProfile() {
+  const sheet = pf.sheet();
+  if (!sheet) return;
+  sheet.classList.remove("open");
+  pf.bk()?.classList.remove("open");
+  document.body.style.overflow = "";
+  // Hidden only once it has slid away, so the exit animation gets to run.
+  setTimeout(() => { if (!sheet.classList.contains("open")) sheet.hidden = true; }, 340);
+}
+window.closeProfile = closeProfile;
+
+async function saveProfile(event) {
+  event?.preventDefault();
+
+  const name = (pf.name()?.value || "").trim();
+  const dob = (pf.dob()?.value || "").trim();
+
+  _pfSetError("pfName", "pfNameErr", "");
+  _pfSetError("pfDob", "pfDobErr", "");
+  _pfSetError("pfPhoneInput", "pfPhoneErr", "");
+
+  // The one required field, checked before anything else so an owner is not
+  // told about a stray character in their name while the thing actually
+  // blocking the save is further down the form.
+  if (!((_owner && _owner.mobile) || _ownerMobile)) {
+    _pfSetError("pfPhoneInput", "pfPhoneErr",
+      "A verified phone number is required — it is how scanners reach you.");
+    _pfStatus("Add and verify your phone to save.", "err");
+    pfPhone.input()?.focus();
+    return;
+  }
+
+  // Checked here so the obvious mistakes answer instantly. The server checks the
+  // same things again — this is a convenience, not the gate.
+  if (name && name.length < 2) {
+    _pfSetError("pfName", "pfNameErr", "Please enter at least 2 characters.");
+    pf.name()?.focus();
+    return;
+  }
+  if (dob) {
+    const age = _ageFrom(dob);
+    if (age === null) {
+      _pfSetError("pfDob", "pfDobErr", "Enter a date of birth as YYYY-MM-DD.");
+      return;
+    }
+    if (age < 0) { _pfSetError("pfDob", "pfDobErr", "Date of birth cannot be in the future."); return; }
+    if (age < 13) { _pfSetError("pfDob", "pfDobErr", "You must be at least 13."); return; }
+    if (age > 120) { _pfSetError("pfDob", "pfDobErr", "Please check the year."); return; }
+  }
+
+  const btn = pf.save();
+  if (btn) { btn.disabled = true; btn.textContent = "Saving..."; }
+  _pfStatus("");
+
+  try {
+    const res = await fetch("/api/owner/profile", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      // gender and dateOfBirth are always sent from this sheet, including as
+      // empty strings — that is how an owner clears one they set before. The
+      // inline name editor sends displayName alone, and the server tells the two
+      // apart by whether the key is present at all.
+      body: JSON.stringify({
+        displayName: name,
+        gender: pf.gender()?.value || "",
+        dateOfBirth: dob
+      })
+    });
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok || !data.ok) {
+      const message = res.status === 400 && data.error
+        ? data.error
+        : "Could not save. Please try again.";
+      // A 400 about the date belongs on the date field, not in the footer where
+      // it sits furthest from the thing that needs fixing.
+      if (res.status === 400 && /date|year|birth/i.test(data.error || "")) {
+        _pfSetError("pfDob", "pfDobErr", data.error);
+      } else if (res.status === 400 && /name|character/i.test(data.error || "")) {
+        _pfSetError("pfName", "pfNameErr", data.error);
+      } else {
+        _pfStatus(message, "err");
+      }
+      return;
+    }
+
+    // The greeting, the menu panel and the cached owner all read this name.
+    _ownerName = data.displayName || "";
+    if (greetName) {
+      greetName.textContent = UI.greetPrefix + " " + (data.greetingName || UI.greetFallback) + "!";
+    }
+    renderGreetingAffordance({ displayName: _ownerName, hasOwnName: data.hasOwnName });
+    if (_owner) {
+      _owner.displayName = _ownerName;
+      _owner.hasOwnName = data.hasOwnName;
+      _owner.profile = data.profile || _owner.profile;
+      const miName = document.getElementById("mi-name");
+      if (miName) miName.textContent = _ownerName || _owner.email || _owner.mobile || "—";
+    }
+
+    _pfStatus("Saved");
+    setTimeout(closeProfile, 550);
+  } catch {
+    _pfStatus("Network error. Please try again.", "err");
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "Save changes"; }
+  }
+}
+
+// ── Phone, the one required field ────────────────────────────────
+//
+// It is required because it is the whole product: a scanner standing at the car
+// reaches the owner on this number, masked. A profile without one leaves that
+// unable to happen, which is why this is the only asterisk on the sheet.
+//
+// Two states, never both:
+//
+//   already on the account   shown and locked. An owner who signed in with
+//                            their phone is here already — the number was
+//                            verified at sign-in and stored, so there is
+//                            nothing to fetch and nothing to type.
+//   not on the account       add and verify in place. Somebody who signed in
+//                            with Google or an email has no number, and sending
+//                            them to another screen to come back from is how a
+//                            required field turns into an abandoned form.
+//
+// Requiredness is enforced HERE and not on PATCH /api/owner/profile. That route
+// is also what the one-field name editor posts to on a first visit, before an
+// owner has been asked for anything else; refusing it without a phone would
+// make a brand-new account unable to save its own name. The number itself is
+// still proven server-side — /api/owner/mobile will not store one without a
+// matching OTP — which is the part that actually has to be trustworthy.
+let _pfPendingMobile = null;
+
+const pfPhone = {
+  saved:   () => document.getElementById("pfPhoneSaved"),
+  add:     () => document.getElementById("pfPhoneAdd"),
+  input:   () => document.getElementById("pfPhoneInput"),
+  send:    () => document.getElementById("pfPhoneSend"),
+  otpRow:  () => document.getElementById("pfPhoneOtpRow"),
+  otp:     () => document.getElementById("pfPhoneOtp"),
+  verify:  () => document.getElementById("pfPhoneVerify")
+};
+
+// Ten digits become +91; anything longer is assumed to already carry its own
+// country code. Same rule the User Info panel uses, so the two cannot normalise
+// the same typing differently.
+function _pfMobileFromInput() {
+  const raw = (pfPhone.input()?.value || "").trim().replace(/\D/g, "");
+  if (!raw || raw.length < 10) return null;
+  return raw.length === 10 ? "+91" + raw : "+" + raw;
+}
+
+// Draws whichever of the two states applies. Called on open and again after a
+// successful verification, so the field locks itself the moment it is satisfied.
+function _pfRenderPhone() {
+  const mobile = (_owner && _owner.mobile) || _ownerMobile || "";
+  const has = Boolean(mobile);
+
+  if (pfPhone.saved()) pfPhone.saved().hidden = !has;
+  if (pfPhone.add()) pfPhone.add().hidden = has;
+
+  if (has) {
+    const box = document.getElementById("pfPhone");
+    if (box) box.value = mobile;
+    const hint = document.getElementById("pfPhoneHint");
+    if (hint) hint.textContent = "Verified. Scanners reach you here without ever seeing it.";
+  } else {
+    _pfSetError("pfPhoneInput", "pfPhoneErr", "");
+    if (pfPhone.otpRow()) pfPhone.otpRow().hidden = true;
+    if (pfPhone.otp()) pfPhone.otp().value = "";
+    _pfPendingMobile = null;
+  }
+}
+
+async function pfSendPhoneCode() {
+  const mobile = _pfMobileFromInput();
+  if (!mobile) {
+    _pfSetError("pfPhoneInput", "pfPhoneErr", "Enter a valid 10-digit number.");
+    pfPhone.input()?.focus();
+    return;
+  }
+  _pfSetError("pfPhoneInput", "pfPhoneErr", "");
+
+  const btn = pfPhone.send();
+  if (btn) { btn.disabled = true; btn.textContent = "Sending..."; }
+  try {
+    const res = await fetch("/api/owner/mobile/send-otp", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ mobile })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!data.ok) {
+      _pfSetError("pfPhoneInput", "pfPhoneErr", data.error || "Could not send the code.");
+      return;
+    }
+    _pfPendingMobile = mobile;
+    if (pfPhone.otpRow()) pfPhone.otpRow().hidden = false;
+    const hint = document.getElementById("pfPhoneAddHint");
+    if (hint) hint.textContent = "Code sent to " + mobile + ".";
+    pfPhone.otp()?.focus();
+  } catch {
+    _pfSetError("pfPhoneInput", "pfPhoneErr", "Network error. Try again.");
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "Send code"; }
+  }
+}
+
+async function pfVerifyPhoneCode() {
+  const otp = (pfPhone.otp()?.value || "").trim();
+  // Falls back to re-reading the field, so an owner who corrects a typo in the
+  // number after the code arrives verifies the number they can actually see.
+  const mobile = _pfPendingMobile || _pfMobileFromInput();
+
+  if (!mobile) { _pfSetError("pfPhoneInput", "pfPhoneErr", "Enter a valid 10-digit number."); return; }
+  if (!/^\d{6}$/.test(otp)) { _pfSetError("pfPhoneInput", "pfPhoneErr", "Enter the 6-digit code."); return; }
+
+  const btn = pfPhone.verify();
+  if (btn) { btn.disabled = true; btn.textContent = "Checking..."; }
+  try {
+    const res = await fetch("/api/owner/mobile", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ mobile, otp })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!data.ok) {
+      _pfSetError("pfPhoneInput", "pfPhoneErr", data.error || "Invalid code. Try again.");
+      return;
+    }
+
+    const saved = data.mobile || mobile;
+    _ownerMobile = saved;
+    if (_owner) _owner.mobile = saved;
+    _pfPendingMobile = null;
+    _pfRenderPhone();
+    _pfSetError("pfPhoneInput", "pfPhoneErr", "");
+
+    // The same number is on the User Info panel and gates the callback button,
+    // so both are brought up to date rather than left showing "Not set" until
+    // the next reload.
+    const miMobile = document.getElementById("mi-mobile");
+    if (miMobile) { miMobile.textContent = saved; miMobile.style.color = "#03162D"; }
+    const miEdit = document.getElementById("mi-mobile-edit");
+    if (miEdit) miEdit.style.display = "none";
+    const alert = document.getElementById("mobile-missing-alert");
+    if (alert) alert.style.display = "none";
+    if (typeof renderActivity === "function") renderActivity(allRequests);
+  } catch {
+    _pfSetError("pfPhoneInput", "pfPhoneErr", "Network error. Try again.");
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "Verify"; }
+  }
+}
+
+pfPhone.send()?.addEventListener("click", pfSendPhoneCode);
+pfPhone.verify()?.addEventListener("click", pfVerifyPhoneCode);
+// Enter in either box does the obvious next thing instead of submitting the
+// whole form, which would try to save a profile that is not yet valid.
+pfPhone.input()?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { e.preventDefault(); pfSendPhoneCode(); }
+});
+pfPhone.otp()?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { e.preventDefault(); pfVerifyPhoneCode(); }
+});
+
+pf.form()?.addEventListener("submit", saveProfile);
+pf.dob()?.addEventListener("input", _pfSyncAge);
+pf.dob()?.addEventListener("change", _pfSyncAge);
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  const sheet = pf.sheet();
+  if (sheet && sheet.classList.contains("open")) { e.preventDefault(); closeProfile(); }
 });
 const grid      = document.getElementById("vehicleGrid");
 const searchInp = document.getElementById("vehicleSearch");
@@ -451,26 +833,9 @@ ${_nbFilter ? `
 </div>` : ""}`;
 
   if (total === 0) {
-    nb.innerHTML = hd + `<div class="pt-ov-empty">Add your first vehicle to see tag status here.</div>`;
+    nb.innerHTML = hd + `<div class="pt-ov-empty">Add your first vehicle to see your overview here.</div>`;
     return;
   }
-
-  const rows = tags.map(tag => {
-    const plate = tag.plateNumber || tag.number || "—";
-    const vtype = tag.vehicleLabel || VEHICLE_LABELS[tag.vehicleType || tag.type] || "Vehicle";
-    const on    = tag.status !== "inactive";
-    const badge = tag.premium ? "Unlimited" : (!tag.freeContactUsed ? "1 Free Left" : "Call Used");
-    const bc    = tag.premium ? "vp-premium" : (!tag.freeContactUsed ? "vp-free" : "vp-used");
-    return `
-<div class="pt-ov-row">
-  <span class="pt-ov-dot ${on ? "on" : "off"}"></span>
-  <div class="pt-ov-body">
-    <p class="pt-ov-plate">${esc(plate)}</p>
-    <p class="pt-ov-vtype">${esc(vtype)} · ${on ? "Active" : "Inactive"}</p>
-  </div>
-  <span class="pt-ov-badge ${bc}">${badge}</span>
-</div>`;
-  }).join("");
 
   const tipIcon = freeLeft < total && !premium
     ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 2l2.4 7.4H22l-6 4.4 2.3 7.2L12 16.6 5.7 21l2.3-7.2-6-4.4h7.6L12 2z" stroke="#D97706" stroke-width="1.8" stroke-linejoin="round"/></svg>`
@@ -479,11 +844,13 @@ ${_nbFilter ? `
     ? `Upgrade to <strong>Premium</strong> for unlimited private contact. Your number stays hidden.`
     : `Each free E-Tag includes <strong>1 free contact</strong> via masked call or WhatsApp.`;
 
+  // No Tag Status list. It restated the My Vehicles grid directly below it —
+  // same plates, same status, same per-tag badge — so an owner scrolled past
+  // every vehicle twice to reach anything else. The KPIs above still answer the
+  // counting question and still filter that grid, which is where the detail
+  // belongs; only the tip survives, because it is the one line here that says
+  // something the cards do not.
   nb.innerHTML = hd + `
-<div class="pt-ov-rows">
-  <div class="pt-ov-rows-hd">Tag Status</div>
-  ${rows}
-</div>
 <div class="pt-ov-tip">
   <span class="pt-ov-tip-ic">${tipIcon}</span>
   <span>${tipText}</span>
@@ -1545,7 +1912,7 @@ function _loadSw(tag) {
 // The same field the scanner gate reads: the switch is live exactly when a
 // masked call is actually available on this tag. Read straight off the
 // entitlement the dashboard API sends rather than re-derived from tag.premium
-// here — the server owns the free contact, the 45-day window and the
+// here — the server owns the free contact, the 90-day window and the
 // subscription, and a second copy of those rules on the page would eventually
 // disagree with it. A tag from an older payload has no callAccess at all,
 // which reads as false: when we do not know, do not offer the control.
@@ -1579,7 +1946,7 @@ function _maskingNote(tag) {
 
 // The switch is live whenever masking is: an E-Tag with its free contact still
 // unspent (on by default — that contact is theirs to use), a premium tag inside
-// its 45 days, or a premium tag on a subscription. Everyone else sees the true
+// its 90 days, or a premium tag on a subscription. Everyone else sees the true
 // state (off) and cannot turn it on from here — the server would ignore them
 // anyway, and a switch that flips but changes nothing is worse than one that
 // plainly does not apply.
@@ -1816,11 +2183,46 @@ function setSosMissing(missing) {
   if (row) row.dataset.sosMissing = missing ? "1" : "0";
 }
 
+// Exactly one pill is lit in the bottom nav, always.
+//
+// The Profile tab lights while the drawer it opens is open, the same way Tags
+// and Shop light for the view they are showing. Lighting it is not enough on
+// its own: the view behind the drawer still had its own pill lit, so opening
+// the drawer put TWO red pills in a three-button bar and the row stopped
+// reading as a single control. So opening dims the view tab, and closing gives
+// it back.
+//
+// Closing re-derives which of the two it was from what is actually on screen
+// rather than restoring a value stashed on open. A stashed value is a second
+// copy of the truth, and it goes stale the moment the drawer's own buttons
+// change the view underneath it — which they do: "Buy Premium Tag" on a vehicle
+// card calls goToShopForReplace while the drawer is still open.
+//
+// Null-guarded throughout: the header burger calls these too, and this script
+// is loaded by pages that have the drawer but no bottom nav.
+function _syncNavTabs(menuOpen) {
+  const profile = document.getElementById("navProfile");
+  const tags = document.getElementById("navTags");
+  const shop = document.getElementById("navShop");
+  if (!profile || !tags || !shop) return;
+
+  profile.classList.toggle("active", menuOpen);
+  profile.setAttribute("aria-expanded", menuOpen ? "true" : "false");
+
+  // `display` is "" for the visible view and "none" for the hidden one, which
+  // is exactly what switchTab writes — so this reads the same fact it set.
+  const shopView = document.getElementById("view-shop");
+  const onShop = Boolean(shopView) && shopView.style.display !== "none";
+  tags.classList.toggle("active", !menuOpen && !onShop);
+  shop.classList.toggle("active", !menuOpen && onShop);
+}
+
 function openMenu() {
   _fillMenu();
   document.getElementById("menuBackdrop").classList.add("open");
   document.getElementById("menuDrawer").classList.add("open");
   document.body.style.overflow = "hidden";
+  _syncNavTabs(true);
 }
 window.openMenu = openMenu;
 
@@ -1828,6 +2230,7 @@ function closeMenu() {
   document.getElementById("menuBackdrop").classList.remove("open");
   document.getElementById("menuDrawer").classList.remove("open");
   document.body.style.overflow = "";
+  _syncNavTabs(false);
 }
 window.closeMenu = closeMenu;
 

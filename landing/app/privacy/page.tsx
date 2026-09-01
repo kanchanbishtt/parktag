@@ -93,7 +93,7 @@ export default function PrivacyPage() {
               We use essential cookies for authentication, and analytics cookies (Google Analytics) to understand how our website and app are used. You can manage cookies via your browser settings.
             </p>
             <p className="mt-3">
-              We also use the Meta pixel so we can show ParkTag ads to people who have used the service. On our website and in the owner dashboard it loads on arrival. On a tag scan page it does <strong>not</strong> load when the page opens: it loads only if you go on to contact the vehicle owner, and the tag reference is removed from the web address before anything is sent. We never send Meta the vehicle&rsquo;s number plate, the tag code, or anyone&rsquo;s phone number from a scan.
+              We also use the Meta pixel so we can show ParkTag ads to people who have used the service. It loads on our website, in the owner dashboard, and on tag scan pages. On a scan page the tag reference is removed from the web address <strong>before</strong> the pixel loads, so we never send Meta the vehicle&rsquo;s number plate, the tag code, or anyone&rsquo;s phone number from a scan. Meta&rsquo;s automatic form-field collection is switched off for our pixel, so it only receives the specific events we send it.
             </p>
             <p className="mt-3">
               We send some conversion events to Meta from our servers rather than from your browser. Where those events identify a person, the identifier is a customer&rsquo;s own phone number or email address, sent only as an irreversible hash. Scanning someone else&rsquo;s vehicle never produces one of these events.

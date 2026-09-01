@@ -215,16 +215,22 @@ const CHECKOUT_SCRIPT_SOURCES =
 // www.google.com and www.gstatic.com stay: they serve the reCAPTCHA loader,
 // which the OTP-send flow uses when RECAPTCHA_SITE_KEY is configured.
 //
-// googletagmanager is added and connect.facebook.net is deliberately NOT.
-// These pages carry the analytics tag with data-surface="auth", which loads
-// GA4 and suppresses the Meta Pixel. A page view here is the whole point —
-// every CTA on the marketing site lands on /owner-login, so without it the
-// drop-off that docs/SHOP_LOGIN_WALL.md is an argument about cannot be
-// measured. The Pixel is a different trade: it is a third-party script on a
-// page where people type OTPs and passwords, with full read access to the
-// form, and it buys nothing the page view does not already give us.
+// Both analytics loaders are here. Meta is given the same view of the funnel
+// as GA4, on the reasoning that signal Meta never receives is money spent
+// finding worse customers — every CTA on the marketing site lands on
+// /owner-login, so a tracker that cannot see this page cannot see the biggest
+// drop-off in the funnel.
+//
+// What makes that safe on a page with a password box is a setting rather than
+// a policy: "Track events automatically without code" must stay OFF in Events
+// Manager. That is the feature that lets the Pixel read form fields on its
+// own. With it off the Pixel sends only what ptTrack hands it, and everything
+// handed to it passes the ALLOWED list in assets/analytics.js first. If that
+// setting is ever turned on, connect.facebook.net should come back out of this
+// list the same day.
 const STRICT_SCRIPT_SOURCES =
-  "'self' https://www.google.com https://www.gstatic.com https://www.googletagmanager.com";
+  "'self' https://www.google.com https://www.gstatic.com " +
+  "https://www.googletagmanager.com https://connect.facebook.net";
 
 // Inline styles are a separate question from inline script and are not solved
 // here. These pages still carry `style="..."` attributes throughout their

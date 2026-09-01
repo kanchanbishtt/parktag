@@ -772,9 +772,21 @@ async function loadScannerView() {
     // median tag is never scanned in 90 days, the trial expires before the
     // owner has felt the product work.
     //
-    // No token, no plate, no status detail. The person scanning is a stranger
-    // who consented to nothing, and this is a privacy product.
+    // No token, no plate, no status detail in the payload either way.
     if (window.ptTrack) ptTrack("scan_received", {});
+
+    // Meta gets the same view of a scan that GA4 does.
+    //
+    // Deliberately here and not at the top of the function: by this line the
+    // token has been read out of the URL and used, so it is safe to rewrite the
+    // address bar. ptScannerEngaged strips it before loading the Pixel, which
+    // matters because fbq transmits document.location with every event and this
+    // page lives at /vehicle/:token — loading the Pixel on arrival would post
+    // vehicle tag identifiers to Meta on every scan.
+    //
+    // It is idempotent, so the later call after a successful contact is still
+    // correct and simply does nothing the second time.
+    if (window.ptScannerEngaged) ptScannerEngaged({ reason: "scan" });
 
     setSummaryForTag(tag);
     setValue("request-token", tag.token);

@@ -67,11 +67,13 @@ describe("analytics bundle", () => {
     }
   });
 
-  test("never gives the Meta Pixel a scanner-surface event", () => {
-    // Pinned here as well as enforced by the data-surface flag at runtime: an
-    // edit that gives either event a Pixel name has to fail something.
-    assert.match(source, /scan_received:\s*\{\s*ga:\s*"scan_received",\s*pixel:\s*null\s*\}/);
-    assert.match(source, /contact_action:\s*\{\s*ga:\s*"contact_action",\s*pixel:\s*null\s*\}/);
+  test("the surface block still refuses to load the Pixel on scanner", () => {
+    // Meta now receives the scanner events, but only through ptScannerEngaged,
+    // which strips the tag token from the URL first. So the loader block must
+    // still refuse this surface — otherwise the token rides along on the very
+    // first PageView, since fbq sends document.location with every event and
+    // the page lives at /vehicle/:token.
+    assert.match(source, /var pixelAllowed = surface !== "scanner";/);
   });
 
   test("the PII allow-list admits no identifier fields", () => {
@@ -204,27 +206,26 @@ describe("surface detection survives defer", () => {
   });
 });
 
-describe("pixel-free surfaces", () => {
-  test("scanner and auth both suppress the Meta Pixel", () => {
-    // Two surfaces, two unrelated reasons, one mechanism. Pinned as a set so
-    // that adding a third does not quietly become a place the Pixel loads:
-    //   scanner — a stranger's scan, on a URL carrying the tag token
-    //   auth    — a page where people type OTPs and passwords
-    assert.match(source, /var PIXEL_FREE_SURFACES = \{ scanner: 1, auth: 1, billing: 1 \};/);
-    assert.match(source, /var pixelAllowed = !PIXEL_FREE_SURFACES\[surface\];/);
+describe("Meta parity with GA4", () => {
+  test("only the scanner surface withholds the Pixel from the loader block", () => {
+    // Everywhere GA4 reports, Meta reports. The scanner is the one exception,
+    // and it is mechanical rather than a judgement call: the tag token has to
+    // come out of the URL before fbq is allowed to read document.location.
+    assert.match(source, /var pixelAllowed = surface !== "scanner";/);
+    assert.doesNotMatch(source, /PIXEL_FREE_SURFACES/, "the suppression list should be gone");
   });
 
-  test("the credential pages declare the auth surface", async () => {
-    // Named explicitly rather than left to the sweep: if either of these ever
-    // reverts to "app", the Meta Pixel starts loading on a page with a password
-    // field on it, and nothing else would object.
-    for (const page of ["login.html", "verify.html"]) {
-      const html = await fs.readFile(path.join(currentDir, "../../frontend/pages/owner", page), "utf8");
-      assert.match(
-        html,
-        /<script src="\/pt-analytics\.js" data-surface="auth" defer><\/script>/,
-        `${page} must declare the auth surface`
-      );
-    }
+  test("scanner events reach Meta only through the stripping path", () => {
+    // They now carry Pixel names, so the loader gate is the only thing keeping
+    // the token out of Meta's hands. Assert the strip still precedes the load —
+    // this is the line between parity and a data leak.
+    assert.match(source, /scan_received:.*pixel: "ScanReceived"/);
+    assert.match(source, /contact_action:.*pixel: "ContactAction"/);
+
+    const fn = source.slice(source.indexOf("window.ptScannerEngaged"));
+    assert.ok(
+      fn.indexOf("replaceState") < fn.indexOf("connect.facebook.net"),
+      "the URL strip must still happen before the Pixel loads"
+    );
   });
 });

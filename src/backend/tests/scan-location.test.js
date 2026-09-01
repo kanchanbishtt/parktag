@@ -18,6 +18,10 @@ import {
   formatScannerLocation
 } from "../lib/core/scan-location.js";
 import { resetGeoipCache } from "../lib/integrations/geoip.js";
+// The lapsed fixture below is dated from this rather than from a literal, so
+// widening the complimentary window cannot quietly turn "lapsed" into "still
+// on trial" and leave these tests asserting the opposite of their names.
+import { PREMIUM_TRIAL_DAYS } from "../lib/core/vault.js";
 
 const DAY = 24 * 60 * 60 * 1000;
 const daysAgo = (n) => new Date(Date.now() - n * DAY).toISOString();
@@ -25,7 +29,7 @@ const daysAgo = (n) => new Date(Date.now() - n * DAY).toISOString();
 const ETAG_FRESH = { premium: false };
 const ETAG_SPENT = { premium: false, freeContactUsed: true };
 const PREMIUM_TRIAL = { premium: true, premiumSince: daysAgo(1) };
-const PREMIUM_LAPSED = { premium: true, premiumSince: daysAgo(60) };
+const PREMIUM_LAPSED = { premium: true, premiumSince: daysAgo(PREMIUM_TRIAL_DAYS + 15) };
 const PREMIUM_SUBBED = {
   premium: true,
   premiumSince: daysAgo(200),
@@ -98,7 +102,7 @@ describe("who gets a location captured", () => {
     }
   });
 
-  test("a premium tag inside its 45 days is captured", async () => {
+  test("a premium tag inside its 90 days is captured", async () => {
     const provider = stubProvider(OK_PAYLOAD);
     try {
       const loc = await resolveScannerLocation({}, PREMIUM_TRIAL, PUBLIC_IP);

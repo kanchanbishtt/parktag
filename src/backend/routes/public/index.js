@@ -599,7 +599,7 @@ export function registerPublicRoutes(app, env) {
       maskedPlateNumber: maskPlateNumber(tag.plateNumber),
       // Free-usage state for the UI (authoritative check is still server-side
       // on the contact endpoint). A premium tag no longer implies contact is
-      // available: masking runs for 45 days from purchase and then needs a
+      // available: masking runs for 90 days from purchase and then needs a
       // subscription, so this is decided by callEntitlement rather than by
       // `tag.premium` alone.
       contactAvailable: callAccess.masking,
@@ -775,7 +775,14 @@ export function registerPublicRoutes(app, env) {
           ownerId,
           status: "active",
           vehicleLabel: vehicleLabel || tag.vehicleLabel,
-          plateNumber
+          plateNumber,
+          // When this tag reached a customer. The complimentary window is dated
+          // from here, so a sticker that sat in a box for two months does not
+          // hand its new owner a period that is already half spent.
+          //
+          // Written only when absent, so re-registering an already-activated
+          // tag cannot mint a fresh window on demand.
+          ...(tag.activatedAt ? {} : { activatedAt: new Date().toISOString() })
         }
       }
     );
@@ -992,7 +999,10 @@ export function registerPublicRoutes(app, env) {
           status: "active",
           vehicleType,
           vehicleLabel: resolvedLabel,
-          plateNumber: normalizedPlate
+          plateNumber: normalizedPlate,
+          // See the matching line in /claim: the free window opens now, not at
+          // the print run, and only if it has not opened already.
+          ...(tag.activatedAt ? {} : { activatedAt: new Date().toISOString() })
         }
       }
     );
@@ -1143,7 +1153,7 @@ export function registerPublicRoutes(app, env) {
     }
 
     // Masking policy (server-enforced, cannot be bypassed from the client):
-    // an E-Tag includes one free masked contact; a premium tag includes 45 days
+    // an E-Tag includes one free masked contact; a premium tag includes 90 days
     // and then needs a subscription. callEntitlement decides both.
     const callAccess = callEntitlement(tag);
     if (!callAccess.masking) {

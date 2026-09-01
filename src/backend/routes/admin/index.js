@@ -475,7 +475,11 @@ export function registerAdminRoutes(app, env) {
         ownerName: o.displayName || null,
         ownerEmail: o.email || null,
         ownerMobile: o.mobile || o.phone || null,
-        activatedAt: t.premiumSince || t.createdAt || null
+        // Same source chain premiumTrialEndsAt() uses, deliberately. This
+        // column is where you go to check when somebody's free window
+        // opened, so it must not answer with the print run while the
+        // entitlement is counting from activation.
+        activatedAt: t.premiumSince || t.activatedAt || t.createdAt || null
       };
     });
 

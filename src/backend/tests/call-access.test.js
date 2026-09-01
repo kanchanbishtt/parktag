@@ -1,4 +1,4 @@
-// Call masking used to be permanent for a premium tag. It now runs for 45 days
+// Call masking used to be permanent for a premium tag. It now runs for 90 days
 // from purchase and then needs a subscription, mirroring the document vault.
 //
 // These are unit tests over the entitlement alone. That is deliberate: three
@@ -66,7 +66,7 @@ describe("call masking entitlement", () => {
   test("a lapsed premium tag loses masking but stays premium", () => {
     // It is still a premium tag — the scanner still sees the vehicle and can
     // leave a message. Only the masked call is off.
-    const e = callEntitlement({ premium: true, premiumSince: daysAgo(60) });
+    const e = callEntitlement({ premium: true, premiumSince: daysAgo(PREMIUM_TRIAL_DAYS + 15) });
     assert.equal(e.masking, false);
     assert.equal(e.premium, true);
     assert.equal(e.subscribed, false);
@@ -85,7 +85,7 @@ describe("call masking entitlement", () => {
 
   test("a subscriber is never labelled as being on a trial", () => {
     // Same access either way, but telling somebody who has paid that their
-    // calls stop in a fortnight would be alarming and wrong.
+    // calls stop in three months would be alarming and wrong.
     const e = callEntitlement({
       premium: true,
       premiumSince: daysAgo(1),
@@ -198,14 +198,14 @@ describe("the owner's masking switch follows the ladder", () => {
     assert.match(callBlockedMessage(e), /official ParkTag sticker/);
   });
 
-  test("a premium tag inside its 45 days may", () => {
+  test("a premium tag inside its 90 days may", () => {
     const e = callEntitlement({ premium: true, premiumSince: daysAgo(1) });
     assert.equal(e.tier, CALL_TIER_TRIAL);
     assert.equal(e.masking, true);
   });
 
-  test("past 45 days it takes a subscription", () => {
-    const e = callEntitlement({ premium: true, premiumSince: daysAgo(60) });
+  test("past 90 days it takes a subscription", () => {
+    const e = callEntitlement({ premium: true, premiumSince: daysAgo(PREMIUM_TRIAL_DAYS + 15) });
     assert.equal(e.tier, CALL_TIER_LAPSED);
     assert.equal(e.masking, false);
   });
@@ -228,7 +228,7 @@ describe("the owner's masking switch follows the ladder", () => {
       { premium: false },
       { premium: false, freeContactUsed: true },
       { premium: true, premiumSince: daysAgo(1) },
-      { premium: true, premiumSince: daysAgo(60) },
+      { premium: true, premiumSince: daysAgo(PREMIUM_TRIAL_DAYS + 15) },
       { premium: true, callSubscription: { status: "active", currentPeriodEnd: null } },
       { premium: true },
       {},
@@ -244,7 +244,7 @@ describe("the owner's masking switch follows the ladder", () => {
     // subscription. The UI copy branches on tier, so these must not collapse
     // into one another.
     const spent = callEntitlement({ premium: false, freeContactUsed: true });
-    const lapsed = callEntitlement({ premium: true, premiumSince: daysAgo(60) });
+    const lapsed = callEntitlement({ premium: true, premiumSince: daysAgo(PREMIUM_TRIAL_DAYS + 15) });
     assert.equal(spent.masking, false);
     assert.equal(lapsed.masking, false);
     assert.notEqual(spent.tier, lapsed.tier);
@@ -263,7 +263,7 @@ describe("what a blocked scanner is told", () => {
   test("a lapsed tag says nothing to the scanner about money", () => {
     // The scanner cannot fix this and it is not their business that somebody
     // else's subscription has run out.
-    const e = callEntitlement({ premium: true, premiumSince: daysAgo(60) });
+    const e = callEntitlement({ premium: true, premiumSince: daysAgo(PREMIUM_TRIAL_DAYS + 15) });
     assert.equal(callBlockedCode(e), "CALL_SUBSCRIPTION_REQUIRED");
     const msg = callBlockedMessage(e);
     assert.doesNotMatch(msg, /subscri|pay|premium|upgrade/i);

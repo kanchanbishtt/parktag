@@ -1545,7 +1545,7 @@ function _loadSw(tag) {
 // The same field the scanner gate reads: the switch is live exactly when a
 // masked call is actually available on this tag. Read straight off the
 // entitlement the dashboard API sends rather than re-derived from tag.premium
-// here — the server owns the free contact, the 45-day window and the
+// here — the server owns the free contact, the 90-day window and the
 // subscription, and a second copy of those rules on the page would eventually
 // disagree with it. A tag from an older payload has no callAccess at all,
 // which reads as false: when we do not know, do not offer the control.
@@ -1579,7 +1579,7 @@ function _maskingNote(tag) {
 
 // The switch is live whenever masking is: an E-Tag with its free contact still
 // unspent (on by default — that contact is theirs to use), a premium tag inside
-// its 45 days, or a premium tag on a subscription. Everyone else sees the true
+// its 90 days, or a premium tag on a subscription. Everyone else sees the true
 // state (off) and cannot turn it on from here — the server would ignore them
 // anyway, and a switch that flips but changes nothing is worse than one that
 // plainly does not apply.

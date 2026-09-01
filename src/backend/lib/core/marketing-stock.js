@@ -88,7 +88,12 @@ export const DEMO_TAG_FIELDS = [
   "vehicleLabel",
   "vehicleType",
   "emergencyContact",
-  "freeContactUsed"
+  "freeContactUsed",
+  // The complimentary window opens at activation, so a demo sticker that has
+  // been activated once must forget when — otherwise the customer who ends up
+  // buying it inherits however much of the window the demo already spent.
+  // Cleared alongside freeContactUsed for the same reason.
+  "activatedAt"
 ];
 
 // May this account be deleted when the sticker is deactivated?

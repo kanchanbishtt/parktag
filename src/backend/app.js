@@ -25,6 +25,8 @@ import { registerAnalyticsRoutes } from "./routes/system/analytics.js";
 import { registerDemoRoutes } from "./routes/system/demo.js";
 import { registerOwnerRoutes } from "./routes/owner/dashboard.js";
 import { registerVaultRoutes } from "./routes/owner/vault.js";
+import { registerLoginPinRoutes } from "./routes/owner/login-pin.js";
+import { registerMembershipRoutes } from "./routes/owner/membership.js";
 import { MAX_FILE_BYTES } from "./lib/core/vault.js";
 import { cacheControlFor, resolveAssetVersion } from "./lib/core/asset-version.js";
 import { registerProviderRoutes } from "./routes/webhooks/exotel.js";
@@ -73,6 +75,8 @@ const ownerVerifyPage = path.join(pagesRoot, "owner/verify.html");
 const ownerWelcomePage = path.join(pagesRoot, "owner/welcome.html");
 const ownerVehicleDetailPage = path.join(pagesRoot, "owner/vehicle-detail.html");
 const ownerDocumentsPage = path.join(pagesRoot, "owner/documents.html");
+const ownerLoginPinPage = path.join(pagesRoot, "owner/login-pin.html");
+const ownerMembershipPage = path.join(pagesRoot, "owner/membership.html");
 // The token every page writes into its stylesheet and script URLs. It is
 // replaced on the way out (see the onSend hook) with a digest of the asset tree,
 // so the URL changes whenever the bytes do and a returning visitor can never be
@@ -125,6 +129,8 @@ const NO_STORE_PAGES = new Set([
   "/owner-verify",
   "/owner-welcome",
   "/owner-documents",
+  "/owner-login-pin",
+  "/owner-membership",
   "/owner",
   "/register-owner",
   "/forgot-password",
@@ -149,6 +155,8 @@ const NO_STORE_PAGES = new Set([
 // cached either, but both generate inline handlers and would break here.
 const STRICT_SCRIPT_PAGES = new Set([
   "/owner-login",
+  "/owner-login-pin",
+  "/owner-membership",
   "/owner-verify",
   "/register-owner",
   "/forgot-password",
@@ -852,6 +860,33 @@ export async function buildApp() {
     return html;
   });
 
+  // The Login PIN screen. Session-gated: it manages a credential, so it must
+  // never render for anyone who is not already signed in — and a redirect to
+  // the sign-in page is the honest answer for a page that exists but is not
+  // theirs to see.
+  app.get("/owner-login-pin", async (request, reply) => {
+    const session = await readSession(app, request);
+    if (!session || session.role !== "owner") {
+      return reply.redirect("/owner-login");
+    }
+    const html = await fs.readFile(ownerLoginPinPage, "utf8");
+    reply.type("text/html");
+    return html;
+  });
+
+  // The membership screen. Session-gated like the rest of the owner area —
+  // it is reached from the profile tab and is part of the signed-in app, not a
+  // public price list.
+  app.get("/owner-membership", async (request, reply) => {
+    const session = await readSession(app, request);
+    if (!session || session.role !== "owner") {
+      return reply.redirect("/owner-login");
+    }
+    const html = await fs.readFile(ownerMembershipPage, "utf8");
+    reply.type("text/html");
+    return html;
+  });
+
   app.get("/forgot-password", async (_request, reply) => {
     const html = await fs.readFile(forgotPasswordPage, "utf8");
     reply.type("text/html");
@@ -1011,6 +1046,8 @@ export async function buildApp() {
   registerShopRoutes(app, env);
   registerOwnerRoutes(app, env);
   registerVaultRoutes(app, env);
+  registerLoginPinRoutes(app, env);
+  registerMembershipRoutes(app, env);
   registerAdminRoutes(app, env);
   registerAdminTrafficRoutes(app, env);
   registerAdminMarketingRoutes(app, env);

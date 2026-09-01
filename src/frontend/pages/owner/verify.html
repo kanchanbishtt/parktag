@@ -51,9 +51,16 @@
 
         <div id="password-step" style="display:none;margin-top:12px">
           <label class="pt-field">
-            <span>Password</span>
-            <input id="password-inp" type="password" class="pt-input" placeholder="Enter your password" autocomplete="current-password"/>
+            <span>PIN</span>
+            <input id="password-inp" type="password" class="pt-input" placeholder="Enter your PIN" autocomplete="current-password"/>
           </label>
+          <!-- Worded the same as /owner-login, because it is the same gate. An
+               account that predates PINs still has a password and it still
+               works here; the server tries both and never tells an
+               unauthenticated caller which one this account holds. -->
+          <p style="margin:8px 0 0;font-size:0.78rem;color:#6B7280;line-height:1.45">
+            Registered with a password? Enter that here instead.
+          </p>
           <button id="password-login-btn" class="pt-btn pt-btn-primary pt-btn-full" style="margin-top:8px">Sign in</button>
         </div>
 
@@ -61,7 +68,7 @@
           Didn't receive a code? <button id="resend-button" class="pt-btn" style="display:inline;background:none;border:none;color:#FF2700;font-weight:700;font-size:0.85rem;cursor:pointer;padding:0;font-family:inherit">Resend</button>
         </p>
         <p id="use-password-row" style="text-align:center;font-size:0.85rem;color:#6B7280;margin-top:6px">
-          Know your password? <button id="use-password-btn" style="display:inline;background:none;border:none;color:#FF2700;font-weight:700;font-size:0.85rem;cursor:pointer;padding:0;font-family:inherit">Sign in</button>
+          Have a login PIN? <button id="use-password-btn" style="display:inline;background:none;border:none;color:#FF2700;font-weight:700;font-size:0.85rem;cursor:pointer;padding:0;font-family:inherit">Sign in using PIN</button>
         </p>
         <p style="text-align:center;font-size:0.85rem;margin-top:8px">
           <a href="/owner" style="color:#FF2700;font-weight:600">← Back to sign in</a>

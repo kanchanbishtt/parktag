@@ -190,6 +190,42 @@ export async function revokeSessionsForUser(app, userId) {
   }
 }
 
+// Same thing, minus the caller's own session.
+//
+// Two jobs. It is the "Logout from all devices" button on the Login PIN screen,
+// where signing yourself out along with the borrowed laptop would make the
+// control useless — the whole point is to keep this device and drop the others.
+// It also runs whenever the login PIN is set or changed, because a new
+// credential should not leave old sessions standing: if someone else set that
+// PIN from a stolen cookie, every session they hold dies with the change, and
+// the owner finds out immediately rather than months later.
+//
+// `keepSessionId` is compared as a string. It arrives from request.cookies, so
+// it is one already, but a caller passing anything else must not silently keep
+// zero sessions and log the owner out of the device they are standing at.
+export async function revokeOtherSessionsForUser(app, userId, keepSessionId) {
+  if (userId == null) return 0;
+  const id = String(userId);
+  const keep = keepSessionId == null ? null : String(keepSessionId);
+
+  try {
+    const coll = await sessionCollection();
+    if (!coll) return 0;
+
+    const filter = keep ? { userId: id, _id: { $ne: keep } } : { userId: id };
+
+    // Cache first, by key — app.sessions is a BoundedTtlMap with no iterator,
+    // so the ids have to come out of Mongo before the rows do.
+    const doomed = await coll.find(filter, { projection: { _id: 1 } }).toArray();
+    for (const row of doomed) app.sessions.delete(row._id);
+
+    const result = await coll.deleteMany(filter);
+    return result.deletedCount || 0;
+  } catch {
+    return 0;
+  }
+}
+
 export async function clearSession(app, request, reply) {
   const sessionId = request.cookies[SESSION_COOKIE];
   if (sessionId) {

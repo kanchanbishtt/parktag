@@ -59,7 +59,13 @@ export async function getLoginLock(collections, role, email) {
   }
 }
 
-export async function recordLoginFailure(collections, role, email) {
+// `maxFailures` is an override, not a new policy: the per-ACCOUNT default of 10
+// is right for one account being ground down, and wrong for the per-IP counter
+// that credentials.js keys off a shared address. Ten failures from one IP is a
+// college or office NAT having an ordinary morning; the threshold there has to
+// be high enough that a crowd behind one address is never mistaken for an
+// attack, which is a different number rather than a different mechanism.
+export async function recordLoginFailure(collections, role, email, { maxFailures = MAX_FAILURES } = {}) {
   if (!collections?.loginAttempts) return;
 
   // Single atomic pipeline update. A read-modify-write would drop failures
@@ -69,7 +75,7 @@ export async function recordLoginFailure(collections, role, email) {
   const windowAlive = {
     $gt: [{ $add: [{ $ifNull: ["$windowStartAt", "$$NOW"] }, FAILURE_WINDOW_MS] }, "$$NOW"]
   };
-  const shouldLock = { $gte: ["$failures", MAX_FAILURES] };
+  const shouldLock = { $gte: ["$failures", maxFailures] };
 
   try {
     await collections.loginAttempts.updateOne(

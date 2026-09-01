@@ -1,0 +1,157 @@
+/* Login PIN screen (/owner-login-pin).
+
+   An external stylesheet rather than an inline <style> block, and that is a
+   requirement rather than a preference: the page is in STRICT_SCRIPT_PAGES in
+   app.js, whose CSP serves style-src WITHOUT 'unsafe-inline'. An inline block
+   here is dropped by the browser with no error anyone would notice in
+   development, and the screen renders as unstyled HTML. The same rule is why
+   owner-login.css and owner-register.css exist.
+
+   Inline style="..." ATTRIBUTES are still fine — style-src-attr keeps
+   'unsafe-inline' — which is what the two in the header rely on. */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* Same tokens as the documents screen, so the two settings pages are
+   visibly one family. Navy is this page's own addition — it carries the
+   "PIN is active" state, because a screen about a credential should not
+   report success in the same red it uses for danger. */
+:root {
+  --amber: #FF2700;
+  --amber-dark: #D92200;
+  --tint: #FFE3DD;
+  --navy: #03162D;
+  --navy-tint: #EAF0F7;
+  --ink: #323232;
+  --ink-2: #374151;
+  --ink-3: #6B7280;
+  --ink-4: #9CA3AF;
+  --surface: #F1F1F0;
+  --card: #ffffff;
+  --border: #E5E7EB;
+  --radius-card: 20px;
+  --radius-btn: 14px;
+  font-size: 16px;
+}
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background: var(--surface);
+  color: var(--ink);
+  min-height: 100dvh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Header ─────────────────────────────────────────── */
+.lp-header {
+  position: sticky; top: 0; z-index: 50;
+  display: grid; grid-template-columns: 56px 1fr 56px; align-items: center;
+  background: var(--card); border-bottom: 1px solid var(--border);
+  padding: 10px 8px; padding-top: max(10px, env(safe-area-inset-top));
+}
+.lp-back {
+  display: flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px; border-radius: 12px;
+  color: var(--ink-2); text-decoration: none;
+}
+.lp-back:active { background: #f3f4f6; }
+.lp-logo { text-align: center; }
+
+.lp-wrap { max-width: 720px; margin: 0 auto; padding: 16px 14px 48px; }
+
+/* ── Title block ────────────────────────────────────── */
+.lp-title { font-size: 1.4rem; font-weight: 900; color: var(--ink); margin-bottom: 4px; }
+.lp-bar { width: 34px; height: 3px; background: var(--amber); border-radius: 2px; margin-bottom: 8px; }
+.lp-sub { font-size: .86rem; color: var(--ink-3); line-height: 1.5; margin-bottom: 18px; }
+
+/* ── Cards ──────────────────────────────────────────── */
+.lp-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius-card); padding: 18px 16px; margin-bottom: 16px;
+}
+.lp-card-t { font-size: 1rem; font-weight: 800; color: var(--ink); }
+.lp-card-s { font-size: .8rem; color: var(--ink-3); margin-top: 3px; line-height: 1.5; }
+
+/* ── Status banner ──────────────────────────────────── */
+/* Two states, two colours. "Not set yet" is information, not a warning, so
+   it does not get the red the errors use — otherwise every first visit
+   opens on what looks like something already broken. */
+.lp-banner {
+  display: flex; align-items: flex-start; gap: 11px;
+  border-radius: 14px; padding: 13px 14px; margin: 16px 0 4px;
+  font-size: .84rem; font-weight: 600; line-height: 1.45;
+}
+.lp-banner svg { flex-shrink: 0; margin-top: 1px; }
+.lp-banner.info { background: var(--navy-tint); color: var(--navy); border: 1px solid #CBD9E8; }
+.lp-banner.ok { background: #E7F6EC; color: #14683A; border: 1px solid #BFE5CD; }
+
+/* ── Fields ─────────────────────────────────────────── */
+.lp-field { margin-top: 16px; }
+.lp-label {
+  display: block; font-size: .8rem; font-weight: 800;
+  color: var(--ink-2); margin-bottom: 7px;
+}
+.lp-inp-row { position: relative; }
+.lp-inp {
+  width: 100%; border: 1.5px solid var(--border); border-radius: var(--radius-btn);
+  background: #fff; color: var(--ink);
+  padding: 13px 46px 13px 14px;
+  font-family: inherit; font-size: 1rem; font-weight: 700;
+  /* Wide tracking so a run of identical dots is still countable by eye. */
+  letter-spacing: .22em;
+  outline: none; transition: border-color .15s, box-shadow .15s;
+}
+.lp-inp::placeholder { letter-spacing: normal; font-weight: 500; color: var(--ink-4); }
+.lp-inp:focus { border-color: var(--amber); box-shadow: 0 0 0 3px rgba(255,39,0,.12); }
+.lp-inp.bad { border-color: var(--amber); }
+.lp-eye {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  display: flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; border: none; border-radius: 10px;
+  background: none; color: var(--ink-3); cursor: pointer;
+}
+.lp-eye:active { background: #f3f4f6; }
+.lp-count {
+  display: block; text-align: right; font-size: .72rem;
+  font-weight: 700; color: var(--ink-4); margin-top: 6px;
+}
+
+/* ── Buttons ────────────────────────────────────────── */
+.lp-btn {
+  width: 100%; border: none; border-radius: var(--radius-btn);
+  padding: 14px; margin-top: 18px;
+  font-family: inherit; font-size: .92rem; font-weight: 800;
+  cursor: pointer; transition: filter .15s, opacity .15s;
+}
+.lp-btn:disabled { opacity: .55; cursor: not-allowed; }
+.lp-btn:not(:disabled):hover { filter: brightness(.93); }
+.lp-btn-primary { background: var(--amber); color: #fff; }
+.lp-btn-navy { background: var(--navy); color: #fff; }
+.lp-btn-ghost {
+  background: none; color: var(--amber); border: 1.5px solid var(--tint);
+  margin-top: 10px;
+}
+
+/* ── Inline status line ─────────────────────────────── */
+.lp-msg {
+  display: none; font-size: .82rem; font-weight: 700;
+  line-height: 1.45; margin-top: 14px;
+  border-radius: 12px; padding: 11px 13px;
+}
+.lp-msg.on { display: block; }
+.lp-msg.error { background: var(--tint); color: var(--amber-dark); }
+.lp-msg.ok { background: #E7F6EC; color: #14683A; }
+
+.lp-hint {
+  font-size: .76rem; color: var(--ink-3); line-height: 1.55;
+  margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border);
+}
+
+/* Nothing renders until the status fetch answers. The alternative is a
+   flash of "you have not set a PIN yet" on an account that has one, which
+   is worse than a blank moment — it is a wrong answer to the only question
+   the page exists to answer. */
+.lp-body[hidden] { display: none; }
+.lp-skel { height: 260px; border-radius: var(--radius-card); background: #fff; }

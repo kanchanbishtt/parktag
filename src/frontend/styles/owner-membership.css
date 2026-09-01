@@ -1,0 +1,330 @@
+/* Membership screen (/owner-membership).
+
+   An external stylesheet rather than an inline <style> block: the page is in
+   STRICT_SCRIPT_PAGES in app.js, whose CSP serves style-src WITHOUT
+   'unsafe-inline'. An inline block is dropped silently and the screen renders
+   as unstyled HTML. Inline style="..." ATTRIBUTES are still fine, because
+   style-src-attr keeps 'unsafe-inline' — the two in the header rely on that.
+
+   ── The look ─────────────────────────────────────────────────────────────
+   Light, and led by type. An earlier pass opened this screen on a large navy
+   panel, which made the page arrive as a heavy slab before a single price was
+   visible — a block of dark colour is not the same thing as looking premium,
+   it is only louder.
+
+   So the weight lives in the typography and in one object: the trial tile,
+   where the number IS the pitch. Red is the brand and marks the single chosen
+   thing on the page. Navy is for type. Gold appears exactly once, on the star —
+   gold that also lands on badges and prices stops meaning "premium" and starts
+   meaning nothing. */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --amber: #FF2700;
+  --amber-dark: #D92200;
+  --tint: #FFE3DD;
+  --navy: #03162D;
+  --navy-2: #0A2B4E;
+  --navy-tint: #EAF0F7;
+  --gold: #FFC02E;
+  --ink: #323232;
+  --ink-2: #374151;
+  --ink-3: #6B7280;
+  --ink-4: #9CA3AF;
+  --surface: #F1F1F0;
+  --card: #ffffff;
+  --border: #E5E7EB;
+  --radius-btn: 14px;
+  font-size: 16px;
+}
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background: var(--surface);
+  color: var(--ink);
+  min-height: 100dvh;
+  -webkit-font-smoothing: antialiased;
+  /* Clears the sticky bar, so the last feature tile is never trapped under it. */
+  padding-bottom: calc(104px + env(safe-area-inset-bottom, 0px));
+}
+
+/* ── Header ─────────────────────────────────────────── */
+.mb-header {
+  position: sticky; top: 0; z-index: 50;
+  display: grid; grid-template-columns: 56px 1fr 56px; align-items: center;
+  background: var(--card); border-bottom: 1px solid var(--border);
+  padding: 10px 8px; padding-top: max(10px, env(safe-area-inset-top));
+}
+.mb-back {
+  display: flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px; border-radius: 12px;
+  color: var(--ink-2); text-decoration: none;
+}
+.mb-back:active { background: #f3f4f6; }
+.mb-logo { text-align: center; }
+
+.mb-wrap { max-width: 720px; margin: 0 auto; padding: 14px 14px 8px; }
+
+/* ── Page title ─────────────────────────────────────── */
+/* No panel. The dark hero that was here made the page open on a heavy slab
+   before a single price was visible, and a block of navy is not the same thing
+   as looking premium — it is just louder. The header sits on the page now, and
+   the weight goes into the type instead. */
+.mb-hero { margin-bottom: 20px; }
+
+.mb-title {
+  display: flex; align-items: center; gap: 11px;
+  font-size: 1.86rem; font-weight: 900; color: var(--navy);
+  letter-spacing: -.035em; line-height: 1.1;
+}
+/* The one gold thing on the page. */
+.mb-title-ic {
+  display: inline-flex; color: var(--gold);
+  filter: drop-shadow(0 2px 6px rgba(255, 192, 46, .5));
+}
+.mb-sub { font-size: .9rem; color: var(--ink-3); margin: 8px 0 18px; line-height: 1.5; }
+
+/* ── Free-trial card ────────────────────────────────── */
+/* The number is the whole pitch, so the number is the object: three months
+   free, on a tile you cannot skim past. Every version of this that led with an
+   icon was decorating the offer instead of stating it. */
+.mb-trial {
+  display: flex; align-items: center; gap: 15px;
+  background: linear-gradient(118deg, #FFF4F1 0%, #FFFFFF 58%, #FDF7FF 100%);
+  border: 1.5px solid rgba(255, 39, 0, .17);
+  border-radius: 20px; padding: 15px 17px 15px 15px;
+  box-shadow: 0 8px 22px rgba(255, 39, 0, .07);
+}
+.mb-trial[hidden] { display: none; }
+
+.mb-trial-num {
+  flex-shrink: 0; line-height: 1;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  width: 64px; height: 64px; border-radius: 19px;
+  background: linear-gradient(152deg, var(--amber) 0%, var(--amber-dark) 100%);
+  color: #fff; box-shadow: 0 8px 20px rgba(255, 39, 0, .32);
+}
+.mb-trial-days { font-size: 1.56rem; font-weight: 900; letter-spacing: -.04em; }
+.mb-trial-unit {
+  font-size: .5rem; font-weight: 800; letter-spacing: .17em;
+  margin-top: 4px; opacity: .88;
+}
+
+.mb-trial-bd { min-width: 0; }
+.mb-trial-t {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  font-size: 1.02rem; font-weight: 850; color: var(--navy); letter-spacing: -.018em;
+}
+.mb-trial-tag {
+  background: var(--amber); color: #fff;
+  font-size: .56rem; font-weight: 900; letter-spacing: .09em;
+  border-radius: 6px; padding: 3px 7px;
+}
+.mb-trial-s { font-size: .79rem; color: var(--ink-3); margin-top: 3px; line-height: 1.45; }
+
+/* ── Section heading ────────────────────────────────── */
+.mb-h {
+  font-size: 1.02rem; font-weight: 800; color: var(--navy);
+  letter-spacing: -.018em; margin-bottom: 12px;
+}
+
+/* ── Plan cards ─────────────────────────────────────── */
+.mb-plans {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px;
+  /* Room for the POPULAR ribbon, which sits above the card edge. Padding rather
+     than a margin on the card, so the three cards stay the same height. */
+  padding-top: 9px; margin-bottom: 20px;
+}
+
+.mb-plan {
+  position: relative;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 2px; min-height: 122px; padding: 15px 7px 13px;
+  background: var(--card); border: 1.5px solid var(--border); border-radius: 18px;
+  font-family: inherit; cursor: pointer; text-align: center;
+  box-shadow: 0 1px 2px rgba(3, 22, 45, .04);
+  transition: border-color .16s, box-shadow .16s, transform .16s;
+}
+.mb-plan:hover { border-color: rgba(255, 39, 0, .38); }
+.mb-plan:active { transform: scale(.985); }
+
+/* The chosen plan is the solid one — the same convention the reference uses,
+   and the least ambiguous option at this size: a tick in a corner is easy to
+   miss across three cards, a filled card is not. */
+.mb-plan[aria-checked="true"] {
+  background: linear-gradient(158deg, var(--amber) 0%, var(--amber-dark) 100%);
+  border-color: var(--amber);
+  box-shadow: 0 9px 24px rgba(255, 39, 0, .32);
+}
+
+.mb-plan-term { font-size: .75rem; font-weight: 700; color: var(--ink-3); letter-spacing: .01em; }
+.mb-plan-price { font-size: 1.32rem; font-weight: 900; color: var(--navy); letter-spacing: -.03em; }
+/* The line that makes a longer term readable at a glance. Quiet on purpose —
+   it explains the price above it rather than competing with it. */
+.mb-plan-rate { font-size: .66rem; font-weight: 700; color: var(--ink-4); }
+.mb-plan-save {
+  margin-top: 4px; background: #E7F6EC; color: #15803D;
+  font-size: .62rem; font-weight: 800; border-radius: 20px; padding: 2px 8px;
+}
+
+.mb-plan[aria-checked="true"] .mb-plan-term { color: rgba(255, 255, 255, .82); }
+.mb-plan[aria-checked="true"] .mb-plan-price { color: #fff; }
+.mb-plan[aria-checked="true"] .mb-plan-rate { color: rgba(255, 255, 255, .72); }
+.mb-plan[aria-checked="true"] .mb-plan-save { background: rgba(255, 255, 255, .2); color: #fff; }
+
+.mb-plan-pop {
+  position: absolute; top: -9px; left: 50%; transform: translateX(-50%);
+  background: var(--navy); color: #fff;
+  font-size: .54rem; font-weight: 900; letter-spacing: .1em;
+  border-radius: 7px; padding: 3px 9px; white-space: nowrap;
+  box-shadow: 0 3px 9px rgba(3, 22, 45, .3);
+}
+
+/* ── Tag-type selector ──────────────────────────────── */
+/* One track with a lifted selection, rather than three loose pills. The shared
+   background is what says "pick one of these", which separate buttons floating
+   on the page never quite do. */
+.mb-scopes {
+  display: flex; gap: 4px; margin-bottom: 26px;
+  background: #E4E4E2; border-radius: 999px; padding: 4px;
+  overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none;
+}
+.mb-scopes::-webkit-scrollbar { display: none; }
+
+.mb-scope {
+  flex: 1 0 auto;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  background: none; border: none; border-radius: 999px;
+  padding: 9px 14px; font-family: inherit; font-size: .78rem; font-weight: 700;
+  color: var(--ink-3); cursor: pointer; white-space: nowrap;
+  transition: background .18s, color .18s, box-shadow .18s;
+}
+.mb-scope[aria-selected="true"] {
+  background: var(--card); color: var(--navy);
+  box-shadow: 0 2px 7px rgba(3, 22, 45, .13);
+}
+.mb-scope svg { flex-shrink: 0; }
+
+/* ── Feature grid ───────────────────────────────────── */
+.mb-feats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.mb-feat {
+  display: flex; flex-direction: column; gap: 11px;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 16px; padding: 14px 13px 15px;
+  box-shadow: 0 1px 2px rgba(3, 22, 45, .04);
+}
+/* A tinted chip rather than a bare glyph. It gives the icon a footprint, which
+   is what stops a two-column grid of small marks reading as a list of bullets. */
+.mb-feat-ic {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 38px; height: 38px; border-radius: 12px;
+}
+.mb-feat-lb { font-size: .82rem; font-weight: 650; color: var(--ink-2); line-height: 1.38; }
+
+/* One colour per tile, cycled. Each chip is its icon's colour at low strength,
+   so the grid stays composed instead of turning into confetti. */
+.mb-feat-ic.c1 { color: #FF2700; background: #FFEDE9; }
+.mb-feat-ic.c2 { color: #2563EB; background: #E8F0FE; }
+.mb-feat-ic.c3 { color: #15803D; background: #E4F6EA; }
+.mb-feat-ic.c4 { color: #7C3AED; background: #F1EAFE; }
+.mb-feat-ic.c5 { color: #DB2777; background: #FDEAF3; }
+.mb-feat-ic.c6 { color: #EA580C; background: #FEEEE2; }
+
+@media (max-width: 350px) {
+  .mb-feats { grid-template-columns: 1fr; }
+  .mb-plans { gap: 6px; }
+  .mb-plan-price { font-size: 1.16rem; }
+}
+
+.mb-note {
+  font-size: .78rem; color: var(--ink-3); line-height: 1.55;
+  background: var(--navy-tint); border: 1px solid #CBD9E8;
+  border-radius: 14px; padding: 13px 14px; margin-top: 20px;
+}
+.mb-note[hidden] { display: none; }
+
+/* ── Sticky action ──────────────────────────────────── */
+.mb-cta-bar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 60;
+  padding: 14px 14px calc(14px + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(to top, var(--surface) 62%, rgba(241, 241, 240, 0));
+}
+.mb-cta {
+  display: flex; align-items: center; justify-content: center; gap: 9px;
+  width: 100%; max-width: 692px; margin: 0 auto;
+  background: linear-gradient(135deg, var(--amber) 0%, var(--amber-dark) 100%);
+  color: #fff; border: none; border-radius: 16px; padding: 17px;
+  font-family: inherit; font-size: .98rem; font-weight: 800; letter-spacing: -.01em;
+  cursor: pointer; box-shadow: 0 8px 24px rgba(255, 39, 0, .34);
+  transition: filter .15s, transform .12s, box-shadow .15s;
+}
+.mb-cta:not(:disabled):hover { filter: brightness(1.06); box-shadow: 0 10px 28px rgba(255, 39, 0, .42); }
+.mb-cta:not(:disabled):active { transform: scale(.99); }
+/* Not greyed into illegibility: what is unavailable is the checkout behind the
+   button, not the plan, so the button still has to read as the action. */
+.mb-cta:disabled { cursor: not-allowed; filter: saturate(.55) brightness(.98); box-shadow: none; }
+
+/* ── Loading ────────────────────────────────────────── */
+/* The skeleton lives in the MARKUP, not in JavaScript, so it is on screen at
+   first paint. membership.js is type="module" and therefore deferred: anything
+   it injects arrives after the parser has already painted, which is exactly the
+   empty-shell flash this exists to remove.
+
+   Its shapes mirror the real ones — three plan cards, three pills, ten tiles —
+   so the content that replaces them lands in the same place and nothing below
+   it moves. A skeleton of the wrong size is its own layout shift, just an
+   earlier one. */
+@keyframes mb-shimmer {
+  from { background-position: 200% 0; }
+  to   { background-position: -200% 0; }
+}
+
+.mb-sk {
+  background: linear-gradient(90deg, #E7E7E5 25%, #F4F4F3 50%, #E7E7E5 75%);
+  background-size: 200% 100%;
+  animation: mb-shimmer 1.5s linear infinite;
+  border-radius: 10px;
+  /* Never let a shimmer bar carry readable text: the placeholder character
+     inside it is there to hold the line's height, not to be seen. */
+  color: transparent;
+  user-select: none;
+}
+
+/* The number badge is the one saturated ground on the page, so a light-grey
+   shimmer there would be a bright slab on red — louder than the digits it
+   stands in for. */
+.mb-trial-num .mb-sk {
+  background: linear-gradient(90deg, rgba(255,255,255,.08) 25%, rgba(255,255,255,.17) 50%, rgba(255,255,255,.08) 75%);
+  background-size: 200% 100%;
+}
+
+.mb-sk-days { display: inline-block; width: 32px; height: 21px; border-radius: 7px; }
+.mb-sk-note { display: inline-block; width: 190px; height: 12px; border-radius: 6px; }
+.mb-sk-plan { min-height: 122px; border-radius: 18px; }
+.mb-sk-pill { flex: 1 0 auto; min-width: 96px; height: 36px; border-radius: 999px; }
+.mb-sk-feat { height: 100px; border-radius: 16px; }
+
+/* The reveal. Each section fades up as it is filled, and the small stagger is
+   what makes it read as a page arriving rather than four blocks blinking on at
+   the same instant. */
+@keyframes mb-rise {
+  from { opacity: 0; transform: translateY(7px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.mb-in { animation: mb-rise .34s cubic-bezier(.22, .61, .36, 1) both; }
+.mb-in-1 { animation-delay: .04s; }
+.mb-in-2 { animation-delay: .09s; }
+.mb-in-3 { animation-delay: .14s; }
+
+/* Motion is decoration here — the content is identical without it. An infinite
+   shimmer is also precisely the kind of thing that triggers people who ask for
+   reduced motion, so it stops rather than slows. */
+@media (prefers-reduced-motion: reduce) {
+  .mb-sk { animation: none; }
+  .mb-in, .mb-in-1, .mb-in-2, .mb-in-3 { animation: none; }
+  .mb-plan, .mb-cta, .mb-scope { transition: none; }
+}

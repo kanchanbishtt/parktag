@@ -494,11 +494,15 @@ async function shareQr() {
   a.click();
 }
 
+// One field, either credential — a login PIN or, for accounts that predate
+// them, a password. The server decides which it matched and never says, because
+// answering "this account has a PIN" to an unauthenticated caller is the same
+// account-enumeration signal the rest of the sign-in path withholds.
 async function loginWithPassword() {
   const identifier = _currentPhone;
-  const password = byId("password-inp")?.value?.trim();
+  const secret = byId("password-inp")?.value?.trim();
   if (!identifier) { setStatus("Please go back and enter your email or mobile.", "error"); return; }
-  if (!password) { setStatus("Enter your password.", "error"); return; }
+  if (!secret) { setStatus("Enter your PIN.", "error"); return; }
   const btn = byId("password-login-btn");
   if (btn) { btn.disabled = true; btn.classList.add("pt-btn-loading"); }
   try {
@@ -506,7 +510,12 @@ async function loginWithPassword() {
     await fetchJson("/api/auth/login", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ role: "owner", email: identifier, password, rememberMe })
+      // `identifier`, not `email`. This step used to post the value as `email`
+      // and the server resolved it as one, so an owner who registered by phone
+      // could never authenticate here — their number matched no address and the
+      // answer was always "Invalid credentials". The endpoint still accepts the
+      // old names from a cached client; this sends the ones that work for both.
+      body: JSON.stringify({ identifier, pin: secret, rememberMe })
     });
     window.location.href = "/owner-welcome";
   } catch (error) {

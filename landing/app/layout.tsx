@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -38,6 +39,12 @@ export const metadata: Metadata = {
   },
 };
 
+// The landing site loads the SAME analytics bundle the app serves, rather than
+// carrying its own copy of the gtag/fbq boilerplate. That keeps the measurement
+// IDs, the event map and the PII allow-list in exactly one file, so the two
+// deploys can never drift into reporting different things under the same name.
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.parktag.me";
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className="h-full antialiased">
@@ -57,6 +64,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               "window.addEventListener('pageshow',function(){var b=document.body;if(b){b.style.transition='';b.style.opacity='';}});",
           }}
         />
+        {/*
+          Loaded async via next/script. analytics.js reads its surface from
+          document.currentScript, which is null for an async script — that is
+          fine here and only here, because its fallback is "app", which is what
+          the marketing site is. The app's own pages load the same file with a
+          synchronous tag so they can declare data-surface="scanner", which is
+          the one place the fallback would be wrong.
+        */}
+        <Script src={`${APP_URL}/pt-analytics.js`} strategy="afterInteractive" />
       </body>
     </html>
   );

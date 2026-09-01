@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 import QRCode from "qrcode";
 
 import { getEnv } from "./lib/env.js";
+import { renderAnalyticsBundle } from "./lib/analytics.js";
 import { BoundedTtlMap } from "./lib/bounded-map.js";
 import { clientError, clientErrorMessage } from "./lib/errors.js";
 import { readSession } from "./lib/auth/session.js";
@@ -43,6 +44,10 @@ const currentFile = fileURLToPath(import.meta.url);
 const currentDir = path.dirname(currentFile);
 const frontendRoot = path.resolve(currentDir, "../frontend");
 const pagesRoot = path.join(frontendRoot, "pages");
+// Deliberately under src/backend, NOT src/frontend: this file carries
+// placeholders that are filled from env per request, and anything under
+// frontendRoot is also reachable raw through fastifyStatic.
+const analyticsAsset = path.join(currentDir, "assets/analytics.js");
 const scannerPage = path.join(pagesRoot, "scanner/index.html");
 const verifyPage = path.join(pagesRoot, "scanner/verify.html");
 const trackOrderPage = path.join(pagesRoot, "scanner/track-order.html");
@@ -688,6 +693,20 @@ export async function buildApp() {
     const html = await fs.readFile(hubPage, "utf8");
     reply.type("text/html");
     return html;
+  });
+
+  // Front-end analytics, with the GA4 / Pixel IDs injected from env so each
+  // environment reports into its own property (or, with both unset, into
+  // nothing at all — which is what dev and staging should do).
+  //
+  // Served from a route rather than the static root because those IDs differ
+  // per deploy. They are public values, so the only thing being protected here
+  // is the cleanliness of the production analytics data.
+  app.get("/pt-analytics.js", async (_request, reply) => {
+    const js = await fs.readFile(analyticsAsset, "utf8");
+    reply.type("application/javascript");
+    reply.header("Cache-Control", "public, max-age=300");
+    return renderAnalyticsBundle(js, env);
   });
 
   app.get("/verify", async (_request, reply) => {

@@ -43,6 +43,13 @@ const isNewUser = newParam !== null
   : sessionStorage.getItem("pt_is_new_user") === "1";
 sessionStorage.removeItem("pt_is_new_user");
 
+// Sign-up is reported on ARRIVAL here rather than at the moment verify-otp
+// returns, because that call is immediately followed by a redirect — an event
+// fired on the login page would be racing its own navigation and would mostly
+// be lost. `?new=1` is set by that redirect precisely for this kind of
+// first-visit handling, and only ever on the first hop.
+if (isNewUser && window.ptTrack) ptTrack("sign_up", { method: "otp" });
+
 // ── Name on the greeting ─────────────────────────────────────────
 // Sign-in only ever collects an email or a mobile, so most owners arrive with
 // no name at all. Rather than taxing the sign-in flow for a greeting, the

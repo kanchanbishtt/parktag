@@ -23,6 +23,9 @@
         .pt-step:not([hidden]) { animation: none; }
       }
     </style>
+    <!-- surface="scanner": GA4 only. The Meta Pixel must never load on a page
+         used by strangers standing at someone else's vehicle. See analytics.js. -->
+    <script src="/pt-analytics.js" data-surface="scanner"></script>
   </head>
   <body class="scanner-body">
 

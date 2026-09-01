@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <title>ParkTag | Membership</title>
+  <link rel="stylesheet" href="/styles/styles.css?v=__ASSET_VERSION__"/>
+  <link rel="stylesheet" href="/styles/owner-membership.css?v=__ASSET_VERSION__"/>
+</head>
+<body>
+
+<header class="mb-header">
+  <!-- data-back: see scripts/owner/smart-back.js — returns to the previous page
+       rather than always forcing the dashboard. href is the no-history fallback. -->
+  <a href="/owner-welcome#profile" class="mb-back" aria-label="Back" data-back>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+      <path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  </a>
+  <div class="mb-logo">
+    <a href="https://parktag.me" aria-label="ParkTag home" style="display:inline-flex;align-items:center;text-decoration:none">
+      <img src="/images/light-logo.png" alt="ParkTag" style="height:42px;width:auto;">
+    </a>
+  </div>
+  <span></span>
+</header>
+
+<div class="mb-wrap">
+  <section class="mb-hero">
+    <h1 class="mb-title">
+      <span class="mb-title-ic" aria-hidden="true">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M12 2.4l2.86 5.79 6.39.93-4.62 4.5 1.09 6.37L12 16.98l-5.72 3.01 1.09-6.37-4.62-4.5 6.39-.93L12 2.4z" fill="currentColor"/></svg>
+      </span>
+      Membership
+    </h1>
+    <p class="mb-sub">Become a member, you would love it.</p>
+
+    <!-- The length comes from the server constant, never typed here: the
+         dashboard once carried a hardcoded "45 days" that stayed wrong for a
+         whole release after the window was widened.
+
+         The number carries the offer. Leading with an icon here was decorating
+         the trial instead of stating it: nobody skims past a 90. -->
+    <section class="mb-trial" aria-label="Free trial">
+      <span class="mb-trial-num">
+        <span id="mbTrialDays" class="mb-trial-days mb-sk mb-sk-days">&nbsp;</span>
+        <span class="mb-trial-unit">DAYS</span>
+      </span>
+      <div class="mb-trial-bd">
+        <p class="mb-trial-t">
+          Free trial
+          <!-- Held back until the number beside it is known. A FREE badge next
+               to a blank shimmer reads as a broken offer. -->
+          <span class="mb-trial-tag" id="mbTrialTag" hidden>FREE</span>
+        </p>
+        <p class="mb-trial-s"><span id="mbTrialNote" class="mb-sk mb-sk-note">&nbsp;</span></p>
+      </div>
+    </section>
+  </section>
+
+  <h2 class="mb-h">Choose Your Plan</h2>
+  <div class="mb-plans" id="mbPlans" role="radiogroup" aria-label="Membership plans" aria-busy="true">
+    <div class="mb-sk mb-sk-plan" aria-hidden="true"></div>
+    <div class="mb-sk mb-sk-plan" aria-hidden="true"></div>
+    <div class="mb-sk mb-sk-plan" aria-hidden="true"></div>
+  </div>
+
+  <div class="mb-scopes" id="mbScopes" role="tablist" aria-label="Tag type" aria-busy="true">
+    <div class="mb-sk mb-sk-pill" aria-hidden="true"></div>
+    <div class="mb-sk mb-sk-pill" aria-hidden="true"></div>
+    <div class="mb-sk mb-sk-pill" aria-hidden="true"></div>
+  </div>
+
+  <h2 class="mb-h">Premium Features</h2>
+  <!-- Ten, because ten is what the default tag type shows. A skeleton of the
+       wrong length is still a layout shift, just an earlier one. -->
+  <div class="mb-feats" id="mbFeats" aria-busy="true">
+    <div class="mb-sk mb-sk-feat" aria-hidden="true"></div>
+    <div class="mb-sk mb-sk-feat" aria-hidden="true"></div>
+    <div class="mb-sk mb-sk-feat" aria-hidden="true"></div>
+    <div class="mb-sk mb-sk-feat" aria-hidden="true"></div>
+    <div class="mb-sk mb-sk-feat" aria-hidden="true"></div>
+    <div class="mb-sk mb-sk-feat" aria-hidden="true"></div>
+    <div class="mb-sk mb-sk-feat" aria-hidden="true"></div>
+    <div class="mb-sk mb-sk-feat" aria-hidden="true"></div>
+    <div class="mb-sk mb-sk-feat" aria-hidden="true"></div>
+    <div class="mb-sk mb-sk-feat" aria-hidden="true"></div>
+  </div>
+
+  <p class="mb-note" id="mbNote" hidden></p>
+</div>
+
+<!-- Sticky, like the reference. The label follows the selected plan, so the
+     price on the button is always the price of the card that is lit. -->
+<div class="mb-cta-bar">
+  <button class="mb-cta" id="mbCta" type="button" disabled>
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M13 2 4.5 13H11l-1 9 8.5-11H12l1-9z" fill="currentColor"/></svg>
+    <span id="mbCtaText">Go Pro</span>
+  </button>
+</div>
+
+<script src="/scripts/owner/smart-back.js?v=__ASSET_VERSION__"></script>
+<script src="/scripts/owner/session-guard.js?v=__ASSET_VERSION__" defer></script>
+<script type="module" src="/scripts/owner/membership.js?v=__ASSET_VERSION__"></script>
+</body>
+</html>

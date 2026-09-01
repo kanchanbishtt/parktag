@@ -33,6 +33,18 @@ jobs:
       # Must match the disposable-prefix rule in src/backend/tests/helpers.js —
       # the suite refuses to run against anything that isn't clearly throwaway.
       MONGODB_COLLECTION_PREFIX: ci_
+      # Both register-call routes answer 503 when no virtual number is set, and a
+      # runner has no telephony credentials. Without this the routes never write
+      # a contact row, so every test that reads one back fails for a reason that
+      # has nothing to do with what it is testing — which is what the scanner
+      # location and callback suites have been failing on since 2026-08-27.
+      #
+      # Safe: nothing dials. These routes record where a call should be routed
+      # and hand the number back; the number below is not a real Exotel line.
+      # contact-routing.test.js already set this for itself at module scope,
+      # which fixed that one file and left every other suite broken. Setting it
+      # for the job fixes it once, for all of them.
+      EXOTEL_CALLER_ID: "08000000000"
 
     steps:
       - uses: actions/checkout@v4

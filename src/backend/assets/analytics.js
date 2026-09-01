@@ -40,36 +40,30 @@
 
   var surface = (selfScript && selfScript.getAttribute("data-surface")) || "app";
 
-  // Surfaces the Meta Pixel must never load on. Two of them, for two entirely
-  // different reasons:
+  // Meta sees what GA4 sees. One deliberate exception, below.
   //
-  //   scanner — strangers standing at someone else's vehicle. They did not buy
-  //             anything and consented to nothing, and the page lives at
-  //             /vehicle/:token, so a PageView here would ship vehicle tag
-  //             tokens to Meta on every scan. That is a data leak, not a
-  //             preference. Someone who USES the product is a different case
-  //             and is handled by ptScannerEngaged() at the bottom of this
-  //             file: after a successful contact the token is stripped from the
-  //             URL, then the Pixel loads and sends one event.
+  // The Pixel used to be suppressed on three surfaces. Two of those reasons
+  // were judgement calls that have been made the other way: the membership page
+  // was only ever excluded by an accident of CSP grouping, and on the auth
+  // pages the measurement is worth having provided the safeguard below holds.
+  // Meta optimises on the conversions it is sent, so signal it never receives
+  // is money spent finding worse customers.
   //
-  //   auth    — sign-in and OTP pages. A third-party script on a page where
-  //             people type credentials can read the form, and Meta's has been
-  //             caught doing exactly that elsewhere. The page view is all the
-  //             login-wall measurement needs, and GA4 still provides it; the
-  //             Pixel buys nothing a login screen is worth the risk for.
+  // THE SAFEGUARD, which is not optional: "Track events automatically without
+  // code" must stay OFF in Events Manager. That setting is what lets the Pixel
+  // read form fields on its own, and it is the entire reason a tracker on a
+  // page with a password box is a risk at all. With it off, the Pixel sends
+  // only what dispatch() below hands it, and everything handed to it passes
+  // through the ALLOWED list first.
   //
-  //   billing — the membership/upgrade screen. Named separately from "auth"
-  //             because the reason is different and would otherwise be
-  //             misread: nothing sensitive is typed here, the Pixel is absent
-  //             only because /owner-membership sits in STRICT_SCRIPT_PAGES,
-  //             whose script-src does not carry connect.facebook.net. Declaring
-  //             "app" here would have the bundle request a script the browser
-  //             then refuses, logging a CSP error on every view for no gain.
-  //             GA4 measures the upgrade funnel, which is what it is for.
-  //
-  // All of these still report to GA4. This governs Meta only.
-  var PIXEL_FREE_SURFACES = { scanner: 1, auth: 1, billing: 1 };
-  var pixelAllowed = !PIXEL_FREE_SURFACES[surface];
+  // The scanner surface is the exception, and it is a mechanical one rather
+  // than a preference: fbq transmits document.location with every event, and a
+  // scan page lives at /vehicle/:token. Loading the Pixel on arrival would post
+  // vehicle tag tokens to Meta on every scan. So the Pixel is not loaded there
+  // by this block — ptScannerEngaged() below strips the token out of the URL
+  // first and then loads it, which gets Meta the same view of a scan that GA4
+  // has without the identifier riding along.
+  var pixelAllowed = surface !== "scanner";
 
   var gaReady = !!GA4_ID;
   var pixelReady = !!PIXEL_ID && pixelAllowed;
@@ -92,8 +86,11 @@
     purchase:       { ga: "purchase",       pixel: "Purchase" },
     sign_up:        { ga: "sign_up",        pixel: "CompleteRegistration" },
     tag_activated:  { ga: "tag_activated",  pixel: "TagActivated", custom: true },
-    scan_received:  { ga: "scan_received",  pixel: null },
-    contact_action: { ga: "contact_action", pixel: null }
+    // Sent to Meta as custom events. They reach it only through
+    // ptScannerEngaged, which strips the tag token from the URL before the
+    // Pixel is ever loaded — see the surface note above.
+    scan_received:  { ga: "scan_received",  pixel: "ScanReceived",  custom: true },
+    contact_action: { ga: "contact_action", pixel: "ContactAction", custom: true }
   };
 
   // Allow-list, not a deny-list. A deny-list means every future call site is one

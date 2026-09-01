@@ -203,6 +203,12 @@ function openProduct(idx) {
   _activeProduct = idx;
   _activeVariant = 0;
   renderSheet();
+
+  if (window.ptTrack) {
+    const _p = PRODUCTS && PRODUCTS[idx];
+    ptTrack("view_item", { items: [{ item_id: (_p && _p.id) || String(idx), item_name: (_p && _p.name) || "" }] });
+  }
+
   document.getElementById("ptBackdrop").classList.add("open");
   document.getElementById("ptSheet").classList.add("open");
   document.body.style.overflow = "hidden";
@@ -275,6 +281,12 @@ async function startPayment(productId, variant, label, btn) {
   // Delivery address is already collected before the pack step (handleBuyNow),
   // so this goes straight to creating the order and opening Razorpay.
   if (btn) { btn.disabled = true; btn.classList.add("pt-btn-loading"); }
+
+  // Remembered for the purchase event: showConfirmation() is shared by the
+  // prepaid and COD paths and is handed only an order number and an amount, so
+  // the SKU has to be carried across from wherever checkout actually started.
+  window.__ptSku = productId;
+  if (window.ptTrack) ptTrack("begin_checkout", { method: "prepaid", items: [{ item_id: productId, item_name: label, quantity: 1 }] });
 
   try {
     // 1. Create order on backend. Send only the productId + chosen variant —
@@ -593,6 +605,8 @@ function finishCod(data) {
 async function packPlaceCod() {
   const sku = resolvePackSku();
   if (!sku) return;
+  window.__ptSku = sku;
+  if (window.ptTrack) ptTrack("begin_checkout", { method: "cod", items: [{ item_id: sku, quantity: 1 }] });
   const btn = document.querySelector(".pt-pack-cod");
   // Restore the button's own label afterwards — it now carries the COD total,
   // so a hard-coded "Cash on Delivery" here would quietly drop the price.
@@ -666,6 +680,27 @@ async function submitCodOtp() {
 // neither.
 function showConfirmation({ orderNumber, amountPaise, cod, flashSeconds }) {
   _confState = { orderNumber, amountPaise };
+
+  // The one place a completed order is confirmed, whether it was paid online or
+  // placed as COD — so it is the one place the purchase event belongs. Firing it
+  // in the two callers instead would double-count the COD-to-prepaid upgrade,
+  // which passes back through here a second time.
+  //
+  // COD is reported as a purchase because that is the moment the customer
+  // commits, but it is tagged `cod` so the share that never get accepted at the
+  // door can be separated out in GA4 and excluded from Meta's optimisation
+  // later. Prepaid revenue is the honest number.
+  if (window.ptTrack) {
+    ptTrack("purchase", {
+      transaction_id: orderNumber,
+      value: (amountPaise || 0) / 100,
+      currency: "INR",
+      cod: !!cod,
+      method: cod ? "cod" : "prepaid",
+      items: [{ item_id: window.__ptSku || "unknown", quantity: 1, price: (amountPaise || 0) / 100 }]
+    });
+  }
+
   document.getElementById("ptConfOrdNo").textContent = "Order #" + orderNumber;
   document.getElementById("ptConfShip").textContent = "Ships in ~24 hours · #" + orderNumber;
   const flash = document.getElementById("ptFlash");

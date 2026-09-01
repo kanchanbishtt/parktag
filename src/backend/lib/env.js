@@ -145,6 +145,13 @@ export function getEnv() {
     // WhatsApp support"). Digits with country code, no "+" needed — e.g.
     // 919999999999. Unset → the help card is not rendered.
     supportWhatsappNumber: (process.env.SUPPORT_WHATSAPP_NUMBER || "").replace(/[^\d]/g, ""),
+    // Front-end analytics IDs, served to the browser by GET /pt-analytics.js.
+    // Both are PUBLIC identifiers (visible in any network tab), so they are not
+    // secrets — they live here so staging and dev can leave them unset and stop
+    // polluting the production GA4 property and Pixel with test traffic. Unset
+    // → /pt-analytics.js ships a no-op and ptTrack() does nothing.
+    ga4MeasurementId: process.env.GA4_MEASUREMENT_ID || "",
+    metaPixelId: process.env.META_PIXEL_ID || "",
     googleClientId: process.env.GOOGLE_CLIENT_ID || "",
     googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
     googleCallbackUrl: process.env.GOOGLE_CALLBACK_URL || "http://127.0.0.1:4000/api/auth/google/callback",

@@ -717,6 +717,21 @@ async function createRequest(payload) {
   if (!ok) {
     throw new Error(data.error || "Request failed");
   }
+
+  // Every contact action — masked call and WhatsApp alert alike — funnels
+  // through here, so this is the one place the event belongs rather than in
+  // each button handler.
+  //
+  // `reason` is safe to send: it is one of five fixed keys the chips offer, and
+  // the server rejects anything else. The tag token, the plate and both phone
+  // numbers are never included — see the allow-list in analytics.js.
+  if (window.ptTrack) {
+    ptTrack("contact_action", {
+      method: payload.messageChannel || payload.action || "call",
+      reason: payload.reason || "none"
+    });
+  }
+
   return data;
 }
 
@@ -739,6 +754,16 @@ async function loadScannerView() {
     const data = await fetchJson(`/api/tags/${token}`);
     const tag = data.tag;
     const registrationState = ["unclaimed", "inactive"].includes(tag.status);
+
+    // Fired only once the tag resolves, so the count means "a real sticker was
+    // scanned" rather than "the page loaded". Scans per activated tag per month
+    // is what decides whether a time-limited free trial can ever convert: if the
+    // median tag is never scanned in 90 days, the trial expires before the
+    // owner has felt the product work.
+    //
+    // No token, no plate, no status detail. The person scanning is a stranger
+    // who consented to nothing, and this is a privacy product.
+    if (window.ptTrack) ptTrack("scan_received", {});
 
     setSummaryForTag(tag);
     setValue("request-token", tag.token);
@@ -1796,6 +1821,18 @@ async function handleActVerify(event) {
 
     clearResendCooldown();
     setBtnLoading("act-verify-btn", false);
+
+    // The activation event — a sticker that has gone from `assigned` to
+    // `activated`. This is the number the whole sales model hangs on: a tag
+    // handed over but never activated is a customer who never existed, so
+    // activations-over-orders is the metric to watch, not units shipped.
+    //
+    // GA4 only, and deliberately so. This runs on the scanner surface, where
+    // the Meta Pixel does not load because the same page is used by strangers
+    // scanning someone else's vehicle. To optimise Meta ads on activation, send
+    // this one from the server via the Conversions API instead — the page-level
+    // tag cannot tell the two kinds of visitor apart.
+    if (window.ptTrack) ptTrack("tag_activated", { vehicle_type: activation.type || "" });
 
     setText(
       "act-done-copy",

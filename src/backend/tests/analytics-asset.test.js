@@ -188,7 +188,7 @@ describe("surface detection survives defer", () => {
       if (!tag) continue;
       tagged += 1;
 
-      assert.match(tag[0], /data-surface="(app|scanner|auth)"/, `${path.basename(file)} must declare a known surface`);
+      assert.match(tag[0], /data-surface="(app|scanner|auth|billing)"/, `${path.basename(file)} must declare a known surface`);
       assert.match(tag[0], /\bdefer\b/, `${path.basename(file)} must defer the analytics bundle`);
     }
 
@@ -210,7 +210,7 @@ describe("pixel-free surfaces", () => {
     // that adding a third does not quietly become a place the Pixel loads:
     //   scanner — a stranger's scan, on a URL carrying the tag token
     //   auth    — a page where people type OTPs and passwords
-    assert.match(source, /var PIXEL_FREE_SURFACES = \{ scanner: 1, auth: 1 \};/);
+    assert.match(source, /var PIXEL_FREE_SURFACES = \{ scanner: 1, auth: 1, billing: 1 \};/);
     assert.match(source, /var pixelAllowed = !PIXEL_FREE_SURFACES\[surface\];/);
   });
 

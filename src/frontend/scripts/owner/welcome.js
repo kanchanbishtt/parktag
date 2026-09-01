@@ -171,6 +171,132 @@ nameInput?.addEventListener("keydown", (e) => {
   if (e.key === "Escape") { e.preventDefault(); closeNameEditor(); }
 });
 
+// ── Profile view ─────────────────────────────────────────────────
+// The third view behind the Profile tab. Structure only for now: every row with
+// somewhere real to go is wired, and the rest carry a Soon chip and do nothing,
+// so the shape of the finished page is visible without anything pretending to
+// work.
+//
+// Identity is filled from the dashboard payload rather than written into the
+// markup, so it cannot drift from the greeting at the top of the page — both
+// read the same _owner.
+
+// The initial in the avatar. A name wins; failing that the identifier the owner
+// signed in with, so a brand-new account still gets a letter rather than a blank
+// square. Falls back to the brand's own P, never to "?" — an avatar that looks
+// like a question is a bug report waiting to happen.
+function _prInitial(owner) {
+  const source = (owner.displayName || owner.email || owner.mobile || "").trim();
+  const letter = source.replace(/[^A-Za-z]/g, "").charAt(0);
+  return (letter || "P").toUpperCase();
+}
+
+// The shimmer blocks the card ships with, so the loading state can be restored
+// and not only left in place. Sized to the text they stand in for, which is what
+// keeps the card from changing height when the real values arrive.
+const PR_SK = {
+  name:  '<span class="pt-pr-sk" style="display:inline-block;width:134px;height:.92em;border-radius:6px;vertical-align:middle"></span>',
+  phone: '<span class="pt-pr-sk" style="display:inline-block;width:106px;height:.78em;border-radius:5px;vertical-align:middle"></span>'
+};
+
+function renderProfileView() {
+  const card = document.getElementById("prIdentity");
+  const avatar = document.getElementById("prAvatar");
+  const name = document.getElementById("prName");
+  const phone = document.getElementById("prPhone");
+  if (!name || !phone) return;
+
+  // Nothing has arrived yet. Reachable on a cold open at #profile, where
+  // switchTab draws this view before the dashboard request has resolved.
+  if (!_owner) {
+    if (card) { card.classList.add("loading"); card.setAttribute("aria-busy", "true"); }
+    if (avatar) avatar.textContent = "";
+    name.innerHTML = PR_SK.name;
+    phone.innerHTML = PR_SK.phone;
+    return;
+  }
+
+  const o = _owner;
+  // Only the FIRST render after the payload lands fades. Every later one — a
+  // saved name, a verified number — updates in place, because re-running the
+  // reveal would flash the whole card each time somebody edited a field.
+  const wasLoading = Boolean(card && card.classList.contains("loading"));
+  if (card) {
+    card.classList.remove("loading");
+    card.removeAttribute("aria-busy");
+    if (wasLoading) {
+      card.classList.remove("ready");
+      void card.offsetWidth;
+      card.classList.add("ready");
+    }
+  }
+  if (avatar) avatar.textContent = _prInitial(o);
+
+  // textContent, not innerHTML — this is owner-supplied and goes in as text.
+  // It also clears the skeleton span in the same assignment.
+  //
+  // "ParkTag User" only when there is genuinely nothing to show. An account with
+  // a name or an email is not anonymous and should not be labelled as one.
+  name.textContent = o.displayName || o.email || "ParkTag User";
+
+  // Always the phone, because a phone glyph sits beside it — putting an email
+  // there would label an address as a number. Without one it reads as the prompt
+  // it is, and the pencil beside it is where that gets fixed.
+  phone.textContent = o.mobile || "Add your number";
+}
+window.renderProfileView = renderProfileView;
+
+// The three panels under the segmented control. Only the tab strip and the
+// hidden attribute move — the panels themselves stay in the DOM so their
+// contents are addressable before they are ever shown.
+function switchProfilePanel(key) {
+  const panels = ["account", "prefs", "support"];
+  if (!panels.includes(key)) return;
+
+  for (const p of panels) {
+    const tab = document.getElementById("prTab-" + p);
+    const panel = document.getElementById("prPanel-" + p);
+    const on = p === key;
+    if (tab) tab.setAttribute("aria-selected", on ? "true" : "false");
+    if (panel) panel.hidden = !on;
+  }
+}
+window.switchProfilePanel = switchProfilePanel;
+
+// The Settings tile. Preferences is one of the three panels further down the
+// page, so selecting it is not enough on its own — the tile sits above the
+// segmented control, and switching a panel the owner cannot see reads as a tap
+// that did nothing. Scrolls the strip into view so the change is watched
+// happening.
+function goToPreferences() {
+  switchProfilePanel("prefs");
+  const seg = document.querySelector("#view-profile .pt-pr-seg");
+  if (seg) seg.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+window.goToPreferences = goToPreferences;
+
+// Opens the drawer with one of its accordion sections already expanded.
+//
+// Some things — orders, the vehicle list — still live in the drawer, and the
+// profile view links to them. Dropping somebody at the top of a collapsed
+// drawer and leaving them to find the row themselves is what makes a link feel
+// broken even when it worked.
+function openMenuSection(key) {
+  openMenu();
+  const section = document.querySelector('#menuDrawer .pt-mi[data-key="' + key + '"]');
+  if (!section) return;
+
+  // After the drawer's own transition, so the expansion is something the owner
+  // watches happen rather than something already done when it slides in.
+  setTimeout(() => {
+    document.querySelectorAll("#menuDrawer .pt-mi.open").forEach((el) => el.classList.remove("open"));
+    section.classList.add("open");
+    if (key === "orders" && typeof loadOrdersOnce === "function") loadOrdersOnce();
+    section.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, 260);
+}
+window.openMenuSection = openMenuSection;
+
 // ── Profile details sheet ────────────────────────────────────────
 // Everything an owner may tell us about themselves, in one place, reached from
 // the pencil beside the greeting.
@@ -369,6 +495,9 @@ async function saveProfile(event) {
       const miName = document.getElementById("mi-name");
       if (miName) miName.textContent = _ownerName || _owner.email || _owner.mobile || "—";
     }
+    // The sheet closes onto the profile view, and the card behind it shows the
+    // name that was just changed.
+    renderProfileView();
 
     _pfStatus("Saved");
     setTimeout(closeProfile, 550);
@@ -519,6 +648,9 @@ async function pfVerifyPhoneCode() {
     const alert = document.getElementById("mobile-missing-alert");
     if (alert) alert.style.display = "none";
     if (typeof renderActivity === "function") renderActivity(allRequests);
+    // The identity card had been showing "Add your number". It is showing the
+    // number now.
+    renderProfileView();
   } catch {
     _pfSetError("pfPhoneInput", "pfPhoneErr", "Network error. Try again.");
   } finally {
@@ -1823,6 +1955,12 @@ async function load() {
     renderGrid(getDisplayTags(), true);
     renderNoticeboard(allTags);
     renderActivity(allRequests);
+    // The identity card reads _owner, which only exists from the line above.
+    // Without this it kept whatever the markup shipped with — and switchTab is
+    // the only other thing that draws it, so an owner who tapped Profile while
+    // this request was still in flight was left looking at "ParkTag User" and
+    // "Add your number" for the rest of the session.
+    renderProfileView();
     if (localOnly.length > 0) syncLocalVehicles(localOnly, userId);
   } catch (error) {
     // This used to be a bare `catch {}`. Every failure in the whole block —
@@ -2190,46 +2328,19 @@ function setSosMissing(missing) {
   if (row) row.dataset.sosMissing = missing ? "1" : "0";
 }
 
-// Exactly one pill is lit in the bottom nav, always.
+// The drawer no longer touches the bottom nav.
 //
-// The Profile tab lights while the drawer it opens is open, the same way Tags
-// and Shop light for the view they are showing. Lighting it is not enough on
-// its own: the view behind the drawer still had its own pill lit, so opening
-// the drawer put TWO red pills in a three-button bar and the row stopped
-// reading as a single control. So opening dims the view tab, and closing gives
-// it back.
-//
-// Closing re-derives which of the two it was from what is actually on screen
-// rather than restoring a value stashed on open. A stashed value is a second
-// copy of the truth, and it goes stale the moment the drawer's own buttons
-// change the view underneath it — which they do: "Buy Premium Tag" on a vehicle
-// card calls goToShopForReplace while the drawer is still open.
-//
-// Null-guarded throughout: the header burger calls these too, and this script
-// is loaded by pages that have the drawer but no bottom nav.
-function _syncNavTabs(menuOpen) {
-  const profile = document.getElementById("navProfile");
-  const tags = document.getElementById("navTags");
-  const shop = document.getElementById("navShop");
-  if (!profile || !tags || !shop) return;
-
-  profile.classList.toggle("active", menuOpen);
-  profile.setAttribute("aria-expanded", menuOpen ? "true" : "false");
-
-  // `display` is "" for the visible view and "none" for the hidden one, which
-  // is exactly what switchTab writes — so this reads the same fact it set.
-  const shopView = document.getElementById("view-shop");
-  const onShop = Boolean(shopView) && shopView.style.display !== "none";
-  tags.classList.toggle("active", !menuOpen && !onShop);
-  shop.classList.toggle("active", !menuOpen && onShop);
-}
+// It used to: when the Profile TAB opened the drawer, the tab had to light and
+// the view behind it had to dim, or two pills lit at once. The tab now opens a
+// real view instead, so switchTab owns all three pills and the drawer — reached
+// from the header burger — is an overlay over whichever view is showing, the
+// same as the shop's product sheet. Nothing to keep in step.
 
 function openMenu() {
   _fillMenu();
   document.getElementById("menuBackdrop").classList.add("open");
   document.getElementById("menuDrawer").classList.add("open");
   document.body.style.overflow = "hidden";
-  _syncNavTabs(true);
 }
 window.openMenu = openMenu;
 
@@ -2237,7 +2348,6 @@ function closeMenu() {
   document.getElementById("menuBackdrop").classList.remove("open");
   document.getElementById("menuDrawer").classList.remove("open");
   document.body.style.overflow = "";
-  _syncNavTabs(false);
 }
 window.closeMenu = closeMenu;
 

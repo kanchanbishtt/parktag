@@ -24,7 +24,7 @@ import { reassignVaultDocuments } from "./vault.js";
 import { createShipment, isDelhiveryConfigured, trackingUrl } from "../integrations/delhivery.js";
 import { sendOrderConfirmationEmail } from "../integrations/email.js";
 import { isMetaWhatsappConfigured, sendMetaWhatsappOrderUpdate } from "../integrations/meta.js";
-import { sendCapiEventBestEffort, purchaseEventId } from "../integrations/meta-capi.js";
+import { sendCapiEventBestEffort, purchaseEventId, isMetaCapiConfigured } from "../integrations/meta-capi.js";
 
 // Fire the order-confirmation e-mail without ever blocking the caller — the
 // order already exists, so a mail failure must never turn into a failed
@@ -164,23 +164,30 @@ export async function fulfilPaidOrder(env, collections, { order, paymentId, log 
   // event_id is derived from the order number, so this and the browser's Pixel
   // Purchase resolve to the same string and Meta counts one conversion rather
   // than two. See eventId() in assets/analytics.js.
-  const buyer = await collections.owners.findOne({ _id: ownerId });
-  sendCapiEventBestEffort(log, env, {
-    eventName: "Purchase",
-    eventId: purchaseEventId(order.orderNumber),
-    actionSource: "website",
-    userData: {
-      phone: (order.shippingAddress && order.shippingAddress.phone) || buyer?.phone || buyer?.mobile,
-      email: buyer?.email
-    },
-    customData: {
-      value: (order.amount || 0) / 100,
-      currency: order.currency || "INR",
-      content_ids: [order.productId].filter(Boolean),
-      content_type: "product"
-    },
-    testEventCode: env.metaCapiTestEventCode || undefined
-  });
+  // Gated on the same check the sender uses, so an unconfigured environment
+  // does not pay for a database round-trip it will only throw away. This sits
+  // on the path a customer is waiting on at the end of a payment; dev, staging
+  // and any production deploy from before the token was set all take the cheap
+  // branch.
+  if (isMetaCapiConfigured(env)) {
+    const buyer = await collections.owners.findOne({ _id: ownerId });
+    sendCapiEventBestEffort(log, env, {
+      eventName: "Purchase",
+      eventId: purchaseEventId(order.orderNumber),
+      actionSource: "website",
+      userData: {
+        phone: (order.shippingAddress && order.shippingAddress.phone) || buyer?.phone || buyer?.mobile,
+        email: buyer?.email
+      },
+      customData: {
+        value: (order.amount || 0) / 100,
+        currency: order.currency || "INR",
+        content_ids: [order.productId].filter(Boolean),
+        content_type: "product"
+      },
+      testEventCode: env.metaCapiTestEventCode || undefined
+    });
+  }
 
   return { firstTime: true, replaced, newTagId };
 }

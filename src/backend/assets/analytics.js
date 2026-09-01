@@ -219,14 +219,20 @@
     // replaceState leaves the page and its JS untouched — the token was already
     // read into memory long before this runs — and only rewrites what fbq will
     // later report as the page URL.
+    // Absence is checked BEFORE the try, not inside it.
+    //
+    // The earlier shape wrapped an `if (replaceState)` in a try and returned
+    // only from the catch, which fails closed when the call THROWS but falls
+    // straight through when the API is simply missing — skipping the strip and
+    // then loading the Pixel on a URL that still carries the token. That is the
+    // exact leak this function exists to prevent, so the missing case has to
+    // return too.
+    if (!(window.history && typeof window.history.replaceState === "function")) return;
+
     try {
-      if (window.history && window.history.replaceState) {
-        window.history.replaceState(null, "", "/vehicle");
-      }
+      window.history.replaceState(null, "", "/vehicle");
     } catch (_) {
-      // If the URL cannot be rewritten, do not load the Pixel at all. Failing
-      // closed is the whole point: a Pixel on an un-stripped URL is the leak
-      // this function exists to prevent.
+      // Present but refused. Same rule: no strip, no Pixel.
       return;
     }
 

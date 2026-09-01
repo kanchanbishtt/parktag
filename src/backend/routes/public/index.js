@@ -1046,7 +1046,7 @@ export function registerPublicRoutes(app, env) {
       actionSource: "app",
       userData: {
         phone: mobile,
-        clientIp: request.ip,
+        clientIp: getClientIp(request),
         userAgent: request.headers["user-agent"]
       },
       customData: { vehicle_type: vehicleType },

@@ -117,14 +117,28 @@ describe("scanner retargeting", () => {
     assert.ok(strip < load, "replaceState must happen BEFORE the Pixel loads");
   });
 
-  test("it fails closed when the URL cannot be rewritten", () => {
-    // A browser that refuses replaceState must get no Pixel at all, rather
-    // than a Pixel on a URL still carrying the token.
+  test("it fails closed when replaceState is missing OR throws", () => {
+    // Two distinct ways the strip can fail, and the first one was originally
+    // missed: an `if (replaceState) { ... }` inside a try returns only when the
+    // call THROWS, and falls straight through when the API is simply absent —
+    // skipping the strip and then loading the Pixel on a URL still carrying the
+    // token. Both paths must return before the loader is reached.
     const fn = source.slice(source.indexOf("window.ptScannerEngaged"));
-    const cat = fn.indexOf("catch");
     const load = fn.indexOf("connect.facebook.net");
+
+    // Absent: an explicit guard that returns, sitting above the loader.
+    const guard = fn.search(/if \(!\(window\.history && typeof window\.history\.replaceState === "function"\)\) return;/);
+    assert.ok(guard > -1, "a missing replaceState must return, not fall through");
+    assert.ok(guard < load, "that guard must sit above the loader");
+
+    // Throws: the catch returns too.
+    const cat = fn.indexOf("catch");
     assert.ok(cat < load, "the catch must sit above the loader");
     assert.match(fn.slice(cat, load), /return;/);
+
+    // And the strip itself is not wrapped in a condition that could skip it
+    // silently — by this point it is guarded above, so it runs unconditionally.
+    assert.match(fn, /try \{\s*\n\s*window\.history\.replaceState\(null, "", "\/vehicle"\);/);
   });
 
   test("it only fires on the scanner surface, once, and needs a pixel id", () => {

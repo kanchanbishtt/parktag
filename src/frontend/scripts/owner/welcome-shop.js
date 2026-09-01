@@ -927,29 +927,103 @@ function showToast(message, tone) {
 }
 
 // ── Tab switching ─────────────────────────────────────────────
-function switchTab(tab) {
-  const isShop = tab === "shop";
+// One table, three views. Written as a list rather than as a chain of booleans
+// because the two-view version was already `isShop ? ... : ...` in four places,
+// and a third would have meant getting the same ternary right four more times.
+// A fourth view is one row here.
+const TABS = [
+  { key: "tags",    view: "view-tags",    nav: "navTags" },
+  { key: "shop",    view: "view-shop",    nav: "navShop" },
+  { key: "profile", view: "view-profile", nav: "navProfile" }
+];
 
-  // Changing view closes the profile drawer with it. The drawer's own controls
-  // can switch tab — "Buy Premium Tag" on a vehicle card calls
-  // goToShopForReplace — and leaving it open over the view it just navigated to
-  // hides that view behind a sheet the owner has to dismiss before they can see
-  // what their tap did. It also keeps the Profile pill honest: exactly one of
-  // the three is lit at any moment.
+function switchTab(tab) {
+  // Unknown input falls back to Tags rather than hiding every view and leaving
+  // a blank page with three unlit pills.
+  const target = TABS.some((t) => t.key === tab) ? tab : "tags";
+
+  // Changing view closes the drawer with it. The drawer's own controls can
+  // switch tab — "Buy Premium Tag" on a vehicle card calls goToShopForReplace —
+  // and leaving it open over the view it just navigated to hides that view
+  // behind a sheet the owner has to dismiss before they can see what their tap
+  // did.
   const drawer = document.getElementById("menuDrawer");
   if (drawer && drawer.classList.contains("open") && typeof closeMenu === "function") {
     closeMenu();
   }
 
-  document.getElementById("view-tags").style.display = isShop ? "none" : "";
-  document.getElementById("view-shop").style.display = isShop ? "" : "none";
-  document.getElementById("navTags").classList.toggle("active", !isShop);
-  document.getElementById("navShop").classList.toggle("active", isShop);
-  if (isShop) {
+  for (const t of TABS) {
+    const view = document.getElementById(t.view);
+    const nav = document.getElementById(t.nav);
+    const on = t.key === target;
+    if (view) {
+      // "block", not "". An empty inline value removes the declaration and lets
+      // the cascade answer — and the cascade now says `#view-shop { display:
+      // none }`, because the stylesheet owns the pre-script state. Setting ""
+      // here would leave Shop and Profile permanently hidden.
+      view.style.display = on ? "block" : "none";
+      if (on) {
+        // Removing and re-adding is not enough on its own — the browser
+        // collapses both into one frame and the animation never restarts.
+        // Reading offsetWidth in between forces the reflow that makes it.
+        view.classList.remove("pt-view-in");
+        void view.offsetWidth;
+        view.classList.add("pt-view-in");
+      }
+    }
+    if (nav) {
+      nav.classList.toggle("active", on);
+      // Kept in step with the pill. It used to be stamped on Tags in the markup
+      // and never moved, so a screen reader announced Tags as the current page
+      // from the Shop view.
+      if (on) nav.setAttribute("aria-current", "page");
+      else nav.removeAttribute("aria-current");
+    }
+  }
+
+  if (target === "shop") {
     const grid = document.getElementById("shopGrid");
     grid.innerHTML = skeletonShopCards(4);
     requestAnimationFrame(() => setTimeout(renderShop, 280));
   }
+
+  if (target === "profile" && typeof renderProfileView === "function") {
+    renderProfileView();
+  }
+
+  // Remember where they are, so a refresh does not dump them back on Tags.
+  //
+  // The URL rather than storage: it survives a reload, it makes the view
+  // linkable, and it is visible when something goes wrong. replaceState rather
+  // than assigning location.hash, because assigning pushes a history entry —
+  // tap through three tabs and Back would need three presses to leave the page
+  // instead of one. It also does not fire hashchange, so the listener below
+  // cannot loop.
+  // Keep the attribute tab-boot.js wrote in step with where we actually are, so
+  // the CSS above can never contradict the inline styles set just now — and so a
+  // bfcache restore finds the two agreeing.
+  try {
+    if (target === "tags") document.documentElement.removeAttribute("data-tab");
+    else document.documentElement.setAttribute("data-tab", target);
+  } catch { /* nothing to do; the inline styles above already decided the view */ }
+
+  try {
+    const want = target === "tags" ? " " : "#" + target;
+    // " " clears the fragment without leaving a bare "#" in the bar.
+    if ((location.hash || "").slice(1) !== (target === "tags" ? "" : target)) {
+      history.replaceState(null, "", location.pathname + location.search + want.trim());
+    }
+  } catch { /* history is unavailable in some embedded webviews; the tab still switches */ }
+
+  // Landing at the bottom of wherever you just were is disorienting when the
+  // views are different lengths, which these are.
+  //
+  // The two-argument form rather than a behavior option: `"instant" in window`
+  // was testing for a window property of that name, which has never existed, so
+  // it always fell through to "auto" — and "auto" honours scroll-behavior from
+  // the stylesheet, which is exactly the smooth scroll a view change should not
+  // have. This form is always instant.
+  window.scrollTo(0, 0);
 }
 
 // Close sheet on backdrop click
@@ -962,3 +1036,24 @@ sheet.addEventListener("touchstart", e => { _sheetTouchY = e.touches[0].clientY;
 sheet.addEventListener("touchend", e => {
   if (e.changedTouches[0].clientY - _sheetTouchY > 60) closeProduct();
 });
+
+// ── Restore the view on load ─────────────────────────────────────
+//
+// This script is a classic <script> and runs while the parser is still on the
+// page, BEFORE the deferred module that owns _owner and renderProfileView. That
+// is fine: switchTab guards its call into that module with a typeof check, and
+// load() re-renders the identity card once the dashboard payload lands.
+//
+// Only known tab keys are honoured. Any other fragment — a real anchor, junk
+// somebody pasted — is left alone rather than being treated as a view.
+function _restoreTabFromHash() {
+  const key = (location.hash || "").slice(1);
+  if (!TABS.some((t) => t.key === key)) return;
+  switchTab(key);
+}
+
+_restoreTabFromHash();
+
+// Someone editing the fragment by hand, or a back/forward that crosses a
+// fragment set by something other than switchTab.
+window.addEventListener("hashchange", _restoreTabFromHash);

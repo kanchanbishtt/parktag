@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
   <title>ParkTag</title>
   <link rel="stylesheet" href="/styles/styles.css?v=__ASSET_VERSION__"/>
+  <!-- Blocking, in the head, on purpose: it decides which view is visible
+       BEFORE the first paint. See the file for why it is not inline. -->
+  <script src="/scripts/owner/tab-boot.js?v=__ASSET_VERSION__"></script>
   <style>
     * { box-sizing: border-box; }
     body { margin: 0; background: #fff; font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif; }
@@ -137,6 +140,30 @@
     }
     .pt-reveal { animation: pt-fade-up 0.35s cubic-bezier(.25,.46,.45,.94) forwards; }
     .pt-reveal-grid { animation: pt-fade-up 0.4s cubic-bezier(.25,.46,.45,.94) 0.05s both; }
+
+    /* Swapping a view was a hard cut: one display:none, one display:"", nothing
+       in between. Reuses pt-fade-up above rather than inventing a second reveal,
+       so a tab change moves the way the rest of this page already does.
+       Retriggered from JS with a forced reflow — an animation only replays if
+       the class actually leaves and returns. */
+    .pt-view-in { animation: pt-fade-up .28s cubic-bezier(.25,.46,.45,.94) both; }
+
+    /* Skeleton to content. The swap is innerHTML -> textContent, which no
+       transition can follow, so the fade goes on the parent and runs once, only
+       on the load -> loaded step. Firing it on every render would flash the card
+       every time a name was saved. Opacity only: nudging the name upward as it
+       resolves reads as the card twitching. */
+    @keyframes pt-fade-in { from { opacity: 0; } to { opacity: 1; } }
+    .pt-pr-id.ready .pt-pr-av,
+    .pt-pr-id.ready .pt-pr-who { animation: pt-fade-in .32s ease both; }
+
+    @media (prefers-reduced-motion: reduce) {
+      .pt-view-in,
+      .pt-pr-id.ready .pt-pr-av,
+      .pt-pr-id.ready .pt-pr-who { animation: none; }
+      .pt-pr-sk,
+      .pt-pr-id.loading .pt-pr-av { animation: none; }
+    }
 
     /* ── Content ───────────────────────────────────── */
     .pt-wc {
@@ -341,6 +368,188 @@
       font-weight: 700; font-size: .75rem; padding: 0; font-family: inherit;
     }
 
+    /* ── Profile view ──────────────────────────────── */
+    /* A third VIEW, not a drawer. The drawer is still there behind the burger,
+       but a profile you reach by sliding a panel over the page is somewhere you
+       visit and leave; this is a place you are, which is why it takes a nav tab
+       and the pill lights like the other two. */
+    .pt-pr-id {
+      /* Both stops are the brand navy: the base, and the base lifted just
+         enough to give the card a light source. A hue that is not #03162D
+         would read as a different brand at this size. */
+      background: linear-gradient(135deg, #03162D 0%, #0A2946 100%);
+      border-radius: 20px; padding: 20px; margin: 18px 0 14px;
+      display: flex; align-items: center; gap: 14px; position: relative;
+      box-shadow: 0 6px 22px rgba(3,22,45,.18);
+    }
+    .pt-pr-av {
+      width: 56px; height: 56px; border-radius: 17px; flex-shrink: 0;
+      background: #FF2700; color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.5rem; font-weight: 900; letter-spacing: -.02em;
+    }
+    /* The shared .sk shimmer is greys on white; on the navy identity card it
+       would read as three light-grey bricks. Same pt-shimmer keyframes, tuned
+       for a dark ground. */
+    .pt-pr-sk {
+      background: linear-gradient(90deg, rgba(255,255,255,.09) 25%, rgba(255,255,255,.20) 37%, rgba(255,255,255,.09) 63%);
+      background-size: 600px 100%;
+      animation: pt-shimmer 1.4s ease infinite;
+      border-radius: 8px;
+    }
+    /* While loading the avatar IS a skeleton, rather than a red tile with a
+       shimmer sitting inside it. */
+    .pt-pr-id.loading .pt-pr-av {
+      background: linear-gradient(90deg, rgba(255,255,255,.09) 25%, rgba(255,255,255,.20) 37%, rgba(255,255,255,.09) 63%);
+      background-size: 600px 100%;
+      animation: pt-shimmer 1.4s ease infinite;
+      color: transparent;
+    }
+    /* Nothing to edit until there is something to edit. */
+    .pt-pr-id.loading .pt-pr-edit { opacity: .35; pointer-events: none; }
+    .pt-pr-who { flex: 1; min-width: 0; }
+    .pt-pr-name {
+      font-size: 1.12rem; font-weight: 800; color: #fff; margin: 0 0 4px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .pt-pr-sub {
+      font-size: .82rem; color: rgba(255,255,255,.62); margin: 0;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .pt-pr-edit {
+      flex-shrink: 0; width: 38px; height: 38px; border-radius: 12px; border: none;
+      background: rgba(255,255,255,.13); color: #fff; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background .15s;
+    }
+    .pt-pr-edit:hover { background: rgba(255,255,255,.22); }
+
+    /* Four shortcuts to what people actually come here for. Equal columns, so
+       adding or removing one never needs the CSS touched. */
+    .pt-pr-acts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px; margin-bottom: 14px; }
+    .pt-pr-act {
+      background: #fff; border: 1.5px solid #EEF0F3; border-radius: 15px;
+      padding: 13px 4px 10px; cursor: pointer; font-family: inherit;
+      display: flex; flex-direction: column; align-items: center; gap: 7px;
+      transition: border-color .15s, transform .1s;
+    }
+    .pt-pr-act:hover { border-color: #FF2700; }
+    .pt-pr-act:active { transform: scale(.97); }
+    .pt-pr-act-ic { color: #03162D; display: flex; }
+    .pt-pr-act-lb {
+      font-size: .66rem; font-weight: 800; color: #6B7280;
+      text-transform: uppercase; letter-spacing: .06em;
+      /* "Go Pro" is the first label carrying a space. Two lines in one tile and
+         four out of line with each other is not worth the risk. */
+      white-space: nowrap;
+    }
+
+    /* Premium card.
+       Deliberately plain: an eyebrow, a title, a line, a button. The wash is
+       where red and blue meet — the two brand colours doing the decorating so
+       nothing else has to. No chips, no medallion, no gradient on the button;
+       one card, one thing to tap.
+
+       Every value is drawn from colours already in this file. */
+    .pt-pr-prem {
+      background: linear-gradient(135deg, #FFF7F5 0%, #FFFFFF 50%, #F3F5F8 100%);
+      border: 1.5px solid rgba(255,39,0,.16);
+      border-radius: 18px; padding: 16px 16px 17px; margin-bottom: 18px;
+      display: flex; align-items: flex-start; gap: 12px;
+    }
+    .pt-pr-prem-bd { flex: 1; min-width: 0; }
+    .pt-pr-prem-t {
+      font-size: 1.08rem; font-weight: 800; color: #03162D; margin: 0;
+      letter-spacing: -.015em; line-height: 1.25;
+    }
+    /* The number is the reason to tap, so it is the only thing in brand red
+       inside a sentence and the only place the eye is asked to stop. Weighted
+       up as well as coloured, because at .77rem colour alone is a whisper. */
+    .pt-pr-prem-s em { font-style: normal; font-weight: 800; color: #FF2700; }
+    .pt-pr-prem-s { font-size: .77rem; color: #6B7280; margin: 5px 0 0; line-height: 1.5; }
+    /* Brand red, the same #FF2700 as every other primary action on this page.
+       It was navy while the eyebrow pill was also red and a third red element
+       would have made the card shout — with the pill gone, red on the button is
+       simply the house style, and the card no longer has to borrow the heading
+       ink to stay balanced. Blue is still present: it is the navy title and the
+       tint the wash resolves into. */
+    .pt-pr-prem-cta {
+      flex-shrink: 0; background: #FF2700; color: #fff; border: none; border-radius: 12px;
+      display: inline-flex; align-items: center; justify-content: center; text-decoration: none;
+      padding: 10px 16px; font-family: inherit; font-size: .81rem; font-weight: 800;
+      cursor: pointer; white-space: nowrap; transition: filter .15s;
+    }
+    /* Darkened from the base rather than two more hexes nobody can trace back
+       to the palette. */
+    .pt-pr-prem-cta:hover { filter: brightness(.92); }
+    .pt-pr-prem-cta:active { filter: brightness(.85); }
+
+    /* Segmented control. A track with the selected pill sitting inside it,
+       rather than three loose buttons — the shared background is what tells you
+       these are alternatives to each other and not a toolbar of actions.
+
+       These rules were deleted once already: a rewrite of the premium card
+       above spliced from its opening comment to `.pt-pr-panel {`, and this sat
+       between the two. The buttons kept working and fell back to the browser's
+       default chrome, which is why nothing failed — it just looked like a form
+       from 1998. */
+    /* Capsules, track and pill alike. The radius has to be fully round on BOTH:
+       a rounded-rect pill inside a capsule track leaves a crescent of track
+       showing at each end, which reads as a rendering fault rather than a
+       style. 999px on each keeps the two concentric at any height. */
+    .pt-pr-seg {
+      display: flex; background: #EEF0F3; border-radius: 999px; padding: 4px;
+      gap: 4px; margin-bottom: 14px;
+    }
+    .pt-pr-seg-b {
+      flex: 1; min-width: 0; border: none; cursor: pointer; font-family: inherit;
+      background: transparent; color: #6B7280; border-radius: 999px; padding: 9px 6px;
+      font-size: .82rem; font-weight: 700; white-space: nowrap;
+      transition: background .18s, color .18s, box-shadow .18s;
+    }
+    .pt-pr-seg-b[aria-selected="true"] {
+      background: #03162D; color: #fff; box-shadow: 0 2px 8px rgba(3,22,45,.2);
+    }
+    .pt-pr-seg-b:not([aria-selected="true"]):hover { color: #03162D; }
+
+    .pt-pr-panel { margin-bottom: 18px; }
+    .pt-pr-sec {
+      font-size: .68rem; font-weight: 800; color: #9CA3AF;
+      text-transform: uppercase; letter-spacing: .1em; margin: 0 0 8px 4px;
+    }
+    .pt-pr-card { background: #fff; border: 1.5px solid #EEF0F3; border-radius: 16px; overflow: hidden; margin-bottom: 14px; }
+    .pt-pr-row {
+      width: 100%; display: flex; align-items: center; gap: 13px; cursor: pointer;
+      background: none; border: none; border-bottom: 1px solid #F3F4F6;
+      padding: 14px 15px; font-family: inherit; text-align: left;
+      transition: background .12s; text-decoration: none;
+    }
+    .pt-pr-row:last-child { border-bottom: none; }
+    .pt-pr-row:hover { background: #F9FAFB; }
+    .pt-pr-row-ic {
+      width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      background: #F3F4F6; color: #03162D;
+    }
+    .pt-pr-row-bd { flex: 1; min-width: 0; }
+    .pt-pr-row-t { font-size: .88rem; font-weight: 700; color: #03162D; margin: 0; }
+    .pt-pr-row-s { font-size: .74rem; color: #9CA3AF; margin: 2px 0 0; }
+    .pt-pr-row-ar { flex-shrink: 0; color: #D1D5DB; display: flex; }
+    /* Not yet wired. Marked rather than hidden, so the shape of the finished
+       page is visible now and nobody taps something that silently does nothing. */
+    .pt-pr-row.soon { cursor: default; }
+    .pt-pr-row.soon:hover { background: none; }
+    .pt-pr-row.soon .pt-pr-row-t { color: #9CA3AF; }
+    .pt-pr-row.soon .pt-pr-row-ic { color: #C4CAD3; }
+    .pt-pr-chip {
+      flex-shrink: 0; font-size: .62rem; font-weight: 800; letter-spacing: .06em;
+      text-transform: uppercase; color: #9CA3AF; background: #F3F4F6;
+      border-radius: 20px; padding: 4px 9px;
+    }
+    .pt-pr-row.danger .pt-pr-row-t { color: #DC2626; }
+    .pt-pr-row.danger .pt-pr-row-ic { background: #FEE2E2; color: #DC2626; }
+    .pt-pr-ver { text-align: center; font-size: .72rem; color: #C4CAD3; margin: 0 0 4px; }
+
     /* ── Profile details sheet ─────────────────────── */
     /* Opened by the pencil beside the greeting. A sheet rather than a drawer
        because it is a FORM with a Save at the end: a drawer slides in from the
@@ -447,6 +656,27 @@
     }
     .pt-pf-save:disabled { opacity: .55; cursor: default; }
     .pt-pf-status { font-size: .78rem; font-weight: 700; margin: 0; }
+
+    /* The opening view, before any script has run.
+       tab-boot.js writes data-tab on <html> in the head; these rules turn that
+       into the right first paint. Inline styles from switchTab override all of
+       this the moment the page is interactive, which is why switchTab sets
+       display explicitly to "block" rather than to "" — an empty inline value
+       falls back to the cascade, and the cascade below says none. */
+    #view-shop, #view-profile { display: none; }
+    html[data-tab] #view-tags { display: none; }
+    html[data-tab="shop"] #view-shop { display: block; }
+    html[data-tab="profile"] #view-profile { display: block; }
+
+    /* The nav pill, for the same reason. navTags ships with .active because Tags
+       is the default; when the page is opening somewhere else, that has to be
+       undone before it is seen rather than a frame later. */
+    html[data-tab] #navTags.active { background: transparent; color: #B0B7C3; }
+    html[data-tab] #navTags.active .pt-nav-lbl { display: none; }
+    html[data-tab="shop"] #navShop,
+    html[data-tab="profile"] #navProfile { background: #FF2700; color: #fff; }
+    html[data-tab="shop"] #navShop .pt-nav-lbl,
+    html[data-tab="profile"] #navProfile .pt-nav-lbl { display: block; }
 
     /* ── Bottom nav ────────────────────────────────── */
     /* A floating capsule, lifted off the bottom edge rather than welded to it.
@@ -1523,7 +1753,7 @@
   </div><!-- /view-tags -->
 
   <!-- ── Shop view ───────────────────────── -->
-  <div id="view-shop" style="display:none">
+  <div id="view-shop">
     <div class="pt-wc">
       <div class="pt-shop-hd">
         <h2 class="pt-shop-title">Shop</h2>
@@ -1533,6 +1763,235 @@
       <div class="pt-shop-grid" id="shopGrid"></div>
     </div>
   </div><!-- /view-shop -->
+
+  <!-- ── Profile view ───────────────────── -->
+  <!-- Structure first. Every row that has somewhere real to go is wired; the
+       rest carry a Soon chip and are inert, so the shape of the finished page is
+       visible without anything pretending to work. -->
+  <div id="view-profile">
+
+    <!-- Identity. Name and number come from the account, so this is the one
+         place on the page that is unambiguously "you" — the pencil opens the
+         same details sheet the greeting's does. -->
+    <!-- Ships in its loading state. The name and number come from the dashboard
+         request, so shipping "ParkTag User" and a dash meant every owner read
+         somebody else's placeholder for a moment and then watched it snap to
+         their own. A shimmer says "this is coming"; a wrong name says "this is
+         you". renderProfileView() swaps the skeletons for the real values, and
+         puts them back if it is ever called before the payload lands. -->
+    <section class="pt-pr-id loading" id="prIdentity" aria-busy="true">
+      <div class="pt-pr-av" id="prAvatar"></div>
+      <div class="pt-pr-who">
+        <p class="pt-pr-name" id="prName"><span class="pt-pr-sk" style="display:inline-block;width:134px;height:.92em;border-radius:6px;vertical-align:middle"></span></p>
+        <p class="pt-pr-sub">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.62 3.38 2 2 0 0 1 3.6 1.17h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.86a16 16 0 0 0 6 6l.91-.91a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" stroke="currentColor" stroke-width="2"/></svg>
+          <span id="prPhone"><span class="pt-pr-sk" style="display:inline-block;width:106px;height:.78em;border-radius:5px;vertical-align:middle"></span></span>
+        </p>
+      </div>
+      <button type="button" class="pt-pr-edit" onclick="openProfile()" aria-label="Edit your details">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 20h4l10-10a2.5 2.5 0 0 0-3.5-3.5L4.5 16.5 4 20Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </section>
+
+    <!-- PIN · DOCS · ORDERS · SETTINGS. All four go somewhere real; none is a
+         placeholder, which is why they sit above the fold rather than among the
+         Soon rows.
+
+         No Go Pro tile: the premium card immediately below already carries
+         "View plans", and two ways into the shop a centimetre apart is one of
+         them wasted. Editing is absent for the same reason — the pencil on the
+         card above opens the details sheet. -->
+    <div class="pt-pr-acts">
+      <!-- PIN goes to the LOGIN pin, not the vault pin. Two different secrets:
+           this one signs you in, the one on the documents screen is the second
+           factor over a session that is already signed in. They were the same
+           link until the login PIN existed, which is why Docs still points
+           where PIN used to. -->
+      <a class="pt-pr-act" href="/owner-login-pin" style="text-decoration:none">
+        <span class="pt-pr-act-ic"><svg width="19" height="19" viewBox="0 0 24 24" fill="none"><rect x="4" y="10" width="16" height="11" rx="2" stroke="currentColor" stroke-width="1.9"/><path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><circle cx="12" cy="15.5" r="1.4" fill="currentColor"/></svg></span>
+        <span class="pt-pr-act-lb">PIN</span>
+      </a>
+      <a class="pt-pr-act" href="/owner-documents" style="text-decoration:none">
+        <span class="pt-pr-act-ic"><svg width="19" height="19" viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/><path d="M14 2v6h6M8 13h5M8 17h8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <span class="pt-pr-act-lb">Docs</span>
+      </a>
+      <button type="button" class="pt-pr-act" onclick="openMenuSection('orders')">
+        <span class="pt-pr-act-ic"><svg width="19" height="19" viewBox="0 0 24 24" fill="none"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/><line x1="3" y1="6" x2="21" y2="6" stroke="currentColor" stroke-width="1.9"/><path d="M16 10a4 4 0 0 1-8 0" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg></span>
+        <span class="pt-pr-act-lb">Orders</span>
+      </button>
+      <button type="button" class="pt-pr-act" onclick="goToPreferences()">
+        <span class="pt-pr-act-ic"><svg width="19" height="19" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3.2" stroke="currentColor" stroke-width="1.9"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <span class="pt-pr-act-lb">Settings</span>
+      </button>
+    </div>
+
+    <!-- Not one big button. "View plans" is the action; making the card
+         clickable too would nest a control inside a control and leave a screen
+         reader announcing the whole card as the button label.
+
+         One line of copy, and it is the 90 days rather than a feature list.
+         Everyone has slid past a Premium card; almost nobody expects three
+         months included. It is also newly true — the window used to run from the
+         print date, so a tag bought late in a batch reached its owner with much
+         of it already spent. -->
+    <section class="pt-pr-prem" aria-labelledby="prPremTitle">
+      <div class="pt-pr-prem-bd">
+        <h3 class="pt-pr-prem-t" id="prPremTitle">Premium membership</h3>
+        <p class="pt-pr-prem-s">Free for your first <em>90 days</em>, counted from the day you activate the tag.</p>
+      </div>
+      <!-- The membership screen, not the shop tab. The shop sells physical
+           tags; plans are their own thing and now have their own page. -->
+      <a class="pt-pr-prem-cta" href="/owner-membership" role="button">View plans</a>
+    </section>
+
+    <div class="pt-pr-seg" role="tablist" aria-label="Profile sections">
+      <button type="button" class="pt-pr-seg-b" role="tab" id="prTab-account" aria-selected="true"
+              aria-controls="prPanel-account" onclick="switchProfilePanel('account')">Account</button>
+      <button type="button" class="pt-pr-seg-b" role="tab" id="prTab-prefs" aria-selected="false"
+              aria-controls="prPanel-prefs" onclick="switchProfilePanel('prefs')">Preferences</button>
+      <button type="button" class="pt-pr-seg-b" role="tab" id="prTab-support" aria-selected="false"
+              aria-controls="prPanel-support" onclick="switchProfilePanel('support')">Support</button>
+    </div>
+
+    <!-- ── Account ── -->
+    <div class="pt-pr-panel" id="prPanel-account" role="tabpanel" aria-labelledby="prTab-account">
+      <p class="pt-pr-sec">You</p>
+      <div class="pt-pr-card">
+        <button type="button" class="pt-pr-row" onclick="openProfile()">
+          <span class="pt-pr-row-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.9"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg></span>
+          <span class="pt-pr-row-bd">
+            <span class="pt-pr-row-t" style="display:block">Personal details</span>
+            <span class="pt-pr-row-s" style="display:block">Name, phone, date of birth</span>
+          </span>
+          <span class="pt-pr-row-ar"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>
+        </button>
+        <a class="pt-pr-row" href="/owner-documents">
+          <span class="pt-pr-row-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/><path d="M14 2v6h6" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/></svg></span>
+          <span class="pt-pr-row-bd">
+            <span class="pt-pr-row-t" style="display:block">Documents</span>
+            <span class="pt-pr-row-s" style="display:block">RC, insurance and PUC, behind a PIN</span>
+          </span>
+          <span class="pt-pr-row-ar"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>
+        </a>
+        <button type="button" class="pt-pr-row" onclick="openMenuSection('orders')">
+          <span class="pt-pr-row-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><rect x="1" y="3" width="15" height="13" rx="1.5" stroke="currentColor" stroke-width="1.8"/><path d="M16 8h4l3 3v5h-7V8Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="6" cy="19" r="1.8" stroke="currentColor" stroke-width="1.6"/><circle cx="18.5" cy="19" r="1.8" stroke="currentColor" stroke-width="1.6"/></svg></span>
+          <span class="pt-pr-row-bd">
+            <span class="pt-pr-row-t" style="display:block">My orders</span>
+            <span class="pt-pr-row-s" style="display:block">Sticker orders and delivery</span>
+          </span>
+          <span class="pt-pr-row-ar"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>
+        </button>
+        <div class="pt-pr-row soon">
+          <span class="pt-pr-row-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/><circle cx="12" cy="10" r="2.6" stroke="currentColor" stroke-width="1.9"/></svg></span>
+          <span class="pt-pr-row-bd">
+            <span class="pt-pr-row-t" style="display:block">Delivery address</span>
+            <span class="pt-pr-row-s" style="display:block">Where your stickers are shipped</span>
+          </span>
+          <span class="pt-pr-chip">Soon</span>
+        </div>
+      </div>
+
+      <p class="pt-pr-sec">Session</p>
+      <div class="pt-pr-card">
+        <button type="button" class="pt-pr-row" onclick="signOut()">
+          <span class="pt-pr-row-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><path d="M16 17l5-5-5-5M21 12H9" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <span class="pt-pr-row-bd">
+            <span class="pt-pr-row-t" style="display:block">Sign out</span>
+            <span class="pt-pr-row-s" style="display:block">On this device</span>
+          </span>
+          <span class="pt-pr-row-ar"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>
+        </button>
+        <button type="button" class="pt-pr-row danger" onclick="deleteAccount()">
+          <span class="pt-pr-row-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <span class="pt-pr-row-bd">
+            <span class="pt-pr-row-t" style="display:block">Delete account</span>
+            <span class="pt-pr-row-s" style="display:block">Removes your tags, documents and orders</span>
+          </span>
+          <span class="pt-pr-row-ar"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ── Preferences ── -->
+    <div class="pt-pr-panel" id="prPanel-prefs" role="tabpanel" aria-labelledby="prTab-prefs" hidden>
+      <p class="pt-pr-sec">Contact</p>
+      <div class="pt-pr-card">
+        <div class="pt-pr-row soon">
+          <span class="pt-pr-row-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.62 3.38 2 2 0 0 1 3.6 1.17h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.86a16 16 0 0 0 6 6l.91-.91a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" stroke="currentColor" stroke-width="1.9"/></svg></span>
+          <span class="pt-pr-row-bd">
+            <span class="pt-pr-row-t" style="display:block">Call masking</span>
+            <span class="pt-pr-row-s" style="display:block">Default for new vehicles</span>
+          </span>
+          <span class="pt-pr-chip">Soon</span>
+        </div>
+        <div class="pt-pr-row soon">
+          <span class="pt-pr-row-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><path d="M13.73 21a2 2 0 0 1-3.46 0" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg></span>
+          <span class="pt-pr-row-bd">
+            <span class="pt-pr-row-t" style="display:block">Notifications</span>
+            <span class="pt-pr-row-s" style="display:block">How we tell you about a scan</span>
+          </span>
+          <span class="pt-pr-chip">Soon</span>
+        </div>
+      </div>
+
+      <p class="pt-pr-sec">App</p>
+      <div class="pt-pr-card">
+        <div class="pt-pr-row soon">
+          <span class="pt-pr-row-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.9"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 0 20a15.3 15.3 0 0 1 0-20z" stroke="currentColor" stroke-width="1.9"/></svg></span>
+          <span class="pt-pr-row-bd">
+            <span class="pt-pr-row-t" style="display:block">Language</span>
+            <span class="pt-pr-row-s" style="display:block">English</span>
+          </span>
+          <span class="pt-pr-chip">Soon</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Support ── -->
+    <div class="pt-pr-panel" id="prPanel-support" role="tabpanel" aria-labelledby="prTab-support" hidden>
+      <p class="pt-pr-sec">Get help</p>
+      <div class="pt-pr-card">
+        <a class="pt-pr-row" href="https://parktag.me/contact" target="_blank" rel="noopener">
+          <span class="pt-pr-row-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/></svg></span>
+          <span class="pt-pr-row-bd">
+            <span class="pt-pr-row-t" style="display:block">Contact support</span>
+            <span class="pt-pr-row-s" style="display:block">We usually reply the same day</span>
+          </span>
+          <span class="pt-pr-row-ar"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>
+        </a>
+        <div class="pt-pr-row soon">
+          <span class="pt-pr-row-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.9"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><circle cx="12" cy="17" r="1" fill="currentColor"/></svg></span>
+          <span class="pt-pr-row-bd">
+            <span class="pt-pr-row-t" style="display:block">Help &amp; FAQ</span>
+            <span class="pt-pr-row-s" style="display:block">How tags, scans and masking work</span>
+          </span>
+          <span class="pt-pr-chip">Soon</span>
+        </div>
+      </div>
+
+      <p class="pt-pr-sec">Legal</p>
+      <div class="pt-pr-card">
+        <a class="pt-pr-row" href="https://parktag.me/terms" target="_blank" rel="noopener">
+          <span class="pt-pr-row-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/><path d="M14 2v6h6M8 13h8M8 17h5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg></span>
+          <span class="pt-pr-row-bd"><span class="pt-pr-row-t" style="display:block">Terms of service</span></span>
+          <span class="pt-pr-row-ar"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>
+        </a>
+        <a class="pt-pr-row" href="https://parktag.me/privacy" target="_blank" rel="noopener">
+          <span class="pt-pr-row-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/></svg></span>
+          <span class="pt-pr-row-bd"><span class="pt-pr-row-t" style="display:block">Privacy policy</span></span>
+          <span class="pt-pr-row-ar"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>
+        </a>
+        <a class="pt-pr-row" href="https://parktag.me/refund" target="_blank" rel="noopener">
+          <span class="pt-pr-row-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M3 12a9 9 0 1 0 3-6.7L3 8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 3v5h5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <span class="pt-pr-row-bd"><span class="pt-pr-row-t" style="display:block">Refund policy</span></span>
+          <span class="pt-pr-row-ar"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>
+        </a>
+      </div>
+
+      <p class="pt-pr-ver">ParkTag &middot; app.parktag.me</p>
+    </div>
+
+  </div><!-- /view-profile -->
 
 </div><!-- /pt-wp -->
 
@@ -1700,12 +2159,10 @@
       </svg>
       <span class="pt-nav-lbl">Shop</span>
     </button>
-    <!-- Opens the drawer rather than swapping the view, so this is a disclosure
-         control and not a third page: aria-expanded, not aria-current. The
-         burger in the header does the same thing — this is the same door where
-         a thumb already is. -->
-    <button class="pt-nav-tab" id="navProfile" onclick="openMenu()" aria-label="Profile"
-            aria-controls="menuDrawer" aria-expanded="false">
+    <!-- A real third view now, not a drawer trigger, so it takes aria-current
+         like Tags and Shop rather than aria-expanded. The burger still opens the
+         drawer for the things that live there. -->
+    <button class="pt-nav-tab" id="navProfile" onclick="switchTab('profile')" aria-label="Profile">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
         <circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="2"/>
         <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>

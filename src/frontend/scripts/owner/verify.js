@@ -93,17 +93,31 @@ async function resend() {
   }
 }
 
+// The "Sign in using PIN" path off the verification screen: the owner already
+// knows their credential and does not want to wait for the code.
+//
+// One field, either credential — the login PIN, or the password on an account
+// that predates PINs. The gate is entirely server-side: /api/auth/login checks
+// the submitted value against the stored hashes and answers "Invalid
+// credentials" for anything else, so nothing here decides whether to let anyone
+// in. See routes/auth/credentials.js.
 async function loginWithPassword() {
-  const password = byId("password-inp")?.value?.trim();
+  const secret = byId("password-inp")?.value?.trim();
   if (!identifier) { setStatus("Session expired. Please go back and sign in again.", "error"); return; }
-  if (!password) { setStatus("Enter your password.", "error"); return; }
+  if (!secret) { setStatus("Enter your PIN.", "error"); return; }
   const btn = byId("password-login-btn");
   if (btn) { btn.disabled = true; btn.classList.add("pt-btn-loading"); }
   try {
     await fetchJson("/api/auth/login", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ role: "owner", email: identifier, password })
+      // `identifier`, not `email`. This posted the typed value as `email` and
+      // the server resolved it as one, so somebody who reached this screen by
+      // asking for a code on their PHONE could never sign in here — their
+      // number matched no address and the answer was always "Invalid
+      // credentials". The endpoint still accepts the old names from a cached
+      // client; these are the ones that work for a number as well.
+      body: JSON.stringify({ identifier, pin: secret })
     });
     sessionStorage.removeItem("pt_otp_identifier");
     window.location.href = "/owner-welcome";

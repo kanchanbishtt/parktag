@@ -24,21 +24,28 @@ app.get("/shop", async (request, reply) => {
 });
 ```
 
-The shop UI itself lives inside the owner dashboard (`pages/owner/welcome.html`,
+The shop UI itself lives inside the owner dashboard
+(`scripts/owner/welcome-shop.js`, rendered into `pages/owner/welcome.html` and
 opened with `?shop=1`), so there is currently no signed-out surface that can show
 a product at all.
 
 ### Every affected CTA
 
-| File | Lines | Destination |
+| File | Count | Destination |
 |---|---|---|
-| `landing/app/components/SiteHeader.tsx` | 19, 20, 269, 379, 380, 391 | `${APP_URL}/shop` |
-| `landing/app/page.tsx` | 326, 473, 514, 569 | `${APP_URL}/shop` |
-| `landing/app/components/SiteHeader.tsx` | 257, 336, 390 | `${APP_URL}/owner-login` |
-| `landing/app/page.tsx` | 191 | `${APP_URL}/owner-login` |
+| `landing/app/components/SiteHeader.tsx` | 6 | `${APP_URL}/shop` |
+| `landing/app/page.tsx` | 4 | `${APP_URL}/shop` |
+| `landing/app/components/SiteHeader.tsx` + `page.tsx` | 6 | `${APP_URL}/owner-login` |
 
-10 CTAs land on the wall. The other 4 go to login directly. **There is no path
-from the marketing site to a price without authenticating first.**
+10 CTAs land on the wall. The other 6 go to login directly. **All 16 entry points
+from the marketing site require authentication before a price is visible.**
+
+Counts rather than line numbers: this area of the landing site changes often and
+pinned line numbers go stale within a sprint. Re-derive with:
+
+```
+grep -rn 'APP_URL}/shop\|APP_URL}/owner-login' landing/app/
+```
 
 The same URL is about to be used as the Google Business Profile product landing
 page and as the destination for Meta ads, which is what makes this urgent rather
@@ -65,13 +72,9 @@ before deciding how much to invest in the fix.**
 Guest checkout is not a small change. Every shop endpoint binds to a session:
 
 ```
-src/backend/routes/shop/index.js
-  201  create-order        request.session.userId
-  312  verify-payment      request.session.userId
-  454  cod-otp/send        request.session.userId
-  488  place-cod           request.session.userId
-  629  cod-prepay-order    request.session.userId
-  687  cod-prepay-verify   request.session.userId
+src/backend/routes/shop/index.js — every one of these reads request.session.userId:
+  create-order · verify-payment · cod-otp/send
+  place-cod · cod-prepay-order · cod-prepay-verify
 ```
 
 Orders, tags and addresses all hang off `ownerId`. Removing the session
@@ -101,9 +104,12 @@ Give signed-out visitors a real product page. Keep the checkout exactly as it is
 This removes the wall in front of *price discovery*, which is the part that
 costs the most, and changes nothing about the order model, auth or payments.
 
-The catalogue is currently hard-coded in `welcome.html` as `const PRODUCTS`.
-Phase 1 should lift it into a shared module both surfaces import, otherwise the
-public page and the dashboard shop will drift on price within a month.
+The catalogue is currently hard-coded at the top of
+`scripts/owner/welcome-shop.js` as `const PRODUCTS`. Phase 1 should lift it into
+a shared module both surfaces import, otherwise the public page and the dashboard
+shop will drift on price within a month. The server already resolves real prices
+from its own catalogue at `create-order`, so `PRODUCTS` is display-only and safe
+to share.
 
 **Estimate:** roughly a day, mostly the page itself.
 

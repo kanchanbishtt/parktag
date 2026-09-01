@@ -17,7 +17,8 @@ optimised against real activations and orders instead of clicks.
 | `src/backend/tests/analytics-asset.test.js` | **New.** 5 tests, no DB required |
 | `src/backend/app.js` | Route `GET /pt-analytics.js` + `analyticsAsset` path const |
 | `src/backend/lib/env.js` | `ga4MeasurementId`, `metaPixelId` |
-| `src/frontend/pages/owner/welcome.html` | Script tag + `view_item`, `begin_checkout`, `purchase` |
+| `src/frontend/pages/owner/welcome.html` | Script tag |
+| `src/frontend/scripts/owner/welcome-shop.js` | `view_item`, `begin_checkout`, `purchase` |
 | `src/frontend/pages/owner/register.html` | Script tag |
 | `src/frontend/pages/scanner/index.html` | Script tag (`data-surface="scanner"`) |
 | `src/frontend/scripts/owner/welcome.js` | `sign_up` |
@@ -50,9 +51,9 @@ destination later means editing `dispatch()` in one file, not the call sites.
 
 | `ptTrack` name | GA4 | Meta Pixel | Fires at |
 |---|---|---|---|
-| `view_item` | `view_item` | `ViewContent` | `openProduct()` in welcome.html |
-| `begin_checkout` | `begin_checkout` | `InitiateCheckout` | `startPayment()` and `packPlaceCod()` |
-| `purchase` | `purchase` | `Purchase` | `showConfirmation()` in welcome.html |
+| `view_item` | `view_item` | `ViewContent` | `openProduct()` in welcome-shop.js |
+| `begin_checkout` | `begin_checkout` | `InitiateCheckout` | `startPayment()` and `packPlaceCod()` in welcome-shop.js |
+| `purchase` | `purchase` | `Purchase` | `showConfirmation()` in welcome-shop.js |
 | `sign_up` | `sign_up` | `CompleteRegistration` | welcome.js, on `?new=1` arrival |
 | `tag_activated` | `tag_activated` | `TagActivated` (custom) | scanner/app.js, after `/api/tags/:token/activate` |
 | `scan_received` | `scan_received` | **never** | scanner/app.js, after the tag resolves |

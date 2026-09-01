@@ -12,6 +12,11 @@ import {
 import { getCollections, ensurePendingCallsIndexes, getVaultBucket } from "../../lib/db/repositories.js";
 import { purgeVaultDocuments, deleteUsage } from "../../lib/core/vault.js";
 import { callEntitlement } from "../../lib/core/call-access.js";
+import {
+  cleanGender,
+  cleanDateOfBirth,
+  shapeProfileDetails
+} from "../../lib/core/profile-details.js";
 import { formatScannerLocation } from "../../lib/core/scan-location.js";
 import { clientErrorMessage } from "../../lib/errors.js";
 import { createQrDataUrl, createPrintQrDataUrl } from "../../lib/core/qr-output.js";
@@ -189,7 +194,10 @@ export function registerOwnerRoutes(app, env) {
         // dashboard knows to offer "add your name" rather than "edit".
         hasOwnName: Boolean(cleanName(owner.displayName) &&
           !isIdentifierNotAName(owner.displayName, owner)),
-        credits: owner.credits || 0
+        credits: owner.credits || 0,
+        // Optional, owner-supplied, and never required to use the product. Age
+        // rides along derived rather than stored — see profile-details.js.
+        profile: shapeProfileDetails(owner)
       },
       tags: await Promise.all(tags.map(async (tag) => {
         const scanUrl = buildTagScanUrl(request, tag.token);
@@ -458,10 +466,31 @@ export function registerOwnerRoutes(app, env) {
       return { ok: false, error: "Please enter your name, not your phone number or email." };
     }
 
-    await collections.owners.updateOne(
-      { _id: ownerId },
-      { $set: { displayName: name, updatedAt: new Date().toISOString() } }
-    );
+    // The optional "about you" fields, applied only when the caller actually
+    // sent them. `undefined` means "not part of this request" and `null`/"" mean
+    // "clear it" — collapsing those two would make the inline name field, which
+    // sends displayName alone, wipe a gender the owner set on the details sheet.
+    const patch = { displayName: name, updatedAt: new Date().toISOString() };
+
+    if ("gender" in (request.body || {})) {
+      patch.gender = cleanGender(request.body.gender);
+    }
+
+    if ("dateOfBirth" in (request.body || {})) {
+      const dob = cleanDateOfBirth(request.body.dateOfBirth);
+      if (!dob.ok) {
+        reply.code(400);
+        return { ok: false, error: dob.error };
+      }
+      patch.dateOfBirth = dob.value;
+    }
+
+    // Note what is NOT here: email and mobile. Both are login identifiers with
+    // their own indexes, so changing either is an account change that needs
+    // verification — /api/owner/mobile already does that for the phone, with an
+    // OTP. Accepting them on this route would let a details form quietly move
+    // an account to a new address.
+    await collections.owners.updateOne({ _id: ownerId }, { $set: patch });
 
     // The session carries displayName for other screens; leaving it stale would
     // show the old name until the owner signed out and back in.
@@ -473,7 +502,11 @@ export function registerOwnerRoutes(app, env) {
       ok: true,
       displayName: name,
       greetingName: firstNameOf(resolved),
-      hasOwnName: Boolean(name)
+      hasOwnName: Boolean(name),
+      // Echoed back from the merged document rather than from the request, so
+      // the sheet renders what was actually stored — including a value it did
+      // not send and the normalisation applied to one it did.
+      profile: shapeProfileDetails({ ...owner, ...patch })
     };
   });
 

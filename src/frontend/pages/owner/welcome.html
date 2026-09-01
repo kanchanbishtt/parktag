@@ -337,6 +337,113 @@
       font-weight: 700; font-size: .75rem; padding: 0; font-family: inherit;
     }
 
+    /* ── Profile details sheet ─────────────────────── */
+    /* Opened by the pencil beside the greeting. A sheet rather than a drawer
+       because it is a FORM with a Save at the end: a drawer slides in from the
+       side and reads as navigation, a sheet rises with a job to finish.
+
+       Its own backdrop and z-indexes rather than reusing .pt-backdrop/.pt-sheet
+       — those belong to the shop's product sheet, and sharing them would mean
+       one Escape or one backdrop tap closing whichever happened to be open. */
+    .pt-pf-bk {
+      position: fixed; inset: 0; background: rgba(3,22,45,.5); z-index: 300;
+      opacity: 0; pointer-events: none; transition: opacity .28s;
+      -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
+    }
+    .pt-pf-bk.open { opacity: 1; pointer-events: auto; }
+    .pt-pf {
+      position: fixed; bottom: 0; left: 50%; z-index: 301;
+      transform: translateX(-50%) translateY(100%);
+      width: 100%; max-width: 480px;
+      background: #F6F7F9; border-radius: 22px 22px 0 0;
+      /* Capped so the header below it stays visible — a full-height sheet with
+         no visible edge is a page, and a page needs a back button rather than a
+         swipe. */
+      max-height: 92vh; display: flex; flex-direction: column;
+      transition: transform .34s cubic-bezier(.25,.46,.45,.94);
+      box-shadow: 0 -8px 40px rgba(3,22,45,.22);
+    }
+    .pt-pf.open { transform: translateX(-50%) translateY(0); }
+    /* Navy, so the sheet is unmistakably ParkTag and not the page behind it. */
+    .pt-pf-hd {
+      background: #03162D; color: #fff; padding: 18px 20px 20px;
+      border-radius: 22px 22px 0 0; position: relative; flex-shrink: 0;
+    }
+    .pt-pf-grab {
+      width: 38px; height: 4px; border-radius: 2px; background: rgba(255,255,255,.28);
+      margin: -6px auto 12px;
+    }
+    .pt-pf-t { font-size: 1.22rem; font-weight: 900; margin: 0 0 4px; letter-spacing: -.01em; }
+    .pt-pf-s { font-size: .82rem; margin: 0; color: rgba(255,255,255,.62); }
+    .pt-pf-cx {
+      position: absolute; top: 16px; right: 16px;
+      width: 32px; height: 32px; border-radius: 50%; border: none; cursor: pointer;
+      background: rgba(255,255,255,.12); color: #fff;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .pt-pf-bd { overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
+      padding: 16px 16px 4px; flex: 1; }
+    .pt-pf-card { background: #fff; border-radius: 16px; padding: 16px; margin-bottom: 12px;
+      box-shadow: 0 1px 3px rgba(3,22,45,.06); }
+    .pt-pf-ct { font-size: .95rem; font-weight: 800; color: #03162D; margin: 0 0 2px; }
+    .pt-pf-cs { font-size: .76rem; color: #9CA3AF; margin: 0 0 14px; }
+    .pt-pf-f { margin-bottom: 14px; }
+    .pt-pf-f:last-child { margin-bottom: 0; }
+    .pt-pf-lb { display: block; font-size: .78rem; font-weight: 700; color: #6B7280; margin-bottom: 6px; }
+    .pt-pf-req { color: #FF2700; }
+    .pt-pf-in {
+      width: 100%; box-sizing: border-box; font: inherit; font-size: .92rem;
+      padding: 11px 13px; border-radius: 12px; border: 1.5px solid #E5E7EB;
+      background: #fff; color: #03162D; transition: border-color .15s, box-shadow .15s;
+    }
+    .pt-pf-in:focus { outline: none; border-color: #FF2700; box-shadow: 0 0 0 3px rgba(255,39,0,.13); }
+    .pt-pf-in.bad { border-color: #DC2626; box-shadow: 0 0 0 3px rgba(220,38,38,.12); }
+    /* A locked field must not look like an input somebody failed to type into.
+       Flat, greyed, no focus ring, and it says why underneath. */
+    .pt-pf-in[readonly] { background: #F3F4F6; color: #6B7280; border-color: #EEF0F3; cursor: default; }
+    .pt-pf-in[readonly]:focus { border-color: #EEF0F3; box-shadow: none; }
+    .pt-pf-hint { font-size: .72rem; color: #9CA3AF; margin: 6px 0 0; }
+    /* Country code sits INSIDE the border, so the prefix and the digits read as
+       one field rather than as a label the owner might try to overwrite. */
+    .pt-pf-ph { position: relative; flex: 1; min-width: 0; }
+    .pt-pf-ph-cc {
+      position: absolute; left: 1px; top: 1px; bottom: 1px; width: 62px;
+      display: flex; align-items: center; justify-content: center; gap: 5px;
+      font-size: .82rem; font-weight: 700; color: #6B7280;
+      border-right: 1.5px solid #E5E7EB; border-radius: 11px 0 0 11px;
+      background: #F9FAFB; pointer-events: none;
+    }
+    .pt-pf-ph-in { padding-left: 72px; }
+    .pt-pf-mini {
+      flex-shrink: 0; border: none; border-radius: 12px; padding: 0 15px;
+      background: #FF2700; color: #fff; font-family: inherit; font-size: .8rem;
+      font-weight: 800; cursor: pointer; white-space: nowrap;
+    }
+    .pt-pf-mini.ok { background: #16A34A; }
+    .pt-pf-mini:disabled { opacity: .55; cursor: default; }
+    .pt-pf-err { font-size: .74rem; color: #DC2626; margin: 6px 0 0; font-weight: 600; display: none; }
+    .pt-pf-err.on { display: block; }
+    .pt-pf-row { display: flex; gap: 10px; }
+    .pt-pf-row > * { flex: 1; min-width: 0; }
+    .pt-pf-sel {
+      appearance: none; -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none'%3E%3Cpath d='M6 9l6 6 6-6' stroke='%236B7280' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 13px center; padding-right: 36px;
+    }
+    /* Sticky, so Save is reachable without scrolling back down a long form. */
+    .pt-pf-ft {
+      flex-shrink: 0; padding: 12px 16px calc(14px + env(safe-area-inset-bottom, 0px));
+      background: #fff; border-top: 1px solid #EEF0F3;
+      display: flex; gap: 10px; align-items: center;
+    }
+    .pt-pf-save {
+      flex: 1; background: #FF2700; color: #fff; border: none; border-radius: 13px;
+      padding: 13px; font-family: inherit; font-size: .92rem; font-weight: 800; cursor: pointer;
+      transition: opacity .15s;
+    }
+    .pt-pf-save:disabled { opacity: .55; cursor: default; }
+    .pt-pf-status { font-size: .78rem; font-weight: 700; margin: 0; }
+
     /* ── Bottom nav ────────────────────────────────── */
     .pt-bottom-nav {
       position: fixed; bottom: 0; left: 0; right: 0;
@@ -969,31 +1076,6 @@
   .pt-ov-fbar.visible { display: flex; }
   .pt-ov-fbar-clear { background: none; border: none; cursor: pointer; color: #FF2700; font-weight: 700; font-size: .75rem; padding: 0; font-family: inherit; }
 
-  /* Tag status rows */
-  .pt-ov-rows { background: #fff; border: 1.5px solid #E5E7EB; border-radius: 16px; overflow: hidden; margin-bottom: 14px; }
-  .pt-ov-rows-hd {
-    padding: 13px 18px; border-bottom: 1px solid #F3F4F6;
-    font-size: .68rem; font-weight: 800; color: #9CA3AF;
-    text-transform: uppercase; letter-spacing: .1em;
-  }
-  .pt-ov-row { display: flex; align-items: center; gap: 14px; padding: 13px 18px; border-bottom: 1px solid #F3F4F6; transition: background .1s; }
-  .pt-ov-row:last-child { border-bottom: none; }
-  .pt-ov-row:hover { background: #F9FAFB; }
-  .pt-ov-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
-  .pt-ov-dot.on  { background: #10B981; box-shadow: 0 0 0 3px rgba(16,185,129,.15); }
-  .pt-ov-dot.off { background: #D1D5DB; }
-  .pt-ov-body { flex: 1; min-width: 0; }
-  .pt-ov-plate {
-    font-size: .9rem; font-weight: 800; color: #03162D;
-    font-family: monospace; letter-spacing: .04em;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 0 0 2px;
-  }
-  .pt-ov-vtype { font-size: .73rem; color: #6B7280; margin: 0; }
-  .pt-ov-badge { font-size: .68rem; font-weight: 700; padding: 4px 10px; border-radius: 20px; flex-shrink: 0; line-height: 1.4; white-space: nowrap; }
-  .pt-ov-badge.vp-premium { background: #FEF3C7; color: #92400E; }
-  .pt-ov-badge.vp-free    { background: #DCFCE7; color: #14532D; }
-  .pt-ov-badge.vp-used    { background: #FEE2E2; color: #B91C1C; }
-
   /* Tip */
   .pt-ov-tip { display: flex; align-items: flex-start; gap: 10px; background: #F8FAFC; border: 1px solid #E5E7EB; border-radius: 12px; padding: 13px 16px; font-size: .8rem; color: #374151; line-height: 1.55; }
   .pt-ov-tip-ic { flex-shrink: 0; margin-top: 1px; }
@@ -1581,6 +1663,126 @@
     </button>
   </div>
 </nav>
+
+<!-- ── Profile details sheet ──────────────────────── -->
+<div id="pfBackdrop" class="pt-pf-bk" onclick="closeProfile()"></div>
+<div id="pfSheet" class="pt-pf" role="dialog" aria-modal="true" aria-labelledby="pfTitle" hidden>
+  <div class="pt-pf-hd">
+    <div class="pt-pf-grab"></div>
+    <h2 class="pt-pf-t" id="pfTitle">Profile details</h2>
+    <p class="pt-pf-s">Your name and a little about you. All of it optional.</p>
+    <button type="button" class="pt-pf-cx" onclick="closeProfile()" aria-label="Close">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+        <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/>
+      </svg>
+    </button>
+  </div>
+
+  <form class="pt-pf-bd" id="pfForm" novalidate>
+    <div class="pt-pf-card">
+      <p class="pt-pf-ct">Contact</p>
+      <p class="pt-pf-cs">How the app greets you, and where we reach you.</p>
+
+      <div class="pt-pf-f">
+        <label class="pt-pf-lb" for="pfName">Name</label>
+        <input class="pt-pf-in" id="pfName" type="text" maxlength="60" autocomplete="name"
+               placeholder="Your name" />
+        <p class="pt-pf-err" id="pfNameErr"></p>
+      </div>
+
+      <!-- Read-only, and the hints say why rather than leaving a greyed box to
+           be read as a bug. Both are LOGIN IDENTIFIERS: changing either moves
+           the account, which needs verification, not a form field. The phone
+           already has that flow under Menu > User Info, so the hint points
+           there instead of dead-ending. -->
+      <div class="pt-pf-f" id="pfEmailField">
+        <label class="pt-pf-lb" for="pfEmail">Email</label>
+        <input class="pt-pf-in" id="pfEmail" type="email" readonly tabindex="-1" />
+        <p class="pt-pf-hint">Used to sign in, so it can't be changed here.</p>
+      </div>
+
+      <!-- Required, and the only field on this sheet that is. It is how a
+           scanner standing at the car actually reaches the owner, so a profile
+           without one leaves the product unable to do its job.
+
+           Two states, never both. An owner who signed in with their phone
+           already has a verified number on the account, so it is simply shown,
+           locked — nothing to fill in. An owner who signed in with Google or an
+           email has none, so the field becomes an add-and-verify step in place,
+           rather than sending them to another screen to come back from. -->
+      <div class="pt-pf-f" id="pfPhoneField">
+        <label class="pt-pf-lb" for="pfPhone">Phone <span class="pt-pf-req">*</span></label>
+
+        <div id="pfPhoneSaved">
+          <input class="pt-pf-in" id="pfPhone" type="tel" readonly tabindex="-1" />
+          <p class="pt-pf-hint" id="pfPhoneHint"></p>
+        </div>
+
+        <div id="pfPhoneAdd" hidden>
+          <div style="display:flex;gap:8px">
+            <div class="pt-pf-ph">
+              <span class="pt-pf-ph-cc">
+                <svg width="15" height="11" viewBox="0 0 14 10" fill="none" aria-hidden="true"><rect width="14" height="10" rx="1" fill="#FF9933"/><rect y="3.33" width="14" height="3.34" fill="#fff"/><rect y="6.67" width="14" height="3.33" fill="#138808"/></svg>
+                +91
+              </span>
+              <input class="pt-pf-in pt-pf-ph-in" id="pfPhoneInput" type="tel" inputmode="numeric"
+                     maxlength="10" autocomplete="tel-national" placeholder="10-digit number" />
+            </div>
+            <button type="button" class="pt-pf-mini" id="pfPhoneSend">Send code</button>
+          </div>
+
+          <div id="pfPhoneOtpRow" hidden style="display:flex;gap:8px;margin-top:8px">
+            <input class="pt-pf-in" id="pfPhoneOtp" type="text" inputmode="numeric" maxlength="6"
+                   autocomplete="one-time-code" placeholder="6-digit code" style="letter-spacing:.15em" />
+            <button type="button" class="pt-pf-mini ok" id="pfPhoneVerify">Verify</button>
+          </div>
+
+          <p class="pt-pf-err" id="pfPhoneErr"></p>
+          <p class="pt-pf-hint" id="pfPhoneAddHint">We verify it once, so a scanner can reach you without seeing it.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="pt-pf-card">
+      <p class="pt-pf-ct">About you</p>
+      <p class="pt-pf-cs">Helps us build for the people actually using ParkTag.</p>
+
+      <div class="pt-pf-f">
+        <label class="pt-pf-lb" for="pfGender">Gender</label>
+        <select class="pt-pf-in pt-pf-sel" id="pfGender">
+          <option value="">Select gender</option>
+          <option value="male">Male</option>
+          <option value="female">Female</option>
+          <option value="other">Other</option>
+          <option value="prefer_not_to_say">Prefer not to say</option>
+        </select>
+      </div>
+
+      <div class="pt-pf-f">
+        <div class="pt-pf-row">
+          <div>
+            <label class="pt-pf-lb" for="pfDob">Date of birth</label>
+            <input class="pt-pf-in" id="pfDob" type="date" />
+          </div>
+          <div>
+            <!-- Derived, never stored and never posted: an age written down is
+                 wrong from the next birthday onwards. -->
+            <label class="pt-pf-lb" for="pfAge">Age</label>
+            <input class="pt-pf-in" id="pfAge" type="text" readonly tabindex="-1"
+                   placeholder="From date of birth" />
+          </div>
+        </div>
+        <p class="pt-pf-err" id="pfDobErr"></p>
+        <p class="pt-pf-hint">Age is worked out from your date of birth.</p>
+      </div>
+    </div>
+  </form>
+
+  <div class="pt-pf-ft">
+    <p class="pt-pf-status" id="pfStatus"></p>
+    <button type="submit" form="pfForm" class="pt-pf-save" id="pfSave">Save changes</button>
+  </div>
+</div>
 
 <!-- ── Burger menu backdrop ───────────────────────── -->
 <div id="menuBackdrop" class="pt-menu-bk" onclick="closeMenu()"></div>

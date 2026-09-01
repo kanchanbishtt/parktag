@@ -5,6 +5,7 @@ import { callEntitlement, callBlockedCode, callBlockedMessage } from "../../lib/
 import { captureScannerLocation } from "../../lib/core/scan-location.js";
 import { createPasswordHash, createSecureToken, safeEqual, hashIp, minutesFromNow, getClientIp, maskPlateNumber, getPlateLastFour, isNonEmptyString } from "../../lib/auth/security.js";
 import { createSession, writeSessionCookie } from "../../lib/auth/session.js";
+import { sendCapiEventBestEffort, activationEventId } from "../../lib/integrations/meta-capi.js";
 import {
   findOwnerHoldingMobile,
   isDuplicateMobileError,
@@ -1023,6 +1024,34 @@ export function registerPublicRoutes(app, env) {
       displayName: owner.displayName
     });
     writeSessionCookie(reply, sessionId, env.runtimeMode === "production");
+
+    // The activation conversion, sent server-side.
+    //
+    // This is the signal the whole acquisition model turns on — a sticker that
+    // went from `assigned` to `activated` is the first moment a sale became a
+    // real user — and it is the one Meta could not otherwise see. The browser
+    // does not send it: this runs on the scan page, where the Pixel is
+    // deliberately never loaded because that same page is used by strangers
+    // standing at someone else's vehicle.
+    //
+    // The server has no such ambiguity. It knows exactly who activated, because
+    // they just proved the number by OTP, and it sends nothing about anyone
+    // else: a hashed phone, and no plate, tag token or page URL.
+    //
+    // Best-effort by construction. An activation must never fail because Meta
+    // was slow.
+    sendCapiEventBestEffort(app.log, env, {
+      eventName: "TagActivated",
+      eventId: activationEventId(String(tag._id)),
+      actionSource: "app",
+      userData: {
+        phone: mobile,
+        clientIp: request.ip,
+        userAgent: request.headers["user-agent"]
+      },
+      customData: { vehicle_type: vehicleType },
+      testEventCode: env.metaCapiTestEventCode || undefined
+    });
 
     return {
       ok: true,

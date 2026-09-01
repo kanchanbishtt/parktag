@@ -483,6 +483,23 @@
           <span>Your approximate area, from your internet connection, is shared with the vehicle owner. Your number stays private.</span>
         </p>
 
+        <!-- Same rule as the notice above: said before the button is pressed,
+             because afterwards is too late to decline. This is the only place
+             the advertising cookie is mentioned and it is the only place it can
+             honestly be mentioned — nothing is loaded when this page opens, and
+             nothing is loaded if the visitor reads this and leaves. It happens
+             on a successful contact and not before (ptScannerEngaged in
+             assets/analytics.js), and the tag reference is stripped out of the
+             address before anything is sent.
+
+             Not a blocking banner, deliberately. Someone is standing next to a
+             car they cannot move; putting a consent dialog between them and the
+             owner would be a worse thing to do to them than the cookie is. -->
+        <p class="pt-contact-privacy" id="scanner-ads-notice">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M12 8v.01M11 12h1v4h1" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>Contacting the owner sets an advertising cookie so we can show you ParkTag ads later. No details of this vehicle are shared. See our <a href="https://parktag.me/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</span>
+        </p>
+
         <!-- Emergency / SOS — only rendered when the owner has set a next-of-kin
              number (tag.emergencyAvailable). Deliberately separated from the two
              routine actions above so it cannot be tapped by reflex. -->

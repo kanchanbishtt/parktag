@@ -1,6 +1,10 @@
 import {
+  loginOwnerWithSecret,
   loginUser
 } from "../../lib/auth/auth.js";
+import { normalizeIdentifier } from "../../lib/auth/otp.js";
+import { getClientIp, isNonEmptyString } from "../../lib/auth/security.js";
+import { getSprayLock, recordSprayFailure } from "../../lib/auth/spray-lockout.js";
 import {
   clearSession,
   createSession,
@@ -55,9 +59,32 @@ export function registerAuthRoutes(app, env) {
   // the way was the per-account lockout. Splitting the routes means an owner
   // endpoint can only ever read `owners`, and reaching admins requires the
   // admin route, which can be firewalled, monitored, or moved independently.
+  // Owners sign in with a login PIN or a password, at an e-mail address or a
+  // mobile number; admins keep e-mail and password only.
+  //
+  // ONE secret field for the owner, whichever credential it holds. The obvious
+  // alternative — a `pin` endpoint and a `password` endpoint, or a flag saying
+  // which is being sent — requires the server to know which credential the
+  // account HAS before anyone has authenticated, and every way of acting on
+  // that knowledge (a different route, a different error, a different response
+  // time) tells an unauthenticated caller whether a given account has a PIN.
+  // See loginOwnerWithSecret, which pays for both comparisons every time.
+  //
+  // Accepting a password here is not a leftover. Owners who registered before
+  // PINs existed still have one, and there are accounts with no PIN at all; if
+  // this stopped taking passwords they would be locked out of credential
+  // sign-in entirely and left waiting on an OTP forever.
   function credentialLogin(role) {
     return async function handler(request, reply) {
-      const { email, password, rememberMe, role: bodyRole } = request.body || {};
+      const body = request.body || {};
+      const { rememberMe, role: bodyRole } = body;
+
+      // `identifier` and `pin` are the names the current client sends; `email`
+      // and `password` are what older clients send and what the admin console
+      // still sends. Both spellings, one handler, so a cached page from before
+      // this deploy keeps working.
+      const rawIdentifier = role === "owner" ? body.identifier ?? body.email : body.email;
+      const secret = role === "owner" ? body.pin ?? body.password : body.password;
 
       // A body role is no longer honoured. Rejecting a contradictory one — as
       // opposed to ignoring it — means a stale client that still sends
@@ -71,13 +98,27 @@ export function registerAuthRoutes(app, env) {
         };
       }
 
-      if (!email || !password) {
+      // Typed, not merely truthy. Both values are about to be used as Mongo
+      // filter values, and a non-empty array or object is truthy — an untyped
+      // check let `{ "identifier": { "$ne": null } }` through to be read as a
+      // query operator rather than as a literal.
+      if (!isNonEmptyString(rawIdentifier) || !isNonEmptyString(secret)) {
         reply.code(400);
         return {
           ok: false,
-          error: "email and password are required"
+          error:
+            role === "owner"
+              ? "Enter your email or mobile number, and your PIN."
+              : "email and password are required"
         };
       }
+
+      // The lockout key is the NORMALISED identifier, so the counter follows
+      // the account rather than the spelling. Otherwise "9876543210",
+      // "+919876543210" and "09876543210" are three separate budgets against
+      // one account, and an attacker resets their allowance by reformatting
+      // the number they are already guessing against.
+      const identifier = role === "owner" ? normalizeIdentifier(rawIdentifier) : rawIdentifier;
 
       // Per-ACCOUNT lockout, checked before the password is verified so a locked
       // account costs an attacker a single indexed read rather than a bcrypt
@@ -88,7 +129,28 @@ export function registerAuthRoutes(app, env) {
       // Keyed by role as well as identifier, so owner and admin accounts sharing
       // an address lock independently of one another.
       const collections = await getCollections(env);
-      const lock = await getLoginLock(collections, role, email);
+      const clientIp = getClientIp(request);
+
+      // Spraying check first, and only for owners — one guess against many
+      // accounts, which the per-account counter below is structurally unable to
+      // see because no single account ever accumulates enough failures. It
+      // matters here specifically because a login PIN is now a valid credential
+      // and PINs are drawn from a space small enough to spray. Admin sign-in is
+      // a handful of accounts behind a separate route and gains nothing from it.
+      if (role === "owner") {
+        const spray = await getSprayLock(collections, clientIp);
+
+        if (spray.locked) {
+          reply.code(429);
+          reply.header("retry-after", String(spray.retryAfterSeconds));
+          return {
+            ok: false,
+            error: "Too many failed sign-in attempts. Please try again later."
+          };
+        }
+      }
+
+      const lock = await getLoginLock(collections, role, identifier);
 
       if (lock.locked) {
         reply.code(429);
@@ -99,13 +161,18 @@ export function registerAuthRoutes(app, env) {
         };
       }
 
-      const user = await loginUser(env, role, email, password);
+      const user =
+        role === "owner"
+          ? await loginOwnerWithSecret(env, rawIdentifier, secret)
+          : await loginUser(env, role, rawIdentifier, secret);
 
       if (!user) {
         // Recorded against the submitted identifier whether or not an account
         // exists for it, so this stays silent about who has an account. The
         // response is byte-identical to the pre-existing one for the same reason.
-        await recordLoginFailure(collections, role, email);
+        await recordLoginFailure(collections, role, identifier);
+        if (role === "owner") await recordSprayFailure(collections, clientIp, identifier);
+
         reply.code(401);
         return {
           ok: false,
@@ -113,13 +180,16 @@ export function registerAuthRoutes(app, env) {
         };
       }
 
-      await clearLoginFailures(collections, role, email);
+      await clearLoginFailures(collections, role, identifier);
 
-      // Password sign-in resolves the account by e-mail only (loginUser →
-      // findUserByEmail), so the address on the account IS what was typed.
+      // What the drawer and the profile card show as "signed in as". The account
+      // e-mail when there is one; otherwise the normalised identifier, which for
+      // a phone-only owner is the number they just typed. Falling back to
+      // `user.email` alone — as this did while credential sign-in was e-mail
+      // only — printed an empty line for every owner who registered by phone.
       const sessionId = await createSession(app, {
         ...user,
-        signInIdentifier: user.email
+        signInIdentifier: user.email || identifier
       });
       writeSessionCookie(reply, sessionId, env.runtimeMode === "production", Boolean(rememberMe));
 

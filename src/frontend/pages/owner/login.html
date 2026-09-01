@@ -95,8 +95,8 @@
             <button id="phone-resend-btn" style="background:none;border:none;color:#FF2700;font-weight:700;font-size:0.85rem;cursor:pointer;padding:0;font-family:inherit">Resend</button>
           </p>
           <p style="text-align:center;margin-top:8px;margin-bottom:0;font-size:0.85rem;color:#6B7280">
-            Know your password?
-            <button id="use-password-btn" style="background:none;border:none;color:#FF2700;font-weight:700;font-size:0.85rem;cursor:pointer;padding:0;font-family:inherit">Sign in with password</button>
+            Have a login PIN?
+            <button id="use-password-btn" style="background:none;border:none;color:#FF2700;font-weight:700;font-size:0.85rem;cursor:pointer;padding:0;font-family:inherit">Sign in with PIN</button>
           </p>
           <p style="text-align:center;margin-top:8px;margin-bottom:0">
             <a href="#" id="phone-back-btn" style="font-size:0.85rem;color:#FF2700;font-weight:600;text-decoration:none">← Back to sign in</a>
@@ -105,9 +105,18 @@
 
         <div id="password-step" style="display:none;margin-top:4px">
           <label class="pt-field">
-            <span>Password</span>
-            <input id="password-inp" type="password" class="pt-input" placeholder="Enter your password" autocomplete="current-password"/>
+            <span>PIN</span>
+            <input id="password-inp" type="password" class="pt-input" placeholder="Enter your PIN" autocomplete="current-password"/>
           </label>
+          <!-- Accounts that registered before PINs existed still have a
+               password, and it still signs them in here. Said out loud rather
+               than left for them to guess: the field takes either, and the
+               server tries both without ever telling an unauthenticated caller
+               which one this account has. -->
+          <p style="margin:8px 0 0;font-size:0.78rem;color:#6B7280;line-height:1.45">
+            Registered with a password? Enter that here instead.
+            No PIN yet? Sign in with a code, then set one from Profile.
+          </p>
           <label style="display:flex;align-items:center;gap:9px;margin-top:10px;cursor:pointer;user-select:none">
             <input id="remember-me" type="checkbox" style="width:16px;height:16px;accent-color:#FF2700;cursor:pointer" />
             <span style="font-size:0.84rem;font-weight:600;color:#374151">Remember me on this device</span>

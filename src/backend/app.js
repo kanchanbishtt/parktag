@@ -198,7 +198,17 @@ const CHECKOUT_SCRIPT_SOURCES = "'self' https://checkout.razorpay.com";
 //
 // www.google.com and www.gstatic.com stay: they serve the reCAPTCHA loader,
 // which the OTP-send flow uses when RECAPTCHA_SITE_KEY is configured.
-const STRICT_SCRIPT_SOURCES = "'self' https://www.google.com https://www.gstatic.com";
+//
+// googletagmanager is added and connect.facebook.net is deliberately NOT.
+// These pages carry the analytics tag with data-surface="auth", which loads
+// GA4 and suppresses the Meta Pixel. A page view here is the whole point —
+// every CTA on the marketing site lands on /owner-login, so without it the
+// drop-off that docs/SHOP_LOGIN_WALL.md is an argument about cannot be
+// measured. The Pixel is a different trade: it is a third-party script on a
+// page where people type OTPs and passwords, with full read access to the
+// form, and it buys nothing the page view does not already give us.
+const STRICT_SCRIPT_SOURCES =
+  "'self' https://www.google.com https://www.gstatic.com https://www.googletagmanager.com";
 
 // Inline styles are a separate question from inline script and are not solved
 // here. These pages still carry `style="..."` attributes throughout their

@@ -36,37 +36,66 @@ function directives(header) {
 }
 
 describe("CSP permits the analytics the app ships", () => {
-  test("script-src allows the GA4 and Meta loaders", async () => {
-    const response = await app.inject({ method: "GET", url: "/owner-login" });
-    const csp = directives(response.headers["content-security-policy"] || "");
+  async function cspFor(url) {
+    const response = await app.inject({ method: "GET", url });
+    return Object.fromEntries(
+      String(response.headers["content-security-policy"] || "")
+        .split(";")
+        .map((part) => {
+          const [name, ...values] = part.trim().split(/\s+/);
+          return [name, values.join(" ")];
+        })
+    );
+  }
+
+  test("ordinary pages allow both loaders", async () => {
+    const csp = await cspFor("/hub");
 
     assert.match(csp["script-src"], /https:\/\/www\.googletagmanager\.com/, "gtag.js must be loadable");
     assert.match(csp["script-src"], /https:\/\/connect\.facebook\.net/, "fbevents.js must be loadable");
   });
 
   test("connect-src allows both trackers to report", async () => {
-    const response = await app.inject({ method: "GET", url: "/owner-login" });
-    const csp = directives(response.headers["content-security-policy"] || "");
-
     // Subtler than the loaders: allow the script but block the POST and the
     // scripts run happily while every event is dropped.
+    const csp = await cspFor("/hub");
+
     assert.match(csp["connect-src"], /google-analytics\.com/);
     assert.match(csp["connect-src"], /facebook\.com/);
   });
 
   test("img-src allows beacon-style hits", async () => {
-    const response = await app.inject({ method: "GET", url: "/owner-login" });
-    const csp = directives(response.headers["content-security-policy"] || "");
+    const csp = await cspFor("/hub");
 
     assert.match(csp["img-src"], /google-analytics\.com/);
     assert.match(csp["img-src"], /facebook\.com/);
   });
 
+  test("credential pages allow GA4 but NOT the Meta Pixel", async () => {
+    // The deliberate asymmetry, pinned so neither half drifts.
+    //
+    // GA4 must load: every marketing CTA lands on /owner-login, and without a
+    // page view here the login-wall drop-off cannot be measured at all.
+    //
+    // The Pixel must not: this is a page where people type OTPs and passwords,
+    // a third-party script here can read the form, and the page view already
+    // gives us everything the measurement needs.
+    for (const url of ["/owner-login", "/register-owner"]) {
+      const csp = await cspFor(url);
+
+      assert.match(csp["script-src"], /https:\/\/www\.googletagmanager\.com/, `${url} must allow GA4`);
+      assert.doesNotMatch(
+        csp["script-src"],
+        /connect\.facebook\.net/,
+        `${url} must NOT allow the Meta Pixel — it is a credential page`
+      );
+    }
+  });
+
   test("it is still a real policy, not a wildcard", async () => {
     // Widening for analytics must not become widening for everything. If a
     // later fix reaches for `*`, this is the thing that objects.
-    const response = await app.inject({ method: "GET", url: "/owner-login" });
-    const csp = directives(response.headers["content-security-policy"] || "");
+    const csp = await cspFor("/hub");
 
     assert.equal(csp["default-src"], "'self'");
     assert.equal(csp["object-src"], "'none'");

@@ -40,22 +40,27 @@
 
   var surface = (selfScript && selfScript.getAttribute("data-surface")) || "app";
 
-  // The scan pages are used by STRANGERS standing at someone else's vehicle,
-  // so the Pixel is not loaded there on arrival. Two separate reasons:
+  // Surfaces the Meta Pixel must never load on. Two of them, for two entirely
+  // different reasons:
   //
-  //   1. Consent. Someone who scans a tag and leaves has not asked for
-  //      anything and should not be added to an advertising audience for it.
+  //   scanner — strangers standing at someone else's vehicle. They did not buy
+  //             anything and consented to nothing, and the page lives at
+  //             /vehicle/:token, so a PageView here would ship vehicle tag
+  //             tokens to Meta on every scan. That is a data leak, not a
+  //             preference. Someone who USES the product is a different case
+  //             and is handled by ptScannerEngaged() at the bottom of this
+  //             file: after a successful contact the token is stripped from the
+  //             URL, then the Pixel loads and sends one event.
   //
-  //   2. The URL. fbq sends document.location with every event, and a scan page
-  //      lives at /vehicle/:token — so a PageView here would ship vehicle tag
-  //      tokens to Meta on every scan. That is a data leak, not a preference.
+  //   auth    — sign-in and OTP pages. A third-party script on a page where
+  //             people type credentials can read the form, and Meta's has been
+  //             caught doing exactly that elsewhere. The page view is all the
+  //             login-wall measurement needs, and GA4 still provides it; the
+  //             Pixel buys nothing a login screen is worth the risk for.
   //
-  // Someone who USES the product is a different case, and is handled by
-  // enableScannerRetargeting() at the bottom of this file: after a successful
-  // contact action the token is stripped from the URL, the Pixel is loaded, and
-  // one event is sent. That audience is both smaller and better — people who
-  // actually experienced the product rather than everyone who loaded a page.
-  var pixelAllowed = surface !== "scanner";
+  // Both surfaces still report to GA4. This governs Meta only.
+  var PIXEL_FREE_SURFACES = { scanner: 1, auth: 1 };
+  var pixelAllowed = !PIXEL_FREE_SURFACES[surface];
 
   var gaReady = !!GA4_ID;
   var pixelReady = !!PIXEL_ID && pixelAllowed;

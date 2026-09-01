@@ -188,7 +188,7 @@ describe("surface detection survives defer", () => {
       if (!tag) continue;
       tagged += 1;
 
-      assert.match(tag[0], /data-surface="(app|scanner)"/, `${path.basename(file)} must declare a surface`);
+      assert.match(tag[0], /data-surface="(app|scanner|auth)"/, `${path.basename(file)} must declare a known surface`);
       assert.match(tag[0], /\bdefer\b/, `${path.basename(file)} must defer the analytics bundle`);
     }
 
@@ -201,5 +201,30 @@ describe("surface detection survives defer", () => {
     // name if someone re-tags it.
     const html = await fs.readFile(path.join(currentDir, "../../frontend/pages/scanner/index.html"), "utf8");
     assert.match(html, /<script src="\/pt-analytics\.js" data-surface="scanner" defer><\/script>/);
+  });
+});
+
+describe("pixel-free surfaces", () => {
+  test("scanner and auth both suppress the Meta Pixel", () => {
+    // Two surfaces, two unrelated reasons, one mechanism. Pinned as a set so
+    // that adding a third does not quietly become a place the Pixel loads:
+    //   scanner — a stranger's scan, on a URL carrying the tag token
+    //   auth    — a page where people type OTPs and passwords
+    assert.match(source, /var PIXEL_FREE_SURFACES = \{ scanner: 1, auth: 1 \};/);
+    assert.match(source, /var pixelAllowed = !PIXEL_FREE_SURFACES\[surface\];/);
+  });
+
+  test("the credential pages declare the auth surface", async () => {
+    // Named explicitly rather than left to the sweep: if either of these ever
+    // reverts to "app", the Meta Pixel starts loading on a page with a password
+    // field on it, and nothing else would object.
+    for (const page of ["login.html", "verify.html"]) {
+      const html = await fs.readFile(path.join(currentDir, "../../frontend/pages/owner", page), "utf8");
+      assert.match(
+        html,
+        /<script src="\/pt-analytics\.js" data-surface="auth" defer><\/script>/,
+        `${page} must declare the auth surface`
+      );
+    }
   });
 });

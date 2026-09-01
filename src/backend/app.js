@@ -184,7 +184,15 @@ const NO_INLINE_SCRIPT_PAGES = new Set(["/owner-welcome"]);
 // wrapped in a try/catch and loaded async at their end, so checkout works
 // without it; allowing that origin is a decision about Razorpay's fraud signals,
 // not something to slip into a CSP tightening.
-const CHECKOUT_SCRIPT_SOURCES = "'self' https://checkout.razorpay.com";
+//
+// The analytics loaders are here because /owner-welcome is where the entire
+// commerce funnel reports from: view_item, begin_checkout, purchase and
+// sign_up all fire on this page. Tightening script-src to Razorpay alone left
+// the single most valuable page in the app unable to load either tracker, so
+// the conversions the Pixel exists to optimise on would never have been sent.
+// This page is data-surface="app", so unlike the credential pages it gets both.
+const CHECKOUT_SCRIPT_SOURCES =
+  "'self' https://checkout.razorpay.com https://www.googletagmanager.com https://connect.facebook.net";
 
 // Derived from whatever helmet just set, rather than written out again, so a
 // change to the app-wide policy carries over instead of leaving these pages on
@@ -198,7 +206,17 @@ const CHECKOUT_SCRIPT_SOURCES = "'self' https://checkout.razorpay.com";
 //
 // www.google.com and www.gstatic.com stay: they serve the reCAPTCHA loader,
 // which the OTP-send flow uses when RECAPTCHA_SITE_KEY is configured.
-const STRICT_SCRIPT_SOURCES = "'self' https://www.google.com https://www.gstatic.com";
+//
+// googletagmanager is added and connect.facebook.net is deliberately NOT.
+// These pages carry the analytics tag with data-surface="auth", which loads
+// GA4 and suppresses the Meta Pixel. A page view here is the whole point —
+// every CTA on the marketing site lands on /owner-login, so without it the
+// drop-off that docs/SHOP_LOGIN_WALL.md is an argument about cannot be
+// measured. The Pixel is a different trade: it is a third-party script on a
+// page where people type OTPs and passwords, with full read access to the
+// form, and it buys nothing the page view does not already give us.
+const STRICT_SCRIPT_SOURCES =
+  "'self' https://www.google.com https://www.gstatic.com https://www.googletagmanager.com";
 
 // Inline styles are a separate question from inline script and are not solved
 // here. These pages still carry `style="..."` attributes throughout their
@@ -549,7 +567,15 @@ export async function buildApp() {
           // Google reCAPTCHA v3 loader + its runtime assets (invisible bot check
           // on the OTP-send flow). Inert unless RECAPTCHA_SITE_KEY is set.
           "https://www.google.com",
-          "https://www.gstatic.com"
+          "https://www.gstatic.com",
+          // GA4 and the Meta Pixel fetch their runtime from these two.
+          //
+          // Without them the browser blocks both loaders outright, which is a
+          // failure with no symptom on this side: /pt-analytics.js is served
+          // correctly, the IDs are right, and every dashboard stays empty. The
+          // policy has to be widened in step with the code it protects.
+          "https://www.googletagmanager.com",
+          "https://connect.facebook.net"
         ],
         // The owner/admin pages wire controls with inline onclick handlers.
         // Helmet defaults script-src-attr to 'none', which blocks ALL inline
@@ -560,8 +586,28 @@ export async function buildApp() {
         scriptSrcAttr: ["'unsafe-inline'"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
-        imgSrc: ["'self'", "data:", "https://api.qrserver.com"],
-        connectSrc: ["'self'", "https://www.google.com"],
+        // Both trackers still deliver some hits as image beacons, which
+        // img-src governs rather than connect-src.
+        imgSrc: [
+          "'self'",
+          "data:",
+          "https://api.qrserver.com",
+          "https://*.google-analytics.com",
+          "https://*.googletagmanager.com",
+          "https://www.facebook.com"
+        ],
+        // Where the trackers actually POST. Blocking these is subtler than
+        // blocking the loaders: the scripts run, ptTrack() reports success, and
+        // the events die at the network boundary.
+        connectSrc: [
+          "'self'",
+          "https://www.google.com",
+          "https://*.google-analytics.com",
+          "https://*.analytics.google.com",
+          "https://*.googletagmanager.com",
+          "https://www.facebook.com",
+          "https://connect.facebook.net"
+        ],
         frameSrc: ["https://accounts.google.com", "https://*.razorpay.com", "https://www.google.com"],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],

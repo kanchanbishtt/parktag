@@ -37,6 +37,13 @@ export async function getCollections(env) {
     // Server-created shop orders — the source of truth for what price was
     // actually charged, re-checked at verify time (M15 hardening).
     shopOrders: db.collection(withPrefix(prefix, "shop_orders")),
+    // Membership purchases. A separate collection from shopOrders on purpose,
+    // not a `kind` field on the same one: /api/shop/verify-payment looks an
+    // order up by its Razorpay id and hands whatever it finds to
+    // fulfilPaidOrder, which mints a tag and books a courier. A membership row
+    // reachable from there is a ₹49 payment that ships physical stock. Two
+    // collections means that route cannot find one at all.
+    membershipOrders: db.collection(withPrefix(prefix, "membership_orders")),
     // Delivery addresses for physical sticker fulfilment — one active doc per
     // owner (upserted on ownerId), snapshotted onto each order at purchase time.
     addresses: db.collection(withPrefix(prefix, "addresses")),
@@ -174,6 +181,11 @@ const CORE_INDEXES = [
   ["shopOrders", { ownerId: 1, status: 1 }, { name: "owner_status" }],
   ["shopOrders", { orderId: 1 }, { name: "razorpay_order" }],
   ["shopOrders", { orderNumber: 1 }, { name: "order_number" }],
+  // orderId is unique here, unlike on shopOrders: it is what the webhook and
+  // verify-payment both key on, and two rows for one Razorpay order would let
+  // the same payment be activated twice.
+  ["membershipOrders", { orderId: 1 }, { unique: true, name: "razorpay_order" }],
+  ["membershipOrders", { ownerId: 1, status: 1, createdAt: -1 }, { name: "owner_status_recent" }],
   ["addresses", { ownerId: 1 }, { unique: true, name: "owner_unique" }],
   ["passwordResetTokens", { token: 1 }, { name: "token" }],
   ["passwordResetTokens", { email: 1, createdAt: -1 }, { name: "email_recent" }],

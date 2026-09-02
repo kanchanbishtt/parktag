@@ -18,7 +18,6 @@
    report success in the same red it uses for danger. */
 :root {
   --amber: #FF2700;
-  --amber-dark: #D92200;
   --tint: #FFE3DD;
   --navy: #03162D;
   --navy-tint: #EAF0F7;
@@ -141,7 +140,15 @@ body {
   border-radius: 12px; padding: 11px 13px;
 }
 .lp-msg.on { display: block; }
-.lp-msg.error { background: var(--tint); color: var(--amber-dark); }
+/* Ink on the red tint, not red on red. Both reds failed AA here: the brand
+   red lands at 3.12:1 against this background and the darker token at 4.14:1,
+   where 13px bold needs 4.5:1 — so the choice was between a colour that is
+   off-brand and one that is hard to read.
+
+   Neither is necessary. The tint and the border already say "error"; the text
+   only has to be readable, and ink on this background is 10.55:1. The green
+   success message keeps its own colour because that one passes at 6.12:1. */
+.lp-msg.error { background: var(--tint); color: var(--ink); }
 .lp-msg.ok { background: #E7F6EC; color: #14683A; }
 
 .lp-hint {

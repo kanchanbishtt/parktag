@@ -55,6 +55,13 @@ after(async () => {
 beforeEach(async () => {
   await purgeLoginCollections(collections);
   await collections.shopOrders.deleteMany({}).catch(() => {});
+  // Fixture tags carry a fixed token and there is a unique index on it, so one
+  // left behind makes every later run fail on a duplicate key — reporting an
+  // insert conflict in place of whatever actually went wrong the first time.
+  // The test that creates it does clear up after itself, at the end. The end of
+  // a failing test is exactly the part that does not run, so it is cleared here
+  // instead, where a previous failure cannot skip it.
+  await collections.tags.deleteMany({ token: { $regex: "^qa-webhook" } }).catch(() => {});
 
   const owner = await createTestOwner(collections, { email: OWNER_EMAIL });
   ownerId = owner._id;

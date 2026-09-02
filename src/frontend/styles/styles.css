@@ -2604,9 +2604,34 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
   border-radius: 8px;
 }
 
-.pt-reason-cb-nudge strong {
+.pt-reason-cb-nudge-copy {
+  margin: 0 0 8px;
+}
+
+/* The way out, stated as a control. Outlined rather than filled: it is the
+   secondary path — adding a number is the one being encouraged — but it has to
+   look plainly tappable, because a scanner who wants to stay anonymous must not
+   feel trapped by a prompt. */
+.pt-reason-cb-skip {
+  display: inline-block;
+  padding: 7px 12px;
+  font: inherit;
+  font-size: 0.72rem;
   font-weight: 700;
   color: #78350F;
+  background: #FFFFFF;
+  border: 1px solid #FCD34D;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.pt-reason-cb-skip:hover {
+  background: #FFFBEB;
+}
+
+.pt-reason-cb-skip:focus-visible {
+  outline: 2px solid #B45309;
+  outline-offset: 2px;
 }
 
 .pt-reason-card .pt-cancel-action {

@@ -69,12 +69,6 @@
     <div class="mb-sk mb-sk-plan" aria-hidden="true"></div>
   </div>
 
-  <div class="mb-scopes" id="mbScopes" role="tablist" aria-label="Tag type" aria-busy="true">
-    <div class="mb-sk mb-sk-pill" aria-hidden="true"></div>
-    <div class="mb-sk mb-sk-pill" aria-hidden="true"></div>
-    <div class="mb-sk mb-sk-pill" aria-hidden="true"></div>
-  </div>
-
   <h2 class="mb-h">Premium Features</h2>
   <!-- Ten, because ten is what the default tag type shows. A skeleton of the
        wrong length is still a layout shift, just an earlier one. -->
@@ -103,6 +97,11 @@
   </button>
 </div>
 
+<!-- Razorpay's checkout sheet. Loaded from checkout.razorpay.com, which this
+     page's CSP allows and the other strict pages deliberately do not — see
+     PAYMENT_STRICT_PAGES in app.js. Not deferred: membership.js only calls
+     new Razorpay() from a click, long after this has parsed. -->
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 <script src="/scripts/owner/smart-back.js?v=__ASSET_VERSION__"></script>
 <script src="/scripts/owner/session-guard.js?v=__ASSET_VERSION__" defer></script>
 <script type="module" src="/scripts/owner/membership.js?v=__ASSET_VERSION__"></script>

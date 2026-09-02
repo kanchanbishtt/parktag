@@ -1359,8 +1359,9 @@ async function handleWhatsAppNotify() {
 
   // Empty is allowed — reporting a stranger's lights is a favour and demanding a
   // number would stop some people bothering at all. But an empty box is a
-  // default, not a decision, so the first tap asks and the second sends. One
-  // prompt only: after this the flag is set and Notify behaves normally.
+  // default, not a decision, so the first attempt asks and offers an explicit
+  // "Send without my number". One prompt only: once the flag is set, sending
+  // proceeds normally.
   if (callbackNumberFromReasonStep() === "" && !anonymousSendConfirmed) {
     anonymousSendConfirmed = true;
     const nudge = byId("reason-callback-nudge");
@@ -1948,6 +1949,16 @@ byId("reason-cancel")?.addEventListener("click", () => {
 // Typing answers the nudge, so it should not sit there contradicting the field.
 // The confirmed flag is deliberately NOT reset: having once chosen to send
 // anonymously, a scanner who then adds a number should not be asked again.
+// "Send without my number" — the deliberate choice the nudge asks for.
+// Sets the flag first so handleWhatsAppNotify runs straight past the prompt
+// rather than re-showing it.
+byId("reason-callback-skip")?.addEventListener("click", () => {
+  anonymousSendConfirmed = true;
+  const nudge = byId("reason-callback-nudge");
+  if (nudge) nudge.hidden = true;
+  handleWhatsAppNotify();
+});
+
 byId("reason-callback-phone")?.addEventListener("input", () => {
   const nudge = byId("reason-callback-nudge");
   if (nudge && !nudge.hidden) nudge.hidden = true;

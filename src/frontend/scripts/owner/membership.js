@@ -6,9 +6,11 @@
 // because a number typed into the browser is a number that drifts from the
 // constant the backend actually enforces.
 //
-// Wired with addEventListener only. /owner-membership is in STRICT_SCRIPT_PAGES
-// (app.js), so its CSP drops 'unsafe-inline' from script-src AND script-src-attr
-// — an onclick here would not error, it would silently never fire.
+// Wired with addEventListener only. /owner-membership is in PAYMENT_STRICT_PAGES
+// (app.js): its CSP serves script-src-attr 'none', so an onclick here would not
+// error — it would silently never fire. That policy also allows exactly one
+// third-party script origin, checkout.razorpay.com, which is what lets the
+// checkout below open at all.
 
 const byId = (id) => document.getElementById(id);
 
@@ -29,18 +31,11 @@ const ICONS = {
   dot: '<circle cx="12" cy="12" r="4" fill="currentColor"/>'
 };
 
-const SCOPE_ICONS = {
-  parking: '<path d="M7 20V4h5.5a4.5 4.5 0 0 1 0 9H7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
-  etag: '<rect x="3.5" y="6" width="17" height="12" rx="2.2" stroke="currentColor" stroke-width="1.8"/><path d="M7 10h5M7 13.5h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
-  all: '<rect x="3.5" y="3.5" width="7" height="7" rx="1.6" stroke="currentColor" stroke-width="1.8"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.6" stroke="currentColor" stroke-width="1.8"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.6" stroke="currentColor" stroke-width="1.8"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.6" stroke="currentColor" stroke-width="1.8"/>'
-};
-
 const svg = (paths, size = 20) =>
   `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" aria-hidden="true">${paths}</svg>`;
 
 let data = null;
 let selectedPlan = null;
-let selectedScope = null;
 // Whether the skeleton is still on screen. The fade-up plays once, on the
 // first fill — re-rendering after a tap is a state change the owner caused and
 // asked to see immediately, and animating it makes the page feel laggy.
@@ -115,42 +110,16 @@ function renderPlans() {
   }
 }
 
-// ── Tag-type selector ──────────────────────────────────────────────────────
-
-function renderScopes() {
-  const host = byId("mbScopes");
-  fill(host, "mb-in-2");
-
-  for (const scope of data.scopes) {
-    const pill = el("button", "mb-scope");
-    pill.type = "button";
-    pill.setAttribute("role", "tab");
-    pill.setAttribute("aria-selected", scope.id === selectedScope ? "true" : "false");
-
-    const icon = el("span");
-    icon.innerHTML = svg(SCOPE_ICONS[scope.id] || ICONS.dot, 15);
-    pill.appendChild(icon);
-    pill.appendChild(el("span", null, scope.label));
-
-    pill.addEventListener("click", () => {
-      selectedScope = scope.id;
-      renderScopes();
-      renderFeatures();
-    });
-
-    host.appendChild(pill);
-  }
-}
-
 // ── Feature grid ───────────────────────────────────────────────────────────
 
 function renderFeatures() {
   const host = byId("mbFeats");
-  fill(host, "mb-in-3");
+  fill(host, "mb-in-2");
 
-  const shown = data.features.filter((f) => f.scopes.includes(selectedScope));
-
-  shown.forEach((feature, index) => {
+  // Every feature, in the order the server sends them. There was a tag-type
+  // selector filtering this; it had three positions and one useful answer, so
+  // it went and the list is simply what a membership buys.
+  data.features.forEach((feature, index) => {
     const tile = el("div", "mb-feat");
 
     // Cycled rather than stored per feature, so the palette stays even however
@@ -172,22 +141,186 @@ function renderCta() {
 
   byId("mbCtaText").textContent = plan ? `Go Pro — ₹${plan.priceInr}` : "Go Pro";
 
-  // Disabled while there is no membership SKU and no recurring-billing path.
-  // The flag comes from the server, so the day checkout exists this starts
-  // working without touching the page.
-  cta.disabled = !data.checkoutEnabled;
+  // The flag comes from the server, so an environment with no Razorpay
+  // configured shows the page and says why rather than opening a sheet that
+  // cannot complete.
+  cta.disabled = !data.checkoutEnabled || busy;
 
   const note = byId("mbNote");
-  if (data.checkoutEnabled) {
-    note.hidden = true;
+
+  if (!data.checkoutEnabled) {
+    note.hidden = false;
+    note.textContent =
+      `Memberships are not on sale here yet. Every premium tag already includes ` +
+      `${data.trial.days} days free from the day you activate it.`;
     return;
   }
 
+  // Already a member: say so rather than selling them what they hold. Buying
+  // again stays allowed and stays correct — the server extends from the end of
+  // the current period, not from today — so the button stays live.
+  if (data.subscription && data.subscription.active && data.subscription.currentPeriodEnd) {
+    note.hidden = false;
+    note.textContent =
+      `You are a member until ${formatDate(data.subscription.currentPeriodEnd)}. ` +
+      `Buying again adds to that date rather than restarting from today.`;
+    return;
+  }
+
+  note.hidden = true;
+}
+
+// ── Checkout ───────────────────────────────────────────────────────────────
+
+// Guards the button for the whole round trip. Two taps mint two Razorpay orders
+// for one intended purchase and both are payable. The server hands back an
+// order already started, but only once the first request has returned, and the
+// gap between two fast taps is exactly where that does not help.
+let busy = false;
+
+function formatDate(iso) {
+  const date = new Date(iso);
+  if (!Number.isFinite(date.getTime())) return "the end of your term";
+  return date.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+}
+
+function setBusy(on, label) {
+  busy = on;
+  if (label) {
+    byId("mbCta").disabled = true;
+    byId("mbCtaText").textContent = label;
+    return;
+  }
+  renderCta();
+}
+
+function showNote(text) {
+  const note = byId("mbNote");
   note.hidden = false;
-  note.textContent =
-    `Memberships are not on sale yet. Every premium tag already includes ` +
-    `${data.trial.days} days free from the day you activate it, and we will ` +
-    `open plans here before that runs out.`;
+  note.textContent = text;
+}
+
+async function startCheckout() {
+  if (busy) return;
+
+  const plan = data.plans.find((p) => p.id === selectedPlan);
+  if (!plan) return;
+
+  setBusy(true, "Starting…");
+
+  let order;
+  try {
+    const res = await fetch("/api/owner/membership/create-order", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ planId: plan.id })
+    });
+
+    if (res.status === 401) {
+      window.location.href = "/owner-login";
+      return;
+    }
+
+    order = await res.json();
+    if (!res.ok || !order.ok) {
+      setBusy(false);
+      showNote(order && order.error ? order.error : "Could not start the payment. Please try again.");
+      return;
+    }
+  } catch {
+    setBusy(false);
+    showNote("Could not reach the payment service. Please check your connection and try again.");
+    return;
+  }
+
+  // checkout.js is loaded by the page. If it is not there — an extension blocked
+  // it, or a CSP that does not allow the origin — say so, rather than throwing a
+  // ReferenceError inside a handler nobody sees and leaving the button dead.
+  if (typeof window.Razorpay !== "function") {
+    setBusy(false);
+    showNote("The payment window could not load. Please disable any blockers and try again.");
+    return;
+  }
+
+  const rzp = new window.Razorpay({
+    key: order.keyId,
+    amount: order.amount,
+    currency: order.currency,
+    order_id: order.orderId,
+    // Razorpay always renders a merchant name beside the header image, and an
+    // empty string makes it fall back to the account's business name. A
+    // zero-width space is non-empty yet renders nothing, leaving just the logo
+    // — the same trick the shop checkout uses.
+    name: "​",
+    description: `ParkTag Premium — ${plan.label}`,
+    image: "/images/parktag-checkout-logo.png",
+    prefill: order.prefill || {},
+    theme: { color: "#FF2700" },
+    modal: {
+      // Dismissing the sheet is not a failure. The order stays at "created" and
+      // the same one comes back next time, so the button simply returns.
+      ondismiss() {
+        setBusy(false);
+      }
+    },
+    handler: async function (response) {
+      setBusy(true, "Confirming…");
+
+      try {
+        const verifyRes = await fetch("/api/owner/membership/verify-payment", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            razorpay_order_id: response.razorpay_order_id,
+            razorpay_payment_id: response.razorpay_payment_id,
+            razorpay_signature: response.razorpay_signature
+          })
+        });
+
+        const result = await verifyRes.json();
+
+        if (verifyRes.ok && result.ok) {
+          data.subscription = { active: true, currentPeriodEnd: result.currentPeriodEnd };
+          setBusy(false);
+
+          // The receipt is what the SERVER recorded, not the figures this page
+          // was holding from create-order — assembled before the payment and
+          // never reconciled with it. The shop's confirmation follows the same
+          // rule, for the same reason.
+          const parts = [];
+          if (result.orderNumber) parts.push(`Order ${result.orderNumber}.`);
+          parts.push(
+            result.currentPeriodEnd
+              ? `You are a member until ${formatDate(result.currentPeriodEnd)}.`
+              : "Your membership is being set up."
+          );
+          showNote(`Payment received. ${parts.join(" ")}`);
+          renderPlans();
+          return;
+        }
+
+        // The money has gone and this request failed. Do NOT report a failed
+        // payment: the webhook is a second, browser-independent path to the same
+        // activation and has very likely already run or is about to. "We have
+        // your payment" is both true and the only thing that stops a second one.
+        setBusy(false);
+        showNote(
+          "We have your payment. Confirming it is taking longer than usual — your " +
+            "membership will activate shortly, and there is no need to pay again."
+        );
+      } catch {
+        setBusy(false);
+        showNote(
+          "We have your payment but could not reach us to confirm it. Your " +
+            "membership will activate shortly — please do not pay again."
+        );
+      }
+    }
+  });
+
+  rzp.open();
 }
 
 // ── Boot ───────────────────────────────────────────────────────────────────
@@ -211,7 +344,7 @@ async function load() {
     // Clear the skeleton on the way out. A shimmer that never resolves is a
     // page that looks like it is still loading forever, which is worse than an
     // error — nobody knows to retry.
-    for (const id of ["mbPlans", "mbScopes", "mbFeats"]) fill(byId(id), null);
+    for (const id of ["mbPlans", "mbFeats"]) fill(byId(id), null);
 
     // The banner goes entirely, rather than being emptied. Its whole content is
     // the trial length, and that is exactly what could not be fetched — an
@@ -239,7 +372,6 @@ async function load() {
   // monthly one if nothing is flagged, never nothing at all, so the sticky
   // button always names a price.
   selectedPlan = (data.plans.find((p) => p.popular) || data.plans[0] || {}).id || null;
-  selectedScope = (data.scopes[0] || {}).id || null;
 
   // className is cleared rather than the shimmer class removed one by one:
   // these two spans carry nothing else, and a leftover mb-sk would keep the
@@ -259,9 +391,12 @@ async function load() {
   document.querySelector(".mb-trial").classList.add("mb-in");
 
   renderPlans();
-  renderScopes();
   renderFeatures();
   renderCta();
+  // Wired here, not in the markup: /owner-membership refuses inline handlers
+  // (script-src-attr 'none'), so an onclick would not error — it would silently
+  // never fire.
+  byId("mbCta").addEventListener("click", startCheckout);
 
   // Last: every renderer above checks it to decide whether to animate.
   loading = false;

@@ -339,10 +339,18 @@
               <!-- Shown once, only when Notify is tapped with the field empty.
                    Sending anonymously then takes a second, deliberate tap rather
                    than being the default an empty box quietly produces. -->
-              <p class="pt-reason-cb-nudge" id="reason-callback-nudge" hidden>
-                Without a number the owner can’t reply — you won’t hear whether anyone came.
-                <strong>Tap Notify again to send anonymously.</strong>
-              </p>
+              <div class="pt-reason-cb-nudge" id="reason-callback-nudge" hidden>
+                <p class="pt-reason-cb-nudge-copy">
+                  Without a number the owner can’t reply — you won’t hear whether anyone came.
+                </p>
+                <!-- An explicit control, not "tap the reason again". The send is
+                     triggered by the reason chip, so telling somebody to repeat
+                     that would name a step they have already done and look like
+                     the first tap failed. -->
+                <button class="pt-reason-cb-skip" id="reason-callback-skip" type="button">
+                  Send without my number
+                </button>
+              </div>
             </div>
 
             <button class="pt-cancel-action" id="reason-cancel" type="button">Cancel</button>

@@ -34,6 +34,29 @@ const PLAN_MONTHS = [
   { id: "m12", months: 12, priceInr: 249 }
 ];
 
+// What the server will actually charge, in paise, for a plan the browser named.
+//
+// The browser sends a plan id and nothing else — never an amount. This is the
+// only place a membership price becomes money, for the same reason
+// getShopProduct is the only place a product price does.
+//
+// A .find() over the array rather than an object index, which is what makes it
+// prototype-safe for free: SHOP_PRODUCTS had to grow an own-property guard
+// because a bare lookup reached "constructor" and "__proto__" and returned
+// something truthy with no amount on it, and the NaN that followed wrote a real
+// order. An array cannot be reached that way at all.
+export function getMembershipPlan(planId) {
+  if (typeof planId !== "string") return null;
+  return membershipPlans().find((plan) => plan.id === planId) || null;
+}
+
+// Paise, because that is the unit Razorpay charges in and the unit every stored
+// amount in this codebase is already in. Converting once, here, keeps the
+// rounding in one place instead of at each call site.
+export function membershipPlanPaise(plan) {
+  return Math.round(plan.priceInr * 100);
+}
+
 function planLabel(months) {
   return months === 1 ? "1 Month" : `${months} Months`;
 }
@@ -75,99 +98,30 @@ export function membershipPlans() {
 
 // ── Feature grid ───────────────────────────────────────────────────────────
 //
-// Every entry is something ParkTag actually does today, and the numbers are
-// read from the entitlement constants rather than written out again here — a
-// feature list that drifts from what the code grants is a promise the product
-// breaks on the first tap.
+// What a membership actually buys. Every entry is something ParkTag does
+// today, and the numbers are read from the entitlement constants rather than
+// written out again here — a feature list that drifts from what the code
+// grants is a promise the product breaks on the first tap.
 //
-// `scope` is which tag the line applies to, which is what the selector above
-// the grid switches between. The tiers genuinely differ: an E-Tag gets one
-// contact and one document, a premium tag gets masking and three, a membership
-// lifts that to ten.
-const SCOPE_ALL = "all";
-const SCOPE_PARKING = "parking";
-const SCOPE_ETAG = "etag";
-
-export const MEMBERSHIP_SCOPES = [
-  { id: SCOPE_PARKING, label: "Parking Tags" },
-  { id: SCOPE_ETAG, label: "E-Tags" },
-  { id: SCOPE_ALL, label: "All Other Tags" }
-];
-
+// One flat list, deliberately. There was a tag-type selector above this that
+// switched between Parking Tags, E-Tags and All Other Tags, and two of those
+// three answers were wrong for a page that sells memberships: the E-Tag column
+// listed the FREE tier's limits (one contact, one document), which is what a
+// membership is meant to lift, and "All Other Tags" showed the identical set to
+// Parking Tags. A control with three positions and one useful answer is a
+// control that only costs a tap.
 export function membershipFeatures() {
   return [
-    {
-      id: "masking",
-      icon: "mask",
-      label: "Call masking service",
-      scopes: [SCOPE_PARKING, SCOPE_ALL]
-    },
-    {
-      id: "unlimited-calls",
-      icon: "phone",
-      label: "Unlimited masked calls",
-      scopes: [SCOPE_PARKING, SCOPE_ALL]
-    },
-    {
-      id: "callback",
-      icon: "callback",
-      label: "Call back missed callers",
-      scopes: [SCOPE_PARKING, SCOPE_ALL]
-    },
-    {
-      id: "geo",
-      icon: "pin",
-      label: "Scanner geo location & IP",
-      scopes: [SCOPE_PARKING, SCOPE_ETAG, SCOPE_ALL]
-    },
-    {
-      id: "whatsapp",
-      icon: "whatsapp",
-      label: "WhatsApp notifications",
-      scopes: [SCOPE_PARKING, SCOPE_ETAG, SCOPE_ALL]
-    },
-    {
-      id: "documents",
-      icon: "folder",
-      label: `Store ${DOCS_PER_SUBSCRIBED_TAG} vehicle documents`,
-      scopes: [SCOPE_PARKING, SCOPE_ALL]
-    },
-    {
-      id: "etag-documents",
-      icon: "folder",
-      label: `E-Tag keeps ${DOCS_PER_ETAG} document`,
-      scopes: [SCOPE_ETAG]
-    },
-    {
-      id: "etag-contact",
-      icon: "phone",
-      label: "One free contact per E-Tag",
-      scopes: [SCOPE_ETAG]
-    },
-    {
-      id: "vault",
-      icon: "lock",
-      label: "PIN-locked document vault",
-      scopes: [SCOPE_PARKING, SCOPE_ETAG, SCOPE_ALL]
-    },
-    {
-      id: "sos",
-      icon: "alert",
-      label: "Emergency SOS contact",
-      scopes: [SCOPE_PARKING, SCOPE_ALL]
-    },
-    {
-      id: "multi-vehicle",
-      icon: "car",
-      label: "Add unlimited vehicles",
-      scopes: [SCOPE_PARKING, SCOPE_ETAG, SCOPE_ALL]
-    },
-    {
-      id: "trial",
-      icon: "gift",
-      label: `${PREMIUM_TRIAL_DAYS} days free on activation`,
-      scopes: [SCOPE_PARKING, SCOPE_ALL]
-    }
+    { id: "masking", icon: "mask", label: "Call masking service" },
+    { id: "unlimited-calls", icon: "phone", label: "Unlimited masked calls" },
+    { id: "callback", icon: "callback", label: "Call back missed callers" },
+    { id: "geo", icon: "pin", label: "Scanner geo location & IP" },
+    { id: "whatsapp", icon: "whatsapp", label: "WhatsApp notifications" },
+    { id: "documents", icon: "folder", label: `Store ${DOCS_PER_SUBSCRIBED_TAG} vehicle documents` },
+    { id: "vault", icon: "lock", label: "PIN-locked document vault" },
+    { id: "sos", icon: "alert", label: "Emergency SOS contact" },
+    { id: "multi-vehicle", icon: "car", label: "Add unlimited vehicles" },
+    { id: "trial", icon: "gift", label: `${PREMIUM_TRIAL_DAYS} days free on activation` }
   ];
 }
 

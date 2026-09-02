@@ -7,6 +7,7 @@ import {
 } from "../../lib/integrations/payments.js";
 import { getCollections } from "../../lib/db/repositories.js";
 import { requireSession, toObjectId, tryObjectId } from "../../lib/auth/auth.js";
+import { generateOrderNumber } from "../../lib/core/order-number.js";
 import { addressToNotes } from "../../lib/core/address.js";
 import { createPremiumTagForVehicle } from "../../lib/core/tag-issuance.js";
 import { reassignVaultDocuments } from "../../lib/core/vault.js";
@@ -136,25 +137,10 @@ async function checkoutPrefill(collections, ownerId) {
   };
 }
 
-// Genuine order reference shown on the confirmation screen: a date prefix plus a
-// real, monotonically increasing sequence — like a standard e-commerce order id
-// (e.g. PT-260728-00042), never a random blob. The sequence comes from an atomic
-// per-collection counter so every order gets the next number with no collisions.
-async function generateOrderNumber(collections) {
-  const now = new Date();
-  const datePart =
-    String(now.getFullYear()).slice(-2) +
-    String(now.getMonth() + 1).padStart(2, "0") +
-    String(now.getDate()).padStart(2, "0");
-  const res = await collections.counters.findOneAndUpdate(
-    { _id: "shopOrder" },
-    { $inc: { seq: 1 } },
-    { upsert: true, returnDocument: "after" }
-  );
-  // The v6 driver returns the doc directly; older behaviour wraps it in `.value`.
-  const seq = (res && (res.seq ?? (res.value && res.value.seq))) || 1;
-  return `PT-${datePart}-${String(seq).padStart(5, "0")}`;
-}
+// generateOrderNumber moved to lib/core/order-number.js so memberships draw
+// from the SAME sequence. Two copies would have been two things to keep in
+// step, and two counters would let one order number exist twice in different
+// collections.
 
 // ── Public order-tracking helpers ───────────────────────────────────────────
 

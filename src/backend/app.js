@@ -153,10 +153,28 @@ const NO_STORE_PAGES = new Set([
 //
 // NOT the same list as NO_STORE_PAGES: /owner-welcome and /admin must not be
 // cached either, but both generate inline handlers and would break here.
+// Pages that take a payment AND carry no inline script or handlers.
+//
+// /owner-membership was on STRICT_SCRIPT_PAGES, which is where it belonged
+// until it sold something: that list replaces script-src with
+// STRICT_SCRIPT_SOURCES, and Razorpay's checkout.js is not in it, so the
+// checkout would simply never load. Adding checkout.razorpay.com to
+// STRICT_SCRIPT_SOURCES instead would put a payment origin on the login and
+// password-reset pages, which take no payments and have no business loading it.
+//
+// So this is its own policy, and it is STRICTER than the one /owner-welcome
+// gets: same Razorpay-capable script-src, but script-src-attr stays 'none',
+// because unlike the dashboard this page builds nothing with onclick.
+//
+// style-src keeps 'unsafe-inline', which the strict list removes. That is not
+// laziness — checkout.js injects a <style> element for its overlay, and
+// blocking it leaves the payment sheet rendering wrong. The same reason
+// /owner-welcome keeps it.
+const PAYMENT_STRICT_PAGES = new Set(["/owner-membership"]);
+
 const STRICT_SCRIPT_PAGES = new Set([
   "/owner-login",
   "/owner-login-pin",
-  "/owner-membership",
   "/owner-verify",
   "/register-owner",
   "/forgot-password",
@@ -273,6 +291,21 @@ function tightenScriptSrcOnly(policy) {
     .map((directive) =>
       directive.startsWith("script-src ") ? `script-src ${CHECKOUT_SCRIPT_SOURCES}` : directive
     )
+    .join(";");
+}
+
+// Razorpay's checkout.js allowed, inline handlers refused, inline styles left
+// alone. See PAYMENT_STRICT_PAGES for why each of those three is the way it is.
+function tightenForPaymentPage(policy) {
+  return String(policy)
+    .split(";")
+    .map((directive) => directive.trim())
+    .filter(Boolean)
+    .map((directive) => {
+      if (directive.startsWith("script-src-attr")) return "script-src-attr 'none'";
+      if (directive.startsWith("script-src ")) return `script-src ${CHECKOUT_SCRIPT_SOURCES}`;
+      return directive;
+    })
     .join(";");
 }
 
@@ -529,7 +562,12 @@ export async function buildApp() {
       setNoStore(reply);
     }
 
-    if (STRICT_SCRIPT_PAGES.has(pathname)) {
+    if (PAYMENT_STRICT_PAGES.has(pathname)) {
+      const policy = reply.getHeader("content-security-policy");
+      if (policy) {
+        reply.header("content-security-policy", tightenForPaymentPage(policy));
+      }
+    } else if (STRICT_SCRIPT_PAGES.has(pathname)) {
       const policy = reply.getHeader("content-security-policy");
       if (policy) {
         reply.header("content-security-policy", tightenScriptDirectives(policy));

@@ -1,10 +1,16 @@
 /* Membership screen (/owner-membership).
 
-   An external stylesheet rather than an inline <style> block: the page is in
-   STRICT_SCRIPT_PAGES in app.js, whose CSP serves style-src WITHOUT
-   'unsafe-inline'. An inline block is dropped silently and the screen renders
-   as unstyled HTML. Inline style="..." ATTRIBUTES are still fine, because
-   style-src-attr keeps 'unsafe-inline' — the two in the header rely on that.
+   An external stylesheet rather than an inline <style> block. It was extracted
+   because the page sat on STRICT_SCRIPT_PAGES, whose CSP drops 'unsafe-inline'
+   from style-src — an inline block was dropped silently and the screen rendered
+   as unstyled HTML.
+
+   The page has since moved to PAYMENT_STRICT_PAGES, which keeps
+   style-src 'unsafe-inline' because Razorpay's checkout.js injects a <style>
+   for its overlay. So an inline block would no longer break. It stays out here
+   anyway: a stylesheet the browser caches for a year beats one re-sent with
+   every page, and the separation is what keeps this honest if the policy is
+   ever tightened again.
 
    ── The look ─────────────────────────────────────────────────────────────
    Light, and led by type. An earlier pass opened this screen on a large navy
@@ -22,7 +28,6 @@
 
 :root {
   --amber: #FF2700;
-  --amber-dark: #D92200;
   --tint: #FFE3DD;
   --navy: #03162D;
   --navy-2: #0A2B4E;
@@ -36,6 +41,30 @@
   --card: #ffffff;
   --border: #E5E7EB;
   --radius-btn: 14px;
+
+  /* ── Layout ──────────────────────────────────────────────────────────────
+     One column width and one gutter, both raised at the breakpoints at the
+     foot of this file. Everything that has to line up with the content but
+     does not live inside .mb-wrap — the header row and the fixed action
+     button — is derived from these two rather than keeping its own copy. The
+     button used to carry a literal 692px, which is 720 - 14 x 2: a number
+     that stops matching the content column the moment the gutter moves, and
+     nothing says so. */
+  --wrap: 720px;
+  --gutter: 16px;
+
+  /* Vertical rhythm, two steps and no more. --space-sec ends a block and
+     starts the next one; --space-blk separates parts of the same block. They
+     used to be 20px and 18px — near enough to identical that the free-trial
+     card floated between the hero above it and the plans below with nothing
+     to say which it belonged to. A section break has to be visibly bigger
+     than the gaps inside a section or it is not a break at all. */
+  --space-sec: 26px;
+  --space-blk: 16px;
+  --grid-gap: 10px;
+
+  /* Reserved at the foot of the page for the fixed action bar. */
+  --bar-space: 104px;
   font-size: 16px;
 }
 
@@ -48,15 +77,22 @@ body {
   min-height: 100dvh;
   -webkit-font-smoothing: antialiased;
   /* Clears the sticky bar, so the last feature tile is never trapped under it. */
-  padding-bottom: calc(104px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(var(--bar-space) + env(safe-area-inset-bottom, 0px));
 }
 
 /* ── Header ─────────────────────────────────────────── */
+/* The row is full-bleed but its contents are not: once the viewport is wider
+   than the column, the padding grows to put the back arrow at the same left
+   edge as the content under it. Without this the arrow stays pinned 8px from
+   the window edge on a desktop while the page it belongs to sits in the
+   middle, which reads as two unrelated things. The 10px lifts the 40px tap
+   target so the GLYPH lands on the gutter rather than the box around it. */
 .mb-header {
   position: sticky; top: 0; z-index: 50;
   display: grid; grid-template-columns: 56px 1fr 56px; align-items: center;
   background: var(--card); border-bottom: 1px solid var(--border);
-  padding: 10px 8px; padding-top: max(10px, env(safe-area-inset-top));
+  padding: 10px max(8px, calc((100% - var(--wrap)) / 2 + var(--gutter) - 10px));
+  padding-top: max(10px, env(safe-area-inset-top));
 }
 .mb-back {
   display: flex; align-items: center; justify-content: center;
@@ -66,18 +102,22 @@ body {
 .mb-back:active { background: #f3f4f6; }
 .mb-logo { text-align: center; }
 
-.mb-wrap { max-width: 720px; margin: 0 auto; padding: 14px 14px 8px; }
+.mb-wrap { max-width: var(--wrap); margin: 0 auto; padding: 18px var(--gutter) 0; }
 
 /* ── Page title ─────────────────────────────────────── */
 /* No panel. The dark hero that was here made the page open on a heavy slab
    before a single price was visible, and a block of navy is not the same thing
    as looking premium — it is just louder. The header sits on the page now, and
    the weight goes into the type instead. */
-.mb-hero { margin-bottom: 20px; }
+.mb-hero { margin-bottom: var(--space-sec); }
 
+/* Fluid, with both ends pinned. A flat 1.86rem was 29.8px on a 320px screen,
+   where "Membership" plus its star ate three quarters of the line — one more
+   character and it wrapped under the icon. The floor keeps it large on a
+   phone, the ceiling stops it ballooning on a tablet. */
 .mb-title {
-  display: flex; align-items: center; gap: 11px;
-  font-size: 1.86rem; font-weight: 900; color: var(--navy);
+  display: flex; align-items: center; gap: clamp(8px, 2.8vw, 12px);
+  font-size: clamp(1.72rem, 7.2vw, 2rem); font-weight: 900; color: var(--navy);
   letter-spacing: -.035em; line-height: 1.1;
 }
 /* The one gold thing on the page. */
@@ -85,17 +125,28 @@ body {
   display: inline-flex; color: var(--gold);
   filter: drop-shadow(0 2px 6px rgba(255, 192, 46, .5));
 }
-.mb-sub { font-size: .9rem; color: var(--ink-3); margin: 8px 0 18px; line-height: 1.5; }
+/* Sized in em so the star tracks the word instead of staying 24px while the
+   type around it grows and shrinks. */
+.mb-title-ic svg { width: .88em; height: .88em; }
+
+.mb-sub {
+  font-size: clamp(.86rem, 3.6vw, .95rem); color: var(--ink-3);
+  margin: 8px 0 var(--space-blk); line-height: 1.5;
+}
 
 /* ── Free-trial card ────────────────────────────────── */
 /* The number is the whole pitch, so the number is the object: three months
    free, on a tile you cannot skim past. Every version of this that led with an
    icon was decorating the offer instead of stating it. */
+/* Padding is even now. It was 15px on three sides and 17px on the right, which
+   is not a considered optical correction — it was a guess, and the effect of it
+   was that the note inside came closer to its own right edge than the tile does
+   to the left one. */
 .mb-trial {
-  display: flex; align-items: center; gap: 15px;
+  display: flex; align-items: center; gap: 14px;
   background: linear-gradient(118deg, #FFF4F1 0%, #FFFFFF 58%, #FDF7FF 100%);
   border: 1.5px solid rgba(255, 39, 0, .17);
-  border-radius: 20px; padding: 15px 17px 15px 15px;
+  border-radius: 20px; padding: 14px 16px;
   box-shadow: 0 8px 22px rgba(255, 39, 0, .07);
 }
 .mb-trial[hidden] { display: none; }
@@ -103,61 +154,170 @@ body {
 .mb-trial-num {
   flex-shrink: 0; line-height: 1;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  width: 64px; height: 64px; border-radius: 19px;
-  background: linear-gradient(152deg, var(--amber) 0%, var(--amber-dark) 100%);
-  color: #fff; box-shadow: 0 8px 20px rgba(255, 39, 0, .32);
+  /* Gives the text beside it back ~10px on a 320px screen, where the note was
+     wrapping to three lines and dragging the card taller than the tile in it. */
+  width: clamp(56px, 16.5vw, 66px); height: clamp(56px, 16.5vw, 66px);
+  /* A third of the side — the squircle proportion an app icon uses. 19px on a
+     64px tile was the awkward middle: too round to read as a square, too square
+     to read as a disc. Two stacked lines need the corners a circle would eat,
+     which is why this is not the disc the avatar became.
+     As a percentage rather than 22px, so it stays exactly a third at every size
+     the clamp above produces instead of turning back into that awkward middle
+     on the narrowest screens. On a square box both axes resolve the same. */
+  border-radius: 33%;
+  /* Light over flat brand red, the same way the avatar is built — a bloom from
+     the top-left that fades before the edge, rather than a hard line laid
+     across a curve. No second red is invented. */
+  background:
+    radial-gradient(120% 120% at 30% 14%, rgba(255,255,255,.26), rgba(255,255,255,0) 56%),
+    var(--amber);
+  color: #fff;
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,.14),
+    0 10px 22px rgba(255, 39, 0, .30);
 }
-.mb-trial-days { font-size: 1.56rem; font-weight: 900; letter-spacing: -.04em; }
+.mb-trial-days {
+  /* 800 rather than 900: at black weight the counters in a 9 and a 0 close up
+     and the pair reads as two blobs. Tabular figures so 90 and, say, 45 occupy
+     the same width and the tile never reflows when the constant changes. */
+  font-size: 1.62rem; font-weight: 800; letter-spacing: -.045em;
+  font-variant-numeric: tabular-nums;
+}
 .mb-trial-unit {
-  font-size: .5rem; font-weight: 800; letter-spacing: .17em;
-  margin-top: 4px; opacity: .88;
+  font-size: .52rem; font-weight: 700; letter-spacing: .2em;
+  margin-top: 5px; opacity: .82;
+  /* Letter-spacing adds a gap AFTER the last letter too, so a centred tracked
+     word sits half that gap left of true centre. text-indent of exactly one
+     letter-space cancels it — the maths works out to indent = spacing.
+
+     Unlike a cap-height nudge this is worth doing: the offset is deterministic
+     and identical in every font, because it is the tracking value itself
+     rather than something read from font metrics. */
+  text-indent: .2em;
 }
 
-.mb-trial-bd { min-width: 0; }
+/* flex: 1 as well as min-width: 0. min-width alone only lets the column
+   SHRINK below its content; without the grow it also refuses to take the space
+   the tile gives back at narrow widths, so the note wrapped earlier than it
+   had to. */
+.mb-trial-bd { flex: 1; min-width: 0; }
+
+/* Separate row and column gaps. A single 8px gap also spaced the two lines
+   when the FREE badge wrapped under the words on a narrow screen, which is
+   too much air inside one heading. */
 .mb-trial-t {
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-  font-size: 1.02rem; font-weight: 850; color: var(--navy); letter-spacing: -.018em;
+  display: flex; align-items: center; flex-wrap: wrap;
+  column-gap: 8px; row-gap: 4px; line-height: 1.25;
+  font-size: clamp(.96rem, 4vw, 1.02rem); font-weight: 850;
+  color: var(--navy); letter-spacing: -.018em;
 }
 .mb-trial-tag {
+  flex-shrink: 0;
   background: var(--amber); color: #fff;
   font-size: .56rem; font-weight: 900; letter-spacing: .09em;
   border-radius: 6px; padding: 3px 7px;
 }
-.mb-trial-s { font-size: .79rem; color: var(--ink-3); margin-top: 3px; line-height: 1.45; }
+/* 3px put the note almost on the baseline above it. The two lines are one
+   thought, but they are still two lines. */
+.mb-trial-s {
+  font-size: .79rem; color: var(--ink-3); margin-top: 5px; line-height: 1.45;
+  overflow-wrap: break-word;
+}
 
 /* ── Section heading ────────────────────────────────── */
+/* Same treatment as the profile screen and the documents screen: dark, heavy,
+   with a short red rule under it. One house style for "this names a group of
+   things", so a heading does not mean something different per page. */
 .mb-h {
-  font-size: 1.02rem; font-weight: 800; color: var(--navy);
-  letter-spacing: -.018em; margin-bottom: 12px;
+  font-size: 1.04rem; font-weight: 900; color: var(--ink);
+  letter-spacing: -.015em; margin-bottom: 14px;
+}
+.mb-h::after {
+  content: ""; display: block;
+  width: 34px; height: 3px; background: var(--amber);
+  border-radius: 2px; margin-top: 6px;
 }
 
 /* ── Plan cards ─────────────────────────────────────── */
 .mb-plans {
-  display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px;
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--grid-gap);
   /* Room for the POPULAR ribbon, which sits above the card edge. Padding rather
      than a margin on the card, so the three cards stay the same height. */
-  padding-top: 9px; margin-bottom: 20px;
+  padding-top: 9px; margin-bottom: var(--space-sec);
 }
 
+/* min-width: 0 because a grid item's default minimum is its content, so a
+   price that will not fit its track pushes the track wider and the row
+   overflows the page instead of the text wrapping. Three columns at 320px
+   leave each card about 80px of usable width, which is close enough to that
+   limit to be worth stating rather than hoping. */
 .mb-plan {
-  position: relative;
+  position: relative; min-width: 0;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 2px; min-height: 122px; padding: 15px 7px 13px;
-  background: var(--card); border: 1.5px solid var(--border); border-radius: 18px;
+  /* The stack inside is about 83px of type: term, price, rate, saving badge.
+     122px of card around 83px of content left roughly 11px of dead space above
+     and below it, which is what made the row read as heavier than the choice it
+     presents. 110px hugs the content and lets min-height still govern, so the
+     height stays a known number the skeleton can be cut to rather than whatever
+     the font metrics happen to produce. */
+  gap: 2px; min-height: 110px; padding: 13px 8px 12px;
+  background: var(--card); border: 1.5px solid var(--navy); border-radius: 18px;
   font-family: inherit; cursor: pointer; text-align: center;
-  box-shadow: 0 1px 2px rgba(3, 22, 45, .04);
-  transition: border-color .16s, box-shadow .16s, transform .16s;
+  box-shadow: 0 1px 2px rgba(3, 22, 45, .06);
+  /* border-color is no longer animated because it no longer changes — the
+     state lives in the fill and the shadow now. */
+  transition: background-color .16s, box-shadow .16s, transform .16s;
 }
-.mb-plan:hover { border-color: rgba(255, 39, 0, .38); }
+
+/* The glow. Guarded by (hover: hover) so a touch device does not keep it lit
+   on the last card tapped, which is what a bare :hover does on a phone.
+   :focus-visible carries the same thing for keyboard navigation — and only for
+   keyboard, so a mouse click does not leave a ring behind. */
+@media (hover: hover) {
+  .mb-plan:hover { box-shadow: 0 7px 18px rgba(3, 22, 45, .17); }
+}
+.mb-plan:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(3, 22, 45, .30), 0 7px 18px rgba(3, 22, 45, .17);
+}
 .mb-plan:active { transform: scale(.985); }
 
-/* The chosen plan is the solid one — the same convention the reference uses,
-   and the least ambiguous option at this size: a tick in a corner is easy to
-   miss across three cards, a filled card is not. */
+/* The chosen plan. 2px: a step up from the 1.5px on the other two, not the
+   double edge it started with.
+
+   That first version stacked an inset ring on top of the base border and came
+   to about 3px, which read as a second, louder statement of something the fill
+   had already made. Dropping the ring took it back to 1.5px and lost the step
+   entirely — the chosen card has to be doing something its neighbours are not.
+   2px is the difference being visible without being the loudest thing in the
+   row.
+
+   border-width, not another inset shadow. Everything here is border-box, so
+   the card's outer size does not move and the grid does not reflow when the
+   selection changes; the content is centred, so half a pixel off each inner
+   edge shifts nothing. A sub-pixel inset ring would have rendered soft on top
+   of a hard border, which is how an edge ends up looking blurred rather than
+   thicker. */
 .mb-plan[aria-checked="true"] {
-  background: linear-gradient(158deg, var(--amber) 0%, var(--amber-dark) 100%);
-  border-color: var(--amber);
-  box-shadow: 0 9px 24px rgba(255, 39, 0, .32);
+  background: var(--navy-tint);
+  border-width: 2px;
+  box-shadow: 0 10px 26px rgba(3, 22, 45, .26);
+}
+/* Hovering the chosen card has to keep its ring. .mb-plan:hover and
+   .mb-plan[aria-checked="true"] are both (0,2,0), so the plain hover rule would
+   otherwise be beaten on source order alone and the card would sit inert under
+   the pointer while its neighbours light up. */
+@media (hover: hover) {
+  .mb-plan[aria-checked="true"]:hover {
+    box-shadow: 0 12px 30px rgba(3, 22, 45, .32);
+  }
+}
+/* Selected AND focused: the ring has to survive, or keyboard users lose their
+   place the moment they land on the card that is already chosen. */
+.mb-plan[aria-checked="true"]:focus-visible {
+  box-shadow:
+    0 0 0 3px rgba(3, 22, 45, .30),
+    0 10px 26px rgba(3, 22, 45, .26);
 }
 
 .mb-plan-term { font-size: .75rem; font-weight: 700; color: var(--ink-3); letter-spacing: .01em; }
@@ -170,47 +330,50 @@ body {
   font-size: .62rem; font-weight: 800; border-radius: 20px; padding: 2px 8px;
 }
 
-.mb-plan[aria-checked="true"] .mb-plan-term { color: rgba(255, 255, 255, .82); }
-.mb-plan[aria-checked="true"] .mb-plan-price { color: #fff; }
-.mb-plan[aria-checked="true"] .mb-plan-rate { color: rgba(255, 255, 255, .72); }
-.mb-plan[aria-checked="true"] .mb-plan-save { background: rgba(255, 255, 255, .2); color: #fff; }
+/* The card is light now, so the text steps DOWN a shade rather than reversing
+   out to white. The price needs no rule at all — it was already navy, and navy
+   on this tint is 15.83:1.
+
+   Both greys get darker than they are on a white card, not lighter: the tint is
+   a darker ground, and the chosen plan is the one that gets read closely.
+   --ink-2 on the tint is 8.98:1. --ink-3 on it is 4.21:1, which is short of the
+   4.5:1 AA wants at this size — but the line is #9CA3AF at 2.54:1 on every
+   white card today, so this is the most legible that rate has ever been here.
+   The base colour is the real fix and it is not this change's to make. */
+.mb-plan[aria-checked="true"] .mb-plan-term { color: var(--ink-2); }
+.mb-plan[aria-checked="true"] .mb-plan-rate { color: var(--ink-3); }
+/* A white chip rather than the green tint: #E7F6EC on #EAF0F7 is 1.06, so the
+   badge would dissolve into the card and leave the words floating. The green
+   stays on the text, where it means something — 5.02:1 on white. */
+.mb-plan[aria-checked="true"] .mb-plan-save { background: #fff; }
 
 .mb-plan-pop {
   position: absolute; top: -9px; left: 50%; transform: translateX(-50%);
   background: var(--navy); color: #fff;
-  font-size: .54rem; font-weight: 900; letter-spacing: .1em;
+  /* 300, down from 900. The ribbon is a label, not a claim that needs
+     shouting — the card under it is already the loudest thing in the row, so
+     the weight was doing work that had been done twice.
+
+     Light reversed out at 8.6px survives on the optical bleed: white on navy
+     spreads outward and thickens the strokes back up, so this reads thinner
+     than it measures. The .1em tracking carries the legibility alongside it —
+     the two belong together, and dropping the tracking at this weight is what
+     would make it fray.
+
+     Every font in the stack that anyone actually gets has a Light: SF on
+     Apple, Segoe UI on Windows, Roboto on Android. Arial, the last resort,
+     does not, so a browser falling all the way through renders this at 400 —
+     heavier than asked for rather than broken, which is the right way round
+     for a fallback. */
+  font-size: .54rem; font-weight: 300; letter-spacing: .1em;
   border-radius: 7px; padding: 3px 9px; white-space: nowrap;
   box-shadow: 0 3px 9px rgba(3, 22, 45, .3);
 }
 
-/* ── Tag-type selector ──────────────────────────────── */
-/* One track with a lifted selection, rather than three loose pills. The shared
-   background is what says "pick one of these", which separate buttons floating
-   on the page never quite do. */
-.mb-scopes {
-  display: flex; gap: 4px; margin-bottom: 26px;
-  background: #E4E4E2; border-radius: 999px; padding: 4px;
-  overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none;
-}
-.mb-scopes::-webkit-scrollbar { display: none; }
-
-.mb-scope {
-  flex: 1 0 auto;
-  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-  background: none; border: none; border-radius: 999px;
-  padding: 9px 14px; font-family: inherit; font-size: .78rem; font-weight: 700;
-  color: var(--ink-3); cursor: pointer; white-space: nowrap;
-  transition: background .18s, color .18s, box-shadow .18s;
-}
-.mb-scope[aria-selected="true"] {
-  background: var(--card); color: var(--navy);
-  box-shadow: 0 2px 7px rgba(3, 22, 45, .13);
-}
-.mb-scope svg { flex-shrink: 0; }
-
 /* ── Feature grid ───────────────────────────────────── */
-.mb-feats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.mb-feats { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--grid-gap); }
 .mb-feat {
+  min-width: 0;
   display: flex; flex-direction: column; gap: 11px;
   background: var(--card); border: 1px solid var(--border);
   border-radius: 16px; padding: 14px 13px 15px;
@@ -220,9 +383,13 @@ body {
    is what stops a two-column grid of small marks reading as a list of bullets. */
 .mb-feat-ic {
   display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
   width: 38px; height: 38px; border-radius: 12px;
 }
-.mb-feat-lb { font-size: .82rem; font-weight: 650; color: var(--ink-2); line-height: 1.38; }
+.mb-feat-lb {
+  font-size: .82rem; font-weight: 650; color: var(--ink-2); line-height: 1.38;
+  overflow-wrap: break-word;
+}
 
 /* One colour per tile, cycled. Each chip is its icon's colour at low strength,
    so the grid stays composed instead of turning into confetti. */
@@ -233,29 +400,34 @@ body {
 .mb-feat-ic.c5 { color: #DB2777; background: #FDEAF3; }
 .mb-feat-ic.c6 { color: #EA580C; background: #FEEEE2; }
 
-@media (max-width: 350px) {
-  .mb-feats { grid-template-columns: 1fr; }
-  .mb-plans { gap: 6px; }
-  .mb-plan-price { font-size: 1.16rem; }
-}
+/* The breakpoints used to live here, in the middle of the file. They are all
+   at the foot of it now — see "Responsive" — because a media block is not more
+   specific than a plain rule, so anything it tried to override that happened to
+   be declared further down simply won. */
 
 .mb-note {
   font-size: .78rem; color: var(--ink-3); line-height: 1.55;
   background: var(--navy-tint); border: 1px solid #CBD9E8;
-  border-radius: 14px; padding: 13px 14px; margin-top: 20px;
+  border-radius: 14px; padding: 13px 14px; margin-top: var(--space-sec);
 }
 .mb-note[hidden] { display: none; }
 
 /* ── Sticky action ──────────────────────────────────── */
 .mb-cta-bar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 60;
-  padding: 14px 14px calc(14px + env(safe-area-inset-bottom, 0px));
+  padding: 14px var(--gutter) calc(14px + env(safe-area-inset-bottom, 0px));
   background: linear-gradient(to top, var(--surface) 62%, rgba(241, 241, 240, 0));
 }
+/* The bar is fixed to the viewport, so the button has to reproduce the content
+   column by hand: the column is --wrap wide with --gutter inside it, and the
+   bar has already taken --gutter off each side, so the button is what is left.
+   Written as the calc rather than the 692px it evaluates to at the smallest
+   gutter, so it still lands on the column at every breakpoint below instead of
+   drifting a few pixels off it on tablets and desktop. */
 .mb-cta {
   display: flex; align-items: center; justify-content: center; gap: 9px;
-  width: 100%; max-width: 692px; margin: 0 auto;
-  background: linear-gradient(135deg, var(--amber) 0%, var(--amber-dark) 100%);
+  width: 100%; max-width: calc(var(--wrap) - var(--gutter) * 2); margin: 0 auto;
+  background: var(--amber);
   color: #fff; border: none; border-radius: 16px; padding: 17px;
   font-family: inherit; font-size: .98rem; font-weight: 800; letter-spacing: -.01em;
   cursor: pointer; box-shadow: 0 8px 24px rgba(255, 39, 0, .34);
@@ -265,7 +437,12 @@ body {
 .mb-cta:not(:disabled):active { transform: scale(.99); }
 /* Not greyed into illegibility: what is unavailable is the checkout behind the
    button, not the plan, so the button still has to read as the action. */
-.mb-cta:disabled { cursor: not-allowed; filter: saturate(.55) brightness(.98); box-shadow: none; }
+/* Dimmed, not desaturated. filter: saturate() drags the colour toward grey,
+   and on a red this saturated the result reads as a different, muddier red
+   rather than as the brand red turned down — which is exactly how the button
+   ended up looking brick-brown. Opacity keeps the hue exactly #FF2700 and
+   lets the page behind it do the fading. */
+.mb-cta:disabled { cursor: not-allowed; opacity: .55; box-shadow: none; }
 
 /* ── Loading ────────────────────────────────────────── */
 /* The skeleton lives in the MARKUP, not in JavaScript, so it is on screen at
@@ -273,10 +450,10 @@ body {
    it injects arrives after the parser has already painted, which is exactly the
    empty-shell flash this exists to remove.
 
-   Its shapes mirror the real ones — three plan cards, three pills, ten tiles —
-   so the content that replaces them lands in the same place and nothing below
-   it moves. A skeleton of the wrong size is its own layout shift, just an
-   earlier one. */
+   Its shapes mirror the real ones — three plan cards, ten tiles — so the
+   content that replaces them lands in the same place and nothing below it
+   moves. A skeleton of the wrong size is its own layout shift, just an earlier
+   one. */
 @keyframes mb-shimmer {
   from { background-position: 200% 0; }
   to   { background-position: -200% 0; }
@@ -301,10 +478,15 @@ body {
   background-size: 200% 100%;
 }
 
-.mb-sk-days { display: inline-block; width: 32px; height: 21px; border-radius: 7px; }
-.mb-sk-note { display: inline-block; width: 190px; height: 12px; border-radius: 6px; }
-.mb-sk-plan { min-height: 122px; border-radius: 18px; }
-.mb-sk-pill { flex: 1 0 auto; min-width: 96px; height: 36px; border-radius: 999px; }
+/* Sized to the two figures it stands in for, so the tile does not resize when
+   the real number lands. 1.62rem of tabular digits is about 34x23. */
+.mb-sk-days { display: inline-block; width: 34px; height: 23px; border-radius: 7px; }
+/* max-width, not just width. A fixed 190px is wider than the text column
+   inside the trial card on a 320px screen (about 175px), and an inline-block
+   that cannot shrink simply runs out through the card's rounded edge — a
+   shimmer bar poking out of the border, on the narrowest phones only. */
+.mb-sk-note { display: inline-block; width: 190px; max-width: 100%; height: 12px; border-radius: 6px; }
+.mb-sk-plan { min-height: 110px; border-radius: 18px; }
 .mb-sk-feat { height: 100px; border-radius: 16px; }
 
 /* The reveal. Each section fades up as it is filled, and the small stagger is
@@ -318,13 +500,91 @@ body {
 .mb-in { animation: mb-rise .34s cubic-bezier(.22, .61, .36, 1) both; }
 .mb-in-1 { animation-delay: .04s; }
 .mb-in-2 { animation-delay: .09s; }
-.mb-in-3 { animation-delay: .14s; }
 
 /* Motion is decoration here — the content is identical without it. An infinite
    shimmer is also precisely the kind of thing that triggers people who ask for
    reduced motion, so it stops rather than slows. */
 @media (prefers-reduced-motion: reduce) {
   .mb-sk { animation: none; }
-  .mb-in, .mb-in-1, .mb-in-2, .mb-in-3 { animation: none; }
-  .mb-plan, .mb-cta, .mb-scope { transition: none; }
+  .mb-in, .mb-in-1, .mb-in-2 { animation: none; }
+  .mb-plan, .mb-cta { transition: none; }
+}
+
+/* ── Responsive ─────────────────────────────────────── */
+/* Deliberately the last thing in the file. These are plain media blocks, not a
+   higher specificity, so one placed above the rules it overrides loses to them
+   and does nothing at all — the dashboard shipped a dead breakpoint for exactly
+   this reason and its shop grid stayed two columns at every width.
+
+   Most of the work is done by retuning the four layout tokens; only the things
+   that genuinely change shape are restated. */
+
+/* ── Small phones ──
+   320px handsets and the Fold's outer screen. Two feature columns here leave
+   about 70px of text per tile, which is three words a line and a grid of
+   ragged paragraphs, so the tiles go full width and turn on their side: the
+   chip beside the label rather than above it, which is also shorter. */
+@media (max-width: 359px) {
+  :root { --gutter: 13px; --grid-gap: 8px; --space-sec: 22px; --space-blk: 14px; }
+
+  .mb-feats { grid-template-columns: 1fr; }
+  .mb-feat { flex-direction: row; align-items: center; gap: 12px; padding: 12px 13px; }
+  .mb-feat-ic { width: 34px; height: 34px; border-radius: 11px; }
+  /* Tracks the row tile, which is ~58px, not the 100px stacked one. A
+     placeholder of the wrong size is still a layout shift, only an earlier
+     one — and ten of them at 42px too tall is 420px of jump. */
+  .mb-sk-feat { height: 58px; }
+
+  .mb-plan { min-height: 96px; padding: 11px 5px 10px; }
+  .mb-sk-plan { min-height: 96px; }
+  .mb-plan-term { font-size: .7rem; }
+  .mb-plan-price { font-size: 1.16rem; }
+  .mb-plan-rate { font-size: .62rem; }
+  .mb-plan-save { padding: 2px 6px; }
+
+  .mb-trial { gap: 12px; padding: 12px 13px; }
+}
+
+/* ── Large phones ──
+   Pro Max / Ultra widths, where the old fixed 14px gutter left the cards
+   almost touching the bezel while the page had 60px of slack to spare. */
+@media (min-width: 420px) {
+  :root { --gutter: 20px; --grid-gap: 11px; }
+}
+
+/* ── Tablets and desktop ──
+   Two feature columns across 600px+ gives each tile one short line of text
+   under a 38px chip and a hand's width of empty card, so it goes to three. The
+   column itself stays at --wrap: this is a page for choosing one of three
+   things, and stretching it to fill a 1400px window would only put more
+   distance between the price and the button that buys it. */
+@media (min-width: 600px) {
+  :root { --gutter: 28px; --space-sec: 32px; --space-blk: 20px; --grid-gap: 12px; }
+
+  .mb-wrap { padding-top: 24px; }
+  .mb-feats { grid-template-columns: repeat(3, 1fr); }
+
+  /* No plan-card block here on purpose. An earlier pass grew the cards to
+     138px and the price to 1.5rem at this width, on the reasoning that a wider
+     window has room to spare. It does, but the card had already stopped being
+     the size of its content — the extra went into empty space, and a row of
+     three 213x138 tiles reads as the heaviest thing on a page whose actual
+     subject is the ten features below it. The base sizing holds all the way up;
+     what a wide screen gets is a wider card, not a taller one. */
+
+  .mb-trial { gap: 18px; padding: 18px 20px; }
+}
+
+/* ── Short viewports ──
+   A phone held sideways. The sticky header and the fixed action bar together
+   claim about 150px of a 380px-tall window, which leaves a strip of content
+   between two bars. The header lets go and scrolls away; the bar stays,
+   because it is the only way to buy. */
+@media (max-height: 520px) and (orientation: landscape) {
+  :root { --bar-space: 84px; --space-sec: 18px; --space-blk: 12px; }
+
+  .mb-header { position: static; }
+  .mb-wrap { padding-top: 12px; }
+  .mb-cta-bar { padding-top: 10px; }
+  .mb-cta { padding: 13px; }
 }

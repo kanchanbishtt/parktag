@@ -376,20 +376,97 @@
        but a profile you reach by sliding a panel over the page is somewhere you
        visit and leave; this is a place you are, which is why it takes a nav tab
        and the pill lights like the other two. */
+    /* ── Identity card: dark glass ──────────────────────────────────────
+       Both gradient stops are the brand navy: the base, and the base lifted
+       just enough to give the card a light source. A hue that is not #03162D
+       would read as a different brand at this size.
+
+       The glass is built from LIGHT rather than from transparency, and that is
+       deliberate. The usual recipe — drop the alpha, add backdrop-filter — has
+       nothing to work with here: this card sits on a flat white page, and a
+       blur of flat white is flat white. All the alpha would do is let the page
+       through and turn the brand navy into a pale slate. So the panel stays
+       opaque and gets what actually reads as glass: a specular sheen across
+       the top-left, a lit rim along the top edge, and the ground darkening
+       toward the bottom as it curves away from the light.
+
+       The pencil below is the one place a real backdrop-filter earns its keep,
+       because it has this panel and its sheen behind it to blur. */
     .pt-pr-id {
-      /* Both stops are the brand navy: the base, and the base lifted just
-         enough to give the card a light source. A hue that is not #03162D
-         would read as a different brand at this size. */
       background: linear-gradient(135deg, #03162D 0%, #0A2946 100%);
+      border: 1px solid rgba(255,255,255,.11);
       border-radius: 20px; padding: 20px; margin: 18px 0 14px;
-      display: flex; align-items: center; gap: 14px; position: relative;
-      box-shadow: 0 6px 22px rgba(3,22,45,.18);
+      display: flex; align-items: center; gap: 14px;
+      position: relative; overflow: hidden;
+      box-shadow:
+        0 12px 30px rgba(3,22,45,.26),
+        inset 0 -18px 30px rgba(0,0,0,.20);
     }
+    /* Three lights, one layer: a diagonal sheen falling from the top-left, the
+       soft bloom where it enters, and a red bleed in the far corner — the brand
+       colour refracting through the panel rather than painted onto it. */
+    .pt-pr-id::before {
+      content: ""; position: absolute; inset: 0; pointer-events: none;
+      background:
+        linear-gradient(134deg, rgba(255,255,255,.17) 0%, rgba(255,255,255,.05) 30%, transparent 58%),
+        radial-gradient(130% 90% at 8% -18%, rgba(255,255,255,.13), transparent 62%),
+        radial-gradient(90% 120% at 108% 118%, rgba(255,39,0,.16), transparent 60%);
+    }
+    /* The lit top edge, faded at both ends rather than run corner to corner —
+       a hairline that reaches the corners reads as a border, not as light. */
+    .pt-pr-id::after {
+      content: ""; position: absolute; top: 0; left: 16px; right: 16px; height: 1px;
+      pointer-events: none;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,.38), transparent);
+    }
+    /* Both overlays span the whole card, so the content has to be lifted above
+       them or the sheen paints straight over the name. */
+    .pt-pr-id > * { position: relative; z-index: 1; }
+    /* A disc, not a rounded square. 17px on a 56px tile was the awkward middle
+       — too round to read as a square, too square to read as a disc — and the
+       highlight made it worse: a hard 1px line straight across the top that ran
+       into the corner curves and stopped dead.
+
+       A circle is also what an initial standing in for a person is everywhere
+       else, and it stops the avatar competing with the four rounded-square
+       action tiles directly beneath it. Same #FF2700; the light does the rest. */
     .pt-pr-av {
-      width: 56px; height: 56px; border-radius: 17px; flex-shrink: 0;
-      background: #FF2700; color: #fff;
+      width: 56px; height: 56px; border-radius: 50%; flex-shrink: 0;
+      /* The sheen FOLLOWS the shape now — a soft bloom from the top-left that
+         fades out before the edge, rather than a straight line laid across a
+         curve. Layered over the flat brand red, so no second hue is invented. */
+      background:
+        radial-gradient(130% 130% at 32% 16%, rgba(255,255,255,.30), rgba(255,255,255,0) 54%),
+        #FF2700;
+      color: #fff;
       display: flex; align-items: center; justify-content: center;
-      font-size: 1.5rem; font-weight: 900; letter-spacing: -.02em;
+
+      /* ── Centring one capital letter ──────────────────────────────────
+         No magic offset here, deliberately. Working the metrics through, a
+         capital in a flex-centred box sits (ascent − descent − capHeight) / 2
+         off centre, and the line-height cancels out of that entirely — for the
+         system stack this page uses that comes to well under a hundredth of an
+         em, which is a fraction of a pixel at this size. Nudging it "back" by
+         some hand-picked amount would introduce the off-centre look rather
+         than remove it.
+
+         What was actually pulling the eye was the weight. At 900 the counter
+         inside a G closes up and the glyph goes lopsided — the bar and spur
+         load the mass into the lower right, so the letter reads as sitting
+         low and right even when its box is centred to the pixel. 700 opens
+         the shape back up, and the smaller size gives the disc some margin
+         instead of the letter filling it wall to wall.
+
+         line-height: 1 stays because it makes the box predictable. No
+         letter-spacing: tracking adds a gap AFTER the character too, and on a
+         single centred glyph that is pure horizontal drift. */
+      line-height: 1;
+      font-size: 1.32rem; font-weight: 700;
+      /* A hairline ring so the disc sits ON the panel rather than reading as a
+         hole cut through it, and a red glow beneath at the same #FF2700. */
+      box-shadow:
+        inset 0 0 0 1px rgba(255,255,255,.16),
+        0 5px 14px rgba(255,39,0,.28);
     }
     /* The shared .sk shimmer is greys on white; on the navy identity card it
        would read as three light-grey bricks. Same pt-shimmer keyframes, tuned
@@ -407,6 +484,10 @@
       background-size: 600px 100%;
       animation: pt-shimmer 1.4s ease infinite;
       color: transparent;
+      /* The ring stays, the red glow goes. The glow belongs to a red disc, and
+         casting it around a grey placeholder puts brand colour on screen before
+         there is anything for it to belong to. */
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.10);
     }
     /* Nothing to edit until there is something to edit. */
     .pt-pr-id.loading .pt-pr-edit { opacity: .35; pointer-events: none; }
@@ -419,13 +500,22 @@
       font-size: .82rem; color: rgba(255,255,255,.62); margin: 0;
       display: flex; align-items: center; gap: 6px;
     }
+    /* The one genuine backdrop-filter on this card. What sits behind this
+       button is the panel and its sheen, so unlike the card itself there is
+       something real here to blur. */
     .pt-pr-edit {
-      flex-shrink: 0; width: 38px; height: 38px; border-radius: 12px; border: none;
-      background: rgba(255,255,255,.13); color: #fff; cursor: pointer;
+      flex-shrink: 0; width: 38px; height: 38px; border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.16);
+      background: rgba(255,255,255,.11); color: #fff; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
-      transition: background .15s;
+      -webkit-backdrop-filter: blur(7px);
+      backdrop-filter: blur(7px);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.20);
+      transition: background .15s, border-color .15s;
     }
-    .pt-pr-edit:hover { background: rgba(255,255,255,.22); }
+    .pt-pr-edit:hover {
+      background: rgba(255,255,255,.20); border-color: rgba(255,255,255,.28);
+    }
 
     /* Four shortcuts to what people actually come here for. Equal columns, so
        adding or removing one never needs the CSS touched. */
@@ -516,9 +606,25 @@
     .pt-pr-seg-b:not([aria-selected="true"]):hover { color: #03162D; }
 
     .pt-pr-panel { margin-bottom: 18px; }
+    /* Section headings, in the house style the documents screen set: dark,
+       heavy, title case, with a short red rule under it.
+
+       They were .68rem uppercase grey with wide tracking — the pattern for a
+       label you are not meant to read, which is the wrong job here. These name
+       the groups the page is actually organised into, and at that size and
+       colour they read as chrome and disappear.
+
+       The rule is a ::after rather than a <div> per heading, so all six get it
+       from one place and nobody has to remember the extra element when they
+       add a seventh. */
     .pt-pr-sec {
-      font-size: .68rem; font-weight: 800; color: #9CA3AF;
-      text-transform: uppercase; letter-spacing: .1em; margin: 0 0 8px 4px;
+      font-size: 1.04rem; font-weight: 900; color: #323232;
+      letter-spacing: -.015em; margin: 0 0 12px;
+    }
+    .pt-pr-sec::after {
+      content: ""; display: block;
+      width: 34px; height: 3px; background: #FF2700;
+      border-radius: 2px; margin-top: 6px;
     }
     .pt-pr-card { background: #fff; border: 1.5px solid #EEF0F3; border-radius: 16px; overflow: hidden; margin-bottom: 14px; }
     .pt-pr-row {
@@ -1771,7 +1877,14 @@
   <!-- Structure first. Every row that has somewhere real to go is wired; the
        rest carry a Soon chip and are inert, so the shape of the finished page is
        visible without anything pretending to work. -->
-  <div id="view-profile">
+  <!-- pt-wc on the view itself, not as an inner wrapper. Tags and Shop each
+       nest their content in one; Profile had neither, so every element in it
+       sat flush against the viewport edge — the segmented capsules ran right
+       into both sides, and the section headings looked like they were hanging
+       off the left. Putting the class here rather than adding a wrapper div
+       gives it the identical gutter and the same widening at every breakpoint,
+       without re-indenting two hundred lines to say the same thing. -->
+  <div id="view-profile" class="pt-wc">
 
     <!-- Identity. Name and number come from the account, so this is the one
          place on the page that is unambiguously "you" — the pencil opens the

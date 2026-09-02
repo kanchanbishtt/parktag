@@ -59,7 +59,21 @@ const REQUIRED_IN_PRODUCTION = [
   // an empty token supplied by anyone — so the handshake passed for arbitrary
   // callers. The route now fails closed when it's missing; requiring it here
   // means a production deploy can't quietly reach that state at all.
-  ["WHATSAPP_WEBHOOK_VERIFY_TOKEN", "metaWhatsappWebhookVerifyToken"]
+  ["WHATSAPP_WEBHOOK_VERIFY_TOKEN", "metaWhatsappWebhookVerifyToken"],
+  // Razorpay's is here for the opposite reason to the two above. Those endpoints
+  // fall back to accepting UNAUTHENTICATED requests without their secret, so
+  // requiring them stops the app booting mis-secured. The Razorpay webhook fails
+  // closed on its own — no secret means it refuses every callback — so a missing
+  // value is never a security hole.
+  //
+  // It is required because of what the refusal costs. Fulfilment then rests
+  // entirely on the buyer's browser completing one more request after their
+  // money has already left; miss it and the order sits at "created" with no tag
+  // minted, no shipment booked and nothing server-side aware anything is owed.
+  // That failure is silent, it is only visible in a support ticket, and it was
+  // live in production until 2026-09-02. A refusal to boot is a much cheaper
+  // way to find out than a customer who paid and received nothing.
+  ["RAZORPAY_WEBHOOK_SECRET", "razorpayWebhookSecret"]
 ];
 
 function validateEnv(env, runtimeMode) {

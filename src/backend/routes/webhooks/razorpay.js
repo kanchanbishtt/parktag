@@ -28,6 +28,7 @@ import crypto from "node:crypto";
 
 import { getCollections } from "../../lib/db/repositories.js";
 import { fulfilPaidOrder } from "../../lib/core/order-fulfilment.js";
+import { activateMembership } from "../../lib/core/membership-fulfilment.js";
 
 // Events that mean "the money for this order is captured". `order.paid` fires
 // once an order is fully paid, which is the state fulfilment cares about;
@@ -68,12 +69,20 @@ export function registerRazorpayWebhookRoutes(app, env) {
   // this endpoint exists to close, and the symptom is a customer who paid and
   // received nothing. That is not something to discover from a support ticket.
   //
-  // A warning rather than a refusal to boot, deliberately: the other webhook
-  // secrets are hard-required in production because without them their
-  // endpoints accept FORGED traffic, which is worse than being down. This one
-  // fails closed on its own, so a missing secret costs reconciliation, not
-  // safety — and taking the whole site down over it would be the larger outage.
-  // Promote it to REQUIRED_IN_PRODUCTION once it is set in the environment.
+  // This warning is now unreachable in production: RAZORPAY_WEBHOOK_SECRET is
+  // in REQUIRED_IN_PRODUCTION, so a production boot without it throws in
+  // validateEnv before any route is registered. It stays for the dev and test
+  // paths, where the secret is genuinely optional and the log line is how
+  // someone notices that local webhook callbacks will be refused.
+  //
+  // It took the long way round to being required. The original reasoning was
+  // that the other webhook secrets are hard-required because without them their
+  // endpoints accept FORGED traffic, whereas this one fails closed on its own —
+  // so a missing secret costs reconciliation rather than safety, and taking the
+  // site down over it would be the larger outage. What that weighed wrongly is
+  // the cost of the reconciliation: the loss is silent, it surfaces as a
+  // customer who paid and received nothing, and it ran in production undetected
+  // until 2026-09-02.
   if (!env.razorpayWebhookSecret) {
     const message =
       "[razorpay webhook] RAZORPAY_WEBHOOK_SECRET is not configured — " +
@@ -132,6 +141,27 @@ export function registerRazorpayWebhookRoutes(app, env) {
       request.log.error({ orderId }, "[razorpay webhook] no database — asking for a retry");
       reply.code(500);
       return { ok: false, error: "Database unavailable" };
+    }
+
+    // Membership orders live in their own collection, so this looks in both.
+    // Checked first because it is the cheaper miss: a membership order id will
+    // never be in shopOrders, and a shop order id will never be here.
+    const membershipOrder = await collections.membershipOrders.findOne({ orderId });
+    if (membershipOrder) {
+      const outcome = await activateMembership(collections, {
+        order: membershipOrder,
+        paymentId,
+        log: request.log
+      });
+
+      if (outcome.firstTime) {
+        request.log.info(
+          { event: "razorpay-webhook-membership", orderId, planId: membershipOrder.planId },
+          "[razorpay webhook] activated a membership the browser never confirmed"
+        );
+      }
+
+      return { ok: true, fulfilled: outcome.firstTime };
     }
 
     const order = await collections.shopOrders.findOne({ orderId });

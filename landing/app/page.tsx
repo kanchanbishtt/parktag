@@ -6,6 +6,7 @@ import { Marquee } from "./components/Marquee";
 import { VehicleRotator } from "./components/VehicleRotator";
 import { GetStartedButton } from "./components/GetStartedButton";
 import { ScanTagButton } from "./components/ScanTagButton";
+import { BuyOnAmazonButton } from "./components/BuyOnAmazonButton";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.parktag.me";
 
@@ -513,6 +514,10 @@ export default function Home() {
                   <a href={`${APP_URL}/shop`} className="block text-center bg-[#FF2700] hover:bg-[var(--red-hover)] text-white font-bold py-3 rounded-xl transition-colors text-sm">
                     Get Duo Pack
                   </a>
+                  {/* Duo Pack only. It is the same pack of 2 that the Amazon
+                      listing sells, so this is the one card where the two buy
+                      paths are the same product at the same price. */}
+                  <BuyOnAmazonButton className="mt-3 w-full inline-flex items-center justify-center gap-2 text-center border border-gray-300 text-[#495B7B] font-semibold py-3 rounded-xl hover:border-[#03162D] hover:text-[#03162D] transition-colors text-sm" />
                 </div>
               </AnimateIn>
 
@@ -565,9 +570,12 @@ export default function Home() {
                 Never miss a call about<br />your parked vehicle again.
               </h2>
               <p className="text-white/50 mb-8">Join vehicle owners across India who park with confidence.</p>
-              <a href={`${APP_URL}/shop`} className="inline-block bg-[#FF2700] hover:bg-[var(--red-hover)] text-white font-bold px-8 py-4 rounded-xl transition-colors text-base">
-                Get Your ParkTag →
-              </a>
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                <a href={`${APP_URL}/shop`} className="inline-block bg-[#FF2700] hover:bg-[var(--red-hover)] text-white font-bold px-8 py-4 rounded-xl transition-colors text-base">
+                  Get Your ParkTag →
+                </a>
+                <BuyOnAmazonButton className="inline-flex items-center justify-center gap-2 border border-white/30 text-white/80 font-semibold px-8 py-4 rounded-xl hover:border-white hover:text-white transition-colors text-base" />
+              </div>
               <p className="text-white/25 text-sm mt-4">Starting at ₹299 · Ships across India · 1-year subscription included</p>
             </AnimateIn>
           </div>

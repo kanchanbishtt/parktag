@@ -86,6 +86,13 @@
     purchase:       { ga: "purchase",       pixel: "Purchase" },
     sign_up:        { ga: "sign_up",        pixel: "CompleteRegistration" },
     tag_activated:  { ga: "tag_activated",  pixel: "TagActivated", custom: true },
+    // Outbound click to the Amazon listing. This is the LAST thing we can see —
+    // Amazon will not host our tags, so the order itself is invisible here and
+    // only Amazon Attribution reports it. Treated as a conversion on purpose:
+    // it is the closest measurable proxy to a purchase on that path, and ad
+    // bidding needs something on the Amazon route or it optimises as though
+    // half the funnel does not exist.
+    buy_on_amazon:  { ga: "buy_on_amazon",  pixel: "BuyOnAmazon",  custom: true },
     // Sent to Meta as custom events. They reach it only through
     // ptScannerEngaged, which strips the tag token from the URL before the
     // Pixel is ever loaded — see the surface note above.

@@ -10,7 +10,8 @@ import {
   DOC_TYPES,
   MAX_BYTES_PER_OWNER,
   MAX_FILE_BYTES,
-  PREMIUM_TRIAL_DAYS,
+  PREMIUM_TRIAL_LABEL,
+  PREMIUM_TRIAL_MONTHS,
   checkQuota,
   cleanLabel,
   cleanThumbnail,
@@ -153,7 +154,8 @@ export function registerVaultRoutes(app, env) {
           premium: DOCS_PER_PREMIUM_TAG,
           subscribed: DOCS_PER_SUBSCRIBED_TAG
         },
-        premiumTrialDays: PREMIUM_TRIAL_DAYS
+        premiumTrialMonths: PREMIUM_TRIAL_MONTHS,
+        premiumTrialLabel: PREMIUM_TRIAL_LABEL
       },
       entitlement: tag ? documentEntitlement(tag) : null
     };

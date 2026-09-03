@@ -54,6 +54,75 @@ export function getRazorpay(env) {
   return new Razorpay({ key_id: env.razorpayKeyId, key_secret: env.razorpayKeySecret });
 }
 
+// Turn the HTTP status of a credential probe into what should be logged.
+//
+// Split out from the network call so the decisions are testable without one,
+// and so "unreachable" can never be reported as "your keys are wrong" — the
+// distinction that decides whether someone goes and edits a live credential.
+export function classifyRazorpayProbe(status) {
+  if (status === 200) {
+    return { ok: true, level: "info", message: "[razorpay] credentials verified against the live API" };
+  }
+  if (status === 401) {
+    return {
+      ok: false,
+      level: "error",
+      message:
+        "[razorpay] AUTHENTICATION FAILED — RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET are set but Razorpay rejects them. " +
+        "Every checkout will fail with \"Failed to create order. Please try again.\" until this is fixed. " +
+        "Check the pair against the Razorpay dashboard, exactly, including character case."
+    };
+  }
+  // Anything else is Razorpay being unhappy or unavailable, not a verdict on
+  // the keys. Worth saying, not worth sending anyone to rotate a credential.
+  return {
+    ok: false,
+    level: "warn",
+    message: `[razorpay] credential check inconclusive (HTTP ${status}) — keys not verified this boot`
+  };
+}
+
+// Prove at boot that the configured keys actually authenticate.
+//
+// WHY THIS EXISTS. The shop checkout was dead for five weeks and the app never
+// said a word. RAZORPAY_KEY_ID had a trailing newline from a dashboard paste;
+// later, retyping it by hand put the final character in the wrong case. Both
+// are still non-empty strings, so `isRazorpayConfigured` was true, boot was
+// clean, health checks were green — and the only symptom was a customer being
+// told to try again, five weeks of them, while COD orders kept arriving and
+// made the silence look normal.
+//
+// A read-only GET is enough to settle it: it exercises the same Basic auth
+// header order creation uses, so it catches a bad id, a bad secret, whitespace,
+// and a case typo alike. It creates nothing.
+//
+// Deliberately NOT fatal. A payment API that is briefly unreachable must not
+// stop the site from serving the pages that have nothing to do with payment —
+// and a hard exit on a network blip would be a self-inflicted outage on every
+// deploy. The point is to make the failure loud and immediate, not to trade one
+// silent outage for a noisier one.
+export async function verifyRazorpayCredentials(env, log, { fetchImpl = fetch } = {}) {
+  if (!isRazorpayConfigured(env)) return { ok: false, skipped: true };
+
+  const auth = Buffer.from(`${env.razorpayKeyId}:${env.razorpayKeySecret}`).toString("base64");
+
+  let status;
+  try {
+    const res = await fetchImpl("https://api.razorpay.com/v1/orders?count=1", {
+      headers: { Authorization: `Basic ${auth}` },
+      signal: AbortSignal.timeout(10000)
+    });
+    status = res.status;
+  } catch (err) {
+    log.warn({ err }, "[razorpay] could not reach the API to verify credentials — keys not checked this boot");
+    return { ok: false, unreachable: true };
+  }
+
+  const verdict = classifyRazorpayProbe(status);
+  log[verdict.level](verdict.message);
+  return { ok: verdict.ok, status };
+}
+
 export async function createRazorpayOrder(env, { amount, receipt, notes }) {
   const rzp = getRazorpay(env);
   if (!rzp) throw new Error("Razorpay is not configured.");

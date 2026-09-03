@@ -17,30 +17,12 @@
 
 import { hasActiveSubscription } from "./subscription.js";
 import { premiumTrialEndsAt } from "./vault.js";
+import { addMonths } from "./calendar.js";
 
-// Add whole calendar months, not 30-day blocks.
-//
-// A "6 months" plan bought on the 15th should end on the 15th, and 30-day
-// arithmetic drifts by five days a year — enough that an annual renewal lands
-// on a visibly different date each time and looks like a bug in the billing.
-//
-// setMonth handles the overflow that makes this worth writing down: the 31st of
-// January plus one month is the 3rd of March in JavaScript, because February
-// has no 31st and Date rolls forward. Clamping to the last day of the target
-// month is the behaviour a person expects from "one month later", and it is
-// also the one that never grants a day nobody paid for.
-export function addMonths(fromMs, months) {
-  const date = new Date(fromMs);
-  const targetDay = date.getUTCDate();
-
-  date.setUTCMonth(date.getUTCMonth() + months);
-
-  // If the day of the month moved, the target month was shorter and Date rolled
-  // us into the next one. Step back to the last day of the month we meant.
-  if (date.getUTCDate() !== targetDay) date.setUTCDate(0);
-
-  return date.getTime();
-}
+// Re-exported because this was its home before the complimentary year needed
+// the same arithmetic, and callers — including the tests that pin the
+// month-end clamping — import it from here.
+export { addMonths };
 
 // Where a newly bought period should start.
 //
@@ -49,8 +31,9 @@ export function addMonths(fromMs, months) {
 //
 //   an active paid period   renewing early must EXTEND, not reset. Buying a
 //                           second year in month eleven is the ordinary case.
-//   the 90-day free trial   a premium tag carries one from activation. Starting
-//                           a paid month today would eat up to 90 free days.
+//   the free year           a premium tag carries one from activation. Starting
+//                           a paid month today would eat into a year of free
+//                           service.
 //   nothing                 start from now.
 //
 // So the base is the furthest-out of them. This is deliberately generous at the

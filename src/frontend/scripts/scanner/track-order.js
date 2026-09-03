@@ -201,6 +201,21 @@ byId("track-reset")?.addEventListener("click", () => {
 // page's menu, and a buyer expects Back to return there rather than to the
 // shop. The href stays as the fallback for a direct visit, where there is no
 // same-tab history to go back to.
+// Arriving from a "Track this order" link — the storefront's recall bar sends
+// the order number this way. Only the number: the last 4 is the proof that
+// opens the order, and a proof does not belong in a URL that lands in history,
+// a bookmark or a shared link. So the number is filled and the cursor goes to
+// the field the buyer still has to answer.
+(function prefillFromLink() {
+  let requested = "";
+  try { requested = new URLSearchParams(location.search).get("order") || ""; } catch { return; }
+  // Same shape the server normalises to. Anything else is ignored rather than
+  // pasted into the field, so a junk query string cannot pre-fail the form.
+  if (!/^PT-?\d{6}-?\d{5}$/i.test(requested.trim())) return;
+  orderInput.value = requested.trim().toUpperCase();
+  lastFourInput.focus();
+})();
+
 byId("track-back")?.addEventListener("click", (event) => {
   if (history.length > 1) {
     event.preventDefault();

@@ -18,7 +18,12 @@ import {
   membershipPeriodStart
 } from "../lib/core/membership-fulfilment.js";
 import { getMembershipPlan, membershipPlanPaise } from "../lib/core/membership-plans.js";
-import { PREMIUM_TRIAL_DAYS } from "../lib/core/vault.js";
+import { PREMIUM_TRIAL_MONTHS, premiumTrialLengthDays } from "../lib/core/vault.js";
+
+// Twelve calendar months is 365 days or 366 depending on where the year
+// falls, so the window's length is measured off the same helper the
+// entitlement uses rather than written down as a number here.
+const TRIAL_DAYS = premiumTrialLengthDays();
 
 const DAY = 24 * 60 * 60 * 1000;
 const iso = (ms) => new Date(ms).toISOString();
@@ -94,14 +99,17 @@ describe("where a bought period starts", () => {
     assert.equal(membershipPeriodStart(tag, now), end);
   });
 
-  // A premium tag carries 90 free days from activation. Charging from today
+  // A premium tag carries a free year from activation. Charging from today
   // would sell the buyer days they already hold.
   test("an unexpired free trial is not charged over", () => {
     const activatedAt = iso(now - 10 * DAY);
     const tag = { premium: true, premiumSince: activatedAt };
 
     const start = membershipPeriodStart(tag, now);
-    const expected = new Date(activatedAt).getTime() + PREMIUM_TRIAL_DAYS * DAY;
+    // Built with the same calendar arithmetic the entitlement uses, not a day
+    // count: a year of days and a year of months are not the same instant
+    // whenever the window crosses a leap February.
+    const expected = addMonths(new Date(activatedAt).getTime(), PREMIUM_TRIAL_MONTHS);
 
     assert.equal(start, expected);
     assert.ok(start > now, "the paid period started before the free trial ended");
@@ -128,9 +136,13 @@ describe("where a bought period starts", () => {
   });
 
   // Both running at once: whichever ends later wins, or the buyer loses the
-  // remainder of the other.
-  test("trial and paid period together take the later end", () => {
-    const paidEnd = now + 200 * DAY;
+  // remainder of the other. Tested in both directions, because which one is
+  // further out is no longer obvious — the complimentary window is a year, so a
+  // paid period has to reach past that to be the later of the two. This fixture
+  // used to say 200 days, which was beyond the old 90-day trial and is inside
+  // the current one.
+  test("a paid period reaching past the free year wins", () => {
+    const paidEnd = now + (TRIAL_DAYS + 100) * DAY;
     const tag = {
       premium: true,
       premiumSince: iso(now - 10 * DAY),
@@ -138,6 +150,19 @@ describe("where a bought period starts", () => {
     };
 
     assert.equal(membershipPeriodStart(tag, now), paidEnd);
+  });
+
+  // The direction that protects the thing customers were promised: a premium
+  // tag's free year is not shortened by a paid plan bought during it.
+  test("the free year wins over a paid period ending inside it", () => {
+    const activatedAt = now - 10 * DAY;
+    const tag = {
+      premium: true,
+      premiumSince: iso(activatedAt),
+      subscription: { status: "active", currentPeriodEnd: iso(now + 30 * DAY) }
+    };
+
+    assert.equal(membershipPeriodStart(tag, now), addMonths(activatedAt, PREMIUM_TRIAL_MONTHS));
   });
 
   // premiumTrialEndsAt refuses a start date far in the future rather than

@@ -31,8 +31,8 @@
 //
 //   E-Tag, free contact unused   captured (their one contact, so one location)
 //   E-Tag, free contact spent    nothing — no further contact happens anyway
-//   Premium, first 90 days       captured
-//   Premium, past 90 days        nothing
+//   Premium, first year         captured
+//   Premium, past its first year  nothing
 //   Premium + subscription       captured
 //
 // Reading the same field is what keeps "you were allowed to contact this owner"

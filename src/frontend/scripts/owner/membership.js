@@ -152,7 +152,7 @@ function renderCta() {
     note.hidden = false;
     note.textContent =
       `Memberships are not on sale here yet. Every premium tag already includes ` +
-      `${data.trial.days} days free from the day you activate it.`;
+      `${data.trial.headline.toLowerCase()} free from the day you activate it.`;
     return;
   }
 
@@ -356,6 +356,7 @@ async function load() {
     // could unhide, and so "is anything still loading?" has one honest answer:
     // the absence of .mb-sk in the document.
     byId("mbTrialDays").className = "mb-trial-days";
+    byId("mbTrialUnit").textContent = "";
     byId("mbTrialNote").className = "";
     document.querySelector(".mb-trial").hidden = true;
 
@@ -376,12 +377,15 @@ async function load() {
   // className is cleared rather than the shimmer class removed one by one:
   // these two spans carry nothing else, and a leftover mb-sk would keep the
   // text transparent — invisible content that reads as a blank banner.
-  // Just the digits — "DAYS" is set in the markup beside them, and the tile
-  // stacks the two. Writing the server's "90 Days" headline in here would put
-  // the word twice on one badge.
+  // The numeral and its unit are set separately because the tile stacks them,
+  // and both come from the server: the unit used to be the literal word DAYS in
+  // the markup, which was wrong the moment the window stopped being counted in
+  // days. Writing the joined "1 Year" headline into the numeral instead would
+  // put the word twice on one badge.
   const days = byId("mbTrialDays");
   days.className = "mb-trial-days";
-  days.textContent = String(data.trial.days);
+  days.textContent = String(data.trial.value);
+  byId("mbTrialUnit").textContent = data.trial.unit;
   byId("mbTrialTag").hidden = false;
 
   const note = byId("mbTrialNote");

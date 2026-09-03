@@ -9,7 +9,7 @@
 //   lapsed + documentSubscription only  vault back at 10, masked calls still off
 //
 // Nobody would have chosen that. It is the same purchase — the trial for calls
-// and the trial for documents are deliberately the SAME 90 days off the SAME
+// and the trial for documents are deliberately the SAME year off the SAME
 // premiumTrialEndsAt(), because one tag has one receipt — and the renewal of
 // that purchase must not be two independent switches either. The bug was latent
 // rather than live only because nothing sells a subscription yet; it would have

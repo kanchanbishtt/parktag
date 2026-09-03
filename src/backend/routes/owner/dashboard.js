@@ -1148,7 +1148,7 @@ export function registerOwnerRoutes(app, env) {
     // Deleted tags are excluded so that this agrees with the dashboard, which
     // builds its own tag list the same way. A button the page draws and a route
     // that refuses it is worse than either answer on its own.
-    // Premium alone is no longer enough. Masking runs for 90 days from purchase
+    // Premium alone is no longer enough. Masking runs for a year from purchase
     // and then needs a subscription, and calling a scanner back IS a masked
     // call — so a tag whose window has closed must not still offer one. The
     // decision comes from callEntitlement so this route, the scanner's
@@ -1175,7 +1175,7 @@ export function registerOwnerRoutes(app, env) {
 
     if (!premiumTokens.length) {
       // Distinguishing the two cases matters: "buy a premium tag" is useless
-      // advice to somebody who already owns one and whose 90 days have run out.
+      // advice to somebody who already owns one whose free year has run out.
       const lapsed = callableTags.length > 0;
       reply.code(402);
       return {

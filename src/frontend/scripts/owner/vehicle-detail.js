@@ -176,7 +176,7 @@ function saveToggles(state) {
 }
 
 // The masking switch is live exactly when masking is actually available: an
-// E-Tag whose one free contact is unspent, a premium tag inside its 90 days, or
+// E-Tag whose one free contact is unspent, a premium tag inside its free year, or
 // a premium tag on a subscription. `masking` is the server's answer and the
 // same field the scanner gate reads; the page does not re-derive the window.
 //

@@ -2,6 +2,7 @@ import { buildApp } from "./app.js";
 import { getEnv } from "./lib/env.js";
 import { closeMongoConnection } from "./lib/db/mongo.js";
 import { getCollections, ensureCoreIndexes } from "./lib/db/repositories.js";
+import { verifyRazorpayCredentials } from "./lib/integrations/payments.js";
 
 const env = getEnv();
 const app = await buildApp();
@@ -91,3 +92,11 @@ getCollections(env)
   .catch((error) => {
     app.log.warn({ err: error }, "[indexes] core index setup skipped");
   });
+
+// Say at boot whether the payment keys actually work, for the same reason and
+// on the same terms as the indexes above: after listen, not awaited, and never
+// fatal. Checkout being broken is worth shouting about; it is not worth
+// refusing to serve the rest of the site over.
+verifyRazorpayCredentials(env, app.log).catch((error) => {
+  app.log.warn({ err: error }, "[razorpay] credential check failed to run");
+});

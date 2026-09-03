@@ -26,6 +26,7 @@ import {
   clearLoginFailures
 } from "../auth/login-lockout.js";
 import { hasActiveSubscription } from "./subscription.js";
+import { addMonths } from "./calendar.js";
 
 // Reuses the per-account lockout that already guards sign-in, keyed under its
 // own "vault" role so vault guesses and login guesses never share a counter —
@@ -63,8 +64,8 @@ export const MAX_BYTES_PER_OWNER = 40 * 1024 * 1024; // 40MB across all vehicles
 //                                           free vehicles cannot fill GridFS.
 //   Premium tag              3 documents  — RC, insurance and PUC, which is the
 //                                           set an owner is actually asked for.
-//   Premium, first 90 days   the lot      — buying a premium tag includes the
-//                                           subscription tier free for 90 days,
+//   Premium, first year      the lot      — buying a premium tag includes the
+//                                           subscription tier free for a year,
 //                                           so the add-on is something an owner
 //                                           has used before being asked to pay
 //                                           for it.
@@ -85,20 +86,72 @@ export const DOCS_PER_SUBSCRIBED_TAG = 10;
 
 // The complimentary period that comes with a premium tag.
 //
-// It is a TRIAL, and the honest consequence of that is worth stating: an owner
-// who fills all ten slots during it is over their allowance on day 91. Nothing
-// is deleted — they keep every document and simply cannot add another until
-// they subscribe or delete one — but they must be TOLD the period ends while
-// they still have room, which is why the entitlement carries trialEndsAt and
-// the page counts it down. A trial that silently becomes a wall is a worse
+// Every premium tag includes this, at no extra charge, running from the moment
+// activation completes. It was 90 days; it is now a full year.
+//
+// Counted in whole calendar months rather than a day count, for the reason
+// addMonths exists at all: a year sold as 365 days ends a day early whenever
+// the window crosses a leap February, so "one year" would quietly not be one.
+// It also has to be the SAME arithmetic paid periods use, because
+// membershipPeriodStart compares this end date against a paid period's to
+// decide where a new purchase starts — two notions of "a year" meeting at that
+// comparison is how somebody gets sold days they already hold.
+//
+// It remains a TRIAL, and the honest consequence is worth stating: an owner who
+// fills all ten slots during it is over their allowance the day after it ends.
+// Nothing is deleted — they keep every document and simply cannot add another
+// until they subscribe or delete one — but they must be TOLD the period ends
+// while they still have room, which is why the entitlement carries trialEndsAt
+// and the page counts it down. A trial that silently becomes a wall is a worse
 // product than no trial.
-export const PREMIUM_TRIAL_DAYS = 90;
+export const PREMIUM_TRIAL_MONTHS = 12;
+
+// How the length is written on screen, DERIVED from the number above rather
+// than typed out beside it.
+//
+// Every previous change to this window left copy behind claiming the old one —
+// the dashboard still said 45 days after it became 90, and the membership
+// capsule hard-coded the word DAYS in its markup. Deriving the numeral and the
+// unit together means the next change is one number here, and no screen can
+// contradict what the code actually grants.
+//
+// `value` and `unit` are separate because the capsule stacks them: a numeral
+// over a word. `label` is the same thing as one string for prose.
+function trialDisplay(months) {
+  if (months % 12 === 0) {
+    const years = months / 12;
+    const plural = years === 1 ? "" : "s";
+    return { value: String(years), unit: `YEAR${plural.toUpperCase()}`, label: `${years} Year${plural}` };
+  }
+  const plural = months === 1 ? "" : "s";
+  return { value: String(months), unit: `MONTH${plural.toUpperCase()}`, label: `${months} Month${plural}` };
+}
+
+export const PREMIUM_TRIAL_DISPLAY = trialDisplay(PREMIUM_TRIAL_MONTHS);
+export const PREMIUM_TRIAL_LABEL = PREMIUM_TRIAL_DISPLAY.label;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+// How many days the window spans for a period starting at `from`.
+//
+// Deliberately a function and not a constant, because it is not one: twelve
+// calendar months is 365 days or 366 depending on where the year falls. Callers
+// that need to place a date either side of the boundary — the tier verification
+// script, the tests — ask here rather than re-deriving the arithmetic, so there
+// is still exactly one definition of how long the window is.
+//
+// Anything comparing the two directions should leave a couple of days of slack:
+// the twelve months BEFORE a given instant and the twelve months AFTER it can
+// differ by one, and a boundary probed at ±1 day would be deciding a test on
+// whether a leap February happened to fall inside it.
+export function premiumTrialLengthDays(from = Date.now()) {
+  return Math.round((addMonths(from, PREMIUM_TRIAL_MONTHS) - from) / DAY_MS);
+}
+
 // How far ahead of our own clock a stored start date may sit before it is
 // treated as corrupt rather than as drift. Generous next to real NTP skew
-// between app instances (seconds), tight next to the 90-day window it guards.
+// between app instances (seconds), tight next to the year-long window it
+// guards.
 const TRIAL_START_SKEW_GRACE_MS = 5 * 60 * 1000;
 
 // There is deliberately no single MAX_DOCS_PER_VEHICLE any more. It used to be
@@ -469,7 +522,7 @@ export function premiumTrialEndsAt(tag, now = Date.now()) {
   if (!Number.isFinite(startedAt)) return null;
 
   // A start date in the future is bad data, and the shape of the bug matters:
-  // the window is start + 90 days, so a date a year out grants a year and a
+  // the window is start + one year, so a date two years out grants three and a
   // clamp to `now` on every read would slide the end forwards forever — an
   // unbounded free tier from a single mistyped field. Beyond the skew grace it
   // is refused outright, which is the same answer this function already gives
@@ -480,7 +533,7 @@ export function premiumTrialEndsAt(tag, now = Date.now()) {
   // instances must not deny a customer the window they just activated, so
   // anything inside the grace counts as "now" instead of being thrown out.
   if (startedAt > now + TRIAL_START_SKEW_GRACE_MS) return null;
-  return Math.min(startedAt, now) + PREMIUM_TRIAL_DAYS * DAY_MS;
+  return addMonths(Math.min(startedAt, now), PREMIUM_TRIAL_MONTHS);
 }
 
 export function isInPremiumTrial(tag, now = Date.now()) {
@@ -500,7 +553,7 @@ export function documentEntitlement(tag, now = Date.now()) {
   }
 
   // A paying subscriber is never labelled as being on a trial, even inside the
-  // first 90 days. Same allowance either way, but the page says something
+  // first year. Same allowance either way, but the page says something
   // different about each, and telling somebody who has paid that their access
   // expires in three months would be alarming and wrong.
   if (hasActiveDocumentSubscription(tag, now)) {

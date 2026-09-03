@@ -1,4 +1,4 @@
-import { PREMIUM_TRIAL_DAYS } from "./vault.js";
+import { PREMIUM_TRIAL_DISPLAY, PREMIUM_TRIAL_LABEL, PREMIUM_TRIAL_MONTHS } from "./vault.js";
 import {
   DOCS_PER_ETAG,
   DOCS_PER_PREMIUM_TAG,
@@ -121,17 +121,21 @@ export function membershipFeatures() {
     { id: "vault", icon: "lock", label: "PIN-locked document vault" },
     { id: "sos", icon: "alert", label: "Emergency SOS contact" },
     { id: "multi-vehicle", icon: "car", label: "Add unlimited vehicles" },
-    { id: "trial", icon: "gift", label: `${PREMIUM_TRIAL_DAYS} days free on activation` }
+    { id: "trial", icon: "gift", label: `${PREMIUM_TRIAL_LABEL} free on activation` }
   ];
 }
 
 // The banner above the plans. Reads the trial length from the one constant that
-// governs it, so it cannot claim 45 days after the window was widened to 90 —
-// which is exactly the drift that made the old dashboard copy wrong.
+// governs it, so it cannot claim 90 days after the window was widened to a year
+// — which is exactly the drift that made the old dashboard copy wrong.
 export function membershipTrial() {
   return {
-    days: PREMIUM_TRIAL_DAYS,
-    headline: `${PREMIUM_TRIAL_DAYS} Days`,
+    months: PREMIUM_TRIAL_MONTHS,
+    // Split for the capsule, which stacks the numeral over the unit, and joined
+    // for prose. Both come from the same derivation so they cannot disagree.
+    value: PREMIUM_TRIAL_DISPLAY.value,
+    unit: PREMIUM_TRIAL_DISPLAY.unit,
+    headline: PREMIUM_TRIAL_LABEL,
     note: "Auto-active when you activate your tag"
   };
 }
@@ -140,7 +144,8 @@ export function membershipTrial() {
 // be honest about what is already included rather than selling it twice.
 export function membershipIncluded() {
   return {
-    trialDays: PREMIUM_TRIAL_DAYS,
+    trialMonths: PREMIUM_TRIAL_MONTHS,
+    trialLabel: PREMIUM_TRIAL_LABEL,
     docsEtag: DOCS_PER_ETAG,
     docsPremium: DOCS_PER_PREMIUM_TAG,
     docsSubscribed: DOCS_PER_SUBSCRIBED_TAG

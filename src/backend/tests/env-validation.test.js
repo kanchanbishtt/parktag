@@ -116,3 +116,50 @@ describe("what production refuses to boot without", () => {
     assert.doesNotThrow(() => getEnv());
   });
 });
+
+// Credentials arrive by paste, and a paste can bring whitespace with it.
+//
+// This is not hypothetical. On 2026-09-03 the live shop checkout had been
+// failing for five weeks with "Failed to create order. Please try again."
+// RAZORPAY_KEY_ID was stored in the hosting dashboard as
+// "rzp_live_TIoxjX0y25I6Uf\n" — the id, plus the newline the paste picked up.
+//
+// Nothing caught it, and nothing could have: a value with a trailing newline is
+// still a non-empty string, so `if (!env.foo)` passes, the required-in-production
+// check passes, and the app boots reporting itself healthy. The damage lands one
+// hop away, as a 401 from Razorpay, surfacing to the buyer as a generic retry
+// message that says nothing about a credential. Proven by probing the live key
+// against Razorpay: without the newline HTTP 200, with it HTTP 401.
+describe("surrounding whitespace on a credential", () => {
+  test("a trailing newline on the key id is stripped", () => {
+    setEnv({ ...COMPLETE, RAZORPAY_KEY_ID: "rzp_live_TIoxjX0y25I6Uf\n" });
+
+    assert.equal(getEnv().razorpayKeyId, "rzp_live_TIoxjX0y25I6Uf");
+  });
+
+  // The secret is the other half of the same Basic auth header, pasted the same
+  // way, and fails identically. Fixing only the id would have left the checkout
+  // just as broken.
+  test("the key secret is stripped too", () => {
+    setEnv({ ...COMPLETE, RAZORPAY_KEY_SECRET: "  a_secret\r\n" });
+
+    assert.equal(getEnv().razorpayKeySecret, "a_secret");
+  });
+
+  // Not a Razorpay special case. The trim runs over the whole env object so the
+  // next credential added is covered without anyone remembering to add it here.
+  test("it is not specific to the payment keys", () => {
+    setEnv({ ...COMPLETE, MONGODB_URI: " mongodb://127.0.0.1:27017/irrelevant\n" });
+
+    assert.equal(getEnv().mongoUri, "mongodb://127.0.0.1:27017/irrelevant");
+  });
+
+  // The trim has to run BEFORE validateEnv, or a variable set to nothing but
+  // spaces counts as configured and production boots on a credential that is
+  // empty in every way that matters.
+  test("a whitespace-only value is missing, not configured", () => {
+    setEnv({ ...COMPLETE, RAZORPAY_KEY_SECRET: "   " });
+
+    assert.throws(() => getEnv(), /RAZORPAY_KEY_SECRET/);
+  });
+});

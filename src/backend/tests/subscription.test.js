@@ -22,12 +22,17 @@ import {
   hasActiveDocumentSubscription,
   premiumTrialEndsAt,
   isInPremiumTrial,
-  PREMIUM_TRIAL_DAYS,
+  premiumTrialLengthDays,
   DOCS_PER_ETAG,
   DOCS_PER_PREMIUM_TAG,
   DOCS_PER_SUBSCRIBED_TAG
 } from "../lib/core/vault.js";
 import { hasActiveSubscription } from "../lib/core/subscription.js";
+
+// Twelve calendar months is 365 days or 366 depending on where the year
+// falls, so the window's length is measured off the same helper the
+// entitlement uses rather than written down as a number here.
+const TRIAL_DAYS = premiumTrialLengthDays();
 
 const DAY = 24 * 60 * 60 * 1000;
 const ago = (n) => new Date(Date.now() - n * DAY).toISOString();
@@ -35,7 +40,7 @@ const ahead = (n) => new Date(Date.now() + n * DAY).toISOString();
 
 // Past its complimentary window, so the ONLY thing that can restore anything is
 // the subscription under test.
-const LAPSED = { premium: true, activatedAt: ago(PREMIUM_TRIAL_DAYS + 10) };
+const LAPSED = { premium: true, activatedAt: ago(TRIAL_DAYS + 10) };
 
 // Asserts the whole product at once. Every test goes through this rather than
 // checking calls or documents alone — checking one is how the split survived

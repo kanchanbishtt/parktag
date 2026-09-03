@@ -32,7 +32,8 @@ import { sendCapiEventBestEffort, purchaseEventId, isMetaCapiConfigured } from "
 // we fall back to WhatsApp for those.
 export async function sendOrderConfirmation(env, collections, ownerId, details, log) {
   try {
-    const owner = await collections.owners.findOne({ _id: ownerId });
+    // A guest order has no ownerId at all, so the lookup can only ever miss.
+    const owner = ownerId ? await collections.owners.findOne({ _id: ownerId }) : null;
     const track = details.waybill ? trackingUrl(details.waybill) : null;
     const payload = {
       orderNumber: details.orderNumber,
@@ -54,7 +55,28 @@ export async function sendOrderConfirmation(env, collections, ownerId, details, 
         orderNumber: details.orderNumber,
         trackingUrl: track || ""
       });
+      return;
     }
+
+    // Nothing could be sent, and for a guest this WAS the whole notification:
+    // no account to sign into, and — if they closed the tab during payment — an
+    // order number they never saw. The order is paid and will ship regardless,
+    // but the buyer has not been told and cannot look it up, which is precisely
+    // how a completed sale becomes a support ticket. Falling out of this
+    // function quietly is what made that invisible; it is an error now, naming
+    // the order and the reason, so it is answerable from the logs.
+    log?.error?.(
+      {
+        event: "order-confirmation-undeliverable",
+        orderNumber: details.orderNumber,
+        guest: !ownerId,
+        hasEmail: Boolean(owner && owner.email),
+        hasDeliveryPhone: Boolean(details.deliveryPhone),
+        whatsappConfigured: isMetaWhatsappConfigured(env)
+      },
+      "[order] a PAID order could not be confirmed to its buyer — no e-mail on file " +
+        "and no WhatsApp channel. They have not been told, and a guest has no order number to track with."
+    );
   } catch (err) {
     log?.error?.({ err }, "Order confirmation notification failed");
   }

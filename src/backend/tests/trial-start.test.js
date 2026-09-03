@@ -11,7 +11,10 @@ import test, { describe } from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  PREMIUM_TRIAL_DAYS,
+  PREMIUM_TRIAL_DISPLAY,
+  PREMIUM_TRIAL_LABEL,
+  PREMIUM_TRIAL_MONTHS,
+  premiumTrialLengthDays,
   premiumTrialEndsAt,
   isInPremiumTrial,
   documentEntitlement,
@@ -20,6 +23,12 @@ import {
 } from "../lib/core/vault.js";
 import { callEntitlement } from "../lib/core/call-access.js";
 import { DEMO_TAG_FIELDS } from "../lib/core/marketing-stock.js";
+import { addMonths } from "../lib/core/calendar.js";
+
+// Twelve calendar months is 365 days or 366 depending on where the year
+// falls, so the window's length is measured off the same helper the
+// entitlement uses rather than written down as a number here.
+const TRIAL_DAYS = premiumTrialLengthDays();
 
 const DAY = 24 * 60 * 60 * 1000;
 const ago = (n) => new Date(Date.now() - n * DAY).toISOString();
@@ -35,7 +44,7 @@ const stockTag = (mintedDaysAgo, extra = {}) => ({
 describe("a stock tag's window opens when it is activated", () => {
   test("a long-shelved tag activated today gets its full period", () => {
     // The case that was broken: minted well beyond the window, sold now.
-    const tag = stockTag(PREMIUM_TRIAL_DAYS + 200, { activatedAt: ago(0) });
+    const tag = stockTag(TRIAL_DAYS + 200, { activatedAt: ago(0) });
 
     assert.equal(isInPremiumTrial(tag), true,
       "a tag activated today is not in trial — the window is still dating from the print run");
@@ -54,8 +63,8 @@ describe("a stock tag's window opens when it is activated", () => {
   });
 
   test("the window still closes, counted from activation", () => {
-    const justInside = stockTag(500, { activatedAt: ago(PREMIUM_TRIAL_DAYS - 1) });
-    const justOutside = stockTag(500, { activatedAt: ago(PREMIUM_TRIAL_DAYS + 1) });
+    const justInside = stockTag(500, { activatedAt: ago(TRIAL_DAYS - 3) });
+    const justOutside = stockTag(500, { activatedAt: ago(TRIAL_DAYS + 3) });
 
     assert.equal(isInPremiumTrial(justInside), true, "expired a day early");
     assert.equal(isInPremiumTrial(justOutside), false, "activation reopened a closed window");
@@ -68,7 +77,7 @@ describe("a stock tag's window opens when it is activated", () => {
     // only that sitting in stock does not consume the window it will be sold
     // with. Checked through the tag that is later activated, since an unowned
     // tag is never asked for an entitlement.
-    const shelved = stockTag(PREMIUM_TRIAL_DAYS * 3);
+    const shelved = stockTag(TRIAL_DAYS * 3);
     assert.equal(isInPremiumTrial(shelved), false, "an unsold tag should not read as mid-trial");
 
     const sold = { ...shelved, activatedAt: ago(0) };
@@ -83,8 +92,8 @@ describe("which date wins", () => {
     // change would quietly alter what a paying customer already has.
     const bought = {
       premium: true,
-      premiumSince: ago(PREMIUM_TRIAL_DAYS + 5),
-      createdAt: ago(PREMIUM_TRIAL_DAYS + 5)
+      premiumSince: ago(TRIAL_DAYS + 5),
+      createdAt: ago(TRIAL_DAYS + 5)
     };
     assert.equal(isInPremiumTrial(bought), false);
 
@@ -97,7 +106,7 @@ describe("which date wins", () => {
     // already granted is withdrawn by the new ordering.
     const legacy = stockTag(10);
     assert.equal(isInPremiumTrial(legacy), true);
-    assert.equal(isInPremiumTrial(stockTag(PREMIUM_TRIAL_DAYS + 10)), false);
+    assert.equal(isInPremiumTrial(stockTag(TRIAL_DAYS + 10)), false);
   });
 
   test("a junk date is no trial rather than an endless one", () => {
@@ -119,5 +128,76 @@ describe("a demo sticker forgets when it was activated", () => {
     // one step further down the chain.
     assert.ok(DEMO_TAG_FIELDS.includes("activatedAt"),
       "a reset demo sticker would keep its old window");
+  });
+});
+
+// How LONG the complimentary window runs.
+//
+// Every premium tag includes this at no extra charge, and it is now a full
+// year rather than the 90 days it launched with. These tests exist because the
+// length has already moved twice, and each move left something behind claiming
+// the old one — copy on the dashboard, a hard-coded word in the markup, and
+// fixtures whose "expired" case quietly became an in-trial case.
+describe("the complimentary window is one calendar year", () => {
+  const at = (y, m, d) => Date.UTC(y, m, d, 10, 0, 0);
+  const on = (ms) => new Date(ms).toISOString().slice(0, 10);
+  const activated = (ms) => ({ premium: true, premiumSince: new Date(ms).toISOString() });
+
+  test("it is twelve months, not a count of days", () => {
+    assert.equal(PREMIUM_TRIAL_MONTHS, 12);
+  });
+
+  // Calendar months rather than 365 days is the whole point: a year of days
+  // ends a day early whenever the window crosses a leap February, so the
+  // product would quietly be giving less than the year it advertises.
+  test("the end date lands on the same day of the same month, a year on", () => {
+    for (const [y, m, d] of [[2026, 2, 15], [2026, 0, 1], [2027, 11, 31]]) {
+      const start = at(y, m, d);
+      assert.equal(on(premiumTrialEndsAt(activated(start), start)), on(addMonths(start, 12)));
+      assert.equal(new Date(premiumTrialEndsAt(activated(start), start)).getUTCFullYear(), y + 1);
+    }
+  });
+
+  // 29 February has no anniversary. Clamping back to the 28th is the behaviour
+  // a person expects, and the one that never grants a day nobody was promised.
+  test("a leap day activation clamps to 28 February", () => {
+    const start = at(2028, 1, 29);
+    assert.equal(on(premiumTrialEndsAt(activated(start), start)), "2029-02-28");
+  });
+
+  // The boundary, from both sides, measured off the tag's own start rather
+  // than a day count so a leap year cannot move it.
+  test("it holds to the last moment and not past it", () => {
+    const start = at(2026, 5, 10);
+    const tag = activated(start);
+    const endsAt = premiumTrialEndsAt(tag, start);
+
+    assert.equal(isInPremiumTrial(tag, endsAt - 1000), true, "expired early");
+    assert.equal(isInPremiumTrial(tag, endsAt), false, "outlasted its period");
+    assert.equal(isInPremiumTrial(tag, endsAt + 1000), false, "outlasted its period");
+  });
+
+  // The old window has to be comfortably inside the new one, which is the
+  // customer-visible half of this change: tags that had run out get the rest
+  // of the year back.
+  test("a tag three months past activation is still covered", () => {
+    const start = at(2026, 0, 10);
+    assert.equal(isInPremiumTrial(activated(start), start + 91 * DAY), true);
+    assert.equal(documentEntitlement(activated(start), start + 91 * DAY).maxDocs, DOCS_PER_SUBSCRIBED_TAG);
+    // ...and masked calls, which read the same window.
+    assert.equal(callEntitlement(activated(start), start + 91 * DAY).masking, true);
+  });
+
+  // Copy is derived from the number above, so no screen can advertise a length
+  // the code does not grant.
+  test("what the screens are told matches what is granted", () => {
+    assert.equal(PREMIUM_TRIAL_LABEL, "1 Year");
+    assert.deepEqual(PREMIUM_TRIAL_DISPLAY, { value: "1", unit: "YEAR", label: "1 Year" });
+  });
+
+  // A non-premium tag is entitled to none of it, whatever the window length.
+  test("an E-Tag gets no window at all", () => {
+    assert.equal(premiumTrialEndsAt({ premium: false }, Date.now()), null);
+    assert.equal(isInPremiumTrial({ premium: false }), false);
   });
 });

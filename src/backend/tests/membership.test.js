@@ -25,8 +25,18 @@ import {
   uniqueAddress,
   TEST_ORIGIN
 } from "./helpers.js";
-import { PREMIUM_TRIAL_DAYS, DOCS_PER_SUBSCRIBED_TAG } from "../lib/core/vault.js";
+import {
+  DOCS_PER_SUBSCRIBED_TAG,
+  PREMIUM_TRIAL_LABEL,
+  PREMIUM_TRIAL_MONTHS,
+  premiumTrialLengthDays
+} from "../lib/core/vault.js";
 import { membershipPlans, membershipFeatures } from "../lib/core/membership-plans.js";
+
+// Twelve calendar months is 365 days or 366 depending on where the year
+// falls, so the window's length is measured off the same helper the
+// entitlement uses rather than written down as a number here.
+const TRIAL_DAYS = premiumTrialLengthDays();
 
 const EMAIL = "membership-owner@parktag-test.invalid";
 const PASSWORD = "membership-fixture-password-3b71";
@@ -80,12 +90,18 @@ describe("the membership catalogue", () => {
   });
 
   // The dashboard once carried a hardcoded 45-day trial that stayed wrong for a
-  // whole release after the window was widened. The banner reads the constant.
-  test("the trial banner tracks PREMIUM_TRIAL_DAYS", async () => {
+  // whole release after the window was widened, and the membership capsule then
+  // hard-coded the word DAYS in its markup. Every part of the banner is derived.
+  test("the trial banner tracks the configured window", async () => {
     const body = (await get("/api/owner/membership")).json();
 
-    assert.equal(body.trial.days, PREMIUM_TRIAL_DAYS);
-    assert.equal(body.trial.headline, `${PREMIUM_TRIAL_DAYS} Days`);
+    assert.equal(body.trial.months, PREMIUM_TRIAL_MONTHS);
+    assert.equal(body.trial.headline, PREMIUM_TRIAL_LABEL);
+    // The capsule stacks these two; together they must read as the headline.
+    assert.equal(`${body.trial.value} ${body.trial.unit}`.toLowerCase(), PREMIUM_TRIAL_LABEL.toLowerCase());
+    // The unit has to travel with the number. A hard-coded "DAYS" beside a
+    // "1" is exactly the bug this replaced.
+    assert.equal(body.trial.unit, "YEAR");
   });
 
   // A saving typed in beside a price is a claim that silently becomes false the

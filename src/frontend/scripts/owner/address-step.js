@@ -1,10 +1,16 @@
 /*
  * Shared delivery-address step for physical-sticker checkout.
  *
- * Exposes window.ptCollectAddress() -> Promise<boolean>. Every "buy a physical
- * sticker" flow (per-tag premium on the dashboard + vehicle detail, and the Shop
- * tab) awaits this before opening Razorpay. Plain global script on purpose so both
- * the inline shop handler and the ES-module dashboard can call it.
+ * Exposes window.ptCollectAddress(). Every "buy a physical sticker" flow awaits
+ * this before opening Razorpay: per-tag premium on the dashboard and vehicle
+ * detail, the Shop tab, and the public storefront at /get. Plain global script
+ * on purpose, so the inline shop handler, the ES-module dashboard and the
+ * storefront's module can all call the one sheet.
+ *
+ * Resolves false if dismissed. Otherwise `true` for a signed-in owner, whose
+ * address is saved to their profile — or, called as ptCollectAddress({ guest:
+ * true }), the address object itself, because /get sells to someone with no
+ * profile to save it to and sends the address with the order instead.
  *
  * Two states, so returning buyers don't re-type an address they already gave:
  *   • No saved address  -> show the full form, save on submit.
@@ -22,6 +28,21 @@
   var resolver = null; // resolve fn of the in-flight promise
   var savedAddress = null; // last address fetched from the server this open
   var profileName = "";    // owner's profile name, used only to prefill a blank
+
+  // Guest mode: the same sheet, on a page where there is no account.
+  //
+  // /get sells to someone who has never signed in, and the address it collects
+  // is sent with the order rather than saved to a profile that does not exist.
+  // So in this mode nothing is fetched — there is no saved address to offer and
+  // no profile name to prefill — and nothing is POSTed; the address is handed
+  // back to the caller instead.
+  //
+  // A mode on this module rather than a second address sheet on the storefront.
+  // There was briefly a second one, and it was already drifting: different
+  // fields, different validation, none of the "deliver here again" behaviour.
+  // One address step, two callers, is the whole reason this file is a shared
+  // global in the first place.
+  var guestMode = false;
 
   // Inline icons (no network dependency — works offline / on flaky mobile data).
   var IC = {
@@ -46,24 +67,67 @@
   function injectStyles() {
     if (document.getElementById("pt-addr-styles")) return;
     var css = [
-      // Design tokens, scoped to the sheet.
-      "#pt-addr-ov{--r:#FF2700;--r-press:#d81f00;--ink:#0e1220;--muted:#6b7280;--line:#ececf0;--card:#fafafb;--tint:rgba(255,39,0,.08);",
+      // Design tokens, scoped to the sheet. --ease is the one curve everything
+      // here moves on: quick off the mark, long settle, no overshoot.
+      // --ground is #F6F8FB, the same value get.css calls --gt-ground and paints
+      // the storefront with, so the sheet sits on the page's own ground rather
+      // than a warmer white. --navy is the brand ink the CTAs are cut from.
+      // --line/--card were faintly warm (#ececf0 / #fafafb, both a touch violet);
+      // they are cool now, and the card is plain white so it lifts off --ground.
+      "#pt-addr-ov{--r:#FF2700;--r-press:#d81f00;--navy:#03162D;--navy-2:#0B2C4D;--navy-sh:rgba(3,22,45,.42);",
+      "--ink:#0e1220;--muted:#6b7280;--ground:#F6F8FB;--line:#E4E9F0;--card:#fff;--tint:rgba(255,39,0,.08);",
+      "--ease:cubic-bezier(.22,1,.36,1);",
       "position:fixed;inset:0;z-index:1200;display:none;align-items:flex-end;justify-content:center;",
-      "background:rgba(14,18,32,.55);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);opacity:0;transition:opacity .2s ease;",
+      "background:rgba(14,18,32,.55);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);opacity:0;",
       "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;}",
-      "#pt-addr-ov.pt-open{display:flex;opacity:1;}",
+
+      // The backdrop is animated, not transitioned, and that is the whole reason
+      // it used to snap on: a transition cannot run on the same frame an element
+      // goes from display:none to display:flex, so the fade that was written
+      // here never actually played. An animation does run on that frame.
+      "#pt-addr-ov.pt-open{display:flex;animation:pt-bd-in .28s ease forwards;}",
+      // pointer-events off on the way out: the sheet resolves and the caller
+      // opens Razorpay at once, so this must not sit over it while it fades.
+      "#pt-addr-ov.pt-closing{pointer-events:none;animation:pt-bd-out .18s ease forwards;}",
+      "@keyframes pt-bd-in{from{opacity:0}to{opacity:1}}",
+      "@keyframes pt-bd-out{from{opacity:1}to{opacity:0}}",
 
       // Sheet
-      "#pt-addr-sheet{background:#fff;width:100%;max-width:460px;max-height:94vh;overflow-y:auto;-webkit-overflow-scrolling:touch;",
+      "#pt-addr-sheet{background:var(--ground);width:100%;max-width:460px;max-height:94vh;overflow-y:auto;-webkit-overflow-scrolling:touch;",
       "border-radius:28px 28px 0 0;padding:10px 22px calc(22px + env(safe-area-inset-bottom));",
-      "box-shadow:0 -18px 50px -12px rgba(14,18,32,.35);opacity:0;transform-origin:bottom center;}",
-      // Gentle pop-in — a touch of overshoot, not a full bounce.
-      "#pt-addr-sheet.pt-in{animation:pt-pop .26s cubic-bezier(.22,1.15,.35,1) forwards;}",
-      "@keyframes pt-pop{0%{opacity:0;transform:scale(.92) translateY(10px);}55%{opacity:1;transform:scale(1.018) translateY(0);}100%{opacity:1;transform:scale(1);}}",
-      "@media(min-width:520px){#pt-addr-ov{align-items:center;padding:16px;}#pt-addr-sheet{border-radius:26px;box-shadow:0 30px 70px -20px rgba(14,18,32,.5);transform-origin:center;}}",
+      "box-shadow:0 -18px 50px -12px rgba(14,18,32,.35);opacity:0;transform:translate3d(0,100%,0);",
+      "transform-origin:bottom center;will-change:transform,opacity;}",
+
+      // It rises from the edge it is anchored to and decelerates into place
+      // rather than appearing at full size and scaling. Long enough that the eye
+      // follows the movement — the old .26s pop was over before it could.
+      "#pt-addr-sheet.pt-in{animation:pt-sheet-in .46s var(--ease) forwards;}",
+      "@keyframes pt-sheet-in{from{opacity:0;transform:translate3d(0,100%,0)}60%{opacity:1}to{opacity:1;transform:translate3d(0,0,0)}}",
+      "#pt-addr-ov.pt-closing #pt-addr-sheet{animation:pt-sheet-out .2s cubic-bezier(.4,0,1,1) forwards;}",
+      "@keyframes pt-sheet-out{from{opacity:1;transform:translate3d(0,0,0)}to{opacity:0;transform:translate3d(0,14%,0)}}",
+
+      // The contents arrive just behind the panel, a few frames apart, so it
+      // reads as one movement with depth instead of a finished slab sliding in.
+      "@keyframes pt-rise{from{opacity:0;transform:translate3d(0,9px,0)}to{opacity:1;transform:none}}",
+      "#pt-addr-sheet.pt-in>#pt-addr-grip{animation:pt-rise .34s var(--ease) .05s both;}",
+      "#pt-addr-sheet.pt-in>.pt-addr-eyebrow{animation:pt-rise .34s var(--ease) .09s both;}",
+      "#pt-addr-sheet.pt-in>h3{animation:pt-rise .34s var(--ease) .12s both;}",
+      "#pt-addr-sheet.pt-in>.pt-addr-sub{animation:pt-rise .34s var(--ease) .15s both;}",
+      // Whichever of the two views is showing. Replayed on the confirm -> edit
+      // swap too, where the sheet is already up and nothing else would move.
+      ".pt-reveal{animation:pt-rise .38s var(--ease) .1s both;}",
+
+      // Centred on a wide screen there is no edge to rise from, so it lifts and
+      // settles instead. Re-declaring the keyframes inside the query is what
+      // swaps the motion: when the query matches, its @keyframes block wins.
+      "@media(min-width:520px){#pt-addr-ov{align-items:center;padding:16px;}",
+      "#pt-addr-sheet{border-radius:26px;box-shadow:0 30px 70px -20px rgba(14,18,32,.5);",
+      "transform-origin:center;transform:translate3d(0,18px,0) scale(.97);}",
+      "@keyframes pt-sheet-in{from{opacity:0;transform:translate3d(0,18px,0) scale(.97)}to{opacity:1;transform:none}}",
+      "@keyframes pt-sheet-out{from{opacity:1;transform:none}to{opacity:0;transform:translate3d(0,8px,0) scale(.985)}}}",
 
       // Grab handle
-      "#pt-addr-grip{width:38px;height:4px;border-radius:99px;background:#e2e2ea;margin:0 auto 16px;}",
+      "#pt-addr-grip{width:38px;height:4px;border-radius:99px;background:#D5DDE8;margin:0 auto 16px;}",
 
       // Header
       ".pt-addr-eyebrow{display:inline-flex;align-items:center;gap:6px;font-size:.66rem;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:var(--r);margin-bottom:9px;}",
@@ -90,25 +154,27 @@
       ".pt-addr-f.pt-half+.pt-half{margin-left:8px;}",
       ".pt-addr-f label{display:block;font-size:.72rem;font-weight:700;letter-spacing:.01em;color:#374151;margin-bottom:5px;}",
       ".pt-req{color:var(--r);margin-left:3px;font-weight:800;}",
-      ".pt-addr-f input{width:100%;box-sizing:border-box;padding:12px 13px;border:1.5px solid #e6e6ec;border-radius:13px;font-size:.94rem;color:var(--ink);background:#fff;outline:none;transition:border-color .15s,box-shadow .15s;}",
+      ".pt-addr-f input{width:100%;box-sizing:border-box;padding:12px 13px;border:1.5px solid var(--line);border-radius:13px;font-size:.94rem;color:var(--ink);background:#fff;outline:none;transition:border-color .15s,box-shadow .15s;}",
       ".pt-addr-f input::placeholder{color:#a8adb8;}",
       ".pt-addr-f input:focus{border-color:var(--r);box-shadow:0 0 0 3.5px var(--tint);}",
       "#pt-addr-err{display:none;background:#fdecec;color:#c0271b;font-size:.8rem;font-weight:600;padding:10px 13px;border-radius:11px;margin-bottom:13px;}",
       "#pt-addr-err.pt-show{display:block;}",
 
       // Buttons
+      // Navy, not red. The glow moves with it — a navy button over a red halo
+      // reads as a mistake, and the halo was most of what made the sheet warm.
       ".pt-addr-primary{width:100%;display:flex;align-items:center;justify-content:center;gap:9px;padding:16px;border:none;border-radius:16px;",
-      "background:linear-gradient(180deg,#ff3a17,var(--r));color:#fff;font-size:1rem;font-weight:800;letter-spacing:.01em;cursor:pointer;",
-      "box-shadow:0 10px 22px -8px rgba(255,39,0,.6);transition:transform .12s ease,box-shadow .2s ease,background .2s ease;-webkit-tap-highlight-color:transparent;}",
+      "background:linear-gradient(180deg,var(--navy-2),var(--navy));color:#fff;font-size:1rem;font-weight:800;letter-spacing:.01em;cursor:pointer;",
+      "box-shadow:0 10px 22px -8px var(--navy-sh);transition:transform .12s ease,box-shadow .2s ease,background .2s ease;-webkit-tap-highlight-color:transparent;}",
       ".pt-addr-primary svg{width:19px;height:19px;}",
-      ".pt-addr-primary:hover{box-shadow:0 12px 26px -8px rgba(255,39,0,.72);}",
+      ".pt-addr-primary:hover{box-shadow:0 12px 26px -8px rgba(3,22,45,.55);}",
       ".pt-addr-primary:active{transform:scale(.975);}",
       ".pt-addr-primary:disabled{opacity:.65;cursor:default;box-shadow:none;transform:none;}",
       ".pt-addr-secondary{width:100%;display:flex;align-items:center;justify-content:center;gap:8px;padding:13px;margin-top:10px;",
-      "border:1.5px solid #e6e6ec;border-radius:15px;background:#fff;color:#374151;font-size:.9rem;font-weight:700;cursor:pointer;transition:background .15s,border-color .15s;-webkit-tap-highlight-color:transparent;}",
+      "border:1.5px solid var(--line);border-radius:15px;background:#fff;color:#374151;font-size:.9rem;font-weight:700;cursor:pointer;transition:background .15s,border-color .15s;-webkit-tap-highlight-color:transparent;}",
       ".pt-addr-secondary svg{width:16px;height:16px;color:var(--muted);}",
-      ".pt-addr-secondary:hover{background:#f7f7f9;border-color:#dcdce4;}",
-      ".pt-addr-secondary:active{background:#f0f0f3;}",
+      ".pt-addr-secondary:hover{background:#EEF3F9;border-color:#D3DCE7;}",
+      ".pt-addr-secondary:active{background:#E6ECF4;}",
       ".pt-addr-link{width:100%;padding:12px;margin-top:6px;border:none;background:none;color:var(--muted);font-size:.85rem;font-weight:600;cursor:pointer;border-radius:12px;-webkit-tap-highlight-color:transparent;}",
       ".pt-addr-link:hover{color:#374151;}",
 
@@ -117,8 +183,12 @@
       "#pt-addr-secure svg{width:13px;height:13px;}",
       "#pt-addr-note{margin:9px 0 0;font-size:.72rem;color:#a3a8b3;text-align:center;}",
 
-      // Reduced motion
-      "@media(prefers-reduced-motion:reduce){#pt-addr-ov,.pt-addr-primary{transition:none;}#pt-addr-sheet.pt-in{animation:none;opacity:1;}}"
+      // Reduced motion. Every animation here fills forwards, so collapsing the
+      // durations lands each element on its final state on the first frame —
+      // the sheet still opens and closes, it just does not travel.
+      "@media(prefers-reduced-motion:reduce){.pt-addr-primary{transition:none;}",
+      "#pt-addr-ov.pt-open,#pt-addr-ov.pt-closing,#pt-addr-ov.pt-closing #pt-addr-sheet,",
+      "#pt-addr-sheet.pt-in,#pt-addr-sheet.pt-in>*,.pt-reveal{animation-duration:.01ms!important;animation-delay:0s!important;}}"
     ].join("");
     var s = document.createElement("style");
     s.id = "pt-addr-styles";
@@ -202,6 +272,7 @@
       deliver: ov.querySelector("#pt-addr-deliver"),
       edit: ov.querySelector("#pt-addr-edit"),
       save: ov.querySelector("#pt-addr-save"),
+      note: ov.querySelector("#pt-addr-note"),
       inputs: {}
     };
     FIELDS.forEach(function (f) { els.inputs[f.key] = ov.querySelector("#pt-addr-" + f.key); });
@@ -272,6 +343,7 @@
     els.sub.textContent = "We'll ship your ParkTag sticker here.";
     els.form.classList.add("pt-hide");
     els.confirm.classList.remove("pt-hide");
+    reveal(els.confirm);
   }
 
   // Show the editable form, optionally prefilled with an existing address.
@@ -287,12 +359,25 @@
     if (!els.inputs.fullName.value && profileName) {
       els.inputs.fullName.value = profileName;
     }
+    // Two lines of copy that are only true when there is an account behind the
+    // sheet. A guest is not saving anything to a profile, and telling them so
+    // would be the sheet promising something the page cannot do.
+    if (els.note) {
+      els.note.textContent = guestMode
+        ? "Used for this delivery. Your tag is activated after it arrives."
+        : "Saved to your profile — you won't need to enter it again.";
+    }
+    if (els.save) {
+      els.save.innerHTML = IC.lock + (guestMode ? "Continue to pay" : "Save &amp; continue to pay");
+    }
+
     els.title.textContent = prefill ? "Edit delivery address" : "Delivery address";
     els.sub.textContent = prefill
       ? "Update where we should ship your sticker."
       : "Where should we ship your official ParkTag sticker?";
     els.confirm.classList.add("pt-hide");
     els.form.classList.remove("pt-hide");
+    reveal(els.form);
   }
 
   async function onSave() {
@@ -300,6 +385,10 @@
     var v = readForm();
     var problem = validate(v);
     if (problem) { showErr(problem); return; }
+
+    // No account to save it to: hand the address straight back to the caller,
+    // which sends it with the order.
+    if (guestMode) { close(v); return; }
 
     els.save.disabled = true;
     var label = els.save.innerHTML;
@@ -328,11 +417,33 @@
     }
   }
 
+  // `saved` is `true` for the signed-in flow and the address object in guest
+  // mode. Passed through rather than coerced, because the guest caller needs
+  // the values — and an object is truthy, so `if (!await ptCollectAddress())`
+  // still reads the same at every existing call site.
   function close(saved) {
-    if (els) els.ov.classList.remove("pt-open");
+    dismiss();
     var r = resolver;
     resolver = null;
-    if (r) r(!!saved);
+    if (r) r(saved === true ? true : (saved || false));
+  }
+
+  // Play the exit, then take the sheet off screen. The promise resolves without
+  // waiting for it — the caller opens Razorpay next, and no payment window
+  // should be held back by a fade.
+  var closeTimer = null;
+  function dismiss() {
+    if (!els || !els.ov.classList.contains("pt-open")) return;
+    els.ov.classList.add("pt-closing");
+    clearTimeout(closeTimer);
+    closeTimer = setTimeout(function () {
+      // Reopened while it was fading: the open path clears pt-closing, and
+      // pulling pt-open now would hide a sheet that is on its way back in.
+      if (!els.ov.classList.contains("pt-closing")) return;
+      els.ov.classList.remove("pt-closing");
+      els.ov.classList.remove("pt-open");
+      els.sheet.classList.remove("pt-in");
+    }, 220);
   }
 
   // Fetch the saved address (if any) to decide which view to show.
@@ -361,15 +472,28 @@
     }
   }
 
-  // Restart the pop-in animation on the sheet (re-add the class after a reflow).
+  // Restart the entrance on the sheet (re-add the class after a reflow).
   function popIn() {
     els.sheet.classList.remove("pt-in");
     void els.sheet.offsetWidth; // force reflow so the animation replays
     els.sheet.classList.add("pt-in");
   }
 
-  // Public API: resolves true once the address is confirmed/saved, false if dismissed.
-  window.ptCollectAddress = function () {
+  // The same trick for one element: used on the view being shown, so the
+  // confirm -> edit swap moves as well, not only the initial open.
+  function reveal(el) {
+    if (!el) return;
+    el.classList.remove("pt-reveal");
+    void el.offsetWidth;
+    el.classList.add("pt-reveal");
+  }
+
+  // Public API. Resolves once the address is confirmed or saved, false if
+  // dismissed — `true` for a signed-in owner, and the address object itself
+  // when called as ptCollectAddress({ guest: true }) from the public
+  // storefront, which has no profile to save it to.
+  window.ptCollectAddress = function (options) {
+    guestMode = !!(options && options.guest);
     if (!els) build();
     return new Promise(function (resolve) {
       // If a sheet is somehow already open, cancel the previous waiter.
@@ -381,7 +505,21 @@
       els.confirm.classList.add("pt-hide");
       els.form.classList.add("pt-hide");
       els.sheet.classList.remove("pt-in");
+      // Reopened mid-fade: drop the exit and cancel the timer that would
+      // otherwise hide the overlay a moment from now.
+      clearTimeout(closeTimer);
+      els.ov.classList.remove("pt-closing");
       els.ov.classList.add("pt-open");
+      // A guest has no saved address and no profile, so both lookups would be
+      // two guaranteed 401s and a slower sheet. Straight to the blank form.
+      if (guestMode) {
+        savedAddress = null;
+        profileName = "";
+        showForm(null);
+        popIn();
+        return;
+      }
+
       // Both requests go out together: the profile name is only needed for the
       // blank-form case, and waiting for it in series would delay the sheet for
       // everyone who already has an address saved.

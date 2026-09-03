@@ -41,6 +41,9 @@ import { registerPasswordResetRoutes } from "./routes/auth/password-reset.js";
 import { registerRuntimeRoutes } from "./routes/system/runtime.js";
 import { registerReviewerSetupRoute } from "./routes/system/reviewer-setup.js";
 import { registerShopRoutes } from "./routes/shop/index.js";
+// Used by /shop to check that a pack id arriving from the public storefront is
+// a real product before it is carried into a redirect.
+import { getShopProduct } from "./lib/integrations/payments.js";
 
 const currentFile = fileURLToPath(import.meta.url);
 const currentDir = path.dirname(currentFile);
@@ -69,6 +72,7 @@ const stickerPrintPage = path.join(pagesRoot, "admin/sticker-print.html");
 const registerOwnerPage = path.join(pagesRoot, "owner/register.html");
 const ownerLoginPage = path.join(pagesRoot, "owner/login.html");
 const hubPage = path.join(pagesRoot, "hub.html");
+const getPage = path.join(pagesRoot, "get.html");
 const forgotPasswordPage = path.join(pagesRoot, "owner/forgot-password.html");
 const resetPasswordPage = path.join(pagesRoot, "owner/reset-password.html");
 const ownerVerifyPage = path.join(pagesRoot, "owner/verify.html");
@@ -856,10 +860,42 @@ export async function buildApp() {
   // dashboard once the visitor is through (see owner/login.js).
   app.get("/shop", async (request, reply) => {
     const session = await readSession(app, request);
+
+    // Which pack the visitor picked on /get, carried through so they land on
+    // that one rather than on a shop tab with their choice forgotten.
+    //
+    // Validated against the catalogue here rather than trusted onward: this
+    // arrives in a query string from a public page, and everything downstream
+    // of it puts the value into a URL. An id that is not a real product is
+    // dropped, so the worst a crafted link can do is open the shop.
+    const requested = (request.query || {}).sku;
+    const sku = getShopProduct(typeof requested === "string" ? requested : "") ? requested : null;
+    const carry = sku ? `&sku=${encodeURIComponent(sku)}` : "";
+
     if (!session || session.role !== "owner") {
-      return reply.redirect("/owner-login?next=shop");
+      return reply.redirect(`/owner-login?next=shop${carry}`);
     }
-    return reply.redirect("/owner-welcome?shop=1");
+    return reply.redirect(`/owner-welcome?shop=1${carry}`);
+  });
+
+  // The shop window. Deliberately public, and deliberately NOT /shop.
+  //
+  // /shop above is an intent — "take me to buying" — and it resolves to the
+  // dashboard's shop tab once there is a session to resolve it with. This is a
+  // page: what the product is, what it costs, what arrives in the post. It has
+  // to answer those for somebody who has never signed in, because every buy
+  // button on the marketing site currently lands on a login screen before a
+  // single price is visible (docs/SHOP_LOGIN_WALL.md). Asking a stranger to
+  // hand over a phone number before telling them the price inverts the order
+  // of a purchase.
+  //
+  // Its Order buttons still go to /shop, so the checkout, the session and the
+  // order model are untouched — what moves is only WHEN the sign-in is asked
+  // for: after the visitor knows what they are buying, rather than before.
+  app.get("/get", async (_request, reply) => {
+    const html = await fs.readFile(getPage, "utf8");
+    reply.type("text/html");
+    return html;
   });
 
   app.get("/register-owner", async (_request, reply) => {

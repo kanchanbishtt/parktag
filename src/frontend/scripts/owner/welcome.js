@@ -1998,10 +1998,28 @@ window._reloadDashboard = load;
   const q = new URLSearchParams(location.search);
   const afterLogin = sessionStorage.getItem("pt_after_login");
   sessionStorage.removeItem("pt_after_login");
+
+  // The pack picked on /get, from the URL when they were already signed in, or
+  // from the parked intent when they had to sign in on the way. Read once and
+  // deleted, like the intent itself, so a later visit does not reopen a
+  // checkout the buyer has already finished or abandoned.
+  const parkedSku = sessionStorage.getItem("pt_after_login_sku");
+  sessionStorage.removeItem("pt_after_login_sku");
+  const sku = q.get("sku") || parkedSku || null;
+
   if (q.get("shop") === "1" || afterLogin === "shop") {
     window._replaceTagId = q.get("replace") || null;
     // Defer until the shop tab wiring is ready.
-    setTimeout(() => { if (typeof switchTab === "function") switchTab("shop"); }, 0);
+    setTimeout(() => {
+      if (typeof switchTab === "function") switchTab("shop");
+
+      // Then straight into buying THAT pack: address first, then the pack
+      // step, then Razorpay — the shop's own flow, entered from the storefront
+      // rather than reimplemented for it. A second tick so the shop tab has
+      // rendered before a sheet is opened over it.
+      if (!sku || typeof window.ptStartBuy !== "function") return;
+      setTimeout(() => { window.ptStartBuy(sku); }, 0);
+    }, 0);
   }
 })();
 
@@ -2057,7 +2075,7 @@ function _loadSw(tag) {
 // The same field the scanner gate reads: the switch is live exactly when a
 // masked call is actually available on this tag. Read straight off the
 // entitlement the dashboard API sends rather than re-derived from tag.premium
-// here — the server owns the free contact, the 90-day window and the
+// here — the server owns the free contact, the year-long window and the
 // subscription, and a second copy of those rules on the page would eventually
 // disagree with it. A tag from an older payload has no callAccess at all,
 // which reads as false: when we do not know, do not offer the control.
@@ -2091,7 +2109,7 @@ function _maskingNote(tag) {
 
 // The switch is live whenever masking is: an E-Tag with its free contact still
 // unspent (on by default — that contact is theirs to use), a premium tag inside
-// its 90 days, or a premium tag on a subscription. Everyone else sees the true
+// its free year, or a premium tag on a subscription. Everyone else sees the true
 // state (off) and cannot turn it on from here — the server would ignore them
 // anyway, and a switch that flips but changes nothing is worse than one that
 // plainly does not apply.

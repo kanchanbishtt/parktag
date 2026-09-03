@@ -60,11 +60,11 @@ export function callbackState(request, { tags = [], now = Date.now(), windowMs =
   const tag = tags.find((candidate) => candidate && candidate.token === request.token);
   if (!tag) return NEEDS_PREMIUM;
 
-  // Masking is no longer permanent: a premium tag includes it for 90 days and
+  // Masking is no longer permanent: a premium tag includes it for a year and
   // then needs a subscription. The answer is NOT re-derived here — the server
   // sends `callAccess` per tag from the one function that decides it, so this
   // page cannot reach a different verdict than the route it is drawing a button
-  // for. Re-implementing the 90-day arithmetic in the client is exactly how the
+  // for. Re-implementing the window arithmetic in the client is exactly how the
   // two would drift.
   if (tag.callAccess) {
     if (tag.callAccess.masking) return CALLABLE;

@@ -32,7 +32,7 @@ import {
   DOCS_PER_ETAG,
   DOCS_PER_PREMIUM_TAG,
   DOCS_PER_SUBSCRIBED_TAG,
-  PREMIUM_TRIAL_DAYS,
+  premiumTrialLengthDays,
   TIER_ETAG,
   TIER_PREMIUM,
   TIER_SUBSCRIBED,
@@ -50,6 +50,11 @@ import {
   assertUndeliverableIdentifier,
   TEST_ORIGIN
 } from "./helpers.js";
+
+// Twelve calendar months is 365 days or 366 depending on where the year
+// falls, so the window's length is measured off the same helper the
+// entitlement uses rather than written down as a number here.
+const TRIAL_DAYS = premiumTrialLengthDays();
 
 const OWNER_EMAIL = assertUndeliverableIdentifier("qa-vault-tiers@parktag-test.invalid");
 const VAULT_PIN = "7261";
@@ -147,7 +152,7 @@ async function makeTag(extra = {}) {
 // Bought long enough ago that the complimentary period is over. This is the
 // steady state a premium tag spends nearly all its life in, so it is what
 // "a premium tag" means everywhere below unless a test says otherwise.
-const LONG_AGO = () => new Date(Date.now() - (PREMIUM_TRIAL_DAYS + 15) * DAY).toISOString();
+const LONG_AGO = () => new Date(Date.now() - (TRIAL_DAYS + 15) * DAY).toISOString();
 
 const etag = () => makeTag({ premium: false });
 const premiumTag = () => makeTag({ premium: true, plan: "premium", premiumSince: LONG_AGO() });
@@ -335,7 +340,7 @@ describe("what each tier can actually store", () => {
   });
 });
 
-describe(`the ${PREMIUM_TRIAL_DAYS}-day free period that comes with a premium tag`, () => {
+describe(`the ${TRIAL_DAYS}-day free period that comes with a premium tag`, () => {
   test("a tag bought today gets the whole allowance", async () => {
     const tagId = await trialTag(0);
     const codes = await uploadSeries(tagId, DOCS_PER_SUBSCRIBED_TAG);
@@ -349,14 +354,14 @@ describe(`the ${PREMIUM_TRIAL_DAYS}-day free period that comes with a premium ta
     // a job that runs late must not extend anybody's free period.
     const bought = (daysAgo) => ({ premium: true, premiumSince: new Date(Date.now() - daysAgo * DAY).toISOString() });
 
-    assert.equal(isInPremiumTrial(bought(PREMIUM_TRIAL_DAYS - 1)), true, "expired a day early");
-    assert.equal(isInPremiumTrial(bought(PREMIUM_TRIAL_DAYS + 1)), false, "outlasted its period");
+    assert.equal(isInPremiumTrial(bought(TRIAL_DAYS - 3)), true, "expired a day early");
+    assert.equal(isInPremiumTrial(bought(TRIAL_DAYS + 3)), false, "outlasted its period");
     assert.equal(documentEntitlement(bought(1)).maxDocs, DOCS_PER_SUBSCRIBED_TAG);
-    assert.equal(documentEntitlement(bought(PREMIUM_TRIAL_DAYS + 1)).maxDocs, DOCS_PER_PREMIUM_TAG);
+    assert.equal(documentEntitlement(bought(TRIAL_DAYS + 3)).maxDocs, DOCS_PER_PREMIUM_TAG);
   });
 
   test("a tag past its free period is back to the premium allowance", async () => {
-    const tagId = await trialTag(PREMIUM_TRIAL_DAYS + 5);
+    const tagId = await trialTag(TRIAL_DAYS + 5);
     const codes = await uploadSeries(tagId, DOCS_PER_PREMIUM_TAG + 1);
 
     assert.equal(codes[DOCS_PER_PREMIUM_TAG], 409, "the free period never ended");
@@ -377,15 +382,21 @@ describe(`the ${PREMIUM_TRIAL_DAYS}-day free period that comes with a premium ta
 
   test("an admin-issued tag dates its period from when it was created", () => {
     // Batch-issued premium tags carry no premiumSince, so createdAt stands in.
+    //
+    // The stale case is measured off the window rather than written down. It
+    // said 200 days, which was safely past the old 90-day period and sits
+    // inside the current one-year period — so the test asserted "the window has
+    // closed" about a tag whose window was still open.
     const fresh = { premium: true, createdAt: new Date().toISOString() };
-    const stale = { premium: true, createdAt: new Date(Date.now() - 200 * DAY).toISOString() };
+    const stale = { premium: true, createdAt: new Date(Date.now() - (TRIAL_DAYS + 15) * DAY).toISOString() };
     assert.equal(documentEntitlement(fresh).tier, TIER_TRIAL);
     assert.equal(documentEntitlement(stale).tier, TIER_PREMIUM);
   });
 
   test("the page is told when the period ends, not merely that it is on", async () => {
     // An owner can fill all ten slots during the trial and be over the
-    // allowance on day 91. They keep everything, but they must be able to see
+    // allowance the day after it ends. They keep everything, but they must be
+    // able to see
     // that coming while they still have room to plan around it.
     const tagId = await trialTag(5);
     const body = JSON.parse((await call("GET", `/api/owner/vault/documents?tagId=${tagId}`)).body);
@@ -395,8 +406,8 @@ describe(`the ${PREMIUM_TRIAL_DAYS}-day free period that comes with a premium ta
     assert.ok(body.entitlement.trialEndsAt, "the page cannot count down what it is not told");
 
     const daysLeft = (new Date(body.entitlement.trialEndsAt).getTime() - Date.now()) / DAY;
-    assert.ok(daysLeft > PREMIUM_TRIAL_DAYS - 6 && daysLeft < PREMIUM_TRIAL_DAYS - 4,
-      `expected about ${PREMIUM_TRIAL_DAYS - 5} days left, got ${daysLeft.toFixed(1)}`);
+    assert.ok(daysLeft > TRIAL_DAYS - 6 && daysLeft < TRIAL_DAYS - 4,
+      `expected about ${TRIAL_DAYS - 5} days left, got ${daysLeft.toFixed(1)}`);
   });
 
   test("paying during the free period reads as subscribed, not as a trial", async () => {

@@ -229,6 +229,45 @@ export function getEnv() {
     delhiveryHsnCode: process.env.DELHIVERY_HSN_CODE || ""
   };
 
+  // Strip surrounding whitespace from every configured string.
+  //
+  // Pasting a secret into a hosting dashboard is how these values get set, and
+  // a paste that picks up the trailing newline stores it: RAZORPAY_KEY_ID went
+  // live as a key id with a trailing newline glued to it. Nothing here is a
+  // value where an outer space or newline is meaningful, but plenty of them are
+  // values where one is fatal and invisible — a credential with a trailing
+  // newline is still a non-empty string, so every
+  // `if (!env.foo)` guard and every REQUIRED_IN_PRODUCTION check passes, and the
+  // failure surfaces far away as a 401 from someone else's API. That is exactly
+  // how the shop checkout broke: create-order reported "Failed to create order",
+  // because Razorpay rejected the auth for a key id it could not match.
+  //
+  // Done here, over the whole object, rather than per-variable at each
+  // `process.env.X ||` above: the next credential added is protected without
+  // anyone remembering to, and the trim runs BEFORE validateEnv so a var set to
+  // nothing but whitespace is correctly reported as missing instead of counting
+  // as configured.
+  // Say which ones needed it, rather than trimming in silence.
+  //
+  // The trim makes a padded credential work, which also makes it invisible —
+  // and the value in the hosting dashboard is still wrong. Left unsaid, the
+  // next person to read that variable, copy it to another service, or paste it
+  // into a support ticket inherits the same newline and the same five-week
+  // outage. Names only: the whole point is that these are secrets.
+  const padded = [];
+  for (const [key, value] of Object.entries(env)) {
+    if (typeof value !== "string") continue;
+    const trimmed = value.trim();
+    if (trimmed !== value && trimmed !== "") padded.push(key);
+    env[key] = trimmed;
+  }
+  if (padded.length) {
+    console.warn(
+      `[env] trimmed surrounding whitespace from: ${padded.join(", ")}. ` +
+        "The stored value still contains it — fix it at the source."
+    );
+  }
+
   validateEnv(env, runtimeMode);
 
   return env;

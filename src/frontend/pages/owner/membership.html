@@ -44,11 +44,14 @@
          whole release after the window was widened.
 
          The number carries the offer. Leading with an icon here was decorating
-         the trial instead of stating it: nobody skims past a 90. -->
+         the trial instead of stating it: nobody skims past the length. -->
     <section class="mb-trial" aria-label="Free trial">
       <span class="mb-trial-num">
         <span id="mbTrialDays" class="mb-trial-days mb-sk mb-sk-days">&nbsp;</span>
-        <span class="mb-trial-unit">DAYS</span>
+        <!-- Filled from the server alongside the numeral. It was the literal
+             word DAYS, which silently became a lie the moment the window
+             changed; the unit and the number now travel together. -->
+        <span class="mb-trial-unit" id="mbTrialUnit"></span>
       </span>
       <div class="mb-trial-bd">
         <p class="mb-trial-t">

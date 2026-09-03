@@ -19,7 +19,12 @@ import { createSession } from "../lib/auth/session.js";
 import { resetGeoipCache } from "../lib/integrations/geoip.js";
 import { settleScannerLocations } from "../lib/core/scan-location.js";
 // Dated from the real window, not a literal — see scan-location.test.js.
-import { PREMIUM_TRIAL_DAYS } from "../lib/core/vault.js";
+import { premiumTrialLengthDays } from "../lib/core/vault.js";
+
+// Twelve calendar months is 365 days or 366 depending on where the year
+// falls, so the window's length is measured off the same helper the
+// entitlement uses rather than written down as a number here.
+const TRIAL_DAYS = premiumTrialLengthDays();
 
 let app;
 let collections;
@@ -233,7 +238,7 @@ describe("an SOS on a lapsed tag still connects, and carries no location", () =>
     // this is where it would leak.
     const token = await createTag({
       premium: true,
-      premiumSince: daysAgo(PREMIUM_TRIAL_DAYS + 15),
+      premiumSince: daysAgo(TRIAL_DAYS + 15),
       emergencyContact: EMERGENCY_NUMBER
     });
 

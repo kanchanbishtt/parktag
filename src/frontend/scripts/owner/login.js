@@ -10,8 +10,18 @@ import { getCaptchaToken } from "../recaptcha.js";
 // string would be dropped somewhere along the way. It is also tab-scoped, so
 // the intent cannot leak into the visitor's other tabs. The dashboard deletes
 // the key as it reads it, the same hand-off pt_is_new_user already uses.
-if (new URLSearchParams(location.search).get("next") === "shop") {
+const _q = new URLSearchParams(location.search);
+if (_q.get("next") === "shop") {
   sessionStorage.setItem("pt_after_login", "shop");
+
+  // And WHICH pack they picked, when they came from the public storefront.
+  // Parked alongside the intent and for the same reason: sign-in can take
+  // several hops through pages we do not control, and a query string would be
+  // dropped on one of them. /shop has already checked this against the
+  // catalogue, so what is stored is a real product id or nothing.
+  const sku = _q.get("sku");
+  if (sku) sessionStorage.setItem("pt_after_login_sku", sku);
+  else sessionStorage.removeItem("pt_after_login_sku");
 }
 
 let _currentPhone = null;

@@ -9,7 +9,7 @@
 import { createSession } from "../lib/auth/session.js";
 import { getVaultBucket } from "../lib/db/repositories.js";
 import { startTestApp, stopTestApp, createTestOwner, uniqueAddress } from "../tests/helpers.js";
-import { PREMIUM_TRIAL_DAYS } from "../lib/core/vault.js";
+import { PREMIUM_TRIAL_MONTHS, premiumTrialLengthDays } from "../lib/core/vault.js";
 
 const ORIGIN = process.env.APP_BASE_URL || "http://localhost:3000";
 const BOUNDARY = "----verifyTiers";
@@ -79,20 +79,25 @@ if (pin.statusCode !== 200) throw new Error(`could not set PIN: ${pin.body}`);
 
 const now = Date.now();
 // Every date below is a distance from the real window rather than a literal
-// number of days. The window has already moved once, 45 days to 90, and a
-// script that hard-codes "50 days ago" as its expired case quietly becomes a
-// second in-trial case when that happens: it reports NO free period while the
-// free period is working perfectly.
+// number of days. The window has already moved twice — 45 days to 90, then 90
+// days to a year — and a script that hard-codes "50 days ago" as its expired
+// case quietly becomes a second in-trial case when that happens: it reports NO
+// free period while the free period is working perfectly.
 const bought = (daysAgo) => new Date(now - daysAgo * DAY).toISOString();
-const JUST_INSIDE = PREMIUM_TRIAL_DAYS - 1;
-const JUST_OUTSIDE = PREMIUM_TRIAL_DAYS + 1;
-const WELL_OUTSIDE = PREMIUM_TRIAL_DAYS + 5;
+
+// The window is calendar months now, so its length in days is not a constant:
+// it is 365 or 366 depending on where the year falls. Measured rather than
+// assumed, off the same helper the entitlement itself uses.
+const TRIAL_DAYS = premiumTrialLengthDays(now);
+const JUST_INSIDE = TRIAL_DAYS - 1;
+const JUST_OUTSIDE = TRIAL_DAYS + 1;
+const WELL_OUTSIDE = TRIAL_DAYS + 5;
 const EXPIRED_LABEL = `Premium, bought ${WELL_OUTSIDE} days ago`;
 
 // The subscription cases are dated OUTSIDE the free period on purpose. A tag
 // bought today is inside its trial, so a subscription stamped on one would be
 // indistinguishable from the trial granting the same allowance.
-const OLD = bought(PREMIUM_TRIAL_DAYS + 15);
+const OLD = bought(TRIAL_DAYS + 15);
 const CASES = [
   ["E-Tag", { premium: false }],
   ["Premium, bought today", { premium: true, premiumSince: new Date(now).toISOString() }],
@@ -125,7 +130,7 @@ for (const [label, extra] of CASES) {
 // than one bought after the window closed.
 const fresh = results["Premium, bought today"];
 const old = results[EXPIRED_LABEL];
-console.log(`\n  ${PREMIUM_TRIAL_DAYS}-day free period for a new premium tag: ` +
+console.log(`\n  ${TRIAL_DAYS}-day (${PREMIUM_TRIAL_MONTHS}-month) free period for a new premium tag: ` +
   (fresh > old ? `YES — a new tag holds ${fresh}, a ${WELL_OUTSIDE}-day-old one holds ${old}`
                : `NO — a new tag and a ${WELL_OUTSIDE}-day-old one both hold ${old}`));
 

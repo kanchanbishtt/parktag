@@ -769,7 +769,7 @@ async function loadScannerView() {
     // Fired only once the tag resolves, so the count means "a real sticker was
     // scanned" rather than "the page loaded". Scans per activated tag per month
     // is what decides whether a time-limited free trial can ever convert: if the
-    // median tag is never scanned in 90 days, the trial expires before the
+    // median tag is never scanned within the free year, the trial expires before the
     // owner has felt the product work.
     //
     // No token, no plate, no status detail in the payload either way.

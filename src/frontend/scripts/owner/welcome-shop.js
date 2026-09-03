@@ -261,6 +261,30 @@ function renderSheet() {
   `;
 }
 
+// Start buying a named SKU, from outside this file.
+//
+// The public storefront at /get shows prices to signed-out visitors and its
+// Order buttons name a pack. That intent survives /shop, the login screen and
+// however many OAuth hops sign-in takes, and lands here — so the buyer arrives
+// at the pack they chose rather than at a shop tab with everything on it and
+// their choice forgotten.
+//
+// Deliberately routed through handleBuyNow rather than reimplementing the
+// steps: address first, then the pack sheet, then Razorpay. One buying flow,
+// entered from two places. A second copy of it is how the shop and the
+// storefront would come to disagree about what a purchase involves.
+window.ptStartBuy = function ptStartBuy(sku) {
+  // An unknown id opens the shop rather than failing. The value has travelled
+  // through a query string and sessionStorage, so it is untrusted input, and
+  // the worst it can do here is name a product that is not in the catalogue.
+  const idx = PRODUCTS.findIndex((p) => p.id === sku);
+  if (idx === -1) return false;
+
+  openProduct(idx);
+  handleBuyNow();
+  return true;
+};
+
 async function handleBuyNow() {
   const p = PRODUCTS[_activeProduct];
   const variant = p.variants[_activeVariant];

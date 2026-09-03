@@ -2,7 +2,7 @@
 // subscription.
 //
 // Those tags were sold on the old promise: buy the sticker, keep masked contact
-// for good. The new rule gives 90 days from `premiumSince`, so on the day this
+// for good. The new rule gives a year from `premiumSince`, so on the day this
 // ships every premium tag older than that would lose masking at once — a
 // feature people paid for, withdrawn without notice. This stamps them with an
 // open-ended subscription so the new rule only ever applies to tags sold after
@@ -14,7 +14,8 @@
 // matters and is the fix to a real defect: this script used to stamp
 // callSubscription alone, and while that field was read only by call-access.js
 // a grandfathered tag got its masked calls back and silently dropped from ten
-// document slots to three on day 91. The rescue was half a rescue. One tag has
+// document slots to three the day the window closed. The rescue was half a
+// rescue. One tag has
 // one subscription — hasActiveSubscription() in lib/core/subscription.js is now
 // the single reader, and it accepts all three field names, so this script is
 // correct whether or not a tag was stamped by an earlier run.

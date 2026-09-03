@@ -8,6 +8,7 @@ import { GetStartedButton } from "./components/GetStartedButton";
 import { ScanTagButton } from "./components/ScanTagButton";
 import { BuyOnAmazonButton } from "./components/BuyOnAmazonButton";
 import { OrderOnWhatsAppButton } from "./components/OrderOnWhatsAppButton";
+import { HazardStripe } from "./components/HazardStripe";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.parktag.me";
 
@@ -217,11 +218,12 @@ export default function Home() {
             </div>
           </div>
 
-          {/* SVG wave divider */}
-          <svg viewBox="0 0 1440 72" preserveAspectRatio="none" className="block w-full" style={{ height: "72px", marginBottom: "-2px" }}>
-            <path d="M0,80 C360,8 1080,8 1440,80 L1440,80 L0,80 Z" fill="white" />
-          </svg>
         </section>
+
+        {/* The band caps every dark section where it meets a light one. Used as
+            a rule rather than decoration, so it reads as the brand's mark
+            instead of three unrelated flourishes. */}
+        <HazardStripe />
 
         <Marquee />
 
@@ -432,6 +434,8 @@ export default function Home() {
           </div>
         </section>
 
+        <HazardStripe />
+
         {/* ── PRICING ── */}
         <section id="pricing" className="bg-white py-20">
           <div className="max-w-4xl mx-auto px-4 sm:px-6">
@@ -570,6 +574,8 @@ export default function Home() {
             <FaqAccordion />
           </div>
         </section>
+
+        <HazardStripe />
 
         {/* ── CTA ── */}
         <section data-nav-dark className="bg-[#03162D] py-20">

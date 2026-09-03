@@ -3,6 +3,9 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
 
+import { BuyOnAmazonButton } from "./BuyOnAmazonButton";
+import { OrderOnWhatsAppButton } from "./OrderOnWhatsAppButton";
+
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.parktag.me";
 
 const DROPDOWNS = {
@@ -274,6 +277,18 @@ export function SiteHeader({ defaultDark = true }: { defaultDark?: boolean }) {
             >
               CART
             </a>
+
+            {/* Alternative buy paths. Styled as nav links, not buttons, so they
+                read as secondary to CART — the shop is still the route we want
+                most people on, because it is the only one whose purchase we see. */}
+            <BuyOnAmazonButton
+              className="px-3 py-2 text-sm rounded-lg transition-colors duration-200 inline-flex items-center gap-1.5 whitespace-nowrap"
+              style={{ color: textColor }}
+            />
+            <OrderOnWhatsAppButton
+              className="px-3 py-2 text-sm rounded-lg transition-colors duration-200 inline-flex items-center gap-1.5 whitespace-nowrap"
+              style={{ color: textColor }}
+            />
           </nav>
 
           {/* Desktop actions — info + flag only */}
@@ -389,6 +404,10 @@ export function SiteHeader({ defaultDark = true }: { defaultDark?: boolean }) {
             <div className="mt-5 flex flex-col gap-3">
               <a href={`${APP_URL}/owner-login`} onClick={navigateSmoothly(`${APP_URL}/owner-login`)} className="text-center py-3 rounded-xl border-2 border-[#03162D] text-[#03162D] font-bold text-sm hover:bg-[#03162D] hover:text-white transition-colors">Login</a>
               <a href={`${APP_URL}/shop`} onClick={closeAll} className="text-center py-3 rounded-xl bg-[#FF2700] text-white font-bold text-sm hover:bg-[var(--red-hover)] transition-colors">Order Now</a>
+              {/* Alternative buy paths, ranked below Order Now on purpose: the
+                  shop is ours and is the only route where we see the purchase. */}
+              <BuyOnAmazonButton className="w-full inline-flex items-center justify-center gap-2 py-3 rounded-xl border border-gray-300 text-[#495B7B] font-semibold text-sm hover:border-[#03162D] hover:text-[#03162D] transition-colors" />
+              <OrderOnWhatsAppButton className="w-full inline-flex items-center justify-center gap-2 py-3 rounded-xl border border-gray-300 text-[#495B7B] font-semibold text-sm hover:border-[#03162D] hover:text-[#03162D] transition-colors" />
             </div>
           </nav>
         </div>

@@ -93,6 +93,10 @@
     // bidding needs something on the Amazon route or it optimises as though
     // half the funnel does not exist.
     buy_on_amazon:  { ga: "buy_on_amazon",  pixel: "BuyOnAmazon",  custom: true },
+    // Same shape as buy_on_amazon and for the same reason: the visitor leaves
+    // for WhatsApp and the order is agreed in a chat we do not instrument, so
+    // the outbound click is the last measurable step on this path.
+    order_on_whatsapp: { ga: "order_on_whatsapp", pixel: "OrderOnWhatsApp", custom: true },
     // Sent to Meta as custom events. They reach it only through
     // ptScannerEngaged, which strips the tag token from the URL before the
     // Pixel is ever loaded — see the surface note above.

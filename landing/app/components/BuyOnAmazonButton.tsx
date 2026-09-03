@@ -37,10 +37,11 @@ function AmazonGlyph() {
   );
 }
 
-export function BuyOnAmazonButton({ className }: { className?: string }) {
+export function BuyOnAmazonButton({ className, style }: { className?: string; style?: React.CSSProperties }) {
   return (
     <a
       href={AMAZON_URL}
+      style={style}
       target="_blank"
       // noopener because target="_blank" otherwise hands Amazon a live
       // window.opener back into this page.

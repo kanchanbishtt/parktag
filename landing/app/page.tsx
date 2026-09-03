@@ -7,6 +7,7 @@ import { VehicleRotator } from "./components/VehicleRotator";
 import { GetStartedButton } from "./components/GetStartedButton";
 import { ScanTagButton } from "./components/ScanTagButton";
 import { BuyOnAmazonButton } from "./components/BuyOnAmazonButton";
+import { OrderOnWhatsAppButton } from "./components/OrderOnWhatsAppButton";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.parktag.me";
 
@@ -192,6 +193,14 @@ export default function Home() {
                 <div className="flex flex-wrap gap-3">
                   <GetStartedButton href={`${APP_URL}/owner-login`} />
                   <ScanTagButton appUrl={APP_URL} />
+                </div>
+                {/* Second row, deliberately quieter than the row above. These
+                    are alternative buy paths, not the primary one — the shop we
+                    own is still the route we want most people on, because it is
+                    the only one where we see the purchase itself. */}
+                <div className="flex flex-wrap gap-3 mt-3">
+                  <BuyOnAmazonButton className="inline-flex items-center justify-center gap-2 border border-white/25 text-white/70 font-semibold px-5 py-2.5 rounded-xl hover:border-white/60 hover:text-white transition-colors text-sm" />
+                  <OrderOnWhatsAppButton className="inline-flex items-center justify-center gap-2 border border-white/25 text-white/70 font-semibold px-5 py-2.5 rounded-xl hover:border-white/60 hover:text-white transition-colors text-sm" />
                 </div>
               </AnimateIn>
 

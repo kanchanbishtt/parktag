@@ -57,7 +57,10 @@ jobs:
       EXOTEL_CALLER_ID: "08000000000"
 
     steps:
+      # Full history so the scope step below can diff against the base commit.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -67,16 +70,93 @@ jobs:
           node-version: 22
           cache: npm
 
+      # Which halves of the repo does this change actually touch?
+      #
+      # landing/ is a separate Next app with its own package.json and no code
+      # imports from src/, so a change confined to it cannot break backend auth
+      # — the login suite spends four minutes proving something about a diff it
+      # never read. This scopes the suite to changes that can affect it.
+      #
+      # This is deliberately NOT a `paths:` filter on the workflow. Railway
+      # services here use "Wait for CI", which waits on this check by name; a
+      # filtered-out workflow never reports at all, so the deploy would hang
+      # forever rather than proceed. The job therefore always runs and always
+      # reports — only the expensive steps inside it are conditional.
+      #
+      # src/backend/assets/analytics.js is the trap worth naming: it is edited
+      # as part of "landing work" whenever an event is added, but it is backend
+      # code and lands under src/, so it correctly takes the full path.
+      #
+      # Done with git rather than a marketplace action on purpose. This step
+      # decides whether the security suite runs, so it should not be a
+      # third-party dependency that could be swapped under us.
+      - name: Work out what changed
+        id: scope
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+            HEAD="${{ github.event.pull_request.head.sha }}"
+          else
+            BASE="${{ github.event.before }}"
+            HEAD="${{ github.sha }}"
+          fi
+
+          # A new branch, a force push, or a squash-merge can leave a base that
+          # is absent or all-zeroes. Every one of those means we cannot prove
+          # what changed — so run everything. The failure mode of this step must
+          # be "too many tests", never "too few".
+          if [ -z "$BASE" ] \
+            || [ "$BASE" = "0000000000000000000000000000000000000000" ] \
+            || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            echo "Base commit unavailable — running the full suite."
+            echo "backend=true" >> "$GITHUB_OUTPUT"
+            echo "landing=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          CHANGED=$(git diff --name-only "$BASE" "$HEAD")
+          echo "Changed files:"
+          echo "$CHANGED" | sed 's/^/  /'
+
+          # .github/ is in the backend set so a change to this very workflow can
+          # never talk its way out of being tested by the rules it just edited.
+          if echo "$CHANGED" | grep -qE '^(src/|package\.json|package-lock\.json|\.github/)'; then
+            echo "backend=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "backend=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          if echo "$CHANGED" | grep -qE '^landing/'; then
+            echo "landing=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "landing=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - run: npm ci
+        if: steps.scope.outputs.backend == 'true'
 
       - name: Check JS syntax
+        if: steps.scope.outputs.backend == 'true'
         run: |
           find src -name "*.js" -print0 | xargs -0 -n1 node --check
 
       - name: Login security tests
+        if: steps.scope.outputs.backend == 'true'
         run: npm test
 
+      # New, and not a speedup: CI has never built the landing site at all. A
+      # change that failed `next build` passed here and only fell over on
+      # Railway, after the merge. Landing changes now get a real check of their
+      # own instead of an unrelated one.
+      - name: Landing build
+        if: steps.scope.outputs.landing == 'true'
+        working-directory: landing
+        run: |
+          npm ci
+          npx next build
+
       - name: Boot smoke test
+        if: steps.scope.outputs.backend == 'true'
         run: |
           PORT=4100 \
           APP_BASE_URL=http://localhost:4100 \

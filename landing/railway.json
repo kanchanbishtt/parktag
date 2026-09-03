@@ -1,7 +1,27 @@
 {
   "$schema": "https://railway.app/railway.schema.json",
   "build": {
-    "builder": "RAILPACK"
+    "builder": "RAILPACK",
+    "//watchPatterns": [
+      "Without this, every push to main redeploys this service — including",
+      "backend-only commits that cannot change a single byte it serves. 367 of",
+      "the 408 commits in this repo never touch landing/, so the overwhelming",
+      "majority of this service's rebuilds have been wasted.",
+      "",
+      "src/backend/assets/analytics.js is listed on purpose even though it lives",
+      "outside landing/. The landing site loads that file at runtime from the app",
+      "(see the Script tag in app/layout.tsx) rather than bundling it, so a change",
+      "there does not require rebuilding this service at all. It is here as a",
+      "tripwire: if that file ever becomes a build-time import, this pattern is",
+      "already correct instead of silently serving a stale event map.",
+      "",
+      "Patterns are repo-root relative. Verify on the next backend-only merge:",
+      "this service should report no new deployment."
+    ],
+    "watchPatterns": [
+      "landing/**",
+      "src/backend/assets/analytics.js"
+    ]
   },
   "deploy": {
     "startCommand": "npm start",

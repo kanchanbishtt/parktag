@@ -335,6 +335,127 @@
 .gt-shot img { width: 100%; max-width: 320px; height: auto; }
 .gt-shot-c { margin: 10px 0 0; font-size: .76rem; color: var(--gt-ink-3); }
 
+/* ── The sticker, catching the light ─────────────────────────────────────
+ *
+ * The tag is the product, and it was sitting on the page as a flat asset. A
+ * slow highlight crossing it, and a small turn towards the reader, is enough
+ * to read as a physical card rather than a screenshot.
+ *
+ * NOT a flip. A flip needs a back, and there is no artwork for one — the only
+ * sticker asset is this single flat shot of both panels. Inventing a reverse
+ * side here would mean drawing product that does not exist.
+ *
+ * The turn is deliberately small (6deg). The QR is the whole point of the
+ * image, and a QR skewed hard enough to be dramatic is a QR a camera argues
+ * with — the animation must never make the thing it is advertising look
+ * unscannable. */
+
+.gt-shot { perspective: 1000px; }
+
+.gt-shot-card {
+  position: relative;
+  /* Sized explicitly and centred, rather than shrink-to-fit around the image.
+     An inline-block wrapping a `width: 100%` child is a circular constraint
+     that engines resolve differently, and the image already carries
+     `width: 100%` from the rule above. */
+  display: block;
+  width: 100%;
+  max-width: 320px;
+  margin-inline: auto;
+  border-radius: 12px;
+  /* Clips the sheen to the card's corners. Also makes the element its own
+     stacking context, so the ::after cannot escape over the caption. */
+  overflow: hidden;
+  /* Driven from JS, which writes the two angles as it follows the pointer.
+     Declared here with zero defaults so the card is flat — and stays flat —
+     on every device that never sends a pointer. */
+  transform: perspective(1000px)
+             rotateX(var(--gt-rx, 0deg))
+             rotateY(var(--gt-ry, 0deg));
+  transition: transform .55s cubic-bezier(.22, .61, .36, 1), box-shadow .55s ease;
+}
+
+/* While the pointer is on the card the transform must keep up with it, so the
+   long easing above is cut to something that still smooths the jitter between
+   frames without dragging behind the cursor. The slow curve is what plays on
+   the way OUT, when the card settles back to flat. */
+.gt-shot-card.is-tilting {
+  /* Short enough to feel attached to the cursor, long enough to smooth the
+     step between frames. This is the lag dial: raise it and the card floats
+     after the pointer, drop it to 0 and the tilt is exactly 1:1. */
+  transition: transform .06s linear, box-shadow .3s ease;
+  box-shadow: 0 18px 36px rgba(11, 22, 51, .18);
+}
+
+/* The image is already capped by `.gt-shot img`; inside the card it should
+   simply fill whatever width the card has been given. */
+.gt-shot-card img { display: block; max-width: 100%; }
+
+/* The sheen itself. Kept at opacity 0 and off to the left until something
+   plays it, so nothing is visible on a page that never triggers it. */
+.gt-shot-card::after {
+  content: "";
+  position: absolute;
+  inset: -20% -60%;
+  background: linear-gradient(
+    105deg,
+    rgba(255, 255, 255, 0) 42%,
+    rgba(255, 255, 255, .58) 50%,
+    rgba(255, 255, 255, 0) 58%
+  );
+  opacity: 0;
+  transform: translateX(-100%);
+  pointer-events: none;
+}
+
+@keyframes gt-sheen {
+  0%   { opacity: 0; transform: translateX(-100%); }
+  12%  { opacity: 1; }
+  88%  { opacity: 1; }
+  100% { opacity: 0; transform: translateX(100%); }
+}
+
+/* One pass when it first scrolls into view. The section is below the fold and
+   lazy-loaded, and on a phone there is no hover at all — without this the
+   animation would simply never run for most visitors. */
+.gt-shot-card.is-shine::after { animation: gt-sheen 1.15s ease-out both; }
+
+/* The glare under the cursor.
+ *
+ * The sweep above is a fixed left-to-right pass; this is the part that follows
+ * the pointer. A soft radial highlight sits wherever the cursor is, so the card
+ * behaves like something with a gloss on it rather than something that plays a
+ * canned animation when touched.
+ *
+ * Its position comes from the same JS that writes the tilt, so the light and
+ * the turn always agree about where the pointer is. */
+.gt-shot-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: radial-gradient(
+    38% 55% at var(--gt-mx, 50%) var(--gt-my, 50%),
+    rgba(255, 255, 255, .42) 0%,
+    rgba(255, 255, 255, .16) 45%,
+    rgba(255, 255, 255, 0) 78%
+  );
+  opacity: 0;
+  transition: opacity .22s ease;
+  pointer-events: none;
+}
+
+.gt-shot-card.is-tilting::before { opacity: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  .gt-shot-card,
+  .gt-shot-card.is-tilting { transition: none; transform: none; box-shadow: none; }
+  .gt-shot-card::after,
+  .gt-shot-card.is-shine::after { animation: none; opacity: 0; }
+  .gt-shot-card::before,
+  .gt-shot-card.is-tilting::before { opacity: 0; }
+}
+
 /* ── Packs ───────────────────────────────────────────────────────────── */
 
 .gt-packs { list-style: none; display: grid; gap: 10px; margin: 0; padding: 0; }

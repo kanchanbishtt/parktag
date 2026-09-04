@@ -275,6 +275,119 @@ async function showRecall() {
   }
 }
 
+// Play the sticker's sheen once, the first time it is actually looked at.
+//
+// Hover alone would not do: the section sits below the fold, and on a phone —
+// which is most of this page's traffic — there is no hover to give. So the
+// pass is triggered by the card entering the viewport, once, and the observer
+// releases itself immediately afterwards.
+//
+// Everything here degrades to "no animation", which is the correct failure:
+// the sticker is a still image and the page is complete without it moving.
+function wireShotSheen() {
+  const card = byId("gtShot");
+  if (!card) return;
+
+  // Asked in JS as well as in CSS. The stylesheet already refuses to animate
+  // under reduced motion, but there is no reason to run an observer, or listen
+  // for a pointer, only to set values that are then ignored.
+  const still = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)");
+  if (still && still.matches) return;
+
+  // Wired first, and independently: following the pointer has nothing to do
+  // with whether this browser can tell us the card is on screen.
+  wireShotTilt(card);
+
+  if (typeof IntersectionObserver !== "function") return;
+
+  const seen = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        entry.target.classList.add("is-shine");
+        seen.disconnect(); // once is charming; on every scroll past is not
+      }
+    },
+    // Enough of the card on screen that the sweep is watched rather than
+    // caught in the corner of the eye on its way past.
+    { threshold: 0.45 }
+  );
+
+  seen.observe(card);
+}
+
+// The card leans towards wherever the pointer is, instead of snapping to one
+// fixed angle the moment it is hovered.
+//
+// A single hover transform gives every visitor the same canned turn no matter
+// where they came at it from, which reads as an animation playing. Tracking the
+// pointer reads as an object being looked at: the corner nearest the cursor
+// comes forward, the far one drops away, and the glare sits under the cursor
+// because that is where light would be.
+//
+// The angles are written as custom properties and composed by the stylesheet,
+// so the transform stays in CSS and this only supplies two numbers.
+const TILT_MAX_DEG = 9;
+
+function wireShotTilt(card) {
+  // A mouse, not a finger. On a touchscreen there is no cursor to follow, a tap
+  // would leave the card stuck at whatever angle the finger lifted from, and
+  // `pointerenter` fires there too — so the capability is checked rather than
+  // assumed. Hybrid laptops match, which is correct: they have both.
+  const fine = window.matchMedia && window.matchMedia("(hover: hover) and (pointer: fine)");
+  if (!fine || !fine.matches) return;
+
+  let frame = 0;
+
+  function flat() {
+    if (frame) { cancelAnimationFrame(frame); frame = 0; }
+    card.classList.remove("is-tilting");
+    // Removed rather than zeroed, so the resting angle is the stylesheet's
+    // default and there is one place that decides what "flat" means.
+    card.style.removeProperty("--gt-rx");
+    card.style.removeProperty("--gt-ry");
+  }
+
+  function track(event) {
+    if (event.pointerType === "touch") return;
+    // One update per painted frame. pointermove fires far more often than the
+    // screen refreshes, and every extra call would be a layout read thrown away.
+    if (frame) return;
+    frame = requestAnimationFrame(() => {
+      frame = 0;
+      const box = card.getBoundingClientRect();
+      if (!box.width || !box.height) return;
+
+      // Where the pointer is across the card, 0 to 1.
+      const x = (event.clientX - box.left) / box.width;
+      const y = (event.clientY - box.top) / box.height;
+
+      // Centre is flat; the edges are the extremes.
+      //
+      // CSS rotates by the right-hand rule, so a positive rotateY turns the
+      // card's right edge away from the viewer and a positive rotateX turns
+      // its top edge away. Feeding the offsets in directly therefore swings
+      // the FAR side towards the reader as the pointer moves — the card opens
+      // out from the cursor rather than lifting under it. That is the chosen
+      // behaviour here; inverting both signs is what swaps it.
+      card.style.setProperty("--gt-ry", ((x - 0.5) * 2 * TILT_MAX_DEG).toFixed(2) + "deg");
+      card.style.setProperty("--gt-rx", ((0.5 - y) * 2 * TILT_MAX_DEG).toFixed(2) + "deg");
+      card.style.setProperty("--gt-mx", (x * 100).toFixed(1) + "%");
+      card.style.setProperty("--gt-my", (y * 100).toFixed(1) + "%");
+    });
+  }
+
+  card.addEventListener("pointerenter", (event) => {
+    if (event.pointerType === "touch") return;
+    card.classList.add("is-tilting");
+  });
+  card.addEventListener("pointermove", track);
+  card.addEventListener("pointerleave", flat);
+  // A pointer that is cancelled — dragged away, interrupted, the window losing
+  // it — never sends `pointerleave`, and the card would stay tilted for good.
+  card.addEventListener("pointercancel", flat);
+}
+
 function showSheet() {
   byId("gtSheetBd").hidden = false;
   byId("gtSheet").hidden = false;
@@ -463,6 +576,7 @@ async function load() {
   // After the page is usable, never in front of it. A returning buyer's order
   // matters, but not more than the shop rendering.
   showRecall();
+  wireShotSheen();
 
   // Fired once the prices are actually on screen, not on DOMContentLoaded, so
   // "viewed the item" means a price was seen rather than that the page began

@@ -147,14 +147,20 @@
            Dimensions are stated so the section cannot reflow as the image
            decodes, and it is lazy-loaded because it sits below the fold. -->
       <figure class="gt-shot">
-        <img
-          src="/images/final-landing-sticker.png"
-          width="1000"
-          height="600"
-          loading="lazy"
-          decoding="async"
-          alt="The ParkTag windscreen sticker: scan the code to contact the vehicle owner, with call and WhatsApp buttons"
-        />
+        <!-- The image is wrapped so the sheen can be laid over the STICKER and
+             clipped to its corners. Putting it on the figure would sweep the
+             padding and the caption too, which reads as the panel flashing
+             rather than as light crossing a card. -->
+        <div class="gt-shot-card" id="gtShot">
+          <img
+            src="/images/final-landing-sticker.png"
+            width="1000"
+            height="600"
+            loading="lazy"
+            decoding="async"
+            alt="The ParkTag windscreen sticker: scan the code to contact the vehicle owner, with call and WhatsApp buttons"
+          />
+        </div>
         <figcaption class="gt-shot-c">Sticks inside the windscreen. Scannable from outside.</figcaption>
       </figure>
 

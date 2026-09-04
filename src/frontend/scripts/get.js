@@ -15,6 +15,14 @@
 // rather than anything billed, and which is only rendered when it is genuinely
 // above the price being charged.
 
+import {
+  RECALL_CHECK,
+  RECALL_MAX,
+  RECALL_TTL,
+  missIsStale,
+  recallDecision
+} from "./get-recall.js";
+
 // Display-only. `orig` is the struck-through "was" price, which is marketing
 // copy rather than anything charged, so it belongs on this side.
 const PACKS = [
@@ -194,10 +202,9 @@ let _busy = false;
 // what the buyer's browser does next. Nothing sensitive is stored: an order
 // number and the last four digits the buyer just typed, which is exactly the
 // pair /track-order already asks for and useless without each other.
+// The limits and the "what should this say" rules live in get-recall.js, so
+// they can be tested as rules rather than through a browser.
 const RECALL_KEY = "pt_get_orders";
-const RECALL_TTL = 60 * 864e5; // 60 days — past any delivery, and self-clearing
-const RECALL_MAX = 5;          // rows kept on the device
-const RECALL_CHECK = 3;        // newest rows checked on a visit
 
 function recallRead() {
   try {
@@ -241,9 +248,19 @@ function remember(orderNumber, address) {
 // landed yet also reads as 404, and dropping the record then would throw away
 // the buyer's only copy of the number at the exact moment it matters. Rows age
 // out on their own instead.
+// A row that has been missing for longer than a webhook could plausibly take
+// is dropped, so an abandoned checkout stops costing a request on every visit
+// for the next two months. Collected and written once at the end rather than
+// per miss, so one visit is one write.
 async function showRecall() {
   const rows = recallRead(); // prunes anything past the TTL as it reads
   if (!rows.length) return;
+
+  const abandoned = new Set();
+  const forget = () => {
+    if (!abandoned.size) return;
+    recallWrite(recallRead().filter((r) => !abandoned.has(r.n)));
+  };
 
   for (const row of rows.slice(0, RECALL_CHECK)) {
     let data;
@@ -253,15 +270,30 @@ async function showRecall() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ orderNumber: row.n, lastFour: row.f })
       });
-      if (!res.ok) continue;
+      if (!res.ok) {
+        if (missIsStale(row)) abandoned.add(row.n);
+        continue;
+      }
       data = await res.json();
     } catch {
-      return; // offline: the rows stay, and the next visit tries again
+      // Offline. Every row stays, including ones that looked stale a moment
+      // ago — a network that is down is not evidence about any order.
+      return;
     }
-    if (!data || !data.ok || !data.order) continue;
+    if (!data || !data.ok || !data.order) {
+      if (missIsStale(row)) abandoned.add(row.n);
+      continue;
+    }
+
+    // What the bar should say, and whether it has any business being here at
+    // all. It used to say one fixed sentence for 60 days, which meant it went
+    // on claiming an order was travelling for weeks after it had arrived.
+    const { show, headline } = recallDecision(data.order);
+    if (!show) continue;
 
     const bar = byId("gtRecall");
-    if (!bar) return;
+    if (!bar) break;
+    byId("gtRecallH").textContent = headline;
     // The status itself lives on the track page. Naming it here too would mean
     // a second copy of its label map, and the two would drift.
     byId("gtRecallS").textContent = data.order.productName
@@ -271,8 +303,10 @@ async function showRecall() {
     // opens the order, and a proof does not belong in browser history.
     bar.href = `/track-order?order=${encodeURIComponent(row.n)}`;
     bar.hidden = false;
-    return;
+    break;
   }
+
+  forget();
 }
 
 function showSheet() {

@@ -1,5 +1,8 @@
 "use client";
 
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faAmazon } from "@fortawesome/free-brands-svg-icons";
+
 // Secondary buy path. The primary one is APP_URL/shop, which we own end to end
 // and which fires begin_checkout and purchase. This one leaves for Amazon, so
 // buy_on_amazon is the last event we will ever see on the journey — Amazon does
@@ -16,25 +19,6 @@ declare global {
   interface Window {
     ptTrack?: (name: string, params?: Record<string, unknown>) => void;
   }
-}
-
-function AmazonGlyph() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className="w-[16px] h-[16px] shrink-0"
-    >
-      <path d="M6 2h12l1 6H5z" />
-      <path d="M5 8h14v12H5z" />
-      <path d="M10 12h4" />
-    </svg>
-  );
 }
 
 export function BuyOnAmazonButton({ className, style }: { className?: string; style?: React.CSSProperties }) {
@@ -54,10 +38,10 @@ export function BuyOnAmazonButton({ className, style }: { className?: string; st
       }}
       className={
         className ??
-        "inline-flex items-center justify-center gap-2 border-2 border-[#03162D] text-[#03162D] font-bold px-6 py-3 rounded-xl hover:bg-[#03162D] hover:text-white transition-colors text-sm"
+        "inline-flex items-center justify-center gap-2 border-2 border-[#FF2700] text-[#FF2700] font-bold px-6 py-3 rounded-xl hover:bg-[#FF2700] hover:text-white transition-colors text-sm"
       }
     >
-      <AmazonGlyph />
+      <FontAwesomeIcon icon={faAmazon} className="w-4 h-4 shrink-0" />
       Buy on Amazon
     </a>
   );

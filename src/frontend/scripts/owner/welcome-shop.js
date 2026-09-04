@@ -52,7 +52,7 @@ const PRODUCTS = [
   // catalogue is keyed by id), so it is safe to arrange for layout.
   {
     id: "pt-combo",
-    name: "ParkTag Combo Pack",
+    name: "ParkTag Combo Tag (Pack of 2)",
     desc: "Car + Bike tags: the complete bundle for your entire fleet.",
     features: ["Masked Calls", "WhatsApp", "Emergency Contact", "One time buy"],
     price: 499,
@@ -64,12 +64,12 @@ const PRODUCTS = [
   },
   {
     id: "pt-bike-1",
-    name: "ParkTag Bike Tag",
-    desc: "For Bike & Helmet: weatherproof sticker with QR contact.",
+    name: "ParkTag Bike Tag (Pack of 2)",
+    desc: "Front and back of one two-wheeler: weatherproof stickers with QR contact.",
     features: ["Masked Calls", "WhatsApp", "Emergency Contact", "One time buy"],
-    price: 299,
-    orig: 399,
-    discount: 25,
+    price: 499,
+    orig: 799,
+    discount: 38,
     variants: ["Bike", "Scooter", "Helmet"],
     image: "/images/shop-bike.webp",
     imageDesktop: "/images/shop-bike-desktop.webp",
@@ -450,12 +450,12 @@ function rowRupees(sku, fallbackRupees) {
   return typeof paise === "number" ? Math.round(paise / 100) : fallbackRupees;
 }
 
-const PACK_PRICES = { "pt-car-1": 299, "pt-car-2": 499, "pt-car-4": 899, bike: 299 };
+const PACK_PRICES = { "pt-car-1": 299, "pt-car-2": 499, "pt-car-4": 899, bike: 499 };
 const PACK_NAMES = {
   "pt-car-1": "ParkTag Car Tag (Pack of 1)",
   "pt-car-2": "ParkTag Car Tag (Pack of 2)",
   "pt-car-4": "ParkTag Car Tag (2 Cars · Pack of 4)",
-  "pt-bike-1": "ParkTag Bike Tag"
+  "pt-bike-1": "ParkTag Bike Tag (Pack of 2)"
 };
 // Solid car/bike artwork (inline SVG — scalable, theme-coloured, no extra request).
 const PACK_CAR_ICON = `<svg width="27" height="27" viewBox="0 0 512 512" aria-hidden="true"><path fill="#03162D" d="M256 92c-71.6 0-110 6.4-125.9 20.6-13.8 12.3-24.6 42.4-37.9 96.4-6.3 3.7-12.4 9.2-18.6 17C58.7 244.8 46.5 271.6 46.5 300.4v112.2c0 15.9 12.9 28.8 28.8 28.8h41c15.9 0 28.8-12.9 28.8-28.8v-25.2c41.9 3.9 90.3 5.6 111.9 5.6s70-1.7 111.9-5.6v25.2c0 15.9 12.9 28.8 28.8 28.8h41c15.9 0 28.8-12.9 28.8-28.8V300.4c0-28.8-12.2-55.6-27.1-74.4-6.2-7.8-12.3-13.3-18.6-17-13.3-54-24.1-84.1-37.9-96.4C366 98.4 327.6 92 256 92z"/><path fill="#fff" d="M256 130c-53.7 0-84.4 4.3-94.7 14.2-8.4 8-16.6 31.4-25.2 65.6-2 8 2.6 13.9 12.4 13 31.1-2.9 68.2-4.1 107.5-4.1s76.4 1.2 107.5 4.1c9.8.9 14.4-5 12.4-13-8.6-34.2-16.8-57.6-25.2-65.6C340.4 134.3 309.7 130 256 130z"/><circle fill="#fff" cx="148" cy="332" r="35"/><circle fill="#fff" cx="364" cy="332" r="35"/><rect fill="#fff" x="196" y="315" width="120" height="46" rx="23"/></svg>`;

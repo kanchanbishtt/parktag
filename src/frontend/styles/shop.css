@@ -1,0 +1,470 @@
+/* The public shop at /shop.
+ *
+ * Its own stylesheet rather than a section of styles.css: this is the page a
+ * stranger reaches from every buy button on the marketing site, it carries no
+ * dashboard chrome, and every rule is scoped .sh-* so nothing leaks into the
+ * signed-in app.
+ *
+ * A product grid, not a long-form landing page. The marketing site already
+ * makes the argument; by the time somebody is here they want to see the packs,
+ * the prices and a button, in that order. */
+
+:root {
+  --sh-ink: #03162D;
+  --sh-ink-2: #41506A;
+  --sh-ink-3: #7A879B;
+  --sh-red: #FF2700;
+  --sh-red-hover: #D92200;
+  --sh-line: #E4E9F0;
+  --sh-card: #FFFFFF;
+  --sh-ground: #F6F8FB;
+  --sh-img-ground: #EEF1F5;
+  --sh-ok-bg: #E8F7EE;
+  --sh-ok-ink: #1B7A46;
+  --sh-navy-tint: #EAF0F7;
+
+  --sh-wrap: 1120px;
+  --sh-gutter: 20px;
+}
+
+* { box-sizing: border-box; }
+
+/* Author display rules (display: flex on .sh-recall) outrank the browser's own
+ * [hidden] { display: none }, so without this the recall bar renders empty. */
+[hidden] { display: none !important; }
+
+.sh-body {
+  margin: 0;
+  background: var(--sh-ground);
+  color: var(--sh-ink);
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────────────
+ * One base for every tappable control. 44px is the floor: the size a fingertip
+ * lands on, and the number below which a control starts being missed. */
+.sh-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 10px 18px;
+  border-radius: 12px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform .14s, box-shadow .14s, background-color .14s;
+}
+.sh-btn:active { transform: translateY(1px); }
+
+/* The brand's primary: accent on white, per components/actions/Button.jsx in
+ * the guideline. Red is spent on the one thing that matters here, Order. */
+.sh-btn-primary {
+  background: var(--sh-red);
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(255, 39, 0, .30);
+}
+.sh-btn-primary:hover {
+  background: var(--sh-red-hover);
+  box-shadow: 0 6px 20px rgba(255, 39, 0, .40);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sh-btn { transition: none; }
+  .sh-btn:active { transform: none; }
+}
+
+/* ── Header ──────────────────────────────────────────────────────────── */
+
+.sh-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px max(16px, calc((100% - var(--sh-wrap)) / 2 + var(--sh-gutter)));
+  background: var(--sh-ink);
+  border-bottom: 1px solid rgba(255, 255, 255, .08);
+}
+.sh-logo img { display: block; height: 34px; width: auto; }
+
+.sh-header-nav { display: flex; align-items: center; gap: 6px; }
+
+.sh-header-link {
+  color: rgba(255, 255, 255, .7);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  padding: 8px 10px;
+  border-radius: 10px;
+}
+.sh-header-link:hover { color: #fff; }
+
+.sh-signin {
+  min-height: 38px;
+  padding: 8px 14px;
+  font-size: 14px;
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, .28);
+  background: transparent;
+}
+.sh-signin:hover { background: rgba(255, 255, 255, .08); border-color: rgba(255, 255, 255, .5); }
+
+/* ── Layout ──────────────────────────────────────────────────────────── */
+
+.sh-main {
+  max-width: var(--sh-wrap);
+  margin: 0 auto;
+  padding: 24px var(--sh-gutter) 64px;
+}
+
+/* ── Order recall ───────────────────────────────────────────────────── */
+
+.sh-recall {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--sh-navy-tint);
+  color: var(--sh-ink);
+  text-decoration: none;
+}
+.sh-recall-i {
+  display: grid;
+  place-items: center;
+  width: 36px; height: 36px;
+  border-radius: 10px;
+  background: #fff;
+  color: var(--sh-ink);
+  flex-shrink: 0;
+}
+.sh-recall-i svg { width: 20px; height: 20px; }
+.sh-recall-b { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.sh-recall-b strong { font-size: 14px; }
+.sh-recall-b span { font-size: 12.5px; color: var(--sh-ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sh-recall-go { font-size: 13px; font-weight: 700; color: var(--sh-red); white-space: nowrap; }
+
+/* ── Intro ───────────────────────────────────────────────────────────── */
+
+.sh-intro { padding: 28px 0 32px; max-width: 560px; }
+
+.sh-eyebrow {
+  margin: 0 0 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--sh-ink-3);
+}
+.sh-title {
+  margin: 0 0 12px;
+  font-size: clamp(32px, 5vw, 48px);
+  font-weight: 800;
+  letter-spacing: -.02em;
+  line-height: 1.05;
+}
+.sh-lede {
+  margin: 0;
+  font-size: 16.5px;
+  line-height: 1.55;
+  color: var(--sh-ink-2);
+}
+
+/* ── Grid ────────────────────────────────────────────────────────────── */
+
+.sh-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+}
+
+.sh-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--sh-card);
+  border: 1px solid var(--sh-line);
+  border-radius: 18px;
+  overflow: hidden;
+  transition: box-shadow .2s, transform .2s;
+}
+.sh-card:hover { box-shadow: 0 14px 34px rgba(3, 22, 45, .10); }
+@media (prefers-reduced-motion: no-preference) {
+  .sh-card:hover { transform: translateY(-2px); }
+}
+
+/* A card the visitor arrived at with ?sku= in the URL. */
+.sh-card-hi { border-color: var(--sh-red); box-shadow: 0 0 0 3px rgba(255, 39, 0, .14); }
+
+/* Image area: the same 4:3 ground for every pack so the row reads as one
+ * shelf, with the artwork contained rather than cropped. */
+.sh-card-media {
+  padding: 18px;
+  background: var(--sh-img-ground);
+}
+.sh-card-img {
+  display: block;
+  width: 100%;
+  height: auto; /* the width/height attributes exist for layout stability; aspect-ratio sizes the box */
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 10px;
+}
+
+.sh-badge {
+  position: absolute;
+  top: 12px; left: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px 5px 8px;
+  border-radius: 999px;
+  background: var(--sh-ink);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+/* The caution yellow from the hero band: the one place it appears on this page. */
+.sh-badge svg { width: 13px; height: 13px; color: #FEE600; }
+
+.sh-card-bd {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px 16px 8px;
+  flex: 1;
+}
+.sh-card-n {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1.25;
+  letter-spacing: -.01em;
+}
+.sh-rating { display: flex; align-items: center; gap: 6px; }
+.sh-stars { position: relative; display: inline-block; height: 16px; line-height: 0; }
+.sh-stars-bg, .sh-stars-fg { display: inline-flex; gap: 1px; white-space: nowrap; }
+.sh-stars-bg { color: #D5DBE4; }
+.sh-stars-fg { position: absolute; inset: 0 auto 0 0; overflow: hidden; color: var(--sh-ink); }
+.sh-stars svg { width: 16px; height: 16px; flex-shrink: 0; }
+.sh-rating-v { font-size: 14px; font-weight: 700; }
+.sh-rating-c { font-size: 13px; color: var(--sh-ink-3); }
+
+.sh-card-d {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--sh-ink-2);
+}
+
+.sh-card-ft {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 16px 16px;
+}
+.sh-price { display: flex; align-items: baseline; gap: 8px; }
+.sh-price-now { font-size: 22px; font-weight: 800; letter-spacing: -.01em; }
+.sh-price-was { font-size: 14px; color: var(--sh-ink-3); text-decoration: line-through; }
+
+.sh-card-cta { padding: 10px 16px; font-size: 14px; white-space: nowrap; }
+
+/* ── Skeletons ───────────────────────────────────────────────────────── */
+
+.sh-sk { padding-bottom: 16px; gap: 10px; }
+.sh-sk-img { display: block; aspect-ratio: 4 / 3; background: var(--sh-img-ground); }
+.sh-sk-line {
+  display: block;
+  height: 14px;
+  margin: 0 16px;
+  border-radius: 7px;
+  background: linear-gradient(90deg, #EEF1F5 25%, #F6F8FB 50%, #EEF1F5 75%);
+  background-size: 200% 100%;
+  animation: sh-shimmer 1.2s infinite;
+}
+.sh-sk-line:first-of-type { margin-top: 16px; }
+.sh-sk-short { width: 45%; }
+@keyframes sh-shimmer { to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .sh-sk-line { animation: none; } }
+
+.sh-note {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #FFF2EF;
+  color: #B31C00;
+  font-size: 14px;
+}
+
+/* ── Terms row ───────────────────────────────────────────────────────── */
+
+.sh-trust {
+  list-style: none;
+  margin: 36px 0 0;
+  padding: 18px 0 0;
+  border-top: 1px solid var(--sh-line);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px 28px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--sh-ink-2);
+}
+.sh-trust li { display: inline-flex; align-items: center; gap: 8px; }
+.sh-trust svg { width: 18px; height: 18px; color: var(--sh-red); flex-shrink: 0; }
+.sh-trust-sub { font-weight: 500; color: var(--sh-ink-3); }
+
+/* ── Info cards ──────────────────────────────────────────────────────── */
+
+.sh-cards {
+  list-style: none;
+  margin: 28px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+.sh-info {
+  display: flex;
+  gap: 14px;
+  padding: 20px;
+  background: var(--sh-card);
+  border: 1px solid var(--sh-line);
+  border-radius: 16px;
+}
+.sh-info-i {
+  display: grid;
+  place-items: center;
+  width: 44px; height: 44px;
+  border-radius: 12px;
+  background: #FFF2EF;
+  color: var(--sh-red);
+  flex-shrink: 0;
+}
+.sh-info-i svg { width: 22px; height: 22px; }
+.sh-info-t { margin: 2px 0 4px; font-size: 16px; font-weight: 800; letter-spacing: -.01em; }
+.sh-info-d { margin: 0; font-size: 14px; line-height: 1.5; color: var(--sh-ink-2); }
+.sh-info-link { color: var(--sh-ink); font-weight: 700; text-decoration: underline; text-decoration-color: var(--sh-red); text-underline-offset: 3px; white-space: nowrap; }
+.sh-info-link:hover { color: var(--sh-red); }
+
+/* ── Footer ──────────────────────────────────────────────────────────── */
+
+.sh-footer {
+  background: #010D1A;
+  color: rgba(255, 255, 255, .7);
+  padding: 48px var(--sh-gutter) 28px;
+}
+.sh-footer-in {
+  max-width: var(--sh-wrap);
+  margin: 0 auto;
+  display: grid;
+  gap: 32px 24px;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 640px) { .sh-footer-in { grid-template-columns: 1.6fr 1fr 1fr 1fr; } }
+
+.sh-footer-brand img { display: block; height: 34px; width: auto; margin-bottom: 12px; }
+.sh-footer-brand p { margin: 0 0 16px; font-size: 14px; }
+.sh-footer-mail {
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 8px 14px;
+  border: 1px solid rgba(255, 255, 255, .35);
+  border-radius: 999px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.sh-footer-mail:hover { background: rgba(255, 255, 255, .08); border-color: rgba(255, 255, 255, .6); }
+
+.sh-footer-col { display: flex; flex-direction: column; gap: 10px; }
+.sh-footer-col h3 {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: #fff;
+}
+.sh-footer-col a { color: rgba(255, 255, 255, .7); font-size: 14px; text-decoration: none; }
+.sh-footer-col a:hover { color: #fff; }
+
+.sh-footer-copy {
+  max-width: var(--sh-wrap);
+  margin: 36px auto 0;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255, 255, 255, .1);
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, .45);
+}
+
+/* ── Confirmation sheet ──────────────────────────────────────────────── */
+
+.sh-sheet-bd {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgba(3, 22, 45, .55);
+}
+.sh-sheet {
+  position: fixed;
+  z-index: 41;
+  left: 50%;
+  bottom: 0;
+  width: min(100%, 520px);
+  transform: translateX(-50%);
+  background: #fff;
+  border-radius: 20px 20px 0 0;
+  padding: 28px 22px calc(22px + env(safe-area-inset-bottom));
+  box-shadow: 0 -12px 40px rgba(3, 22, 45, .18);
+}
+@media (min-width: 640px) {
+  .sh-sheet {
+    top: 50%;
+    bottom: auto;
+    transform: translate(-50%, -50%);
+    border-radius: 20px;
+    padding-bottom: 24px;
+  }
+}
+.sh-done { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; }
+.sh-done-i {
+  display: grid;
+  place-items: center;
+  width: 56px; height: 56px;
+  border-radius: 50%;
+  background: var(--sh-ok-bg);
+  color: var(--sh-ok-ink);
+}
+.sh-done-i svg { width: 28px; height: 28px; }
+.sh-done-t { margin: 4px 0 0; font-size: 22px; font-weight: 800; }
+.sh-done-s { margin: 0 0 8px; font-size: 14.5px; line-height: 1.5; color: var(--sh-ink-2); }
+.sh-done .sh-btn-primary { width: 100%; }
+.sh-done-x {
+  margin-top: 2px;
+  background: none;
+  border: 0;
+  color: var(--sh-ink-2);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 10px;
+  cursor: pointer;
+}

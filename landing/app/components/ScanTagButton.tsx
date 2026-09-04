@@ -111,7 +111,11 @@ function QrGlyph() {
   );
 }
 
-export function ScanTagButton({ appUrl }: { appUrl: string }) {
+export function ScanTagButton({
+  appUrl,
+  className,
+  label = "Scan a Tag",
+}: { appUrl: string; className?: string; label?: string }) {
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState("");
 
@@ -180,7 +184,7 @@ export function ScanTagButton({ appUrl }: { appUrl: string }) {
       const Detector = getBarcodeDetectorCtor();
       if (!Detector) {
         setStatus(
-          "Live scanning isn't supported on this browser. Open your phone's camera app and point it at the tag's QR — it opens the same page."
+          "Live scanning isn't supported on this browser. Open your phone's camera app and point it at the tag's QR. It opens the same page."
         );
         return;
       }
@@ -190,7 +194,7 @@ export function ScanTagButton({ appUrl }: { appUrl: string }) {
         detector = new Detector({ formats: ["qr_code"] });
       } catch {
         setStatus(
-          "Live scanning isn't supported on this browser. Open your phone's camera app and point it at the tag's QR — it opens the same page."
+          "Live scanning isn't supported on this browser. Open your phone's camera app and point it at the tag's QR. It opens the same page."
         );
         return;
       }
@@ -239,11 +243,11 @@ export function ScanTagButton({ appUrl }: { appUrl: string }) {
           const url = resolveTagUrl(codes[0]?.rawValue ?? "", appUrl);
           if (url) {
             doneRef.current = true;
-            setStatus("Tag found — opening…");
+            setStatus("Tag found, opening…");
             stopStream();
             window.location.href = url;
           } else {
-            setStatus("That QR isn't a ParkTag — try another.");
+            setStatus("That QR isn't a ParkTag. Try another.");
           }
         } catch {
           // Frame not ready yet; the next tick retries.
@@ -263,10 +267,10 @@ export function ScanTagButton({ appUrl }: { appUrl: string }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="group inline-flex items-center gap-2.5 border border-[#FF2700] hover:bg-[#FF2700]/10 text-white font-semibold px-7 py-3.5 rounded-xl text-base transition-colors"
+        className={className ?? "group inline-flex items-center gap-2.5 border border-[#FF2700] hover:bg-[#FF2700]/10 text-white font-semibold px-7 py-3.5 rounded-xl text-base transition-colors"}
       >
         <QrGlyph />
-        Scan a Tag
+        {label}
       </button>
 
       {/* Portalled to <body> on purpose. This button sits inside <AnimateIn>,

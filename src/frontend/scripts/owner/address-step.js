@@ -53,6 +53,19 @@
     check: '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m5 12.5 4.2 4.2L19 7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
   };
 
+  // States and union territories as the courier label needs them written. A
+  // dropdown, not a text box: "UP", "U.P." and "uttar pradesh" all reached the
+  // shipping sheet before, and a state that does not parse is a parcel that
+  // sits in a sorting hub.
+  var STATES = [
+    "Andaman and Nicobar Islands", "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar",
+    "Chandigarh", "Chhattisgarh", "Dadra and Nagar Haveli and Daman and Diu", "Delhi", "Goa",
+    "Gujarat", "Haryana", "Himachal Pradesh", "Jammu and Kashmir", "Jharkhand", "Karnataka",
+    "Kerala", "Ladakh", "Lakshadweep", "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya",
+    "Mizoram", "Nagaland", "Odisha", "Puducherry", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu",
+    "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal"
+  ];
+
   var FIELDS = [
     { key: "fullName", label: "Full name", type: "text", ph: "Recipient name", auto: "name" },
     { key: "phone", label: "Mobile number", type: "tel", ph: "10-digit mobile", auto: "tel", maxlength: 10, inputmode: "numeric" },
@@ -60,7 +73,7 @@
     { key: "line2", label: "Area / Locality (optional)", type: "text", ph: "Colony, sector", auto: "address-line2", optional: true },
     { key: "landmark", label: "Landmark (optional)", type: "text", ph: "Near…", optional: true },
     { key: "city", label: "City", type: "text", ph: "City", auto: "address-level2" },
-    { key: "state", label: "State", type: "text", ph: "State", auto: "address-level1" },
+    { key: "state", label: "State", type: "select", ph: "Select state", auto: "address-level1", options: STATES },
     { key: "pincode", label: "PIN code", type: "text", ph: "6-digit PIN", maxlength: 6, inputmode: "numeric" }
   ];
 
@@ -154,9 +167,14 @@
       ".pt-addr-f.pt-half+.pt-half{margin-left:8px;}",
       ".pt-addr-f label{display:block;font-size:.72rem;font-weight:700;letter-spacing:.01em;color:#374151;margin-bottom:5px;}",
       ".pt-req{color:var(--r);margin-left:3px;font-weight:800;}",
-      ".pt-addr-f input{width:100%;box-sizing:border-box;padding:12px 13px;border:1.5px solid var(--line);border-radius:13px;font-size:.94rem;color:var(--ink);background:#fff;outline:none;transition:border-color .15s,box-shadow .15s;}",
+      ".pt-addr-f input,.pt-addr-f select{width:100%;box-sizing:border-box;padding:12px 13px;border:1.5px solid var(--line);border-radius:13px;font-size:.94rem;color:var(--ink);background:#fff;outline:none;transition:border-color .15s,box-shadow .15s;}",
       ".pt-addr-f input::placeholder{color:#a8adb8;}",
-      ".pt-addr-f input:focus{border-color:var(--r);box-shadow:0 0 0 3.5px var(--tint);}",
+      ".pt-addr-f input:focus,.pt-addr-f select:focus{border-color:var(--r);box-shadow:0 0 0 3.5px var(--tint);}",
+      // Native menu, custom chevron. The empty option is the only invalid value
+      // a required select can hold, so :invalid is exactly "nothing chosen yet".
+      ".pt-addr-f select{-webkit-appearance:none;appearance:none;padding-right:38px;font-family:inherit;line-height:1.3;background:#fff url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2341506A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\") no-repeat right 12px center/18px;}",
+      ".pt-addr-f select:invalid{color:#a8adb8;}",
+      ".pt-addr-f select option{color:var(--ink);}",
       "#pt-addr-err{display:none;background:#fdecec;color:#c0271b;font-size:.8rem;font-weight:600;padding:10px 13px;border-radius:11px;margin-bottom:13px;}",
       "#pt-addr-err.pt-show{display:block;}",
 
@@ -213,8 +231,19 @@
       // the labels already use to write "(optional)" — and the two can't drift.
       var star = f.optional ? "" : '<span class="pt-req" aria-hidden="true">*</span>';
       var req = f.optional ? "" : " required aria-required=\"true\"";
+      var control;
+      if (f.type === "select") {
+        // The empty first option is what `required` rejects, so an untouched
+        // dropdown reads as invalid and shows the placeholder colour.
+        control = '<select id="pt-addr-' + f.key + '"' + (f.auto ? ' autocomplete="' + f.auto + '"' : "") + req + ">" +
+          '<option value="">' + f.ph + "</option>" +
+          f.options.map(function (o) { return "<option>" + o + "</option>"; }).join("") +
+          "</select>";
+      } else {
+        control = "<input " + attrs + req + ">";
+      }
       return '<div class="pt-addr-f' + (half ? " pt-half" : "") + '"><label for="pt-addr-' + f.key + '">' +
-        f.label + star + "</label><input " + attrs + req + "></div>";
+        f.label + star + "</label>" + control + "</div>";
     }).join("");
 
     var secure =

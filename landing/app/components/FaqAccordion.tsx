@@ -24,8 +24,36 @@ const FAQS = [
     a: "Any vehicle: cars, bikes, scooters, EVs, autos, trucks, bicycles. If it parks, it can use ParkTag.",
   },
   {
+    // The one thing a buyer is entitled to know before paying and could not
+    // find anywhere on this site. Every tag includes a year of masked calling;
+    // what happens on day 366 was documented only in the backend.
+    //
+    // Worth being exact about what lapses, because it is narrower than it
+    // sounds and the honest version is the better one: callEntitlement()
+    // returns masking:false for a lapsed tag, and masking:false blocks the call
+    // — it does not place an unmasked one. The scanner is told "Calling isn't
+    // available for this vehicle right now. You can still leave a message."
+    // The number is never exposed in any tier, so this answer does not walk
+    // back the "Will my phone number be shared? Never." answer above it.
+    //
+    // No renewal price is quoted because there is no renewal to buy yet: there
+    // is no checkout and no billing job behind tag.callSubscription. Naming a
+    // figure here would be inventing one.
+    q: "What happens after the first year?",
+    a: "Every tag includes one year of masked calling. After that, the tag keeps working. Anyone who scans it can still reach you and leave a message, and your number stays private exactly as before. The one thing that pauses is the masked phone call, until you renew. Renewals are not on sale yet; when they are, you will be able to switch calling back on from your dashboard.",
+  },
+  {
+    // The refund policy already covers defects; it was reachable only from a
+    // footer link, which is not where somebody weighing up ₹499 is looking.
+    q: "What if the tag arrives damaged or faulty?",
+    a: "Tell us within 7 days of delivery with an unboxing photo or video and your order ID, and we will replace it. Unused, unscanned tags in their original packaging can also be returned within 7 days. Approved refunds go back to the original payment method in 7–10 business days.",
+  },
+  {
     q: "How long does delivery take?",
-    a: "We ship within 1–2 business days. Delivery takes 2–4 business days across India. A tracking number is sent once dispatched.",
+    // Delivery is free and COD exists, both of which the app's own shop says
+    // and this page did not. The ₹50 COD figure is the surcharge the checkout
+    // actually applies, not a rounded guess.
+    a: "Delivery is free on every order, anywhere in India. We ship within 1–2 business days and delivery takes 2–4 business days, with a tracking number once dispatched. Cash on Delivery is available and adds a ₹50 handling fee, so a ₹499 pack is ₹549 when the courier collects it.",
   },
 ];
 

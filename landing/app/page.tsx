@@ -2,14 +2,21 @@ import Link from "next/link";
 import { SiteHeader } from "./components/SiteHeader";
 import { FaqAccordion } from "./components/FaqAccordion";
 import { AnimateIn } from "./components/AnimateIn";
-import { Marquee } from "./components/Marquee";
 import { VehicleRotator } from "./components/VehicleRotator";
 import { GetStartedButton } from "./components/GetStartedButton";
-import { ScanTagButton } from "./components/ScanTagButton";
 import { BuyOnAmazonButton } from "./components/BuyOnAmazonButton";
-import { OrderOnWhatsAppButton } from "./components/OrderOnWhatsAppButton";
 import { HazardStripe } from "./components/HazardStripe";
+import { SectionLabel } from "./components/SectionLabel";
+import { WhatIsParkTag } from "./components/WhatIsParkTag";
+import { TrustStrip } from "./components/TrustStrip";
+import { HowItWorksSteps } from "./components/HowItWorksSteps";
+import { WhyBetter } from "./components/WhyBetter";
 
+// Buy buttons point at /shop, which is the public storefront: packs, prices
+// and a guest checkout, no login. It used to be an intent route that sent a
+// signed-out visitor to /owner-login before a single price was visible
+// (docs/SHOP_LOGIN_WALL.md); the storefront built to fix that lived at /get
+// and nothing linked to it. It now lives at /shop, and /get redirects there.
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.parktag.me";
 
 
@@ -179,87 +186,158 @@ export default function Home() {
       <main className="flex-1 pt-16">
 
         {/* ── HERO ── */}
-        <section data-nav-dark className="bg-[#03162D] pt-8 pb-0">
+        {/* pb-0 only once the grid is side by side. Stacked, the sticker is the
+            last thing in the column and pb-0 dropped it flush onto the caution
+            band, so the artwork and the stripe collided with no air between
+            them. On desktop the image still runs to the section edge, which is
+            deliberate. */}
+        <section data-nav-dark className="relative bg-[#03162D] pt-8 pb-24 md:pb-16">
           <div className="max-w-6xl mx-auto px-4 sm:px-6">
             <div className="grid md:grid-cols-2 gap-10 items-center min-h-[520px]">
 
               <AnimateIn from="bottom" delay={0} className="py-12 md:py-16">
-                <h1 className="text-[2.6rem] sm:text-5xl font-extrabold text-white leading-[1.12] tracking-tight mb-6 max-w-[420px]">
-                  Make it easy for people to notify you about any issue involving your{" "}
-                  <span className="whitespace-nowrap"><VehicleRotator /></span>
+                {/* Four words for the two promises the product actually makes.
+                    The line it replaces was thirteen words whose subject was
+                    other people — "Make it easy for PEOPLE to notify you" — and
+                    which described a capability rather than naming a benefit.
+                    "Any issue" was doing no work at all. */}
+                <h1 className="text-5xl sm:text-6xl font-extrabold text-white leading-[1.05] tracking-tight mb-6">
+                  Be reachable.<br />Stay{" "}
+                  <span className="text-[#FF2700]">private.</span>
                 </h1>
-                <p className="text-white/60 text-lg leading-relaxed mb-8 max-w-sm">
-                  Your phone number is never shared. Anyone with a smartphone can reach you about your parked vehicle, just by scanning a QR tag.
+                {/* One sentence. The old one ran to three lines and spent the
+                    first of them on a claim ("never shared") that the headline
+                    now makes, so it was arguing a point already won. */}
+                <p className="text-white/70 text-lg leading-relaxed mb-9 max-w-sm">
+                  One QR tag lets anyone reach you about your{" "}
+                  <span className="whitespace-nowrap"><VehicleRotator /></span>,
+                  without seeing your number.
                 </p>
-                <div className="flex flex-wrap gap-3">
-                  <GetStartedButton href={`${APP_URL}/owner-login`} />
-                  <ScanTagButton appUrl={APP_URL} />
+
+                {/* Three properties of the product, under the sentence that
+                    describes it and above the button, so the objections are
+                    answered before the price is asked for. All three are
+                    checkable: the scanner needs no app (it opens a webpage),
+                    the tag is peel-and-stick on glass, and the number is never
+                    exposed in any tier — callEntitlement() blocks the call
+                    rather than placing an unmasked one.
+                    The delivery and COD facts that used to sit here have not
+                    been lost; they are on the terms line under the pricing
+                    cards, which is where somebody is actually deciding. */}
+                <ul className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-9 text-sm text-white/70">
+                  {/* Easy installation is the one that goes on a narrow screen.
+                      Three of these wrap to two lines on a phone and the third
+                      lands under a dangling divider; of the three it is also the
+                      weakest, since "no app" and "no number sharing" are the two
+                      objections a stranger actually raises. */}
+                  {([
+                    ["No app required", "", <svg key="a" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18.5h2"/><path d="M3 3l18 18"/></svg>],
+                    ["Easy installation", "hidden sm:inline-flex", <svg key="b" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h11l5 5v11a0 0 0 0 1 0 0H4z"/><path d="M15 4v5h5"/><path d="M8 13.5c2 1.5 5 1.5 7 0"/></svg>],
+                    ["No number sharing", "", <svg key="c" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M2.5 12S6 5.5 12 5.5c1.7 0 3.2.5 4.5 1.3"/><path d="M20.4 9.2c.6.9 1.1 1.9 1.1 2.8 0 0-3.5 6.5-9.5 6.5-1.2 0-2.3-.3-3.3-.7"/><circle cx="12" cy="12" r="2.6"/><path d="M3 3l18 18"/></svg>],
+                  ] as [string, string, React.ReactNode][]).map(([label, hide, icon], i) => (
+                    <li key={label} className={`items-center gap-x-4 ${hide || "inline-flex"}`}>
+                      {i > 0 && <span aria-hidden="true" className="w-px h-4 bg-white/15" />}
+                      <span className="inline-flex items-center gap-2">
+                        <span className="text-[#FEE600]">{icon}</span>
+                        {label}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                {/* One button, and it names the price. "Get Started" pointed at
+                    a login screen, which is the wrong first destination for
+                    someone who has never heard of the product, and is why this
+                    now goes to the shop. Naming ₹499 on the button also filters:
+                    anyone who clicks has already accepted the price. */}
+                <div className="flex flex-wrap items-center gap-x-7 gap-y-3">
+                  <GetStartedButton
+                    href={`${APP_URL}/shop`}
+                    // Brand guideline, components/actions/Button.jsx primary:
+                    // background var(--accent) #FF2700, hover var(--accent-hover)
+                    // #D92200, white text, var(--radius-button) which resolves
+                    // to --radius-xl / 14px, and the accent shadow. The pill and
+                    // the yellow this replaces were taken from a reference image
+                    // and matched neither. tokens/colors.css is unambiguous:
+                    // "Brand red — the single accent. Signal, never decoration."
+                    className="inline-flex items-center gap-2 bg-[#FF2700] hover:bg-[#D92200] text-white font-bold px-8 py-4 rounded-[14px] text-base transition-all shadow-[0_4px_16px_rgba(255,39,0,0.35)] hover:shadow-[0_6px_20px_rgba(255,39,0,0.45)]"
+                  >
+                    Buy now · ₹499
+                    <span aria-hidden="true">→</span>
+                  </GetStartedButton>
+                  <a
+                    href="#how-it-works"
+                    className="text-white/80 hover:text-white font-semibold text-base transition-colors"
+                  >
+                    See how it works
+                  </a>
                 </div>
-                {/* Second row, deliberately quieter than the row above. These
-                    are alternative buy paths, not the primary one — the shop we
-                    own is still the route we want most people on, because it is
-                    the only one where we see the purchase itself. */}
-                <div className="flex flex-wrap gap-3 mt-3">
-                  <BuyOnAmazonButton className="inline-flex items-center justify-center gap-2 border border-white/25 text-white/70 font-semibold px-5 py-2.5 rounded-xl hover:border-white/60 hover:text-white transition-colors text-sm" />
-                  <OrderOnWhatsAppButton className="inline-flex items-center justify-center gap-2 border border-white/25 text-white/70 font-semibold px-5 py-2.5 rounded-xl hover:border-white/60 hover:text-white transition-colors text-sm" />
+
+
+                {/* Scan lived here too until the floating pill arrived. Two
+                    entry points to the same camera modal on one screen, one of
+                    them for a visitor who is not the buyer, was a choice this
+                    hero did not need to offer. The floating control is
+                    permanent and reaches every page, so this one was the
+                    redundant half. */}
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-2 mt-6">
+                  <BuyOnAmazonButton className="inline-flex items-center gap-1.5 text-sm text-white/60 hover:text-white underline underline-offset-4 decoration-white/25 hover:decoration-white transition-colors" />
                 </div>
               </AnimateIn>
 
-              <AnimateIn from="bottom" delay={150} className="flex items-end justify-center md:justify-end pt-10">
+              <AnimateIn from="bottom" delay={150} className="flex items-end justify-center md:justify-end mt-4 md:mt-0 md:pt-10">
                 <div className="relative w-full max-w-lg">
                   <div className="absolute inset-0 bg-[#FF2700]/10 blur-3xl rounded-full scale-90" />
+                  {/* The sticker's actual print artwork, both faces, rather
+                      than a render of it. rounded-3xl is dropped with it: the
+                      file has real transparency and its own rounded corners, so
+                      a CSS radius on top was clipping the artwork's corners
+                      against a shape that is not the sticker's. */}
                   <img
-                    src="/final-landing-sticker.png"
-                    alt="ParkTag brand sticker"
-                    className="relative w-full drop-shadow-2xl rounded-3xl"
+                    src="/sticker-artwork.png"
+                    alt="The ParkTag sticker, showing the scan instructions and Call and WhatsApp buttons on the left and the QR code on the right"
+                    width={1014}
+                    height={609}
+                    className="relative w-full drop-shadow-2xl"
                   />
                 </div>
               </AnimateIn>
             </div>
           </div>
 
+          {/* Absolutely positioned on the hero's own bottom edge, then pushed
+              down half its height, so exactly half the band sits inside the
+              navy and half hangs into the white below. Absolute rather than in
+              the flow so the hero's height does not change and nothing below it
+              moves.
+              inset-x-0 rather than a width, so it runs the full page rather
+              than the hero's container. z-30 puts it above both sections and
+              the white section below, but BELOW the trust plate at z-20. The
+              band is the layer the plate is resting on, not something laid over
+              the top of it: at z-30 it ran straight through the labels. */}
+          <HazardStripe className="absolute inset-x-0 bottom-0 translate-y-1/2 z-10 shadow-[0_6px_16px_rgba(1,13,26,0.35)]" />
+
         </section>
 
-        {/* The band caps every dark section where it meets a light one. Used as
-            a rule rather than decoration, so it reads as the brand's mark
-            instead of three unrelated flourishes. */}
-        <HazardStripe />
-
-        <Marquee />
-
-        {/* ── SPECIAL FEATURES ── */}
-        <section id="features" className="bg-white py-14">
-          <div className="max-w-5xl mx-auto px-4 sm:px-6">
-
-            {/* Section label */}
-            <p className="text-center text-[11px] font-medium tracking-[0.28em] text-[#495B7B] uppercase mb-10">
-              Some Special Features
-            </p>
-
-            <div className="grid grid-cols-4 sm:grid-cols-8 gap-y-8 gap-x-4">
-              {([
-                ["Instant Scan Alert", <svg key="bell" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>],
-                ["Anonymous Chat", <svg key="chat" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>],
-                ["No App to Scan", <svg key="qr" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><rect x="7" y="7" width="4" height="4"/><rect x="13" y="7" width="4" height="4"/><rect x="7" y="13" width="4" height="4"/></svg>],
-                ["Number Private", <svg key="lock" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>],
-                ["Any Vehicle Type", <svg key="car" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 17H3v-5l2-5h14l2 5v5h-2"/><circle cx="7.5" cy="17.5" r="1.5"/><circle cx="16.5" cy="17.5" r="1.5"/><path d="M5 12h14"/></svg>],
-                ["Share Your ETA", <svg key="loc" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>],
-                ["Waterproof Tag", <svg key="drop" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>],
-                ["1 Year Included", <svg key="pay" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>],
-              ] as [string, React.ReactNode][]).map(([label, icon]) => (
-                <div key={label} className="flex flex-col items-center gap-2.5 text-center group">
-                  <div className="text-[#495B7B] group-hover:text-[#FF2700] transition-colors duration-200">{icon}</div>
-                  <span className="text-[11px] text-[#495B7B] font-medium leading-tight">{label}</span>
-                </div>
-              ))}
-            </div>
+        {/* The band runs through the middle of the strip, not above it.
+            The pull is half the strip's own height, so its centre line lands on
+            the band: top half over the navy hero, bottom half over the white
+            below, band passing behind it and reappearing left and right of the
+            plate, which is narrower than the viewport.
+            Two values because the strip is two rows until lg and one row after,
+            so "half its height" is a different number on each. */}
+        <div className="bg-white">
+          <div className="relative z-20 -mt-[76px] lg:-mt-[46px]">
+            <TrustStrip />
           </div>
-        </section>
+        </div>
+
+        <WhatIsParkTag />
 
         {/* ── BEFORE / AFTER ── */}
-        <section className="bg-gray-50 py-20">
+        <section className="bg-gray-50 py-20 sm:py-28">
           <div className="max-w-5xl mx-auto px-4 sm:px-6">
             <AnimateIn>
+              <p className="mb-4"><SectionLabel>The Problem</SectionLabel></p>
               <h2 className="text-3xl sm:text-4xl font-extrabold text-[#03162D] mb-3 tracking-tight">
                 Stop writing your number<br />on a piece of paper.
               </h2>
@@ -323,18 +401,19 @@ export default function Home() {
         </section>
 
         {/* ── WHY PARKTAG ── */}
-        <section className="bg-gray-50 py-20">
-          <div className="max-w-6xl mx-auto px-4 sm:px-6">
+        <section className="bg-gray-50 py-20 sm:py-28">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6">
             <div className="grid md:grid-cols-2 gap-14 lg:gap-20 items-center">
 
               <AnimateIn from="left">
+                <p className="mb-4"><SectionLabel>Why ParkTag</SectionLabel></p>
                 <h2 className="text-3xl sm:text-4xl font-extrabold text-[#03162D] mb-5 tracking-tight leading-tight">
                   Why ParkTag works<br />where others don&apos;t.
                 </h2>
                 <p className="text-[#495B7B] leading-relaxed mb-8 text-[15px]">
                   Most solutions need both parties on the same app. ParkTag doesn&apos;t. Whoever is trying to reach you just points their phone camera at your tag. That&apos;s it.
                 </p>
-                <a href={`${APP_URL}/shop`} className="inline-flex items-center bg-[#03162D] text-white font-bold px-6 py-3 rounded-xl hover:bg-[#03162D] transition-colors text-sm">
+                <a href={`${APP_URL}/shop`} className="inline-flex items-center bg-[#FF2700] hover:bg-[#D92200] text-white font-bold px-6 py-3 rounded-xl transition-colors text-sm">
                   Order your tag →
                 </a>
               </AnimateIn>
@@ -361,87 +440,53 @@ export default function Home() {
           </div>
         </section>
 
+        <WhyBetter />
+
         {/* ── HOW IT WORKS ── */}
-        <section id="how-it-works" data-nav-dark className="bg-[#03162D] py-20">
-          <div className="max-w-5xl mx-auto px-4 sm:px-6">
-            <div className="grid md:grid-cols-2 gap-14 lg:gap-24 items-start">
+        {/*
+          Rebuilt from a two-column layout that said everything twice. The left
+          column carried the heading, a paragraph and four bullets; the right
+          carried four numbered steps. The bullets were a summary of the steps
+          sitting next to the steps — "No app needed to scan" beside "No app. No
+          sign-up.", "Owner's number never exposed" beside "The scanner never
+          sees your number" — so the eye had to choose a column, then zigzag.
 
-              <AnimateIn from="left">
-                <h2 className="text-3xl sm:text-4xl font-extrabold text-white mb-6 tracking-tight leading-tight">
-                  A stranger reaches you.<br />Your number stays hidden.
-                </h2>
-                <p className="text-white/55 leading-relaxed text-[15px] mb-8">
-                  ParkTag lets anyone contact a parked vehicle owner instantly, through a masked call or WhatsApp — without ever seeing the owner's private phone number.
-                </p>
-                <div className="flex flex-col gap-3">
-                  {["No app needed to scan", "Owner's number never exposed", "Works on any phone camera", "Owner controls tag on / off"].map((point) => (
-                    <div key={point} className="flex items-center gap-3">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#FF2700] flex-shrink-0" />
-                      <span className="text-white/50 text-sm">{point}</span>
-                    </div>
-                  ))}
-                </div>
-              </AnimateIn>
+          One column now, read top to bottom. The bullets are gone rather than
+          relocated: everything they said is in a step already.
 
-              <AnimateIn from="right" delay={120}>
-                <div className="space-y-0">
-                  {[
-                    {
-                      actor: "Owner",
-                      step: "Register your vehicle",
-                      body: "Visit parktag.me, create an account, and link your unique QR tag to your vehicle: plate number, contact preference, done.",
-                    },
-                    {
-                      actor: "Owner",
-                      step: "Stick the tag on",
-                      body: "Peel and stick the waterproof QR sticker on your windshield or bumper. Takes 30 seconds. Toggle it off any time from your dashboard.",
-                    },
-                    {
-                      actor: "Scanner",
-                      step: "Someone scans the QR",
-                      body: "No app. No sign-up. They open their phone camera, scan the tag, and choose to call or send a WhatsApp message.",
-                    },
-                    {
-                      actor: "Owner",
-                      step: "You get connected, privately",
-                      body: "The call or message is routed through ParkTag. The scanner never sees your number. You see their intent, reply, resolve.",
-                    },
-                  ].map(({ actor, step, body }, i) => (
-                    <div key={step} className="flex gap-5 items-start group">
-                      <div className="flex flex-col items-center flex-shrink-0" style={{ width: "32px" }}>
-                        <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
-                          style={{ background: actor === "Scanner" ? "rgba(255, 39, 0,0.15)" : "rgba(255,255,255,0.08)", color: actor === "Scanner" ? "#FF2700" : "rgba(255,255,255,0.4)" }}>
-                          {i + 1}
-                        </div>
-                        {i < 3 && <div className="w-px flex-1 bg-white/8 mt-1 mb-1" style={{ minHeight: "24px" }} />}
-                      </div>
-                      <div className="pb-7">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-[10px] font-bold tracking-widest uppercase"
-                            style={{ color: actor === "Scanner" ? "#FF2700" : "rgba(255,255,255,0.25)" }}>
-                            {actor}
-                          </span>
-                        </div>
-                        <h3 className="text-white font-bold text-sm mb-1">{step}</h3>
-                        <p className="text-white/45 text-sm leading-relaxed">{body}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </AnimateIn>
+          The OWNER / SCANNER tags are gone too. They were a second taxonomy the
+          reader had to hold while also following 1-2-3-4, to answer a question
+          nobody asks. Whose turn it is is obvious from the sentence.
 
+          Step four inverts to a white card. Previously it looked identical to
+          steps one through three, so the sequence just stopped rather than
+          arriving anywhere; it is the payoff and now reads as one.
+        */}
+        <section id="how-it-works" data-nav-dark className="bg-[#03162D] py-20 sm:py-28">
+          <div className="max-w-3xl mx-auto px-4 sm:px-6">
+
+            <div className="text-center mb-14">
+              <p className="mb-5"><SectionLabel onDark>How It Works</SectionLabel></p>
+              <h2 className="text-3xl sm:text-4xl font-extrabold text-white mb-4 tracking-tight leading-tight">
+                Someone reaches you.<br />Your number stays hidden.
+              </h2>
+              <p className="text-white/55 leading-relaxed max-w-lg mx-auto">
+                No app for them. No number sharing for you. Here is how it works.
+              </p>
             </div>
+
+            <HowItWorksSteps />
           </div>
         </section>
 
         <HazardStripe />
 
         {/* ── PRICING ── */}
-        <section id="pricing" className="bg-white py-20">
-          <div className="max-w-4xl mx-auto px-4 sm:px-6">
+        <section id="pricing" className="bg-white py-20 sm:py-28">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6">
 
             <AnimateIn>
-              <p className="text-xs font-bold text-[#FF2700] tracking-widest uppercase mb-3">Pricing</p>
+              <p className="mb-3"><SectionLabel>Pricing</SectionLabel></p>
               <h2 className="text-3xl sm:text-4xl font-extrabold text-[#03162D] mb-2 tracking-tight">Buy your ParkTag</h2>
               <p className="text-[#495B7B] mb-12">Every premium tag includes a 1-year subscription. Shipped across India.</p>
             </AnimateIn>
@@ -483,7 +528,7 @@ export default function Home() {
                     ))}
                   </ul>
 
-                  <a href={`${APP_URL}/shop`} className="block text-center border-2 border-[#03162D] text-[#03162D] font-bold py-3 rounded-xl hover:bg-[#03162D] hover:text-white transition-colors text-sm">
+                  <a href={`${APP_URL}/shop`} className="block text-center border-2 border-[#FF2700] text-[#FF2700] font-bold py-3 rounded-xl hover:bg-[#FF2700] hover:text-white transition-colors text-sm">
                     Get Solo Tag
                   </a>
                 </div>
@@ -527,14 +572,38 @@ export default function Home() {
                   <a href={`${APP_URL}/shop`} className="block text-center bg-[#FF2700] hover:bg-[var(--red-hover)] text-white font-bold py-3 rounded-xl transition-colors text-sm">
                     Get Duo Pack
                   </a>
-                  {/* Duo Pack only. It is the same pack of 2 that the Amazon
-                      listing sells, so this is the one card where the two buy
-                      paths are the same product at the same price. */}
-                  <BuyOnAmazonButton className="mt-3 w-full inline-flex items-center justify-center gap-2 text-center border border-gray-300 text-[#495B7B] font-semibold py-3 rounded-xl hover:border-[#03162D] hover:text-[#03162D] transition-colors text-sm" />
+                  {/* Duo Pack only — it is the same pack of 2 the Amazon
+                      listing sells. Deliberately no longer claiming the two are
+                      "at the same price": Amazon's shown price moves with their
+                      own discounting and has been observed below the ₹499 here,
+                      so a comment asserting parity was a claim nobody was
+                      checking. Same product, whichever price each storefront
+                      happens to be showing. */}
+                  {/* Light-card classes on a navy card: border-gray-300 and
+                      #495B7B text put the only alternative buy route at roughly
+                      2:1 against #03162D, and its hover made it darker still.
+                      White on this navy is 18.2:1 and the border at 50% alpha is
+                      visible without competing with the primary above it. */}
+                  <BuyOnAmazonButton className="mt-3 w-full inline-flex items-center justify-center gap-2 text-center border border-white/50 text-white font-semibold py-3 rounded-xl text-sm transition-all duration-200 hover:bg-white/[0.08] hover:border-white hover:shadow-lg hover:shadow-black/30" />
                 </div>
               </AnimateIn>
 
             </div>
+
+            {/* The terms a stranger weighing up ₹499 wants before committing,
+                beside the buttons rather than in a footer link and an FAQ they
+                may never open. Cold ad traffic has none of the community trust
+                that carried the launch. */}
+            {/* mb matters as much as mt here: this sits between the pricing
+                cards and the Fleet block, and with only a top margin the Fleet
+                card butted straight into it. It belongs to the cards above, so
+                the gap below it is the larger of the two. */}
+            <p className="mt-8 mb-14 text-center text-sm text-[#495B7B]">
+              Free delivery across India · Cash on Delivery available (+₹50) ·{" "}
+              <Link href="/refund" className="underline underline-offset-4 decoration-[#495B7B]/40 hover:text-[#03162D] hover:decoration-[#03162D] transition-colors">
+                7-day replacement if damaged or faulty
+              </Link>
+            </p>
 
             {/* Fleet */}
             <AnimateIn delay={180}>
@@ -553,7 +622,7 @@ export default function Home() {
                     configured silently does nothing. Routed to the contact page
                     instead, via next/link so it prefetches and navigates
                     client-side like every other internal link on the site. */}
-                <Link href="/contact" className="flex-shrink-0 text-sm font-bold text-[#03162D] border-2 border-[#03162D] px-6 py-2.5 rounded-xl hover:bg-[#03162D] hover:text-white transition-colors whitespace-nowrap text-center">
+                <Link href="/contact" className="flex-shrink-0 text-sm font-bold text-[#FF2700] border-2 border-[#FF2700] px-6 py-2.5 rounded-xl hover:bg-[#FF2700] hover:text-white transition-colors">
                   Talk to us
                 </Link>
               </div>
@@ -563,9 +632,9 @@ export default function Home() {
         </section>
 
         {/* ── FAQ ── */}
-        <section id="faq" className="bg-gray-50 py-20">
+        <section id="faq" className="bg-gray-50 py-20 sm:py-28">
           <div className="max-w-3xl mx-auto px-4 sm:px-6">
-            <p className="text-center text-xs font-semibold tracking-[0.2em] uppercase text-[#495B7B] mb-4">FAQ</p>
+            <p className="text-center mb-4"><SectionLabel>FAQ</SectionLabel></p>
             <h2 className="text-center text-3xl sm:text-4xl font-extrabold text-[#03162D] mb-12 tracking-tight leading-snug">
               If your question isn&apos;t answered here,{" "}
               please <Link href="/contact" className="text-[#FF2700] hover:underline">contact us</Link>{" "}
@@ -578,7 +647,7 @@ export default function Home() {
         <HazardStripe />
 
         {/* ── CTA ── */}
-        <section data-nav-dark className="bg-[#03162D] py-20">
+        <section data-nav-dark className="bg-[#03162D] py-20 sm:py-28">
           <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
             <AnimateIn>
               <h2 className="text-3xl sm:text-4xl font-extrabold text-white mb-4 tracking-tight">
@@ -589,7 +658,7 @@ export default function Home() {
                 <a href={`${APP_URL}/shop`} className="inline-block bg-[#FF2700] hover:bg-[var(--red-hover)] text-white font-bold px-8 py-4 rounded-xl transition-colors text-base">
                   Get Your ParkTag →
                 </a>
-                <BuyOnAmazonButton className="inline-flex items-center justify-center gap-2 border border-white/30 text-white/80 font-semibold px-8 py-4 rounded-xl hover:border-white hover:text-white transition-colors text-base" />
+                <BuyOnAmazonButton className="inline-flex items-center gap-1.5 text-base text-white/60 hover:text-white underline underline-offset-4 decoration-white/25 hover:decoration-white transition-colors" />
               </div>
               <p className="text-white/25 text-sm mt-4">Starting at ₹299 · Ships across India · 1-year subscription included</p>
             </AnimateIn>
@@ -599,7 +668,7 @@ export default function Home() {
       </main>
 
       {/* ── FOOTER ── */}
-      <footer className="bg-[#03162D] py-12">
+      <footer className="bg-[#010D1A] py-12">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="grid sm:grid-cols-4 gap-8 mb-10">
             <div className="sm:col-span-2">
@@ -607,7 +676,12 @@ export default function Home() {
                 <img src="/dark-logo.png" alt="ParkTag" style={{ height: "42px", width: "auto" }} />
               </div>
               <p className="text-white/40 text-sm leading-relaxed max-w-xs">Smart vehicle connection system built for modern India. Simple, secure, accessible.</p>
-              <a href="mailto:support@parktag.me" className="text-[#FF2700] text-sm mt-3 inline-block hover:text-white transition-colors">support@parktag.me</a>
+              <a
+                href="mailto:support@parktag.me"
+                className="mt-4 inline-flex items-center rounded-full border border-white/35 px-4 py-2 text-sm text-white transition-colors hover:border-white hover:bg-white/10"
+              >
+                support@parktag.me
+              </a>
             </div>
 
             <div>

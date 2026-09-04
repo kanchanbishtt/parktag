@@ -72,7 +72,7 @@ const stickerPrintPage = path.join(pagesRoot, "admin/sticker-print.html");
 const registerOwnerPage = path.join(pagesRoot, "owner/register.html");
 const ownerLoginPage = path.join(pagesRoot, "owner/login.html");
 const hubPage = path.join(pagesRoot, "hub.html");
-const getPage = path.join(pagesRoot, "get.html");
+const shopPage = path.join(pagesRoot, "shop.html");
 const forgotPasswordPage = path.join(pagesRoot, "owner/forgot-password.html");
 const resetPasswordPage = path.join(pagesRoot, "owner/reset-password.html");
 const ownerVerifyPage = path.join(pagesRoot, "owner/verify.html");
@@ -858,44 +858,48 @@ export async function buildApp() {
   // Signed in → straight to the dashboard with the Shop tab open. Signed out →
   // the login screen, flagged so it can hand the shop intent on to the
   // dashboard once the visitor is through (see owner/login.js).
+  // A pack id from a query string, or null. Arrives from public links and is
+  // put into a Location header downstream, so it is validated against the
+  // catalogue here rather than trusted onward: an id that is not a real product
+  // is dropped, and the worst a crafted link can do is open the shop.
+  function skuFromQuery(request) {
+    const requested = (request.query || {}).sku;
+    return getShopProduct(typeof requested === "string" ? requested : "") ? requested : null;
+  }
+
+  // The shop. Public.
+  //
+  // This used to be an intent route that sent a signed-out visitor to
+  // /owner-login, so every buy button on the marketing site landed on a login
+  // screen before a single price was visible (docs/SHOP_LOGIN_WALL.md). The
+  // storefront that fixed that was built at /get and nothing linked to it. It
+  // now lives here, at the URL every button already points to.
+  //
+  // A signed-in owner still goes to the dashboard's shop tab, with the pack
+  // carried across. Their order should hang off their account, not off a guest
+  // order they would then have no way to see, and the dashboard is where the
+  // orders they already have are listed.
   app.get("/shop", async (request, reply) => {
     const session = await readSession(app, request);
+    const sku = skuFromQuery(request);
 
-    // Which pack the visitor picked on /get, carried through so they land on
-    // that one rather than on a shop tab with their choice forgotten.
-    //
-    // Validated against the catalogue here rather than trusted onward: this
-    // arrives in a query string from a public page, and everything downstream
-    // of it puts the value into a URL. An id that is not a real product is
-    // dropped, so the worst a crafted link can do is open the shop.
-    const requested = (request.query || {}).sku;
-    const sku = getShopProduct(typeof requested === "string" ? requested : "") ? requested : null;
-    const carry = sku ? `&sku=${encodeURIComponent(sku)}` : "";
-
-    if (!session || session.role !== "owner") {
-      return reply.redirect(`/owner-login?next=shop${carry}`);
+    if (session && session.role === "owner") {
+      const carry = sku ? `&sku=${encodeURIComponent(sku)}` : "";
+      return reply.redirect(`/owner-welcome?shop=1${carry}`);
     }
-    return reply.redirect(`/owner-welcome?shop=1${carry}`);
-  });
 
-  // The shop window. Deliberately public, and deliberately NOT /shop.
-  //
-  // /shop above is an intent — "take me to buying" — and it resolves to the
-  // dashboard's shop tab once there is a session to resolve it with. This is a
-  // page: what the product is, what it costs, what arrives in the post. It has
-  // to answer those for somebody who has never signed in, because every buy
-  // button on the marketing site currently lands on a login screen before a
-  // single price is visible (docs/SHOP_LOGIN_WALL.md). Asking a stranger to
-  // hand over a phone number before telling them the price inverts the order
-  // of a purchase.
-  //
-  // Its Order buttons still go to /shop, so the checkout, the session and the
-  // order model are untouched — what moves is only WHEN the sign-in is asked
-  // for: after the visitor knows what they are buying, rather than before.
-  app.get("/get", async (_request, reply) => {
-    const html = await fs.readFile(getPage, "utf8");
+    // The page reads ?sku itself to highlight the chosen card; the value is
+    // never echoed from here.
+    const html = await fs.readFile(shopPage, "utf8");
     reply.type("text/html");
     return html;
+  });
+
+  // The storefront's previous address. Redirected rather than removed so any
+  // link that was handed out while it lived here still lands on the shop.
+  app.get("/get", async (request, reply) => {
+    const sku = skuFromQuery(request);
+    return reply.redirect(sku ? `/shop?sku=${encodeURIComponent(sku)}` : "/shop");
   });
 
   app.get("/register-owner", async (_request, reply) => {

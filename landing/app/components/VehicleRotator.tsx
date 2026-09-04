@@ -23,7 +23,11 @@ export function VehicleRotator() {
     <span
       style={{
         display: "inline-block",
-        color: "#FF2700",
+        // White, brighter than the white/70 of the sentence around it. The
+        // word already draws the eye by moving; colouring it as well was two
+        // signals for one job, and it put a third colour in a headline block
+        // that already spends red on "private".
+        color: "#FFFFFF",
         opacity: phase === "in" ? 1 : 0,
         transform: phase === "in" ? "translateY(0)" : "translateY(-10px)",
         transition: "opacity 320ms ease, transform 320ms ease",

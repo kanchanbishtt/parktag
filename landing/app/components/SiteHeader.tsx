@@ -4,36 +4,41 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
 
 import { BuyOnAmazonButton } from "./BuyOnAmazonButton";
-import { OrderOnWhatsAppButton } from "./OrderOnWhatsAppButton";
 
+// Buy buttons point at /shop, which is the public storefront: packs, prices
+// and a guest checkout, no login. It used to be an intent route that sent a
+// signed-out visitor to /owner-login before a single price was visible
+// (docs/SHOP_LOGIN_WALL.md); the storefront built to fix that lived at /get
+// and nothing linked to it. It now lives at /shop, and /get redirects there.
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.parktag.me";
 
+// Two dropdowns, not three.
+//
+// "More" was a junk drawer holding How it works, Pricing, Features and FAQ —
+// the four pages a stranger most needs — behind the vaguest label in the menu.
+// How It Works and Pricing are now top-level links, because a label nobody
+// clicks is the same as a page nobody reads.
+//
+// "About" is folded into Support. About Us and Contact are both "I have a
+// question about the company", and a dropdown holding two items is a dropdown
+// paying for itself with one extra click.
 const DROPDOWNS = {
-  about: {
-    label: "About",
-    items: [
-      { label: "About Us", href: "/about", internal: true },
-      { label: "Contact", href: "/contact", internal: true },
-    ],
-  },
   products: {
     label: "Products",
     items: [
       { label: "Solo Tag · ₹299", sub: "1 vehicle", href: `${APP_URL}/shop`, internal: false },
       { label: "Duo Pack · ₹499", sub: "1 car · front & back · saves ₹99", href: `${APP_URL}/shop`, internal: false },
       // Routes to the contact page rather than a mailto:, which does nothing at
-      // all on a machine with no mail client configured. internal:true so it
-      // renders as a next/link and prefetches, like the other in-site entries.
+      // all on a machine with no mail client configured.
       { label: "Fleet", sub: "5+ vehicles · custom pricing", href: "/contact", internal: true },
     ],
   },
-  more: {
-    label: "More",
+  support: {
+    label: "Support",
     items: [
-      { label: "How it works", href: "#how-it-works", internal: false },
-      { label: "Features", href: "#features", internal: false },
-      { label: "Pricing", href: "#pricing", internal: false },
-      { label: "FAQ", href: "#faq", internal: false },
+      { label: "FAQ", sub: "Delivery, refunds, how it works", href: "#faq", internal: false },
+      { label: "Contact", sub: "Talk to a person", href: "/contact", internal: true },
+      { label: "About Us", sub: "Who builds ParkTag", href: "/about", internal: true },
     ],
   },
 } as const;
@@ -255,6 +260,25 @@ export function SiteHeader({ defaultDark = true }: { defaultDark?: boolean }) {
               );
             })}
 
+            {/* Out of the "More" drawer and into the open. These two answer
+                "what is it" and "what does it cost", which is most of what a
+                first-time visitor came to find out. */}
+            {[
+              { label: "How It Works", href: "#how-it-works" },
+              { label: "Pricing", href: "#pricing" },
+            ].map(({ label, href }) => (
+              <a
+                key={label}
+                href={href}
+                className="px-3 py-2 text-sm rounded-lg transition-colors duration-200"
+                style={{ color: textColor }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = "#FF2700")}
+                onMouseLeave={(e) => (e.currentTarget.style.color = textColor)}
+              >
+                {label}
+              </a>
+            ))}
+
             {/* Login as nav link */}
             <a
               href={`${APP_URL}/owner-login`}
@@ -267,7 +291,8 @@ export function SiteHeader({ defaultDark = true }: { defaultDark?: boolean }) {
               Login
             </a>
 
-            {/* Cart — inside nav to match layout */}
+            {/* Title case. All caps on the least important item in the bar was
+                shouting the quietest thing in it. */}
             <a
               href={`${APP_URL}/shop`}
               className="px-3 py-2 text-sm rounded-lg transition-colors duration-200"
@@ -275,73 +300,32 @@ export function SiteHeader({ defaultDark = true }: { defaultDark?: boolean }) {
               onMouseEnter={(e) => (e.currentTarget.style.color = "#FF2700")}
               onMouseLeave={(e) => (e.currentTarget.style.color = textColor)}
             >
-              CART
+              Cart
             </a>
 
-            {/* Alternative buy paths. Styled as nav links, not buttons, so they
-                read as secondary to CART — the shop is still the route we want
-                most people on, because it is the only one whose purchase we see. */}
-            <BuyOnAmazonButton
-              className="px-3 py-2 text-sm rounded-lg transition-colors duration-200 inline-flex items-center gap-1.5 whitespace-nowrap"
-              style={{ color: textColor }}
-            />
-            <OrderOnWhatsAppButton
-              className="px-3 py-2 text-sm rounded-lg transition-colors duration-200 inline-flex items-center gap-1.5 whitespace-nowrap"
-              style={{ color: textColor }}
-            />
           </nav>
 
-          {/* Desktop actions — info + flag only */}
-          <div className="hidden md:flex items-center gap-3">
-
-            {/* Info button — SVG icon */}
-            <Link
-              href="/about"
-              className="w-8 h-8 flex items-center justify-center rounded-full transition-all duration-200 flex-shrink-0"
-              style={{
-                color: textColor,
-                border: `1.5px solid ${isDark ? "rgba(255,255,255,0.18)" : "#d1d5db"}`,
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.color = "#FF2700";
-                e.currentTarget.style.border = "1.5px solid #FF2700";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.color = textColor;
-                e.currentTarget.style.border = `1.5px solid ${isDark ? "rgba(255,255,255,0.18)" : "#d1d5db"}`;
-              }}
+          {/* Desktop actions.
+              The info icon and the flag are gone. The info icon linked to
+              /about, which the Support menu already reaches, so the bar carried
+              two paths to one page. The flag was a static SVG that looked
+              exactly like a language selector and offered no languages —
+              a control promising something it cannot do is worse than no
+              control.
+              What replaces them is the thing the bar never had: somewhere to
+              buy. Every item in here weighed the same, and the one action the
+              page exists for was not among them. */}
+          <div className="hidden md:flex items-center gap-4">
+            <BuyOnAmazonButton
+              className="inline-flex items-center gap-1.5 text-sm transition-colors duration-200"
+              style={{ color: textColor }}
+            />
+            <a
+              href={`${APP_URL}/shop`}
+              className="inline-flex items-center rounded-xl bg-[#FF2700] px-5 py-2.5 text-sm font-bold text-white transition-all duration-200 hover:bg-[#D92200] shadow-[0_4px_16px_rgba(255,39,0,0.35)] hover:shadow-[0_6px_20px_rgba(255,39,0,0.45)]"
             >
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <circle cx="7" cy="4.5" r="1" fill="currentColor"/>
-                <rect x="6.25" y="6.5" width="1.5" height="4" rx="0.75" fill="currentColor"/>
-              </svg>
-            </Link>
-
-            {/* Indian flag — SVG, 3:2 ratio */}
-            <svg
-              width="28" height="19" viewBox="0 0 28 19" fill="none"
-              style={{ borderRadius: "3px", flexShrink: 0, display: "block" }}
-            >
-              {/* Saffron */}
-              <rect x="0" y="0"      width="28" height="6.33" fill="#FF9933"/>
-              {/* White */}
-              <rect x="0" y="6.33"  width="28" height="6.34" fill="#FFFFFF"/>
-              {/* Green */}
-              <rect x="0" y="12.67" width="28" height="6.33" fill="#138808"/>
-              {/* Ashoka Chakra – circle */}
-              <circle cx="14" cy="9.5" r="2.8" stroke="#000080" strokeWidth="0.7" fill="none"/>
-              {/* 8 spokes */}
-              {Array.from({ length: 8 }).map((_, i) => {
-                const angle = (i * Math.PI) / 4;
-                const x1 = 14 + Math.cos(angle) * 0.6;
-                const y1 = 9.5 + Math.sin(angle) * 0.6;
-                const x2 = 14 + Math.cos(angle) * 2.8;
-                const y2 = 9.5 + Math.sin(angle) * 2.8;
-                return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#000080" strokeWidth="0.5"/>;
-              })}
-              <circle cx="14" cy="9.5" r="0.55" fill="#000080"/>
-            </svg>
-
+              Get ParkTag
+            </a>
           </div>
 
           {/* Mobile right side */}
@@ -386,28 +370,29 @@ export function SiteHeader({ defaultDark = true }: { defaultDark?: boolean }) {
           style={{ maxHeight: menuOpen ? "calc(100vh - 64px)" : "0px", opacity: menuOpen ? 1 : 0 }}
         >
           <nav className="px-5 pt-4 pb-6 flex flex-col">
-            <div className="text-[10px] font-bold text-[#495B7B]/40 tracking-widest uppercase mb-2">About</div>
-            <Link href="/about" onClick={closeAll} className="py-2.5 text-[#03162D] font-medium text-sm hover:text-[#FF2700] transition-colors">About Us</Link>
-            <Link href="/contact" onClick={closeAll} className="py-2.5 text-[#03162D] font-medium text-sm hover:text-[#FF2700] transition-colors">Contact</Link>
-
-            <div className="text-[10px] font-bold text-[#495B7B]/40 tracking-widest uppercase mt-4 mb-2">Products</div>
+            {/* Same order as the desktop bar: buy, then understand, then ask.
+                The drawer used to open on About Us, which is the page a
+                first-time visitor needs least. */}
+            <div className="text-[10px] font-bold text-[#495B7B]/40 tracking-widest uppercase mb-2">Products</div>
             <a href={`${APP_URL}/shop`} onClick={closeAll} className="py-2.5 text-[#03162D] font-medium text-sm hover:text-[#FF2700] transition-colors">Solo Tag · ₹299</a>
             <a href={`${APP_URL}/shop`} onClick={closeAll} className="py-2.5 text-[#03162D] font-medium text-sm hover:text-[#FF2700] transition-colors">Duo Pack · ₹499</a>
-            <Link href="/contact" onClick={closeAll} className="py-2.5 text-[#03162D] font-medium text-sm hover:text-[#FF2700] transition-colors">Fleet</Link>
+            <Link href="/contact" onClick={closeAll} className="py-2.5 text-[#03162D] font-medium text-sm hover:text-[#FF2700] transition-colors">Fleet · 5+ vehicles</Link>
 
-            <div className="text-[10px] font-bold text-[#495B7B]/40 tracking-widest uppercase mt-4 mb-2">More</div>
-            <a href="#how-it-works" onClick={closeAll} className="py-2.5 text-[#03162D] font-medium text-sm hover:text-[#FF2700] transition-colors">How it works</a>
-            <a href="#features" onClick={closeAll} className="py-2.5 text-[#03162D] font-medium text-sm hover:text-[#FF2700] transition-colors">Features</a>
+            <div className="text-[10px] font-bold text-[#495B7B]/40 tracking-widest uppercase mt-4 mb-2">Learn</div>
+            <a href="#how-it-works" onClick={closeAll} className="py-2.5 text-[#03162D] font-medium text-sm hover:text-[#FF2700] transition-colors">How It Works</a>
             <a href="#pricing" onClick={closeAll} className="py-2.5 text-[#03162D] font-medium text-sm hover:text-[#FF2700] transition-colors">Pricing</a>
+
+            <div className="text-[10px] font-bold text-[#495B7B]/40 tracking-widest uppercase mt-4 mb-2">Support</div>
             <a href="#faq" onClick={closeAll} className="py-2.5 text-[#03162D] font-medium text-sm hover:text-[#FF2700] transition-colors">FAQ</a>
+            <Link href="/contact" onClick={closeAll} className="py-2.5 text-[#03162D] font-medium text-sm hover:text-[#FF2700] transition-colors">Contact</Link>
+            <Link href="/about" onClick={closeAll} className="py-2.5 text-[#03162D] font-medium text-sm hover:text-[#FF2700] transition-colors">About Us</Link>
 
             <div className="mt-5 flex flex-col gap-3">
-              <a href={`${APP_URL}/owner-login`} onClick={navigateSmoothly(`${APP_URL}/owner-login`)} className="text-center py-3 rounded-xl border-2 border-[#03162D] text-[#03162D] font-bold text-sm hover:bg-[#03162D] hover:text-white transition-colors">Login</a>
-              <a href={`${APP_URL}/shop`} onClick={closeAll} className="text-center py-3 rounded-xl bg-[#FF2700] text-white font-bold text-sm hover:bg-[var(--red-hover)] transition-colors">Order Now</a>
+              <a href={`${APP_URL}/owner-login`} onClick={navigateSmoothly(`${APP_URL}/owner-login`)} className="text-center py-3 rounded-xl border-2 border-[#FF2700] text-[#FF2700] font-bold text-sm hover:bg-[#FF2700] hover:text-white transition-colors">Login</a>
+              <a href={`${APP_URL}/shop`} onClick={closeAll} className="text-center py-3 rounded-xl bg-[#FF2700] text-white font-bold text-sm hover:bg-[var(--red-hover)] transition-colors">Get ParkTag</a>
               {/* Alternative buy paths, ranked below Order Now on purpose: the
                   shop is ours and is the only route where we see the purchase. */}
               <BuyOnAmazonButton className="w-full inline-flex items-center justify-center gap-2 py-3 rounded-xl border border-gray-300 text-[#495B7B] font-semibold text-sm hover:border-[#03162D] hover:text-[#03162D] transition-colors" />
-              <OrderOnWhatsAppButton className="w-full inline-flex items-center justify-center gap-2 py-3 rounded-xl border border-gray-300 text-[#495B7B] font-semibold text-sm hover:border-[#03162D] hover:text-[#03162D] transition-colors" />
             </div>
           </nav>
         </div>

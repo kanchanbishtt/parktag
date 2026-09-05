@@ -374,7 +374,31 @@ export async function buildApp() {
     // the IP that proxy observed and any client-supplied XFF entries are
     // ignored. If the deployment ever gains another proxy hop (e.g. a CDN in
     // front of Railway), bump this to match the real number of trusted hops.
-    trustProxy: 1
+    // ONE hop, expressed as a predicate rather than the number 1.
+    //
+    // `trustProxy: 1` meant this and read better, but fastify 5.12.3 — the
+    // release that fixes GHSA-3m5p-2c4r-xxw2, the X-Forwarded-* spoof this
+    // setting exists to prevent — changed what a NUMBER means. On that version
+    // `1` stops trusting the proxy at all: request.ip becomes the address of
+    // Railway's edge for every caller and request.protocol falls back to
+    // "http". That is worse than the bug being fixed. Every per-IP limit
+    // collapses into a single shared bucket, so one abuser rate-limits the
+    // entire userbase, and the spray lockout keys on one address for everyone.
+    //
+    // The predicate form is unchanged by the patch and says exactly what was
+    // meant: the immediate peer (hop 0) is our reverse proxy and nothing beyond
+    // it is trusted. `true` also restores the client IP but trusts the WHOLE
+    // chain, which hands the spoof straight back — a caller who prepends
+    // "X-Forwarded-For: 1.2.3.4" is believed. Verified against a real socket on
+    // both versions: with `1.2.3.4, <real client>` this yields the real client,
+    // while `true` yields 1.2.3.4.
+    //
+    // Address-agnostic on purpose. An allowlist ("loopback", a subnet) works
+    // too, but only while Railway's edge keeps the address we wrote down.
+    //
+    // If the deployment ever gains another proxy hop (a CDN in front of
+    // Railway), widen this to `hop <= 1` and so on to match the real count.
+    trustProxy: (_address, hop) => hop === 0
   });
 
   // Hashed once at boot rather than per request: the asset tree cannot change

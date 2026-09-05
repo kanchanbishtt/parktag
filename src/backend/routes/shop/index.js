@@ -23,6 +23,7 @@ import {
   OTP_PURPOSE_COD_VERIFY
 } from "../../lib/auth/otp.js";
 import { isMetaWhatsappConfigured } from "../../lib/integrations/meta.js";
+import { verifyRecaptcha } from "../../lib/integrations/recaptcha.js";
 
 // Flash-offer discount for converting a COD order to prepaid (paise). Kept
 // server-side so the ₹50 saving can't be inflated by a tampered client.
@@ -313,7 +314,41 @@ export function registerShopRoutes(app, env) {
     // gets through mints a real order in the Razorpay dashboard.
     { config: { rateLimit: { max: 8, timeWindow: "1 minute" } } },
     async (request, reply) => {
-      const { productId, variant: rawVariant, address: rawAddress } = request.body || {};
+      const { productId, variant: rawVariant, address: rawAddress, recaptchaToken } =
+        request.body || {};
+
+      // Bot check on the one money-adjacent endpoint any stranger can reach.
+      //
+      // /get takes no sign-in and no OTP by design — that is the whole point of
+      // guest checkout — so the per-IP limit above was the only thing standing
+      // between a script and an unbounded supply of real Razorpay orders. A
+      // limit keyed on IP is worth exactly as much as the attacker's
+      // willingness to rotate one, which is the same reasoning that put this
+      // check on /api/auth/send-otp.
+      //
+      // What it protects is not just our order table: every order minted here
+      // is an order in the Razorpay dashboard and a candidate for card testing,
+      // where stolen numbers are validated against real checkout sessions. That
+      // costs the merchant in failed-payment ratios long before it costs
+      // anybody a parcel.
+      //
+      // No-ops when the keys are unset, and outside production a missing token
+      // passes — see verifyRecaptcha. Production rejects.
+      const captcha = await verifyRecaptcha(env, recaptchaToken, {
+        remoteIp: request.ip,
+        expectedAction: "guest_checkout"
+      });
+      if (!captcha.ok) {
+        request.log.warn(
+          { event: "guest-checkout-captcha-rejected", reason: captcha.reason, score: captcha.score },
+          "[guest checkout] reCAPTCHA rejected order creation"
+        );
+        reply.code(400);
+        return {
+          ok: false,
+          error: "We couldn't verify this request. Please refresh the page and try again."
+        };
+      }
 
       const product = getShopProduct(productId);
       if (!product) { reply.code(400); return { ok: false, error: "Unknown product." }; }

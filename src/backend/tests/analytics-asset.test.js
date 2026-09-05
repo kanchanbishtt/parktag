@@ -229,3 +229,23 @@ describe("Meta parity with GA4", () => {
     );
   });
 });
+
+describe("the bundle is loadable from the marketing site", () => {
+  // parktag.me loads /pt-analytics.js from app.parktag.me. Helmet's production
+  // default of Cross-Origin-Resource-Policy: same-origin made the browser drop
+  // the response before it ran, and for the landing site's whole life no
+  // session, no Pixel event and no ad conversion was ever recorded from it.
+  // The route opts this one public file out of that default; this is the test
+  // that notices if the opt-out goes.
+  test("/pt-analytics.js is served with Cross-Origin-Resource-Policy: cross-origin", async () => {
+    const { startTestApp, stopTestApp } = await import("./helpers.js");
+    const { app } = await startTestApp();
+    try {
+      const res = await app.inject({ method: "GET", url: "/pt-analytics.js" });
+      assert.equal(res.statusCode, 200);
+      assert.equal(res.headers["cross-origin-resource-policy"], "cross-origin");
+    } finally {
+      await stopTestApp(app);
+    }
+  });
+});

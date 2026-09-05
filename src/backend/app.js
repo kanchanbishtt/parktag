@@ -804,10 +804,19 @@ export async function buildApp() {
   // Served from a route rather than the static root because those IDs differ
   // per deploy. They are public values, so the only thing being protected here
   // is the cleanliness of the production analytics data.
+  //
+  // The marketing site at parktag.me loads this file from app.parktag.me, so
+  // it must be readable cross-origin. Helmet's default in production is
+  // Cross-Origin-Resource-Policy: same-origin, and under that the browser
+  // blocks the script (ERR_BLOCKED_BY_RESPONSE) before a byte of it runs. That
+  // was the state for the landing site's whole life: the script tag was in the
+  // page, GA4 and the Pixel never loaded, and no landing session was recorded.
+  // This one file is public by design, so it opts out of the default.
   app.get("/pt-analytics.js", async (_request, reply) => {
     const js = await fs.readFile(analyticsAsset, "utf8");
     reply.type("application/javascript");
     reply.header("Cache-Control", "public, max-age=300");
+    reply.header("Cross-Origin-Resource-Policy", "cross-origin");
     return renderAnalyticsBundle(js, env);
   });
 

@@ -704,56 +704,21 @@ body {
 }
 
 /* ── Confetti ────────────────────────────────────────
-   Hand-rolled, because it has to be. /owner-membership is in
-   PAYMENT_STRICT_PAGES and its script-src is 'self' plus checkout.razorpay.com
-   and the two analytics origins — a confetti library from a CDN would be
-   blocked outright and the celebration would silently never appear.
+   A canvas, not a pile of elements. The burst is per-particle physics — an
+   initial velocity out of two low corners, gravity, drag and a spin — and CSS
+   keyframes cannot express that arc, so the drawing lives in the script and
+   this only has to place the surface.
 
-   Every piece is one <i> with its own position, drift, spin, size and duration
-   set as custom properties from the script. style-src keeps 'unsafe-inline' on
-   this page (checkout.js injects its own <style>), so those per-piece values
-   are allowed; only the palette lives here.
-
-   In front of the card, never over the pointer: the receipt underneath has an
-   order number worth reading and a button worth pressing. */
+   In front of the card, never over the pointer: underneath is an order number
+   worth reading and a button worth pressing. */
 .mb-cfti {
   position: absolute; inset: 0; z-index: 3;
-  overflow: hidden; pointer-events: none;
+  width: 100%; height: 100%;
+  pointer-events: none;
 }
 
-.mb-cfti-p {
-  position: absolute; top: -20px; left: var(--x);
-  width: var(--w); height: var(--h);
-  border-radius: 1px; opacity: 0;
-  will-change: transform, opacity;
-  animation: mb-cfti-fall var(--dur) cubic-bezier(.28, .52, .53, .92) var(--d) forwards;
-}
-
-/* Round pieces among the rectangles, so it does not read as falling bricks. */
-.mb-cfti-p.r { border-radius: 50%; }
-
-/* The brand, plus two carried colours for variety. Gold is #FFC02E — the same
-   token as the title's star, and the only yellow the stylesheet is allowed to
-   contain. The others are deliberately outside the yellow range the suite
-   scans for, so this palette cannot be mistaken for the reference scheme the
-   screen was moved away from. */
-.mb-cfti-p.c0 { background: #FF2700; }
-.mb-cfti-p.c1 { background: #FFC02E; }
-.mb-cfti-p.c2 { background: #16A34A; }
-.mb-cfti-p.c3 { background: #03162D; }
-.mb-cfti-p.c4 { background: #2563EB; }
-.mb-cfti-p.c5 { background: #EC4899; }
-
-@keyframes mb-cfti-fall {
-  0% { opacity: 1; transform: translate3d(0, 0, 0) rotate(0deg); }
-  85% { opacity: 1; }
-  100% { opacity: 0; transform: translate3d(var(--sx), 105vh, 0) rotate(var(--r)); }
-}
-
-/* After the rules it turns off. The script also declines to build the layer at
-   all under this setting, so this is the belt to that braces — a stylesheet
-   that says "no motion" while the markup still spawns sixty animated nodes is
-   only half an answer. */
+/* The script already declines to build the canvas under this setting. This is
+   the second guard, for a surface that somehow exists anyway. */
 @media (prefers-reduced-motion: reduce) {
   .mb-cfti { display: none; }
 }

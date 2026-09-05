@@ -138,6 +138,67 @@ function renderFeatures() {
 // A bold lead line and the explanation under it. replaceChildren with real
 // nodes, never innerHTML — the lead carries a formatted date and the body is
 // fixed copy, and neither has any business being parsed as markup.
+// Confetti, built here rather than pulled from a CDN — /owner-membership is in
+// PAYMENT_STRICT_PAGES and its script-src is 'self' plus checkout.razorpay.com,
+// so a library would be blocked and the celebration would silently never run.
+//
+// Fires only on a confirmed purchase. The two pending paths reach the same
+// dialog, and celebrating a payment we have not yet been able to confirm would
+// be the screen cheering about something it does not know happened.
+const CONFETTI_PIECES = 56;
+const CONFETTI_CLEANUP_MS = 4600;
+
+let confettiTimer = null;
+
+function prefersReducedMotion() {
+  return typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+function burstConfetti(host) {
+  // Asked for, not assumed: somebody who has told their system to stop moving
+  // things gets the dialog and no falling paper.
+  if (!host || prefersReducedMotion()) return;
+
+  const layer = document.createElement("div");
+  layer.className = "mb-cfti";
+  // Decoration. A screen reader announcing fifty-six empty elements between the
+  // heading and the button would make this worse, not more festive.
+  layer.setAttribute("aria-hidden", "true");
+
+  const rand = (min, max) => min + Math.random() * (max - min);
+
+  for (let i = 0; i < CONFETTI_PIECES; i += 1) {
+    const piece = document.createElement("i");
+    // A third of them round, so it does not read as falling bricks.
+    piece.className = `mb-cfti-p c${i % 6}${i % 3 === 0 ? " r" : ""}`;
+    // Per-piece values as custom properties. style-src keeps 'unsafe-inline'
+    // on this page, and the palette stays in the stylesheet where the colour
+    // tests can see it.
+    piece.style.setProperty("--x", `${rand(-2, 102).toFixed(2)}%`);
+    piece.style.setProperty("--w", `${rand(5, 10).toFixed(0)}px`);
+    piece.style.setProperty("--h", `${rand(8, 16).toFixed(0)}px`);
+    piece.style.setProperty("--sx", `${rand(-90, 90).toFixed(0)}px`);
+    piece.style.setProperty("--r", `${rand(-540, 540).toFixed(0)}deg`);
+    piece.style.setProperty("--d", `${rand(0, 0.55).toFixed(2)}s`);
+    piece.style.setProperty("--dur", `${rand(2.4, 3.9).toFixed(2)}s`);
+    layer.appendChild(piece);
+  }
+
+  host.appendChild(layer);
+
+  // Taken out again once the last piece has landed. Leaving fifty-six animated
+  // nodes in a dialog somebody may keep open is a battery cost for nothing.
+  clearTimeout(confettiTimer);
+  confettiTimer = setTimeout(() => layer.remove(), CONFETTI_CLEANUP_MS);
+}
+
+function clearConfetti(host) {
+  clearTimeout(confettiTimer);
+  confettiTimer = null;
+  if (host) host.querySelectorAll(".mb-cfti").forEach((el) => el.remove());
+}
+
 // The confirmation, shown once the money is gone — which is true on all three
 // paths out of the payment handler, not only the one where verification came
 // back cleanly. A buyer whose confirmation request failed has still paid, and
@@ -146,7 +207,7 @@ function renderFeatures() {
 // `until` and `orderNumber` are optional: on the pending paths the server has
 // not told us the new date yet, so those lines stay hidden rather than being
 // filled with a guess.
-function showDone({ title, message, until, orderNumber, benefits = true }) {
+function showDone({ title, message, until, orderNumber, benefits = true, celebrate = false }) {
   const done = byId("mbDone");
   if (!done) return;
 
@@ -168,10 +229,17 @@ function showDone({ title, message, until, orderNumber, benefits = true }) {
   done.hidden = false;
   document.body.style.overflow = "hidden";
   byId("mbDoneBtn").focus();
+
+  // After the dialog is on screen, so the pieces fall over something.
+  clearConfetti(done);
+  if (celebrate) burstConfetti(done);
 }
 
 function closeDone() {
   const done = byId("mbDone");
+  // Cleared rather than left to its timer: closing early must not leave a
+  // pending removal that fires into a dialog which has since reopened.
+  clearConfetti(done);
   if (done) done.hidden = true;
   document.body.style.overflow = "";
 }
@@ -357,7 +425,8 @@ async function startCheckout() {
               ? "Payment received. Your premium tag is covered for the full period."
               : "Payment received. Your membership is being set up.",
             until: result.currentPeriodEnd ? formatDate(result.currentPeriodEnd) : null,
-            orderNumber: result.orderNumber || null
+            orderNumber: result.orderNumber || null,
+            celebrate: true
           });
           // The screen behind is repainted too, so closing the confirmation
           // does not reveal the state the buyer was in before they paid.

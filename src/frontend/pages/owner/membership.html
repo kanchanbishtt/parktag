@@ -100,6 +100,38 @@
   </button>
 </div>
 
+<!-- ── Payment confirmation ────────────────────────────────────────────────
+     A membership is a thing somebody just paid for, and the acknowledgement
+     was a grey sentence in the note panel — the same panel that had been
+     showing them a plan comparison a second earlier. The shop's purchase
+     already opens a full confirmation (.pt-conf-ov in welcome.html); this is
+     the same moment on this screen, built in the same shape.
+
+     Deliberately not dismissible by tapping outside or pressing Escape: this
+     carries the order number, and closing it by accident is losing a receipt.
+     The button is the way out. -->
+<div class="mb-done" id="mbDone" hidden role="dialog" aria-modal="true" aria-labelledby="mbDoneTitle">
+  <div class="mb-done-card">
+    <div class="mb-done-check" aria-hidden="true">
+      <svg width="34" height="34" viewBox="0 0 24 24" fill="none"><path d="m5 12.5 4.5 4.5L19 7.5" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+
+    <h2 class="mb-done-title" id="mbDoneTitle">Thank you for being a member</h2>
+    <p class="mb-done-sub" id="mbDoneSub"></p>
+
+    <p class="mb-done-until" id="mbDoneUntil" hidden></p>
+    <p class="mb-done-ord" id="mbDoneOrd" hidden></p>
+
+    <ul class="mb-done-benes" id="mbDoneBenes">
+      <li><span class="mb-done-bico" aria-hidden="true"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="m5 12.5 4.5 4.5L19 7.5" stroke="#16A34A" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Unlimited masked calls &amp; WhatsApp</li>
+      <li><span class="mb-done-bico" aria-hidden="true"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="m5 12.5 4.5 4.5L19 7.5" stroke="#16A34A" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>PIN-locked document vault</li>
+      <li><span class="mb-done-bico" aria-hidden="true"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="m5 12.5 4.5 4.5L19 7.5" stroke="#16A34A" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Emergency SOS contact</li>
+    </ul>
+
+    <button class="mb-done-btn" id="mbDoneBtn" type="button">Done</button>
+  </div>
+</div>
+
 <!-- Razorpay's checkout sheet. Loaded from checkout.razorpay.com, which this
      page's CSP allows and the other strict pages deliberately do not — see
      PAYMENT_STRICT_PAGES in app.js. Not deferred: membership.js only calls

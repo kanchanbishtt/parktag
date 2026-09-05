@@ -605,3 +605,100 @@ body {
   .mb-cta-bar { padding-top: 10px; }
   .mb-cta { padding: 13px; }
 }
+
+/* ── Payment confirmation ────────────────────────────
+   Appended after the breakpoints on purpose. These are base rules with no
+   media override above them, which is the arrangement "no breakpoint is dead"
+   exists to protect — a block placed above the rules it overrides loses to
+   them silently. The one motion opt-out below sits AFTER its base rule for
+   the same reason. */
+.mb-done {
+  position: fixed; inset: 0; z-index: 100;
+  display: flex; align-items: center; justify-content: center;
+  padding: var(--gutter);
+  background: rgba(3, 22, 45, .55);
+  -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+  animation: mb-done-in .22s ease both;
+}
+.mb-done[hidden] { display: none; }
+
+.mb-done-card {
+  width: 100%; max-width: 400px; max-height: 92vh; overflow-y: auto;
+  background: var(--card); border-radius: 22px;
+  padding: 26px 22px calc(22px + env(safe-area-inset-bottom, 0px));
+  text-align: center;
+  box-shadow: 0 24px 60px -18px rgba(3, 22, 45, .45);
+  animation: mb-done-rise .34s cubic-bezier(.22, 1, .36, 1) both;
+}
+
+/* Green, not the brand red. Red is the buy button on the screen behind this;
+   using it again on a tick would say "act" where this says "done". */
+.mb-done-check {
+  width: 62px; height: 62px; margin: 0 auto 16px;
+  display: flex; align-items: center; justify-content: center;
+  background: #16A34A; border-radius: 50%;
+  box-shadow: 0 10px 24px -8px rgba(22, 163, 74, .55);
+}
+
+.mb-done-title {
+  margin: 0 0 6px; font-size: 1.28rem; font-weight: 800;
+  letter-spacing: -.02em; color: var(--navy); line-height: 1.25;
+}
+
+.mb-done-sub { margin: 0; font-size: .9rem; line-height: 1.55; color: var(--ink-2); }
+
+/* The date is the answer to "what did I just buy", so it gets the weight. */
+.mb-done-until {
+  margin: 16px 0 0; padding: 12px 14px;
+  background: var(--navy-tint); border-radius: 12px;
+  font-size: .95rem; font-weight: 800; color: var(--navy);
+}
+.mb-done-until[hidden] { display: none; }
+
+/* The receipt. Small, but selectable — somebody quoting this in a support
+   message must be able to copy it rather than retype it from a screenshot. */
+.mb-done-ord {
+  margin: 9px 0 0; font-size: .76rem; font-weight: 600;
+  color: var(--ink-4); letter-spacing: .02em;
+  user-select: text; -webkit-user-select: text;
+}
+.mb-done-ord[hidden] { display: none; }
+
+.mb-done-benes {
+  list-style: none; margin: 18px 0 0; padding: 16px 0 0;
+  border-top: 1px solid var(--border); text-align: left;
+}
+.mb-done-benes li {
+  display: flex; align-items: center; gap: 9px;
+  font-size: .84rem; font-weight: 600; color: var(--ink-2);
+  padding: 5px 0;
+}
+.mb-done-benes[hidden] { display: none; }
+
+.mb-done-bico {
+  flex-shrink: 0; width: 20px; height: 20px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: #DCFCE7;
+}
+
+.mb-done-btn {
+  width: 100%; margin-top: 20px; padding: 15px;
+  border: none; border-radius: var(--radius-btn);
+  background: var(--navy); color: #fff;
+  font-size: .98rem; font-weight: 800; cursor: pointer;
+  transition: background .15s ease;
+}
+.mb-done-btn:hover { background: var(--navy-2); }
+.mb-done-btn:focus-visible { outline: 3px solid rgba(3, 22, 45, .35); outline-offset: 2px; }
+
+@keyframes mb-done-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes mb-done-rise {
+  from { opacity: 0; transform: translate3d(0, 18px, 0) scale(.97); }
+  to { opacity: 1; transform: none; }
+}
+
+/* After the rules it turns off, never before. */
+@media (prefers-reduced-motion: reduce) {
+  .mb-done, .mb-done-card { animation-duration: .01ms; }
+  .mb-done-btn { transition: none; }
+}

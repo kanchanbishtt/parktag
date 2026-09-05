@@ -138,6 +138,44 @@ function renderFeatures() {
 // A bold lead line and the explanation under it. replaceChildren with real
 // nodes, never innerHTML — the lead carries a formatted date and the body is
 // fixed copy, and neither has any business being parsed as markup.
+// The confirmation, shown once the money is gone — which is true on all three
+// paths out of the payment handler, not only the one where verification came
+// back cleanly. A buyer whose confirmation request failed has still paid, and
+// telling them so quietly in a grey panel is how a paid customer pays twice.
+//
+// `until` and `orderNumber` are optional: on the pending paths the server has
+// not told us the new date yet, so those lines stay hidden rather than being
+// filled with a guess.
+function showDone({ title, message, until, orderNumber, benefits = true }) {
+  const done = byId("mbDone");
+  if (!done) return;
+
+  byId("mbDoneTitle").textContent = title;
+  byId("mbDoneSub").textContent = message;
+
+  const untilEl = byId("mbDoneUntil");
+  untilEl.hidden = !until;
+  if (until) untilEl.textContent = `Member until ${until}`;
+
+  const ordEl = byId("mbDoneOrd");
+  ordEl.hidden = !orderNumber;
+  if (orderNumber) ordEl.textContent = `Order ${orderNumber}`;
+
+  // Nothing is unlocked yet on the pending paths, so the list would be a
+  // promise the screen cannot keep at that moment.
+  byId("mbDoneBenes").hidden = !benefits;
+
+  done.hidden = false;
+  document.body.style.overflow = "hidden";
+  byId("mbDoneBtn").focus();
+}
+
+function closeDone() {
+  const done = byId("mbDone");
+  if (done) done.hidden = true;
+  document.body.style.overflow = "";
+}
+
 function setNote(note, lead, rest) {
   const strong = document.createElement("strong");
   strong.textContent = lead;
@@ -313,14 +351,16 @@ async function startCheckout() {
           // was holding from create-order — assembled before the payment and
           // never reconciled with it. The shop's confirmation follows the same
           // rule, for the same reason.
-          const parts = [];
-          if (result.orderNumber) parts.push(`Order ${result.orderNumber}.`);
-          parts.push(
-            result.currentPeriodEnd
-              ? `You are a member until ${formatDate(result.currentPeriodEnd)}.`
-              : "Your membership is being set up."
-          );
-          showNote(`Payment received. ${parts.join(" ")}`);
+          showDone({
+            title: "Thank you for being a member",
+            message: result.currentPeriodEnd
+              ? "Payment received. Your premium tag is covered for the full period."
+              : "Payment received. Your membership is being set up.",
+            until: result.currentPeriodEnd ? formatDate(result.currentPeriodEnd) : null,
+            orderNumber: result.orderNumber || null
+          });
+          // The screen behind is repainted too, so closing the confirmation
+          // does not reveal the state the buyer was in before they paid.
           renderPlans();
           return;
         }
@@ -330,16 +370,22 @@ async function startCheckout() {
         // activation and has very likely already run or is about to. "We have
         // your payment" is both true and the only thing that stops a second one.
         setBusy(false);
-        showNote(
-          "We have your payment. Confirming it is taking longer than usual — your " +
-            "membership will activate shortly, and there is no need to pay again."
-        );
+        showDone({
+          title: "Payment received",
+          message:
+            "Confirming it is taking longer than usual. Your membership will " +
+            "activate shortly — there is no need to pay again.",
+          benefits: false
+        });
       } catch {
         setBusy(false);
-        showNote(
-          "We have your payment but could not reach us to confirm it. Your " +
-            "membership will activate shortly — please do not pay again."
-        );
+        showDone({
+          title: "Payment received",
+          message:
+            "We could not reach the server to confirm it. Your membership will " +
+            "activate shortly — please do not pay again.",
+          benefits: false
+        });
       }
     }
   });
@@ -425,6 +471,15 @@ async function load() {
   // (script-src-attr 'none'), so an onclick would not error — it would silently
   // never fire.
   byId("mbCta").addEventListener("click", startCheckout);
+  byId("mbDoneBtn").addEventListener("click", closeDone);
+
+  // Escape closes it, because a dialog that traps the keyboard is worse than
+  // one that can be dismissed. Clicking the backdrop deliberately does NOT:
+  // this carries the order number, and losing a receipt to a stray tap beside
+  // the card is a support message rather than a convenience.
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !byId("mbDone").hidden) closeDone();
+  });
 
   // Last: every renderer above checks it to decide whether to animate.
   loading = false;

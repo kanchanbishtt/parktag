@@ -903,7 +903,10 @@ export function registerShopRoutes(app, env) {
     // carries the acceptance reminder + a tracking link once a waybill exists.
     await sendOrderConfirmation(env, collections, ownerId, {
       orderNumber, productName: product.name, amountPaise, cod: true,
-      waybill: bookedWaybill, deliveryPhone: shipping.phone
+      waybill: bookedWaybill, deliveryPhone: shipping.phone,
+      // The name typed for the courier — the only name most owners ever give
+      // us, since sign-in asks for a number and nothing else.
+      deliveryName: shipping.fullName
     }, request.log);
 
     return {
@@ -1052,7 +1055,9 @@ export function registerShopRoutes(app, env) {
     if (firstTime) {
       await sendOrderConfirmation(env, collections, ownerId, {
         orderNumber, productName: order.productName, amountPaise: order.prepayAmount, cod: false,
-        waybill: order.waybill, deliveryPhone: order.shippingAddress && order.shippingAddress.phone
+        waybill: order.waybill,
+        deliveryPhone: order.shippingAddress && order.shippingAddress.phone,
+        deliveryName: order.shippingAddress && order.shippingAddress.fullName
       }, request.log);
     }
 

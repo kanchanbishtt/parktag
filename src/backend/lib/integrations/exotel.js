@@ -1,3 +1,5 @@
+import { toE164 } from "../core/phone.js";
+
 function normalizeBaseUrl(input) {
   const value = String(input || "").trim();
 
@@ -98,28 +100,18 @@ function toFormBody(payload) {
   return params;
 }
 
+// Delegates to core/phone.js so voice, SMS and WhatsApp cannot disagree about
+// who a number belongs to. This copy had the same trunk-zero gap as the other
+// two: 0XXXXXXXXXX matched none of its cases and was handed to Exotel verbatim.
 function normalizeIndianNumber(input) {
-  const raw = String(input || "").trim();
-
-  if (!raw) {
+  if (!String(input ?? "").trim()) {
     throw new Error("Phone number is required");
   }
-
-  const digits = raw.replace(/[^\d+]/g, "");
-
-  if (digits.startsWith("+")) {
-    return digits;
+  const e164 = toE164(input);
+  if (!e164) {
+    throw new Error("Not a valid phone number");
   }
-
-  if (digits.length === 10) {
-    return `+91${digits}`;
-  }
-
-  if (digits.length === 12 && digits.startsWith("91")) {
-    return `+${digits}`;
-  }
-
-  return digits;
+  return e164;
 }
 
 function buildProviderFailure(responseStatus, data) {

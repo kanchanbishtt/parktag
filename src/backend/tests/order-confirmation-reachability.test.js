@@ -174,3 +174,289 @@ describe("a buyer who can be reached", () => {
     assert.equal(log.errors[0].obj.hasDeliveryPhone, false);
   });
 });
+
+// Both channels, and neither able to silence the other.
+//
+// The confirmation used to send the e-mail and RETURN, reaching WhatsApp only
+// for a buyer who had no address on file. Two things changed: it now attempts
+// both, and it attempts them at the same time rather than one after the other.
+//
+// The ordering is not what these pin — a stopwatch in a test suite measures the
+// machine it runs on. What they pin is the property parallelising had to
+// preserve: each channel absorbs its own failure, so a dead provider costs its
+// own message and nothing else. That is exactly what the old early-return could
+// not express, and it is the shape a future edit is most likely to undo.
+//
+// `global.fetch` is stubbed rather than the environment blanked: these need the
+// WhatsApp branch to actually run, which the module-level blanking above is
+// specifically designed to prevent.
+describe("both channels are tried, independently", () => {
+  const WHATSAPP_ENV = {
+    runtimeMode: "development",
+    metaWhatsappPhoneNumberId: "PNID",
+    metaWhatsappAccessToken: "token",
+    appBaseUrl: "https://www.parktag.me",
+    delhiveryBaseUrl: "https://track.delhivery.com"
+  };
+
+  const realFetch = global.fetch;
+  let sends;
+
+  function stubFetch({ fails }) {
+    sends = [];
+    global.fetch = async (url, opts) => {
+      sends.push(JSON.parse(opts.body));
+      return {
+        ok: !fails,
+        status: fails ? 400 : 200,
+        async json() {
+          return fails ? { error: { message: "provider is down" } } : { messages: [{ id: "wamid.T" }] };
+        },
+        async text() { return "{}"; }
+      };
+    };
+  }
+
+  test("an owner with an e-mail is ALSO messaged on WhatsApp", async () => {
+    stubFetch({ fails: false });
+    try {
+      const log = stubLog();
+      await sendOrderConfirmation(
+        WHATSAPP_ENV,
+        stubCollections({ _id: "abc", email: "qa@example.invalid", displayName: "QA Tester" }),
+        "abc",
+        DETAILS,
+        log
+      );
+
+      assert.equal(sends.length, 1, "having an e-mail suppressed the WhatsApp");
+      assert.equal(sends[0].template.name, "parktag_order_update_v2");
+      assert.deepEqual(log.errors, []);
+    } finally {
+      global.fetch = realFetch;
+    }
+  });
+
+  test("a dead WhatsApp provider does not make a delivered e-mail count as unreachable", async () => {
+    stubFetch({ fails: true });
+    try {
+      const log = stubLog();
+      await sendOrderConfirmation(
+        WHATSAPP_ENV,
+        stubCollections({ _id: "abc", email: "qa@example.invalid" }),
+        "abc",
+        DETAILS,
+        log
+      );
+
+      assert.ok(
+        log.errors.some(e => /WhatsApp failed/.test(e.msg || "")),
+        "the WhatsApp failure went unlogged"
+      );
+      assert.ok(
+        !log.errors.some(e => e.obj?.event === "order-confirmation-undeliverable"),
+        "reported undeliverable even though the e-mail was delivered"
+      );
+    } finally {
+      global.fetch = realFetch;
+    }
+  });
+
+  test("a guest is still messaged when only WhatsApp is possible", async () => {
+    stubFetch({ fails: false });
+    try {
+      const log = stubLog();
+      await sendOrderConfirmation(WHATSAPP_ENV, stubCollections(), null, DETAILS, log);
+
+      assert.equal(sends.length, 1);
+      assert.deepEqual(log.errors, [], "a reachable guest was reported unreachable");
+    } finally {
+      global.fetch = realFetch;
+    }
+  });
+
+  test("when BOTH channels fail the buyer is still reported unreachable", async () => {
+    stubFetch({ fails: true });
+    try {
+      const log = stubLog();
+      // No e-mail on the owner and a dead provider: nothing got through.
+      await sendOrderConfirmation(WHATSAPP_ENV, stubCollections({ _id: "abc" }), "abc", DETAILS, log);
+
+      assert.ok(
+        log.errors.some(e => e.obj?.event === "order-confirmation-undeliverable"),
+        "both channels failed and nobody was told"
+      );
+    } finally {
+      global.fetch = realFetch;
+    }
+  });
+});
+
+// Who the message greets.
+//
+// Sign-in asks for a phone number or an e-mail and never for a name, so most
+// owners have no displayName at all — and the OTP and Firebase paths used to
+// write the identifier itself into that field, which is why it cannot simply be
+// read. resolveOwnerName has always taken a delivery address as its second
+// source for exactly this reason, and this caller was not passing one: the name
+// the buyer had typed for the courier, on this very order, sat one field away
+// from the phone number that WAS being passed.
+//
+// The negatives matter as much as the greeting. The name field is free text on
+// a public form, and a Meta template cannot be edited after it is sent.
+describe("the name on the message", () => {
+  const WHATSAPP_ENV = {
+    runtimeMode: "development",
+    metaWhatsappPhoneNumberId: "PNID",
+    metaWhatsappAccessToken: "token",
+    appBaseUrl: "https://www.parktag.me",
+    delhiveryBaseUrl: "https://track.delhivery.com"
+  };
+
+  const realFetch = global.fetch;
+
+  async function greeting(owner, deliveryName) {
+    let body = null;
+    global.fetch = async (url, opts) => {
+      body = JSON.parse(opts.body);
+      return { ok: true, status: 200, async json() { return { messages: [{ id: "w" }] }; }, async text() { return "{}"; } };
+    };
+    try {
+      await sendOrderConfirmation(
+        WHATSAPP_ENV,
+        stubCollections(owner),
+        owner ? "abc" : null,
+        { ...DETAILS, deliveryName },
+        stubLog()
+      );
+    } finally {
+      global.fetch = realFetch;
+    }
+    return body.template.components.find(c => c.type === "body").parameters[0].text;
+  }
+
+  test("a guest is greeted by the name they gave the courier", async () => {
+    assert.equal(await greeting(null, "Kanchan Bisht"), "Kanchan");
+  });
+
+  test("an owner with no name is greeted by the one on the parcel", async () => {
+    assert.equal(await greeting({ _id: "abc", mobile: "+919812345678" }, "Asha Verma"), "Asha");
+  });
+
+  test("a name they told us themselves still wins over the courier's", async () => {
+    assert.equal(
+      await greeting({ _id: "abc", displayName: "Kanchan Bisht", mobile: "+919812345678" }, "K B"),
+      "Kanchan"
+    );
+  });
+
+  // Legacy accounts carry the identifier in displayName. Reading it raw is what
+  // produced "Hi 9876500123" in a message nobody can retract.
+  test("a phone number stored as a displayName is skipped, not greeted", async () => {
+    assert.equal(
+      await greeting({ _id: "abc", displayName: "9812345678", mobile: "+919812345678" }, "Asha Verma"),
+      "Asha"
+    );
+  });
+
+  test("a phone number typed into the NAME field is refused", async () => {
+    assert.equal(await greeting({ _id: "abc", mobile: "+919812345678" }, "9812345678"), "there");
+  });
+
+  test("an e-mail typed into the name field is refused", async () => {
+    assert.equal(await greeting({ _id: "abc", mobile: "+919812345678" }, "billing@example.invalid"), "there");
+  });
+
+  test("with no name anywhere it is still 'there', never blank", async () => {
+    // A blank would be an empty template parameter, which Meta rejects
+    // outright — the message would not be sent at all.
+    assert.equal(await greeting({ _id: "abc", mobile: "+919812345678" }, null), "there");
+  });
+});
+
+// The "Track order" button.
+//
+// The tracking link is a button on the template rather than a line in the body,
+// and it points at ParkTag's own /track-order rather than straight at the
+// courier. The courier's link only exists once Delhivery has accepted the
+// parcel — which is AFTER most confirmations are sent — so the body-link
+// version carried a dead link or a placeholder on exactly the message that
+// mattered most. /track-order answers before a waybill exists and shows the
+// live scan history after.
+//
+// What these pin is the parameter: Meta appends it to the URL approved with the
+// template, so it must be the order NUMBER. Sending a whole link there would
+// produce a URL with a link glued onto its query string, and nothing would
+// fail — the message sends, the button is simply broken for the person who
+// taps it.
+describe("the track order button", () => {
+  const WHATSAPP_ENV = {
+    runtimeMode: "development",
+    metaWhatsappPhoneNumberId: "PNID",
+    metaWhatsappAccessToken: "token",
+    appBaseUrl: "https://www.parktag.me",
+    delhiveryBaseUrl: "https://track.delhivery.com"
+  };
+
+  const realFetch = global.fetch;
+
+  async function sent(details) {
+    let body = null;
+    global.fetch = async (url, opts) => {
+      body = JSON.parse(opts.body);
+      return { ok: true, status: 200, async json() { return { messages: [{ id: "w" }] }; }, async text() { return "{}"; } };
+    };
+    try {
+      await sendOrderConfirmation(WHATSAPP_ENV, stubCollections(), null, { ...DETAILS, ...details }, stubLog());
+    } finally {
+      global.fetch = realFetch;
+    }
+    return body;
+  }
+
+  test("every confirmation carries the button", async () => {
+    const body = await sent({});
+    const button = body.template.components.find(c => c.type === "button");
+    assert.ok(button, "no button was attached");
+    assert.equal(button.sub_type, "url");
+    assert.equal(button.index, "0");
+  });
+
+  test("its parameter is the order number, not a link", async () => {
+    const body = await sent({ orderNumber: "PT-260905-00042" });
+    const button = body.template.components.find(c => c.type === "button");
+    assert.equal(button.parameters[0].text, "PT-260905-00042");
+    assert.ok(
+      !/^https?:/i.test(button.parameters[0].text),
+      "a whole URL was passed where Meta expects only the suffix"
+    );
+  });
+
+  // The case the body-link version could not serve: nothing has shipped, so
+  // there is no courier URL in existence, and the button must still work.
+  test("it is present before a waybill exists", async () => {
+    const body = await sent({ waybill: null, cod: true });
+    const button = body.template.components.find(c => c.type === "button");
+    assert.ok(button, "the pre-shipment confirmation lost its button");
+    assert.equal(button.parameters[0].text, DETAILS.orderNumber);
+  });
+
+  // Meta rejects an empty template parameter outright, and a button parameter
+  // is no different — the whole message fails to send, behind a payment that
+  // already succeeded.
+  test("the parameter is never blank", async () => {
+    const body = await sent({});
+    const button = body.template.components.find(c => c.type === "button");
+    assert.ok(button.parameters[0].text.length > 0);
+  });
+
+  test("the body no longer carries a link of its own", async () => {
+    const body = await sent({});
+    const params = body.template.components.find(c => c.type === "body").parameters;
+    assert.equal(params.length, 3, "the body should be name, order number and status");
+    assert.ok(
+      !params.some(p => /^https?:/i.test(p.text)),
+      "a link is still being sent in the body as well as the button"
+    );
+  });
+});

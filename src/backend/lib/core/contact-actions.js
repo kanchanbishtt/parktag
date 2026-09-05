@@ -1,6 +1,7 @@
 import { ObjectId } from "mongodb";
 
 import { sendMetaWhatsappAlert, isMetaWhatsappConfigured } from "../integrations/meta.js";
+import { sendOwnerAlertEmail } from "../integrations/email.js";
 import { getCollections } from "../db/repositories.js";
 import { captureScannerLocation } from "./scan-location.js";
 
@@ -121,15 +122,57 @@ export async function createContactAction(env, input) {
         throw new Error("Only WhatsApp messaging is supported");
       }
 
-      if (!isMetaWhatsappConfigured(env)) {
-        throw new Error("WhatsApp is not configured");
+      // EVERY channel the owner has, not just the one they are most likely to
+      // read. This is the most time-critical message the app sends — lights
+      // left on, a car blocking a gate — and it used to require WhatsApp: an
+      // owner with only an e-mail on file got nothing, and the scanner who
+      // took the trouble to report it was told the request had failed.
+      //
+      // Each attempt absorbs its own rejection and reports a boolean, so a dead
+      // provider costs its own message and nothing else. The throw below fires
+      // only when NOBODY could be reached, which is the condition that
+      // genuinely deserves an error at the scanner.
+      const mobile = owner.phone || owner.mobile;
+      const ownerName = owner.displayName || "there";
+      const reasonText = reasonLabel(input.reason) || "an issue has been reported";
+      const attempts = [];
+
+      if (mobile && isMetaWhatsappConfigured(env)) {
+        attempts.push(
+          sendMetaWhatsappAlert(env, { to: mobile, ownerName, reason: reasonText })
+            .then((result) => { provider = result; return true; })
+            .catch((err) => {
+              console.error("[WaveTag] owner alert WhatsApp failed:", err?.message, err?.providerDetail);
+              return false;
+            })
+        );
       }
 
-      provider = await sendMetaWhatsappAlert(env, {
-        to: owner.phone || owner.mobile,
-        ownerName: owner.displayName || "there",
-        reason: reasonLabel(input.reason) || "an issue has been reported"
-      });
+      if (owner.email) {
+        attempts.push(
+          sendOwnerAlertEmail(env, {
+            to: owner.email,
+            ownerName,
+            reason: reasonText,
+            plateNumber: tag.plateNumber || null
+          })
+            .then(() => true)
+            .catch((err) => {
+              console.error("[WaveTag] owner alert e-mail failed:", err?.message);
+              return false;
+            })
+        );
+      }
+
+      if (!attempts.length) {
+        throw new Error("This owner has no contact channel on file");
+      }
+
+      const reached = (await Promise.all(attempts)).some(Boolean);
+      if (!reached) {
+        throw new Error("Could not reach the owner on any channel");
+      }
+
       providerStatus = "provider_started";
     }
   } catch (error) {

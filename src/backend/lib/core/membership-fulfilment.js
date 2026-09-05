@@ -18,6 +18,13 @@
 import { hasActiveSubscription } from "./subscription.js";
 import { premiumTrialEndsAt } from "./vault.js";
 import { addMonths } from "./calendar.js";
+import { getMembershipPlan } from "./membership-plans.js";
+import { firstNameOf, resolveOwnerName } from "./owner-name.js";
+import {
+  isMetaWhatsappConfigured,
+  sendMetaWhatsappMembershipConfirmation
+} from "../integrations/meta.js";
+import { sendMembershipConfirmationEmail } from "../integrations/email.js";
 
 // Re-exported because this was its home before the complimentary year needed
 // the same arithmetic, and callers — including the tests that pin the
@@ -61,12 +68,158 @@ export function membershipPeriodStart(tag, now = Date.now()) {
   return start;
 }
 
+// The date premium runs until, as a person in India would read it.
+//
+// IST, not UTC. A period ending at 2027-09-12T19:30:00Z is the 13th in Delhi,
+// and a confirmation that names the wrong last day is worse than one that names
+// no day at all — it is the number the buyer will hold us to.
+function readableDate(iso) {
+  const at = new Date(iso);
+  if (!Number.isFinite(at.getTime())) return null;
+  return new Intl.DateTimeFormat("en-IN", {
+    timeZone: "Asia/Kolkata",
+    day: "numeric",
+    month: "long",
+    year: "numeric"
+  }).format(at);
+}
+
+// Tell the buyer their membership went through.
+//
+// Until this existed, NOTHING did. activateMembership extended the tag, logged
+// a line for us, and returned; the buyer's only confirmation was a dialog in
+// the tab they had just paid in. Close that tab — or pay on a phone that slept
+// through the redirect — and the money was gone with no acknowledgement on any
+// channel. Worse, the Razorpay webhook is the path that exists PRECISELY for
+// the closed-tab case, and it has no browser to show a dialog to at all, so the
+// people most in need of a confirmation were the only ones guaranteed not to
+// get one.
+//
+// Best-effort, and deliberately so: the payment is captured and the
+// subscription is already extended by the time this runs. A template that is
+// not approved yet, or a number that is not on WhatsApp, must never turn a
+// successful purchase into a failed one — so every failure here is logged and
+// swallowed.
+async function sendMembershipConfirmation(env, collections, { order, currentPeriodEnd, log }) {
+  try {
+    if (!env) return;
+
+    const owner = order.ownerId
+      ? await collections.owners.findOne({ _id: order.ownerId })
+      : null;
+
+    // The delivery address, purely for the name on it.
+    //
+    // Sign-in asks for a phone number and nothing else, so an owner who has
+    // never filled in the dashboard greeting has no name we can use and the
+    // message opens "Hi there". They almost certainly have one on file
+    // regardless: a membership needs an activated tag, an activated tag came
+    // from an order, and an order asked for a name to put on the parcel.
+    // resolveOwnerName has always taken this as its second source — it just
+    // had to be fetched. One indexed read (addresses is unique on ownerId)
+    // against a message the buyer keeps.
+    //
+    // Optional in every sense: a missing collection, a missing row or a throw
+    // all land on "there", which is what it said before.
+    let address = null;
+    if (owner && collections.addresses) {
+      address = await collections.addresses
+        .findOne({ ownerId: owner._id })
+        .catch(() => null);
+    }
+    // Both fields are written together at signup, but older accounts carry only
+    // one of them — login-pin.js reads the same pair for the same reason.
+    const mobile = owner && (owner.mobile || owner.phone);
+    const email = owner && owner.email;
+    const endsOn = currentPeriodEnd ? readableDate(currentPeriodEnd) : null;
+
+    // Without a date there is nothing worth saying on any channel — the one
+    // fact this message exists to carry is how long they have bought.
+    if (!endsOn) {
+      log?.error?.(
+        {
+          event: "membership-confirmation-undeliverable",
+          orderId: order.orderId,
+          hasPhone: Boolean(mobile),
+          hasEmail: Boolean(email),
+          hasEndDate: false
+        },
+        "[membership] a PAID membership could not be confirmed to its buyer"
+      );
+      return;
+    }
+
+    const plan = getMembershipPlan(order.planId);
+    // Never the raw displayName: the OTP signup path used to store the phone
+    // number in it, and neither a Meta template nor a sent e-mail can be
+    // edited afterwards.
+    const name = firstNameOf(resolveOwnerName(owner, address)) || "there";
+    const planLabel = (plan && plan.label) || `${order.months} month`;
+
+    // BOTH channels, started together — the shape sendOrderConfirmation uses,
+    // and for the same reason. This used to require a mobile and send only
+    // WhatsApp, so an owner who signed up by e-mail and never added a number
+    // got NOTHING: no message, a logged "undeliverable", and a membership they
+    // had already paid for. Each promise absorbs its own rejection and reports
+    // a boolean, so one channel failing cannot suppress the other.
+    const attempts = [];
+
+    if (mobile && isMetaWhatsappConfigured(env)) {
+      attempts.push(
+        sendMetaWhatsappMembershipConfirmation(env, { to: mobile, name, planLabel, endsOn })
+          .then(() => true)
+          .catch((err) => {
+            log?.error?.({ err, orderId: order.orderId }, "[membership] confirmation WhatsApp failed");
+            return false;
+          })
+      );
+    }
+
+    if (email) {
+      attempts.push(
+        sendMembershipConfirmationEmail(env, {
+          to: email,
+          name,
+          planLabel,
+          endsOn,
+          orderNumber: order.orderNumber || null
+        })
+          .then(() => true)
+          .catch((err) => {
+            log?.error?.({ err, orderId: order.orderId }, "[membership] confirmation e-mail failed");
+            return false;
+          })
+      );
+    }
+
+    const reached = (await Promise.all(attempts)).some(Boolean);
+    if (reached) return;
+
+    log?.error?.(
+      {
+        event: "membership-confirmation-undeliverable",
+        orderId: order.orderId,
+        hasPhone: Boolean(mobile),
+        hasEmail: Boolean(email),
+        hasEndDate: true,
+        whatsappConfigured: isMetaWhatsappConfigured(env)
+      },
+      "[membership] a PAID membership could not be confirmed to its buyer"
+    );
+  } catch (err) {
+    log?.error?.(
+      { err, event: "membership-confirmation-failed", orderId: order.orderId },
+      "[membership] confirmation WhatsApp failed"
+    );
+  }
+}
+
 // Claim the order and extend the tag. Returns { firstTime, currentPeriodEnd }.
 //
 // `firstTime` is false when someone else already claimed it, which is normal
 // traffic rather than an error: Razorpay retries its webhook until it gets a
 // 2xx, and the browser callback races it on every successful checkout.
-export async function activateMembership(collections, { order, paymentId, log, now = Date.now() }) {
+export async function activateMembership(collections, { env, order, paymentId, log, now = Date.now() }) {
   // The gate, and the only thing preventing a double activation. A conditional
   // update from "created" is atomic in the database, so of two concurrent
   // callers exactly one sees modifiedCount 1 — the same mechanism
@@ -137,6 +290,13 @@ export async function activateMembership(collections, { order, paymentId, log, n
       "[membership] subscription extended"
     );
   }
+
+  // Inside the firstTime branch, never at a call site. Both callers race each
+  // other on every purchase and Razorpay retries its webhook until it gets a
+  // 2xx, so a notification hung off the return value would message the buyer
+  // once per delivery attempt. The conditional claim above is the one place
+  // that is guaranteed to run exactly once per payment.
+  await sendMembershipConfirmation(env, collections, { order, currentPeriodEnd, log });
 
   return { firstTime: true, currentPeriodEnd };
 }

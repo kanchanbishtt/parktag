@@ -87,3 +87,57 @@ describe("the guest checkout bot gate", () => {
     }
   });
 });
+
+// The reason strings the checkout route branches on.
+//
+// /api/shop/guest/create-order does NOT treat every failure the same. An absent
+// token is ambiguous — a script that never ran the page looks identical to a
+// person whose ad blocker ate the reCAPTCHA script — so that path is allowed
+// through under a tight per-IP cap rather than refused. Everything else is
+// affirmative evidence and is refused outright.
+//
+// That branch is a string comparison against "missing-token". Rename the reason
+// in recaptcha.js and the route silently starts hard-blocking every unscored
+// buyer instead, on the one page that sells to strangers, with no test failing
+// anywhere near the change. So the contract is pinned here.
+describe("the reason codes the checkout route depends on", () => {
+  test("an absent token is reported as exactly 'missing-token'", async () => {
+    const result = await verifyRecaptcha(CONFIGURED_PROD, undefined, {
+      expectedAction: "guest_checkout"
+    });
+    assert.equal(result.ok, false);
+    assert.equal(
+      result.reason,
+      "missing-token",
+      "the checkout route branches on this exact string to decide whether to " +
+        "soft-limit or hard-refuse — renaming it hard-blocks unscored buyers"
+    );
+  });
+
+  test("outside production the absent-token reason is distinguishable", async () => {
+    const result = await verifyRecaptcha(
+      { ...CONFIGURED_PROD, runtimeMode: "development" },
+      "",
+      { expectedAction: "guest_checkout" }
+    );
+    assert.equal(result.ok, true);
+    assert.equal(result.reason, "missing-token-dev");
+  });
+
+  // Google unreachable already fails OPEN, which is the right call and is why
+  // the route needs no branch for it: a network blip on Google's side must not
+  // stop a sale. Pinned so it cannot quietly become fail-closed.
+  test("an unreachable verifier fails open, not closed", async () => {
+    const realFetch = global.fetch;
+    global.fetch = async () => { throw new Error("getaddrinfo ENOTFOUND"); };
+    try {
+      const result = await verifyRecaptcha(CONFIGURED_PROD, "a-token", {
+        expectedAction: "guest_checkout"
+      });
+      assert.equal(result.ok, true, "a Google outage would block every checkout");
+      assert.equal(result.degraded, true);
+    } finally {
+      global.fetch = realFetch;
+    }
+  });
+});

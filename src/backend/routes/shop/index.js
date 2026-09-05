@@ -163,6 +163,61 @@ const TRACK_WINDOW_MINUTES = 60;
 // Accept an order number however the buyer types it — lowercase, spaced, or
 // with the dashes dropped by a copy/paste — and canonicalise it back to the
 // stored PT-YYMMDD-NNNNN form. Returns "" for anything that can't be one.
+// A guest checkout that reCAPTCHA could not score, capped per IP.
+//
+// v3 is invisible and it is not always there: a privacy extension, a corporate
+// proxy or a blocked Google host all make getCaptchaToken() resolve to "", and
+// the server cannot tell that apart from a script that never ran the page.
+// Rejecting outright — which is what the OTP flow does — is the wrong trade on
+// the one page that sells to strangers, because the cost of a false positive is
+// a lost sale rather than a retried login.
+//
+// So an unscored checkout is allowed, but only a few times per address per
+// hour. That is the asymmetry the cap is built on: a person buying a tag needs
+// ONE order to succeed, while card testing needs volume — the whole point of it
+// is to run stolen numbers in bulk against a live merchant. A handful an hour
+// serves the first and is useless for the second.
+//
+// Affirmative bot evidence is still refused outright (see the caller): a low
+// score, a token Google rejects, or a token minted for another action are all
+// positive signals, not an absence of one.
+const UNSCORED_CHECKOUTS_PER_IP = 3;
+const UNSCORED_WINDOW_MS = 60 * 60 * 1000;
+
+async function unscoredCheckoutExhausted(collections, ip) {
+  // No counter available (Mongo not configured, or no address to key on) means
+  // no opinion. The per-IP rate limit on the route still applies.
+  if (!collections?.rateLimits || !ip) return false;
+
+  try {
+    // Same atomic shape lib/auth/rate-limit-store.js uses: one round trip, and
+    // `$$NOW` is the server's clock so replicas cannot smear the window.
+    const windowAlive = { $gt: [{ $ifNull: ["$resetAt", "$$NOW"] }, "$$NOW"] };
+    const result = await collections.rateLimits.findOneAndUpdate(
+      { _id: `guest-checkout-unscored:${ip}` },
+      [
+        {
+          $set: {
+            count: { $cond: [windowAlive, { $add: [{ $ifNull: ["$count", 0] }, 1] }, 1] },
+            resetAt: {
+              $cond: [windowAlive, "$resetAt", { $add: ["$$NOW", UNSCORED_WINDOW_MS] }]
+            }
+          }
+        }
+      ],
+      { upsert: true, returnDocument: "after" }
+    );
+
+    // Driver 6 returns the document directly; older ones wrap it in `{ value }`.
+    const doc = result && result.value !== undefined ? result.value : result;
+    if (!doc || typeof doc.count !== "number") return false;
+    return doc.count > UNSCORED_CHECKOUTS_PER_IP;
+  } catch {
+    // A counter that cannot be read must not take the storefront down with it.
+    return false;
+  }
+}
+
 function normalizeOrderNumber(raw) {
   const compact = String(raw || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
   const parts = /^PT(\d{6})(\d{5})$/.exec(compact);
@@ -339,15 +394,41 @@ export function registerShopRoutes(app, env) {
         expectedAction: "guest_checkout"
       });
       if (!captcha.ok) {
-        request.log.warn(
-          { event: "guest-checkout-captcha-rejected", reason: captcha.reason, score: captcha.score },
-          "[guest checkout] reCAPTCHA rejected order creation"
+        // An ABSENT token is not evidence of a bot, and treating it as one
+        // makes an ad blocker a reason somebody cannot buy. Everything else
+        // here — a low score, a token Google rejects, a token minted for a
+        // different action — is a positive signal and is refused outright.
+        const unscored = captcha.reason === "missing-token";
+
+        if (!unscored) {
+          request.log.warn(
+            { event: "guest-checkout-captcha-rejected", reason: captcha.reason, score: captcha.score },
+            "[guest checkout] reCAPTCHA rejected order creation"
+          );
+          reply.code(400);
+          return {
+            ok: false,
+            error: "We couldn't verify this request. Please refresh the page and try again."
+          };
+        }
+
+        const collectionsForGuard = await getCollections(env);
+        if (await unscoredCheckoutExhausted(collectionsForGuard, request.ip)) {
+          request.log.warn(
+            { event: "guest-checkout-unscored-exhausted" },
+            "[guest checkout] too many unscored orders from one address"
+          );
+          reply.code(429);
+          return {
+            ok: false,
+            error: "Too many attempts from this connection. Please try again later."
+          };
+        }
+
+        request.log.info(
+          { event: "guest-checkout-unscored" },
+          "[guest checkout] proceeding without a reCAPTCHA score"
         );
-        reply.code(400);
-        return {
-          ok: false,
-          error: "We couldn't verify this request. Please refresh the page and try again."
-        };
       }
 
       const product = getShopProduct(productId);

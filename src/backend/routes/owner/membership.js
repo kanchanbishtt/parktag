@@ -12,7 +12,8 @@ import {
   isRazorpayConfigured,
   verifyRazorpaySignature
 } from "../../lib/integrations/payments.js";
-import { activateMembership } from "../../lib/core/membership-fulfilment.js";
+import { activateMembership, membershipPeriodStart } from "../../lib/core/membership-fulfilment.js";
+import { isInPremiumTrial } from "../../lib/core/vault.js";
 import { generateOrderNumber } from "../../lib/core/order-number.js";
 import { hasActiveSubscription } from "../../lib/core/subscription.js";
 
@@ -99,21 +100,44 @@ export function registerMembershipRoutes(app, env) {
       const collections = await getCollections(env);
       if (collections) {
         const ownerId = toObjectId(request.session.userId);
+        const now = Date.now();
+        // premium / premiumSince / activatedAt / createdAt are what
+        // premiumTrialEndsAt() reads. Without them projected, every tag looks
+        // like it has no trial and the screen offers a membership to someone
+        // already covered by the free year — which is what it used to do.
         const tags = await collections.tags
           .find({ ownerId, deletedAt: { $exists: false } })
-          .project({ _id: 1, plateNumber: 1, subscription: 1, callSubscription: 1, documentSubscription: 1 })
+          .project({
+            _id: 1, plateNumber: 1, premium: 1, premiumSince: 1, activatedAt: 1, createdAt: 1,
+            subscription: 1, callSubscription: 1, documentSubscription: 1
+          })
           .toArray();
 
-        // What the screen needs to say "you are already a member until X"
-        // rather than selling something the owner has. The furthest-out end
-        // date across their tags, because that is the one they would recognise.
-        const active = tags.filter((tag) => hasActiveSubscription(tag));
-        if (active.length) {
-          const ends = active
-            .map((tag) => (tag.subscription || tag.callSubscription || tag.documentSubscription || {}).currentPeriodEnd)
-            .filter(Boolean)
-            .sort();
-          subscription = { active: true, currentPeriodEnd: ends.length ? ends[ends.length - 1] : null };
+        // Covered until when, counting the free year as cover — because it is.
+        // The features honour it (call-access.js and vault.js both read the
+        // trial alongside the subscription), so a screen that ignored it was
+        // selling an owner what their premium tag already gave them.
+        //
+        // membershipPeriodStart() is the same function checkout uses to decide
+        // where bought months begin: the later of now, a paid period end and a
+        // trial end. So "when would a purchase start" and "how long am I
+        // covered" cannot disagree — they are one calculation.
+        const covered = tags
+          .map((tag) => ({ tag, until: membershipPeriodStart(tag, now) }))
+          .filter((row) => row.until > now);
+
+        if (covered.length) {
+          // The furthest-out date across their tags, because that is the one
+          // the owner would recognise.
+          const furthest = covered.reduce((a, b) => (b.until > a.until ? b : a));
+          subscription = {
+            active: true,
+            currentPeriodEnd: new Date(furthest.until).toISOString(),
+            // Nothing paid for yet: the cover is the year included with the
+            // tag. The screen says so differently, and the button stays live —
+            // buying during the trial is allowed and adds time after it.
+            trial: !hasActiveSubscription(furthest.tag, now) && isInPremiumTrial(furthest.tag, now)
+          };
         }
       }
 

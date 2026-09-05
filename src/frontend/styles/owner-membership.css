@@ -405,10 +405,27 @@ body {
    specific than a plain rule, so anything it tried to override that happened to
    be declared further down simply won. */
 
+/* The note answers "am I already covered?" — and at .78rem in --ink-3 it read
+   as small print sitting beside a button selling the very thing it says you
+   have. It carries the date the whole screen turns on, so it is sized and
+   weighted to be read.
+
+   Still the navy family. This is good news, and an amber or red panel here
+   would say the opposite of what it means. The left bar is what makes it
+   register as a statement about the account rather than a footnote. */
 .mb-note {
-  font-size: .78rem; color: var(--ink-3); line-height: 1.55;
-  background: var(--navy-tint); border: 1px solid #CBD9E8;
-  border-radius: 14px; padding: 13px 14px; margin-top: var(--space-sec);
+  font-size: .875rem; color: var(--ink-2); line-height: 1.6; font-weight: 500;
+  background: var(--navy-tint); border: 1.5px solid #B9CCE2;
+  border-left: 4px solid var(--navy);
+  border-radius: 14px; padding: 15px 17px; margin-top: var(--space-sec);
+  box-shadow: 0 4px 14px rgba(3, 22, 45, .07);
+}
+
+/* The date, and the fact of being covered. Set as its own element by the
+   script so the lead can be found without parsing the sentence. */
+.mb-note strong {
+  display: block; margin-bottom: 3px;
+  font-size: 1rem; font-weight: 800; color: var(--navy); letter-spacing: -.01em;
 }
 .mb-note[hidden] { display: none; }
 

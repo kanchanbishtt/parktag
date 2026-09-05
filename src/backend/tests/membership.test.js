@@ -6,6 +6,7 @@
 // to 90 are all defects that look like copy.
 import test, { before, after, describe } from "node:test";
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 
 // A throwaway pair, set before anything reads the environment — sibling test
 // files delete these same global vars (checkout-pricing, shop-idempotency),
@@ -749,5 +750,196 @@ describe("the plan module", () => {
   test("feature ids are unique", () => {
     const ids = membershipFeatures().map((f) => f.id);
     assert.equal(new Set(ids).size, ids.length);
+  });
+});
+
+// What the free year is, and what buying does to it.
+//
+// A premium tag carries a year of cover from activation, and the features
+// honour it — call-access.js and vault.js both read the trial alongside the
+// subscription. The screen did not: its `subscription` came from
+// hasActiveSubscription() alone, which reads tag.subscription and knows nothing
+// about a window derived from activatedAt. So for a whole year it told an owner
+// nothing about their cover and offered to sell them a membership they already
+// had. Worse, the query did not even project `premium` or `activatedAt`, so no
+// amount of checking downstream could have found the trial.
+//
+// The other half is the one the suite never had: an assertion that a payment
+// which IS correctly signed actually grants something. "An unsigned payment
+// claim grants nothing" was here on its own, which passes just as well if
+// nothing is ever granted to anybody.
+describe("the free year, and buying on top of it", () => {
+  let ownerId;
+  let trialTagId;
+
+  // A month into the free year, so eleven months of it remain.
+  const ACTIVATED_DAYS_AGO = 30;
+  const monthsFromNow = (iso) => (new Date(iso) - Date.now()) / (30.44 * 864e5);
+
+  before(async () => {
+    const owner = await collections.owners.findOne({ email: EMAIL });
+    ownerId = owner._id;
+
+    trialTagId = (
+      await collections.tags.insertOne({
+        ownerId,
+        plateNumber: "QA01TRIAL01",
+        vehicleType: "car",
+        status: "active",
+        premium: true,
+        token: "qa-membership-trial",
+        activatedAt: new Date(Date.now() - ACTIVATED_DAYS_AGO * 864e5).toISOString(),
+        createdAt: new Date(Date.now() - ACTIVATED_DAYS_AGO * 864e5).toISOString()
+      })
+    ).insertedId;
+  });
+
+  after(async () => {
+    await collections.tags.deleteMany({ token: "qa-membership-trial" });
+    await collections.membershipOrders.deleteMany({ ownerId });
+  });
+
+  const screen = () =>
+    app.inject({
+      method: "GET",
+      url: "/api/owner/membership",
+      remoteAddress: uniqueAddress(),
+      headers: { cookie }
+    });
+
+  const post = (url, payload) =>
+    app.inject({
+      method: "POST",
+      url,
+      remoteAddress: uniqueAddress(),
+      headers: { cookie, origin: TEST_ORIGIN, "content-type": "application/json" },
+      payload
+    });
+
+  // Seeded rather than minted, for the reason the suite above gives: the keys
+  // in this environment are real test-mode credentials, and calling create-order
+  // would leave abandoned orders in the Razorpay account on every run.
+  async function seedOrder(tagId, planId, amountPaise, months) {
+    const orderId = `order_QA_TRIAL_${planId}_${Date.now()}`;
+    await collections.membershipOrders.insertOne({
+      orderId,
+      ownerId,
+      tagId,
+      planId,
+      months,
+      amount: amountPaise,
+      currency: "INR",
+      status: "created",
+      createdAt: new Date().toISOString()
+    });
+    return orderId;
+  }
+
+  const signedBody = (orderId, paymentId) => ({
+    razorpay_order_id: orderId,
+    razorpay_payment_id: paymentId,
+    razorpay_signature: crypto
+      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+      .update(`${orderId}|${paymentId}`)
+      .digest("hex")
+  });
+
+  test("the screen reports the free year as cover, without a purchase", async () => {
+    const { subscription } = (await screen()).json();
+
+    assert.ok(subscription, "the screen reported no cover during the free year");
+    assert.equal(subscription.active, true);
+    assert.equal(subscription.trial, true, "the free year was reported as a bought membership");
+  });
+
+  test("...ending a year after activation, not a year from today", async () => {
+    const { subscription } = (await screen()).json();
+
+    const remaining = monthsFromNow(subscription.currentPeriodEnd);
+    const expected = PREMIUM_TRIAL_MONTHS - ACTIVATED_DAYS_AGO / 30.44;
+    assert.ok(
+      Math.abs(remaining - expected) < 0.6,
+      `cover runs ${remaining.toFixed(2)} months, expected about ${expected.toFixed(2)}`
+    );
+  });
+
+  // The assertion the suite was missing. Everything else here proves what does
+  // NOT grant a membership.
+  test("a correctly signed payment activates the tag", async () => {
+    const orderId = await seedOrder(trialTagId, "m6", 14900, 6);
+    const response = await post("/api/owner/membership/verify-payment", signedBody(orderId, "pay_QA_TRIAL_OK"));
+
+    assert.equal(response.statusCode, 200, response.body);
+
+    const tag = await collections.tags.findOne({ _id: trialTagId });
+    assert.ok(tag.subscription, "payment granted no subscription");
+    assert.equal(tag.subscription.status, "active");
+  });
+
+  // The point of the whole arrangement: paying during the trial must not throw
+  // the rest of the free year away.
+  test("bought months start when the free year ends, not today", async () => {
+    const tag = await collections.tags.findOne({ _id: trialTagId });
+
+    const covered = monthsFromNow(tag.subscription.currentPeriodEnd);
+    const expected = PREMIUM_TRIAL_MONTHS - ACTIVATED_DAYS_AGO / 30.44 + 6;
+    assert.ok(
+      Math.abs(covered - expected) < 0.7,
+      `covered for ${covered.toFixed(2)} months, expected about ${expected.toFixed(2)} — the free year was consumed`
+    );
+  });
+
+  test("the screen stops calling it a trial once something is paid for", async () => {
+    const { subscription } = (await screen()).json();
+    const tag = await collections.tags.findOne({ _id: trialTagId });
+
+    assert.equal(subscription.trial, false);
+    assert.equal(subscription.currentPeriodEnd, tag.subscription.currentPeriodEnd);
+  });
+
+  // Razorpay retries its webhook and the browser callback races it, so the same
+  // confirmation arrives twice on a normal purchase.
+  test("a replayed confirmation does not extend the period again", async () => {
+    const before = await collections.tags.findOne({ _id: trialTagId });
+    const orderId = await seedOrder(trialTagId, "m6", 14900, 6);
+    const body = signedBody(orderId, "pay_QA_TRIAL_TWICE");
+
+    await post("/api/owner/membership/verify-payment", body);
+    const midway = await collections.tags.findOne({ _id: trialTagId });
+    await post("/api/owner/membership/verify-payment", body);
+    const after = await collections.tags.findOne({ _id: trialTagId });
+
+    assert.notEqual(midway.subscription.currentPeriodEnd, before.subscription.currentPeriodEnd);
+    assert.equal(
+      after.subscription.currentPeriodEnd,
+      midway.subscription.currentPeriodEnd,
+      "the second confirmation sold the same months again"
+    );
+  });
+
+  // A tag with no premium flag has no trial, and the screen must not invent
+  // cover for it — that would be the same defect pointing the other way.
+  test("a plain tag with nothing bought reports no cover", async () => {
+    const other = await collections.owners.insertOne({
+      email: "membership-no-cover@parktag-test.invalid",
+      role: "owner",
+      createdAt: new Date().toISOString()
+    });
+    await collections.tags.insertOne({
+      ownerId: other.insertedId,
+      plateNumber: "QA01PLAIN01",
+      vehicleType: "car",
+      status: "active",
+      premium: false,
+      token: "qa-membership-plain",
+      createdAt: new Date().toISOString()
+    });
+
+    const tags = await collections.tags.find({ ownerId: other.insertedId }).toArray();
+    assert.equal(tags.length, 1);
+    assert.equal(tags[0].subscription, undefined, "a plain tag was given a subscription");
+
+    await collections.tags.deleteMany({ token: "qa-membership-plain" });
+    await collections.owners.deleteOne({ _id: other.insertedId });
   });
 });

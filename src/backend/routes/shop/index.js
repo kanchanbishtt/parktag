@@ -23,6 +23,7 @@ import {
   OTP_PURPOSE_COD_VERIFY
 } from "../../lib/auth/otp.js";
 import { isMetaWhatsappConfigured } from "../../lib/integrations/meta.js";
+import { verifyRecaptcha } from "../../lib/integrations/recaptcha.js";
 
 // Flash-offer discount for converting a COD order to prepaid (paise). Kept
 // server-side so the ₹50 saving can't be inflated by a tampered client.
@@ -162,6 +163,61 @@ const TRACK_WINDOW_MINUTES = 60;
 // Accept an order number however the buyer types it — lowercase, spaced, or
 // with the dashes dropped by a copy/paste — and canonicalise it back to the
 // stored PT-YYMMDD-NNNNN form. Returns "" for anything that can't be one.
+// A guest checkout that reCAPTCHA could not score, capped per IP.
+//
+// v3 is invisible and it is not always there: a privacy extension, a corporate
+// proxy or a blocked Google host all make getCaptchaToken() resolve to "", and
+// the server cannot tell that apart from a script that never ran the page.
+// Rejecting outright — which is what the OTP flow does — is the wrong trade on
+// the one page that sells to strangers, because the cost of a false positive is
+// a lost sale rather than a retried login.
+//
+// So an unscored checkout is allowed, but only a few times per address per
+// hour. That is the asymmetry the cap is built on: a person buying a tag needs
+// ONE order to succeed, while card testing needs volume — the whole point of it
+// is to run stolen numbers in bulk against a live merchant. A handful an hour
+// serves the first and is useless for the second.
+//
+// Affirmative bot evidence is still refused outright (see the caller): a low
+// score, a token Google rejects, or a token minted for another action are all
+// positive signals, not an absence of one.
+const UNSCORED_CHECKOUTS_PER_IP = 3;
+const UNSCORED_WINDOW_MS = 60 * 60 * 1000;
+
+async function unscoredCheckoutExhausted(collections, ip) {
+  // No counter available (Mongo not configured, or no address to key on) means
+  // no opinion. The per-IP rate limit on the route still applies.
+  if (!collections?.rateLimits || !ip) return false;
+
+  try {
+    // Same atomic shape lib/auth/rate-limit-store.js uses: one round trip, and
+    // `$$NOW` is the server's clock so replicas cannot smear the window.
+    const windowAlive = { $gt: [{ $ifNull: ["$resetAt", "$$NOW"] }, "$$NOW"] };
+    const result = await collections.rateLimits.findOneAndUpdate(
+      { _id: `guest-checkout-unscored:${ip}` },
+      [
+        {
+          $set: {
+            count: { $cond: [windowAlive, { $add: [{ $ifNull: ["$count", 0] }, 1] }, 1] },
+            resetAt: {
+              $cond: [windowAlive, "$resetAt", { $add: ["$$NOW", UNSCORED_WINDOW_MS] }]
+            }
+          }
+        }
+      ],
+      { upsert: true, returnDocument: "after" }
+    );
+
+    // Driver 6 returns the document directly; older ones wrap it in `{ value }`.
+    const doc = result && result.value !== undefined ? result.value : result;
+    if (!doc || typeof doc.count !== "number") return false;
+    return doc.count > UNSCORED_CHECKOUTS_PER_IP;
+  } catch {
+    // A counter that cannot be read must not take the storefront down with it.
+    return false;
+  }
+}
+
 function normalizeOrderNumber(raw) {
   const compact = String(raw || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
   const parts = /^PT(\d{6})(\d{5})$/.exec(compact);
@@ -313,7 +369,67 @@ export function registerShopRoutes(app, env) {
     // gets through mints a real order in the Razorpay dashboard.
     { config: { rateLimit: { max: 8, timeWindow: "1 minute" } } },
     async (request, reply) => {
-      const { productId, variant: rawVariant, address: rawAddress } = request.body || {};
+      const { productId, variant: rawVariant, address: rawAddress, recaptchaToken } =
+        request.body || {};
+
+      // Bot check on the one money-adjacent endpoint any stranger can reach.
+      //
+      // /get takes no sign-in and no OTP by design — that is the whole point of
+      // guest checkout — so the per-IP limit above was the only thing standing
+      // between a script and an unbounded supply of real Razorpay orders. A
+      // limit keyed on IP is worth exactly as much as the attacker's
+      // willingness to rotate one, which is the same reasoning that put this
+      // check on /api/auth/send-otp.
+      //
+      // What it protects is not just our order table: every order minted here
+      // is an order in the Razorpay dashboard and a candidate for card testing,
+      // where stolen numbers are validated against real checkout sessions. That
+      // costs the merchant in failed-payment ratios long before it costs
+      // anybody a parcel.
+      //
+      // No-ops when the keys are unset, and outside production a missing token
+      // passes — see verifyRecaptcha. Production rejects.
+      const captcha = await verifyRecaptcha(env, recaptchaToken, {
+        remoteIp: request.ip,
+        expectedAction: "guest_checkout"
+      });
+      if (!captcha.ok) {
+        // An ABSENT token is not evidence of a bot, and treating it as one
+        // makes an ad blocker a reason somebody cannot buy. Everything else
+        // here — a low score, a token Google rejects, a token minted for a
+        // different action — is a positive signal and is refused outright.
+        const unscored = captcha.reason === "missing-token";
+
+        if (!unscored) {
+          request.log.warn(
+            { event: "guest-checkout-captcha-rejected", reason: captcha.reason, score: captcha.score },
+            "[guest checkout] reCAPTCHA rejected order creation"
+          );
+          reply.code(400);
+          return {
+            ok: false,
+            error: "We couldn't verify this request. Please refresh the page and try again."
+          };
+        }
+
+        const collectionsForGuard = await getCollections(env);
+        if (await unscoredCheckoutExhausted(collectionsForGuard, request.ip)) {
+          request.log.warn(
+            { event: "guest-checkout-unscored-exhausted" },
+            "[guest checkout] too many unscored orders from one address"
+          );
+          reply.code(429);
+          return {
+            ok: false,
+            error: "Too many attempts from this connection. Please try again later."
+          };
+        }
+
+        request.log.info(
+          { event: "guest-checkout-unscored" },
+          "[guest checkout] proceeding without a reCAPTCHA score"
+        );
+      }
 
       const product = getShopProduct(productId);
       if (!product) { reply.code(400); return { ok: false, error: "Unknown product." }; }
@@ -903,7 +1019,10 @@ export function registerShopRoutes(app, env) {
     // carries the acceptance reminder + a tracking link once a waybill exists.
     await sendOrderConfirmation(env, collections, ownerId, {
       orderNumber, productName: product.name, amountPaise, cod: true,
-      waybill: bookedWaybill, deliveryPhone: shipping.phone
+      waybill: bookedWaybill, deliveryPhone: shipping.phone,
+      // The name typed for the courier — the only name most owners ever give
+      // us, since sign-in asks for a number and nothing else.
+      deliveryName: shipping.fullName
     }, request.log);
 
     return {
@@ -1052,7 +1171,9 @@ export function registerShopRoutes(app, env) {
     if (firstTime) {
       await sendOrderConfirmation(env, collections, ownerId, {
         orderNumber, productName: order.productName, amountPaise: order.prepayAmount, cod: false,
-        waybill: order.waybill, deliveryPhone: order.shippingAddress && order.shippingAddress.phone
+        waybill: order.waybill,
+        deliveryPhone: order.shippingAddress && order.shippingAddress.phone,
+        deliveryName: order.shippingAddress && order.shippingAddress.fullName
       }, request.log);
     }
 

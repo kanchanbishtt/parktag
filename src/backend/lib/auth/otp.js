@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 
 import { getCollections } from "../db/repositories.js";
+import { toE164 } from "../core/phone.js";
 import { sendOtpEmail } from "../integrations/email.js";
 import { isMetaWhatsappConfigured, sendMetaWhatsappOtp } from "../integrations/meta.js";
 import { clientError } from "../errors.js";
@@ -71,13 +72,19 @@ export function isMobileIdentifier(identifier) {
 }
 
 function normalizePhone(input) {
-  // Coerced, not assumed: `input` comes straight off a JSON request body, so it
-  // can be an array, object or number. See normalizeIdentifier below.
-  const digits = String(input ?? "").trim().replace(/[^\d+]/g, "");
-  if (digits.startsWith("+")) return digits;
-  if (digits.length === 10) return `+91${digits}`;
-  if (digits.length === 12 && digits.startsWith("91")) return `+${digits}`;
-  return digits;
+  // Canonicalised by core/phone.js, which is the one place that knows the
+  // trunk zero exists. The cases this used to handle inline — a leading +, a
+  // bare ten digits, twelve beginning 91 — are all still handled there; what
+  // it could not do was recognise 0XXXXXXXXXX, so that spelling became its own
+  // identity and one person could hold two accounts.
+  //
+  // TOTAL, and deliberately so. toE164 returns null for anything it cannot
+  // read, but this decides an account identifier and every caller assumes a
+  // string. Junk that got past isMobileIdentifier keeps its old behaviour —
+  // the scrubbed digits, unchanged — rather than becoming null and turning a
+  // bad login into a crash.
+  const raw = String(input ?? "").trim().replace(/[^\d+]/g, "");
+  return toE164(input) ?? raw;
 }
 
 // `identifier` is whatever arrived in the JSON body — the route only checks it
@@ -214,7 +221,14 @@ export async function sendOtp(env, identifier, { purpose = OTP_PURPOSE_AUTH } = 
 export function storedPhoneVariants(normalizedMobile) {
   const digits = String(normalizedMobile).replace(/\D/g, "");
   const last10 = digits.slice(-10);
-  return [normalizedMobile, digits, last10, `+${digits}`].filter(Boolean);
+  // `0${last10}` is not a spelling anyone typed on purpose — it is what the
+  // old normalizePhone WROTE. It had no case for the domestic trunk prefix, so
+  // an eleven-digit 0XXXXXXXXXX fell through and was stored verbatim as the
+  // account's mobile. Those rows are real and they predate the fix; leaving
+  // them out of this list would hide an existing account from its owner and
+  // let them register a second one, which is the exact failure
+  // one-number-one-account.test.js exists to prevent.
+  return [normalizedMobile, digits, last10, `+${digits}`, `0${last10}`].filter(Boolean);
 }
 
 // Is this number already attached to an account?
@@ -293,12 +307,12 @@ export async function resolveOwnerByVerifiedMobile(collections, normalizedMobile
   );
   if (owner) return { owner, adopted: false, conflict: false };
 
-  const digits = String(normalizedMobile).replace(/\D/g, "");
-  const last10 = digits.slice(-10);
   // Legacy `phone` values were never normalised, so match the stored variants.
+  // Uses storedPhoneVariants rather than repeating its list: this copy had
+  // already fallen behind it once.
   const legacy = await collections.owners.findOne({
     mobile: { $in: [null, ""] },
-    phone: { $in: [normalizedMobile, digits, last10, `+${digits}`] }
+    phone: { $in: storedPhoneVariants(normalizedMobile) }
   });
 
   if (!legacy) return { owner: null, adopted: false, conflict: false };

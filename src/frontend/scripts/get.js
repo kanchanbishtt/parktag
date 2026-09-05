@@ -17,6 +17,7 @@
 
 // Display-only. `orig` is the struck-through "was" price, which is marketing
 // copy rather than anything charged, so it belongs on this side.
+import { getCaptchaToken } from "./recaptcha.js";
 const PACKS = [
   {
     id: "pt-car-1",
@@ -315,10 +316,16 @@ async function buy(sku) {
 
   let order;
   try {
+    // Invisible bot score for the server to check. Resolves to "" when
+    // reCAPTCHA is unconfigured or the script cannot load, which the server
+    // treats as "feature off" rather than "fail" — a checkout must not become
+    // unreachable because Google is having a bad day.
+    const recaptchaToken = await getCaptchaToken("guest_checkout");
+
     const res = await fetch("/api/shop/guest/create-order", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ productId: sku, address })
+      body: JSON.stringify({ productId: sku, address, recaptchaToken })
     });
     order = await res.json();
     // The server's message names the field that is wrong rather than saying

@@ -138,6 +138,218 @@ function renderFeatures() {
 // A bold lead line and the explanation under it. replaceChildren with real
 // nodes, never innerHTML — the lead carries a formatted date and the body is
 // fixed copy, and neither has any business being parsed as markup.
+// Confetti, as a burst rather than a downpour.
+//
+// The first version fell straight down from the top edge, which reads as
+// weather. A celebration pops: pieces leave two low corners fast, arc over as
+// gravity catches them, then flutter down turning end over end. That arc is
+// per-particle physics — a start velocity, gravity, drag and a spin — and CSS
+// keyframes cannot express it, so this is a canvas and a step loop.
+//
+// Hand-written because it has to be. /owner-membership is in
+// PAYMENT_STRICT_PAGES and its script-src is 'self' plus checkout.razorpay.com
+// and the two analytics origins; a confetti library from a CDN would be blocked
+// and the celebration would silently never appear.
+const CONFETTI_COLOURS = ["#FF2700", "#FFC02E", "#16A34A", "#2563EB", "#EC4899", "#03162D"];
+const CONFETTI_PER_CANNON = 70;
+const CONFETTI_GRAVITY = 0.34;
+const CONFETTI_DRAG = 0.995;
+
+let confettiStop = null;
+
+function prefersReducedMotion() {
+  return typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+// One piece: where it is, how fast, how it spins, and how long it lives.
+// `tilt` is what makes paper flutter — the piece is drawn narrower as it turns
+// edge-on, so it flashes rather than sliding about as a flat rectangle.
+function confettiPiece(originX, originY, angleDeg, spreadDeg, power) {
+  const angle = (angleDeg + (Math.random() - 0.5) * spreadDeg) * (Math.PI / 180);
+  const speed = power * (0.72 + Math.random() * 0.55);
+  return {
+    x: originX,
+    y: originY,
+    vx: Math.cos(angle) * speed,
+    vy: -Math.sin(angle) * speed,
+    w: 6 + Math.random() * 6,
+    h: 9 + Math.random() * 7,
+    colour: CONFETTI_COLOURS[(Math.random() * CONFETTI_COLOURS.length) | 0],
+    round: Math.random() < 0.32,
+    spin: (Math.random() - 0.5) * 0.32,
+    angle: Math.random() * Math.PI * 2,
+    tilt: Math.random() * Math.PI * 2,
+    tiltSpeed: 0.08 + Math.random() * 0.1,
+    life: 0,
+    maxLife: 150 + Math.random() * 90
+  };
+}
+
+function burstConfetti(host) {
+  // Asked for, not assumed: somebody who has told their system to stop moving
+  // things gets the dialog and no paper.
+  if (!host || prefersReducedMotion()) return;
+  clearConfetti(host);
+
+  const canvas = document.createElement("canvas");
+  canvas.className = "mb-cfti";
+  // Decoration. A screen reader has nothing to say about it.
+  canvas.setAttribute("aria-hidden", "true");
+  host.appendChild(canvas);
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) { canvas.remove(); return; }
+
+  let dpr = 1;
+  const fit = () => {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.max(host.clientWidth, 1) * dpr;
+    canvas.height = Math.max(host.clientHeight, 1) * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  };
+  fit();
+
+  const w = () => canvas.width / dpr;
+  const h = () => canvas.height / dpr;
+
+  // Two cannons, angled inward and up from the lower corners — the shape a
+  // party popper makes, and the reason this reads as a burst and not as rain.
+  const pieces = [];
+  const load = () => {
+    const power = Math.min(Math.max(w() / 34, 11), 19); // a burst that crosses the dialog at any width
+    for (let i = 0; i < CONFETTI_PER_CANNON; i += 1) {
+      pieces.push(confettiPiece(w() * 0.06, h() * 0.98, 66, 46, power));
+      pieces.push(confettiPiece(w() * 0.94, h() * 0.98, 114, 46, power));
+    }
+  };
+  load();
+
+  // A second, smaller volley just behind the first, so the burst has a tail
+  // instead of ending all at once.
+  const secondVolley = setTimeout(() => {
+    const power = Math.min(Math.max(w() / 40, 9), 16);
+    for (let i = 0; i < CONFETTI_PER_CANNON / 2; i += 1) {
+      pieces.push(confettiPiece(w() * 0.5, h() * 0.98, 90, 78, power));
+    }
+  }, 220);
+
+  let frame = null;
+  const step = () => {
+    ctx.clearRect(0, 0, w(), h());
+    let alive = 0;
+
+    for (const p of pieces) {
+      if (p.life > p.maxLife) continue;
+      p.life += 1;
+
+      p.vx *= CONFETTI_DRAG;
+      p.vy = p.vy * CONFETTI_DRAG + CONFETTI_GRAVITY;
+      p.x += p.vx;
+      p.y += p.vy;
+      p.angle += p.spin;
+      p.tilt += p.tiltSpeed;
+
+      // Off the bottom for good — no point drawing it back. This, not the age
+      // limit, is how essentially every piece ends: launched from the lower
+      // edge, it is back past it within a second or so. maxLife is the bound
+      // that guarantees the loop terminates, not the usual exit.
+      //
+      // There was a fade here, keyed to age. It never once ran — every piece
+      // left the frame first — so it was decoration on a branch nothing
+      // reached, and a fade that cannot be seen is worse than none.
+      if (p.y - p.h > h()) { p.life = p.maxLife + 1; continue; }
+      alive += 1;
+
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.angle);
+      ctx.fillStyle = p.colour;
+      // The flutter: width collapses as the piece turns edge-on.
+      const width = p.w * Math.abs(Math.cos(p.tilt));
+      if (p.round) {
+        ctx.beginPath();
+        ctx.ellipse(0, 0, Math.max(width, 0.6) / 2, p.h / 2, 0, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        ctx.fillRect(-width / 2, -p.h / 2, Math.max(width, 0.6), p.h);
+      }
+      ctx.restore();
+    }
+
+    if (alive > 0) {
+      frame = window.requestAnimationFrame(step);
+    } else {
+      stop();
+    }
+  };
+
+  const stop = () => {
+    if (frame !== null) window.cancelAnimationFrame(frame);
+    frame = null;
+    clearTimeout(secondVolley);
+    window.removeEventListener("resize", fit);
+    canvas.remove();
+    confettiStop = null;
+  };
+
+  window.addEventListener("resize", fit);
+  frame = window.requestAnimationFrame(step);
+  // Held so closing the dialog can end it immediately rather than leaving a
+  // loop running against a canvas nobody can see.
+  confettiStop = stop;
+}
+
+function clearConfetti(host) {
+  if (confettiStop) confettiStop();
+  if (host) host.querySelectorAll(".mb-cfti").forEach((el) => el.remove());
+}
+
+// The confirmation, shown once the money is gone — which is true on all three
+// paths out of the payment handler, not only the one where verification came
+// back cleanly. A buyer whose confirmation request failed has still paid, and
+// telling them so quietly in a grey panel is how a paid customer pays twice.
+//
+// `until` and `orderNumber` are optional: on the pending paths the server has
+// not told us the new date yet, so those lines stay hidden rather than being
+// filled with a guess.
+function showDone({ title, message, until, orderNumber, benefits = true, celebrate = false }) {
+  const done = byId("mbDone");
+  if (!done) return;
+
+  byId("mbDoneTitle").textContent = title;
+  byId("mbDoneSub").textContent = message;
+
+  const untilEl = byId("mbDoneUntil");
+  untilEl.hidden = !until;
+  if (until) untilEl.textContent = `Member until ${until}`;
+
+  const ordEl = byId("mbDoneOrd");
+  ordEl.hidden = !orderNumber;
+  if (orderNumber) ordEl.textContent = `Order ${orderNumber}`;
+
+  // Nothing is unlocked yet on the pending paths, so the list would be a
+  // promise the screen cannot keep at that moment.
+  byId("mbDoneBenes").hidden = !benefits;
+
+  done.hidden = false;
+  document.body.style.overflow = "hidden";
+  byId("mbDoneBtn").focus();
+
+  // After the dialog is on screen, so the pieces fall over something.
+  clearConfetti(done);
+  if (celebrate) burstConfetti(done);
+}
+
+function closeDone() {
+  const done = byId("mbDone");
+  // Cleared rather than left to its timer: closing early must not leave a
+  // pending removal that fires into a dialog which has since reopened.
+  clearConfetti(done);
+  if (done) done.hidden = true;
+  document.body.style.overflow = "";
+}
+
 function setNote(note, lead, rest) {
   const strong = document.createElement("strong");
   strong.textContent = lead;
@@ -313,14 +525,17 @@ async function startCheckout() {
           // was holding from create-order — assembled before the payment and
           // never reconciled with it. The shop's confirmation follows the same
           // rule, for the same reason.
-          const parts = [];
-          if (result.orderNumber) parts.push(`Order ${result.orderNumber}.`);
-          parts.push(
-            result.currentPeriodEnd
-              ? `You are a member until ${formatDate(result.currentPeriodEnd)}.`
-              : "Your membership is being set up."
-          );
-          showNote(`Payment received. ${parts.join(" ")}`);
+          showDone({
+            title: "Thank you for being a member",
+            message: result.currentPeriodEnd
+              ? "Payment received. Your premium tag is covered for the full period."
+              : "Payment received. Your membership is being set up.",
+            until: result.currentPeriodEnd ? formatDate(result.currentPeriodEnd) : null,
+            orderNumber: result.orderNumber || null,
+            celebrate: true
+          });
+          // The screen behind is repainted too, so closing the confirmation
+          // does not reveal the state the buyer was in before they paid.
           renderPlans();
           return;
         }
@@ -330,16 +545,22 @@ async function startCheckout() {
         // activation and has very likely already run or is about to. "We have
         // your payment" is both true and the only thing that stops a second one.
         setBusy(false);
-        showNote(
-          "We have your payment. Confirming it is taking longer than usual — your " +
-            "membership will activate shortly, and there is no need to pay again."
-        );
+        showDone({
+          title: "Payment received",
+          message:
+            "Confirming it is taking longer than usual. Your membership will " +
+            "activate shortly — there is no need to pay again.",
+          benefits: false
+        });
       } catch {
         setBusy(false);
-        showNote(
-          "We have your payment but could not reach us to confirm it. Your " +
-            "membership will activate shortly — please do not pay again."
-        );
+        showDone({
+          title: "Payment received",
+          message:
+            "We could not reach the server to confirm it. Your membership will " +
+            "activate shortly — please do not pay again.",
+          benefits: false
+        });
       }
     }
   });
@@ -425,6 +646,15 @@ async function load() {
   // (script-src-attr 'none'), so an onclick would not error — it would silently
   // never fire.
   byId("mbCta").addEventListener("click", startCheckout);
+  byId("mbDoneBtn").addEventListener("click", closeDone);
+
+  // Escape closes it, because a dialog that traps the keyboard is worse than
+  // one that can be dismissed. Clicking the backdrop deliberately does NOT:
+  // this carries the order number, and losing a receipt to a stray tap beside
+  // the card is a support message rather than a convenience.
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !byId("mbDone").hidden) closeDone();
+  });
 
   // Last: every renderer above checks it to decide whether to animate.
   loading = false;

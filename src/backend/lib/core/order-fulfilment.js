@@ -25,11 +25,22 @@ import { createShipment, isDelhiveryConfigured, trackingUrl } from "../integrati
 import { sendOrderConfirmationEmail } from "../integrations/email.js";
 import { isMetaWhatsappConfigured, sendMetaWhatsappOrderUpdate } from "../integrations/meta.js";
 import { sendCapiEventBestEffort, purchaseEventId, isMetaCapiConfigured } from "../integrations/meta-capi.js";
+import { firstNameOf, resolveOwnerName } from "./owner-name.js";
 
-// Fire the order-confirmation e-mail without ever blocking the caller — the
-// order already exists, so a mail failure must never turn into a failed
-// checkout. Owners who signed in with a mobile OTP may have no e-mail on file;
-// we fall back to WhatsApp for those.
+// Tell the buyer their order exists, without ever blocking the caller — the
+// order already exists by this point, so a notification failure must never turn
+// into a failed checkout.
+//
+// BOTH channels, not one or the other. This used to send the e-mail and return,
+// falling through to WhatsApp only for buyers who had no e-mail address on
+// file. That made the channel people actually read the consolation prize for
+// the minority: an owner who signed up with an e-mail got nothing on WhatsApp,
+// even though a confirmation sitting unread in a promotions tab is how a
+// completed sale becomes "did my order go through?". A duplicate confirmation
+// costs a fraction of a rupee; a missed one costs a support ticket.
+//
+// Each send is independently guarded so one channel failing cannot silence the
+// other — the shape the old early-return could not express.
 export async function sendOrderConfirmation(env, collections, ownerId, details, log) {
   try {
     // A guest order has no ownerId at all, so the lookup can only ever miss.
@@ -42,21 +53,80 @@ export async function sendOrderConfirmation(env, collections, ownerId, details, 
       cod: details.cod,
       trackingUrl: track
     };
+
+    // Started TOGETHER, not one after the other. Both are outbound calls to
+    // unrelated providers with nothing to say to each other, and this function
+    // is awaited on the path a buyer is staring at immediately after their
+    // money has left — so running them in sequence spent the e-mail's latency
+    // and the WhatsApp's latency end to end when the slower of the two is the
+    // real cost. (Delhivery stays ahead of both: the tracking link below is its
+    // output, so that one genuinely is a dependency rather than an ordering.)
+    //
+    // Each promise absorbs its own rejection and reports a boolean, so the
+    // Promise.all can never reject and one provider being down cannot stop the
+    // other from being tried — the property the old early-return could not
+    // express and the reason `reached` exists at all.
+    const attempts = [];
+
     if (owner && owner.email) {
-      await sendOrderConfirmationEmail(env, { to: owner.email, ...payload });
-      return;
+      attempts.push(
+        sendOrderConfirmationEmail(env, { to: owner.email, ...payload })
+          .then(() => true)
+          .catch((err) => {
+            log?.error?.({ err, orderNumber: details.orderNumber }, "[order] confirmation e-mail failed");
+            return false;
+          })
+      );
     }
-    // No e-mail on file → WhatsApp the delivery contact instead. Needs the
-    // approved `parktag_order_update` template; best-effort like the e-mail.
+
+    // Needs the approved `parktag_order_update` template; best-effort like the
+    // e-mail.
     if (details.deliveryPhone && isMetaWhatsappConfigured(env)) {
-      await sendMetaWhatsappOrderUpdate(env, {
-        to: details.deliveryPhone,
-        name: (owner && (owner.displayName || owner.name)) || "there",
-        orderNumber: details.orderNumber,
-        trackingUrl: track || ""
-      });
-      return;
+      attempts.push(
+        sendMetaWhatsappOrderUpdate(env, {
+          to: details.deliveryPhone,
+          // resolveOwnerName, not `displayName || name`: the OTP and Firebase
+          // signup paths used to write the phone number itself into
+          // displayName, so reading that field raw addressed people as
+          // "Hi 9876500123" — in a Meta-approved template, which makes it the
+          // one message here nobody can quietly fix after the fact.
+          //
+          // The delivery name is passed as the second source, which is what
+          // resolveOwnerName's `address` argument has always been for and what
+          // this call was failing to supply. Sign-in only ever asks for a phone
+          // or an e-mail, so an owner who has never filled in the greeting has
+          // no displayName worth using and every message opened "Hi there" —
+          // while the name they had typed for the courier, on this very order,
+          // sat one field away in the same object the phone came from.
+          name: firstNameOf(resolveOwnerName(owner || {}, { fullName: details.deliveryName })) || "there",
+          orderNumber: details.orderNumber,
+          // {{3}} in the approved template. Said plainly, and true at the
+          // moment of sending: a waybill exists only once Delhivery has
+          // accepted the parcel, and COD is worth naming because it tells the
+          // buyer cash is due at the door.
+          status: details.waybill
+            ? "Confirmed and handed to the courier"
+            : details.cod
+              ? "Confirmed — Cash on Delivery"
+              : "Confirmed and being packed",
+          // No tracking link here any more: it is a "Track order" button on the
+          // template, and its parameter is the order number above. That removes
+          // the empty-string hazard entirely — Meta rejects a blank variable,
+          // and a courier link is exactly the value we do not have yet on the
+          // confirmations that matter most.
+        })
+          .then(() => true)
+          .catch((err) => {
+            log?.error?.({ err, orderNumber: details.orderNumber }, "[order] confirmation WhatsApp failed");
+            return false;
+          })
+      );
     }
+
+    // No attempts at all resolves to [], which is correctly "nobody was
+    // reached" rather than a silent success.
+    const reached = (await Promise.all(attempts)).some(Boolean);
+    if (reached) return;
 
     // Nothing could be sent, and for a guest this WAS the whole notification:
     // no account to sign into, and — if they closed the tab during payment — an
@@ -170,7 +240,8 @@ export async function fulfilPaidOrder(env, collections, { order, paymentId, log 
     amountPaise: order.amount,
     cod: false,
     waybill: bookedWaybill,
-    deliveryPhone: order.shippingAddress && order.shippingAddress.phone
+    deliveryPhone: order.shippingAddress && order.shippingAddress.phone,
+    deliveryName: order.shippingAddress && order.shippingAddress.fullName
   }, log);
 
   // The purchase conversion, sent server-side.

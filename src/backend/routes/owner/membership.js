@@ -308,6 +308,7 @@ export function registerMembershipRoutes(app, env) {
       }
 
       const outcome = await activateMembership(collections, {
+        env,
         order,
         paymentId: razorpay_payment_id,
         log: request.log

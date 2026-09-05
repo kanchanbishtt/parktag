@@ -149,6 +149,7 @@ export function registerRazorpayWebhookRoutes(app, env) {
     const membershipOrder = await collections.membershipOrders.findOne({ orderId });
     if (membershipOrder) {
       const outcome = await activateMembership(collections, {
+        env,
         order: membershipOrder,
         paymentId,
         log: request.log

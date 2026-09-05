@@ -136,7 +136,9 @@ export function membershipTrial() {
     value: PREMIUM_TRIAL_DISPLAY.value,
     unit: PREMIUM_TRIAL_DISPLAY.unit,
     headline: PREMIUM_TRIAL_LABEL,
-    note: "Auto-active when you activate your tag"
+    // "premium tag", not "tag": the trial rides on a premium tag, and an owner
+    // holding only a free eTag would otherwise read this as a promise to them.
+    note: "Auto-active when you activate your premium tag"
   };
 }
 

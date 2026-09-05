@@ -73,6 +73,7 @@ const registerOwnerPage = path.join(pagesRoot, "owner/register.html");
 const ownerLoginPage = path.join(pagesRoot, "owner/login.html");
 const hubPage = path.join(pagesRoot, "hub.html");
 const shopPage = path.join(pagesRoot, "shop.html");
+const getPage = path.join(pagesRoot, "get.html");
 const forgotPasswordPage = path.join(pagesRoot, "owner/forgot-password.html");
 const resetPasswordPage = path.join(pagesRoot, "owner/reset-password.html");
 const ownerVerifyPage = path.join(pagesRoot, "owner/verify.html");
@@ -906,9 +907,24 @@ export async function buildApp() {
 
   // The storefront's previous address. Redirected rather than removed so any
   // link that was handed out while it lived here still lands on the shop.
-  app.get("/get", async (request, reply) => {
-    const sku = skuFromQuery(request);
-    return reply.redirect(sku ? `/shop?sku=${encodeURIComponent(sku)}` : "/shop");
+  // A storefront of its own, deliberately not linked from anywhere.
+  //
+  // It was folded into /shop and left as a redirect, on the reasoning that
+  // nothing pointed at it. It is wanted back as a standalone page, so it serves
+  // its own file again rather than forwarding.
+  //
+  // Nothing links here — not the marketing site, not the app nav, not /shop.
+  // That is the point of it, and it is worth keeping true: this is a URL to be
+  // handed out deliberately, so anyone arriving typed it or was sent it.
+  //
+  // It no longer reads ?sku. The redirect had to, because it put that value
+  // into a Location header and an unvalidated pack id there is a header
+  // injection; serving a file echoes nothing, so the whole question goes away.
+  // A sku in the query is now simply ignored.
+  app.get("/get", async (_request, reply) => {
+    const html = await fs.readFile(getPage, "utf8");
+    reply.type("text/html");
+    return html;
   });
 
   app.get("/register-owner", async (_request, reply) => {

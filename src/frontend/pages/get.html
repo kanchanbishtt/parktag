@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>ParkTag | Masked calls &amp; WhatsApp for your parked car</title>
+    <meta name="description" content="A QR sticker for your windscreen. Someone blocks your gate, they scan it and reach you — your mobile number stays private. Masked calls, WhatsApp and an emergency contact." />
+
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="icon" href="/images/icon.png" type="image/png" />
+    <link rel="apple-touch-icon" href="/images/apple-touch-icon.png" />
+
+    <link rel="stylesheet" href="/styles/get.css?v=__ASSET_VERSION__" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+    <!-- The funnel starts here now. Without this the drop between "saw the
+         marketing site" and "reached a price" stays unmeasurable, which is the
+         whole thing this page was built to fix. Surface "app", so GA4 and the
+         Pixel both report: this is a shop window, not a credential page. -->
+    <script src="/pt-analytics.js" data-surface="app" defer></script>
+  </head>
+
+  <body class="gt-body">
+
+    <!-- The one nav control is a way IN. This page is reached by people who
+         have never signed in, so a dashboard-style header would offer them
+         nothing but a locked door. -->
+    <header class="gt-header">
+      <a class="gt-logo" href="/get" aria-label="ParkTag">
+        <img src="/images/dark-logo.png" alt="ParkTag" />
+      </a>
+      <a class="gt-btn gt-signin" href="/owner-login">Sign in</a>
+    </header>
+
+    <main class="gt-main">
+
+      <!-- ── Order recall ──────────────────────────────────────────────────
+           The record this buyer's own device kept.
+
+           A guest has no account, so if the tab dies between paying and the
+           confirmation screen there is nothing anywhere that connects them to
+           the order: no dashboard to sign in to, and an order number they never
+           saw. The webhook still fulfils it and it still ships — they just
+           cannot find it. So get.js writes the number here before Razorpay
+           opens, and shows this only once the server has confirmed the order
+           was really paid, which is why an abandoned checkout never produces
+           a bar claiming an order exists. -->
+      <a class="gt-recall" id="gtRecall" hidden>
+        <span class="gt-recall-i" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M3.5 7.5 12 3l8.5 4.5v9L12 21l-8.5-4.5v-9Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="m3.5 7.5 8.5 4.5 8.5-4.5M12 12v9" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+        </span>
+        <span class="gt-recall-b">
+          <strong>Your ParkTag order is on its way</strong>
+          <span id="gtRecallS"></span>
+        </span>
+        <span class="gt-recall-go" aria-hidden="true">Track &rarr;</span>
+      </a>
+
+      <!-- ── Hero ──────────────────────────────────────────────────────── -->
+      <section class="gt-hero" aria-labelledby="gtTitle">
+        <h1 class="gt-title" id="gtTitle">
+          <span class="gt-mark">Masked calls &amp; WhatsApp</span>
+          <span class="gt-title-2">for your parked car</span>
+        </h1>
+
+        <p class="gt-lede">
+          Someone blocks your gate — they scan the tag and reach you straight
+          away. Your number stays private.
+        </p>
+
+        <!-- Prices are fetched, never written here. The page must not be able
+             to quote a figure the checkout does not charge. -->
+        <ul class="gt-chips" id="gtChips">
+          <li class="gt-chip gt-chip-price"><span class="gt-sk gt-sk-chip">&nbsp;</span></li>
+          <li class="gt-chip">1 year membership included</li>
+          <li class="gt-chip gt-chip-ok">COD available</li>
+        </ul>
+
+        <a class="gt-btn gt-cta" href="/shop?sku=pt-car-2" id="gtCta" data-sku="pt-car-2">Order now — COD available</a>
+
+        <p class="gt-fine">Free delivery on every order · One-time buy, no monthly fees</p>
+      </section>
+
+      <!-- ── What it actually is ───────────────────────────────────────── -->
+      <p class="gt-trust">
+        A QR sticker for your windscreen · Works with any phone camera · Cash on
+        Delivery adds <span id="gtCod">a small handling fee</span>
+      </p>
+
+      <!-- ── Emergency ─────────────────────────────────────────────────── -->
+      <section class="gt-sos" aria-labelledby="gtSosTitle">
+        <h2 class="gt-sos-t" id="gtSosTitle">Met with an accident?</h2>
+        <p class="gt-sos-s">
+          Add an emergency contact — anyone who scans your tag can reach your
+          family immediately, without ever seeing your number.
+        </p>
+      </section>
+
+      <!-- ── Features ──────────────────────────────────────────────────── -->
+      <h2 class="gt-h2">Why a ParkTag</h2>
+      <ul class="gt-feats">
+        <li class="gt-feat">
+          <span class="gt-feat-i" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M6 10V7a6 6 0 1112 0v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="4" y="10" width="16" height="10" rx="2.5" stroke="currentColor" stroke-width="2"/></svg>
+          </span>
+          <h3 class="gt-feat-t">Private number</h3>
+          <p class="gt-feat-s">The caller never sees your real mobile.</p>
+        </li>
+        <li class="gt-feat">
+          <span class="gt-feat-i" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 005 5L15 13l5 2v4a1 1 0 01-1 1A15 15 0 014 5a1 1 0 011-1z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+          </span>
+          <h3 class="gt-feat-t">Call + WhatsApp</h3>
+          <p class="gt-feat-s">Masked call or a WhatsApp alert, their choice.</p>
+        </li>
+        <li class="gt-feat">
+          <span class="gt-feat-i" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="2"/><rect x="14" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="2"/><rect x="3" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="2"/><path d="M14 14h3v3h-3zM20 20h1M17 20v1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </span>
+          <h3 class="gt-feat-t">Any QR app</h3>
+          <p class="gt-feat-s">No special app. The phone camera is enough.</p>
+        </li>
+        <li class="gt-feat">
+          <span class="gt-feat-i" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M12 3l7 3v6c0 4.2-2.9 7.6-7 9-4.1-1.4-7-4.8-7-9V6l7-3z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+          <h3 class="gt-feat-t">A year included</h3>
+          <p class="gt-feat-s">Full membership free for 1 year from activation.</p>
+        </li>
+      </ul>
+
+      <!-- ── The tag ───────────────────────────────────────────────────── -->
+      <h2 class="gt-h2">The tag</h2>
+      <!-- The same file the landing page's hero renders
+           (landing/public/final-landing-sticker.png, referenced from
+           landing/app/page.tsx), copied here byte-identical rather than
+           re-exported, so both properties show one sticker.
+
+           NOT org-parktag-sticker.svg, which was here first and rendered an
+           empty white box: that file is the print template, and its QR area is
+           a bare <rect fill="white" stroke="black"/> with no image data
+           anywhere in it, because the real code is per-tag and is placed there
+           at print time.
+
+           Dimensions are stated so the section cannot reflow as the image
+           decodes, and it is lazy-loaded because it sits below the fold. -->
+      <figure class="gt-shot">
+        <img
+          src="/images/final-landing-sticker.png"
+          width="1000"
+          height="600"
+          loading="lazy"
+          decoding="async"
+          alt="The ParkTag windscreen sticker: scan the code to contact the vehicle owner, with call and WhatsApp buttons"
+        />
+        <figcaption class="gt-shot-c">Sticks inside the windscreen. Scannable from outside.</figcaption>
+      </figure>
+
+      <!-- ── Packs ─────────────────────────────────────────────────────── -->
+      <h2 class="gt-h2">Choose a pack</h2>
+      <ul class="gt-packs" id="gtPacks">
+        <li class="gt-pack gt-sk-pack"><span class="gt-sk">&nbsp;</span></li>
+        <li class="gt-pack gt-sk-pack"><span class="gt-sk">&nbsp;</span></li>
+      </ul>
+
+      <p class="gt-note" id="gtNote" hidden></p>
+
+      <!-- ── How it works ──────────────────────────────────────────────── -->
+      <h2 class="gt-h2">How it works</h2>
+      <ol class="gt-steps">
+        <li class="gt-step"><span class="gt-step-n">1</span><p>Stick the tag inside your windscreen.</p></li>
+        <li class="gt-step"><span class="gt-step-n">2</span><p>Activate it once and add your number — it stays hidden.</p></li>
+        <li class="gt-step"><span class="gt-step-n">3</span><p>Anyone who needs you scans it and calls. You pick up.</p></li>
+      </ol>
+
+      <footer class="gt-foot">
+        <a href="/track-order">Track an order</a>
+        <span aria-hidden="true">·</span>
+        <a href="/owner-login">Sign in</a>
+      </footer>
+    </main>
+
+    <!-- ── Sticky buy bar ──────────────────────────────────────────────── -->
+    <div class="gt-bar" id="gtBar">
+      <div class="gt-bar-txt">
+        <strong id="gtBarName">ParkTag Car Tag</strong>
+        <span id="gtBarSub">Free delivery · COD available</span>
+      </div>
+      <a class="gt-btn gt-bar-cta" href="/shop?sku=pt-car-2" id="gtBarCta" data-sku="pt-car-2">Order now →</a>
+    </div>
+
+    <!-- ── Checkout ────────────────────────────────────────────────────────
+         The delivery step is NOT built here. address-step.js is the shared
+         sheet every physical-sticker purchase already uses — the dashboard,
+         the vehicle detail page and the Shop tab all await the same
+         window.ptCollectAddress() — and it is a self-contained global that
+         injects its own markup and styles, so the storefront gets the identical
+         window rather than a second one that looks almost like it.
+
+         Only the confirmation below is local, because no other flow has one:
+         a signed-in buyer sees their order in the dashboard afterwards, and a
+         guest has no dashboard to be sent to. -->
+    <div class="gt-sheet-bd" id="gtSheetBd" hidden></div>
+
+    <section class="gt-sheet" id="gtSheet" hidden aria-modal="true" role="dialog" aria-labelledby="gtDoneT">
+      <div class="gt-done" id="gtDone">
+        <div class="gt-done-i" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <h2 class="gt-done-t" id="gtDoneT">Order confirmed</h2>
+        <p class="gt-done-s" id="gtDoneSub"></p>
+        <a class="gt-btn gt-cta" id="gtDoneTrack" href="/track-order">Track this order</a>
+        <button class="gt-done-x" id="gtDoneX" type="button">Done</button>
+      </div>
+    </section>
+
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+    <script src="/scripts/owner/address-step.js?v=__ASSET_VERSION__"></script>
+    <script type="module" src="/scripts/get.js?v=__ASSET_VERSION__"></script>
+  </body>
+</html>

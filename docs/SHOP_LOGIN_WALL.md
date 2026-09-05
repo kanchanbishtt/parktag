@@ -2,8 +2,10 @@
 
 **Status:** fixed, 4 September 2026. `/shop` now serves the public storefront
 with guest checkout to a signed-out visitor, and every buy button on the marketing
-site points at it. `/get`, where the storefront was first built, redirects to
-`/shop`. Signed-in owners still land on the dashboard's shop tab. The rest of this
+site points at it. `/get`, where the storefront was first built, is a page of
+its own again: same guest checkout, its own presentation, and deliberately linked
+from nowhere — a URL to hand out rather than one to navigate to. Signed-in owners
+still land on the dashboard's shop tab. The rest of this
 document is the investigation as it stood before the fix.
 **Priority (was):** high before any ad spend scales. Every rupee of paid traffic hits this.
 **Related:** `docs/ANALYTICS_EVENTS.md` (the instrumentation that can now measure it)

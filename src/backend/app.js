@@ -649,6 +649,11 @@ export async function buildApp() {
           "data:",
           "https://api.qrserver.com",
           "https://*.google-analytics.com",
+          "https://analytics.google.com",
+          "https://*.analytics.google.com",
+          "https://www.google.com",
+          "https://www.google.co.in",
+          "https://*.doubleclick.net",
           "https://*.googletagmanager.com",
           "https://www.facebook.com"
         ],
@@ -658,8 +663,14 @@ export async function buildApp() {
         connectSrc: [
           "'self'",
           "https://www.google.com",
+          "https://www.google.co.in",
           "https://*.google-analytics.com",
+          // The apex host, not only the wildcard: gtag reports to
+          // https://analytics.google.com/g/collect, and a "*." source never
+          // matches the bare domain. Same list as landing/next.config.ts.
+          "https://analytics.google.com",
           "https://*.analytics.google.com",
+          "https://stats.g.doubleclick.net",
           "https://*.googletagmanager.com",
           "https://www.facebook.com",
           "https://connect.facebook.net"

@@ -38,11 +38,22 @@ const APP_ORIGIN = (() => {
 // list; the two are separate policies on separate services and drifting apart
 // is how one of them silently stops collecting.
 const ANALYTICS_SCRIPT = `${APP_ORIGIN} https://www.googletagmanager.com https://connect.facebook.net`;
+//
+// The bare hosts matter. gtag now reports to https://analytics.google.com/g/collect
+// and https://www.google.com/g/collect (and stats.g.doubleclick.net for the ads
+// link), and a wildcard source like https://*.analytics.google.com matches only
+// SUBdomains, never the apex. With only the wildcards listed the tag loaded,
+// gtag ran, and every hit died in the browser with a CSP violation: a second
+// silent outage, found on 6 Sep 2026, after the cross-origin fix for the
+// bundle itself.
 const ANALYTICS_CONNECT =
-  "https://*.google-analytics.com https://*.analytics.google.com " +
+  "https://*.google-analytics.com https://analytics.google.com https://*.analytics.google.com " +
+  "https://www.google.com https://www.google.co.in https://stats.g.doubleclick.net " +
   "https://*.googletagmanager.com https://www.facebook.com https://connect.facebook.net";
 const ANALYTICS_IMG =
-  "https://*.google-analytics.com https://*.googletagmanager.com https://www.facebook.com";
+  "https://*.google-analytics.com https://analytics.google.com https://*.analytics.google.com " +
+  "https://www.google.com https://www.google.co.in https://*.doubleclick.net " +
+  "https://*.googletagmanager.com https://www.facebook.com";
 
 const csp = [
   "default-src 'self'",

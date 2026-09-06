@@ -1363,7 +1363,11 @@ async function handleWhatsAppNotify() {
   // "Send without my number". One prompt only: once the flag is set, sending
   // proceeds normally.
   if (callbackNumberFromReasonStep() === "" && !anonymousSendConfirmed) {
+    // Normally answered on the reason sheet before it closes (see the chip
+    // handler). If this is reached with the sheet closed, put the sheet back
+    // with the question showing rather than asking it in a hidden card.
     anonymousSendConfirmed = true;
+    openOverlay("reason-modal");
     const nudge = byId("reason-callback-nudge");
     if (nudge) nudge.hidden = false;
     byId("reason-callback-phone")?.focus();
@@ -1956,7 +1960,10 @@ byId("reason-callback-skip")?.addEventListener("click", () => {
   anonymousSendConfirmed = true;
   const nudge = byId("reason-callback-nudge");
   if (nudge) nudge.hidden = true;
-  handleWhatsAppNotify();
+  // Same exit as a chip tap: close the sheet, then verify or send. Calling
+  // the send routine directly skipped verification for a first-time scanner.
+  closeReasonStep();
+  requireVerification("message");
 });
 
 byId("reason-callback-phone")?.addEventListener("input", () => {
@@ -2093,6 +2100,27 @@ document.querySelectorAll(".pt-chip").forEach(chip => {
 
     reasonAdvanceTimer = setTimeout(() => {
       reasonAdvanceTimer = null;
+
+      // The "send without your number?" question is asked HERE, while the
+      // sheet is still open. It used to be asked by handleWhatsAppNotify after
+      // this had already closed the sheet, so the question appeared inside a
+      // hidden card, the send stopped waiting for an answer nobody could give,
+      // and the page sat on the two tiles as if nothing had happened. Tapping
+      // WhatsApp again reopened the sheet and reset the flag, so it looped.
+      if (callbackNumberFromReasonStep() === null) {
+        setCallbackNoteError("Enter a valid 10-digit mobile number, or clear it to stay anonymous.");
+        byId("reason-callback-phone")?.focus();
+        return;
+      }
+      setCallbackNoteError("");
+
+      if (callbackNumberFromReasonStep() === "" && !anonymousSendConfirmed) {
+        anonymousSendConfirmed = true;
+        const nudge = byId("reason-callback-nudge");
+        if (nudge) nudge.hidden = false;
+        return;
+      }
+
       closeReasonStep();
       requireVerification("message");
     }, REASON_ADVANCE_MS);

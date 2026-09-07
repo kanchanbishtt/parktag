@@ -26,17 +26,24 @@ const PACKS = [
     image: "/images/shop-car.webp",
     orig: 499
   },
+  // Out of stock, not withdrawn. A pack we still price but cannot ship is shown
+  // with its price and no way to buy it, rather than dropped: somebody who came
+  // for the bike tag learns it exists and is coming back, instead of concluding
+  // we never sold one. Clear the flag when stock lands. Kept in step with the
+  // same two packs on /get.
   {
     id: "pt-combo",
     desc: "Car and bike together, for the whole household.",
     image: "/images/shop-combo.svg",
-    orig: 899
+    orig: 899,
+    soldOut: true
   },
   {
     id: "pt-bike-1",
     desc: "For a two-wheeler, front and back.",
     image: "/images/shop-bike.webp",
-    orig: 799
+    orig: 799,
+    soldOut: true
   }
 ];
 
@@ -107,8 +114,11 @@ function renderGrid(products) {
     const li = el("li", "sh-card");
     li.dataset.card = pack.id;
     if (want === pack.id) li.classList.add("sh-card-hi");
+    if (pack.soldOut) li.classList.add("sh-card-out");
 
-    if (pack.badge) {
+    if (pack.soldOut) {
+      li.append(el("span", "sh-badge sh-badge-out", "Sold out"));
+    } else if (pack.badge) {
       const badge = el("span", "sh-badge");
       badge.innerHTML = STAR; // static markup, never user input
       badge.append(pack.badge);
@@ -142,10 +152,18 @@ function renderGrid(products) {
 
     // A real href, so the card still points somewhere with no JS. The click
     // handler below intercepts it and runs the guest checkout instead.
-    const cta = el("a", "sh-btn sh-btn-primary sh-card-cta", "Order →");
-    cta.href = `/shop?sku=${encodeURIComponent(pack.id)}`;
-    cta.dataset.sku = pack.id;
-    cta.setAttribute("aria-label", `Order ${priced.name}`);
+    // A sold-out pack gets a plain element with NO data-sku and no href, so it
+    // is inert in both paths at once: the delegated click handler matches on
+    // data-sku and never sees it, and with scripting off there is no link into
+    // a checkout that cannot be fulfilled.
+    const cta = pack.soldOut
+      ? el("span", "sh-card-cta sh-card-cta-out", "Sold out")
+      : el("a", "sh-btn sh-btn-primary sh-card-cta", "Order →");
+    if (!pack.soldOut) {
+      cta.href = `/shop?sku=${encodeURIComponent(pack.id)}`;
+      cta.dataset.sku = pack.id;
+      cta.setAttribute("aria-label", `Order ${priced.name}`);
+    }
 
     ft.append(price, cta);
     li.append(media, bd, ft);
@@ -158,12 +176,6 @@ function renderGrid(products) {
     const hi = list.querySelector(`[data-card="${want}"]`);
     if (hi) hi.scrollIntoView({ block: "center", behavior: "smooth" });
   }
-}
-
-function renderCod(codPaise) {
-  const node = byId("shCod");
-  if (!node) return;
-  node.textContent = codPaise > 0 ? `(+${rupees(codPaise)})` : "";
 }
 
 // ── Remembering an order the buyer may never see confirmed ─────────────────
@@ -405,7 +417,6 @@ async function load() {
   }
 
   renderGrid(payload.products);
-  renderCod(payload.codSurchargePaise || 0);
   wireCheckout();
   byId("shYear").textContent = String(new Date().getFullYear());
 

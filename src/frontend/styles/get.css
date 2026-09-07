@@ -36,6 +36,18 @@
 
 * { box-sizing: border-box; }
 
+/* An author display rule outranks the browser's own [hidden] { display: none },
+ * so .gt-recall's `display: flex` was showing the order-recall bar to every
+ * visitor — including one who has never ordered, who got it with an empty
+ * subtitle and a dead "Track" link, because the script fills those in only for
+ * an order the server has confirmed.
+ *
+ * The bar is the only element on this page whose class sets display AND ships
+ * hidden, but the guard is written once for the page rather than once for that
+ * element: the next hidden thing someone adds should not have to know about
+ * this, and /shop already carries the same line for the same reason. */
+[hidden] { display: none !important; }
+
 .gt-body {
   margin: 0;
   background: var(--gt-ground);

@@ -91,6 +91,39 @@ describe("/get is a page of its own", () => {
     assert.match(shop.body, /shRecall/, "/shop lost its order-recall bar");
   });
 
+  // The recall bar announces an order, so a visitor who has never placed one
+  // must not see it. Two things keep it away from them, and both have failed
+  // before: the attribute was there all along, and .gt-recall's `display: flex`
+  // outranked the browser's [hidden] { display: none } and showed the bar to
+  // everyone, empty, with a dead Track link. /shop had the same bug fixed
+  // separately, which is exactly how it stayed broken here.
+  //
+  // What this can prove from the server is that the markup still ships hidden
+  // and the stylesheet still forces [hidden] to win. What it cannot prove is
+  // the paint, so it deliberately pins the CSS rule rather than trusting that
+  // the attribute alone is enough — the attribute alone is what failed.
+  test("the recall bar is hidden until an order is confirmed", async () => {
+    for (const [page, css, id] of [
+      ["/get", "/styles/get.css", "gtRecall"],
+      ["/shop", "/styles/shop.css", "shRecall"]
+    ]) {
+      const markup = await get(page);
+      const bar = new RegExp(`<a[^>]*id="${id}"[^>]*>`).exec(markup.body);
+
+      assert.ok(bar, `${page} lost its recall bar`);
+      assert.match(bar[0], /\shidden(\s|>)/, `${page} ships its recall bar visible`);
+
+      const sheet = await get(css);
+      assert.equal(sheet.statusCode, 200, `${css} is not being served`);
+      assert.match(
+        sheet.body,
+        /\[hidden\]\s*\{[^}]*display:\s*none\s*!important/,
+        `${css} no longer forces [hidden] to beat author display rules, so ` +
+          `the recall bar renders for visitors who never ordered`
+      );
+    }
+  });
+
   // The whole point of the page: it is handed out deliberately, so no other
   // page may quietly start pointing at it. This is what fails if one does.
   test("nothing else links to it", async () => {

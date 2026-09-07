@@ -575,6 +575,12 @@
 @media (prefers-reduced-motion: reduce) {
   .gt-sk { animation: none; }
   .gt-cta { transition: none; }
+  .gt-sheet-bd, .gt-sheet,
+  .gt-done-i, .gt-done-t, .gt-done-s,
+  #gtDoneTrack, .gt-done-x { animation-duration: .01ms; }
+  /* confetti.js declines to build the canvas under this setting; this is the
+     second guard, for a surface that somehow exists anyway. */
+  .gt-cfti { display: none; }
 }
 
 /* ── Checkout sheet ──────────────────────────────────────────────────────
@@ -642,6 +648,82 @@
   cursor: pointer;
 }
 
+/* ── The celebration ─────────────────────────────────────────────────────
+ *
+ * This dialog is the end of the only flow on the page that costs money, and
+ * it used to appear instantly, fully formed, like a validation error. So it
+ * arrives now: the ground darkens, the card comes up, the tick pops, and the
+ * words follow it in. The order matters more than any single duration — a
+ * sequence reads as an event, where everything moving at once reads as a
+ * transition.
+ *
+ * Every one of these is keyed off the element becoming visible, which the
+ * hidden attribute already does. Nothing has to be triggered, and nothing is
+ * left in a hidden state if the script never gets here. */
+@keyframes gt-veil { from { opacity: 0; } to { opacity: 1; } }
+
+/* Up from the bottom edge, because on a phone this is a bottom sheet and that
+   is the edge it belongs to. The desktop shape overrides this below. */
+@keyframes gt-sheet-up {
+  from { transform: translate3d(0, 100%, 0); }
+  to   { transform: none; }
+}
+
+/* The tick overshoots and settles. It is the one piece of motion here allowed
+   to be springy — it is the moment being celebrated, and everything after it
+   is calmer on purpose. */
+@keyframes gt-tick {
+  0%   { opacity: 0; transform: scale(.4); }
+  60%  { opacity: 1; transform: scale(1.12); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes gt-rise-in {
+  from { opacity: 0; transform: translate3d(0, 10px, 0); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes gt-fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+.gt-sheet-bd { animation: gt-veil .22s ease both; }
+.gt-sheet    { animation: gt-sheet-up .38s cubic-bezier(.22, 1, .36, 1) both; }
+
+.gt-done-i { animation: gt-tick .5s cubic-bezier(.34, 1.56, .64, 1) .08s both; }
+.gt-done-t { animation: gt-rise-in .4s ease .2s both; }
+.gt-done-s { animation: gt-rise-in .4s ease .28s both; }
+
+/* The two controls fade rather than rise. .gt-btn presses itself down with a
+   transform on :active, and a finished animation holding transform:none would
+   outrank that rule and kill the press. */
+#gtDoneTrack { animation: gt-fade-in .4s ease .36s both; }
+.gt-done-x   { animation: gt-fade-in .4s ease .42s both; }
+
+/* ── Confetti ─────────────────────────────────────────────────────────────
+ *
+ * A canvas, not a pile of elements: the burst is per-particle physics and CSS
+ * keyframes cannot express that arc, so the drawing lives in confetti.js and
+ * this only places the surface.
+ *
+ * Its own fixed layer above the sheet, rather than a child of the sheet. The
+ * sheet scrolls its own overflow and would have clipped the paper to the card;
+ * the celebration should cross the whole screen. pointer-events:none is what
+ * makes an always-present full-screen layer harmless — the Track button
+ * underneath stays pressable throughout. */
+.gt-cfti-host {
+  position: fixed;
+  inset: 0;
+  z-index: 42;
+  pointer-events: none;
+}
+
+.gt-cfti {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
 @media (min-width: 600px) {
   .gt-sheet {
     left: 50%;
@@ -651,6 +733,14 @@
     width: min(520px, calc(100vw - 40px));
     border-radius: 20px;
     padding: 20px 24px 24px;
+    /* Centring lives in the transform, so the entrance has to carry it too —
+       a keyframe that set only scale would drop the card into the corner. */
+    animation: gt-sheet-pop .34s cubic-bezier(.22, 1, .36, 1) both;
+  }
+
+  @keyframes gt-sheet-pop {
+    from { opacity: 0; transform: translate(-50%, -46%) scale(.94); }
+    to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
   }
 }
 

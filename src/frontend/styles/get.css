@@ -332,98 +332,8 @@
 }
 /* width/height are on the element to reserve the row; the aspect ratio does
    the rest, so `height: auto` must override the attribute rather than obey it. */
-/* The width now lives on the wrapper, because the wrapper is what the sweep
-   is clipped to; the image just fills it. */
-.gt-shot-media {
-  position: relative;
-  display: inline-block;
-  width: 100%;
-  max-width: 320px;
-  overflow: hidden;
-  border-radius: 10px;
-  line-height: 0;
-}
-.gt-shot img { display: block; width: 100%; height: auto; }
-
-/* Two white shines crossing the tag on its diagonal — in at the top-left
-   corner, out at the bottom-right, a wide one leading and a narrower one a
-   step behind it.
-
-   White only. The band was navy for a while so it would also show over the
-   white left half of the artwork, and it did, but a tinted bar sliding over a
-   product reads as a scanner passing across it rather than as light falling on
-   it. Glass does not colour what it reflects. Over the brand-red half the
-   shines carry completely; over the white half they are barely there, and that
-   is correct — a reflection is not uniform across a surface.
-
-   Restrained on purpose: two passes, four and a half seconds apart, gone for
-   half of every cycle. The point is something you catch out of the corner of
-   your eye and then look at, not something running at you the whole time.
-
-   It is not gated on any class the script adds. It used to run only while
-   `.gt-in` was set by the reveal observer, which made the whole effect
-   conditional on get.js reaching the bottom of the module — a blocked file, a
-   browser without IntersectionObserver, a throw three functions earlier, and
-   the shine was gone with nothing on screen to say why. The reveal has to be
-   script-gated, because it HIDES the artwork and so must fail towards visible.
-   The shine hides nothing, so it does not.
-
-   Geometry: both bands are baked into one gradient on a box twice the wrapper
-   in each direction and centred on it, which makes them the right length to
-   cross a corner-to-corner run at any aspect ratio, and keeps them parallel
-   for free. Sliding that one box along x and y together walks both down the
-   diagonal, and ±62% of a double-size box is ±124% of the wrapper — clear of
-   both corners at the ends of the travel. One transform, one layer, no layout
-   read. The higher colour stops are the ones that cross first, so the wide
-   band sits above the narrow one in the list. */
-@keyframes gt-glass {
-  0%        { transform: translate3d(-62%, -62%, 0); opacity: 0; }
-  8%        { opacity: 1; }
-  42%       { opacity: 1; }
-  50%, 100% { transform: translate3d(62%, 62%, 0); opacity: 0; }
-}
-
-.gt-shot-media::after {
-  content: "";
-  position: absolute;
-  left: -50%;
-  top: -50%;
-  width: 200%;
-  height: 200%;
-  pointer-events: none;
-  opacity: 0;
-  transform: translate3d(-62%, -62%, 0);
-  background: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0)    38%,
-    rgba(255, 255, 255, .34)  43%,
-    rgba(255, 255, 255, 0)    47.5%,
-    rgba(255, 255, 255, 0)    50%,
-    rgba(255, 255, 255, .72)  55%,
-    rgba(255, 255, 255, 0)    61%
-  );
-  animation: gt-glass 4.5s ease-in-out infinite;
-}
-
+.gt-shot img { width: 100%; max-width: 320px; height: auto; }
 .gt-shot-c { margin: 10px 0 0; font-size: .76rem; color: var(--gt-ink-3); }
-
-/* The tag rises into place as it scrolls in — the same fade-and-rise the
-   landing page gives its own copy of this sticker, rebuilt in CSS because
-   /get is plain HTML and cannot import landing/app/components/AnimateIn.tsx.
-
-   The hidden state hangs off `.gt-anim`, a class get.js puts on <html> only
-   once it has decided to animate. Nothing is hidden by this stylesheet on its
-   own, and that ordering is the point: if the script never runs — a blocked
-   file, a browser without modules, a syntax error three functions away — the
-   class is never set, this rule never matches, and the tag is simply there. A
-   shop that hides its product because a script failed is a worse page than one
-   that does not animate. */
-.gt-anim .gt-reveal {
-  opacity: 0;
-  transform: translateY(22px);
-  transition: opacity .6s ease, transform .6s cubic-bezier(.22, .61, .36, 1);
-}
-.gt-anim .gt-reveal.gt-in { opacity: 1; transform: none; }
 
 /* ── Packs ───────────────────────────────────────────────────────────── */
 
@@ -640,8 +550,6 @@
 @media (prefers-reduced-motion: reduce) {
   .gt-sk { animation: none; }
   .gt-cta { transition: none; }
-  .gt-anim .gt-reveal { opacity: 1; transform: none; transition: none; }
-  .gt-shot-media::after { animation: none; }
 }
 
 /* ── Checkout sheet ──────────────────────────────────────────────────────

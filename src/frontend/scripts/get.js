@@ -526,5 +526,80 @@ function revealOnScroll() {
   for (const el of targets) io.observe(el);
 }
 
+
+// The glass shine on the tag runs its own loop in CSS. Under a real cursor it
+// hands over: the band follows the pointer down the sticker's diagonal and the
+// artwork tilts a few degrees towards it, until the pointer leaves and the
+// loop takes back over.
+//
+// Nothing here is load-bearing. The class and the four custom properties only
+// ever ADD to what the stylesheet already does on its own, so a browser that
+// never reaches this function gets the loop and no tilt, which is the whole
+// effect minus one flourish rather than a blank card. That is also why it is
+// called last: it must not be able to take the catalogue down with it.
+function trackGlassOnPointer() {
+  const shot = document.querySelector(".gt-shot");
+  const media = shot?.querySelector(".gt-shot-media");
+  if (!media || !window.matchMedia) return;
+
+  // A finger has no hover position to follow, and a coarse pointer would land
+  // the band wherever the last tap was and leave it there. Both are worse than
+  // the loop on its own, so neither gets this.
+  if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+  let frame = 0;
+
+  // pointermove fires far faster than the screen redraws, and each one needs a
+  // getBoundingClientRect — a layout read. Coalescing to one per frame keeps
+  // that to sixty reads a second however hard the mouse is moved.
+  const follow = (event) => {
+    if (frame) return;
+    frame = requestAnimationFrame(() => {
+      frame = 0;
+      const box = media.getBoundingClientRect();
+      if (!box.width || !box.height) return;
+
+      // Clamped because the listeners sit on the whole card: the padding and
+      // the caption are outside the artwork, and without this the band would
+      // be driven past the corner it should stop at.
+      const px = Math.min(1, Math.max(0, (event.clientX - box.left) / box.width));
+      const py = Math.min(1, Math.max(0, (event.clientY - box.top) / box.height));
+
+      // Projected onto the one diagonal the shine travels, rather than letting
+      // x and y move it independently. A band that could be dragged off its
+      // axis stops reading as a reflection in flat glass. The range matches
+      // the keyframes so taking over mid-loop cannot jump it.
+      const along = ((px + py) / 2) * 124 - 62;
+      shot.style.setProperty("--gt-gx", `${along}%`);
+      shot.style.setProperty("--gt-gy", `${along}%`);
+
+      // Towards the cursor: the far edge lifts. Nine degrees is small enough
+      // that the QR stays square enough to scan off the screen.
+      shot.style.setProperty("--gt-ry", `${(px - 0.5) * 9}deg`);
+      shot.style.setProperty("--gt-rx", `${(0.5 - py) * 9}deg`);
+    });
+  };
+
+  shot.addEventListener("pointerenter", (event) => {
+    shot.classList.add("gt-tilt");
+    follow(event);
+  });
+  shot.addEventListener("pointermove", follow);
+  shot.addEventListener("pointerleave", () => {
+    if (frame) {
+      cancelAnimationFrame(frame);
+      frame = 0;
+    }
+    // The tilt eases back to flat on the class coming off. The shine is left
+    // where the cursor left it for the moment the class change takes effect,
+    // then the loop picks it up again from its own first keyframe.
+    shot.classList.remove("gt-tilt");
+    shot.style.removeProperty("--gt-rx");
+    shot.style.removeProperty("--gt-ry");
+  });
+}
+
 revealOnScroll();
 load();
+trackGlassOnPointer();

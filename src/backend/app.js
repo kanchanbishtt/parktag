@@ -887,6 +887,39 @@ export async function buildApp() {
     return html;
   });
 
+  // ParkTag's own number as a downloadable contact card.
+  //
+  // There is no web API that can write a contact — the Contact Picker API only
+  // READS, and only on Android — so a vCard the browser hands to the operating
+  // system is the whole mechanism. Tapping the link opens the OS contact screen
+  // with the fields already filled; the person still confirms the save, which is
+  // the only behaviour a page is allowed to have here.
+  //
+  // Built as a constant rather than read off disk: it is four lines that never
+  // change, and a missing file would turn a save-our-number button into a 500.
+  //
+  // CRLF and the VERSION line are not stylistic. RFC 6350 specifies CRLF, and
+  // Android's importer is strict about it; 3.0 rather than 4.0 because it is the
+  // version every version of iOS and Android in circulation reads.
+  const contactCard = [
+    "BEGIN:VCARD",
+    "VERSION:3.0",
+    "N:;ParkTag;;;",
+    "FN:ParkTag",
+    "ORG:ParkTag by EditTree",
+    "TEL;TYPE=WORK,VOICE:08047284348",
+    "END:VCARD",
+    ""
+  ].join("\r\n");
+
+  app.get("/parktag.vcf", async (_request, reply) => {
+    reply
+      .header("content-type", "text/vcard; charset=utf-8")
+      .header("content-disposition", 'attachment; filename="ParkTag.vcf"')
+      .header("cache-control", "public, max-age=86400");
+    return contactCard;
+  });
+
   app.get("/owner", async (request, reply) => {
     const session = await readSession(app, request);
     if (!session || session.role !== "owner") {

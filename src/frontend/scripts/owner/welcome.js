@@ -989,11 +989,31 @@ ${_nbFilter ? `
   // counting question and still filter that grid, which is where the detail
   // belongs; only the tip survives, because it is the one line here that says
   // something the cards do not.
+  // The tip, and under it the one number worth having in your phone.
+  //
+  // A masked call arrives from ParkTag's line, not from the finder's, so to an
+  // owner it is an unknown number — which is exactly the kind of call people let
+  // ring out. Saving it once is what turns a missed call into an answered one,
+  // and it is only worth asking here, where an owner has tags that can ring.
+  //
+  // The button is a plain link to a vCard. There is no web API for writing a
+  // contact, so handing the file to the operating system IS the mechanism: the
+  // OS opens its own contact screen with the fields filled and the person
+  // confirms the save themselves. Being an <a> rather than a button is what
+  // makes that work — it also means long-press and open-in-new-tab behave, and
+  // it needs no script at all.
   nb.innerHTML = hd + `
 <div class="pt-ov-tip">
   <span class="pt-ov-tip-ic">${tipIcon}</span>
   <span>${tipText}</span>
-</div>`;
+</div>
+<div class="pt-ov-save">
+  <span class="pt-ov-save-ic"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.58 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.46.57 3.6a1 1 0 0 1-.25 1l-2.22 2.2z" stroke="#fff" stroke-width="1.8" stroke-linejoin="round"/></svg></span>
+  <div class="pt-ov-save-b">
+    <p class="pt-ov-save-t">Calls about your vehicle come from this number. Save it so you never miss one.</p>
+    <p class="pt-ov-save-num">08047284348</p>
+  </div>
+  <a class="pt-ov-save-btn" href="/parktag.vcf" aria-label="Add ParkTag's number 08047284348 to your contacts"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg>Add</a></div>`;
 }
 
 // ── Activity section ──────────────────────────────────────────────

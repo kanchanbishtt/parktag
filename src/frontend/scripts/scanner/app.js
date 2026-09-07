@@ -953,7 +953,11 @@ async function handlePlateVerification(event) {
     return;
   }
 
-  setDisabled("plate-verify-submit", true);
+  // setBtnLoading, not setDisabled. A disabled button is indistinguishable from
+  // a button that ignored the tap, and this card then sat through TWO network
+  // round trips behind a blurred overlay with nothing moving. The spinner is on
+  // the control the scanner actually pressed, which is where they are looking.
+  setBtnLoading("plate-verify-submit", true);
   setRequestStatus("plate-verify-status", "Verifying…", "info");
 
   // Verification happens entirely server-side — the correct digits are never
@@ -972,7 +976,7 @@ async function handlePlateVerification(event) {
         setRequestStatus("plate-verify-status", "Still checking… signal is weak here.", "info")
     }));
   } catch (error) {
-    setDisabled("plate-verify-submit", false);
+    setBtnLoading("plate-verify-submit", false);
     setRequestStatus(
       "plate-verify-status",
       offlineMessage(error, { action: "the check" }),
@@ -982,7 +986,7 @@ async function handlePlateVerification(event) {
   }
 
   if (!ok) {
-    setDisabled("plate-verify-submit", false);
+    setBtnLoading("plate-verify-submit", false);
     let msg = data.error || "Verification failed. Please try again.";
     if (typeof data.attemptsRemaining === "number") {
       msg += ` ${data.attemptsRemaining} attempt(s) left.`;
@@ -1003,10 +1007,23 @@ async function handlePlateVerification(event) {
   contactGrant = data.grant || "";
   unlimitedContact = data.unlimitedContact === true;
   verifiedPlateLastFour = entered;
-  setDisabled("plate-verify-submit", false);
-  setRequestStatus("plate-verify-status", "", "info");
-  showOnly("scanner-action-shell");
   setVerifiedBadge(true);
+
+  // The card STAYS OPEN for a WhatsApp alert. Verification is only half the
+  // job: sending the alert is a second round trip, and closing here dropped the
+  // scanner onto a blurred page with a small status line for the length of it,
+  // then popped a success card out of nowhere. Whether that read as "sent",
+  // "failed" or "nothing happened" was a coin toss.
+  //
+  // Holding the card means one continuous busy state, on one control, from tap
+  // to receipt. The call paths still hand off immediately: they open the dial
+  // panel, which is its own visible destination.
+  const holdCardForSend = pendingVerifiedAction === "message";
+  if (!holdCardForSend) {
+    setBtnLoading("plate-verify-submit", false);
+    setRequestStatus("plate-verify-status", "", "info");
+    showOnly("scanner-action-shell");
+  }
   // Reflect free-usage state: show buttons, or the Purchase CTA if used up.
   // Whether this tag has anything left is only knowable after the plate
   // checks out — the load payload deliberately withholds it, so that scanning
@@ -1023,6 +1040,19 @@ async function handlePlateVerification(event) {
   const resuming = pendingVerifiedAction;
   pendingVerifiedAction = "";
   setRequestStatus("request-status", "Verified ✓", "success");
+
+  if (holdCardForSend) {
+    // Names the step rather than spinning silently: "Verifying" is finished and
+    // saying so is the difference between a wait that is progressing and a wait
+    // that looks stuck.
+    setRequestStatus("plate-verify-status", "Notifying the owner on WhatsApp…", "info");
+    await runVerifiedAction(resuming);
+    setBtnLoading("plate-verify-submit", false);
+    setRequestStatus("plate-verify-status", "", "info");
+    showOnly("scanner-action-shell");
+    return;
+  }
+
   runVerifiedAction(resuming);
 }
 
@@ -1103,7 +1133,7 @@ function requireVerification(action) {
   (verifyPhoneOnly ? byId("plate-verify-phone") : byId("plate-last-four-input"))?.focus();
 }
 
-function runVerifiedAction(action) {
+async function runVerifiedAction(action) {
   if (action === "call") {
     // The number was given on the verification card, so nothing is left to ask
     // and nothing is left to tap: register the call and hand the handset the
@@ -1128,7 +1158,7 @@ function runVerifiedAction(action) {
   }
 
   if (action === "message") {
-    handleWhatsAppNotify();
+    await handleWhatsAppNotify();
     return;
   }
 

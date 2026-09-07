@@ -147,14 +147,18 @@
            Dimensions are stated so the section cannot reflow as the image
            decodes, and it is lazy-loaded because it sits below the fold. -->
       <figure class="gt-shot">
-        <img
-          src="/images/final-landing-sticker.png"
-          width="1000"
-          height="600"
-          loading="lazy"
-          decoding="async"
-          alt="The ParkTag windscreen sticker: scan the code to contact the vehicle owner, with call and WhatsApp buttons"
-        />
+        <!-- The span carries the width and the corner radius the artwork is
+             clipped to. -->
+        <span class="gt-shot-media">
+          <img
+            src="/images/final-landing-sticker.png"
+            width="1000"
+            height="600"
+            loading="lazy"
+            decoding="async"
+            alt="The ParkTag windscreen sticker: scan the code to contact the vehicle owner, with call and WhatsApp buttons"
+          />
+        </span>
         <figcaption class="gt-shot-c">Sticks inside the windscreen. Scannable from outside.</figcaption>
       </figure>
 
@@ -215,6 +219,11 @@
         <button class="gt-done-x" id="gtDoneX" type="button">Done</button>
       </div>
     </section>
+
+    <!-- The celebration burst is drawn here rather than inside the sheet: the
+         sheet scrolls its own overflow and would clip the paper to the card.
+         Empty and pointer-events:none until confetti.js puts a canvas in it. -->
+    <div class="gt-cfti-host" id="gtCfti" aria-hidden="true"></div>
 
     <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
     <script src="/scripts/owner/address-step.js?v=__ASSET_VERSION__"></script>

@@ -1009,8 +1009,10 @@ ${_nbFilter ? `
 </div>
 <div class="pt-ov-save">
   <span class="pt-ov-save-ic"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.58 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.46.57 3.6a1 1 0 0 1-.25 1l-2.22 2.2z" stroke="#fff" stroke-width="1.8" stroke-linejoin="round"/></svg></span>
-  <p class="pt-ov-save-t">Calls about your vehicle come from this number.</p>
-  <p class="pt-ov-save-num">08047284348</p>
+  <div class="pt-ov-save-b">
+    <p class="pt-ov-save-t">Calls about your vehicle come from this number. Save it so you never miss one.</p>
+    <p class="pt-ov-save-num">08047284348</p>
+  </div>
   <a class="pt-ov-save-btn" href="/parktag.vcf" aria-label="Add ParkTag's number 08047284348 to your contacts"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg>Add</a></div>`;
 }
 

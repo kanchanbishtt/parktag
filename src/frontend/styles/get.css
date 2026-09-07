@@ -345,41 +345,42 @@
 }
 .gt-shot img { display: block; width: 100%; height: auto; }
 
-/* A glass shine down the diagonal of the tag — in at the top-left corner, out
-   at the bottom-right — the way light crosses a windscreen, which is where
-   this sticker actually lives.
+/* Two white shines crossing the tag on its diagonal — in at the top-left
+   corner, out at the bottom-right, a wide one leading and a narrower one a
+   step behind it.
 
-   This is deliberately CONTINUOUS rather than a one-shot on approach. A
-   reveal that fires as you scroll past is the tasteful choice and it is also
-   very easy to miss: it lasts half a second, it plays while your eye is still
-   moving, and on reload the browser restores your scroll so it has finished
-   before you look up. Something that keeps moving is the only kind of motion
-   you can actually point at.
+   White only. The band was navy for a while so it would also show over the
+   white left half of the artwork, and it did, but a tinted bar sliding over a
+   product reads as a scanner passing across it rather than as light falling on
+   it. Glass does not colour what it reflects. Over the brand-red half the
+   shines carry completely; over the white half they are barely there, and that
+   is correct — a reflection is not uniform across a surface.
 
-   It is not gated on a class the script adds. It used to run only while
+   Restrained on purpose: two passes, four and a half seconds apart, gone for
+   half of every cycle. The point is something you catch out of the corner of
+   your eye and then look at, not something running at you the whole time.
+
+   It is not gated on any class the script adds. It used to run only while
    `.gt-in` was set by the reveal observer, which made the whole effect
    conditional on get.js reaching the bottom of the module — a blocked file, a
    browser without IntersectionObserver, a throw three functions earlier, and
    the shine was gone with nothing on screen to say why. The reveal has to be
    script-gated, because it HIDES the artwork and so must fail towards visible.
-   The shine hides nothing.
+   The shine hides nothing, so it does not.
 
-   The band is glass first — a bright white core — with thin translucent navy
-   shoulders either side. That pairing is what carries it across the whole
-   sticker: the artwork is white on its left half and brand red on its right,
-   so the core shows over the red and the shoulders show over the white.
-
-   Geometry: the gradient is baked into a box twice the wrapper in each
-   direction and centred on it, so the band is already the right length to
-   cross a corner-to-corner diagonal at any aspect ratio. Sliding that box
-   along x and y together walks the band down the diagonal, and ±62% of a
-   double-size box is ±124% of the wrapper — clear of both corners at the ends
-   of the travel. One transform, one layer, no layout read. */
+   Geometry: both bands are baked into one gradient on a box twice the wrapper
+   in each direction and centred on it, which makes them the right length to
+   cross a corner-to-corner run at any aspect ratio, and keeps them parallel
+   for free. Sliding that one box along x and y together walks both down the
+   diagonal, and ±62% of a double-size box is ±124% of the wrapper — clear of
+   both corners at the ends of the travel. One transform, one layer, no layout
+   read. The higher colour stops are the ones that cross first, so the wide
+   band sits above the narrow one in the list. */
 @keyframes gt-glass {
   0%        { transform: translate3d(-62%, -62%, 0); opacity: 0; }
-  12%       { opacity: 1; }
-  60%       { opacity: 1; }
-  74%, 100% { transform: translate3d(62%, 62%, 0); opacity: 0; }
+  8%        { opacity: 1; }
+  42%       { opacity: 1; }
+  50%, 100% { transform: translate3d(62%, 62%, 0); opacity: 0; }
 }
 
 .gt-shot-media::after {
@@ -394,41 +395,14 @@
   transform: translate3d(-62%, -62%, 0);
   background: linear-gradient(
     135deg,
-    rgba(3, 22, 45, 0) 40%,
-    rgba(3, 22, 45, .13) 46%,
-    rgba(255, 255, 255, .95) 50%,
-    rgba(3, 22, 45, .12) 54%,
-    rgba(3, 22, 45, 0) 60%
+    rgba(255, 255, 255, 0)    38%,
+    rgba(255, 255, 255, .34)  43%,
+    rgba(255, 255, 255, 0)    47.5%,
+    rgba(255, 255, 255, 0)    50%,
+    rgba(255, 255, 255, .72)  55%,
+    rgba(255, 255, 255, 0)    61%
   );
-  animation: gt-glass 3.4s ease-in-out infinite;
-}
-
-/* Under a real cursor the shine stops running on its own clock and follows the
-   pointer instead, with the artwork tilting a few degrees towards it — the
-   loop is what you notice from across the page, this is what answers when you
-   go to look at it.
- *
- * `.gt-tilt` and the four custom properties come from get.js, which attaches
- * nothing on a touch screen and nothing under reduced motion. Everything here
- * is additive: without the class the loop above just keeps running.
- *
- * The cursor is projected onto the diagonal rather than driving x and y
- * independently, because the shine has exactly one axis — a band that could be
- * dragged off it would stop reading as a reflection in flat glass. */
-.gt-shot-media { transition: transform .4s ease; }
-
-.gt-shot.gt-tilt .gt-shot-media {
-  transform: perspective(900px)
-             rotateX(var(--gt-rx, 0deg))
-             rotateY(var(--gt-ry, 0deg));
-  transition: transform .12s ease-out;
-}
-
-.gt-shot.gt-tilt .gt-shot-media::after {
-  animation: none;
-  opacity: 1;
-  transform: translate3d(var(--gt-gx, 0%), var(--gt-gy, 0%), 0);
-  transition: transform .12s ease-out, opacity .2s ease;
+  animation: gt-glass 4.5s ease-in-out infinite;
 }
 
 .gt-shot-c { margin: 10px 0 0; font-size: .76rem; color: var(--gt-ink-3); }
@@ -668,8 +642,6 @@
   .gt-cta { transition: none; }
   .gt-anim .gt-reveal { opacity: 1; transform: none; transition: none; }
   .gt-shot-media::after { animation: none; }
-  .gt-shot-media,
-  .gt-shot.gt-tilt .gt-shot-media { transform: none; transition: none; }
 }
 
 /* ── Checkout sheet ──────────────────────────────────────────────────────

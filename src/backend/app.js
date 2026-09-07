@@ -16,6 +16,7 @@ import { clientError, clientErrorMessage } from "./lib/errors.js";
 import { readSession } from "./lib/auth/session.js";
 import { createSharedRateLimitStore } from "./lib/auth/rate-limit-store.js";
 import { getCollections } from "./lib/db/repositories.js";
+import { trustProxy } from "./lib/core/proxy-trust.js";
 import { stickerSerialFor } from "./lib/core/tag-issuance.js";
 import { registerAdminRoutes } from "./routes/admin/index.js";
 import { registerAdminTrafficRoutes } from "./routes/admin/traffic.js";
@@ -396,9 +397,18 @@ export async function buildApp() {
     // Address-agnostic on purpose. An allowlist ("loopback", a subnet) works
     // too, but only while Railway's edge keeps the address we wrote down.
     //
-    // If the deployment ever gains another proxy hop (a CDN in front of
-    // Railway), widen this to `hop <= 1` and so on to match the real count.
-    trustProxy: (_address, hop) => hop === 0
+    // That "if the deployment ever gains another proxy hop" happened. Railway
+    // now puts two of its own machines in front of this process, so one hop
+    // stopped on a Railway edge address instead of the caller: activity rows
+    // told owners every scan came from Singapore (the sin1 PoP), and every
+    // per-IP limit collapsed into one bucket per PoP.
+    //
+    // The replacement recognises our own infrastructure and stops at the first
+    // address that is not ours, so it survives Railway adding or removing a
+    // layer instead of silently mis-reporting again. It is still capped, so it
+    // can never walk off the end of the chain into caller-controlled values.
+    // See lib/core/proxy-trust.js for the reasoning and the ranges.
+    trustProxy
   });
 
   // Hashed once at boot rather than per request: the asset tree cannot change

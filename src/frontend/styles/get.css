@@ -201,7 +201,9 @@
 .gt-title {
   margin: 0;
   font-size: clamp(1.35rem, 6.4vw, 1.72rem);
-  line-height: 1.24;
+  /* Loose enough that the highlight's own padding cannot crowd the line under
+     it. Tighten this and the red block starts touching "for your parked car". */
+  line-height: 1.42;
   letter-spacing: -.02em;
   font-weight: 800;
 }
@@ -213,13 +215,13 @@
   display: inline;
   background: var(--gt-red);
   color: #fff;
-  padding: 2px 10px;
-  border-radius: 8px;
+  padding: 6px 14px 8px;
+  border-radius: 10px;
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
 }
 
-.gt-title-2 { display: block; margin-top: 8px; }
+.gt-title-2 { display: block; margin-top: 12px; }
 
 .gt-lede {
   margin: 12px auto 0;
@@ -324,41 +326,30 @@
 }
 .gt-feat-i svg { width: 20px; height: 20px; }
 
-.gt-feat-t { margin: 9px 0 0; font-size: .86rem; font-weight: 700; }
-.gt-feat-s { margin: 4px 0 0; font-size: .76rem; line-height: 1.5; color: var(--gt-ink-3); }
-
-/* ── The tag ─────────────────────────────────────────────────────────── */
-
-/* Navy edge, light-navy ground — the same pair the membership plan cards use
-   for their selected state, so the two screens read as one product rather than
-   two designs that happen to share a logo. The tint is what the sticker sits
-   on, and it is deliberately cool: the artwork is mostly brand red, and a warm
-   or white ground made it glare. */
-.gt-shot {
-  margin: 0;
-  background: var(--gt-navy-tint);
-  border: 1px solid var(--gt-ink);
-  border-radius: 18px;
-  padding: 16px;
-  text-align: center;
-}
-/* width/height are on the element to reserve the row; the aspect ratio does
-   the rest, so `height: auto` must override the attribute rather than obey it. */
-/* The width lives on the wrapper rather than the image: it is also what the
-   corner radius clips against, and line-height:0 keeps the image off the text
-   baseline so no descender gap opens up under it. */
-.gt-shot-media {
-  position: relative;
-  display: inline-block;
-  width: 100%;
-  max-width: 320px;
+/* A ceiling, deliberately: two lines of title and three of body, clamped
+   rather than trusted to the copy. Cards in one row that disagree about their
+   height are what made this section read as ragged, and a longer edit later
+   must not be able to bring that back. */
+.gt-feat-t {
+  margin: 9px 0 0;
+  font-size: .86rem;
+  font-weight: 700;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  border-radius: 10px;
-  line-height: 0;
 }
-.gt-shot img { display: block; width: 100%; height: auto; }
+.gt-feat-s {
+  margin: 4px 0 0;
+  font-size: .76rem;
+  line-height: 1.5;
+  color: var(--gt-ink-3);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
 
-.gt-shot-c { margin: 10px 0 0; font-size: .76rem; color: var(--gt-ink-3); }
 
 /* ── Packs ───────────────────────────────────────────────────────────── */
 
@@ -744,3 +735,127 @@
   }
 }
 
+
+/* ── Gallery ─────────────────────────────────────────────────────────────
+   Replaces the single .gt-shot figure that used to sit below the packs. Native
+   horizontal scroll with snap points: no library, no autoplay, no transform
+   juggling. The browser already does momentum, snapping, keyboard scrolling
+   and the trackpad gesture correctly. */
+
+.gt-gal { margin: 0 0 16px; }
+
+.gt-gal-track {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  border-radius: 16px;
+  background: var(--gt-navy-tint, #EAF0F7);
+  /* The dots are the affordance; a scrollbar under the artwork is noise. */
+  scrollbar-width: none;
+}
+.gt-gal-track::-webkit-scrollbar { display: none; }
+.gt-gal-track:focus-visible { outline: 2px solid var(--gt-red); outline-offset: 3px; }
+
+.gt-gal-slide {
+  flex: 0 0 100%;
+  scroll-snap-align: center;
+  padding: 14px;
+}
+/* One frame for every slide whatever its own ratio, so the block cannot change
+   height as you swipe. Contained, never cropped: the artwork is a designed
+   layout and cropping it would cut the printed copy off. */
+.gt-gal-slide img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  object-fit: contain;
+  border-radius: 10px;
+}
+.gt-gal-c {
+  margin: 10px 2px 0;
+  font-size: .74rem;
+  font-weight: 600;
+  color: var(--gt-ink-3);
+  text-align: center;
+}
+
+.gt-gal-dots { display: flex; justify-content: center; gap: 4px; margin-top: 10px; }
+/* 28px of tappable button around an 8px dot, rather than an 8px target. */
+.gt-gal-dot {
+  display: grid;
+  place-items: center;
+  width: 28px; height: 28px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.gt-gal-dot::before {
+  content: "";
+  width: 8px; height: 8px;
+  border-radius: 999px;
+  background: #C9D2DE;
+  transition: width .18s, background-color .18s;
+}
+.gt-gal-dot[aria-current="true"]::before { width: 22px; background: var(--gt-red); }
+@media (prefers-reduced-motion: reduce) { .gt-gal-dot::before { transition: none; } }
+
+/* ── Sold out ────────────────────────────────────────────────────────────
+   Still readable, plainly unbuyable. The artwork is dimmed rather than the
+   whole row, so the name and the price stay at full contrast: somebody
+   deciding whether to wait for stock still needs to read both. */
+.gt-pack-out { background: var(--gt-ground, #F6F8FB); }
+.gt-pack-out img { opacity: .55; filter: grayscale(1); }
+.gt-pack-cta-out {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 10px 14px;
+  border: 1px dashed var(--gt-line);
+  border-radius: 12px;
+  font-size: .78rem;
+  font-weight: 700;
+  color: var(--gt-ink-3);
+  white-space: nowrap;
+}
+
+/* ── What you get ────────────────────────────────────────────────────────
+   Icon beside text, the same shape as the why cards, so the two blocks read as
+   one family rather than two card designs on one page. */
+
+.gt-specs {
+  list-style: none;
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+}
+@media (min-width: 640px) { .gt-specs { grid-template-columns: 1fr 1fr; } }
+
+.gt-spec {
+  display: flex;
+  gap: 12px;
+  background: var(--gt-card);
+  border: 1px solid var(--gt-line);
+  border-radius: 16px;
+  padding: 14px;
+  text-align: left;
+}
+.gt-spec-i {
+  display: grid;
+  place-items: center;
+  width: 38px; height: 38px;
+  border-radius: 11px;
+  background: #FFEFEB;
+  color: var(--gt-red);
+  flex-shrink: 0;
+}
+.gt-spec-i svg { width: 20px; height: 20px; }
+.gt-spec-t { margin: 2px 0 4px; font-size: .86rem; font-weight: 700; }
+.gt-spec-s { margin: 0; font-size: .76rem; line-height: 1.55; color: var(--gt-ink-3); }

@@ -178,7 +178,7 @@ function setDisabled(id, disabled) {
   }
 }
 
-function getTokenFromUrl() {
+function readTokenFromUrl() {
   const path = window.location.pathname;
   // Accept both /tag/<token> and the legacy /vehicle/<token>, 12–64 chars.
   const match = path.match(/\/(?:tag|vehicle)\/([A-Za-z0-9]{12,64})/);
@@ -189,6 +189,34 @@ function getTokenFromUrl() {
 
   const params = new URLSearchParams(window.location.search);
   return params.get("token") || "";
+}
+
+// Read ONCE, at module load, and never again.
+//
+// THE ADDRESS BAR IS NOT A RELIABLE PLACE TO KEEP THIS. pt-analytics.js strips
+// the token out of it the moment the scanner is engaged:
+//
+//     window.history.replaceState(null, "", "/vehicle");
+//
+// which it does on purpose, so the Meta Pixel cannot report a URL containing a
+// tag token. Its comment reasons that "the token was already read into memory
+// long before this runs" — true of the page load, false of anything that reads
+// the URL later.
+//
+// The activation wizard did exactly that: it re-read the URL when the buyer
+// pressed Verify & Activate, some seconds after the strip, got an empty string,
+// and POSTed to `/api/tags//activate`. The server looked up a tag whose token
+// was "", found nothing and answered 404 "Tag not found" — on a tag that had
+// resolved perfectly well twenty seconds earlier. Every retail activation goes
+// through that button, so every customer who scanned a new sticker hit it.
+//
+// Caching here rather than patching the one call site: three other places read
+// this too, and the next one added would inherit the same bug. Module scope
+// runs before any user interaction, so this always captures the real value.
+const TAG_TOKEN = readTokenFromUrl();
+
+function getTokenFromUrl() {
+  return TAG_TOKEN;
 }
 
 // Every request on this page now has a deadline. Without one a stalled
@@ -1823,6 +1851,20 @@ async function handleActVerify(event) {
 
   const token = getTokenFromUrl();
   const code = (byId("act-otp")?.value || "").replace(/\D/g, "");
+
+  // Belt and braces behind the cached token above. Building a request URL out
+  // of an empty token produces `/api/tags//activate`, which is a real route
+  // that reaches the database and answers "Tag not found" — a message that
+  // sends the buyer looking at their sticker for a fault that is not there.
+  // Refusing locally keeps the failure honest and costs a round trip nothing.
+  if (!token) {
+    setRequestStatus(
+      "claim-status",
+      "This page lost track of which tag it is for. Scan the sticker again to continue.",
+      "error"
+    );
+    return;
+  }
 
   if (code.length !== 6) {
     setRequestStatus("claim-status", "Enter the 6-digit code.", "error");

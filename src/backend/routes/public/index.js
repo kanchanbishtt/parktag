@@ -870,6 +870,24 @@ export function registerPublicRoutes(app, env) {
       return { ok: false, error: "Enter a valid number plate." };
     }
 
+    // `/api/tags//activate` matches this route with an EMPTY :token, which then
+    // went to the database as findOne({ token: "" }), missed, and came back as
+    // "Tag not found" — telling a buyer holding a perfectly good sticker that
+    // their tag does not exist. The client used to produce exactly that URL
+    // whenever it read the token back off an address bar that pt-analytics had
+    // already stripped.
+    //
+    // A missing token is a broken request, not a missing tag, and the two
+    // deserve different answers. 400 with wording that points at the page
+    // rather than the product.
+    if (!isNonEmptyString(request.params.token)) {
+      reply.code(400);
+      return {
+        ok: false,
+        error: "This activation link is incomplete. Scan the sticker again to continue."
+      };
+    }
+
     const tag = await collections.tags.findOne({ token: request.params.token });
 
     if (!tag) {

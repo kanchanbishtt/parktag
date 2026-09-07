@@ -129,7 +129,7 @@ async function saveOwnerName(event) {
       _owner.displayName = _ownerName;
       _owner.hasOwnName = data.hasOwnName;
       const miName = document.getElementById("mi-name");
-      if (miName) miName.textContent = _ownerName || _owner.email || _owner.mobile || "—";
+      if (miName) miName.textContent = _ownerName || _owner.email || _owner.mobile || "-";
     }
     closeNameEditor();
   } catch {
@@ -422,7 +422,7 @@ async function saveProfile(event) {
   // blocking the save is further down the form.
   if (!((_owner && _owner.mobile) || _ownerMobile)) {
     _pfSetError("pfPhoneInput", "pfPhoneErr",
-      "A verified phone number is required — it is how scanners reach you.");
+      "A verified phone number is required, it is how scanners reach you.");
     _pfStatus("Add and verify your phone to save.", "err");
     pfPhone.input()?.focus();
     return;
@@ -493,7 +493,7 @@ async function saveProfile(event) {
       _owner.hasOwnName = data.hasOwnName;
       _owner.profile = data.profile || _owner.profile;
       const miName = document.getElementById("mi-name");
-      if (miName) miName.textContent = _ownerName || _owner.email || _owner.mobile || "—";
+      if (miName) miName.textContent = _ownerName || _owner.email || _owner.mobile || "-";
     }
     // The sheet closes onto the profile view, and the card behind it shows the
     // name that was just changed.
@@ -780,7 +780,7 @@ function vehicleCard(tag, idx) {
   const colorIdx  = allTags.indexOf(tag);
   const color     = VEHICLE_COLORS[(colorIdx >= 0 ? colorIdx : idx) % VEHICLE_COLORS.length];
   const label     = tag.vehicleLabel || VEHICLE_LABELS[tag.type] || "Vehicle";
-  const plate     = tag.plateNumber  || tag.number || tag.token || "—";
+  const plate     = tag.plateNumber  || tag.number || tag.token || "-";
   const type      = tag.vehicleType  || tag.type   || "car";
   // Owner-supplied free text, HTML-escaped before it's placed inside markup
   // below (the raw `label`/`plate` are still used for URLSearchParams, which
@@ -1101,7 +1101,7 @@ function vehicleOf(token) {
   const tag = idx >= 0 ? allTags[idx] : null;
   return {
     tag,
-    plate: tag ? (tag.plateNumber || tag.number || tag.token || "—") : "Unknown vehicle",
+    plate: tag ? (tag.plateNumber || tag.number || tag.token || "-") : "Unknown vehicle",
     color: tag ? VEHICLE_COLORS[idx % VEHICLE_COLORS.length] : UNKNOWN_VEHICLE_COLOR,
     icon:  tag ? iconFor(tag) : VEHICLE_SVGS.car,
   };
@@ -1544,7 +1544,7 @@ function openCallSheet(virtualNumber) {
               padding:12px 14px;margin-top:14px">
     <p style="margin:0 0 6px;font-size:.78rem;font-weight:700;color:#B91C1C">Two things to know</p>
     <p style="margin:0 0 4px;font-size:.78rem;line-height:1.5;color:#6B7280">
-      Call from ${fromNumber ? `<strong style="color:#374151">${esc(fromNumber)}</strong>` : "the mobile number on your ParkTag account"} — we match the call to you by the number you dial from.
+      Call from ${fromNumber ? `<strong style="color:#374151">${esc(fromNumber)}</strong>` : "the mobile number on your ParkTag account"}, we match the call to you by the number you dial from.
     </p>
     <p style="margin:0;font-size:.78rem;line-height:1.5;color:#6B7280">
       This connection stays open for <strong style="color:#374151">10 minutes</strong>. After that, tap Call Back again.
@@ -2122,7 +2122,7 @@ function _maskingNote(tag) {
     return "Hides your real number from callers. Disable to expose your actual phone number.";
   }
   if (ca.tier === "premium-lapsed") {
-    return "Call masking has ended for this tag. It continues on a subscription — we'll let you know when that's available.";
+    return "Call masking has ended for this tag. It continues on a subscription. We'll let you know when that's available.";
   }
   return "This E-Tag's one free masked contact has been used. Get the official ParkTag sticker to keep your number hidden.";
 }
@@ -2209,7 +2209,7 @@ async function saveSos() {
       // keeps reading as missing until the drawer is reopened.
       setSosMissing(!data.emergencyContact);
     } catch {
-      _toast("Network error — emergency contact not saved.", "err");
+      _toast("Network error, emergency contact not saved.", "err");
       return;
     }
   } else {
@@ -2236,7 +2236,7 @@ function _fillMenu() {
   if (vsm) vsm.style.display = "flex";
   if (removeBtn) removeBtn.style.display = "";
 
-  const plate = tag.plateNumber || tag.number || "—";
+  const plate = tag.plateNumber || tag.number || "-";
   const type  = tag.vehicleType || tag.type || "car";
   const label = tag.vehicleLabel || VEHICLE_LABELS[type] || "Vehicle";
 
@@ -2303,7 +2303,7 @@ function _fillMenu() {
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   set("mi-plate",  plate);
   set("mi-type",   label);
-  set("mi-name",   _owner ? (_owner.displayName || _owner.email || _owner.mobile || "—") : "—");
+  set("mi-name",   _owner ? (_owner.displayName || _owner.email || _owner.mobile || "-") : ", ");
   set("mi-tagid",  tag.token || tag.id || "DEMO");
   const mobileEl = document.getElementById("mi-mobile");
   if (mobileEl) {
@@ -2473,8 +2473,8 @@ window.goToVehicleDetail = goToVehicleDetail;
 function downloadETag() {
   const tag = allTags[_selIdx];
   if (!tag) { _toast("No vehicle selected.", "err"); return; }
-  const plate = tag.plateNumber || tag.number || "—";
-  const etagId = tag.etagId ? String(tag.etagId).replace(/^PT-/, "") : "—";
+  const plate = tag.plateNumber || tag.number || "-";
+  const etagId = tag.etagId ? String(tag.etagId).replace(/^PT-/, "") : ", ";
   const status = tag.status === "inactive" ? "Inactive" : "Active";
   const qr = tag.qrDataUrl || "";
 
@@ -2500,8 +2500,8 @@ window.downloadETag = downloadETag;
 function downloadETagFor(tagId) {
   const tag = allTags.find(t => String(t.id) === String(tagId));
   if (!tag) { _toast("Vehicle not found.", "err"); return; }
-  const plate  = tag.plateNumber || tag.number || "—";
-  const etagId = tag.etagId ? String(tag.etagId).replace(/^PT-/, "") : "—";
+  const plate  = tag.plateNumber || tag.number || "-";
+  const etagId = tag.etagId ? String(tag.etagId).replace(/^PT-/, "") : ", ";
   const status = tag.status === "inactive" ? "Inactive" : "Active";
   const qr     = tag.qrDataUrl || "";
 
@@ -2534,7 +2534,7 @@ window.goToShopForReplace = goToShopForReplace;
 
 function goToShop() {
   closeMenu();
-  window._replaceTagId = null; // generic shop visit — not a trial replacement
+  window._replaceTagId = null; // generic shop visit, not a trial replacement
   if (typeof switchTab === "function") switchTab("shop");
 }
 window.goToShop = goToShop;
@@ -2640,7 +2640,7 @@ var _ordersLoaded = false;
 var ORDER_STATUS_LABELS = {
   processing: "Preparing to ship",
   cod_confirmed: "Confirmed · Cash on delivery",
-  booking_failed: "Couldn't book courier yet — we'll retry",
+  booking_failed: "Couldn't book courier yet. We'll retry",
   booked: "Booked with courier"
 };
 

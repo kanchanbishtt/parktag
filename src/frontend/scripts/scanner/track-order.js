@@ -23,7 +23,7 @@ const IDLE_MESSAGE = "Your order ID is on the confirmation we sent you.";
 const STATUS_LABELS = {
   processing: "Preparing to ship",
   cod_confirmed: "Confirmed · Cash on delivery",
-  booking_failed: "Couldn't book courier yet — we'll retry",
+  booking_failed: "Couldn't book courier yet. We'll retry",
   booked: "Booked with courier"
 };
 

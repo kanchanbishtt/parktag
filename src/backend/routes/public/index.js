@@ -1245,7 +1245,10 @@ export function registerPublicRoutes(app, env) {
         messageChannel: messageChannel || "whatsapp",
         reason: reason || null,
         ipAddress: getClientIp(request),
-        userAgent: request.headers["user-agent"] || null
+        userAgent: request.headers["user-agent"] || null,
+        // Only so the background location capture can warn when it is handed
+        // one of our own proxy addresses. Nothing on the request path reads it.
+        log: request.log
       });
     } catch (error) {
       // Public, unauthenticated endpoint — never echo raw error.message here.
@@ -1389,7 +1392,7 @@ export function registerPublicRoutes(app, env) {
     // Deliberately NOT awaited: the scanner is waiting on the virtual number and
     // the provider takes about 1.5s. The owner reads the row later, so the
     // location can land after the reply. Entitlement is checked inside.
-    captureScannerLocation(env, collections, requestId, tag, callerIp);
+    captureScannerLocation(env, collections, requestId, tag, callerIp, request.log);
 
     await collections.tags.updateOne(
       { _id: tag._id },
@@ -1619,7 +1622,7 @@ export function registerPublicRoutes(app, env) {
     // must be registered and the number returned at once. Entitlement is checked
     // inside — this route does not gate on masking, so a lapsed tag connects but
     // records no location.
-    captureScannerLocation(env, collections, requestId, tag, callerIp);
+    captureScannerLocation(env, collections, requestId, tag, callerIp, request.log);
 
     // Note the absence of a tags.freeContactUsed write here — see (1) above.
     await collections.tags.updateOne(

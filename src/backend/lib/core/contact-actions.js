@@ -110,7 +110,7 @@ export async function createContactAction(env, input) {
   // Deliberately NOT awaited. The scanner is waiting on this response and the
   // provider takes about 1.5s; the owner reads the row later, so the location
   // can arrive after the reply without anybody noticing it was late.
-  captureScannerLocation(env, collections, requestId, tag, input.ipAddress);
+  captureScannerLocation(env, collections, requestId, tag, input.ipAddress, input.log || null);
 
   let provider = null;
   let providerStatus = "pending";

@@ -16,16 +16,36 @@ import {
 import { canonicalEmail, findByCanonicalEmail } from "./identity.js";
 
 const OTP_EXPIRY_MS = 10 * 60 * 1000;
-const RATE_LIMIT_MS = 2 * 60 * 1000;
+// How long an unused code is reused instead of sending another. This exists to
+// swallow an accidental double-submit — a double tap, a retried request on a
+// flaky connection — and nothing else.
+//
+// It was two minutes, and the activation wizard re-enables its Resend button
+// after thirty seconds (startResendCooldown in scanner/app.js). For the ninety
+// seconds between those two numbers the button was live, the server found the
+// existing token, returned { ok: true } without dispatching anything, and the
+// page told the user "New code sent on WhatsApp." No message was ever sent. A
+// person who never received the first code could tap Resend three times, be
+// told it worked three times, and still be holding nothing.
+//
+// So this MUST stay below the UI's resend cooldown: whenever the button is
+// pressable, a press has to put a real message on the wire. Twenty seconds is
+// a double-submit guard; anything approaching the cooldown is a silent throttle
+// wearing its clothes.
+//
+// The flood protection is MAX_SENDS_PER_WINDOW below, not this. Shortening this
+// does not widen what a destination can be sent — five an hour still holds, and
+// now every one of those five is a message that actually goes out.
+const DUPLICATE_SUBMIT_MS = 20 * 1000;
 const MAX_VERIFY_ATTEMPTS = 5;
 // Hard cap on how many codes a single destination (phone/email) can be sent in a
 // rolling window, regardless of source IP. The per-route @fastify/rate-limit
 // configs are keyed on the caller's IP, so an attacker rotating IPs could still
 // bomb one victim's phone with SMS/WhatsApp (harassment + real per-message cost).
 // This cap is enforced in the DB against the destination itself, so it holds no
-// matter how many IPs the requests come from. Sits above the 2-min reuse
-// throttle below: legit resends within 2 min reuse the existing code and never
-// reach this counter, so a normal login/verify flow stays well under the cap.
+// matter how many IPs the requests come from. This, not the duplicate-submit
+// window above, is what bounds a destination: every resend a user actually asks
+// for is dispatched and counted, and five an hour is the ceiling.
 const MAX_SENDS_PER_WINDOW = 5;
 const SEND_WINDOW_MS = 60 * 60 * 1000;
 
@@ -118,7 +138,7 @@ export async function sendOtp(env, identifier, { purpose = OTP_PURPOSE_AUTH } = 
     purpose: purposeFilter(purpose),
     used: false,
     expiresAt: { $gt: new Date().toISOString() },
-    createdAt: { $gt: new Date(Date.now() - RATE_LIMIT_MS).toISOString() }
+    createdAt: { $gt: new Date(Date.now() - DUPLICATE_SUBMIT_MS).toISOString() }
   });
 
   if (recent) return { ok: true };

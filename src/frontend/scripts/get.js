@@ -18,6 +18,7 @@
 // Display-only. `orig` is the struck-through "was" price, which is marketing
 // copy rather than anything charged, so it belongs on this side.
 import { getCaptchaToken } from "./recaptcha.js";
+import { burstConfetti, clearConfetti } from "./confetti.js";
 const PACKS = [
   {
     id: "pt-car-1",
@@ -284,6 +285,9 @@ function showSheet() {
 
 function hideSheet() {
   if (_busy) return; // never close over a payment in flight
+  // Ends the loop rather than leaving it drawing against a canvas nobody can
+  // see: the host stays on the page after the sheet closes.
+  clearConfetti(byId("gtCfti"), "gt-cfti");
   byId("gtSheet").hidden = true;
   byId("gtSheetBd").hidden = true;
   document.body.style.overflow = "";
@@ -391,6 +395,9 @@ function showDone(done) {
     ? `Payment received. Order ${done.orderNumber} is being confirmed — you will get a WhatsApp update shortly.`
     : `Order ${done.orderNumber} is on its way. We have sent the details to your mobile.`;
   showSheet();
+  // After the sheet is up, so the paper lands over a card that is already
+  // arriving. confetti.js declines outright under prefers-reduced-motion.
+  burstConfetti(byId("gtCfti"), "gt-cfti");
 
   if (window.ptTrack) {
     ptTrack("purchase", { transaction_id: done.orderNumber, items: [{ item_id: _sku, quantity: 1 }] });

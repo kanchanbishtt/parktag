@@ -147,14 +147,18 @@
            Dimensions are stated so the section cannot reflow as the image
            decodes, and it is lazy-loaded because it sits below the fold. -->
       <figure class="gt-shot gt-reveal">
-        <img
-          src="/images/final-landing-sticker.png"
-          width="1000"
-          height="600"
-          loading="lazy"
-          decoding="async"
-          alt="The ParkTag windscreen sticker: scan the code to contact the vehicle owner, with call and WhatsApp buttons"
-        />
+        <!-- The span exists to clip the scan sweep to the artwork. Putting the
+             sweep on the figure itself ran it across the caption too. -->
+        <span class="gt-shot-media">
+          <img
+            src="/images/final-landing-sticker.png"
+            width="1000"
+            height="600"
+            loading="lazy"
+            decoding="async"
+            alt="The ParkTag windscreen sticker: scan the code to contact the vehicle owner, with call and WhatsApp buttons"
+          />
+        </span>
         <figcaption class="gt-shot-c">Sticks inside the windscreen. Scannable from outside.</figcaption>
       </figure>
 

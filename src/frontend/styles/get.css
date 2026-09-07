@@ -332,7 +332,63 @@
 }
 /* width/height are on the element to reserve the row; the aspect ratio does
    the rest, so `height: auto` must override the attribute rather than obey it. */
-.gt-shot img { width: 100%; max-width: 320px; height: auto; }
+/* The width now lives on the wrapper, because the wrapper is what the sweep
+   is clipped to; the image just fills it. */
+.gt-shot-media {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+  max-width: 320px;
+  overflow: hidden;
+  border-radius: 10px;
+  line-height: 0;
+}
+.gt-shot img { display: block; width: 100%; height: auto; }
+
+/* A scan sweep across the tag, because a tag is a thing you scan.
+
+   This is deliberately CONTINUOUS rather than a one-shot on approach. A
+   reveal that fires as you scroll past is the tasteful choice and it is also
+   very easy to miss: it lasts half a second, it plays while your eye is still
+   moving, and on reload the browser restores your scroll so it has finished
+   before you look up. Something that keeps moving is the only kind of motion
+   you can actually point at.
+
+   Navy rather than the usual white glint: the artwork is white on its left
+   half and brand red on its right, and a white sweep is invisible over the
+   white half. A translucent navy band reads against both. */
+@keyframes gt-scan {
+  0%, 12%   { transform: translateY(0); opacity: 0; }
+  18%       { opacity: 1; }
+  62%       { opacity: 1; }
+  72%, 100% { transform: translateY(300%); opacity: 0; }
+}
+
+.gt-shot-media::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -50%;
+  height: 50%;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(3, 22, 45, 0) 0%,
+    rgba(3, 22, 45, .20) 40%,
+    rgba(3, 22, 45, .46) 48.5%,
+    rgba(255, 255, 255, .95) 50%,
+    rgba(3, 22, 45, .42) 51.5%,
+    rgba(3, 22, 45, .16) 62%,
+    rgba(3, 22, 45, 0) 100%
+  );
+}
+
+/* Runs only while the tag is actually on screen. .gt-in is put there by the
+   same observer that drives the reveal, and taken off once the tag is fully
+   gone, so nothing animates in a section nobody is looking at. */
+.gt-shot.gt-in .gt-shot-media::after { animation: gt-scan 2.8s ease-in-out infinite; }
 .gt-shot-c { margin: 10px 0 0; font-size: .76rem; color: var(--gt-ink-3); }
 
 /* The tag rises into place as it scrolls in — the same fade-and-rise the
@@ -569,6 +625,7 @@
   .gt-sk { animation: none; }
   .gt-cta { transition: none; }
   .gt-anim .gt-reveal { opacity: 1; transform: none; transition: none; }
+  .gt-shot.gt-in .gt-shot-media::after { animation: none; }
 }
 
 /* ── Checkout sheet ──────────────────────────────────────────────────────

@@ -240,6 +240,29 @@
 /* The caution yellow from the hero band: the one place it appears on this page. */
 .sh-badge svg { width: 13px; height: 13px; color: #FEE600; }
 
+/* ── Sold out ────────────────────────────────────────────────────────────
+ * Still readable, plainly unbuyable. The artwork is dimmed rather than the
+ * whole card, so the name and the price stay at full contrast: somebody
+ * deciding whether to wait for stock still needs to read both. Mirrors the
+ * same state on /get. */
+.sh-card-out { background: var(--sh-ground); }
+.sh-card-out:hover { box-shadow: none; transform: none; }
+.sh-card-out .sh-card-media { opacity: .55; filter: grayscale(1); }
+.sh-badge-out { background: var(--sh-ink-3); letter-spacing: .1em; }
+.sh-card-cta-out {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 10px 16px;
+  border: 1px dashed var(--sh-line);
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--sh-ink-3);
+  white-space: nowrap;
+}
+
 .sh-card-bd {
   display: flex;
   flex-direction: column;
@@ -327,7 +350,6 @@
 }
 .sh-trust li { display: inline-flex; align-items: center; gap: 8px; }
 .sh-trust svg { width: 18px; height: 18px; color: var(--sh-red); flex-shrink: 0; }
-.sh-trust-sub { font-weight: 500; color: var(--sh-ink-3); }
 
 /* ── Info cards ──────────────────────────────────────────────────────── */
 

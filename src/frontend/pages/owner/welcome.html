@@ -1472,7 +1472,15 @@
   .pt-ov-save {
     display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
     margin-top: 10px; padding: 15px 17px;
-    background: #FFFFFF; border: 1px solid #E5E7EB; border-radius: 14px;
+    background: #FFFFFF; border-radius: 14px;
+    /* The house accent bar, exactly as .pt-vlc-card and .pt-act-card draw it:
+       the ordinary hairline on three sides and a 4px edge on the fourth. Navy
+       rather than one of the status colours those cards use, because this is
+       not a state — it is the one block here that belongs to ParkTag rather
+       than to a vehicle. */
+    border: 1.5px solid #E5E7EB;
+    border-left-width: 4px;
+    border-left-color: #03162D;
     /* Barely there. Enough to sit the card a step in front of the tip without
        reading as a raised object in its own right. */
     box-shadow: 0 1px 2px rgba(3, 22, 45, .04), 0 8px 20px -16px rgba(3, 22, 45, .30);

@@ -345,7 +345,8 @@
 }
 .gt-shot img { display: block; width: 100%; height: auto; }
 
-/* A scan sweep across the tag, because a tag is a thing you scan.
+/* A glass sweep across the tag — a band of glare travelling over the artwork
+   the way light crosses a windscreen, which is where this sticker lives.
 
    This is deliberately CONTINUOUS rather than a one-shot on approach. A
    reveal that fires as you scroll past is the tasteful choice and it is also
@@ -354,41 +355,53 @@
    before you look up. Something that keeps moving is the only kind of motion
    you can actually point at.
 
-   Navy rather than the usual white glint: the artwork is white on its left
-   half and brand red on its right, and a white sweep is invisible over the
-   white half. A translucent navy band reads against both. */
-@keyframes gt-scan {
-  0%, 12%   { transform: translateY(0); opacity: 0; }
-  18%       { opacity: 1; }
+   It is also NOT gated on a class the script adds any more. It used to run
+   only while `.gt-in` was set by the reveal observer, which meant every way
+   get.js can fail to reach that line — a blocked file, a browser without
+   IntersectionObserver, a throw three functions earlier — took the sweep down
+   with it and left nothing on screen to explain why. A transform/opacity loop
+   on a single compositor layer is cheap, and browsers already throttle
+   animations that are off screen, so the gate was buying very little and could
+   cost the whole effect.
+
+   The band is glass first — a bright white core — with thin translucent navy
+   shoulders either side of it. That pairing is what carries it across the
+   whole sticker: the artwork is white on its left half and brand red on its
+   right, so the white core shows over the red and the navy shoulders show over
+   the white. Raked rather than upright, because a vertical bar reads as a
+   scanner bed and a raked one reads as light. */
+@keyframes gt-glass {
+  0%        { transform: translateX(-170%) skewX(-18deg); opacity: 0; }
+  10%       { opacity: 1; }
   62%       { opacity: 1; }
-  72%, 100% { transform: translateY(300%); opacity: 0; }
+  76%, 100% { transform: translateX(340%) skewX(-18deg); opacity: 0; }
 }
 
+/* Top and bottom overshoot so the skew never drags a corner of the band into
+   view, and the travel is in multiples of the band's own width, so it starts
+   and finishes clear of the artwork at every size the wrapper takes. */
 .gt-shot-media::after {
   content: "";
   position: absolute;
+  top: -20%;
+  bottom: -20%;
   left: 0;
-  right: 0;
-  top: -50%;
-  height: 50%;
+  width: 40%;
   pointer-events: none;
   opacity: 0;
+  transform: translateX(-170%) skewX(-18deg);
   background: linear-gradient(
-    180deg,
+    90deg,
     rgba(3, 22, 45, 0) 0%,
-    rgba(3, 22, 45, .20) 40%,
-    rgba(3, 22, 45, .46) 48.5%,
-    rgba(255, 255, 255, .95) 50%,
-    rgba(3, 22, 45, .42) 51.5%,
-    rgba(3, 22, 45, .16) 62%,
+    rgba(3, 22, 45, .10) 26%,
+    rgba(3, 22, 45, .30) 42%,
+    rgba(255, 255, 255, .92) 50%,
+    rgba(3, 22, 45, .28) 58%,
+    rgba(3, 22, 45, .09) 74%,
     rgba(3, 22, 45, 0) 100%
   );
+  animation: gt-glass 3.2s ease-in-out infinite;
 }
-
-/* Runs only while the tag is actually on screen. .gt-in is put there by the
-   same observer that drives the reveal, and taken off once the tag is fully
-   gone, so nothing animates in a section nobody is looking at. */
-.gt-shot.gt-in .gt-shot-media::after { animation: gt-scan 2.8s ease-in-out infinite; }
 .gt-shot-c { margin: 10px 0 0; font-size: .76rem; color: var(--gt-ink-3); }
 
 /* The tag rises into place as it scrolls in — the same fade-and-rise the
@@ -625,7 +638,7 @@
   .gt-sk { animation: none; }
   .gt-cta { transition: none; }
   .gt-anim .gt-reveal { opacity: 1; transform: none; transition: none; }
-  .gt-shot.gt-in .gt-shot-media::after { animation: none; }
+  .gt-shot-media::after { animation: none; }
 }
 
 /* ── Checkout sheet ──────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 import { getCollections } from "../../lib/db/repositories.js";
 import { verifyMetaWebhookSignature } from "../../lib/integrations/meta.js";
-import { isNonEmptyString, safeEqual } from "../../lib/auth/security.js";
+import { isNonEmptyString, safeEqual, maskIdentifier } from "../../lib/auth/security.js";
 
 export function registerMetaWebhookRoutes(app, env) {
   // Meta sends a GET request to verify the webhook URL is real.
@@ -69,8 +69,30 @@ export function registerMetaWebhookRoutes(app, env) {
       );
     }
 
-    const collections = await getCollections(env);
-    if (!collections) return { ok: true };
+    // Storage is best effort, and deliberately cannot stop the logging below.
+    //
+    // Two separate bugs met here. One: OTP sends never create a contactRequest
+    // (sendOtp discards the wamid), so every sent/delivered/FAILED callback for
+    // a verification code matched no row, was swallowed by the .catch further
+    // down, and vanished without a line anywhere — Meta was reporting the
+    // reason on every one and nothing was listening. Two: `getCollections`
+    // THROWS when Mongo is unreachable rather than returning null, so the
+    // `if (!collections) return` that used to sit here never guarded an outage
+    // at all; the throw escaped and Meta got a 500. Meta retries 500s and
+    // eventually disables a webhook that keeps producing them, which would
+    // silently cost every delivery status for every message.
+    //
+    // So: never throw out of this handler, and log the status whether or not
+    // the database is reachable.
+    let collections = null;
+    try {
+      collections = await getCollections(env);
+    } catch (err) {
+      request.log.error(
+        { err },
+        "[meta webhook] statuses will be logged but NOT stored — the database is unreachable"
+      );
+    }
 
     const body = request.body || {};
 
@@ -89,6 +111,29 @@ export function registerMetaWebhookRoutes(app, env) {
 
           if (!messageId || !status) continue;
 
+          // The wamid is an opaque provider id, safe to log and the only way to
+          // tie a log line back to one send. The recipient is a customer's phone
+          // number, so it is masked — the same rule the OTP logger follows.
+          const error = s.errors?.[0];
+          if (status === "failed") {
+            request.log.error(
+              {
+                messageId,
+                to: maskIdentifier(s.recipient_id || ""),
+                code: error?.code,
+                title: error?.title,
+                // Meta puts the actionable sentence here, not in `title`.
+                detail: error?.error_data?.details || error?.message
+              },
+              "[meta webhook] message delivery FAILED"
+            );
+          } else {
+            request.log.info(
+              { messageId, to: maskIdentifier(s.recipient_id || ""), status },
+              "[meta webhook] message status"
+            );
+          }
+
           const set = {
             provider: "meta",
             providerWebhookStatus: status,
@@ -100,7 +145,6 @@ export function registerMetaWebhookRoutes(app, env) {
           else if (status === "read")  set.status = "read";
           else if (status === "failed") {
             set.status = "provider_failed";
-            const error = s.errors?.[0];
             if (error) {
               set.providerError     = error.message || "Delivery failed";
               set.providerErrorDetail = `${error.code}: ${error.title || ""}`.trim();
@@ -109,10 +153,13 @@ export function registerMetaWebhookRoutes(app, env) {
 
           if (timestamp) set.providerTimestamp = Number(timestamp);
 
-          await collections.contactRequests.updateOne(
-            { providerRequestId: messageId },
-            { $set: set }
-          ).catch(() => null);
+          // A miss is normal, not an error: OTP statuses have no row to update.
+          if (collections) {
+            await collections.contactRequests.updateOne(
+              { providerRequestId: messageId },
+              { $set: set }
+            ).catch(() => null);
+          }
         }
       }
     }

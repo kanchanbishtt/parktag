@@ -4466,26 +4466,80 @@ html:has(body.pt-hub-body) {
 }
 
 /* Loading spinner inside button */
+/* Busy buttons.
+ *
+ * TWO THINGS WERE WRONG AND BOTH SHOWED UP ONLY ON A REAL SCREEN.
+ *
+ * `color: transparent` blanked the label, so a full-width brand-red button
+ * became an empty slab with a small ring floating in it. Nothing named the
+ * operation, which on a two-request flow is the difference between "sending"
+ * and "this button is broken". The label stays now, and callers may swap it for
+ * the present tense of what is happening.
+ *
+ * And the ring was centred with `top/left: 50%` plus a negative margin equal to
+ * half its declared width. That is only correct while the declared width and
+ * the rendered box agree, which quietly stops being true the moment a border,
+ * a box-sizing rule or a transform enters. `inset: 0; margin: auto` centres a
+ * fixed-size absolutely positioned box against its containing block whatever
+ * the box model is doing, so there is nothing left to drift. */
 .pt-btn-loading,
 .action.btn-loading {
   position: relative;
-  color: transparent !important;
   pointer-events: none;
+}
+
+/* Room for the ring, so it sits beside the label rather than over it. The
+ * buttons are already flex; this reserves the space without reflowing text. */
+.pt-btn-loading {
+  padding-left: 40px;
 }
 
 .pt-btn-loading::after,
 .action.btn-loading::after {
   content: "";
   position: absolute;
-  width: 16px;
-  height: 16px;
-  top: 50%;
-  left: 50%;
-  margin: -8px 0 0 -8px;
-  border: 2px solid rgba(255,255,255,0.35);
+  inset: 0;                    /* with margin:auto, centres on both axes */
+  margin: auto;
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255,255,255,0.45);
   border-top-color: #fff;
   border-radius: 50%;
   animation: pt-spin 0.65s linear infinite;
+}
+
+/* Beside the label, not on top of it, whenever there is a label to sit beside. */
+.pt-btn-loading:not(:empty)::after {
+  inset: 0 auto 0 14px;
+  margin: auto 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pt-btn-loading::after,
+  .action.btn-loading::after { animation-duration: 1.6s; }
+}
+
+/* The ring colours, per button, and the reason this list exists at all.
+ *
+ * There used to be a SECOND .pt-btn-loading block further down this file that
+ * shadowed the one above with !important. Its ring was rgba(0,0,0,.15) with
+ * `border-top-color: currentColor` while the same rule set `color: transparent`
+ * — so the one moving part of the spinner was invisible and the rest was 15%
+ * black on brand red. Two definitions of one class, and the loser was the one
+ * that looked right. Consolidated here; there is now one .pt-btn-loading and
+ * one @keyframes pt-spin in this file. */
+.pt-btn-dark.pt-btn-loading::after,
+.pt-btn-primary.pt-btn-loading::after {
+  border-color: rgba(255,255,255,0.45);
+  border-top-color: #fff;
+}
+
+/* Light-backed buttons need the inverse, or the ring vanishes into the fill. */
+.pt-btn-ghost.pt-btn-loading::after,
+.pt-btn-secondary.pt-btn-loading::after,
+.pt-buy-btn.pt-btn-loading::after {
+  border-color: rgba(3,22,45,0.20);
+  border-top-color: var(--pt-navy, #03162D);
 }
 
 .pt-btn-activate.pt-btn-loading::after,
@@ -4497,6 +4551,8 @@ html:has(body.pt-hub-body) {
 @keyframes pt-spin {
   to { transform: rotate(360deg); }
 }
+
+
 
 /* ═══════════════════════════════════════════
    ADMIN DASHBOARD — pt- design system
@@ -4863,34 +4919,6 @@ html:has(body.pt-hub-body) {
   animation: pt-shimmer 1.4s ease infinite;
   border-radius: 8px;
 }
-
-/* ── Button loading spinner ────────────────────────────────── */
-@keyframes pt-spin {
-  to { transform: translate(-50%, -50%) rotate(360deg); }
-}
-.pt-btn-loading {
-  position: relative !important;
-  color: transparent !important;
-  pointer-events: none !important;
-  opacity: 0.85;
-}
-.pt-btn-loading::after {
-  content: "";
-  position: absolute;
-  width: 18px; height: 18px;
-  border: 2.5px solid rgba(0,0,0,0.15);
-  border-top-color: currentColor;
-  border-radius: 50%;
-  animation: pt-spin 0.65s linear infinite;
-  left: 50%; top: 50%;
-  transform: translate(-50%, -50%);
-  color: inherit;
-}
-/* Spinner color for amber buttons */
-.pt-btn-primary.pt-btn-loading::after,
-.pt-buy-btn.pt-btn-loading::after { border-top-color: #03162D; }
-/* Spinner color for dark buttons */
-.pt-btn-dark.pt-btn-loading::after { border-top-color: #fff; }
 
 /* ============================================================
    STICKER ACTIVATION WIZARD (scanner /tag/<token>, /vehicle/<token>)

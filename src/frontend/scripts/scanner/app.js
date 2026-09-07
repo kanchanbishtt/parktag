@@ -23,6 +23,9 @@ let pendingVerifiedAction = "";
 // Held here so the call is registered and dialled straight off the card
 // instead of asking for the same number again on the next screen.
 let verifyCapturedPhone = "";
+// The in-flight step run, shared between the plate submit and the send that
+// follows it: one continuous bar across two requests, not two bars.
+let verifySteps = null;
 // The verification card showing its number field without the plate step,
 // because the plate was already confirmed earlier this visit. The submit then
 // has nothing to verify and goes straight to placing the call.
@@ -957,8 +960,25 @@ async function handlePlateVerification(event) {
   // a button that ignored the tap, and this card then sat through TWO network
   // round trips behind a blurred overlay with nothing moving. The spinner is on
   // the control the scanner actually pressed, which is where they are looking.
-  setBtnLoading("plate-verify-submit", true);
-  setRequestStatus("plate-verify-status", "Verifying…", "info");
+  // Three named segments for a WhatsApp alert, two for a call: the segment
+  // labels are what turns a multi-second wait from "stuck" into "working".
+  // Weights are rough shares of the total, not guesses at milliseconds; the
+  // Meta send is the long one, so it gets the widest band.
+  const sendingAlert = pendingVerifiedAction === "message";
+  verifySteps = stepRun("plate-verify-steps", sendingAlert
+    ? [
+        { label: "Checking the plate", weight: 2 },
+        { label: "Preparing a private alert", weight: 1 },
+        { label: "Sending on WhatsApp", weight: 3 }
+      ]
+    : [
+        { label: "Checking the plate", weight: 2 },
+        { label: "Masking your number", weight: 2 }
+      ]);
+  verifySteps.begin();
+
+  setBtnLoading("plate-verify-submit", true, sendingAlert ? "Sending" : "Checking");
+  setRequestStatus("plate-verify-status", "", "info");
 
   // Verification happens entirely server-side — the correct digits are never
   // sent to the browser. The server returns a grant we attach to contact calls.
@@ -972,10 +992,10 @@ async function handlePlateVerification(event) {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ lastFour: entered }),
-      onSlow: () =>
-        setRequestStatus("plate-verify-status", "Still checking… signal is weak here.", "info")
+      onSlow: () => verifySteps?.slow("Still checking, the signal is weak here")
     }));
   } catch (error) {
+    verifySteps?.fail("");
     setBtnLoading("plate-verify-submit", false);
     setRequestStatus(
       "plate-verify-status",
@@ -986,6 +1006,8 @@ async function handlePlateVerification(event) {
   }
 
   if (!ok) {
+    verifySteps?.fail("");
+    verifySteps?.destroy();
     setBtnLoading("plate-verify-submit", false);
     let msg = data.error || "Verification failed. Please try again.";
     if (typeof data.attemptsRemaining === "number") {
@@ -1018,8 +1040,14 @@ async function handlePlateVerification(event) {
   // Holding the card means one continuous busy state, on one control, from tap
   // to receipt. The call paths still hand off immediately: they open the dial
   // panel, which is its own visible destination.
+  // The plate is confirmed. That is segment one, truthfully complete.
+  verifySteps?.advance();
+
   const holdCardForSend = pendingVerifiedAction === "message";
   if (!holdCardForSend) {
+    verifySteps?.done();
+    verifySteps?.destroy();
+    verifySteps = null;
     setBtnLoading("plate-verify-submit", false);
     setRequestStatus("plate-verify-status", "", "info");
     showOnly("scanner-action-shell");
@@ -1042,11 +1070,12 @@ async function handlePlateVerification(event) {
   setRequestStatus("request-status", "Verified ✓", "success");
 
   if (holdCardForSend) {
-    // Names the step rather than spinning silently: "Verifying" is finished and
-    // saying so is the difference between a wait that is progressing and a wait
-    // that looks stuck.
-    setRequestStatus("plate-verify-status", "Notifying the owner on WhatsApp…", "info");
+    // Segment two: the server is building the alert. handleWhatsAppNotify
+    // advances to segment three when it actually reaches Meta.
+    verifySteps?.advance();
     await runVerifiedAction(resuming);
+    verifySteps?.destroy();
+    verifySteps = null;
     setBtnLoading("plate-verify-submit", false);
     setRequestStatus("plate-verify-status", "", "info");
     showOnly("scanner-action-shell");
@@ -1416,6 +1445,9 @@ async function handleWhatsAppNotify() {
   setDisabled("call-owner-button", true);
   setDisabled("send-whatsapp-button", true);
 
+  // Segment three: from here the request is out to Meta, which is the long part.
+  verifySteps?.advance();
+
   // Captured on the plate card, which is the only place a scanner is now asked
   // for it. Read into a local before the modal closes: re-reading the input
   // afterwards reports an empty field and picks the wrong wording below.
@@ -1433,6 +1465,11 @@ async function handleWhatsAppNotify() {
       // a number.
       phone: sharedCallbackNumber || undefined
     });
+
+    // Filled only once the server has confirmed the send. The receipt replaces
+    // the card immediately after, so the full bar is a beat of closure rather
+    // than a screen anyone reads.
+    verifySteps?.done();
 
     openConfirmModal();
     setText("confirmation-title", "Owner notified on WhatsApp");
@@ -1465,6 +1502,9 @@ async function handleWhatsAppNotify() {
       );
     }
   } catch (error) {
+    // Stops the bar where it got to. Snapping to full and then reporting a
+    // failure would tell two contradictory stories in the same second.
+    verifySteps?.fail("");
     actionLocked = false;
     setDisabled("call-owner-button", false);
     setDisabled("send-whatsapp-button", false);
@@ -1483,11 +1523,46 @@ async function handleWhatsAppNotify() {
 
 // ── Activation wizard ────────────────────────────────────────────────────
 
-function setBtnLoading(id, loading) {
+// A busy button, optionally renamed for the job it is doing.
+//
+// The label used to be hidden by CSS while a request ran, which left a
+// full-width brand-red slab with a ring floating in it and nothing saying what
+// was happening. A spinner says "wait"; a spinner next to "Sending" says what
+// for, which is the difference on a path that makes two server round trips.
+//
+// The original text is stashed on the element, so restoring is exact and a
+// caller cannot leave a button permanently renamed by forgetting the old one.
+// A step run, or a harmless stand-in if the module or the mount is missing.
+//
+// Presentation only. Wrapped so that nothing here can throw into a request
+// path: a decoration must never be able to stop a scanner reaching an owner.
+function stepRun(mountId, steps) {
+  try {
+    const mount = byId(mountId);
+    if (!mount || !window.ptProgress || typeof window.ptProgress.steps !== "function") {
+      return { begin() {}, advance() {}, slow() {}, done() {}, fail() {}, destroy() {} };
+    }
+    return window.ptProgress.steps(mount, steps);
+  } catch {
+    return { begin() {}, advance() {}, slow() {}, done() {}, fail() {}, destroy() {} };
+  }
+}
+
+function setBtnLoading(id, loading, label = null) {
   const btn = byId(id);
 
   if (!btn) {
     return;
+  }
+
+  if (loading) {
+    if (label && btn.dataset.idleLabel === undefined) {
+      btn.dataset.idleLabel = btn.textContent;
+    }
+    if (label) btn.textContent = label;
+  } else if (btn.dataset.idleLabel !== undefined) {
+    btn.textContent = btn.dataset.idleLabel;
+    delete btn.dataset.idleLabel;
   }
 
   btn.disabled = loading;
@@ -1774,12 +1849,25 @@ async function handleActMobile(event) {
   activation.name = name;
   activation.phone = `+${dialCode}${digits}`;
 
-  setBtnLoading("act-send-otp-btn", true);
+  const otpSteps = stepRun("act-otp-steps", [
+    { label: "Preparing your code", weight: 1 },
+    { label: "Sending on WhatsApp", weight: 3 }
+  ]);
+  otpSteps.begin();
+  setBtnLoading("act-send-otp-btn", true, "Sending");
   setRequestStatus("claim-status", "Sending your code on WhatsApp…", "info");
 
   try {
+    // The token write and the Meta send are one call from here, so the boundary
+    // between the two segments is not observable. Advance on the way in rather
+    // than inventing a fake completion: the first segment is short, and the bar
+    // spends the real wait easing through "Sending on WhatsApp", which is what
+    // is actually happening.
+    otpSteps.advance();
     await sendActivationOtp();
   } catch (error) {
+    otpSteps.fail("");
+    otpSteps.destroy();
     setBtnLoading("act-send-otp-btn", false);
     setRequestStatus(
       "claim-status",
@@ -1789,6 +1877,8 @@ async function handleActMobile(event) {
     return;
   }
 
+  otpSteps.done();
+  otpSteps.destroy();
   setBtnLoading("act-send-otp-btn", false);
   setText("act-phone-echo", activation.phone);
   showActStep(4);
@@ -1880,8 +1970,31 @@ async function handleActVerify(event) {
     return;
   }
 
-  setBtnLoading("act-verify-btn", true);
-  setRequestStatus("claim-status", "Activating your tag…", "info");
+  // Four segments because /api/tags/:token/activate really does four things
+  // after finding the tag: verifyOtp, resolve or create the owner, update the
+  // tag, then createSession. One request from here, so the boundaries are not
+  // separately observable; the run walks them on a schedule that matches the
+  // order the server works in, and cannot finish until the response lands.
+  const actSteps = stepRun("act-steps", [
+    { label: "Checking your code", weight: 2 },
+    { label: "Setting up your account", weight: 2 },
+    { label: "Registering your vehicle", weight: 2 },
+    { label: "Signing you in", weight: 1 }
+  ]);
+  actSteps.begin();
+
+  // Paced, not timed against the server. Each tick moves to the NEXT named
+  // stage while the single request is still open; if the response arrives
+  // first, done() fills the bar and the schedule is torn down, so the bar can
+  // never sit ahead of the truth in the only direction that matters, claiming
+  // completion.
+  const pacing = [900, 1800, 2600].map((delay, i) =>
+    setTimeout(() => actSteps.advance(), delay)
+  );
+  const stopPacing = () => pacing.forEach(clearTimeout);
+
+  setBtnLoading("act-verify-btn", true, "Activating");
+  setRequestStatus("claim-status", "", "info");
 
   try {
     const data = await fetchJson(`/api/tags/${token}/activate`, {
@@ -1898,6 +2011,9 @@ async function handleActVerify(event) {
       })
     });
 
+    stopPacing();
+    actSteps.done();
+    actSteps.destroy();
     clearResendCooldown();
     setBtnLoading("act-verify-btn", false);
 
@@ -1919,6 +2035,9 @@ async function handleActVerify(event) {
     );
     showActStep("done");
   } catch (error) {
+    stopPacing();
+    actSteps.fail("");
+    actSteps.destroy();
     setBtnLoading("act-verify-btn", false);
     setRequestStatus(
       "claim-status",

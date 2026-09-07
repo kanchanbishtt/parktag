@@ -28,21 +28,27 @@ const PACKS = [
   },
   {
     id: "pt-car-2",
-    desc: "Best value — tag two cars, or the front and back of one.",
+    desc: "Best value. Tag two cars, or the front and back of one.",
     image: "/images/shop-car-2.svg",
     orig: 799
   },
+  // Out of stock, not withdrawn. A pack we still price but cannot ship is
+  // shown with its price and no way to buy it, rather than dropped: a visitor
+  // who came looking for the bike tag learns it exists and is coming back,
+  // instead of concluding we never sold one. Clear the flag when stock lands.
   {
     id: "pt-combo",
     desc: "Car and bike together, for the whole household.",
     image: "/images/shop-combo.svg",
-    orig: 899
+    orig: 899,
+    soldOut: true
   },
   {
     id: "pt-bike-1",
     desc: "For a two-wheeler, front and back.",
     image: "/images/shop-bike.webp",
-    orig: 499
+    orig: 499,
+    soldOut: true
   }
 ];
 
@@ -69,12 +75,6 @@ function renderChips(products) {
   chip.textContent = `${hero.name.replace(/^ParkTag\s*/, "")} · ${rupees(hero.amountPaise)}`;
 }
 
-function renderCod(codPaise) {
-  const el = byId("gtCod");
-  if (!el) return;
-  el.textContent = codPaise > 0 ? `${rupees(codPaise)}` : "nothing extra";
-}
-
 function renderPacks(products) {
   const list = byId("gtPacks");
   if (!list) return;
@@ -87,7 +87,7 @@ function renderPacks(products) {
     if (!priced) continue;
 
     const li = document.createElement("li");
-    li.className = "gt-pack";
+    li.className = pack.soldOut ? "gt-pack gt-pack-out" : "gt-pack";
 
     const img = document.createElement("img");
     img.src = pack.image;
@@ -127,12 +127,21 @@ function renderPacks(products) {
 
     bd.append(name, desc, price);
 
-    const cta = document.createElement("a");
-    cta.className = "gt-btn gt-pack-cta";
-    cta.href = `/shop?sku=${encodeURIComponent(pack.id)}`;
-    cta.textContent = "Order";
-    cta.dataset.sku = pack.id;
-    cta.setAttribute("aria-label", `Order ${priced.name}`);
+    // A sold-out pack gets a plain element with NO data-sku and no href, so it
+    // is inert in both paths at once: the delegated click handler matches on
+    // data-sku and never sees it, and with scripting off there is no link into
+    // a checkout that cannot be fulfilled.
+    const cta = document.createElement(pack.soldOut ? "span" : "a");
+    if (pack.soldOut) {
+      cta.className = "gt-pack-cta gt-pack-cta-out";
+      cta.textContent = "Sold out";
+    } else {
+      cta.className = "gt-btn gt-pack-cta";
+      cta.href = `#packs`;
+      cta.textContent = "Order";
+      cta.dataset.sku = pack.id;
+      cta.setAttribute("aria-label", `Order ${priced.name}`);
+    }
 
     li.append(img, bd, cta);
     rows.push(li);
@@ -159,7 +168,7 @@ function syncHeroLinks() {
   for (const id of ["gtCta", "gtBarCta"]) {
     const el = byId(id);
     if (!el) continue;
-    el.href = `/shop?sku=${encodeURIComponent(HERO_PACK)}`;
+    el.href = "#packs"; // in-page: an ad landing page keeps its own traffic
     el.dataset.sku = HERO_PACK;
   }
 }
@@ -404,6 +413,43 @@ function showDone(done) {
   }
 }
 
+// ── Gallery dots ───────────────────────────────────────────────────────────
+//
+// The scrolling is the browser's. This is only the two things it does not give
+// us: a dot that jumps to a slide, and a dot that knows which slide is showing.
+// Everything degrades to a plain scrollable strip if this never runs, which is
+// why the slides live in the HTML and are not built from a list in here.
+function wireGallery() {
+  const track = byId("gtGal");
+  const dots = byId("gtGalDots");
+  if (!track || !dots) return;
+
+  const slides = Array.from(track.children);
+  const buttons = Array.from(dots.children);
+  const behavior = matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+
+  dots.addEventListener("click", (event) => {
+    const dot = event.target.closest("button[data-slide]");
+    if (!dot) return;
+    const slide = slides[Number(dot.dataset.slide)];
+    // block: "nearest" so jumping between images never drags the PAGE
+    // vertically, which is what scrollIntoView does by default.
+    if (slide) slide.scrollIntoView({ behavior, inline: "center", block: "nearest" });
+  });
+
+  // Every slide is exactly one track wide, so the index is the ratio. Read on
+  // scroll rather than only on click, so a swipe moves the dots too.
+  const sync = () => {
+    const index = Math.round(track.scrollLeft / track.clientWidth);
+    buttons.forEach((button, i) => {
+      button.setAttribute("aria-current", i === index ? "true" : "false");
+    });
+  };
+
+  track.addEventListener("scroll", sync, { passive: true });
+  sync();
+}
+
 function wireCheckout() {
   byId("gtDoneX").addEventListener("click", hideSheet);
   byId("gtSheetBd").addEventListener("click", hideSheet);
@@ -412,9 +458,16 @@ function wireCheckout() {
   });
 
   // One listener for every Order control, including the pack buttons rendered
-  // after this runs. The hrefs stay real so the page still works with no JS.
+  // after this runs.
+  //
+  // Matched on data-sku, NOT on the href. It used to key on `a[href^='/shop']`,
+  // which stopped working the moment those hrefs became in-page anchors so this
+  // page would keep its own ad traffic — every Order button would have fallen
+  // through to the anchor and jumped down the page instead of opening checkout.
+  // data-sku is the thing that actually means "this control buys a pack", and
+  // it is also what a sold-out control deliberately lacks.
   document.addEventListener("click", (event) => {
-    const link = event.target.closest && event.target.closest("a[href^='/shop']");
+    const link = event.target.closest && event.target.closest("a[data-sku]");
     if (!link) return;
 
     event.preventDefault();
@@ -438,9 +491,6 @@ function failQuietly() {
   const list = byId("gtPacks");
   if (list) list.replaceChildren();
 
-  const cod = byId("gtCod");
-  if (cod) cod.textContent = "a small handling fee";
-
   const note = byId("gtNote");
   if (note) {
     note.hidden = false;
@@ -450,8 +500,10 @@ function failQuietly() {
 
 async function load() {
   // Before the fetch: the buttons must point at the right pack even if the
-  // price never arrives.
+  // price never arrives, and the gallery is static markup that must not stop
+  // working because the price list is down.
   syncHeroLinks();
+  wireGallery();
 
   let payload;
   try {
@@ -469,7 +521,6 @@ async function load() {
   }
 
   renderChips(payload.products);
-  renderCod(payload.codSurchargePaise || 0);
   renderPacks(payload.products);
   renderBar(payload.products);
   wireCheckout();

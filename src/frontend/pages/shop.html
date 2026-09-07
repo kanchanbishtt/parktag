@@ -11,6 +11,7 @@
     <link rel="apple-touch-icon" href="/images/apple-touch-icon.png" />
 
     <link rel="stylesheet" href="/styles/shop.css?v=__ASSET_VERSION__" />
+    <link rel="stylesheet" href="/styles/pt-steps.css?v=__ASSET_VERSION__" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -18,6 +19,7 @@
     <!-- The funnel starts here. Surface "app", so GA4 and the Pixel both report:
          this is a shop, not a credential page. -->
     <script src="/pt-analytics.js" data-surface="app" defer></script>
+    <script src="/scripts/ux-feedback.js?v=__ASSET_VERSION__" defer></script>
   </head>
 
   <body class="sh-body">
@@ -169,6 +171,15 @@
     <div class="sh-sheet-bd" id="shSheetBd" hidden></div>
 
     <section class="sh-sheet" id="shSheet" hidden aria-modal="true" role="dialog" aria-labelledby="shDoneT">
+      <!-- Shown while the order is being created, then replaced by the
+           confirmation below. Before this the sheet only ever appeared AFTER
+           payment, so the several seconds between the address form closing and
+           Razorpay opening had nothing on screen at all. -->
+      <div class="sh-working" id="shWorking" data-pt-owns-progress hidden>
+        <h2 class="sh-done-t">Setting up your order</h2>
+        <div id="shSteps"></div>
+      </div>
+
       <div class="sh-done" id="shDone">
         <div class="sh-done-i" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>

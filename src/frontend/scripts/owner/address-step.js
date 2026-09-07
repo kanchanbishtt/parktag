@@ -279,7 +279,7 @@
       rows +
       '<button id="pt-addr-save" class="pt-addr-primary" type="button">' + IC.lock + "Save &amp; continue to pay</button>" +
       '<button id="pt-addr-cancel" class="pt-addr-link" type="button">Cancel</button>' +
-      '<p id="pt-addr-note">Saved to your profile — you won\'t need to enter it again.</p>' +
+      '<p id="pt-addr-note">Saved to your profile. You won\'t need to enter it again.</p>' +
       secure +
       "</div>" +
       "</div>";
@@ -356,7 +356,7 @@
   function showConfirm(addr) {
     var street = [addr.line1, addr.line2, addr.landmark].filter(Boolean).join(", ");
     var region = [addr.city, addr.state].filter(Boolean).join(", ");
-    if (addr.pincode) region = (region ? region + " — " : "") + addr.pincode;
+    if (addr.pincode) region = (region ? region + ", " : "") + addr.pincode;
     els.cardName.textContent = addr.fullName || "";
     els.cardStreet.textContent = street;
     els.cardRegion.textContent = region;
@@ -394,7 +394,7 @@
     if (els.note) {
       els.note.textContent = guestMode
         ? "Used for this delivery. Your tag is activated after it arrives."
-        : "Saved to your profile — you won't need to enter it again.";
+        : "Saved to your profile. You won't need to enter it again.";
     }
     if (els.save) {
       els.save.innerHTML = IC.lock + (guestMode ? "Continue to pay" : "Save &amp; continue to pay");
@@ -483,7 +483,7 @@
       var data = await res.json();
       return data && data.address ? data.address : null;
     } catch (_) {
-      return null; // network hiccup — fall back to the form
+      return null; // network hiccup, fall back to the form
     }
   }
 

@@ -14,7 +14,7 @@ function esc(s) {
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 }
 function fmtDate(s) {
-  if (!s) return "—";
+  if (!s) return ", ";
   try { return new Date(s).toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" }); }
   catch { return s; }
 }
@@ -26,7 +26,7 @@ function waDigits(mobile) {
   return d;
 }
 function telCell(mobile) {
-  if (!mobile) return `<span class="muted">—</span>`;
+  if (!mobile) return `<span class="muted">-</span>`;
   const d = waDigits(mobile);
   return `<a class="tel" href="tel:+${esc(d)}">${esc(mobile)}</a>`;
 }
@@ -47,12 +47,12 @@ function renderActivated(q) {
   activatedRows.innerHTML = list.map((t) => `
     <tr>
       <td data-label="E-Tag ID"><b>${esc(t.etagId)}</b></td>
-      <td data-label="Sticker serial">${t.serial ? `<b>${esc(t.serial)}</b>` : `<span class="muted">—</span>`}</td>
-      <td data-label="Vehicle"><span class="plate">${esc(t.plateNumber || "—")}</span>${t.vehicleLabel ? `<br><span class="muted">${esc(t.vehicleLabel)}</span>` : ""}</td>
-      <td data-label="Owner">${esc(t.ownerName || "—")}${t.ownerEmail ? `<br><span class="muted">${esc(t.ownerEmail)}</span>` : ""}</td>
+      <td data-label="Sticker serial">${t.serial ? `<b>${esc(t.serial)}</b>` : `<span class="muted">-</span>`}</td>
+      <td data-label="Vehicle"><span class="plate">${esc(t.plateNumber || "-")}</span>${t.vehicleLabel ? `<br><span class="muted">${esc(t.vehicleLabel)}</span>` : ""}</td>
+      <td data-label="Owner">${esc(t.ownerName || "-")}${t.ownerEmail ? `<br><span class="muted">${esc(t.ownerEmail)}</span>` : ""}</td>
       <td data-label="Mobile">${telCell(t.ownerMobile)}</td>
       <td data-label="Activated On">${fmtDate(t.activatedAt)}</td>
-      <td data-label="Status"><span class="pill ${t.status === "active" ? "active" : "inactive"}">${esc(t.status || "—")}</span></td>
+      <td data-label="Status"><span class="pill ${t.status === "active" ? "active" : "inactive"}">${esc(t.status || "-")}</span></td>
     </tr>`).join("");
 }
 
@@ -74,9 +74,9 @@ function renderUnactivated(q) {
       : `<span class="muted">no mobile</span>`;
     return `
       <tr>
-        <td data-label="Order #"><b>${esc(o.orderNumber || "—")}</b>${o.waybill ? `<br><span class="muted">AWB ${esc(o.waybill)}</span>` : ""}</td>
-        <td data-label="Product">${esc(o.productName || "—")}</td>
-        <td data-label="Owner">${esc(o.ownerName || "—")}${o.ownerEmail ? `<br><span class="muted">${esc(o.ownerEmail)}</span>` : ""}</td>
+        <td data-label="Order #"><b>${esc(o.orderNumber || "-")}</b>${o.waybill ? `<br><span class="muted">AWB ${esc(o.waybill)}</span>` : ""}</td>
+        <td data-label="Product">${esc(o.productName || "-")}</td>
+        <td data-label="Owner">${esc(o.ownerName || "-")}${o.ownerEmail ? `<br><span class="muted">${esc(o.ownerEmail)}</span>` : ""}</td>
         <td data-label="Mobile">${telCell(o.ownerMobile)}</td>
         <td data-label="Payment">${pay}</td>
         <td data-label="Placed On">${fmtDate(o.placedAt)}</td>
@@ -102,8 +102,8 @@ async function load() {
   } catch {
     activatedRows.innerHTML = `<tr><td colspan="7" class="err">Could not load activations.</td></tr>`;
     unactivatedRows.innerHTML = `<tr><td colspan="7" class="err">Could not load orders.</td></tr>`;
-    activatedCount.textContent = "—";
-    unactivatedCount.textContent = "—";
+    activatedCount.textContent = ", ";
+    unactivatedCount.textContent = ", ";
   }
 }
 

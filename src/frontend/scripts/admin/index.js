@@ -12,8 +12,8 @@ async function fetchJson(url, options) {
     const snippet = raw.trim().slice(0, 120);
     throw new Error(
       response.ok
-        ? `Unexpected non-JSON response from server${snippet ? ` — ${snippet}` : ""}`
-        : `Server error ${response.status}${snippet ? ` — ${snippet}` : ""}`
+        ? `Unexpected non-JSON response from server${snippet ? `, ${snippet}` : ""}`
+        : `Server error ${response.status}${snippet ? `, ${snippet}` : ""}`
     );
   }
 
@@ -267,7 +267,7 @@ function renderIssuedTag(data) {
   const batchBits = [data.batchNumber, data.batchLabel].filter(Boolean).join(" · ");
   target.innerHTML = `
     <div style="border:1px solid #BBF7D0;border-radius:12px;padding:20px;background:#F0FDF4">
-      <strong style="font-size:1rem;color:#03162D">✓ ${count} QR tag${count !== 1 ? "s" : ""} generated${batchBits ? ` — ${batchBits}` : ""}.</strong>
+      <strong style="font-size:1rem;color:#03162D">✓ ${count} QR tag${count !== 1 ? "s" : ""} generated${batchBits ? `, ${batchBits}` : ""}.</strong>
       <p style="color:#4B5563;margin:8px 0 14px;font-size:0.9rem">They're queued for printing. Open the Print Queue to select the tags you want and export them as print-ready sheets (in batches).</p>
       <button class="action" onclick="goToPrintQueue()">Go to Print Queue →</button>
     </div>`;
@@ -351,7 +351,7 @@ function renderPrintQueue(data) {
     // that visible instead of silently merging.
     const raws = [...group.raws.keys()];
     const variantNote = raws.length > 1
-      ? `<span class="pt-pq-variant">Entered as ${raws.map((r) => esc(JSON.stringify(r))).join(", ")} — one batch, one serial run</span>`
+      ? `<span class="pt-pq-variant">Entered as ${raws.map((r) => esc(JSON.stringify(r))).join(", ")}, one batch, one serial run</span>`
       : "";
 
     return `
@@ -425,7 +425,7 @@ function pqRunHtml(group, run, index) {
       ${visibleTags.map(tag => `
         <article class="queue-row" ${_pqHighlightId === tag.id ? 'data-pq-hit="1"' : ""}>
           <input type="checkbox" class="pq-select pt-pq-run-check" data-id="${esc(tag.id)}" ${_pqSelected.has(tag.id) ? "checked" : ""} onchange="togglePqSelect('${esc(tag.id)}', this.checked)" />
-          <strong><span class="pt-pq-serial">${tag.serial ? esc(tag.serial) : "—"}</span><span class="pt-pq-tier" data-tier="${tag.premium ? "premium" : "free"}">${tag.premium ? "PREMIUM" : "FREE"}</span><span class="pt-pq-token" title="${esc(tag.token)}">${esc(tag.token)}</span></strong>
+          <strong><span class="pt-pq-serial">${tag.serial ? esc(tag.serial) : ", "}</span><span class="pt-pq-tier" data-tier="${tag.premium ? "premium" : "free"}">${tag.premium ? "PREMIUM" : "FREE"}</span><span class="pt-pq-token" title="${esc(tag.token)}">${esc(tag.token)}</span></strong>
           <span class="pt-pq-status">${esc(pqOddStatus(tag))}</span>
           <a href="${esc(tag.claimUrl)}" target="_blank" rel="noreferrer" title="${esc(tag.claimUrl)}">${esc(tag.claimUrl)}</a>
           ${tag.printStatus !== "printed" ? `<button class="pt-pq-act" onclick="markPrinted('${jsAttr(tag.id)}')">Mark printed</button>` : `<span style="color:#FF2700;font-weight:700">✓ Printed</span>`}
@@ -433,7 +433,7 @@ function pqRunHtml(group, run, index) {
       `).join("")}
       ${open && run.tags.length > visibleTags.length ? `
         <div class="pt-pq-more">
-          <span>Showing ${visibleTags.length} of ${run.tags.length} rows — the checkbox above still selects all ${run.tags.length}.</span>
+          <span>Showing ${visibleTags.length} of ${run.tags.length} rows. The checkbox above still selects all ${run.tags.length}.</span>
           <button class="pt-pq-act" onclick="pqShowAllRows('${jsAttr(runKey)}')">Show all ${run.tags.length}</button>
         </div>` : ""}
     </div>`;
@@ -484,7 +484,7 @@ async function pqFetchExportChunk(ids, onWait) {
     try {
       data = raw ? JSON.parse(raw) : {};
     } catch {
-      throw new Error(`Server error ${response.status} — ${raw.trim().slice(0, 120)}`);
+      throw new Error(`Server error ${response.status}, ${raw.trim().slice(0, 120)}`);
     }
     if (!response.ok) {
       throw new Error(data.error || `Request failed (${response.status})`);
@@ -536,7 +536,7 @@ async function exportQrsForPrint() {
       const chunk = selectedIds.slice(i, i + CHUNK);
       const data = await pqFetchExportChunk(chunk, (waitMs) => {
         grid.innerHTML = `<p style="color:#6B7280">Loading QR codes… ${tags.length}/${selectedIds.length}<br>
-          <span style="font-size:.9em">Server is pacing the run — continuing in ${Math.ceil(waitMs / 1000)}s. Nothing is lost.</span></p>`;
+          <span style="font-size:.9em">Server is pacing the run, continuing in ${Math.ceil(waitMs / 1000)}s. Nothing is lost.</span></p>`;
       });
       tags.push(...(data.tags || []));
       const done = Math.min(i + CHUNK, selectedIds.length);
@@ -721,12 +721,12 @@ function pqRenderLookupBar(groups, tags) {
       const count = [...group.runs.values()].reduce((n, r) => n + r.tags.length, 0);
       const gens = group.runs.size;
       const name = group.key === "__no_batch__" ? "No batch assigned" : `Batch ${group.key}`;
-      return `<option value="${esc(group.key)}"${group.key === _pqBatchFilter ? " selected" : ""}>${esc(name)} — ${count} tag${count === 1 ? "" : "s"}, ${gens} generation${gens === 1 ? "" : "s"}</option>`;
+      return `<option value="${esc(group.key)}"${group.key === _pqBatchFilter ? " selected" : ""}>${esc(name)}, ${count} tag${count === 1 ? "" : "s"}, ${gens} generation${gens === 1 ? "" : "s"}</option>`;
     })
     .join("");
 
   select.innerHTML =
-    `<option value=""${_pqBatchFilter ? "" : " selected"}>All batches — ${tags.length} tag${tags.length === 1 ? "" : "s"}</option>` +
+    `<option value=""${_pqBatchFilter ? "" : " selected"}>All batches, ${tags.length} tag${tags.length === 1 ? "" : "s"}</option>` +
     options;
 }
 
@@ -809,7 +809,7 @@ function pqJumpToSerial() {
 
   pqSetLookupNote(
     hits.length > 1
-      ? `${esc(hit.serial)} — ${hits.length} matches across batches, showing the first.`
+      ? `${esc(hit.serial)}, ${hits.length} matches across batches, showing the first.`
       : `Found ${hit.serial}.`
   );
 
@@ -921,7 +921,7 @@ async function seedAdminDemo() {
     const seeded = data.data || data;
     if (seeded?.tag?.token) {
       setIssueMessage(
-        `Seeded active token ${seeded.tag.token} and claimable token ${seeded.claimableTag?.token || "—"}.`
+        `Seeded active token ${seeded.tag.token} and claimable token ${seeded.claimableTag?.token || "-"}.`
       );
     }
     setQueueMessage("Demo setup ready. Sign in and load the print queue.");
@@ -1005,7 +1005,7 @@ async function issueTag() {
   const mountType = byId("issue-mount-type")?.value || "";
   if (!mountType) {
     setStatus("Choose which sticker this run prints before generating.", "error");
-    setIssueMessage("No batch generated — sticker type is required.");
+    setIssueMessage("No batch generated. A sticker type is required.");
     byId("issue-mount-type")?.focus();
     return;
   }

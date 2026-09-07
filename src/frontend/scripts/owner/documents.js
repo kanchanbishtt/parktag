@@ -520,7 +520,7 @@ async function addDocument() {
   // Say what the compression bought. It explains the wait, and it is the only
   // visible sign that the feature is working at all.
   showOk(prepared.compressed
-    ? `Document added — ${fmtSaving(prepared.originalBytes, prepared.storedBytes)}.`
+    ? `Document added, ${fmtSaving(prepared.originalBytes, prepared.storedBytes)}.`
     : "Document added.");
   loadDocuments();
 }

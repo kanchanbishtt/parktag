@@ -1,6 +1,6 @@
 // ── Read URL params ───────────────────────────────────────────
 const params   = new URLSearchParams(location.search);
-const plate    = params.get("number") || "—";
+const plate    = params.get("number") || "-";
 const typeKey  = params.get("type")   || "car";
 const label    = params.get("label")  || "Vehicle";
 const realId   = params.get("id")     || "";
@@ -94,7 +94,7 @@ function populateContent() {
     .then(r => r.ok ? r.json() : null)
     .then(data => {
       if (data?.owner) {
-        const name = data.owner.displayName || data.owner.email || "—";
+        const name = data.owner.displayName || data.owner.email || "-";
         document.getElementById("info-name").textContent = name;
       }
     })
@@ -209,7 +209,7 @@ function applyMaskingGate(callAccess) {
       // load. Not a spent E-Tag, so it must not be told it is one.
       note.textContent = "Call masking starts once this vehicle's tag is active.";
     } else if (callAccess.tier === "premium-lapsed") {
-      note.textContent = "Call masking has ended for this tag. It continues on a subscription — we'll let you know when that's available.";
+      note.textContent = "Call masking has ended for this tag. It continues on a subscription. We'll let you know when that's available.";
     } else {
       note.textContent = "This E-Tag's one free masked contact has been used. Get the official ParkTag sticker to keep your number hidden.";
     }
@@ -274,7 +274,7 @@ document.getElementById("sos-save-btn")?.addEventListener("click", async () => {
     } catch {
       btn.disabled = false;
       btn.textContent = "Save Emergency Contact";
-      alert("Network error — the emergency contact was not saved.");
+      alert("Network error. The emergency contact was not saved.");
       return;
     }
   } else {
@@ -295,7 +295,7 @@ document.getElementById("sos-test-btn")?.addEventListener("click", () => {
   alert(
     "Emergency contact is set to " + num + ".\n\n" +
     "To test the live call, scan this vehicle's QR, verify the plate, then use " +
-    "the Emergency button on the contact page — that places a real masked call."
+    "the Emergency button on the contact page, which places a real masked call."
   );
 });
 
@@ -383,7 +383,7 @@ function updatePremiumUI() {
 
   if (isFreeUsed) {
     // Free trial spent → send them to the shop to buy a premium tag.
-    if (copy) copy.textContent = "Your free trial has ended — buy a premium tag to continue.";
+    if (copy) copy.textContent = "Your free trial has ended, buy a premium tag to continue.";
     if (buyBtn) { buyBtn.style.display = ""; buyBtn.disabled = !realId; }
   } else {
     // Free trial still live → informational only, no purchase yet.

@@ -111,7 +111,7 @@ function renderDashboard(data) {
   // read `owner.email` alone, which is null for everyone who signs in by OTP).
   if (menuEmail) {
     menuEmail.textContent =
-      owner.signInIdentifier || owner.email || owner.mobile || "—";
+      owner.signInIdentifier || owner.email || owner.mobile || "-";
   }
 
   // Show active badge if any tag is active
@@ -139,7 +139,7 @@ function renderDashboard(data) {
         <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--pt-border)">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="2" y="8" width="20" height="10" rx="2" stroke="currentColor" stroke-width="2"/><path d="M5 8l2-4h10l2 4" stroke="currentColor" stroke-width="2"/><circle cx="7" cy="18" r="1.5" fill="currentColor"/><circle cx="17" cy="18" r="1.5" fill="currentColor"/></svg>
           <span style="font-weight:600">Plate Number</span>
-          <span style="margin-left:auto;font-weight:800;letter-spacing:0.06em">${esc(tag.plateNumber || "—")}</span>
+          <span style="margin-left:auto;font-weight:800;letter-spacing:0.06em">${esc(tag.plateNumber || "-")}</span>
         </div>
         <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--pt-border)">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="14" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="3" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><path d="M14 14h2v2h-2zM18 14h3M14 18v3M18 18h3v3h-3z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
@@ -149,7 +149,7 @@ function renderDashboard(data) {
         <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--pt-border)">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="2"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
           <span style="font-weight:600">Vehicle Nickname</span>
-          <span style="margin-left:auto;font-weight:700">${esc(tag.vehicleLabel || "—")}</span>
+          <span style="margin-left:auto;font-weight:700">${esc(tag.vehicleLabel || "-")}</span>
         </div>
         <div style="display:flex;align-items:center;gap:10px;padding:8px 0">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M12 7v5l3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>

@@ -98,16 +98,26 @@
                and asking for it here means the call path is one screen rather
                than two. Stays hidden for WhatsApp and Emergency: WhatsApp needs
                nothing from the scanner, so it must never see a number field. -->
+          <!-- One number field, two jobs, and the difference is stated rather
+               than implied. A call CANNOT happen without a number, so there it
+               is required. A WhatsApp alert sends fine without one, so there it
+               is optional and labelled so, because demanding a number to report
+               a stranger's lights would stop some people bothering at all.
+
+               It lives on this card and not on the reason card because this one
+               has a Continue button underneath it. On the reason card the tap
+               on a reason was itself the submit, so a field below it could
+               never be filled in before the send had already gone. -->
           <div id="plate-verify-call-block" hidden>
-            <!-- Same block, same styling, for both calls — only the person on
-                 the other end differs, and naming the owner when the call is
-                 going to their emergency contact would be simply untrue. -->
             <p class="pt-verify-callnote" id="plate-verify-callnote">
               We will need your phone number to setup a <strong>MASKED</strong> call between you and tag owner.
             </p>
             <input id="plate-verify-phone" type="tel" inputmode="tel" autocomplete="tel"
                    placeholder="Your Phone" class="pt-input pt-verify-phone"
                    aria-label="Your phone number" />
+            <p class="pt-verify-cbnote" id="plate-verify-cbnote" hidden>
+              Your number stays hidden. The owner can only reach you through ParkTag.
+            </p>
           </div>
 
           <button id="plate-verify-submit" class="pt-btn pt-btn-primary pt-btn-full" type="submit">Verify &amp; Continue</button>
@@ -144,7 +154,7 @@
             </svg>
           </div>
           <h1 class="pt-step-title" id="registration-title">You are about to activate the tag</h1>
-          <p class="pt-step-sub" id="registration-copy">Please activate all your tags — each one is unique.</p>
+          <p class="pt-step-sub" id="registration-copy">Please activate all your tags. Each one is unique.</p>
           <button type="button" id="act-start-btn" class="pt-btn pt-btn-step">Activate tag</button>
         </section>
 
@@ -248,7 +258,7 @@
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="m8 12.5 2.8 2.8L16.5 9.6" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="9.5" stroke="currentColor" stroke-width="2"/></svg>
           </div>
           <h2 class="pt-step-title">Tag activated</h2>
-          <p class="pt-step-sub" id="act-done-copy">Your sticker is live. People who scan it can reach you privately — your number stays hidden.</p>
+          <p class="pt-step-sub" id="act-done-copy">Your sticker is live. People who scan it can reach you privately. Your number stays hidden.</p>
           <a href="/owner" class="pt-btn pt-btn-step pt-btn-step-link">Go to my dashboard</a>
         </section>
 
@@ -282,77 +292,44 @@
                  owner, and the control should say so to a screen reader too. -->
             <div class="pt-reason-chips" id="pt-reason-chips" role="radiogroup" aria-labelledby="reason-step-title">
               <button class="pt-chip" data-reason="lights" type="button" role="radio" aria-checked="false">
-                <span class="pt-chip-icon" aria-hidden="true">💡</span>
+                <span class="pt-chip-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M9 18h6M10 21h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.4.3.6.7.6 1.1v.5h5.8v-.5c0-.4.2-.8.6-1.1A6 6 0 0 0 12 3Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg></span>
                 <span class="pt-chip-label">The lights of this car is on.</span>
                 <span class="pt-chip-radio" aria-hidden="true"></span>
               </button>
               <button class="pt-chip" data-reason="parking" type="button" role="radio" aria-checked="false">
-                <span class="pt-chip-icon" aria-hidden="true">🅿️</span>
+                <span class="pt-chip-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="3.5" y="3.5" width="17" height="17" rx="4" stroke="currentColor" stroke-width="1.8"/><path d="M9.5 17V7.5h3.2a2.9 2.9 0 0 1 0 5.8H9.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
                 <span class="pt-chip-label">The car is in no parking.</span>
                 <span class="pt-chip-radio" aria-hidden="true"></span>
               </button>
               <button class="pt-chip" data-reason="towing" type="button" role="radio" aria-checked="false">
-                <span class="pt-chip-icon" aria-hidden="true">🚗</span>
+                <span class="pt-chip-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M4 13.5l1.5-4A2 2 0 0 1 7.4 8h5.2a2 2 0 0 1 1.9 1.5l1.5 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><rect x="2.5" y="13.5" width="15" height="5" rx="1.8" stroke="currentColor" stroke-width="1.8"/><path d="M6 16.2h.01M14 16.2h.01" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M17.5 13.5 21 6.5M19 6.5h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
                 <span class="pt-chip-label">The car is getting towed.</span>
                 <span class="pt-chip-radio" aria-hidden="true"></span>
               </button>
               <button class="pt-chip" data-reason="window" type="button" role="radio" aria-checked="false">
-                <span class="pt-chip-icon" aria-hidden="true">🪟</span>
+                <span class="pt-chip-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="3.5" y="3.5" width="17" height="17" rx="2.5" stroke="currentColor" stroke-width="1.8"/><path d="M12 3.5v17M3.5 12h17" stroke="currentColor" stroke-width="1.8"/><path d="M15.5 12v8.5" stroke="currentColor" stroke-width="1.8" opacity=".35"/></svg></span>
                 <span class="pt-chip-label">The window or car is open.</span>
                 <span class="pt-chip-radio" aria-hidden="true"></span>
               </button>
               <button class="pt-chip pt-chip-alert" data-reason="suspicious" type="button" role="radio" aria-checked="false">
-                <span class="pt-chip-icon" aria-hidden="true">⚠️</span>
+                <span class="pt-chip-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M12 4.2 2.8 19.2h18.4L12 4.2Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 10v3.6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><path d="M12 16.4h.01" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>
                 <span class="pt-chip-label">Something wrong with this car.</span>
                 <span class="pt-chip-radio" aria-hidden="true"></span>
               </button>
             </div>
 
-            <!-- Optional callback number.
-                 A WhatsApp alert reaches the owner but leaves them nowhere to
-                 reply: they see "someone contacted you" and cannot answer it.
-                 Giving a number here is what makes a call back possible.
+            <!-- The optional callback number used to live here, under the
+                 reasons, and it broke the step. A tap on a reason IS the submit
+                 on this card, so the field sat BELOW its own submit: tap a
+                 reason, notice the field, type a number, and nothing happens,
+                 because the send already fired and stopped on an empty box.
+                 Recovering meant tapping the reason a second time, which reads
+                 as the first tap having failed.
 
-                 Optional on purpose. Reporting that a stranger's lights are on
-                 is a favour, and demanding a phone number to do it would stop
-                 some people bothering at all. Left blank, the alert still sends
-                 exactly as before.
-
-                 Never shown to the owner. It is dialled the same masked way as
-                 every other ParkTag call — the owner's dashboard shows the last
-                 four digits and the call is bridged by Exotel. -->
-            <div class="pt-reason-callback" id="reason-callback">
-              <!-- Leads with what the SCANNER gets: a WhatsApp alert is one-way,
-                   so without a number they report a problem and never learn
-                   whether anyone came. "Optional" stays, and stays visible —
-                   the nudge on send is a prompt, never a wall. -->
-              <label class="pt-reason-cb-label" for="reason-callback-phone">
-                Add your number so the owner can reply
-                <span class="pt-reason-cb-opt">optional</span>
-              </label>
-              <input id="reason-callback-phone" class="pt-input pt-reason-cb-input"
-                     type="tel" inputmode="tel" autocomplete="tel" maxlength="14"
-                     placeholder="10-digit mobile number" />
-              <p class="pt-reason-cb-note" id="reason-callback-note">
-                Your number stays hidden. The owner can only reach you through ParkTag.
-              </p>
-              <!-- Shown once, only when Notify is tapped with the field empty.
-                   Sending anonymously then takes a second, deliberate tap rather
-                   than being the default an empty box quietly produces. -->
-              <div class="pt-reason-cb-nudge" id="reason-callback-nudge" hidden>
-                <p class="pt-reason-cb-nudge-copy">
-                  Without a number the owner can’t reply — you won’t hear whether anyone came.
-                </p>
-                <!-- An explicit control, not "tap the reason again". The send is
-                     triggered by the reason chip, so telling somebody to repeat
-                     that would name a step they have already done and look like
-                     the first tap failed. -->
-                <button class="pt-reason-cb-skip" id="reason-callback-skip" type="button">
-                  Send without my number
-                </button>
-              </div>
-            </div>
-
+                 It is asked on the plate card instead, where there is a real
+                 Continue button under it and the order of the screen matches
+                 the order of the actions. Same field, same masking promise,
+                 still optional. -->
             <button class="pt-cancel-action" id="reason-cancel" type="button">Cancel</button>
           </article>
         </div>
@@ -409,17 +386,27 @@
            aria-labelledby="confirmation-title" hidden>
         <div class="pt-vmodal-inner">
           <article class="pt-card pt-verify-card pt-receipt-card pt-receipt-card-center" id="confirm-card">
-            <div class="pt-success-icon" aria-hidden="true">✅</div>
+            <!-- A drawn mark, not the ✅ emoji. The emoji rendered as a
+                 different glyph on every platform, could not take the brand
+                 colour, and sat at whatever size the font decided. This is one
+                 stroke on a quiet green disc, so the eye lands on the sentence
+                 rather than on the badge. -->
+            <div class="pt-success-mark" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none">
+                <path d="M5 12.5l4.2 4.2L19 7" stroke="currentColor" stroke-width="2.6"
+                      stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
             <h2 class="pt-receipt-title" id="confirmation-title">Owner alerted successfully</h2>
             <p class="pt-receipt-copy" id="confirmation-copy">Your message has been delivered to the vehicle owner.</p>
 
             <!-- Same control, same corner, as the dial receipt: whichever way a
                  contact ends, the way out is in one place. -->
-            <button type="button" id="confirm-back" class="pt-panel-back">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path d="M15 5l-7 7 7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-              Back
+            <!-- Full width and primary, not a ghost link in the corner. This
+                 card has exactly one thing left to do and nothing to compare
+                 it against, so hierarchy here means one obvious control. -->
+            <button type="button" id="confirm-back" class="pt-btn pt-btn-primary pt-btn-full pt-success-done">
+              Done
             </button>
           </article>
         </div>
@@ -622,7 +609,9 @@
 
         <!-- Free-contact-used CTA (replaces the buttons once the free contact is used) -->
         <div id="purchase-cta" class="pt-panel" hidden style="text-align:center">
-          <div class="pt-success-icon">🔒</div>
+          <div class="pt-success-mark pt-mark-muted" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M7 10V7.5a5 5 0 0 1 10 0V10" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><rect x="4.5" y="10" width="15" height="10" rx="2.6" stroke="currentColor" stroke-width="1.9"/></svg>
+          </div>
           <h3>Free contact already used</h3>
           <p>This vehicle's one free contact has been used. The official ParkTag sticker enables unlimited private contact.</p>
           <a id="purchase-cta-btn" href="https://parktag.me" target="_blank" rel="noopener"
@@ -638,7 +627,9 @@
              any of it, and someone else's billing is not their business. It
              points at the one thing they can still do instead. -->
         <div id="contact-unavailable-cta" class="pt-panel" hidden style="text-align:center">
-          <div class="pt-success-icon">🔒</div>
+          <div class="pt-success-mark pt-mark-muted" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M7 10V7.5a5 5 0 0 1 10 0V10" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><rect x="4.5" y="10" width="15" height="10" rx="2.6" stroke="currentColor" stroke-width="1.9"/></svg>
+          </div>
           <h3>Calling isn't available</h3>
           <p>You can't call this vehicle's owner right now. If it's urgent, the emergency options below still work.</p>
         </div>
@@ -651,7 +642,9 @@
 
         <!-- Call popup -->
         <div id="call-popup" class="pt-success-panel" hidden>
-          <div class="pt-success-icon">📞</div>
+          <div class="pt-success-mark pt-mark-navy" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a1 1 0 0 1-1 1A15 15 0 0 1 4 5a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/></svg>
+          </div>
           <h3>You'll receive a call shortly</h3>
           <p>Keep your phone nearby. Your number stays hidden throughout the call.</p>
         </div>
@@ -700,7 +693,7 @@
             <path d="M27 15.6c0 6.1-5 11.1-11.1 11.1-1.9 0-3.7-.5-5.3-1.4L5 27l1.8-5.2a11 11 0 0 1-2-6.2C4.8 9.5 9.8 4.5 15.9 4.5S27 9.5 27 15.6Zm-2.2 0c0-4.9-4-8.9-8.9-8.9S7 10.7 7 15.6c0 1.9.6 3.7 1.7 5.2l-1 3 3.1-1a8.8 8.8 0 0 0 5.1 1.6c4.9 0 8.9-4 8.9-8.8Z"/>
             <path d="M12.7 10.8c-.2-.5-.4-.5-.6-.5h-.6c-.2 0-.6.1-.9.5-.3.3-1.1 1.1-1.1 2.7s1.1 3.1 1.2 3.3c.2.2 2.2 3.6 5.4 4.9 2.6 1 3.1.8 3.7.8.6-.1 1.8-.7 2-1.4.3-.7.3-1.4.2-1.5-.1-.1-.4-.2-.9-.5s-1.8-.9-2-.9c-.3-.1-.5-.1-.7.2-.2.3-.8.9-1 .9-.2 0-.4 0-.8-.2-.4-.2-1.5-.6-2.8-2-.8-.9-1.4-2-1.5-2.3-.2-.3 0-.4.1-.6.2-.2.3-.4.5-.6.2-.2.2-.3.3-.5.1-.2 0-.4 0-.6-.1-.1-.7-1.7-1-2.3Z"/>
           </svg>
-          Urgent — WhatsApp us
+          Urgent, WhatsApp us
         </a>
         <span class="pt-quick-sep" aria-hidden="true">·</span>
         <a class="pt-quick-action" id="quick-report" href="#" target="_blank" rel="noopener noreferrer">Report wrong info</a>

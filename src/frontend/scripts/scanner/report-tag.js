@@ -201,7 +201,7 @@ async function submitReport(event) {
     byId("report-form")?.reset();
     setReason("");
     setStatus(
-      "Thanks — your report is with our team. We will call you if we need more.",
+      "Thanks. Your report is with our team. We will call you if we need more.",
       "success"
     );
   } catch (error) {

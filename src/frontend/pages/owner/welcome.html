@@ -1470,63 +1470,54 @@
      it from the grey tip it sits under: brighter, not darker, and lifted a
      little rather than inverted. */
   /* Not a card. Every white, rounded, left-barred block on this screen is a
-     vehicle, and wearing that shape made this read as a ninth one. So it is
-     filled rather than outlined in white, in #EEF0F3 — the tone this page
-     already uses for a recessed surface, the segmented control track — and
-     closed with a thin line in the brand red. Cards here are raised and white;
-     this is inset and grey, and no row in the list is filled.
+     vehicle, and wearing that shape made this read as a ninth one — same fill,
+     same hairline, same 4px edge, sitting directly above eight of them.
 
-     Grid rather than flex, because the two layouts want genuinely different
-     shapes and wrapping cannot express the second one. On a wide screen the
-     button sits out to the right across both text rows. On a phone the sentence
-     takes the full width and the number and the button share the row beneath
-     it, which is the whole reason this is a grid: a wrapped flex button had
-     nothing to sit beside, so it stretched to a full-width slab and made the
-     block twice as tall as it needed to be. */
+     So it drops out of card language entirely: filled rather than outlined, and
+     filled with #EEF0F3, the tone this page already uses for a recessed surface
+     (the segmented control track). Cards are raised and white; this is inset and
+     grey. That is a distinction the screen already makes, so nothing new has to
+     be invented for it, and it cannot be mistaken for a row in the list.
+
+     It also pairs upward instead of downward. The radius matches .pt-ov-tip
+     rather than .pt-vlc, and the gap above it is tight, so it reads as the
+     second half of the notes block rather than the first item of the list. */
   .pt-ov-save {
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    grid-template-areas:
-      "ic txt btn"
-      "ic num btn";
-    align-items: center;
-    column-gap: 14px;
-    row-gap: 3px;
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
     margin-top: 8px; padding: 15px 17px;
+    /* Recessed grey fill, closed by a thin line in the brand red. The fill is
+       what keeps it out of the vehicle list — every row down there is white and
+       none is filled — and the outline is what stops it reading as merely a
+       second note. A full outline rather than the rows' 4px left bar, so it
+       still cannot be taken for one of them. */
     background: #EEF0F3; border: 1px solid #FF2700; border-radius: 12px;
   }
-
   .pt-ov-save-ic {
-    grid-area: ic; justify-self: start;
-    width: 38px; height: 38px; border-radius: 50%;
+    flex-shrink: 0; width: 38px; height: 38px; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
     background: #03162D;
   }
 
-  /* Deliberately not the tip's voice. That one is .8rem, regular, in #374151,
-     and this sentence sat directly under it in the same setting — two grey
-     notes of equal weight, which is how the second one gets skipped. Heavier
-     and in the ink colour, so it reads as a statement rather than a footnote. */
-  .pt-ov-save-t {
-    grid-area: txt; margin: 0;
-    font-size: .84rem; font-weight: 700; line-height: 1.45;
-    letter-spacing: -.005em; color: #03162D;
-  }
+  .pt-ov-save-b { flex: 1 1 190px; min-width: 0; }
 
-  /* The plate treatment the rest of the app gives a registration: mono and
-     tracked out, large enough to read back digit by digit by someone who would
-     rather type it than tap. */
+  /* The same ink and size as the tip above, so the two sentences read as one
+     voice rather than as a note and an advert. */
+  .pt-ov-save-t { margin: 0; font-size: .8rem; line-height: 1.55; color: #374151; }
+
+  /* The number is the payload, and on a light card it can carry the navy at
+     full strength. Mono and tracked out is the treatment the rest of the app
+     gives a registration: large enough to read back off the screen digit by
+     digit by someone who would rather type it than tap. */
   .pt-ov-save-num {
-    grid-area: num; margin: 0;
+    margin: 4px 0 0;
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 1.06rem; font-weight: 700; letter-spacing: .05em; color: #03162D;
   }
 
-  /* Same shape and the same brightness-filter states as .pt-pr-prem-cta, so the
-     two primary actions on this screen behave alike. */
+  /* Untouched: same shape and the same brightness-filter states as
+     .pt-pr-prem-cta, so the two primary actions on this screen behave alike. */
   .pt-ov-save-btn {
-    grid-area: btn; justify-self: end; align-self: center;
-    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
     min-height: 40px; padding: 10px 18px;
     background: #FF2700; color: #fff; border: none; border-radius: 12px;
     font-family: inherit; font-size: .81rem; font-weight: 800;
@@ -1535,24 +1526,14 @@
   }
   .pt-ov-save-btn:hover  { filter: brightness(.92); }
   .pt-ov-save-btn:active { filter: brightness(.85); }
+  /* Back to the house navy ring now the card behind it is white. */
   .pt-ov-save-btn:focus-visible { outline: 3px solid rgba(3, 22, 45, .35); outline-offset: 2px; }
 
-  /* The phone shape: sentence across the top, number and button side by side
-     under it. Three rows of content in two, and the button keeps its own size
-     instead of spanning the card. */
-  @media (max-width: 460px) {
-    .pt-ov-save {
-      grid-template-areas:
-        "ic txt txt"
-        "ic num btn";
-      column-gap: 12px;
-      row-gap: 9px;
-      padding: 13px 14px;
-    }
-    /* Beside the sentence rather than floating in the middle of the block. */
-    .pt-ov-save-ic { align-self: start; }
-    .pt-ov-save-num { font-size: 1rem; align-self: center; }
-    .pt-ov-save-btn { padding: 9px 16px; }
+  /* Once the button drops to its own row it takes the full width, rather than
+     sitting as a short tab under the number. */
+  @media (max-width: 430px) {
+    .pt-ov-save { padding: 14px; }
+    .pt-ov-save-btn { flex: 1 1 100%; }
   }
 
   @media (prefers-reduced-motion: reduce) {

@@ -485,4 +485,46 @@ async function load() {
   }
 }
 
+// The tag fades and rises as it scrolls into view. The landing page does this
+// to its own copy of the same sticker with a React component; this page is
+// plain HTML, so the mechanism is here instead.
+//
+// Note what is NOT hidden until this function has run and decided. The
+// stylesheet only hides `.gt-reveal` beneath `.gt-anim`, and `.gt-anim` is set
+// below, after the two refusals. So every way this file can fail to run — and
+// a module that throws while parsing is one of them — leaves the tag visible
+// rather than invisible. It is called before load() for the same reason: a
+// catalogue fetch that dies must not take the artwork down with it.
+function revealOnScroll() {
+  const targets = document.querySelectorAll(".gt-reveal");
+  if (!targets.length) return;
+
+  // Safari 10.1 through 12.0 runs modules but has no IntersectionObserver, so
+  // this is a real branch rather than a formality. Nothing is hidden in it.
+  if (typeof IntersectionObserver !== "function") return;
+  if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+  document.documentElement.classList.add("gt-anim");
+
+  // Replays on every pass rather than firing once and unobserving. A one-shot
+  // reveal is the usual choice, but it is genuinely hard to SEE here: the
+  // browser restores your scroll position on reload, so if you are parked on
+  // this section the tag is already in view when the script runs, the whole
+  // 0.6s plays before you look up, and scrolling back and forth afterwards
+  // shows nothing. Resetting means the tag animates every time it comes back.
+  //
+  // The two thresholds give it hysteresis: it reveals once 8% is showing but
+  // only resets once it is completely gone, so parking the scroll exactly on
+  // the boundary cannot flicker it on and off.
+  const io = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      if (entry.intersectionRatio >= 0.08) entry.target.classList.add("gt-in");
+      else if (entry.intersectionRatio === 0) entry.target.classList.remove("gt-in");
+    }
+  }, { threshold: [0, 0.08] });
+
+  for (const el of targets) io.observe(el);
+}
+
+revealOnScroll();
 load();

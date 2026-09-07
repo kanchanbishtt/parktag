@@ -43,6 +43,7 @@
 
 import { callEntitlement } from "./call-access.js";
 import { lookupGeo } from "../integrations/geoip.js";
+import { isInfrastructureAddress } from "./proxy-trust.js";
 
 // Why this does not block the response.
 //
@@ -75,8 +76,31 @@ import { lookupGeo } from "../integrations/geoip.js";
 // Never throws. lookupGeo already resolves rather than rejecting — a provider
 // outage must not cost somebody their call — and the entitlement read above it
 // is pure. A contact must never fail because a lookup did.
-export async function resolveScannerLocation(env, tag, rawIp) {
+export async function resolveScannerLocation(env, tag, rawIp, log = null) {
   if (!callEntitlement(tag).masking) return null;
+
+  // NEVER geolocate our own infrastructure. This is the guard that would have
+  // caught the Singapore bug on day one instead of months later.
+  //
+  // When request.ip resolved to a Railway edge address, the provider answered
+  // perfectly correctly — Singapore is genuinely where that machine is — and the
+  // owner was shown a confident, wrong city for a scanner standing next to their
+  // car in Noida. A wrong answer that looks like a right one is worse than none,
+  // because nothing about it invites a second look.
+  //
+  // So the failure mode is inverted: if the address we are about to look up is
+  // still ours, write no location and say so in the log. A blank row is honest,
+  // and the warning names the address that needs the ranges in proxy-trust.js
+  // updated. This costs nothing when the trust setting is right, because then
+  // this branch is never reached.
+  if (isInfrastructureAddress(rawIp)) {
+    log?.warn(
+      { address: rawIp },
+      "[scan-location] refusing to geolocate our own proxy — request.ip is not the visitor, " +
+        "so trustProxy or the ranges in lib/core/proxy-trust.js need updating"
+    );
+    return null;
+  }
 
   const geo = await lookupGeo(env, rawIp);
   if (!geo) return null;
@@ -115,9 +139,9 @@ const inFlight = new Set();
 //
 // The entitlement is checked before anything else, so an unentitled tag still
 // costs no lookup at all — capture is gated, not display.
-export function captureScannerLocation(env, collections, contactRequestId, tag, rawIp) {
+export function captureScannerLocation(env, collections, contactRequestId, tag, rawIp, log = null) {
   const task = (async () => {
-    const location = await resolveScannerLocation(env, tag, rawIp);
+    const location = await resolveScannerLocation(env, tag, rawIp, log);
     // Nothing to say. Leave the null already on the row rather than writing one
     // over it, so this never touches a document it has no news for.
     if (!location) return;

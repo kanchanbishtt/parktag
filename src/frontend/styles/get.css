@@ -335,6 +335,24 @@
 .gt-shot img { width: 100%; max-width: 320px; height: auto; }
 .gt-shot-c { margin: 10px 0 0; font-size: .76rem; color: var(--gt-ink-3); }
 
+/* The tag rises into place as it scrolls in — the same fade-and-rise the
+   landing page gives its own copy of this sticker, rebuilt in CSS because
+   /get is plain HTML and cannot import landing/app/components/AnimateIn.tsx.
+
+   The hidden state hangs off `.gt-anim`, a class get.js puts on <html> only
+   once it has decided to animate. Nothing is hidden by this stylesheet on its
+   own, and that ordering is the point: if the script never runs — a blocked
+   file, a browser without modules, a syntax error three functions away — the
+   class is never set, this rule never matches, and the tag is simply there. A
+   shop that hides its product because a script failed is a worse page than one
+   that does not animate. */
+.gt-anim .gt-reveal {
+  opacity: 0;
+  transform: translateY(22px);
+  transition: opacity .6s ease, transform .6s cubic-bezier(.22, .61, .36, 1);
+}
+.gt-anim .gt-reveal.gt-in { opacity: 1; transform: none; }
+
 /* ── Packs ───────────────────────────────────────────────────────────── */
 
 .gt-packs { list-style: none; display: grid; gap: 10px; margin: 0; padding: 0; }
@@ -550,6 +568,7 @@
 @media (prefers-reduced-motion: reduce) {
   .gt-sk { animation: none; }
   .gt-cta { transition: none; }
+  .gt-anim .gt-reveal { opacity: 1; transform: none; transition: none; }
 }
 
 /* ── Checkout sheet ──────────────────────────────────────────────────────

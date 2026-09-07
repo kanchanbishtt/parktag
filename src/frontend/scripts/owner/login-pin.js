@@ -205,7 +205,7 @@ async function save() {
     els.newPin.classList.add("bad");
     setMsg(
       els.msg,
-      "Choose a less predictable PIN — avoid repeats like 111111 and runs like 123456."
+      "Choose a less predictable PIN. Avoid repeats like 111111 and runs like 123456."
     );
     return;
   }

@@ -206,7 +206,7 @@ let _busy = false;
 // number and the last four digits the buyer just typed, which is exactly the
 // pair /track-order already asks for and useless without each other.
 const RECALL_KEY = "pt_get_orders";
-const RECALL_TTL = 60 * 864e5; // 60 days — past any delivery, and self-clearing
+const RECALL_TTL = 60 * 864e5; // 60 days, past any delivery, and self-clearing
 const RECALL_MAX = 5;          // rows kept on the device
 const RECALL_CHECK = 3;        // newest rows checked on a visit
 
@@ -227,7 +227,7 @@ function recallRead() {
     if (live.length !== rows.length) recallWrite(live);
     return live;
   } catch {
-    return []; // private mode, storage disabled, corrupt value — never fatal
+    return []; // private mode, storage disabled, corrupt value, never fatal
   }
 }
 
@@ -401,7 +401,7 @@ async function buy(sku) {
 function showDone(done) {
   _busy = false;
   byId("gtDoneSub").textContent = done.pending
-    ? `Payment received. Order ${done.orderNumber} is being confirmed — you will get a WhatsApp update shortly.`
+    ? `Payment received. Order ${done.orderNumber} is being confirmed, you will get a WhatsApp update shortly.`
     : `Order ${done.orderNumber} is on its way. We have sent the details to your mobile.`;
   showSheet();
   // After the sheet is up, so the paper lands over a card that is already

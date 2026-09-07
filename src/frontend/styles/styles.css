@@ -2340,9 +2340,23 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
 }
 
 .pt-chip-icon {
-  font-size: 1rem;
   flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  color: var(--pt-navy-mid);
 }
+
+.pt-chip-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* The selected row takes the brand colour with it, so the icon confirms the
+ * choice alongside the radio rather than staying inert grey. */
+.pt-chip-selected .pt-chip-icon { color: var(--pt-amber); }
+.pt-chip-alert .pt-chip-icon { color: var(--pt-amber); }
 
 /* Contact action buttons.
    WhatsApp and Private Call are peers — neither is the fallback for the other —
@@ -2517,7 +2531,8 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
 }
 
 .pt-reason-card .pt-chip-icon {
-  font-size: clamp(0.82rem, 3.4vw, 0.98rem);
+  width: clamp(19px, 5.4vw, 22px);
+  height: clamp(19px, 5.4vw, 22px);
 }
 
 .pt-reason-card .pt-chip-radio {
@@ -3251,9 +3266,61 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
   gap: 8px;
 }
 
-.pt-success-icon {
-  font-size: 2rem;
-  margin-bottom: 4px;
+/* The success mark.
+ *
+ * Replaces a bare ✅ emoji, which rendered differently on every platform, could
+ * not take a brand colour, and sized itself off the font. A drawn tick on a
+ * quiet green disc instead: green because this confirms a WhatsApp alert went,
+ * quiet because the badge is not the message. The sentence under it is.
+ *
+ * Sized in rem so it tracks the card's type rather than the viewport. */
+.pt-success-mark {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  margin-bottom: 14px;
+  border-radius: 50%;
+  background: rgba(37, 211, 102, 0.12);
+  color: var(--pt-green-dark);
+}
+
+.pt-success-mark svg {
+  width: 28px;
+  height: 28px;
+}
+
+/* The card's one action, so it gets the room. The ghost "Back" link it replaced
+ * sat in a corner at 13px and read as an afterthought on a screen whose entire
+ * job is telling somebody they are finished. */
+.pt-success-done {
+  margin-top: 18px;
+}
+
+/* Same disc, different news. A lock is not a success and must not wear the
+ * green; a pending call is informational, so it takes the brand navy. */
+.pt-mark-muted {
+  background: rgba(73, 91, 123, 0.10);
+  color: var(--pt-navy-mid);
+}
+
+.pt-mark-navy {
+  background: rgba(3, 22, 45, 0.08);
+  color: var(--pt-navy);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* One entrance, on the element that carries the news. Deliberately not a
+   * sequence: several things easing in at once is what makes a confirmation
+   * feel decorative rather than definite. */
+  .pt-success-mark {
+    animation: pt-success-pop 260ms cubic-bezier(0.2, 0.8, 0.3, 1) both;
+  }
+}
+
+@keyframes pt-success-pop {
+  from { transform: scale(0.86); opacity: 0; }
+  to   { transform: scale(1);    opacity: 1; }
 }
 
 .pt-success-panel h3 {

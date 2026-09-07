@@ -196,7 +196,7 @@ function renderCta() {
   const plan = data.plans.find((p) => p.id === selectedPlan);
   const cta = byId("mbCta");
 
-  byId("mbCtaText").textContent = plan ? `Go Pro — ₹${plan.priceInr}` : "Go Pro";
+  byId("mbCtaText").textContent = plan ? `Go Pro, ₹${plan.priceInr}` : "Go Pro";
 
   // The flag comes from the server, so an environment with no Razorpay
   // configured shows the page and says why rather than opening a sheet that
@@ -233,7 +233,7 @@ function renderCta() {
       data.subscription.trial ? `Covered until ${until}` : `Member until ${until}`,
       data.subscription.trial
         ? "The free year included with your premium tag. There is nothing to pay " +
-          "until then — buying now adds time after that date, it does not replace it."
+          "until then, buying now adds time after that date. It does not replace it."
         : "Buying again adds to that date rather than restarting from today."
     );
     return;
@@ -325,7 +325,7 @@ async function startCheckout() {
     // zero-width space is non-empty yet renders nothing, leaving just the logo
     // — the same trick the shop checkout uses.
     name: "​",
-    description: `ParkTag Premium — ${plan.label}`,
+    description: `ParkTag Premium, ${plan.label}`,
     image: "/images/parktag-checkout-logo.png",
     prefill: order.prefill || {},
     theme: { color: "#FF2700" },
@@ -385,7 +385,7 @@ async function startCheckout() {
           title: "Payment received",
           message:
             "Confirming it is taking longer than usual. Your membership will " +
-            "activate shortly — there is no need to pay again.",
+            "activate shortly. There is no need to pay again.",
           benefits: false
         });
       } catch {
@@ -394,7 +394,7 @@ async function startCheckout() {
           title: "Payment received",
           message:
             "We could not reach the server to confirm it. Your membership will " +
-            "activate shortly — please do not pay again.",
+            "activate shortly. Please do not pay again.",
           benefits: false
         });
       }

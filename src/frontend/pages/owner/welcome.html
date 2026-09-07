@@ -1457,31 +1457,74 @@
   .pt-ov-tip { display: flex; align-items: flex-start; gap: 10px; background: #F8FAFC; border: 1px solid #E5E7EB; border-radius: 12px; padding: 13px 16px; font-size: .8rem; color: #374151; line-height: 1.55; }
   .pt-ov-tip-ic { flex-shrink: 0; margin-top: 1px; }
 
-  /* Save-our-number row. Same shell as the tip above it so the two read as a
-     pair, with three differences it earns: it is centred rather than top-
-     aligned because it carries a control, the number is set in the plate face
-     so it can be read back digit by digit off the screen, and it wraps to two
-     rows on a narrow phone rather than crushing the button. */
-  .pt-ov-save { align-items: center; flex-wrap: wrap; margin-top: 10px; }
-  .pt-ov-save-b { flex: 1 1 200px; min-width: 0; }
-  .pt-ov-save-num {
-    display: inline-block; margin-left: 2px;
-    font-weight: 800; color: #03162D; letter-spacing: .02em; white-space: nowrap;
+  /* ── Save our number ──────────────────────────────────────────
+     A masked call arrives from ParkTag's line, so to an owner it shows as an
+     unknown number — the kind people let ring out. This is the one line on
+     the overview asking for something back, and it only pays off if it is
+     read, so it is the loudest block on the screen rather than a second grey
+     tip nobody separates from the first.
+
+     Navy ground and a red action, which is the page's own pairing — the same
+     #FF2700 as every other primary action here, on the same navy the selected
+     segment and the identity card use. Inverting the surface is what does the
+     work: everything around it is white cards on grey, so a dark block reads
+     as a different KIND of thing before a word of it is read. */
+  .pt-ov-save {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    margin-top: 12px; padding: 16px 18px;
+    background: #03162D; color: #fff; border-radius: 14px;
+    box-shadow: 0 6px 20px -8px rgba(3, 22, 45, .55);
   }
+
+  /* Lit from the surface itself rather than given a second colour: a white
+     wash at 10% sits the icon on the navy without introducing a third hue. */
+  .pt-ov-save-ic {
+    flex-shrink: 0; width: 38px; height: 38px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(255, 255, 255, .10);
+  }
+
+  .pt-ov-save-b { flex: 1 1 190px; min-width: 0; }
+
+  /* Dimmed against the number below it. Both white would make the sentence
+     compete with the thing the person actually has to read and keep. */
+  .pt-ov-save-t { margin: 0; font-size: .82rem; line-height: 1.5; color: rgba(255, 255, 255, .82); }
+
+  /* The number is the payload, so it gets the plate treatment the rest of the
+     app gives a registration: mono, tracked out, and large enough to read back
+     off the screen digit by digit if someone types it in by hand instead. */
+  .pt-ov-save-num {
+    margin: 5px 0 0;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 1.12rem; font-weight: 700; letter-spacing: .06em; color: #fff;
+  }
+
+  /* Same shape and the same brightness-filter states as .pt-pr-prem-cta, so
+     the two primary actions on this screen behave identically. */
   .pt-ov-save-btn {
     flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-    /* 36px, because this is a real tap target on a phone. */
-    min-height: 36px; padding: 8px 16px;
-    border: 1.5px solid #03162D; border-radius: 10px; background: #03162D; color: #fff;
-    font-size: .78rem; font-weight: 800; text-decoration: none; font-family: inherit;
-    transition: background .15s, border-color .15s;
+    min-height: 40px; padding: 10px 18px;
+    background: #FF2700; color: #fff; border: none; border-radius: 12px;
+    font-family: inherit; font-size: .81rem; font-weight: 800;
+    text-decoration: none; white-space: nowrap; cursor: pointer;
+    transition: filter .15s;
   }
-  .pt-ov-save-btn:hover { background: #0a2340; border-color: #0a2340; }
-  .pt-ov-save-btn:focus-visible { outline: 3px solid rgba(3, 22, 45, .35); outline-offset: 2px; }
+  .pt-ov-save-btn:hover  { filter: brightness(.92); }
+  .pt-ov-save-btn:active { filter: brightness(.85); }
+  /* White, not the usual navy ring — a navy outline on a navy card is invisible. */
+  .pt-ov-save-btn:focus-visible { outline: 3px solid rgba(255, 255, 255, .6); outline-offset: 2px; }
+
+  /* Once the button drops to its own row it takes the full width, rather than
+     sitting as a short tab under the number. */
+  @media (max-width: 430px) {
+    .pt-ov-save { padding: 15px 15px; }
+    .pt-ov-save-btn { flex: 1 1 100%; }
+  }
 
   @media (prefers-reduced-motion: reduce) {
     .pt-ov-save-btn { transition: none; }
   }
+
   .pt-ov-empty { padding: 36px 20px; text-align: center; color: #9CA3AF; font-size: .9rem; font-weight: 600; }
 
   /* ── Activity section ────────────────────────────────────────── */

@@ -332,7 +332,20 @@
 }
 /* width/height are on the element to reserve the row; the aspect ratio does
    the rest, so `height: auto` must override the attribute rather than obey it. */
-.gt-shot img { width: 100%; max-width: 320px; height: auto; }
+/* The width lives on the wrapper rather than the image: it is also what the
+   corner radius clips against, and line-height:0 keeps the image off the text
+   baseline so no descender gap opens up under it. */
+.gt-shot-media {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+  max-width: 320px;
+  overflow: hidden;
+  border-radius: 10px;
+  line-height: 0;
+}
+.gt-shot img { display: block; width: 100%; height: auto; }
+
 .gt-shot-c { margin: 10px 0 0; font-size: .76rem; color: var(--gt-ink-3); }
 
 /* ── Packs ───────────────────────────────────────────────────────────── */

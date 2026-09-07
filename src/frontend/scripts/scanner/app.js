@@ -837,7 +837,7 @@ async function loadScannerView() {
         "registration-copy",
         tag.status === "inactive"
           ? "This tag is currently inactive. Reactivate it to start receiving alerts again."
-          : "Please activate all your tags — each one is unique."
+          : "Please activate all your tags. Each one is unique."
       );
       setupActivationWizard(tag, data.supportWhatsapp);
       showOnly("registration-shell");
@@ -902,6 +902,23 @@ async function handlePlateVerification(event) {
   // requireVerification(): if a card asks for a number but this does not read
   // it, verifyCapturedPhone stays empty and runVerifiedAction sends the scanner
   // straight back to the card — a loop with no way out.
+  // Optional here, so blank is a valid answer and sends anonymously. Something
+  // typed that cannot be dialled is NOT: silently discarding it would leave the
+  // scanner believing the owner can reach them when they cannot.
+  if (pendingVerifiedAction === "message") {
+    const typed = byId("plate-verify-phone")?.value.trim() || "";
+    if (typed && typed.replace(/\D/g, "").length < 10) {
+      setRequestStatus(
+        "plate-verify-status",
+        "That number looks short. Enter 10 digits, or clear it to stay anonymous.",
+        "error"
+      );
+      byId("plate-verify-phone")?.focus();
+      return;
+    }
+    verifyCapturedPhone = typed;
+  }
+
   if (pendingVerifiedAction === "call" || pendingVerifiedAction === "sos") {
     const typed = byId("plate-verify-phone")?.value.trim() || "";
     if (typed.replace(/\D/g, "").length < 7) {
@@ -1027,7 +1044,13 @@ function requireVerification(action) {
   // used to collect its number on a panel of its own (#sos-number-panel), which
   // is why it looked and behaved unlike the other two; it now asks on this card,
   // so all three actions open the identical card.
+  // A number is REQUIRED for a call: there is nothing to ring back without one.
+  // It is OFFERED for a WhatsApp alert: the alert sends fine either way, but a
+  // one-way alert leaves the scanner never knowing whether anybody came, so the
+  // field is worth showing. The two are separate flags because conflating them
+  // is what put a required-looking field on an optional path.
   const wantsNumber = action === "call" || action === "sos";
+  const offersNumber = action === "message";
 
   // WhatsApp needs nothing from the scanner, so a grant is the whole of what it
   // was waiting for. Either call still needs a number, and that number is only
@@ -1040,7 +1063,18 @@ function requireVerification(action) {
 
   verifyPhoneOnly = Boolean(contactGrant) && wantsNumber;
   pendingVerifiedAction = action;
-  setHidden("plate-verify-call-block", !wantsNumber);
+  setHidden("plate-verify-call-block", !wantsNumber && !offersNumber);
+  setHidden("plate-verify-cbnote", !offersNumber);
+  const phoneInput = byId("plate-verify-phone");
+  if (phoneInput) {
+    // The label carries the difference. An unlabelled optional field reads as
+    // required and gets abandoned; saying "optional" is the whole point of it.
+    phoneInput.placeholder = offersNumber ? "Your number (optional)" : "Your Phone";
+    phoneInput.setAttribute(
+      "aria-label",
+      offersNumber ? "Your phone number, optional" : "Your phone number"
+    );
+  }
   setHidden("plate-verify-plate-block", verifyPhoneOnly);
   setValue("plate-verify-phone", "");
   verifyCapturedPhone = "";
@@ -1054,7 +1088,9 @@ function requireVerification(action) {
     callNote.innerHTML =
       action === "sos"
         ? "We will need your phone number to setup a <strong>MASKED</strong> call between you and the owner's emergency contact."
-        : "We will need your phone number to setup a <strong>MASKED</strong> call between you and tag owner.";
+        : offersNumber
+          ? "Add your number if you want the owner to be able to reply. <strong>Optional</strong>."
+          : "We will need your phone number to setup a <strong>MASKED</strong> call between you and tag owner.";
   }
   openVerifyModal();
   setRequestStatus(
@@ -1305,7 +1341,6 @@ function openReasonStep() {
   clearSelectedReason();
   // The nudge is per attempt: someone who backed out and returned is asked once
   // more rather than silently inheriting the previous "send anyway".
-  resetAnonymousNudge();
   openOverlay("reason-modal");
 }
 
@@ -1327,43 +1362,9 @@ function hasContactReason() {
 // and say so rather than quietly discarding it — a number entered and then
 // silently dropped is worse than never asking, because the scanner leaves
 // believing the owner can reach them.
-function callbackNumberFromReasonStep() {
-  const input = byId("reason-callback-phone");
-  if (!input) return "";
 
-  const raw = input.value.trim();
-  if (!raw) return "";
 
-  const digits = raw.replace(/\D/g, "");
-  const last10 = digits.replace(/^91/, "");
-  if (!/^[6-9]\d{9}$/.test(last10)) return null;
 
-  return `+91${last10}`;
-}
-
-// Has the scanner already been shown the "no number" nudge on this reason step?
-//
-// Reset every time the step opens, so the prompt is once per attempt rather than
-// once per session — and a scanner who abandons and comes back is asked again.
-let anonymousSendConfirmed = false;
-
-function resetAnonymousNudge() {
-  anonymousSendConfirmed = false;
-  const nudge = byId("reason-callback-nudge");
-  if (nudge) nudge.hidden = true;
-}
-
-function setCallbackNoteError(message) {
-  const note = byId("reason-callback-note");
-  if (!note) return;
-  if (message) {
-    note.textContent = message;
-    note.dataset.tone = "error";
-  } else {
-    note.textContent = "Your number stays hidden. The owner can only reach you through ParkTag.";
-    delete note.dataset.tone;
-  }
-}
 
 // WhatsApp = notify the owner with a SERVER-BUILT message (spec §6). The scanner
 // never authors the message. They may now leave a number so the owner can call
@@ -1378,30 +1379,6 @@ async function handleWhatsAppNotify() {
     return;
   }
 
-  if (callbackNumberFromReasonStep() === null) {
-    setCallbackNoteError("Enter a valid 10-digit mobile number, or clear it to stay anonymous.");
-    byId("reason-callback-phone")?.focus();
-    return;
-  }
-  setCallbackNoteError("");
-
-  // Empty is allowed — reporting a stranger's lights is a favour and demanding a
-  // number would stop some people bothering at all. But an empty box is a
-  // default, not a decision, so the first attempt asks and offers an explicit
-  // "Send without my number". One prompt only: once the flag is set, sending
-  // proceeds normally.
-  if (callbackNumberFromReasonStep() === "" && !anonymousSendConfirmed) {
-    // Normally answered on the reason sheet before it closes (see the chip
-    // handler). If this is reached with the sheet closed, put the sheet back
-    // with the question showing rather than asking it in a hidden card.
-    anonymousSendConfirmed = true;
-    openOverlay("reason-modal");
-    const nudge = byId("reason-callback-nudge");
-    if (nudge) nudge.hidden = false;
-    byId("reason-callback-phone")?.focus();
-    return;
-  }
-
   const token = byId("request-token")?.value.trim() || getTokenFromUrl();
 
   setRequestStatus("request-status", "Notifying the owner on WhatsApp…", "info");
@@ -1409,9 +1386,11 @@ async function handleWhatsAppNotify() {
   setDisabled("call-owner-button", true);
   setDisabled("send-whatsapp-button", true);
 
-  // Read once: the modal is closed further down, and re-reading the input
-  // afterwards would report an empty field and pick the wrong wording.
-  const sharedCallbackNumber = callbackNumberFromReasonStep() || "";
+  // Captured on the plate card, which is the only place a scanner is now asked
+  // for it. Read into a local before the modal closes: re-reading the input
+  // afterwards reports an empty field and picks the wrong wording below.
+  const sharedCallbackNumber = verifyCapturedPhone || "";
+  verifyCapturedPhone = "";
 
   try {
     await createRequest({
@@ -1435,7 +1414,7 @@ async function handleWhatsAppNotify() {
     setText(
       "confirmation-copy",
       sharedCallbackNumber
-        ? "We've sent a WhatsApp alert to the vehicle owner. They can call you back through ParkTag — your number stays hidden from them."
+        ? "We've sent a WhatsApp alert to the vehicle owner. They can call you back through ParkTag, your number stays hidden from them."
         : "We've sent a WhatsApp alert to the vehicle owner. Your details stay completely private."
     );
     setRequestStatus("request-status", "WhatsApp alert sent to the owner.", "success");
@@ -1452,7 +1431,7 @@ async function handleWhatsAppNotify() {
       setDisabled("call-owner-button", false);
       setText(
         "confirmation-copy",
-        "We've sent a WhatsApp alert to the vehicle owner. You can still call the owner privately — your details stay completely private."
+        "We've sent a WhatsApp alert to the vehicle owner. You can still call the owner privately, your details stay completely private."
       );
     }
   } catch (error) {
@@ -1709,7 +1688,7 @@ function handleActPlate(event) {
   if (!/\d{4}$/.test(plate)) {
     setRequestStatus(
       "claim-status",
-      "That doesn't look complete — a full plate ends with 4 digits (e.g. DL8CX55665).",
+      "That doesn't look complete. A full plate ends with 4 digits (e.g. DL8CX55665).",
       "error"
     );
     return;
@@ -1906,7 +1885,7 @@ async function handleActVerify(event) {
 
     setText(
       "act-done-copy",
-      "Your vehicle sticker is live. Anyone who scans it can reach you privately — your number stays hidden."
+      "Your vehicle sticker is live. Anyone who scans it can reach you privately. Your number stays hidden."
     );
     showActStep("done");
   } catch (error) {
@@ -1994,25 +1973,6 @@ byId("reason-cancel")?.addEventListener("click", () => {
 // verification popup, so the two do not behave differently.
 // Typing answers the nudge, so it should not sit there contradicting the field.
 // The confirmed flag is deliberately NOT reset: having once chosen to send
-// anonymously, a scanner who then adds a number should not be asked again.
-// "Send without my number" — the deliberate choice the nudge asks for.
-// Sets the flag first so handleWhatsAppNotify runs straight past the prompt
-// rather than re-showing it.
-byId("reason-callback-skip")?.addEventListener("click", () => {
-  anonymousSendConfirmed = true;
-  const nudge = byId("reason-callback-nudge");
-  if (nudge) nudge.hidden = true;
-  // Same exit as a chip tap: close the sheet, then verify or send. Calling
-  // the send routine directly skipped verification for a first-time scanner.
-  closeReasonStep();
-  requireVerification("message");
-});
-
-byId("reason-callback-phone")?.addEventListener("input", () => {
-  const nudge = byId("reason-callback-nudge");
-  if (nudge && !nudge.hidden) nudge.hidden = true;
-});
-
 byId("reason-modal")?.addEventListener("click", (event) => {
   const card = byId("reason-step");
   if (card && !card.contains(event.target)) {
@@ -2142,27 +2102,11 @@ document.querySelectorAll(".pt-chip").forEach(chip => {
 
     reasonAdvanceTimer = setTimeout(() => {
       reasonAdvanceTimer = null;
-
-      // The "send without your number?" question is asked HERE, while the
-      // sheet is still open. It used to be asked by handleWhatsAppNotify after
-      // this had already closed the sheet, so the question appeared inside a
-      // hidden card, the send stopped waiting for an answer nobody could give,
-      // and the page sat on the two tiles as if nothing had happened. Tapping
-      // WhatsApp again reopened the sheet and reset the flag, so it looped.
-      if (callbackNumberFromReasonStep() === null) {
-        setCallbackNoteError("Enter a valid 10-digit mobile number, or clear it to stay anonymous.");
-        byId("reason-callback-phone")?.focus();
-        return;
-      }
-      setCallbackNoteError("");
-
-      if (callbackNumberFromReasonStep() === "" && !anonymousSendConfirmed) {
-        anonymousSendConfirmed = true;
-        const nudge = byId("reason-callback-nudge");
-        if (nudge) nudge.hidden = false;
-        return;
-      }
-
+      // One tap, one outcome. This used to check the callback number field that
+      // sat below these chips and RETURN without advancing when it was empty,
+      // which made a first tap look like it had done nothing and required a
+      // second one to get past. The number is asked on the plate card now,
+      // where it has a Continue button under it.
       closeReasonStep();
       requireVerification("message");
     }, REASON_ADVANCE_MS);

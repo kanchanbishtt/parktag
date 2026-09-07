@@ -116,7 +116,7 @@ function renderDaily(daily) {
     bar.style.height = Math.max(2, Math.round((point.views / top) * 100)) + "%";
     // The only place the exact per-day number is available, so it goes in the
     // tooltip rather than being dropped.
-    bar.title = point.key + " — " + point.views + " views, " + point.visitors + " visitors";
+    bar.title = point.key + ", " + point.views + " views, " + point.visitors + " visitors";
     spark.append(bar);
   }
   card.append(spark);

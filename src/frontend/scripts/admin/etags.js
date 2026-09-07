@@ -17,14 +17,14 @@ function safeUrl(u) {
   return /^https?:\/\//i.test(s) ? s : "";
 }
 function fmtDate(s) {
-  if (!s) return "—";
+  if (!s) return ", ";
   try { return new Date(s).toLocaleString(); } catch { return s; }
 }
 // Date and time on separate lines. As one nowrap string the Created column ran
 // to 164px — with nine columns that was enough to push the table past its card
 // and clip the Delete button off the right edge.
 function fmtStamp(s) {
-  if (!s) return "—";
+  if (!s) return ", ";
   try {
     const d = new Date(s);
     return `${esc(d.toLocaleDateString())}<br><span class="muted">${esc(d.toLocaleTimeString())}</span>`;
@@ -83,7 +83,7 @@ async function load() {
     const actions = t.deletedAt
       ? (claimed
         ? `<button class="go" data-act="status" data-id="${t.id}" data-to="active">Restore</button>`
-        : `<span class="muted">—</span>`)
+        : `<span class="muted">-</span>`)
       : `<button data-act="logs" data-id="${t.id}">Logs</button>
          ${claimed ? `<button data-act="status" data-id="${t.id}" data-to="${toggleTo}">${toggleLabel}</button>` : ""}
          <button class="danger" data-act="delete" data-id="${t.id}">Delete</button>`;
@@ -91,9 +91,9 @@ async function load() {
     // renders once the header row is hidden (see the @media block in etags.html).
     return `<tr>
       <td data-label="E-Tag ID"><b>${esc(t.etagId)}</b></td>
-      <td data-label="Sticker serial">${t.serial ? `<b>${esc(t.serial)}</b>` : `<span class="muted">—</span>`}</td>
-      <td data-label="Vehicle"><span class="plate">${esc(t.plateNumber || "—")}</span><br><span class="muted">${esc(t.vehicleLabel || t.vehicleType || "")}</span></td>
-      <td data-label="Owner">${esc(t.ownerName || "—")}<br><span class="muted">${esc(t.ownerEmail || t.ownerMobile || "")}</span></td>
+      <td data-label="Sticker serial">${t.serial ? `<b>${esc(t.serial)}</b>` : `<span class="muted">-</span>`}</td>
+      <td data-label="Vehicle"><span class="plate">${esc(t.plateNumber || "-")}</span><br><span class="muted">${esc(t.vehicleLabel || t.vehicleType || "")}</span></td>
+      <td data-label="Owner">${esc(t.ownerName || "-")}<br><span class="muted">${esc(t.ownerEmail || t.ownerMobile || "")}</span></td>
       <td data-label="Status">${statusPill}</td>
       <td data-label="Plan">${planPill}</td>
       <td data-label="Contacts">${t.contactCount}</td>
@@ -148,7 +148,7 @@ async function openLogs(id) {
   const t = data.etag;
   document.getElementById("mTitle").textContent = `${t.etagId} · ${t.plateNumber || ""}`;
   document.getElementById("mSub").textContent =
-    `${t.premium ? "Premium" : "Free"} · ${t.status} · ${t.contactAttempts} contact attempt(s) · owner ${t.owner?.email || t.owner?.mobile || "—"}`;
+    `${t.premium ? "Premium" : "Free"} · ${t.status} · ${t.contactAttempts} contact attempt(s) · owner ${t.owner?.email || t.owner?.mobile || "-"}`;
 
   if (!data.logs.length) { mLogs.innerHTML = `<p class="muted">No contact logs yet.</p>`; return; }
   mLogs.innerHTML = data.logs.map((l) => {

@@ -21,7 +21,7 @@ async function hasLiveSession() {
     headers: { accept: "application/json" }
   });
 
-  if (!response.ok) return null; // indeterminate — see the caller
+  if (!response.ok) return null; // indeterminate, see the caller
   const data = await response.json();
   return Boolean(data && data.session);
 }

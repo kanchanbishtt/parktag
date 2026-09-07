@@ -512,7 +512,7 @@ function resolvePackSku() {
 
 function packProceed() {
   const sku = resolvePackSku();
-  if (!sku) return; // nothing selected — proceed button is disabled anyway
+  if (!sku) return; // nothing selected, proceed button is disabled anyway
   let label;
   if (_packTier && _packBike) label = PACK_NAMES[_packTier] + " + Bike Tag";
   else if (_packTier) label = PACK_NAMES[_packTier];
@@ -543,7 +543,7 @@ function renderPackSheet() {
     </button>`).join("");
   document.getElementById("ptPackSheetBody").innerHTML = `
     <h3 class="pt-pack-title">Choose your pack</h3>
-    <p class="pt-pack-sub">Pick the tags you need — car, bike, or both — then proceed to payment.</p>
+    <p class="pt-pack-sub">Pick the tags you need, car, bike, or both, then proceed to payment.</p>
 
     <p class="pt-pack-sec">Car tags 🚗 <em>(optional)</em></p>
     ${tiers}
@@ -828,7 +828,7 @@ async function openScanner() {
         if (codes && codes.length) {
           const url = resolveTagUrl(codes[0].rawValue || "");
           if (url) { stopScanStream(); window.location.href = url; }
-          else { status.textContent = "That QR isn't a ParkTag — try another."; }
+          else { status.textContent = "That QR isn't a ParkTag, try another."; }
         }
       } catch (_) { /* frame not ready yet */ }
     }, 350);
@@ -884,7 +884,7 @@ async function codPrepay() {
       clearInterval(_flashTimer);
       _flashTimer = null;
       document.getElementById("ptFlash").style.display = "none";
-      showToast("That offer has expired — your order stays Cash on Delivery.", "error");
+      showToast("That offer has expired, your order stays Cash on Delivery.", "error");
       if (btn) btn.disabled = false;
       return;
     }
@@ -915,7 +915,7 @@ async function codPrepay() {
           clearInterval(_flashTimer); _flashTimer = null;
           // What the server recorded as saved, not a hard-coded ₹50 that would
           // keep congratulating the buyer whatever the discount turned out to be.
-          showToast("Paid online — you saved " + rupees(vd.savedPaise) + "! 🎉", "success");
+          showToast("Paid online, you saved " + rupees(vd.savedPaise) + "! 🎉", "success");
           // Paid online now → skip the flash offer AND the confirmation window,
           // take the user straight to the "How to activate" guide.
           goToHowto();

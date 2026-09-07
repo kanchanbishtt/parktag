@@ -1893,7 +1893,7 @@
       </div>
       <!-- Active filter indicator -->
       <div class="pt-filter-bar" id="mainFilterBar">
-        <span>Showing: <strong id="mainFilterLabel">—</strong></span>
+        <span>Showing: <strong id="mainFilterLabel">, </strong></span>
         <button class="pt-filter-clear" onclick="clearNbFilter()">× Clear filter</button>
       </div>
       <!-- Vehicle list -->
@@ -2249,7 +2249,7 @@
 <div class="pt-conf-ov" id="ptConfOv">
   <div class="pt-fhead"><img class="pt-fhead-logo" src="/images/dark-logo.png" alt="ParkTag"></div>
   <div class="pt-conf-wrap">
-    <p class="pt-conf-ordno" id="ptConfOrdNo">Order #—</p>
+    <p class="pt-conf-ordno" id="ptConfOrdNo">Order #, </p>
     <p class="pt-conf-hi">Hi! ❤️</p>
 
     <div class="pt-conf-card">
@@ -2272,22 +2272,22 @@
     <!-- Flash offer: COD orders only -->
     <div class="pt-flash" id="ptFlash" style="display:none">
       <span class="pt-flash-badge">FLASH OFFER</span>
-      <p class="pt-flash-lead">Your COD order is confirmed — pay now to save</p>
+      <p class="pt-flash-lead">Your COD order is confirmed, pay now to save</p>
       <h4 class="pt-flash-head">Pay in the next 60 sec &amp; save <b>₹50</b></h4>
       <div class="pt-flash-timer">
         <span class="pt-flash-timer-lbl">OFFER ENDS IN</span>
         <span class="pt-flash-timer-val" id="ptFlashTimer">1:00</span>
       </div>
       <div class="pt-flash-cmp">
-        <div class="pt-flash-box"><span>COD (now)</span><b id="ptFlashCod">₹—</b></div>
-        <div class="pt-flash-box save"><span>Pay online</span><b id="ptFlashOnline">₹—</b><em>Save ₹50</em></div>
+        <div class="pt-flash-box"><span>COD (now)</span><b id="ptFlashCod">₹, </b></div>
+        <div class="pt-flash-box save"><span>Pay online</span><b id="ptFlashOnline">₹, </b><em>Save ₹50</em></div>
       </div>
       <ul class="pt-flash-benes">
         <li>Faster dispatch &amp; priority handling</li>
         <li>Secure UPI, card, or net banking</li>
       </ul>
       <button type="button" class="pt-flash-btn" id="ptFlashBtn" onclick="codPrepay()">Pay online now</button>
-      <p class="pt-flash-note">One tap — your order updates instantly.</p>
+      <p class="pt-flash-note">One tap, your order updates instantly.</p>
     </div>
 
     <button type="button" class="pt-conf-next" onclick="goToHowto()">Continue →</button>
@@ -2313,7 +2313,7 @@
       </div>
       <div class="pt-howto-step">
         <span class="pt-howto-sico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L2 12V2h10l8.6 8.6a2 2 0 0 1 0 2.8z" stroke="#03162D" stroke-width="1.7" stroke-linejoin="round"/><circle cx="7" cy="7" r="1.3" fill="#03162D"/></svg></span>
-        <span class="pt-howto-txt">Activate <b>every tag</b> — each one is unique</span>
+        <span class="pt-howto-txt">Activate <b>every tag</b>, each one is unique</span>
       </div>
     </div>
 
@@ -2502,8 +2502,8 @@
   <div class="pt-menu-ph">
     <div class="pt-menu-av" id="menuAvatar">?</div>
     <div style="flex:1;min-width:0">
-      <p class="pt-menu-pn" id="menuName">—</p>
-      <p class="pt-menu-pi" id="menuId">—</p>
+      <p class="pt-menu-pn" id="menuName">, </p>
+      <p class="pt-menu-pi" id="menuId">, </p>
     </div>
     <button class="pt-menu-cx" onclick="closeMenu()" aria-label="Close">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
@@ -2518,9 +2518,9 @@
     <!-- Sticky vehicle label — always visible while scrolling -->
     <div class="pt-sticky-veh" id="stickyVehicle">
       <div class="pt-sticky-dot" id="stickyDot"></div>
-      <span class="pt-sticky-plate" id="stickyPlate">—</span>
+      <span class="pt-sticky-plate" id="stickyPlate">-</span>
       <span class="pt-sticky-sep">·</span>
-      <span class="pt-sticky-type" id="stickyType">—</span>
+      <span class="pt-sticky-type" id="stickyType">-</span>
     </div>
 
     <!-- User Info -->
@@ -2533,10 +2533,10 @@
         <span class="pt-mi-ar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>
       </div>
       <div class="pt-mi-s"><div class="pt-mi-si">
-        <div class="pt-irow"><span class="pt-ik">Vehicle Number</span><span class="pt-iv" id="mi-plate">—</span></div>
-        <div class="pt-irow"><span class="pt-ik">Vehicle Type</span><span class="pt-iv" id="mi-type">—</span></div>
-        <div class="pt-irow"><span class="pt-ik">Owner</span><span class="pt-iv" id="mi-name">—</span></div>
-        <div class="pt-irow"><span class="pt-ik">Tag ID</span><span class="pt-iv" id="mi-tagid">—</span></div>
+        <div class="pt-irow"><span class="pt-ik">Vehicle Number</span><span class="pt-iv" id="mi-plate">-</span></div>
+        <div class="pt-irow"><span class="pt-ik">Vehicle Type</span><span class="pt-iv" id="mi-type">-</span></div>
+        <div class="pt-irow"><span class="pt-ik">Owner</span><span class="pt-iv" id="mi-name">-</span></div>
+        <div class="pt-irow"><span class="pt-ik">Tag ID</span><span class="pt-iv" id="mi-tagid">-</span></div>
         <div class="pt-irow" style="flex-direction:column;align-items:flex-start;gap:8px">
           <div style="display:flex;align-items:center;justify-content:space-between;width:100%">
             <span class="pt-ik">Phone Number</span>
@@ -2577,8 +2577,8 @@
         </svg>
       </div>
       <div>
-        <p class="pt-mvsm-pl" id="menuVPlate">—</p>
-        <p class="pt-mvsm-ty" id="menuVType">—</p>
+        <p class="pt-mvsm-pl" id="menuVPlate">, </p>
+        <p class="pt-mvsm-ty" id="menuVType">, </p>
       </div>
     </div>
 
@@ -2827,7 +2827,7 @@
       <div class="wl-pt-freebox">This official ParkTag sticker unlocks <b>unlimited private contact</b>. Finders can always reach you via masked call or WhatsApp, and your number stays private.</div>
     </div>
 
-    <p class="wl-pt-etagline" style="margin:0 0 12px">E-Tag <span id="wl-print-etag-id">—</span> &nbsp;·&nbsp; <span id="wl-print-vehicle-num">—</span> &nbsp;·&nbsp; <span id="wl-print-status">Active</span></p>
+    <p class="wl-pt-etagline" style="margin:0 0 12px">E-Tag <span id="wl-print-etag-id">-</span> &nbsp;·&nbsp; <span id="wl-print-vehicle-num">-</span> &nbsp;·&nbsp; <span id="wl-print-status">Active</span></p>
 
     <div class="wl-pt-cut">
       <!-- Official ParkTag premium sticker (real Figma artwork) with this tag's QR -->

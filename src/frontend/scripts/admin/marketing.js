@@ -209,7 +209,7 @@ listEl.addEventListener("click", async (event) => {
       "deactivate",
       deact.dataset.deactivate,
       "Wiping…",
-      "Deactivated — details erased. This sticker is new again."
+      "Deactivated and details erased. This sticker is new again."
     );
     return;
   }

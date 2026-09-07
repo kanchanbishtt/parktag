@@ -191,7 +191,7 @@ function hideEtagPopup() {
 function populatePrintTemplate() {
   // Use the first vehicle for the E-Tag
   const v = vehicles[0];
-  const vehicleNum = v ? v.number : "—";
+  const vehicleNum = v ? v.number : ", ";
   const el = document.getElementById("print-vehicle-num");
   if (el) el.textContent = vehicleNum;
 }

@@ -454,6 +454,25 @@ async function buy(sku) {
     return;
   }
 
+  // Re-check the code against the pack ACTUALLY chosen, not the one the page
+  // guessed at when the code was typed.
+  //
+  // Until this, checkCode ran against HERO_PACK because no pack had been picked
+  // yet. A code tied to the Pack of 2 therefore said "Code applied" and then,
+  // if the buyer tapped Order on the Pack of 1, create-order refused it and
+  // charged the full price. Quoting one number and charging another is the
+  // worst failure this page can have, and it would have looked like the code
+  // simply not working.
+  if (codeValue()) await checkCode(sku);
+
+  // Said before the address step rather than after paying. A buyer who was
+  // promised a price should learn here that it does not apply to this pack.
+  if (codeValue() && !(promoState && promoState.ok)) {
+    const reason = CODE_REFUSALS[promoState && promoState.reason] || "That code is not valid.";
+    say(`${reason} This pack is ${rupees(promoState?.catalogPaise ?? 0)}.`);
+    return;
+  }
+
   // A handover code means the sticker goes into somebody's hand, so there is no
   // parcel and no address to collect. Asking for one would be a form nobody
   // needs to fill in, and it leaves an order the stuck-parcel alert chases.

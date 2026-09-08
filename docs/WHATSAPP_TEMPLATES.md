@@ -1,14 +1,47 @@
-# WhatsApp templates: what to submit, and why each one exists
+# WhatsApp templates: the copy, and why each one exists
 
-Meta approval is the critical path for the lifecycle programme. Code can be
-written while a template waits; a template cannot be written while code waits.
-So **submit everything in section 2 in one batch**, then wire them as they clear.
+**Status: all seven new templates are submitted and in review, and every live
+ParkTag template now reads `Powered by ParkTag`.** Done via the Graph API on
+2026-09-08 with the `App For CRM` system-user token, which carries
+`whatsapp_business_management`.
 
-Submit at: WhatsApp Manager → Message templates → Create Template.
+This file is the source of truth for the COPY. When a template is rejected, fix
+the wording here first and resubmit from here, so the repo and WhatsApp Manager
+never disagree about what a customer was told.
+
+Check state with `npm run verify:whatsapp`, or `GET /v21.0/{WABA_ID}/message_templates`.
 
 ---
 
-## 1. The free win: switch the owner alert to a template we already have
+## 0. In review
+
+| Template | Category | Why it exists |
+| --- | --- | --- |
+| `parktag_owner_notification_v3` | UTILITY | the alert, with a Call-back button |
+| `parktag_trial_ending` | UTILITY | T-30 / T-7 / T-1, one template |
+| `parktag_premium_lapsed` | UTILITY | the day the year ends |
+| `parktag_doc_expiry` | UTILITY | insurance / PUC expiring |
+| `parktag_activation_pending` | UTILITY | delivered, never activated |
+| `parktag_call_missed` | UTILITY | a scanner rang and got no answer |
+| `parktag_referral_reward` | UTILITY | a reward already earned |
+
+Plus six footer edits, which put those templates back in review as well. **A
+template in review still sends on its last approved version, so there is no
+outage** — only a window in which it cannot be edited again.
+
+Two deliberate departures from the copy below, both made at submission to avoid
+a rejection sitting on the critical path:
+
+- **`parktag_trial_ending` does not name the price.** "from Rs 249 for a year"
+  was cut. A price in a UTILITY body is the likeliest rejection reason in this
+  batch, and the button already leads to the page that quotes it.
+- **`parktag_referral_reward` ends "…with nothing else for you to do."** The
+  version below ended on `*{{4}}*` plus a full stop, and Meta rejects a body
+  whose last token is a placeholder.
+
+---
+
+## 1. The interim alert template
 
 `parktag_owner_notification` is the most important message ParkTag sends and the
 worst formatted one in the account. It is the only template with no header, no
@@ -17,8 +50,9 @@ footer and no bold anywhere:
 > Hello {{1}}, someone has reported an issue near your vehicle: {{2}}. Please
 > check your vehicle at the earliest.
 
-`parktag_owner_notification_v2` is **already approved** and already better, and
-nothing calls it:
+`parktag_owner_notification_v2` is already approved and already better, and it
+is what the code sends today (`OWNER_ALERT_TEMPLATE` in
+`src/backend/lib/integrations/meta.js`):
 
 > **ParkTag**
 > Hello {{1}}, someone scanned the ParkTag QR sticker on your vehicle and
@@ -27,13 +61,14 @@ nothing calls it:
 > Please check your vehicle when you can.
 > *Powered by ParkTag*
 
-Same two variables, same order. Pointing `sendMetaWhatsappAlert` at v2 is a
-one-line change with no approval wait. Do it if v3 below is still in review when
-the next deploy goes out.
+Same two variables, same order, so this is the safe place to sit while v3 is in
+review. **When v3 is APPROVED, change `OWNER_ALERT_TEMPLATE` to
+`parktag_owner_notification_v3` and deploy** — the button parameter is already
+being passed, and the constant flips the send to the button variant on its own.
 
 ---
 
-## 2. Templates to submit
+## 2. The copy, as submitted
 
 All **UTILITY** unless marked otherwise. Utility is not a billing preference: it
 is the category for a message about something the customer already has. The
@@ -251,32 +286,21 @@ Your premium now runs until *{{4}}*.
 
 ---
 
-## 3. The footer says the wrong company
+## 3. Footers: done
 
-Every approved ParkTag template currently ends **`Powered by EditTree`**. The
-customer bought a ParkTag, the message comes from ParkTag, and the link goes to
-`app.parktag.me`, so naming a company they have never heard of is the one line
-in the message that does not belong to them. It should read **`Powered by
-ParkTag`** everywhere.
+Edited via the API: `parktag_tag_activated`, `parktag_order_update_v2`,
+`parktag_membership_confirmed`, `parktag_cart_reminder`,
+`parktag_owner_notification_v2`, `parktag_upgrade_offer`.
 
-New templates in section 2 already say ParkTag. The five live ones need editing
-in WhatsApp Manager:
+Two were skipped on purpose, because both should be deleted rather than edited:
 
-| Template | Sent today |
-| --- | --- |
-| `parktag_order_update_v2` | yes, regularly |
-| `parktag_membership_confirmed` | yes |
-| `parktag_tag_activated` | about to be, this release |
-| `parktag_cart_reminder` | about to be, this release |
-| `parktag_owner_notification_v2` | yes, this release |
+- **`parktag_order_update`** (v1) is superseded by v2 and called by nothing.
+- **`send_invoice_customer`** is not ParkTag's at all. It is a leftover EditTree
+  invoicing template, MARKETING, whose button points at a Google Maps review
+  link.
 
-A footer edit sends the template back through review, so **do these one at a
-time and confirm each is APPROVED before the next**. A template in review still
-sends on its last approved version, so there is no outage, but editing all five
-at once means every one of them is unverifiable at the same moment.
-
-`parktag_upgrade_offer` is MARKETING and also carries the wrong footer. Leave it
-until the win-back campaign is actually built, and edit it then.
+`parktag_owner_notification` (v1) has no footer to edit, which is part of why it
+is being replaced rather than fixed.
 
 ## 4. Housekeeping in WhatsApp Manager
 

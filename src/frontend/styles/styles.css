@@ -3250,6 +3250,16 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
   margin: 0;
 }
 
+/* Quieter than .pt-panel-sub, which carries the privacy promise. This is a
+   practical footnote about the number's lifetime, so it sits below that in the
+   reading order without competing with it. */
+.pt-panel-note {
+  font-size: 0.76rem;
+  color: var(--pt-sub);
+  line-height: 1.45;
+  margin: 0.5rem 0 0;
+}
+
 .pt-dial-number {
   font-size: 1.4rem;
   font-weight: 800;

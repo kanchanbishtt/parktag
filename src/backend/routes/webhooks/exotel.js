@@ -121,9 +121,18 @@ export function registerProviderRoutes(app, env) {
     // kin. That is precisely the accident case SOS exists for.
     // _id is the tiebreak because it is monotonic: two registrations can share
     // a createdAt millisecond, and a tie would put us back to arbitrary order.
+    //
+    // Retired by the OUTCOME, not by the attempt. Spending the authorisation
+    // here meant the first connect burned it whether or not anyone picked up,
+    // so a caller whose call rang out could not redial: Exotel asked again, the
+    // server had nothing to hand it, and the number simply stopped working. A
+    // real customer's tester hit that on 8 Sep 2026, one connect and four dead
+    // redials. The status callback below now retires it once the two of them
+    // have actually spoken, and `callSid` is stamped on here so it can find the
+    // right row when that happens.
     const record = await collections.pendingCalls.findOneAndUpdate(
       { callerPhone, consumed: false, expiresAt: { $gt: now } },
-      { $set: { consumed: true, consumedAt: now.toISOString() } },
+      { $set: { lastDialedAt: now.toISOString(), ...(callSid ? { callSid } : {}) } },
       { returnDocument: "after", sort: { createdAt: -1, _id: -1 } }
     );
 
@@ -222,6 +231,20 @@ export function registerProviderRoutes(app, env) {
     // outcome an earlier terminal event already established.
     const outcome = normalizeCallOutcome({ status: result, duration });
     if (outcome) set.callOutcome = outcome;
+
+    // A conversation happened, so this authorisation has done its job. Matched
+    // on the CallSid stamped by dial-whom, never on the caller's number alone,
+    // so a report for a call this server did not route cannot retire somebody
+    // else's live authorisation. Anything short of answered leaves it alone,
+    // which is what lets an unanswered call be redialled until it expires.
+    if (outcome === "answered" && callSid) {
+      await collections.pendingCalls
+        .updateOne(
+          { callSid, consumed: false },
+          { $set: { consumed: true, consumedAt: new Date().toISOString() } }
+        )
+        .catch(() => null);
+    }
 
     if (body.RecordingUrl) set.recordingUrl = body.RecordingUrl;
 

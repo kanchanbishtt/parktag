@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 
-import { isNonEmptyString, safeEqual } from "../../lib/auth/security.js";
+import { getClientIp, isNonEmptyString, safeEqual } from "../../lib/auth/security.js";
 import { getCollections } from "../../lib/db/repositories.js";
 import { lookupGeo } from "../../lib/integrations/geoip.js";
 
@@ -169,6 +169,10 @@ export function registerAnalyticsRoutes(app, env) {
 
       const doc = {
         day,
+        // Which surface this view happened on. The app records its own views
+        // through recordAppPageVisit below, into this same collection, so the
+        // Traffic page can show one funnel instead of two half-pictures.
+        site: "landing",
         // A real Date, not the ISO string used elsewhere in this codebase: the
         // TTL index that enforces the 180-day retention only acts on Date
         // fields and would silently ignore a string. See repositories.js.
@@ -191,4 +195,60 @@ export function registerAnalyticsRoutes(app, env) {
       return null;
     }
   );
+}
+
+// ── Page views on the app itself ────────────────────────────────────────────
+//
+// The landing site needs the beacon above because it is a separate service.
+// The app does not: it SERVES /shop, so it can count the view in the route
+// handler. That difference matters more than it sounds. A count taken here
+// survives ad blockers, tracking protection and in-app browsers, all of which
+// remove GA4 and the Pixel without leaving a trace. On 8 Sep 2026 a real visit
+// to /shop was missing from GA4 while sitting plainly in the server log, which
+// is the failure this exists to end.
+//
+// Fire and forget. Nothing about counting a view justifies making a buyer wait
+// for a geo lookup and a database write, so the route never awaits this and a
+// failure here can never fail the page.
+export function recordAppPageVisit(app, env, request, path) {
+  const userAgent = String(request.headers["user-agent"] || "").slice(0, 512);
+  // Crawlers first, and cheaply. Meta fetches every ad destination for its link
+  // preview, so counting them would inflate exactly the number the ads are
+  // judged on.
+  if (isBotUserAgent(userAgent)) return;
+
+  void (async () => {
+    try {
+      const collections = await getCollections(env);
+      if (!collections) return;
+
+      const ip = getClientIp(request);
+      const geo = await lookupGeo(env, ip);
+      const now = new Date();
+      const day = istDayKey(now);
+      const salt = env.analyticsHashSalt || env.analyticsIngestKey || "";
+
+      await collections.landingVisits.insertOne({
+        day,
+        // A Date, not an ISO string: the 180-day TTL index only acts on Dates.
+        createdAt: now,
+        path: cleanPath(path),
+        // Same-origin navigation within the app, so there is no traffic source
+        // to record here. The landing beacon is where referrers come from.
+        referrerHost: null,
+        site: "app",
+        country: geo.country,
+        countryCode: geo.countryCode,
+        region: geo.region,
+        city: geo.city,
+        geoSource: geo.source,
+        device: deviceClass(userAgent),
+        // Same guarantee as the landing beacon: one-way, rotated daily, and
+        // never an address or a raw agent.
+        visitorHash: visitorDigest(salt, ip, userAgent, day)
+      });
+    } catch (error) {
+      app.log.warn({ err: error, event: "app-visit-record-failed" }, "[analytics] could not record an app page view");
+    }
+  })();
 }

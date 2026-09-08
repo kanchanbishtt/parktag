@@ -24,6 +24,11 @@ import {
 } from "../../lib/auth/otp.js";
 import { isMetaWhatsappConfigured } from "../../lib/integrations/meta.js";
 import { verifyRecaptcha } from "../../lib/integrations/recaptcha.js";
+import {
+  REFERRAL_DISCOUNT_PAISE,
+  expectedOrderPaise,
+  resolveReferral
+} from "../../lib/core/referrals.js";
 
 // Flash-offer discount for converting a COD order to prepaid (paise). Kept
 // server-side so the ₹50 saving can't be inflated by a tampered client.
@@ -369,7 +374,7 @@ export function registerShopRoutes(app, env) {
     // gets through mints a real order in the Razorpay dashboard.
     { config: { rateLimit: { max: 8, timeWindow: "1 minute" } } },
     async (request, reply) => {
-      const { productId, variant: rawVariant, address: rawAddress, recaptchaToken } =
+      const { productId, variant: rawVariant, address: rawAddress, recaptchaToken, ref: rawRef } =
         request.body || {};
 
       // Bot check on the one money-adjacent endpoint any stranger can reach.
@@ -451,7 +456,18 @@ export function registerShopRoutes(app, env) {
       // the current price is what "the same checkout, reloaded" looks like.
       // Without it, a reload burns an order number and leaves an abandoned
       // order in the Razorpay account every time.
-      const expectedPaise = Math.round(product.amount * 100);
+      // A guest has no account to compare a code against, so the DELIVERY PHONE
+      // is the only identity available -- and it is the check that matters most
+      // here. Without it anybody could put their own code into their own guest
+      // checkout and take Rs 50 off every order while minting themselves a
+      // month each time. resolveReferral compares in E.164, so a referrer
+      // stored as "9812345678" is still recognised behind "+919812345678".
+      const referral = await resolveReferral(collections, rawRef, {
+        deliveryPhone: shipping.phone
+      });
+      const referredBy = referral.ok ? referral.referrerId : null;
+
+      const expectedPaise = expectedOrderPaise(Math.round(product.amount * 100), { referredBy });
       const reusable = await collections.shopOrders.findOne(
         {
           ownerId: null,
@@ -480,7 +496,9 @@ export function registerShopRoutes(app, env) {
 
       try {
         const order = await createRazorpayOrder(env, {
-          amount: product.amount, // server catalogue price, never the client's
+          // Server-derived, never the client's. expectedOrderPaise applies the
+          // referral discount if and only if resolveReferral approved one.
+          amount: expectedPaise / 100,
           receipt: `ptg_${productId}_${Date.now()}`,
           notes: { productId, productName: product.name, guest: "1", ...addressToNotes(shipping) }
         });
@@ -503,6 +521,9 @@ export function registerShopRoutes(app, env) {
           status: "created",
           shippingAddress: shipping,
           replaceTagId: null,
+          referredBy,
+          referralCode: referral.ok ? referral.code : null,
+          referralDiscountPaise: referredBy ? REFERRAL_DISCOUNT_PAISE : 0,
           createdAt: new Date().toISOString()
         });
 
@@ -510,6 +531,7 @@ export function registerShopRoutes(app, env) {
           ok: true,
           orderId: order.id,
           orderNumber,
+          referralDiscountPaise: referredBy ? REFERRAL_DISCOUNT_PAISE : 0,
           amount: order.amount,
           currency: order.currency,
           // Public key, the same one GET /api/shop/razorpay-key serves.
@@ -643,6 +665,17 @@ export function registerShopRoutes(app, env) {
     const collections = await getCollections(env);
     if (!collections) { reply.code(500); return { error: "Database not configured." }; }
 
+    // The referral code, if the buyer arrived on a ?ref= link. A CODE, never an
+    // amount: the discount below is a server constant and the browser has no
+    // say in it. A code that does not resolve, or that is the buyer's own, is
+    // dropped silently rather than failing the checkout -- a mistyped referral
+    // must never stand between somebody and paying us.
+    const referral = await resolveReferral(collections, (request.body || {}).ref, {
+      buyerOwnerId: ownerId,
+      deliveryPhone: null
+    });
+    const referredBy = referral.ok ? referral.referrerId : null;
+
     // Refuse to take money for a physical item with nowhere to ship it. The
     // checkout form saves the address first, so a missing one is out-of-order.
     const addressDoc = await collections.addresses.findOne({ ownerId });
@@ -678,7 +711,7 @@ export function registerShopRoutes(app, env) {
     // unpaid, and still priced at the current catalog rate — a stored order
     // whose price has since moved would be rejected by verify-payment's amount
     // check, so handing it back would strand the buyer at the payment sheet.
-    const expectedPaise = Math.round(product.amount * 100);
+    const expectedPaise = expectedOrderPaise(Math.round(product.amount * 100), { referredBy });
     const reusable = await collections.shopOrders.findOne({
       ownerId,
       status: "created",
@@ -710,7 +743,11 @@ export function registerShopRoutes(app, env) {
 
     try {
       const order = await createRazorpayOrder(env, {
-        amount: product.amount, // server catalog price (INR) → paise inside helper
+        // Paise, converted here rather than handing the helper rupees: a
+        // referral price is not a whole number of rupees away from the catalog
+        // one in general, and rounding twice is how a checkout ends up a paisa
+        // off the amount verify-payment expects.
+        amount: expectedPaise / 100,
         receipt: `pt_${productId}_${Date.now()}`,
         notes: { productId, productName: product.name, replaceTagId: validReplaceTagId || "", ...addressToNotes(shipping) }
       });
@@ -733,6 +770,11 @@ export function registerShopRoutes(app, env) {
           status: "created",
           shippingAddress: shipping,
           replaceTagId: validReplaceTagId,
+          // Written only after resolveReferral approved it. expectedOrderPaise
+          // reads this field, not the discount number beside it.
+          referredBy,
+          referralCode: referral.ok ? referral.code : null,
+          referralDiscountPaise: referredBy ? REFERRAL_DISCOUNT_PAISE : 0,
           createdAt: new Date().toISOString()
         });
       }
@@ -741,6 +783,7 @@ export function registerShopRoutes(app, env) {
         ok: true,
         orderId: order.id,
         orderNumber,
+        referralDiscountPaise: referredBy ? REFERRAL_DISCOUNT_PAISE : 0,
         amount: order.amount,
         currency: order.currency,
         prefill: await checkoutPrefill(collections, ownerId)
@@ -815,7 +858,13 @@ export function registerShopRoutes(app, env) {
         reply.code(403); return { ok: false, error: "This order does not belong to your account." };
       }
       const product = getShopProduct(order.productId);
-      const expectedPaise = product ? Math.round(product.amount * 100) : null;
+      // expectedOrderPaise, not the bare catalog price. A referral order is
+      // legitimately ₹50 below catalog, and this check used to reject exactly
+      // that as a mismatch — after the buyer had already paid. It derives the
+      // discount from `order.referredBy` (server-written, post-validation)
+      // rather than from any amount stored on the row, so a tampered discount
+      // still fails here.
+      const expectedPaise = product ? expectedOrderPaise(Math.round(product.amount * 100), order) : null;
       if (expectedPaise === null || order.amount !== expectedPaise) {
         reply.code(400); return { ok: false, error: "Order amount mismatch." };
       }

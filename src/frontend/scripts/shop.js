@@ -12,6 +12,8 @@
 
 // Display-only. The lead pack comes first: which one leads is a merchandising
 // decision, so it is written down rather than derived from price.
+import { referralCode, clearReferralCode } from "./referral-link.js";
+
 const PACKS = [
   {
     id: "pt-car-2",
@@ -338,12 +340,16 @@ async function buy(sku) {
     const res = await fetch("/api/shop/guest/create-order", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ productId: sku, address })
+      // A HINT, never a price. The server resolves the code, refuses a
+      // self-referral and decides the discount.
+      body: JSON.stringify({ productId: sku, address, ref: referralCode() })
     });
     order = await res.json();
     if (!res.ok || !order.ok) throw new Error(order && order.error);
     // Before the payment window opens, not after it closes.
     remember(order.orderNumber, address);
+    // Spent. A second purchase this session must not silently reuse it.
+    clearReferralCode();
   } catch (err) {
     stopOrderPacing();
     orderSteps.fail("");

@@ -23,7 +23,7 @@ import { registerAdminRoutes } from "./routes/admin/index.js";
 import { registerAdminTrafficRoutes } from "./routes/admin/traffic.js";
 import { registerAdminMarketingRoutes } from "./routes/admin/marketing.js";
 import { registerAuthRoutes } from "./routes/auth/credentials.js";
-import { registerAnalyticsRoutes } from "./routes/system/analytics.js";
+import { registerAnalyticsRoutes, recordAppPageVisit } from "./routes/system/analytics.js";
 import { registerDemoRoutes } from "./routes/system/demo.js";
 import { registerOwnerRoutes } from "./routes/owner/dashboard.js";
 import { registerVaultRoutes } from "./routes/owner/vault.js";
@@ -1040,6 +1040,11 @@ export async function buildApp() {
       return reply.redirect(`/owner-welcome?shop=1${carry}`);
     }
 
+    // Counted here rather than in the browser. The shop is where the ads
+    // land, so this is the number the spend is judged on, and a client-side
+    // tag is the one thing a visitor can switch off.
+    recordAppPageVisit(app, env, request, "/shop");
+
     // The page reads ?sku itself to highlight the chosen card; the value is
     // never echoed from here.
     const html = await fs.readFile(shopPage, "utf8");
@@ -1063,7 +1068,11 @@ export async function buildApp() {
   // into a Location header and an unvalidated pack id there is a header
   // injection; serving a file echoes nothing, so the whole question goes away.
   // A sku in the query is now simply ignored.
-  app.get("/get", async (_request, reply) => {
+  app.get("/get", async (request, reply) => {
+    // Counted like /shop. This page is handed out deliberately, so knowing
+    // whether anyone actually opened it is the only way to tell.
+    recordAppPageVisit(app, env, request, "/get");
+
     const html = await fs.readFile(getPage, "utf8");
     reply.type("text/html");
     return html;

@@ -236,7 +236,12 @@ export function getEnv() {
     // or account manager, not something this app creates programmatically.
     delhiveryPickupLocation: process.env.DELHIVERY_PICKUP_LOCATION || "",
     delhiverySellerGstTin: process.env.DELHIVERY_SELLER_GST_TIN || "",
-    delhiveryHsnCode: process.env.DELHIVERY_HSN_CODE || ""
+    delhiveryHsnCode: process.env.DELHIVERY_HSN_CODE || "",
+    // When the rider should come. A knob rather than a constant because it is
+    // the one pickup value that depends on somebody being at the address to
+    // hand the parcel over, which is a fact about the day rather than about
+    // the code. 24-hour, with seconds, as Delhivery expects.
+    delhiveryPickupTime: process.env.DELHIVERY_PICKUP_TIME || "14:00:00"
   };
 
   // Strip surrounding whitespace from every configured string.

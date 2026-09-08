@@ -21,7 +21,8 @@
 import { toObjectId } from "../auth/auth.js";
 import { createPremiumTagForVehicle } from "./tag-issuance.js";
 import { reassignVaultDocuments } from "./vault.js";
-import { createShipment, isDelhiveryConfigured, trackingUrl } from "../integrations/delhivery.js";
+import { isDelhiveryConfigured, trackingUrl } from "../integrations/delhivery.js";
+import { bookShipmentAndPickup } from "./shipping.js";
 import { sendOrderConfirmationEmail } from "../integrations/email.js";
 import { isMetaWhatsappConfigured, sendMetaWhatsappOrderUpdate } from "../integrations/meta.js";
 import { sendCapiEventBestEffort, purchaseEventId, isMetaCapiConfigured } from "../integrations/meta-capi.js";
@@ -212,21 +213,39 @@ export async function fulfilPaidOrder(env, collections, { order, paymentId, log 
     }
   }
 
-  // Auto-book the Delhivery shipment. Best-effort: the payment has already
-  // succeeded and the tag is already minted by this point, so a booking failure
-  // must never propagate — it goes on the order for retry instead.
+  // Auto-book the Delhivery shipment AND ask for a rider to collect it.
+  //
+  // Both, because a waybill on its own is a label: it used to end here, and the
+  // parcel then sat waiting for somebody to remember. Best-effort: the payment
+  // has already succeeded and the tag is already minted by this point, so
+  // neither failure must propagate. Each goes on the order for retry instead.
   let bookedWaybill = null;
   if (isDelhiveryConfigured(env) && order.shippingAddress) {
     try {
-      const { waybill } = await createShipment(env, {
+      const { waybill, pickup } = await bookShipmentAndPickup(env, collections, {
         orderId: order.orderId,
         address: order.shippingAddress,
         productName: order.productName
-      });
+      }, log);
       bookedWaybill = waybill;
       await collections.shopOrders.updateOne(
         { orderId: order.orderId },
-        { $set: { waybill, shipmentBookedAt: new Date().toISOString() }, $unset: { shipmentError: "" } }
+        {
+          $set: {
+            waybill,
+            shipmentBookedAt: new Date().toISOString(),
+            // Recorded either way. `pickupError` is what the Slack failure
+            // alert watches for, and a pickup that never happened is the one
+            // failure the customer cannot see and we cannot infer later.
+            ...(pickup.requested
+              ? { pickupRequestedFor: pickup.forDate, pickupId: pickup.pickupId }
+              : { pickupError: pickup.error || pickup.reason })
+          },
+          $unset: {
+            shipmentError: "",
+            ...(pickup.requested ? { pickupError: "" } : {})
+          }
+        }
       );
     } catch (err) {
       log?.error?.({ err, orderId: order.orderId }, "Delhivery shipment booking failed");

@@ -143,6 +143,89 @@ export async function createShipment(env, { orderId, address, productName, codAm
   return { waybill, refnum: pkg.refnum || orderId, raw: data };
 }
 
+// The date to ask a rider for, as YYYY-MM-DD.
+//
+// Computed in IST, not in the container's timezone. Railway runs UTC, so an
+// order paid at 01:30 IST is still 20:00 the previous day to `new Date()`, and
+// a naive local date would book a rider for a day that has already passed.
+//
+// Next working day rather than today: a parcel booked at 23:50 cannot be handed
+// to a rider who came at 14:00, and being a day early is a wasted visit while
+// being a day late is just a day late.
+//
+// ponytail: Sundays only. Add the Indian holiday calendar if a parcel ever
+// sits over Diwali; a wrong date here moves the rider by a day, nothing worse.
+export function nextPickupDate(now = new Date()) {
+  const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+  const DAY_MS = 24 * 60 * 60 * 1000;
+
+  // Shift into IST, then treat the result as if it were UTC so getUTCDay and
+  // toISOString both read the Indian calendar day.
+  let ist = new Date(now.getTime() + IST_OFFSET_MS + DAY_MS);
+  // 0 is Sunday. The warehouse is shut, so roll one more day.
+  if (ist.getUTCDay() === 0) ist = new Date(ist.getTime() + DAY_MS);
+
+  return ist.toISOString().slice(0, 10);
+}
+
+// Ask Delhivery to send a rider to the warehouse on `pickupDate`.
+//
+// A waybill is only a label. Without one of these nobody collects the parcel,
+// which is how order PT-260804-00006 was lost: booked on 4 August, never moved.
+//
+// One request covers a WAREHOUSE and a DATE, not a parcel. `expectedPackageCount`
+// is how many are expected, and the rider takes what is handed over. Callers
+// must therefore deduplicate per date; see ensurePickupRequested in
+// lib/core/shipping.js, which is the only thing that should call this directly.
+//
+// Returns { requested, pickupId, forDate }. THROWS on a refused or failed
+// request so the caller can record it; the caller is responsible for making
+// sure that failure never reaches the customer.
+//
+// NOTE ON VERIFICATION. Every other call in this file was checked against the
+// live production API with a real booked-then-cancelled shipment, because this
+// account has no working sandbox (staging-express 401s for this key). The
+// request shape below is from Delhivery's documentation and MUST be confirmed
+// the same way before it is trusted; if the response body differs, fix the
+// success check rather than loosening it.
+export async function requestPickup(env, { pickupDate, expectedPackageCount = 1 }) {
+  // Same class of call as createShipment: it dispatches a real van.
+  refuseInTestRun(env, "Requesting a Delhivery pickup");
+
+  if (!isDelhiveryConfigured(env)) {
+    return { requested: false, pickupId: null, forDate: pickupDate, reason: "not-configured" };
+  }
+
+  const response = await fetch(`${env.delhiveryBaseUrl}/fm/request/new/`, {
+    method: "POST",
+    headers: { ...authHeaders(env), "content-type": "application/json" },
+    body: JSON.stringify({
+      pickup_location: env.delhiveryPickupLocation,
+      pickup_date: pickupDate,
+      pickup_time: env.delhiveryPickupTime || "14:00:00",
+      expected_package_count: expectedPackageCount
+    })
+  });
+
+  const text = await response.text();
+  let data = null;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    data = { raw: text };
+  }
+
+  // A 200 carrying a failure body is common enough here that the status alone
+  // is not evidence a rider was dispatched.
+  const pickupId = data?.pickup_id ?? data?.pickup_request_id ?? null;
+  if (!response.ok || data?.success === false || pickupId === null) {
+    const reason = data?.error || data?.message || data?.rmk || JSON.stringify(data);
+    throw new Error(`Delhivery pickup request failed: ${reason}`);
+  }
+
+  return { requested: true, pickupId: String(pickupId), forDate: pickupDate };
+}
+
 // Convert an already-booked COD shipment to Prepaid so the courier stops
 // collecting cash — used when a COD order is prepaid (flash offer) before it
 // ships. Best-effort: returns true on success, false otherwise, and never

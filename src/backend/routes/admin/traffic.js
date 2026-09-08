@@ -14,6 +14,8 @@ const ALLOWED_RANGES = [7, 30, 90];
 const DEFAULT_RANGE = 30;
 // Long tails are noise on a dashboard; the totals below still count everything.
 const TOP_N = 12;
+// Enough to work through in one sitting; the rest are stale anyway.
+const ABANDONED_LIMIT = 25;
 
 // The IST day, `back` days ago. Built by walking back in whole days from now
 // and re-formatting in IST, so it stays correct across a DST-free but
@@ -119,7 +121,10 @@ export function registerAdminTrafficRoutes(app, env) {
 
     const rows = await collections.landingVisits
       .find(
-        { day: { $gte: from, $lte: to } },
+        // Landing views only. The app records into the same collection (see
+        // recordAppPageVisit), and letting those into this summary would move
+        // every historical marketing number the day the app started counting.
+        { day: { $gte: from, $lte: to }, site: { $ne: "app" } },
         {
           // Only what the summary groups on. Keeps a busy month's worth of
           // documents small in memory.
@@ -141,7 +146,83 @@ export function registerAdminTrafficRoutes(app, env) {
       ok: true,
       range: { days, from, to },
       configured: Boolean(env.analyticsIngestKey),
-      ...summarize(rows, dayKeys)
+      ...summarize(rows, dayKeys),
+      ...(await shopFunnel(collections, dayKeys, from))
     };
   });
+}
+
+// The shop funnel, built from two things that already exist: the app page
+// views recorded when /shop is served, and the orders themselves.
+//
+// No extra tracking is involved and none is wanted. An order document is
+// written the moment the delivery address is submitted, which IS the
+// "checkout started" event, and its status becoming paid IS the purchase. So
+// the question the ads keep raising, did anyone who clicked actually try to
+// buy, is answerable from records the checkout was already keeping.
+async function shopFunnel(collections, dayKeys, from) {
+  const [views, orders] = await Promise.all([
+    collections.landingVisits
+      .find({ day: { $gte: dayKeys[0], $lte: dayKeys[dayKeys.length - 1] }, site: "app" }, { projection: { _id: 0, day: 1, path: 1 } })
+      .toArray(),
+    // ISO strings throughout the orders collection, so a string bound is the
+    // correct comparison here. `from` is an IST day key (YYYY-MM-DD), which
+    // sorts against an ISO timestamp exactly as intended.
+    collections.shopOrders
+      .find(
+        { createdAt: { $gte: from }, deletedAt: { $in: [null, undefined] } },
+        { projection: { _id: 0, orderNumber: 1, status: 1, productName: 1, amount: 1, createdAt: 1, shippingAddress: 1 } }
+      )
+      .toArray()
+  ]);
+
+  const byDay = new Map(dayKeys.map((day) => [day, { day, shopViews: 0, checkoutsStarted: 0, paid: 0 }]));
+
+  for (const view of views) {
+    const bucket = byDay.get(view.day);
+    if (bucket) bucket.shopViews += 1;
+  }
+
+  for (const order of orders) {
+    const day = istDayKey(new Date(order.createdAt));
+    const bucket = byDay.get(day);
+    if (!bucket) continue;
+    // Every order started as a checkout, including the ones that were paid.
+    // Counting only the unpaid ones would make the completion rate read as
+    // zero on a day where everybody bought.
+    bucket.checkoutsStarted += 1;
+    if (order.status === "paid") bucket.paid += 1;
+  }
+
+  const days = dayKeys.map((day) => byDay.get(day));
+  const totals = days.reduce(
+    (sum, day) => ({
+      shopViews: sum.shopViews + day.shopViews,
+      checkoutsStarted: sum.checkoutsStarted + day.checkoutsStarted,
+      paid: sum.paid + day.paid
+    }),
+    { shopViews: 0, checkoutsStarted: 0, paid: 0 }
+  );
+
+  // The reason the funnel is worth building: somebody who typed their address
+  // and stopped is a person who can still be called. Newest first, because a
+  // cart abandoned an hour ago is worth a message and one from last month is
+  // not.
+  const abandoned = orders
+    .filter((order) => order.status === "created")
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
+    .slice(0, ABANDONED_LIMIT)
+    .map((order) => ({
+      orderNumber: order.orderNumber || null,
+      productName: order.productName || null,
+      amount: order.amount || null,
+      createdAt: order.createdAt || null,
+      // An admin-only response, and a number is the only way to follow one of
+      // these up. It goes no further than this page.
+      name: order.shippingAddress?.fullName || null,
+      phone: order.shippingAddress?.phone || null,
+      city: order.shippingAddress?.city || null
+    }));
+
+  return { funnel: { days, totals }, abandoned };
 }

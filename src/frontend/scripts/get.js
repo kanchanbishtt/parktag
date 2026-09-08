@@ -19,6 +19,7 @@
 // copy rather than anything charged, so it belongs on this side.
 import { getCaptchaToken } from "./recaptcha.js";
 import { burstConfetti, clearConfetti } from "./confetti.js";
+import { referralCode, clearReferralCode } from "./referral-link.js";
 const PACKS = [
   {
     id: "pt-car-1",
@@ -374,7 +375,10 @@ async function buy(sku) {
     const res = await fetch("/api/shop/guest/create-order", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ productId: sku, address, recaptchaToken })
+      // `ref` is a HINT, never a price. The server resolves it, refuses a
+      // self-referral and decides the discount; an absent or junk code just
+      // means no discount, never a failed checkout.
+      body: JSON.stringify({ productId: sku, address, recaptchaToken, ref: referralCode() })
     });
     order = await res.json();
     // The server's message names the field that is wrong rather than saying
@@ -384,6 +388,8 @@ async function buy(sku) {
     // here on depends on the buyer's browser still being alive; this is the
     // last line that does not.
     remember(order.orderNumber, address);
+    // Spent. A second purchase this session should not silently reuse it.
+    clearReferralCode();
   } catch (err) {
     stopOrderPacing();
     orderSteps.fail("");

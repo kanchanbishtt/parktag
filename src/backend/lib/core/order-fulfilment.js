@@ -26,6 +26,7 @@ import { sendOrderConfirmationEmail } from "../integrations/email.js";
 import { isMetaWhatsappConfigured, sendMetaWhatsappOrderUpdate } from "../integrations/meta.js";
 import { sendCapiEventBestEffort, purchaseEventId, isMetaCapiConfigured } from "../integrations/meta-capi.js";
 import { firstNameOf, resolveOwnerName } from "./owner-name.js";
+import { grantReferralReward } from "./referrals.js";
 
 // Tell the buyer their order exists, without ever blocking the caller — the
 // order already exists by this point, so a notification failure must never turn
@@ -237,6 +238,21 @@ export async function fulfilPaidOrder(env, collections, { order, paymentId, log 
   }
 
   // Sent after booking so it can carry the tracking link when a waybill exists.
+  // The referrer's month, if this order carried a code.
+  //
+  // HERE, and nowhere else. This is past the conditional `status: "created"`
+  // update above, which is the gate that lets exactly one of the browser
+  // callback and the Razorpay webhook through however they race. Granting at
+  // order creation would pay out on checkouts that are never completed;
+  // granting in verify-payment would miss every payment whose buyer closed the
+  // tab, which is the sale the webhook exists to rescue.
+  //
+  // Awaited, unlike the notifications below it, because it writes an
+  // entitlement rather than sending a message: a caller that returns before it
+  // lands would report a purchase complete while the reward is still in
+  // flight. It cannot throw.
+  await grantReferralReward(env, collections, order, log);
+
   await sendOrderConfirmation(env, collections, ownerId, {
     orderNumber: order.orderNumber,
     productName: order.productName,

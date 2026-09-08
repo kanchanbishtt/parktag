@@ -34,10 +34,27 @@
 // that already names one.
 
 import { toE164 } from "./phone.js";
+import { getShopProduct } from "../integrations/payments.js";
 
 // Payment states that mean a sticker was genuinely bought. COD counts: the
 // parcel went out and cash is due at the door, which is still a sale.
 const PAID_STATES = ["paid", "cod"];
+
+// How many stickers one order may hold.
+//
+// A Pack of 2 goes on two different vehicles and gets activated twice, minutes
+// apart, on the same phone. An order that could hold only ONE tag would link
+// the first sticker and silently drop the second, which is half of every
+// multi-pack ParkTag sells.
+//
+// Read from the catalogue rather than from the display name. An unknown or
+// legacy product falls back to 1, because linking too few stickers leaves the
+// rest on the reconciliation report where somebody sees them, while linking
+// too many would attach a stranger's sticker to this order.
+function capacityOf(order) {
+  const product = getShopProduct(order.productId);
+  return Math.max(1, Number(product && product.tags) || 1);
+}
 
 /**
  * Find the order this freshly activated sticker belongs to, and record it on
@@ -76,31 +93,41 @@ export async function linkTagToOrder(collections, { tagId, phone }, log) {
       .find(
         {
           status: { $in: PAID_STATES },
-          assignedTagId: { $in: [null, undefined] },
           deletedAt: { $in: [null, undefined] }
         },
-        { projection: { orderNumber: 1, createdAt: 1, shippingAddress: 1 } }
+        { projection: { orderNumber: 1, createdAt: 1, shippingAddress: 1, productId: 1, assignedTagIds: 1 } }
       )
       .toArray();
 
-    // Newest first, so somebody buying a second tag a month later is linked to
-    // the order they just placed rather than the one they already have a
-    // sticker for.
+    // OLDEST first, which is the opposite of what it should be for a single
+    // order and the right answer across several.
+    //
+    // Somebody with a Pack of 2 from August and a Pack of 1 from September has
+    // three stickers to activate in no particular order. Filling the oldest
+    // order with room left means all three land somewhere, whereas taking the
+    // newest first would fill September, then August, and leave whichever
+    // sticker was activated last with nowhere to go once capacity ran out.
     const match = candidates
       .filter((order) => toE164(order.shippingAddress && order.shippingAddress.phone) === buyer)
-      .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")))[0];
+      .filter((order) => (order.assignedTagIds || []).length < capacityOf(order))
+      .sort((a, b) => String(a.createdAt || "").localeCompare(String(b.createdAt || "")))[0];
 
     if (!match) return { linked: false, reason: "no-order" };
 
-    // Claim the ORDER first, conditionally on it still being unclaimed.
+    // Claim a SLOT on the order, conditionally on there still being one.
     //
     // Two stickers from a Pack of 2 get activated minutes apart by the same
-    // person, on the same phone, and both would otherwise find this order. The
-    // database decides which one wins, the same way the created → paid flip in
-    // fulfilPaidOrder does; a read-then-write here would let both through.
+    // person on the same phone, so both reach this line having seen the same
+    // free capacity. The $expr re-checks the size at write time, so the
+    // database decides, the same way the created → paid flip in
+    // fulfilPaidOrder does. A read-then-write would let a Pack of 1 take two.
+    const capacity = capacityOf(match);
     const claimed = await collections.shopOrders.updateOne(
-      { orderNumber: match.orderNumber, assignedTagId: { $in: [null, undefined] } },
-      { $set: { assignedTagId: tagId, assignedTagAt: new Date().toISOString() } }
+      {
+        orderNumber: match.orderNumber,
+        $expr: { $lt: [{ $size: { $ifNull: ["$assignedTagIds", []] } }, capacity] }
+      },
+      { $push: { assignedTagIds: tagId }, $set: { assignedTagAt: new Date().toISOString() } }
     );
     if (claimed.modifiedCount !== 1) return { linked: false, reason: "raced" };
 

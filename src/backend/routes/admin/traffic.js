@@ -1,5 +1,6 @@
 import { requireSession } from "../../lib/auth/auth.js";
 import { getCollections } from "../../lib/db/repositories.js";
+import { reconcile } from "../../lib/core/reconciliation.js";
 import { istDayKey } from "../system/analytics.js";
 
 // Read side of landing-page traffic geography.
@@ -98,6 +99,22 @@ function summarize(rows, dayKeys) {
 }
 
 export function registerAdminTrafficRoutes(app, env) {
+  // Both directions of drift between stickers in use and orders paid for.
+  //
+  // Lives beside traffic rather than in its own file because it answers the
+  // same kind of question the traffic page does: what happened, and what does
+  // not add up. See lib/core/reconciliation.js for why it only reports.
+  app.get("/api/admin/reconciliation", async (request, reply) => {
+    const blocked = await requireSession(app, "admin")(request, reply);
+    if (blocked) return blocked;
+
+    const collections = await getCollections(env);
+    if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
+
+    const { unlinkedTags, unfilledOrders } = await reconcile(collections);
+    return { ok: true, unlinkedTags, unfilledOrders };
+  });
+
   app.get("/api/admin/traffic", async (request, reply) => {
     const blocked = await requireSession(app, "admin")(request, reply);
     if (blocked) return blocked;

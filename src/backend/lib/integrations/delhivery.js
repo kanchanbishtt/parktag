@@ -182,12 +182,18 @@ export function nextPickupDate(now = new Date()) {
 // request so the caller can record it; the caller is responsible for making
 // sure that failure never reaches the customer.
 //
-// NOTE ON VERIFICATION. Every other call in this file was checked against the
-// live production API with a real booked-then-cancelled shipment, because this
-// account has no working sandbox (staging-express 401s for this key). The
-// request shape below is from Delhivery's documentation and MUST be confirmed
-// the same way before it is trusted; if the response body differs, fix the
-// success check rather than loosening it.
+// NOTE ON VERIFICATION. The request and response shapes below were checked
+// against Delhivery's own published specification for this endpoint, which
+// confirms the path, the Token auth header, the JSON content type, all four
+// required fields, and `pickup_id` on the success body. Two behaviours it
+// states are the reason ensurePickupRequested exists at all: a pickup is raised
+// against a WAREHOUSE rather than a waybill, and only one request per warehouse
+// per day can be open at a time.
+//
+// It has NOT been run against this account. Staging was re-tested on 8 Sep 2026
+// and still answers 401 "Login or API Key Required" for the production key, so
+// the sandbox needs a separate staging key this account does not have. The
+// first real call will therefore be a production one.
 export async function requestPickup(env, { pickupDate, expectedPackageCount = 1 }) {
   // Same class of call as createShipment: it dispatches a real van.
   refuseInTestRun(env, "Requesting a Delhivery pickup");
@@ -219,11 +225,24 @@ export async function requestPickup(env, { pickupDate, expectedPackageCount = 1 
   // is not evidence a rider was dispatched.
   const pickupId = data?.pickup_id ?? data?.pickup_request_id ?? null;
   if (!response.ok || data?.success === false || pickupId === null) {
-    const reason = data?.error || data?.message || data?.rmk || JSON.stringify(data);
+    // `pickup_location` first: a 400 from this endpoint puts its whole
+    // explanation there ("Invalid Pickup Location ClientWarehouse matching
+    // query does not exist"), which is the most likely failure on a first
+    // deploy and the one worth reading without digging through raw JSON.
+    const reason =
+      data?.pickup_location || data?.error || data?.message || data?.rmk || JSON.stringify(data);
     throw new Error(`Delhivery pickup request failed: ${reason}`);
   }
 
-  return { requested: true, pickupId: String(pickupId), forDate: pickupDate };
+  // Delhivery may assign a different slot to the one asked for, so the returned
+  // time is recorded rather than the requested one. It is what the rider
+  // actually turns up for.
+  return {
+    requested: true,
+    pickupId: String(pickupId),
+    forDate: data?.pickup_date || pickupDate,
+    atTime: data?.pickup_time || null
+  };
 }
 
 // Convert an already-booked COD shipment to Prepaid so the courier stops

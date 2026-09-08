@@ -301,15 +301,28 @@ describe("the code says how the sticker gets there", () => {
 });
 
 describe("the code alphabet", () => {
-  // Same reasoning as referrals.js: these get read aloud, so O/0 and I/1 are
-  // where it goes wrong.
-  test("ambiguous characters are not accepted", () => {
-    for (const bad of ["AJNARA0O", "AJNARA1I", "AJNARALL", "AJNARAUU"]) {
+  // WIDER than the referral alphabet, on purpose. A referral code is minted at
+  // random, so dropping I, L, O, U, 0 and 1 costs the machine nothing. A promo
+  // code is named after a place, and the same rule bans most of the words
+  // anybody would actually reach for.
+  test("codes named after real places are accepted", () => {
+    for (const good of ["AJNARA99", "OMAXE100", "SUPERTECH", "DIWALI50"]) {
+      assert.equal(PROMO_CODE_PATTERN.test(good), true, `${good} should be accepted`);
+    }
+  });
+
+  // Still refused: anything that is not a plain uppercase code. These end up in
+  // a URL and in a Mongo lookup, so punctuation and spaces have no business here.
+  test("punctuation, spaces and the wrong length are refused", () => {
+    for (const bad of ["AJ NARA", "AJNARA-99", "AJN@RA99", "ABC", "A".repeat(17), ""]) {
       assert.equal(PROMO_CODE_PATTERN.test(bad), false, `${bad} should be rejected`);
     }
   });
 
-  test("a well-formed code is accepted", () => {
-    assert.equal(PROMO_CODE_PATTERN.test("AJNARA99"), true);
+  // Lowercase is normalised before it is matched, because people type what is
+  // written on a WhatsApp message rather than what is in the database.
+  test("lowercase is accepted after normalising", async () => {
+    await seedCode();
+    assert.equal((await resolvePromo(collections, "ajnara99", { deliveryPhone: BUYER })).ok, true);
   });
 });

@@ -59,6 +59,11 @@ export async function getCollections(env) {
     // callback for a verification code matched nothing and vanished — the
     // webhook's own comment flags this.
     messages: db.collection(withPrefix(prefix, "messages")),
+    // Discount codes for a negotiated price, so an offline or WhatsApp sale can
+    // go through the ordinary checkout instead of around it. The browser sends
+    // the CODE and the server looks the money up here, which is the same rule
+    // referrals are built on. See lib/core/promo-codes.js.
+    promoCodes: db.collection(withPrefix(prefix, "promo_codes")),
     // One row per Delhivery pickup, claimed BEFORE the request goes out.
     //
     // A pickup covers a warehouse for a whole day, not a parcel, so this is
@@ -274,6 +279,9 @@ const CORE_INDEXES = [
   // hence the loud name and this note. lib/core/message-log.js verifies the
   // index is present before it will run a campaign send.
   ["messages", { campaign: 1, dedupeKey: 1 }, { unique: true, name: "campaign_dedupe_unique" }],
+  // A code is looked up by its text on every checkout that names one, and two
+  // rows sharing a code would make which discount applies a coin toss.
+  ["promoCodes", { code: 1 }, { unique: true, name: "promo_code_unique" }],
   // The same guarantee for courier pickups. Without it, every order of the day
   // requests its own rider: Delhivery either rejects the duplicates or sends
   // repeat visits, and both are somebody's afternoon. See lib/core/shipping.js.

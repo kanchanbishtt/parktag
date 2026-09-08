@@ -72,7 +72,15 @@ export async function reconcile(collections) {
 
     collections.shopOrders
       .find(
-        { status: { $in: PAID_STATES }, deletedAt: { $in: [null, undefined] } },
+        {
+          status: { $in: PAID_STATES },
+          deletedAt: { $in: [null, undefined] },
+          // Our own testing is not an unfulfilled customer order. Five COD
+          // tests to our own address would otherwise sit at the top of this
+          // list forever, waiting for stickers nobody will ever activate,
+          // and burying the rows that are real.
+          internal: { $ne: true }
+        },
         {
           projection: {
             orderNumber: 1, productId: 1, productName: 1, createdAt: 1,

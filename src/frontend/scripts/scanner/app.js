@@ -619,8 +619,21 @@ async function handleSosCall() {
   }
 
   actionLocked = true;
-  setDisabled("sos-final-call-button", true);
-  setRequestStatus("request-status", "Connecting the emergency contact…", "info");
+  setBtnLoading("sos-final-call-button", true, "Connecting");
+  setRequestStatus("request-status", "", "info");
+
+  // Same component as the ordinary call, because it is the same wait and the
+  // person doing it is in a worse position to tolerate a blank screen.
+  const sosSteps = stepRun("sos-dial-steps", [
+    { label: "Reaching the emergency contact", weight: 3 },
+    { label: "Opening your dialer", weight: 1 }
+  ]);
+  sosSteps.begin();
+
+  const releaseSos = () => {
+    actionLocked = false;
+    setBtnLoading("sos-final-call-button", false);
+  };
 
   let virtualNumber = "";
   try {
@@ -628,8 +641,7 @@ async function handleSosCall() {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ phone, grant: contactGrant }),
-      onSlow: () =>
-        setRequestStatus("request-status", "Still connecting… signal is weak here.", "info")
+      onSlow: () => sosSteps.slow("Still connecting, the signal is weak here")
     });
 
     if (data.code === "NO_EMERGENCY_CONTACT") {
@@ -637,9 +649,10 @@ async function handleSosCall() {
       // the scanner is mid-emergency and has already confirmed — but it now
       // leads to the helplines, which is where this call has to go instead.
       emergencyAvailable = false;
+      sosSteps.fail("");
+      sosSteps.destroy();
       closeSosPanels();
-      actionLocked = false;
-      setDisabled("sos-final-call-button", false);
+      releaseSos();
       setRequestStatus("request-status", "", "info");
       openSosHelplines();
       return;
@@ -649,9 +662,10 @@ async function handleSosCall() {
       // already tells the scanner to ring 112 — so hand them a 112 they can
       // actually tap instead of a number to memorise. The refusal is per tag and
       // final for today, so this is not a retry the scanner can win.
+      sosSteps.fail("");
+      sosSteps.destroy();
       closeSosPanels();
-      actionLocked = false;
-      setDisabled("sos-final-call-button", false);
+      releaseSos();
       setRequestStatus("request-status", "", "info");
       openSosHelplines(
         data.error ||
@@ -662,8 +676,9 @@ async function handleSosCall() {
     if (!ok) throw new Error(data.error || "Could not start the emergency call.");
     virtualNumber = data.virtualNumber || "";
   } catch (error) {
-    actionLocked = false;
-    setDisabled("sos-final-call-button", false);
+    sosSteps.fail("");
+    sosSteps.destroy();
+    releaseSos();
     // Someone is standing at an accident. If the line is dead, say so plainly
     // and point at the helplines rather than leaving them reading "Connecting…"
     // at a button that is never going to move.
@@ -683,11 +698,17 @@ async function handleSosCall() {
     return;
   }
 
+  sosSteps.advance();
+
   if (virtualNumber) {
     setText("sos-virtual-number", virtualNumber);
     setHidden("sos-dial-number-block", false);
     window.location.href = `tel:${virtualNumber}`;
   }
+
+  sosSteps.done();
+  sosSteps.destroy();
+  setBtnLoading("sos-final-call-button", false);
 
   // Leave a manual retry in case the dialer did not open on its own.
   const btn = byId("sos-final-call-button");
@@ -960,8 +981,14 @@ async function handlePlateVerification(event) {
   // a button that ignored the tap, and this card then sat through TWO network
   // round trips behind a blurred overlay with nothing moving. The spinner is on
   // the control the scanner actually pressed, which is where they are looking.
-  // Three named segments for a WhatsApp alert, two for a call: the segment
-  // labels are what turns a multi-second wait from "stuck" into "working".
+  // Three named segments for a WhatsApp alert, because the card is held open
+  // across both of its round trips. A call gets ONE: this card only checks the
+  // plate, and the masked line is not set up until the scanner taps Call Now on
+  // the dial card, which runs its own bar. The call path used to declare a
+  // second "Masking your number" segment here and then complete it in the same
+  // tick, before that work had been asked for — a filled segment for something
+  // that had not happened yet.
+  //
   // Weights are rough shares of the total, not guesses at milliseconds; the
   // Meta send is the long one, so it gets the widest band.
   const sendingAlert = pendingVerifiedAction === "message";
@@ -971,10 +998,7 @@ async function handlePlateVerification(event) {
         { label: "Preparing a private alert", weight: 1 },
         { label: "Sending on WhatsApp", weight: 3 }
       ]
-    : [
-        { label: "Checking the plate", weight: 2 },
-        { label: "Masking your number", weight: 2 }
-      ]);
+    : [{ label: "Checking the plate", weight: 1 }]);
   verifySteps.begin();
 
   setBtnLoading("plate-verify-submit", true, sendingAlert ? "Sending" : "Checking");
@@ -1236,9 +1260,28 @@ async function handleFinalCallAction() {
   }
 
   actionLocked = true;
-  setDisabled("final-call-button", true);
+  setBtnLoading("final-call-button", true, "Connecting");
   setDisabled("send-whatsapp-button", true);
-  setRequestStatus("dial-status", "Preparing your call…", "info");
+  setRequestStatus("dial-status", "", "info");
+
+  // The wait the scanner actually sits through on the call path. The plate
+  // check is over by now; THIS is where Exotel allocates the masked route, and
+  // it used to be one grey line reading "Preparing your call…".
+  //
+  // Two segments, both real: the round trip, then the handoff to the dialer.
+  // The second is client work, but it is work the scanner is waiting on and it
+  // does not complete until the tel: link is actually followed.
+  const callSteps = stepRun("dial-steps", [
+    { label: "Setting up a private line", weight: 3 },
+    { label: "Opening your dialer", weight: 1 }
+  ]);
+  callSteps.begin();
+
+  const releaseCall = () => {
+    actionLocked = false;
+    setBtnLoading("final-call-button", false);
+    setDisabled("send-whatsapp-button", false);
+  };
 
   let virtualNumber = "";
   try {
@@ -1251,23 +1294,24 @@ async function handleFinalCallAction() {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ phone, grant: contactGrant }),
-      onSlow: () =>
-        setRequestStatus("dial-status", "Still setting up your call… signal is weak here.", "info")
+      onSlow: () => callSteps.slow("Still setting up your line, the signal is weak here")
     });
 
     if (status === 402) {
       setContactAvailability(false);
-      actionLocked = false;
-      setDisabled("final-call-button", false);
-      setDisabled("send-whatsapp-button", false);
+      callSteps.fail("");
+      callSteps.destroy();
+      releaseCall();
       return;
     }
     if (!ok) throw new Error(data.error || "Could not register the call.");
     virtualNumber = data.virtualNumber || "";
   } catch (error) {
-    actionLocked = false;
-    setDisabled("final-call-button", false);
-    setDisabled("send-whatsapp-button", false);
+    // Stops where it got to rather than snapping to full and then reporting a
+    // failure in the same second.
+    callSteps.fail("");
+    callSteps.destroy();
+    releaseCall();
     // A request that never got an answer is a different thing from one the
     // server refused, and only the second has a message worth showing. The
     // first used to surface the browser's own words -- "Failed to fetch".
@@ -1281,6 +1325,9 @@ async function handleFinalCallAction() {
     return;
   }
 
+  // The line exists. That is segment one, truthfully complete.
+  callSteps.advance();
+
   // Show the virtual number visibly as a fallback in case tel: doesn't auto-open.
   if (virtualNumber) {
     activeVirtualNumber = virtualNumber;
@@ -1288,6 +1335,12 @@ async function handleFinalCallAction() {
     setHidden("dial-number-block", false);
     window.location.href = `tel:${virtualNumber}`;
   }
+
+  // Filled only once the dialer has actually been handed the number.
+  callSteps.done();
+  callSteps.destroy();
+
+  setBtnLoading("final-call-button", false);
 
   // Let scanner tap again manually if the dialer didn't open automatically.
   const btn = byId("final-call-button");

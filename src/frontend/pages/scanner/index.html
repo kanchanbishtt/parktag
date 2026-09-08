@@ -64,7 +64,11 @@
       <div class="pt-vmodal" id="verify-modal" role="dialog" aria-modal="true"
            aria-labelledby="plate-verify-title" hidden>
         <div class="pt-vmodal-inner">
-      <article class="pt-card pt-verify-card" id="scanner-verification-shell">
+      <!-- data-pt-owns-progress sits on the CARD, not on the mount div, because
+           ux-feedback.js reads it with closest() from the button that was
+           tapped. On the div it never matched, so the thin top-of-viewport bar
+           still ran alongside the step bar. -->
+      <article class="pt-card pt-verify-card" id="scanner-verification-shell" data-pt-owns-progress>
         <!-- Decorative: the heading and label below say the same thing in words,
              so a screen reader gains nothing from describing the picture again. -->
         <img class="pt-verify-media" src="/images/verify-vehicle.webp"
@@ -131,7 +135,7 @@
              data-pt-owns-progress stops ux-feedback.js also starting the thin
              bar at the top of the viewport: two indicators telling slightly
              different stories is worse than one. -->
-        <div id="plate-verify-steps" data-pt-owns-progress></div>
+        <div id="plate-verify-steps"></div>
 
         <hr class="pt-verify-rule" />
 
@@ -373,7 +377,7 @@
       <div class="pt-vmodal" id="dial-modal" role="dialog" aria-modal="true"
            aria-labelledby="dial-modal-title" hidden>
         <div class="pt-vmodal-inner">
-          <article class="pt-card pt-verify-card pt-receipt-card" id="dial-card">
+          <article class="pt-card pt-verify-card pt-receipt-card" id="dial-card" data-pt-owns-progress>
             <h2 class="pt-section-title" id="dial-modal-title">Calling the owner privately</h2>
 
             <div id="dial-number-block" hidden>
@@ -382,6 +386,12 @@
             </div>
             <p class="pt-panel-sub">Your number stays completely private throughout the call.</p>
             <button id="final-call-button" class="pt-btn pt-btn-primary pt-btn-full" type="button">Call Now</button>
+
+            <!-- Setting up a masked call is a real 1.5s-plus round trip at
+                 Exotel, and it used to sit behind one grey line of text. Same
+                 component as the plate card, so the wait reads the same way on
+                 both halves of the flow. -->
+            <div id="dial-steps"></div>
 
             <!-- The call statuses land in here rather than on the card behind
                  the blur, where the scanner could not read them. -->
@@ -621,13 +631,17 @@
         <input id="sos-phone" type="hidden" />
 
         <!-- SOS dial panel -->
-        <div id="sos-dial-panel" class="pt-panel pt-panel-sos" hidden>
+        <div id="sos-dial-panel" class="pt-panel pt-panel-sos" hidden data-pt-owns-progress>
           <div id="sos-dial-number-block" hidden>
             <p class="pt-panel-label">Emergency number: dial this if your phone doesn't open automatically</p>
             <p class="pt-dial-number" id="sos-virtual-number"></p>
           </div>
           <p class="pt-panel-sub">Connecting you to the owner's emergency contact. Your number stays private.</p>
           <button id="sos-final-call-button" class="pt-btn pt-btn-sos pt-btn-full" type="button">Call Now</button>
+
+          <!-- Someone standing at a crash needs to see that something is
+               happening, not guess from a status line. -->
+          <div id="sos-dial-steps"></div>
         </div>
 
         <!-- Free-contact-used CTA (replaces the buttons once the free contact is used) -->

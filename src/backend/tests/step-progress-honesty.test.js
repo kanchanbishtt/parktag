@@ -34,6 +34,7 @@ const ux = await read("../../frontend/scripts/ux-feedback.js");
 const scanner = await read("../../frontend/scripts/scanner/app.js");
 const shop = await read("../../frontend/scripts/shop.js");
 const get = await read("../../frontend/scripts/get.js");
+const scannerHtml = await read("../../frontend/pages/scanner/index.html");
 
 describe("the bar cannot fill before the work does", () => {
   test("only done() paints 100%", () => {
@@ -107,6 +108,45 @@ describe("every run is cleaned up on both paths", () => {
       const stops = (source.match(/stopPacing\(\)|stopOrderPacing\(\)/g) || []).length;
       if (!/setTimeout\(\(\) => \w+Steps\.advance\(\)/.test(source)) continue;
       assert.ok(stops >= 2, `${name} paces a run but clears the timers on fewer than two paths`);
+    }
+  });
+});
+
+describe("every wait a scanner sits through has a bar", () => {
+  // The call paths were the gap. The plate card ran a bar, then handed off to
+  // the dial card, where setting up the Exotel route -- the longest single wait
+  // in the contact flow -- showed one line of grey text. A run per handler, so
+  // adding a new masked-contact round trip without one is a failing test.
+  const handlers = [
+    ["handleFinalCallAction", "dial-steps"],
+    ["handleSosCall", "sos-dial-steps"]
+  ];
+
+  for (const [name, mount] of handlers) {
+    test(`${name} mounts a step run`, () => {
+      const start = scanner.indexOf(`async function ${name}(`);
+      assert.ok(start > -1, `${name} is gone`);
+      const body = scanner.slice(start, scanner.indexOf("\n}\n", start));
+      assert.match(body, new RegExp(`stepRun\\("${mount}"`), `${name} runs a request with no visible progress`);
+      assert.match(body, /\.begin\(\)/, `${name} builds a run it never starts`);
+      assert.match(body, /\.done\(\)/, `${name} starts a run that can never complete`);
+      assert.match(body, /\.fail\(/, `${name} leaves the bar running on the failure path`);
+    });
+  }
+
+  test("the mounts exist in the markup, inside a card that owns its progress", () => {
+    // The attribute has to be on an ANCESTOR of the button, because
+    // ux-feedback reads it with closest() from whatever was tapped. On the
+    // mount div itself it never matched and the top bar ran as well.
+    for (const [card, mount] of [
+      ["scanner-verification-shell", "plate-verify-steps"],
+      ["dial-card", "dial-steps"],
+      ["sos-dial-panel", "sos-dial-steps"]
+    ]) {
+      assert.match(scannerHtml, new RegExp(`id="${mount}"`), `${mount} has nowhere to mount`);
+      const tag = scannerHtml.slice(scannerHtml.indexOf(`id="${card}"`) - 200);
+      const open = tag.slice(0, tag.indexOf(">") + 200);
+      assert.match(open, /data-pt-owns-progress/, `${card} does not stand the top bar down`);
     }
   });
 });

@@ -45,13 +45,15 @@ before(async () => {
 });
 
 after(async () => {
-  await collections.shopOrders.deleteMany({ productId: "qa-link" }).catch(() => {});
+  await collections.shopOrders.deleteMany({ orderNumber: /^PT-QA-/ }).catch(() => {});
   await collections.tags.deleteMany({ batchLabel: "qa-link" }).catch(() => {});
   await stopTestApp(app);
 });
 
 beforeEach(async () => {
-  await collections.shopOrders.deleteMany({ productId: "qa-link" });
+  // Keyed on the order number, not the product: these tests seed real SKUs now
+  // so that pack capacity is exercised, so productId is no longer a marker.
+  await collections.shopOrders.deleteMany({ orderNumber: /^PT-QA-/ });
   await collections.tags.deleteMany({ batchLabel: "qa-link" });
 });
 
@@ -112,7 +114,7 @@ describe("an activated sticker finds the order that paid for it", () => {
     assert.equal(tag.purchaseStatus, "paid");
 
     // Both directions, so the question is answerable from either end.
-    assert.equal(String((await orderFor(order.orderNumber)).assignedTagId), String(tagId));
+    assert.deepEqual((await orderFor(order.orderNumber)).assignedTagIds.map(String), [String(tagId)]);
   });
 
   // Stored formats differ by signup path, the same trap resolveReferral's
@@ -140,14 +142,19 @@ describe("an activated sticker finds the order that paid for it", () => {
     assert.equal((await linkTagToOrder(collections, { tagId, phone: PHONE })).orderNumber, order.orderNumber);
   });
 
-  // Somebody buying a second tag a month later gets the newer order, not the
-  // one they already have a sticker for.
-  test("the most recent unlinked order wins", async () => {
-    await seedOrder({ createdAt: "2026-08-01T00:00:00.000Z" });
-    const newer = await seedOrder({ createdAt: "2026-09-08T00:00:00.000Z" });
+  // The OLDEST order with room left is filled first, which is the opposite of
+  // what it should be for one order and the right answer across several.
+  //
+  // Somebody with an August Pack of 2 and a September Pack of 1 has three
+  // stickers to activate in no particular order. Filling the oldest with room
+  // means all three land somewhere; taking the newest first would fill
+  // September, then August, and strand whichever sticker came last.
+  test("the oldest order with a free slot is filled first", async () => {
+    const older = await seedOrder({ productId: "pt-car-1", createdAt: "2026-08-01T00:00:00.000Z" });
+    await seedOrder({ productId: "pt-car-1", createdAt: "2026-09-08T00:00:00.000Z" });
     const tagId = await seedTag();
 
-    assert.equal((await linkTagToOrder(collections, { tagId, phone: PHONE })).orderNumber, newer.orderNumber);
+    assert.equal((await linkTagToOrder(collections, { tagId, phone: PHONE })).orderNumber, older.orderNumber);
   });
 
   test("a COD order counts too", async () => {
@@ -176,9 +183,10 @@ describe("it refuses to guess", () => {
     assert.equal((await linkTagToOrder(collections, { tagId, phone: PHONE })).linked, false);
   });
 
-  // Two stickers from a Pack of 2 must not both claim the same order.
-  test("an order already holding a tag is not taken again", async () => {
-    const order = await seedOrder();
+  // A Pack of 1 holds exactly one sticker. A second activation on the same
+  // phone must not attach itself to an order that is already accounted for.
+  test("a Pack of 1 holds one sticker and no more", async () => {
+    const order = await seedOrder({ productId: "pt-car-1" });
     const first = await seedTag();
     const second = await seedTag({ serialNumber: 3058 });
 
@@ -186,7 +194,64 @@ describe("it refuses to guess", () => {
     assert.equal((await linkTagToOrder(collections, { tagId: second, phone: PHONE })).linked, false);
 
     assert.equal((await linked(second)).assignedOrderNumber, undefined);
-    assert.equal(String((await orderFor(order.orderNumber)).assignedTagId), String(first));
+    assert.deepEqual(
+      (await orderFor(order.orderNumber)).assignedTagIds.map(String),
+      [String(first)]
+    );
+  });
+
+  // The case that matters, and the one the first version of this module got
+  // wrong. A Pack of 2 goes on two different vehicles and is activated twice on
+  // the same phone. Holding only the first sticker would silently drop the
+  // second, which is half of every multi-pack ParkTag sells.
+  test("a Pack of 2 holds both stickers", async () => {
+    const order = await seedOrder({ productId: "pt-car-2" });
+    const first = await seedTag();
+    const second = await seedTag({ serialNumber: 3058 });
+
+    assert.equal((await linkTagToOrder(collections, { tagId: first, phone: PHONE })).linked, true);
+    assert.equal((await linkTagToOrder(collections, { tagId: second, phone: PHONE })).linked, true);
+
+    assert.equal((await linked(first)).assignedOrderNumber, order.orderNumber);
+    assert.equal((await linked(second)).assignedOrderNumber, order.orderNumber);
+    assert.equal((await orderFor(order.orderNumber)).assignedTagIds.length, 2);
+  });
+
+  test("a Pack of 2 stops at two", async () => {
+    await seedOrder({ productId: "pt-car-2" });
+    const ids = [await seedTag(), await seedTag({ serialNumber: 3058 }), await seedTag({ serialNumber: 3059 })];
+
+    const results = [];
+    for (const tagId of ids) results.push((await linkTagToOrder(collections, { tagId, phone: PHONE })).linked);
+
+    assert.deepEqual(results, [true, true, false]);
+  });
+
+  // Three stickers across two orders, activated in whatever order they come off
+  // the sheet. Every one has to land somewhere, which is why the oldest order
+  // with room is filled first rather than the newest.
+  test("stickers spread across several orders until every slot is used", async () => {
+    const older = await seedOrder({ productId: "pt-car-2", createdAt: "2026-08-01T00:00:00.000Z" });
+    const newer = await seedOrder({ productId: "pt-car-1", createdAt: "2026-09-08T00:00:00.000Z" });
+    const ids = [await seedTag(), await seedTag({ serialNumber: 3058 }), await seedTag({ serialNumber: 3059 })];
+
+    for (const tagId of ids) {
+      assert.equal((await linkTagToOrder(collections, { tagId, phone: PHONE })).linked, true);
+    }
+
+    assert.equal((await orderFor(older.orderNumber)).assignedTagIds.length, 2);
+    assert.equal((await orderFor(newer.orderNumber)).assignedTagIds.length, 1);
+  });
+
+  // An unknown or legacy SKU must not be read as unlimited capacity, or a
+  // stranger's sticker could attach itself to somebody else's order.
+  test("an unrecognised product holds one sticker, not any number", async () => {
+    await seedOrder({ productId: "qa-link" });
+    const first = await seedTag();
+    const second = await seedTag({ serialNumber: 3058 });
+
+    assert.equal((await linkTagToOrder(collections, { tagId: first, phone: PHONE })).linked, true);
+    assert.equal((await linkTagToOrder(collections, { tagId: second, phone: PHONE })).linked, false);
   });
 
   // Re-registering a sticker after a deactivation must not move it onto a

@@ -32,7 +32,12 @@ import {
   PREMIUM_TRIAL_MONTHS,
   premiumTrialLengthDays
 } from "../lib/core/vault.js";
-import { membershipPlans, membershipFeatures } from "../lib/core/membership-plans.js";
+import {
+  membershipPlans,
+  membershipFeatures,
+  membershipPlanPaise,
+  getMembershipPlan
+} from "../lib/core/membership-plans.js";
 
 // Twelve calendar months is 365 days or 366 depending on where the year
 // falls, so the window's length is measured off the same helper the
@@ -941,5 +946,144 @@ describe("the free year, and buying on top of it", () => {
 
     await collections.tags.deleteMany({ token: "qa-membership-plain" });
     await collections.owners.deleteOne({ _id: other.insertedId });
+  });
+});
+
+// The shape a real tag actually has.
+//
+// tag-issuance.js writes `deletedAt: null` on every tag it mints. A field set
+// to null is PRESENT, so `{ $exists: false }` never matched one, and this file
+// is the reason nobody noticed: every fixture above seeds a tag with no
+// deletedAt key at all, which is the one shape that filter does match. The
+// suite passed while an owner holding an active premium tag was told on the
+// live site that they had no activated tag, and was offered a membership the
+// free year already covered.
+//
+// Both membership queries now use `{ $in: [null, undefined] }`, which is what
+// the other nineteen tag queries in the backend use. These tests seed the live
+// shape deliberately, so a revert fails here.
+describe("a tag carrying deletedAt: null is visible to membership", () => {
+  const LIVE_EMAIL = "membership-deletedat@parktag-test.invalid";
+  const LIVE_PASSWORD = "membership-deletedat-fixture-9c42";
+  const PLAN = membershipPlans()[0];
+  const TOKEN = "qa-membership-deletedat";
+
+  let liveOwnerId;
+  let liveCookie;
+  let liveTagId;
+
+  before(async () => {
+    const owner = await createTestOwner(collections, { email: LIVE_EMAIL, password: LIVE_PASSWORD });
+    liveOwnerId = owner._id;
+    await clearLoginLock(collections, LIVE_EMAIL);
+
+    const login = await app.inject({
+      method: "POST",
+      url: "/api/auth/login",
+      remoteAddress: uniqueAddress(),
+      headers: { origin: TEST_ORIGIN },
+      payload: { identifier: LIVE_EMAIL, pin: LIVE_PASSWORD }
+    });
+    assert.equal(login.statusCode, 200, `fixture sign-in failed: ${login.body}`);
+    liveCookie = `wavetag_session=${login.cookies.find((c) => c.name === "wavetag_session").value}`;
+
+    const activated = new Date().toISOString();
+    liveTagId = (
+      await collections.tags.insertOne({
+        ownerId: liveOwnerId,
+        plateNumber: "QA01DEL0001",
+        vehicleType: "bike",
+        status: "active",
+        premium: true,
+        token: TOKEN,
+        activatedAt: activated,
+        createdAt: activated,
+        // The entire point of this fixture. Do not drop it to make a test pass.
+        deletedAt: null
+      })
+    ).insertedId;
+  });
+
+  after(async () => {
+    await collections.tags.deleteMany({ token: TOKEN });
+    await collections.membershipOrders.deleteMany({ ownerId: liveOwnerId });
+    await collections.owners.deleteOne({ _id: liveOwnerId });
+  });
+
+  const get = () =>
+    app.inject({
+      method: "GET",
+      url: "/api/owner/membership",
+      remoteAddress: uniqueAddress(),
+      headers: { cookie: liveCookie }
+    });
+
+  // The screen half of the bug: with the tag invisible, nothing looked covered,
+  // so an owner inside their included year was shown the full price.
+  test("the screen reports the free year the premium tag already carries", async () => {
+    const res = await get();
+    assert.equal(res.statusCode, 200, res.body);
+
+    const { subscription } = res.json();
+    assert.ok(subscription, "the screen saw no tag, so it offered a membership over the free year");
+    assert.equal(subscription.active, true);
+    assert.equal(subscription.trial, true, "cover was read as paid rather than as the included year");
+  });
+
+  // The checkout half: this is the query that produced the error the owner saw.
+  //
+  // Exercised through the reuse branch, which returns before any Razorpay call,
+  // for the reason seedOrder() above gives.
+  test("create-order resolves the tag instead of refusing the purchase", async () => {
+    const orderId = `order_QA_DELETEDAT_${Date.now()}`;
+    await collections.membershipOrders.insertOne({
+      orderId,
+      ownerId: liveOwnerId,
+      tagId: liveTagId,
+      planId: PLAN.id,
+      months: PLAN.months,
+      amount: membershipPlanPaise(getMembershipPlan(PLAN.id)),
+      currency: "INR",
+      status: "created",
+      createdAt: new Date().toISOString()
+    });
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/owner/membership/create-order",
+      remoteAddress: uniqueAddress(),
+      headers: { cookie: liveCookie, origin: TEST_ORIGIN, "content-type": "application/json" },
+      payload: { planId: PLAN.id }
+    });
+
+    assert.equal(res.statusCode, 200, res.body);
+    assert.equal(
+      res.json().orderId,
+      orderId,
+      "create-order did not resolve the tag, so it never reached the reuse branch"
+    );
+  });
+
+  // The filter still has to do its actual job, or this would be a fix that
+  // simply stopped excluding anything.
+  test("a genuinely deleted tag is still refused", async () => {
+    await collections.tags.updateOne(
+      { _id: liveTagId },
+      { $set: { deletedAt: new Date().toISOString() } }
+    );
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/owner/membership/create-order",
+      remoteAddress: uniqueAddress(),
+      headers: { cookie: liveCookie, origin: TEST_ORIGIN, "content-type": "application/json" },
+      payload: { planId: PLAN.id }
+    });
+
+    assert.equal(res.statusCode, 400);
+    assert.equal(res.json().error, "You need an activated tag before buying a membership.");
+
+    const screen = await get();
+    assert.equal(screen.json().subscription, null, "a deleted tag was still counted as cover");
   });
 });

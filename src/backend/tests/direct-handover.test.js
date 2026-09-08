@@ -37,6 +37,8 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 
 import { startTestApp, stopTestApp, uniqueAddress } from "./helpers.js";
+import { isDelhiveryConfigured } from "../lib/integrations/delhivery.js";
+import { getEnv } from "../lib/env.js";
 
 let app;
 let collections;
@@ -224,24 +226,47 @@ describe("a handover order books no courier", () => {
     assert.equal(order.shipmentError, undefined, "Delhivery was called for a handover order");
   });
 
-  // The counterpart, so the test above cannot pass by Delhivery simply being
-  // switched off in this environment.
-  test("an ordinary order still tries to book one", async () => {
-    const orderId = await seedOrder();
-    const paymentId = `pay_${crypto.randomBytes(6).toString("hex")}`;
+  // The CONTROL for the test above. Without it, "no waybill was booked" would
+  // also pass in an environment where Delhivery is simply switched off, and the
+  // handover skip would be proving nothing at all.
+  //
+  // Which is exactly why it is skipped rather than weakened when there is no
+  // Delhivery key: with the integration off, a handover order and a shipping
+  // order behave identically and there is no difference left to observe. CI has
+  // no key, so it skips here and says so; a local run through `railway run`
+  // has one and the comparison is real.
+  //
+  // The alternative offered when this first went red was to assert the order
+  // merely reached "paid". That is a green tick over an untested skip: an
+  // assertion that cannot fail is worse than no assertion, because it looks
+  // like coverage.
+  test(
+    "an ordinary order still tries to book one",
+    {
+      skip: isDelhiveryConfigured(getEnv())
+        ? false
+        : "no Delhivery key in this environment, so neither order would attempt a booking and the comparison proves nothing"
+    },
+    async () => {
+      const orderId = await seedOrder();
+      const paymentId = `pay_${crypto.randomBytes(6).toString("hex")}`;
 
-    await post("/api/shop/guest/verify-payment", {
-      razorpay_order_id: orderId,
-      razorpay_payment_id: paymentId,
-      razorpay_signature: sign(orderId, paymentId)
-    });
+      await post("/api/shop/guest/verify-payment", {
+        razorpay_order_id: orderId,
+        razorpay_payment_id: paymentId,
+        razorpay_signature: sign(orderId, paymentId)
+      });
 
-    const order = await collections.shopOrders.findOne({ orderId });
-    assert.ok(
-      order.shipmentError || order.waybill,
-      "a shipping order should have attempted a booking"
-    );
-  });
+      const order = await collections.shopOrders.findOne({ orderId });
+      // Either outcome proves a booking was ATTEMPTED, which is the whole
+      // question. In a test run refuseInTestRun turns the attempt into
+      // shipmentError; that refusal is the evidence.
+      assert.ok(
+        order.shipmentError || order.waybill,
+        "a shipping order should have attempted a booking"
+      );
+    }
+  );
 });
 
 describe("the code is burnt when the money lands", () => {

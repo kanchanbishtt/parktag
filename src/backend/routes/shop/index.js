@@ -8,7 +8,7 @@ import {
 import { getCollections } from "../../lib/db/repositories.js";
 import { requireSession, toObjectId, tryObjectId } from "../../lib/auth/auth.js";
 import { generateOrderNumber } from "../../lib/core/order-number.js";
-import { addressToNotes, validateAddress } from "../../lib/core/address.js";
+import { addressToNotes, validateAddress, validateHandoverContact } from "../../lib/core/address.js";
 import { createPremiumTagForVehicle } from "../../lib/core/tag-issuance.js";
 import { reassignVaultDocuments } from "../../lib/core/vault.js";
 import { isDelhiveryConfigured, updateShipmentToPrepaid, trackingUrl } from "../../lib/integrations/delhivery.js";
@@ -30,6 +30,7 @@ import {
   expectedOrderPaise,
   resolveReferral
 } from "../../lib/core/referrals.js";
+import { FULFILMENT_HANDOVER, promoValueFor, resolvePromo } from "../../lib/core/promo-codes.js";
 
 // Flash-offer discount for converting a COD order to prepaid (paise). Kept
 // server-side so the ₹50 saving can't be inflated by a tampered client.
@@ -375,8 +376,12 @@ export function registerShopRoutes(app, env) {
     // gets through mints a real order in the Razorpay dashboard.
     { config: { rateLimit: { max: 8, timeWindow: "1 minute" } } },
     async (request, reply) => {
-      const { productId, variant: rawVariant, address: rawAddress, recaptchaToken, ref: rawRef } =
-        request.body || {};
+      const {
+        productId, variant: rawVariant, address: rawAddress, recaptchaToken,
+        ref: rawRef,
+        // Only /direct sends this. A CODE, never an amount.
+        promo: rawPromo
+      } = request.body || {};
 
       // Bot check on the one money-adjacent endpoint any stranger can reach.
       //
@@ -440,16 +445,33 @@ export function registerShopRoutes(app, env) {
       const product = getShopProduct(productId);
       if (!product) { reply.code(400); return { ok: false, error: "Unknown product." }; }
 
-      // Same validator the signed-in flow uses when an owner saves an address,
-      // so a guest cannot ship to something the dashboard would have rejected.
-      const checked = validateAddress(rawAddress);
-      if (!checked.ok) { reply.code(400); return { ok: false, error: checked.error }; }
-      const shipping = checked.address;
-
       const variant = shapeVariant(rawVariant);
 
       const collections = await getCollections(env);
       if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
+
+      // Resolved BEFORE the address is validated, because a handover code is
+      // what decides whether an address is required at all. The phone is read
+      // off the raw body for this one purpose; everything the order actually
+      // stores still comes from a validator below.
+      //
+      // Only /direct sends this. A checkout that sends no code takes exactly
+      // the path it always did.
+      const promo = await resolvePromo(collections, rawPromo, {
+        deliveryPhone: (rawAddress || {}).phone
+      });
+      const handover = promo.ok && promo.fulfilment === FULFILMENT_HANDOVER;
+
+      // Same validator the signed-in flow uses when an owner saves an address,
+      // so a guest cannot ship to something the dashboard would have rejected.
+      //
+      // A handover sale is the exception: the buyer is standing in front of
+      // somebody with the sticker in their hand, so there is no parcel to post
+      // and no address to collect. Name and phone still are required, because
+      // the phone is what later links the activated tag back to this order.
+      const checked = handover ? validateHandoverContact(rawAddress) : validateAddress(rawAddress);
+      if (!checked.ok) { reply.code(400); return { ok: false, error: checked.error }; }
+      const shipping = checked.address;
 
       // Reuse an identical unpaid guest order rather than minting a second one.
       // The signed-in route does this keyed on the owner; here the address IS
@@ -468,7 +490,12 @@ export function registerShopRoutes(app, env) {
       });
       const referredBy = referral.ok ? referral.referrerId : null;
 
-      const expectedPaise = expectedOrderPaise(Math.round(product.amount * 100), { referredBy });
+      const promoDiscountPaise = promo.ok ? promo.discountPaise : 0;
+      const expectedPaise = expectedOrderPaise(
+        Math.round(product.amount * 100),
+        { referredBy },
+        promoDiscountPaise
+      );
       const reusable = await collections.shopOrders.findOne(
         {
           ownerId: null,
@@ -525,6 +552,16 @@ export function registerShopRoutes(app, env) {
           referredBy,
           referralCode: referral.ok ? referral.code : null,
           referralDiscountPaise: referredBy ? REFERRAL_DISCOUNT_PAISE : 0,
+          // The CODE is what verify-payment re-reads; the amount beside it is
+          // for display and for the admin panel only. See expectedOrderPaise:
+          // deriving the discount from a number on the row would hand an editor
+          // of that row whatever discount they typed in.
+          promoCode: promo.ok ? promo.code : null,
+          promoDiscountPaise,
+          // A handover order has no parcel. Recorded so fulfilment books no
+          // waybill and the stuck-order alert does not chase one forever.
+          ...(handover ? { fulfilment: FULFILMENT_HANDOVER, deliveredInPerson: true } : {}),
+          channel: promo.ok ? "direct" : "shop",
           createdAt: new Date().toISOString()
         });
 
@@ -533,6 +570,7 @@ export function registerShopRoutes(app, env) {
           orderId: order.id,
           orderNumber,
           referralDiscountPaise: referredBy ? REFERRAL_DISCOUNT_PAISE : 0,
+          promoDiscountPaise,
           amount: order.amount,
           currency: order.currency,
           // Public key, the same one GET /api/shop/razorpay-key serves.
@@ -865,7 +903,21 @@ export function registerShopRoutes(app, env) {
       // discount from `order.referredBy` (server-written, post-validation)
       // rather than from any amount stored on the row, so a tampered discount
       // still fails here.
-      const expectedPaise = product ? expectedOrderPaise(Math.round(product.amount * 100), order) : null;
+      //
+      // The promo value is looked up FRESH from promoCodes against the code on
+      // the row, never read from `order.promoDiscountPaise`. Same reasoning as
+      // the referral above: a code is a decision the server made, an amount is
+      // a number somebody could have edited in.
+      //
+      // promoValueFor, not resolvePromo, and that is deliberate. This check runs
+      // on every arrival and it arrives twice by design, because the browser
+      // callback and the Razorpay webhook race. Fulfilment consumes the code
+      // between them, so re-applying the usage gate here would call a
+      // single-use code exhausted and reject a payment already taken.
+      const promoPaise = await promoValueFor(collections, order.promoCode);
+      const expectedPaise = product
+        ? expectedOrderPaise(Math.round(product.amount * 100), order, promoPaise)
+        : null;
       if (expectedPaise === null || order.amount !== expectedPaise) {
         reply.code(400); return { ok: false, error: "Order amount mismatch." };
       }

@@ -9,22 +9,27 @@ export const STICKER_PRICE_INR = 199;
 // the shop checkout sends only a productId, and the server resolves the amount it
 // charges from this map — so a tampered client `amount` can never be trusted.
 // Keep the ids/prices in sync with the shop UI (`frontend/pages/owner/welcome.html`).
+// `tags` is how many physical stickers the pack contains. It is REAL DATA
+// rather than something parsed back out of the display name, because
+// order-linking.js uses it to decide how many activated stickers one order may
+// hold, and "Pack of 2" is a string somebody will reword for marketing one day
+// without ever thinking about the ledger.
 export const SHOP_PRODUCTS = {
-  "pt-car-1": { name: "ParkTag Car Tag (Pack of 1)", amount: 299 },
-  "pt-car-2": { name: "ParkTag Car Tag (Pack of 2)", amount: 499 },
+  "pt-car-1": { name: "ParkTag Car Tag (Pack of 1)", amount: 299, tags: 1 },
+  "pt-car-2": { name: "ParkTag Car Tag (Pack of 2)", amount: 499, tags: 2 },
   // Two bike tags (front and back of one two-wheeler), same size as pt-car-2.
-  "pt-bike-1": { name: "ParkTag Bike Tag (Pack of 2)", amount: 499 },
+  "pt-bike-1": { name: "ParkTag Bike Tag (Pack of 2)", amount: 499, tags: 2 },
   // One car tag and one bike tag.
-  "pt-combo": { name: "ParkTag Combo Tag (Pack of 2)", amount: 499 },
+  "pt-combo": { name: "ParkTag Combo Tag (Pack of 2)", amount: 499, tags: 2 },
   // "2 Cars" tier for the pack step: 4 car tags (both cars, front & back).
-  "pt-car-4": { name: "ParkTag Car Tag (2 Cars · Pack of 4)", amount: 899 },
+  "pt-car-4": { name: "ParkTag Car Tag (2 Cars · Pack of 4)", amount: 899, tags: 4 },
   // Combined SKUs for the "Choose your pack" step: a car pack + the optional
   // bike-tag add-on, which is the same pack of two as pt-bike-1 (+₹499).
   // Prices are the sum of the parts and stay server-authoritative — the
   // client sends only the SKU id, never a total.
-  "pt-car-1-bike": { name: "ParkTag Car Tag (Pack of 1) + Bike Tag", amount: 798 },
-  "pt-car-2-bike": { name: "ParkTag Car Tag (Pack of 2) + Bike Tag", amount: 998 },
-  "pt-car-4-bike": { name: "ParkTag Car Tag (2 Cars · Pack of 4) + Bike Tag", amount: 1398 }
+  "pt-car-1-bike": { name: "ParkTag Car Tag (Pack of 1) + Bike Tag", amount: 798, tags: 3 },
+  "pt-car-2-bike": { name: "ParkTag Car Tag (Pack of 2) + Bike Tag", amount: 998, tags: 4 },
+  "pt-car-4-bike": { name: "ParkTag Car Tag (2 Cars · Pack of 4) + Bike Tag", amount: 1398, tags: 6 }
 };
 
 // Look up a shop product by id. Returns { id, name, amount } or null for an

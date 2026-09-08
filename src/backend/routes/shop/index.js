@@ -11,7 +11,8 @@ import { generateOrderNumber } from "../../lib/core/order-number.js";
 import { addressToNotes, validateAddress } from "../../lib/core/address.js";
 import { createPremiumTagForVehicle } from "../../lib/core/tag-issuance.js";
 import { reassignVaultDocuments } from "../../lib/core/vault.js";
-import { createShipment, isDelhiveryConfigured, updateShipmentToPrepaid, trackingUrl } from "../../lib/integrations/delhivery.js";
+import { isDelhiveryConfigured, updateShipmentToPrepaid, trackingUrl } from "../../lib/integrations/delhivery.js";
+import { bookShipmentAndPickup } from "../../lib/core/shipping.js";
 import { getOrderTracking } from "../../lib/core/order-tracking.js";
 import { safeEqual } from "../../lib/auth/security.js";
 import { fulfilPaidOrder, sendOrderConfirmation } from "../../lib/core/order-fulfilment.js";
@@ -1044,16 +1045,28 @@ export function registerShopRoutes(app, env) {
     let bookedWaybill = null;
     if (isDelhiveryConfigured(env)) {
       try {
-        const { waybill } = await createShipment(env, {
+        const { waybill, pickup } = await bookShipmentAndPickup(env, collections, {
           orderId: orderNumber,
           address: shipping,
           productName: product.name,
           codAmountPaise: amountPaise
-        });
+        }, request.log);
         bookedWaybill = waybill;
         await collections.shopOrders.updateOne(
           { orderNumber },
-          { $set: { waybill, shipmentBookedAt: new Date().toISOString() }, $unset: { shipmentError: "" } }
+          {
+            $set: {
+              waybill,
+              shipmentBookedAt: new Date().toISOString(),
+              ...(pickup.requested
+                ? { pickupRequestedFor: pickup.forDate, pickupId: pickup.pickupId }
+                : { pickupError: pickup.error || pickup.reason })
+            },
+            $unset: {
+              shipmentError: "",
+              ...(pickup.requested ? { pickupError: "" } : {})
+            }
+          }
         );
       } catch (err) {
         request.log.error({ err, orderNumber }, "Delhivery COD shipment booking failed");

@@ -29,6 +29,7 @@ import { verifyRecaptchaV2 } from "../../lib/integrations/recaptcha.js";
 import { clientErrorMessage } from "../../lib/errors.js";
 import { findByCanonicalEmail } from "../../lib/auth/identity.js";
 import { recordDemoActivation } from "../../lib/core/marketing-stock.js";
+import { sendActivationNotice } from "../../lib/core/activation-notice.js";
 
 // Report reasons, matched exactly. An open text field for the reason would let
 // a reporter write anything into a record support reads later.
@@ -793,6 +794,20 @@ export function registerPublicRoutes(app, env) {
     // the customer walks away. The account is always new on this path.
     await recordDemoActivation(collections, { tagId: tag._id, ownerId, isNewOwner: true });
 
+    // Same notice as /activate below. This path sets an e-mail and a password
+    // and may have no mobile at all, which is exactly why the notice tries both
+    // channels rather than assuming WhatsApp.
+    sendActivationNotice(
+      env,
+      { _id: ownerId, email, displayName },
+      {
+        _id: tag._id,
+        vehicleLabel: vehicleLabel || tag.vehicleLabel,
+        plateNumber
+      },
+      app.log
+    );
+
     return {
       ok: true,
       owner: {
@@ -1070,6 +1085,20 @@ export function registerPublicRoutes(app, env) {
       customData: { vehicle_type: vehicleType },
       testEventCode: env.metaCapiTestEventCode || undefined
     });
+
+    // Tell them their tag is live, on every channel they have.
+    //
+    // NOT awaited, exactly like the CAPI event above and for the same reason:
+    // the tag is already active and the buyer is already looking at the success
+    // screen, so a slow mail server must not hold that screen open. The success
+    // screen is also the ONLY acknowledgement that existed before this, and it
+    // is gone the moment they close the tab.
+    sendActivationNotice(
+      env,
+      owner,
+      { _id: tag._id, vehicleLabel: resolvedLabel, plateNumber: normalizedPlate },
+      app.log
+    );
 
     return {
       ok: true,

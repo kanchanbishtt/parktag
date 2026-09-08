@@ -20,7 +20,8 @@
     "verify:qa-hardening": "node src/backend/scripts/verify-qa-hardening.js",
     "verify:document-tiers": "node src/backend/scripts/verify-document-tiers.js",
     "dev:mail": "maildev",
-    "backfill:mount-types": "node src/backend/scripts/backfill-mount-types.js"
+    "backfill:mount-types": "node src/backend/scripts/backfill-mount-types.js",
+    "campaigns:dry-run": "node --env-file=.env src/backend/scripts/campaign-dry-run.js"
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.2",

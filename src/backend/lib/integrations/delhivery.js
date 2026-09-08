@@ -149,21 +149,23 @@ export async function createShipment(env, { orderId, address, productName, codAm
 // order paid at 01:30 IST is still 20:00 the previous day to `new Date()`, and
 // a naive local date would book a rider for a day that has already passed.
 //
-// Next working day rather than today: a parcel booked at 23:50 cannot be handed
-// to a rider who came at 14:00, and being a day early is a wasted visit while
-// being a day late is just a day late.
+// Next day rather than today: a parcel booked at 23:50 cannot be handed to a
+// rider who came this morning, and being a day early is a wasted visit while
+// being a day late is just a day late. Delhivery's own record for this
+// warehouse agrees, carrying `pickup_after_days: 1`.
 //
-// ponytail: Sundays only. Add the Indian holiday calendar if a parcel ever
-// sits over Diwali; a wrong date here moves the rider by a day, nothing worse.
+// NO WEEKEND SKIP, and that is checked rather than assumed. The warehouse
+// record lists `working_days` as all seven including SUN, so skipping Sunday
+// would push every Saturday order back a day for nothing. If a warehouse is
+// ever added that genuinely closes on some day, read `working_days` from
+// Delhivery rather than hardcoding a guess about which day that is.
 export function nextPickupDate(now = new Date()) {
   const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
   const DAY_MS = 24 * 60 * 60 * 1000;
 
-  // Shift into IST, then treat the result as if it were UTC so getUTCDay and
-  // toISOString both read the Indian calendar day.
-  let ist = new Date(now.getTime() + IST_OFFSET_MS + DAY_MS);
-  // 0 is Sunday. The warehouse is shut, so roll one more day.
-  if (ist.getUTCDay() === 0) ist = new Date(ist.getTime() + DAY_MS);
+  // Shift into IST, then treat the result as if it were UTC so toISOString
+  // reads the Indian calendar day rather than the container's.
+  const ist = new Date(now.getTime() + IST_OFFSET_MS + DAY_MS);
 
   return ist.toISOString().slice(0, 10);
 }

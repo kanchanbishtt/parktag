@@ -385,6 +385,12 @@
               <p class="pt-dial-number" id="dial-virtual-number"></p>
             </div>
             <p class="pt-panel-sub">Your number stays completely private throughout the call.</p>
+            <!-- The virtual number is shared and short-lived: it routes to this
+                 owner for a few minutes, and only because this phone just
+                 scanned the sticker. Saying so here is the difference between a
+                 finder who re-scans and one who redials a number that has since
+                 stopped working and concludes the product is broken. -->
+            <p class="pt-panel-note" id="dial-reuse-note">This number connects you to this vehicle's owner for the next few minutes. To call again later, scan the sticker again.</p>
             <button id="final-call-button" class="pt-btn pt-btn-primary pt-btn-full" type="button">Call Now</button>
 
             <!-- Setting up a masked call is a real 1.5s-plus round trip at

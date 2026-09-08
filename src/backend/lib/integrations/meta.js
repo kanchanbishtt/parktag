@@ -148,12 +148,69 @@ export async function sendMetaWhatsappCartReminder(env, { to, name, product, url
   });
 }
 
-export async function sendMetaWhatsappAlert(env, { to, ownerName, reason }) {
+// The owner alert. The most important message ParkTag sends, and the one whose
+// template name is most likely to change, so it is a constant rather than a
+// literal buried in the call.
+//
+// Three versions exist in WhatsApp Manager and the differences matter:
+//
+//   parktag_owner_notification     v1. One unbroken sentence. No header, no
+//                                  footer, no bold, nothing to tap. This was
+//                                  live for months.
+//   parktag_owner_notification_v2  header + footer, still nothing to tap.
+//   parktag_owner_notification_v3  bold, and a "Call them back" button to
+//                                  /v/:tagId.
+//
+// v3 needs Meta approval, which is measured in days. Point this at v2 in the
+// meantime: it is already approved, already better, and takes the same two
+// body variables in the same order, so the switch is this one line.
+//
+// WHEN MOVING TO v3, the button parameter below is not optional. A URL button
+// with no parameter is rejected by Meta at send time, so `tagId` becomes
+// required and contact-actions.js must pass it.
+export const OWNER_ALERT_TEMPLATE = "parktag_owner_notification_v2";
+
+export async function sendMetaWhatsappAlert(env, { to, ownerName, reason, tagId = null }) {
+  const usesButton = OWNER_ALERT_TEMPLATE.endsWith("_v3");
+
+  // Refused rather than sent without it. A v3 send with no tagId fails at Meta
+  // with a parameter-count error, which surfaces as "the owner was never told
+  // somebody is at their car" — the single worst failure in this app.
+  if (usesButton && !tagId) {
+    throw new Error("The owner alert template needs a tagId for its Call back button.");
+  }
+
   return sendTemplate(env, {
     to,
-    template: "parktag_owner_notification",
-    components: bodyComponent(ownerName, reason),
+    template: OWNER_ALERT_TEMPLATE,
+    components: usesButton
+      ? [
+          ...bodyComponent(ownerName, reason),
+          // Index "0" is the button's position in the template, not an id. The
+          // parameter is the dynamic SUFFIX of the approved base URL, so it is
+          // the tag id and never a whole link.
+          { type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: String(tagId) }] }
+        ]
+      : bodyComponent(ownerName, reason),
     publicMessage: "Unable to send the WhatsApp message right now."
+  });
+}
+
+// Activation. `parktag_tag_activated` was approved months ago and has delivered
+// zero messages, because nothing ever called it.
+//
+//   {{1}} first name   {{2}} vehicle label   {{3}} plate number
+//
+// The FULL plate, not the masked one the success screen shows. That masking
+// exists because the scan page is used by strangers standing at someone else's
+// car; this message goes to a number the owner has just proved by OTP, about a
+// plate painted on the outside of their own vehicle.
+export async function sendMetaWhatsappTagActivated(env, { to, name, vehicle, plate }) {
+  return sendTemplate(env, {
+    to,
+    template: "parktag_tag_activated",
+    components: bodyComponent(name, vehicle, plate),
+    publicMessage: "Unable to send the WhatsApp activation confirmation."
   });
 }
 

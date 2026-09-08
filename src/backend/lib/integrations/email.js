@@ -330,7 +330,49 @@ export async function sendMembershipConfirmationEmail(env, { to, name, planLabel
 // rather than only the one they are most likely to read. The reason is chosen
 // from a fixed server-side list (see core/contact-actions.js): the scanner
 // picks from a menu and can never author a word of it.
-export async function sendOwnerAlertEmail(env, { to, ownerName, reason, plateNumber }) {
+// Your tag is live.
+//
+// The counterpart to `parktag_tag_activated` on WhatsApp. Sent at the moment
+// the premium year starts, which is why it names what the year includes: every
+// expiry reminder that follows only makes sense to somebody who was told what
+// they had in the first place.
+export async function sendTagActivatedEmail(env, { to, name, vehicle, plate, tagId = "" }) {
+  if (!isEmailConfigured(env)) {
+    if (env.runtimeMode !== "production") {
+      console.log(`
+[ParkTag] Dev activation confirmation for ${maskIdentifier(to)}: ${vehicle} ${plate}
+`);
+      return;
+    }
+    throw new Error("Email is not configured on this server.");
+  }
+
+  const transporter = createTransport(env);
+  const safeName = escapeHtml(name || "there");
+  const safeVehicle = escapeHtml(vehicle || "vehicle");
+  const safePlate = escapeHtml(plate || "");
+
+  await transporter.sendMail({
+    from: env.emailFrom || "ParkTag <noreply@parktag.me>",
+    to,
+    subject: `Your ParkTag is active on your ${vehicle || "vehicle"}`,
+    html: shell(env, {
+      preheader: `Anyone who needs to reach you about ${plate || "this vehicle"} can now do it without seeing your number.`,
+      title: `Hi ${safeName}, your ParkTag is live`,
+      body: `
+        <div style="background:${BRAND.okBg};border:1px solid ${BRAND.okLine};border-radius:10px;padding:16px 18px">
+          <p style="margin:0;color:${BRAND.okInk};font-size:17px;font-weight:700">${safeVehicle}${safePlate ? ` &middot; ${safePlate}` : ""}</p>
+          <p style="margin:6px 0 0;color:${BRAND.okInk};font-size:14px;opacity:.85">Active and ready to scan</p>
+        </div>
+        <p style="margin:18px 0 0;color:${BRAND.body};line-height:1.6;font-size:15px">Anyone who needs to reach you about this vehicle can scan the tag and message or call you. They never see your number.</p>
+        <p style="margin:12px 0 0;color:${BRAND.body};line-height:1.6;font-size:15px">Your first year of premium starts today: masked calls, and space for up to 3 documents in your vehicle vault.</p>
+        ${button(tagId ? `${appBase(env)}/v/${tagId}` : `${appBase(env)}/owner-welcome`, "See my vehicle")}
+      `
+    })
+  });
+}
+
+export async function sendOwnerAlertEmail(env, { to, ownerName, reason, plateNumber, tagId = null }) {
   if (!isEmailConfigured(env)) {
     if (env.runtimeMode !== "production") {
       console.log(`
@@ -361,7 +403,8 @@ export async function sendOwnerAlertEmail(env, { to, ownerName, reason, plateNum
           <p style="margin:0;color:${BRAND.tintInk};line-height:1.5;font-size:17px;font-weight:700">${safeReason}</p>
           ${plateNumber ? `<p style="margin:8px 0 0;color:${BRAND.tintInk};font-size:14px;opacity:.85">${escapeHtml(plateNumber)}</p>` : ""}
         </div>
-        ${button(`${appBase(env)}/owner-welcome`, "See who reported it")}
+        <p style="margin:18px 0 0;color:${BRAND.body};line-height:1.6;font-size:15px">You can call them back privately for the next 10 minutes. Your number stays hidden from them.</p>
+        ${button(tagId ? `${appBase(env)}/v/${tagId}` : `${appBase(env)}/owner-welcome`, "Call them back")}
         <p style="margin:14px 0 0;color:#8A97AB;font-size:13px;text-align:center">Your number was never shared with them.</p>
       `
     })

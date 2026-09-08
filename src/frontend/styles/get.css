@@ -955,3 +955,39 @@
   text-align: center;
   gap: 6px;
 }
+
+/* ── The code field on /direct ──────────────────────────────────────────────
+ *
+ * Lives in get.css rather than a stylesheet of its own because /direct IS this
+ * page: same shell, same type, same packs. A second stylesheet would be a
+ * second place for the two to drift apart.
+ *
+ * The rules below only ever apply where the markup exists, so /get is
+ * untouched by them. */
+.gt-code {
+  margin: 0 auto 1.25rem;
+  max-width: 34rem;
+  display: grid;
+  gap: 0.4rem;
+}
+.gt-code-l { font-weight: 700; font-size: 0.95rem; }
+.gt-code-i {
+  font: inherit;
+  /* 16px or larger, or iOS zooms the page on focus and the buyer loses their
+     place mid-checkout. */
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.8rem 0.9rem;
+  border: 2px solid var(--gt-line, #e3e7ee);
+  border-radius: 0.7rem;
+  background: #fff;
+  color: inherit;
+  width: 100%;
+  box-sizing: border-box;
+}
+.gt-code-i:focus-visible { outline: 2px solid var(--gt-ink, #0b2545); outline-offset: 1px; }
+.gt-code-n { margin: 0; font-size: 0.85rem; font-weight: 600; min-height: 1.2em; }
+.gt-code-ok { color: #1a7f4b; }
+.gt-code-bad { color: #b3261e; }

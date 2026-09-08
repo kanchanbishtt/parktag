@@ -483,7 +483,8 @@ function wireGallery() {
 
   const slides = Array.from(track.children);
   const buttons = Array.from(dots.children);
-  const behavior = matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+  const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)");
+  const behavior = reduceMotion.matches ? "auto" : "smooth";
 
   dots.addEventListener("click", (event) => {
     const dot = event.target.closest("button[data-slide]");
@@ -505,6 +506,85 @@ function wireGallery() {
 
   track.addEventListener("scroll", sync, { passive: true });
   sync();
+
+  // ── Autoplay ──────────────────────────────────────────────────────────────
+  //
+  // The track is a scroll-snap strip, so advancing it is just a scroll; the
+  // dots keep themselves in step through the sync() listener above and need no
+  // separate bookkeeping.
+  //
+  // The index is held here rather than read back from scrollLeft on each tick.
+  // Reading the live position only works while no scroll is in flight, which
+  // ties the interval to however long a smooth scroll happens to take — at a
+  // short interval the read rounds to whichever slide sits under the midpoint
+  // and the show stutters between two frames instead of moving on. Counting
+  // instead of measuring keeps the cadence independent of the animation.
+  const SLIDE_MS = 2500;
+
+  let index = 0;
+  let timer = null;
+  let onScreen = true;
+  let surrendered = false; // the visitor took the wheel; we do not take it back
+
+  const advance = () => {
+    // Wrapping from the last slide to the first is a jump across the whole
+    // strip. Smoothed, that reads as a fast rewind through every image; taken
+    // instantly it reads as the loop starting again, which is what it is.
+    const wrapping = index === slides.length - 1;
+    index = (index + 1) % slides.length;
+    track.scrollTo({
+      left: index * track.clientWidth,
+      behavior: wrapping ? "auto" : behavior
+    });
+  };
+
+  const pause = () => { if (timer) { clearInterval(timer); timer = null; } };
+
+  const play = () => {
+    if (timer || surrendered || !onScreen) return;
+    // A single slide has nowhere to go, and a visitor who has asked for less
+    // motion should not be handed a carousel that advances on its own at all.
+    if (slides.length < 2 || reduceMotion.matches) return;
+    timer = setInterval(advance, SLIDE_MS);
+  };
+
+  // Any deliberate input — a swipe, a dot, an arrow key — ends the autoplay for
+  // good. Pausing while a finger is down and resuming after would fight someone
+  // trying to look at one image, which is the whole reason they touched it.
+  const surrender = () => { surrendered = true; pause(); };
+  for (const type of ["pointerdown", "keydown", "wheel"]) {
+    track.addEventListener(type, surrender, { passive: true });
+  }
+  dots.addEventListener("pointerdown", surrender, { passive: true });
+
+  // Cursor over the images is not a surrender, only a reason to hold still
+  // while someone reads the caption.
+  track.addEventListener("mouseenter", pause);
+  track.addEventListener("mouseleave", play);
+
+  // Nothing should animate in a background tab: it burns battery to redraw a
+  // strip nobody is looking at, and the catch-up on return is ugly.
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) pause(); else play();
+  });
+
+  // Same argument once the hero has been scrolled past.
+  if ("IntersectionObserver" in window) {
+    const io = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        onScreen = entry.isIntersecting;
+        if (onScreen) play(); else pause();
+      }
+    }, { threshold: 0.5 });
+    io.observe(track);
+  } else {
+    play();
+  }
+
+  // A visitor can turn the setting on without reloading.
+  reduceMotion.addEventListener("change", () => {
+    if (reduceMotion.matches) pause(); else play();
+  });
 }
 
 function wireCheckout() {

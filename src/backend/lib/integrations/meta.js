@@ -132,6 +132,22 @@ export async function sendMetaWhatsappOtp(env, { to, code }) {
   });
 }
 
+// Abandoned checkout, against the approved `parktag_cart_reminder`:
+//
+//   {{1}} first name   {{2}} product   {{3}} a link to finish
+//
+// The link is a body variable, not a button, because that is the shape the
+// template was approved with. New templates should use a button instead: a URL
+// in the body is not tappable in every WhatsApp client and cannot be tracked.
+export async function sendMetaWhatsappCartReminder(env, { to, name, product, url }) {
+  return sendTemplate(env, {
+    to,
+    template: "parktag_cart_reminder",
+    components: bodyComponent(name, product, url),
+    publicMessage: "Unable to send the WhatsApp order reminder."
+  });
+}
+
 export async function sendMetaWhatsappAlert(env, { to, ownerName, reason }) {
   return sendTemplate(env, {
     to,

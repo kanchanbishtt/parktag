@@ -1,6 +1,9 @@
 import { getCollections } from "../../lib/db/repositories.js";
 import { verifyMetaWebhookSignature } from "../../lib/integrations/meta.js";
 import { isNonEmptyString, safeEqual, maskIdentifier } from "../../lib/auth/security.js";
+import { toE164 } from "../../lib/core/phone.js";
+import { recordDeliveryStatus } from "../../lib/core/message-log.js";
+import { serviceWindowUntil } from "../../lib/core/messaging-consent.js";
 
 export function registerMetaWebhookRoutes(app, env) {
   // Meta sends a GET request to verify the webhook URL is real.
@@ -159,6 +162,35 @@ export function registerMetaWebhookRoutes(app, env) {
               { providerRequestId: messageId },
               { $set: set }
             ).catch(() => null);
+
+            // The message log, which unlike contactRequests has a row for
+            // EVERY send. This is what closes the gap the comment above
+            // describes: an OTP status used to match nothing anywhere and
+            // vanish, with Meta reporting a reason nobody was listening to.
+            await recordDeliveryStatus(collections, {
+              wamid: messageId,
+              status,
+              at: timestamp ? new Date(Number(timestamp) * 1000) : new Date()
+            }).catch(() => null);
+          }
+        }
+
+        // ── Inbound messages ────────────────────────────────────────────
+        //
+        // Dropped on the floor until now: this handler read `statuses` and
+        // ignored `messages` entirely, so a customer who replied got silence
+        // and a customer who typed STOP kept receiving.
+        //
+        // Two things are recorded, and both are load-bearing rather than nice
+        // to have. Opt-out is what makes a marketing template lawful to send at
+        // all. The service window is what makes utility templates FREE for
+        // twenty-four hours after any reply, which is the difference between a
+        // lifecycle programme that pays for itself and one that does not.
+        if (collections) {
+          for (const message of value.messages || []) {
+            await handleInboundMessage(collections, message, request.log).catch((err) => {
+              request.log.error({ err }, "[meta webhook] inbound message not recorded");
+            });
           }
         }
       }
@@ -166,4 +198,71 @@ export function registerMetaWebhookRoutes(app, env) {
 
     return { ok: true };
   });
+}
+
+// Keywords that stop promotional messages.
+//
+// Matched on the WHOLE trimmed message, not as a substring. "Please stop
+// calling me about the dent on my bumper" is a person in distress about their
+// vehicle, not an unsubscribe, and treating it as one would silence exactly the
+// customer who most needs to hear from us.
+const STOP_WORDS = new Set(["stop", "unsubscribe", "stop promotions", "stop promo", "opt out"]);
+const START_WORDS = new Set(["start", "resume", "subscribe"]);
+
+async function handleInboundMessage(collections, message, log) {
+  const from = message?.from;
+  if (!from) return;
+
+  // Any inbound message opens the free window, whatever it says. This happens
+  // before the keyword check on purpose: someone who typed STOP has still
+  // opened a service window, and the confirmation we owe them is sent through
+  // it.
+  const now = Date.now();
+  const set = { waWindowOpenUntil: serviceWindowUntil(now) };
+
+  // Meta puts a button tap in `button.text`, not in `text.body` — the "Stop
+  // promotions" quick reply on parktag_upgrade_offer arrives that way, and
+  // reading only text.body would have ignored the one opt-out control the
+  // customer was actually given.
+  const said = String(message?.text?.body || message?.button?.text || "")
+    .trim()
+    .toLowerCase();
+
+  if (STOP_WORDS.has(said)) {
+    set.marketingOptOut = true;
+    set.marketingOptOutAt = new Date(now).toISOString();
+  } else if (START_WORDS.has(said)) {
+    set.marketingOptOut = false;
+    set.marketingOptInAt = new Date(now).toISOString();
+  }
+
+  // Matched on both fields for the same reason login-pin.js and
+  // membership-fulfilment.js read both: signup wrote `phone` for years and
+  // `mobile` now, and an owner carrying only the older one must still be able
+  // to opt out.
+  //
+  // The number arrives from Meta WITHOUT a leading plus; toE164 is what makes
+  // it match rows stored in E.164.
+  const e164 = toE164(from);
+  const candidates = [from, e164].filter(Boolean);
+
+  const result = await collections.owners.updateOne(
+    { $or: [{ mobile: { $in: candidates } }, { phone: { $in: candidates } }] },
+    { $set: set }
+  );
+
+  if (set.marketingOptOut || set.marketingOptOut === false) {
+    log?.info?.(
+      {
+        to: maskIdentifier(from),
+        optOut: set.marketingOptOut === true,
+        matched: result.matchedCount > 0
+      },
+      "[meta webhook] marketing preference updated"
+    );
+  }
+
+  // No matching owner is not an error. A scanner who replies to an alert has no
+  // account here and never will, and inventing one from an inbound message
+  // would create records for people who have not signed up for anything.
 }

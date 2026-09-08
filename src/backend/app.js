@@ -14,6 +14,7 @@ import { renderAnalyticsBundle } from "./lib/analytics.js";
 import { BoundedTtlMap } from "./lib/bounded-map.js";
 import { clientError, clientErrorMessage } from "./lib/errors.js";
 import { readSession } from "./lib/auth/session.js";
+import { tryObjectId } from "./lib/auth/auth.js";
 import { createSharedRateLimitStore } from "./lib/auth/rate-limit-store.js";
 import { getCollections } from "./lib/db/repositories.js";
 import { trustProxy } from "./lib/core/proxy-trust.js";
@@ -936,6 +937,69 @@ export async function buildApp() {
       return reply.redirect("/owner-login");
     }
     return reply.redirect("/owner-welcome");
+  });
+
+  // ── /v/:tagId — the vehicle deep link ────────────────────────────────────
+  //
+  // Exists because of a Meta constraint and an ownership one.
+  //
+  // A WhatsApp URL button is a FIXED approved base plus exactly ONE variable
+  // suffix. The dashboard needs a session, and the vehicle views want several
+  // parameters, so neither can be linked to directly from a template. This is
+  // the single short URL a template can carry.
+  //
+  // It matters most on the owner alert. That message tells somebody a stranger
+  // is standing at their car, and CALLBACK_WINDOW_MS gives them ten minutes to
+  // ring that person back — a window that, until now, expired while they looked
+  // for an app that does not exist.
+  //
+  // The id is the tag's ObjectId, deliberately NOT its scan token. The token is
+  // the QR secret printed on the sticker; putting it in a message that can be
+  // forwarded would hand a stranger the scan page for that vehicle.
+  //
+  // Every failure lands on the same place, and that is the point: a tag that
+  // does not exist and a tag belonging to somebody else are indistinguishable
+  // from outside, so this cannot be used to test whether an id is real.
+  app.get("/v/:tagId", async (request, reply) => {
+    const tagId = tryObjectId(request.params.tagId);
+    const session = await readSession(app, request);
+
+    if (!session || session.role !== "owner") {
+      // Signed out. The intent travels as a query string ONLY as far as the
+      // login page, which parks it in sessionStorage — sign-in hops through
+      // screens we do not control (the OTP step, the Google round trip) and a
+      // query string is dropped on the way. Same mechanism as ?next=shop.
+      const suffix = tagId ? `&tag=${encodeURIComponent(String(tagId))}` : "";
+      return reply.redirect(`/owner-login?next=vehicle${suffix}`);
+    }
+
+    if (!tagId) return reply.redirect("/owner-welcome");
+
+    let collections = null;
+    try {
+      collections = await getCollections(env);
+    } catch {
+      // The database is unreachable. The dashboard will say so far better than
+      // a stack trace would, and a 500 on a link somebody tapped from a message
+      // about their car is the worst possible answer.
+      return reply.redirect("/owner-welcome");
+    }
+    if (!collections) return reply.redirect("/owner-welcome");
+
+    const tag = await collections.tags
+      .findOne({ _id: tagId }, { projection: { ownerId: 1 } })
+      .catch(() => null);
+
+    // String comparison: session.userId is a string and tag.ownerId is an
+    // ObjectId, so == would be false for the rightful owner and every alert
+    // button would silently land on the plain dashboard.
+    if (!tag || !tag.ownerId || String(tag.ownerId) !== String(session.userId)) {
+      return reply.redirect("/owner-welcome");
+    }
+
+    // The Activity list is where the Call Back button lives (welcome.js), and
+    // it is on the default view, so no tab switch is needed — only the scroll.
+    return reply.redirect(`/owner-welcome?v=${encodeURIComponent(String(tagId))}`);
   });
 
   // Public "buy a tag" entry point. Every order CTA on the marketing site aims

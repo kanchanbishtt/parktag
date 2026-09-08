@@ -24,6 +24,26 @@ if (_q.get("next") === "shop") {
   else sessionStorage.removeItem("pt_after_login_sku");
 }
 
+// The same parking mechanism, for the WhatsApp alert deep link.
+//
+// /v/:tagId sends a signed-out owner here. They arrived from a message saying
+// somebody is standing at their car, and they have ten minutes to call that
+// person back, so dropping them on a generic dashboard after sign-in wastes
+// the only thing the message was for.
+//
+// A raw path is deliberately NOT stored. Reading a "where to go next" string
+// out of a URL and later assigning it to location.href is an open redirect,
+// and this page is linked from messages. Only the tag id travels, and the
+// destination is rebuilt from it.
+if (_q.get("next") === "vehicle") {
+  sessionStorage.setItem("pt_after_login", "vehicle");
+  const tag = _q.get("tag");
+  // Hex ObjectId or nothing. Anything else cannot be one of ours, and this
+  // value ends up in a URL.
+  if (tag && /^[a-f0-9]{24}$/i.test(tag)) sessionStorage.setItem("pt_after_login_tag", tag);
+  else sessionStorage.removeItem("pt_after_login_tag");
+}
+
 let _currentPhone = null;
 
 // HTML-escape any value before interpolating it into innerHTML. tag.plateNumber

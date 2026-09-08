@@ -388,14 +388,26 @@
    button than the pack above it — the buttons were never the same size twice.
    A fixed target, centred in the row, is the same shape on every row. */
 .gt-pack-cta {
+  /* The box metrics live here rather than coming from .gt-btn, because only the
+     buyable variant carries .gt-btn — the sold-out one is a bare <span> with
+     .gt-pack-cta .gt-pack-cta-out. While the height, radius and type size came
+     from .gt-btn, "Order" was 44px/11px/.82rem and "Sold out" was
+     40px/12px/.78rem, so two controls in the same column were never the same
+     shape. Stating them once here makes both variants agree. */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex: none;
   align-self: center;
   min-width: 84px;
+  min-height: 44px;
   padding: 10px 14px;
   border-radius: 11px;
   background: var(--gt-red);
   color: #fff;
   font-size: .82rem;
+  font-weight: 700;
+  line-height: 1.2;
 }
 
 .gt-note {
@@ -524,9 +536,8 @@
   .gt-feats { grid-template-columns: 1fr 1fr; gap: 8px; }
   .gt-feat { padding: 12px 8px; }
   .gt-feat-s { font-size: .72rem; }
-  .gt-pack { gap: 10px; padding: 10px; }
-  .gt-pack img { width: 58px; height: 48px; }
-  .gt-pack-cta { min-width: 0; padding: 10px 12px; font-size: .78rem; }
+  /* Pack cards are laid out in the phone block further down, which is later in
+     the cascade and would override anything set here. */
   .gt-bar { gap: 10px; }
   .gt-bar-cta { padding: 10px 14px; font-size: .82rem; }
 }
@@ -812,17 +823,86 @@
 .gt-pack-out { background: var(--gt-ground, #F6F8FB); }
 .gt-pack-out img { opacity: .55; filter: grayscale(1); }
 .gt-pack-cta-out {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 40px;
-  padding: 10px 14px;
+  /* This element carries .gt-pack-cta too, which fills it with --gt-red. Only
+     the text colour was overridden here, so a pack nobody can buy rendered as
+     grey-on-red — the loudest control on the card was the one that does
+     nothing, and that grey fails contrast on that red besides. An unavailable
+     pack should read as an absence, so it takes the page's own ground and a
+     dashed edge. Metrics come from .gt-pack-cta above, so the two agree. */
+  background: var(--gt-ground);
   border: 1px dashed var(--gt-line);
-  border-radius: 12px;
-  font-size: .78rem;
-  font-weight: 700;
   color: var(--gt-ink-3);
   white-space: nowrap;
+  cursor: default;
+}
+
+/* == Pack cards on a phone ==================================================
+ *
+ * Every pack image is 4:3 landscape (1800x1350 or 900x675). Any frame that is
+ * not 4:3 makes object-fit: cover throw the difference away, and a frame taller
+ * than it is wide throws away the sides — which is how a card ended up showing
+ * the middle third of a sticker. The frame is declared with aspect-ratio here
+ * so it matches the art exactly and cover crops nothing.
+ *
+ * Height is the other half of it. A button on a row of its own costs 44px on
+ * every card, and the pack list is something to compare down, not scroll
+ * through. So the row is image | text | button on one line, centred, and the
+ * card is only as tall as its contents: about 105px rather than 155px, with
+ * four packs visible at once. The name takes two lines at phone widths, which
+ * is what a 27-character product name does in a column this wide; that costs
+ * one line, where the button row cost three. */
+@media (max-width: 599px) {
+  .gt-packs { gap: 10px; }
+
+  .gt-pack {
+    display: grid;
+    grid-template-columns: 92px minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 11px;
+    padding: 10px;
+  }
+
+  /* width + aspect-ratio, never an explicit height: the frame follows the art's
+     own 4:3 so nothing is cropped at any column width. */
+  .gt-pack img {
+    width: 92px;
+    height: auto;
+    aspect-ratio: 4 / 3;
+    border-radius: 9px;
+  }
+
+  .gt-pack-bd { min-width: 0; }
+  .gt-pack-n { font-size: .84rem; line-height: 1.28; }
+
+  /* Clamped rather than left to run: two lines is enough for every description
+     the shop actually ships, and it stops one long line making a card that no
+     longer matches the ones above it. */
+  .gt-pack-d {
+    margin-top: 2px;
+    font-size: .72rem;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .gt-pack-price { margin-top: 4px; }
+  .gt-pack-now { font-size: .95rem; }
+  .gt-pack-was { font-size: .72rem; }
+
+  .gt-pack-cta,
+  .gt-pack-cta-out { min-width: 80px; padding: 10px 12px; font-size: .8rem; }
+}
+
+/* The smallest handsets still in use: the thumbnail and the button each give up
+   a few pixels so the description keeps two readable lines. */
+@media (max-width: 360px) {
+  .gt-pack { column-gap: 10px; padding: 9px; }
+  .gt-pack img { width: 80px; }
+  .gt-pack-cta,
+  .gt-pack-cta-out { min-width: 72px; padding: 10px 10px; }
 }
 
 /* ── What you get ────────────────────────────────────────────────────────

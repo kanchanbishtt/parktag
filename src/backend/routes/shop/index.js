@@ -31,6 +31,7 @@ import {
   resolveReferral
 } from "../../lib/core/referrals.js";
 import { FULFILMENT_HANDOVER, promoValueFor, resolvePromo } from "../../lib/core/promo-codes.js";
+import { isInternalPhone } from "../../lib/core/internal-orders.js";
 
 // Flash-offer discount for converting a COD order to prepaid (paise). Kept
 // server-side so the ₹50 saving can't be inflated by a tampered client.
@@ -548,6 +549,12 @@ export function registerShopRoutes(app, env) {
           currency: order.currency,
           status: "created",
           shippingAddress: shipping,
+          // Ours, not a customer's. Five COD tests to our own Noida address
+          // once reported Rs 2,144 of revenue that never existed, and the daily
+          // digest would have gone on reporting it. Marked, never blocked:
+          // nothing else about the order changes, because a test that behaves
+          // differently tests nothing.
+          internal: isInternalPhone(env, shipping.phone),
           replaceTagId: null,
           referredBy,
           referralCode: referral.ok ? referral.code : null,
@@ -851,6 +858,8 @@ export function registerShopRoutes(app, env) {
           currency: order.currency,
           status: "created",
           shippingAddress: shipping,
+          // See the note on the guest order above.
+          internal: isInternalPhone(env, shipping.phone),
           replaceTagId: validReplaceTagId,
           // Written only after resolveReferral approved it. expectedOrderPaise
           // reads this field, not the discount number beside it.
@@ -1128,6 +1137,9 @@ export function registerShopRoutes(app, env) {
       currency: "INR",
       status: "cod",
       shippingAddress: shipping,
+      // COD is where this bit most. It takes no money up front, so a test order
+      // to our own address is pure phantom revenue that never resolves.
+      internal: isInternalPhone(env, shipping.phone),
       replaceTagId: validReplaceTagId,
       flashOfferExpiresAt,
       createdAt: new Date().toISOString()

@@ -246,7 +246,16 @@ export function getEnv() {
     // (10:00 to 14:00, working hours 10:00 to 18:00). This defaulted to 14:00
     // until that record was actually read, which was the slot's closing edge
     // and left no room for the rider to be late.
-    delhiveryPickupTime: process.env.DELHIVERY_PICKUP_TIME || "10:00:00"
+    delhiveryPickupTime: process.env.DELHIVERY_PICKUP_TIME || "10:00:00",
+    // Our own mobile numbers, comma separated. Orders placed to one of these
+    // are marked internal and kept out of revenue.
+    //
+    // Configuration rather than a constant because a list of real mobile
+    // numbers has no business in a public repository, and it changes whenever
+    // somebody joins or leaves. Unset means nothing is internal, which
+    // over-reports our testing rather than hiding a real sale. See
+    // lib/core/internal-orders.js.
+    internalTestPhones: process.env.INTERNAL_TEST_PHONES || ""
   };
 
   // Strip surrounding whitespace from every configured string.

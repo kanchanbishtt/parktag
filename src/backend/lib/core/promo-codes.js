@@ -31,17 +31,24 @@
 
 import { toE164 } from "./phone.js";
 
-// Same alphabet as referrals.js, and imported rather than re-typed so the two
-// cannot drift: no I, L, O, U, 0 or 1, because these get read aloud.
-import { ALPHABET } from "./referrals.js";
-
-// Longer than a referral code. These are chosen by a human ("AJNARA99") rather
-// than minted at random, and the extra room makes them memorable enough to
-// dictate down a phone.
+// A WIDER alphabet than referrals.js uses, and that difference is deliberate.
+//
+// Referral codes are minted at random, so dropping I, L, O, U, 0 and 1 costs
+// nothing: the machine simply picks from what is left, and the code is never
+// misheard when read aloud.
+//
+// A promo code is chosen by a person, after a place or an offer, and the same
+// restriction turns out to ban most of the words anybody would reach for.
+// "OMAXE100" has an O. "SUPERTECH" has a U. Refusing those would mean an admin
+// fighting the form over a code they have already promised a customer, and the
+// likely outcome is a worse code rather than a safer one.
+//
+// So the judgement sits with the human choosing it. The trade is real and worth
+// naming: a code containing O or 1 can be misread when dictated down a phone.
 const MIN_LENGTH = 4;
 const MAX_LENGTH = 16;
 
-export const PROMO_CODE_PATTERN = new RegExp(`^[${ALPHABET}]{${MIN_LENGTH},${MAX_LENGTH}}$`);
+export const PROMO_CODE_PATTERN = new RegExp(`^[A-Z0-9]{${MIN_LENGTH},${MAX_LENGTH}}$`);
 
 // How the sticker reaches the buyer. Carried on the CODE rather than asked at
 // checkout: a negotiated code is usually handed over face to face, and asking

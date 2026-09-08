@@ -66,12 +66,19 @@ const REWARD_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
  * amount is a number somebody could have tampered with; a stored referrer is a
  * decision this server already made. Deriving from the decision means a row
  * edited to claim a ₹400 discount still fails the check.
+ *
+ * `promoDiscountPaise` is the same rule wearing a different coat. It is passed
+ * IN by the caller, who looked it up from the promoCodes collection against
+ * `order.promoCode`, and it is deliberately NOT read off the order. The order
+ * stores its own `promoDiscountPaise` for display only; reading that back here
+ * would hand an editor of the row whatever discount they typed into it.
  */
-export function expectedOrderPaise(catalogPaise, order) {
-  const discount = order && order.referredBy ? REFERRAL_DISCOUNT_PAISE : 0;
+export function expectedOrderPaise(catalogPaise, order, promoDiscountPaise = 0) {
+  const referral = order && order.referredBy ? REFERRAL_DISCOUNT_PAISE : 0;
+  const promo = Math.max(0, Number(promoDiscountPaise) || 0);
   // Never below ₹1. Razorpay refuses a zero or negative amount, and a discount
   // that could exceed the price would be a way to be paid for taking stock.
-  return Math.max(catalogPaise - discount, 100);
+  return Math.max(catalogPaise - referral - promo, 100);
 }
 
 // Unambiguous alphabet: no I, L, O, U, 0 or 1.

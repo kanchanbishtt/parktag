@@ -107,7 +107,10 @@ export async function sendOrderConfirmation(env, collections, ownerId, details, 
           status: details.waybill
             ? "Confirmed and handed to the courier"
             : details.cod
-              ? "Confirmed — Cash on Delivery"
+              // No em-dash. This string is not a comment: it is {{3}} in an
+              // approved Meta template, so it lands verbatim in a customer's
+              // WhatsApp and cannot be edited after the fact.
+              ? "Confirmed, Cash on Delivery"
               : "Confirmed and being packed",
           // No tracking link here any more: it is a "Track order" button on the
           // template, and its parameter is the order number above. That removes

@@ -131,6 +131,16 @@ export function getEnv() {
     emailSmtpPass: process.env.EMAIL_SMTP_PASS || "",
     emailFrom: process.env.EMAIL_FROM || "noreply@parktag.me",
     appBaseUrl: process.env.APP_BASE_URL || "http://localhost:4000",
+    // ── Scheduled campaigns ─────────────────────────────────────────────
+    // OFF unless explicitly switched on, and the default is the point. This
+    // process sends WhatsApp messages to real customers on a timer, and it also
+    // runs on every developer's laptop and in every test run. Opt-in is the
+    // only default under which a local `npm run dev` cannot message anybody.
+    schedulerEnabled: process.env.SCHEDULER_ENABLED === "1",
+    // Select recipients, log them, send nothing. Run this against production
+    // data before the first live tick of any new campaign: a wrong date
+    // comparison matches every row, and on WhatsApp there is no recall.
+    campaignDryRun: process.env.CAMPAIGN_DRY_RUN === "1",
     // The marketing site, a separate Railway service. Used to recognise our own
     // host so an internal link is not counted as an inbound traffic source.
     landingBaseUrl: process.env.LANDING_BASE_URL || "",

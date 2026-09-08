@@ -47,6 +47,18 @@ export async function getCollections(env) {
     // Delivery addresses for physical sticker fulfilment — one active doc per
     // owner (upserted on ownerId), snapshotted onto each order at purchase time.
     addresses: db.collection(withPrefix(prefix, "addresses")),
+    // Every outbound WhatsApp and e-mail, one row each, claimed BEFORE the send.
+    //
+    // This is the idempotency guarantee for anything the scheduler drives. A
+    // campaign that runs twice, a container that restarts mid-tick, or two
+    // instances racing all collide on the unique (campaign, dedupeKey) index
+    // and only one send survives. See lib/core/message-log.js.
+    //
+    // It also gives routes/webhooks/meta.js a row to match delivery statuses
+    // against. OTP sends discarded the wamid, so every sent/delivered/failed
+    // callback for a verification code matched nothing and vanished — the
+    // webhook's own comment flags this.
+    messages: db.collection(withPrefix(prefix, "messages")),
     // Atomic sequence counters (e.g. the running shop order number). Each doc is
     // { _id: <name>, seq: <n> }, incremented with findOneAndUpdate($inc).
     counters: db.collection(withPrefix(prefix, "counters")),
@@ -220,7 +232,48 @@ const CORE_INDEXES = [
   // strings the rest of the codebase writes. MongoDB's TTL monitor only acts on
   // Date-typed fields and silently ignores strings, so a string here would make
   // the retention above quietly do nothing.
-  ["landingVisits", { createdAt: 1 }, { expireAfterSeconds: 15552000, name: "ttl" }]
+  ["landingVisits", { createdAt: 1 }, { expireAfterSeconds: 15552000, name: "ttl" }],
+  // ── Outbound message log ────────────────────────────────────────────────
+  //
+  // THIS unique index is load-bearing in a way none of the others are. It is
+  // not a performance index and it is not a data-hygiene index: it is the only
+  // thing standing between a scheduler bug and the same customer being messaged
+  // repeatedly. sendOnce() claims a row here before it sends, so a duplicate
+  // claim throws E11000 and the send never happens.
+  //
+  // ensureCoreIndexes below logs and continues when an index cannot be built.
+  // If THIS one fails, campaign sends lose their only duplicate protection —
+  // hence the loud name and this note. lib/core/message-log.js verifies the
+  // index is present before it will run a campaign send.
+  ["messages", { campaign: 1, dedupeKey: 1 }, { unique: true, name: "campaign_dedupe_unique" }],
+  // Delivery statuses arrive from Meta keyed on the wamid alone.
+  //
+  // Partial, for the same reason owners.mobile is: an e-mail row has no wamid,
+  // and a plain unique index would read every one of those missing fields as
+  // the same null and refuse to build on the second e-mail ever sent.
+  [
+    "messages",
+    { wamid: 1 },
+    {
+      name: "wamid_unique",
+      unique: true,
+      partialFilterExpression: { wamid: { $type: "string", $gt: "" } }
+    }
+  ],
+  ["messages", { ownerId: 1, sentAt: -1 }, { name: "owner_recent" }],
+  // 400 days, and the number is chosen rather than rounded.
+  //
+  // Retention on this collection is not housekeeping, because the row IS the
+  // dedupe record: once it expires, the campaign that wrote it can fire again.
+  // The longest natural cycle in the product is the 365-day premium trial
+  // (PREMIUM_TRIAL_MONTHS in lib/core/vault.js), so anything shorter than a
+  // year could drop a "we already told them" row while the thing it refers to
+  // is still live. 400 clears the year with room for a leap day and a late run.
+  //
+  // A real BSON Date, not an ISO string: MongoDB's TTL monitor silently ignores
+  // strings, which is how a retention rule quietly does nothing (see the note
+  // on landingVisits above).
+  ["messages", { createdAt: 1 }, { expireAfterSeconds: 34560000, name: "ttl" }]
 ];
 
 let coreIndexesEnsured = false;

@@ -3,6 +3,7 @@ import { getEnv } from "./lib/env.js";
 import { closeMongoConnection } from "./lib/db/mongo.js";
 import { getCollections, ensureCoreIndexes } from "./lib/db/repositories.js";
 import { verifyRazorpayCredentials } from "./lib/integrations/payments.js";
+import { startScheduler } from "./lib/core/scheduler.js";
 
 const env = getEnv();
 const app = await buildApp();
@@ -19,11 +20,21 @@ const app = await buildApp();
 // completed — turning a graceful shutdown back into an abrupt one.
 let shuttingDown = false;
 
+// Assigned after listen, but declared here and pre-filled with a no-op: a
+// SIGTERM arriving mid-boot would otherwise hit the temporal dead zone and turn
+// a graceful shutdown into a ReferenceError.
+let stopScheduler = () => {};
+
 async function shutdown(signal) {
   if (shuttingDown) return; // a second SIGTERM must not race the first drain
   shuttingDown = true;
 
   app.log.info({ signal }, "Shutting down WaveTag backend");
+
+  // Before the drain, not after: a tick that starts here would send messages
+  // through a connection that is about to close, and the lease it holds would
+  // idle the next instance for ten minutes.
+  stopScheduler();
 
   try {
     await app.close();          // 1. drain HTTP
@@ -100,3 +111,11 @@ getCollections(env)
 verifyRazorpayCredentials(env, app.log).catch((error) => {
   app.log.warn({ err: error }, "[razorpay] credential check failed to run");
 });
+
+// The campaign clock. After listen and never awaited, for the same reason the
+// index setup is: a scheduled message is worth far less than the port being
+// open, and the first tick is delayed two minutes so a deploy is not competing
+// with a database sweep for its first breath.
+//
+// Off unless SCHEDULER_ENABLED=1, so this line is a no-op on a laptop.
+stopScheduler = startScheduler(env, app.log);

@@ -2014,6 +2014,45 @@ window._reloadDashboard = load;
 // land here with no query string to speak of, so the parked intent is what
 // carries them the last step into the shop. Read once and deleted, so a later
 // visit to the dashboard opens on the vehicles tab as usual.
+// Finish the /v/:tagId journey for someone who had to sign in on the way.
+//
+// The intent was parked by login.js rather than carried in a query string, for
+// the reason spelled out there: sign-in hops through pages we do not control.
+// Re-entering /v/:tagId rather than rebuilding the destination here means the
+// ownership check runs exactly once, in one place, on the server.
+//
+// Runs BEFORE the shop opener below so the two cannot both act on one visit.
+(function resumeVehicleFromLogin() {
+  if (sessionStorage.getItem("pt_after_login") !== "vehicle") return;
+  const tag = sessionStorage.getItem("pt_after_login_tag");
+
+  // Read once and deleted, whatever happens next. A parked intent that survives
+  // a failure would bounce this owner back to the same link every time they
+  // opened their dashboard.
+  sessionStorage.removeItem("pt_after_login");
+  sessionStorage.removeItem("pt_after_login_tag");
+
+  // Re-validated here as well as in login.js. This value is about to become a
+  // URL, and the two checks are cheap; a stored value is only as trustworthy as
+  // the last thing that could write to it.
+  if (!tag || !/^[a-f0-9]{24}$/i.test(tag)) return;
+  window.location.replace(`/v/${tag}`);
+})();
+
+// Scroll to the Activity list when /v/:tagId sent them here.
+//
+// The Call Back button lives in that list and the list is below the fold, so
+// landing at the top of the dashboard leaves an owner hunting for the one
+// control the message existed to offer, with a ten-minute window running.
+(function scrollToActivityFromDeepLink() {
+  if (!new URLSearchParams(location.search).get("v")) return;
+  // After the dashboard request has painted the rows: scrolling to a section
+  // that is still a spinner lands on nothing.
+  setTimeout(() => {
+    document.getElementById("activitySection")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, 600);
+})();
+
 (function openShopFromQuery() {
   const q = new URLSearchParams(location.search);
   const afterLogin = sessionStorage.getItem("pt_after_login");

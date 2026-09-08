@@ -51,6 +51,15 @@ function shapeAddress(doc) {
 // not a limitation.
 //
 // Only the most recent contact is returnable — see the route below.
+//
+// CHANGING THIS NUMBER IS NOT A ONE-LINE CHANGE ANY MORE.
+//
+// "the next 10 minutes" is now written into the owner alert on both channels:
+// the alert e-mail in lib/integrations/email.js, and the WhatsApp template
+// itself. The template text is approved by Meta and CANNOT be edited without a
+// new version going through review, so a constant here can never keep it in
+// step. Move this and the two copies move with it, or the app promises a window
+// it does not honour.
 const CALLBACK_WINDOW_MS = 10 * 60 * 1000;
 
 // Said in two places below — when the account holds no premium tag at all, and

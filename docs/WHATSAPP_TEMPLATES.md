@@ -25,7 +25,7 @@ nothing calls it:
 > reported: {{2}}.
 >
 > Please check your vehicle when you can.
-> *Powered by EditTree*
+> *Powered by ParkTag*
 
 Same two variables, same order. Pointing `sendMetaWhatsappAlert` at v2 is a
 one-line change with no approval wait. Do it if v3 below is still in review when
@@ -73,7 +73,7 @@ You can call them back privately for the next 10 minutes. Your number stays
 hidden from them.
 ```
 
-**Footer:** `Powered by EditTree`
+**Footer:** `Powered by ParkTag`
 
 **Button (URL, dynamic):**
 `https://app.parktag.me/v/{{1}}` — text: `Call them back`
@@ -81,13 +81,18 @@ hidden from them.
 **Samples:** `{{1}}` = `Girish`, `{{2}}` = `the vehicle's lights appear to be on`,
 button `{{1}}` = `65f1a2b3c4d5e6f701234567`
 
-> **Code prerequisite.** `/v/:tagId` does not exist yet. A Meta URL button
-> carries exactly one variable, and `/owner-vehicle-detail` needs `id`, `number`,
-> `type` and `label` to render. So a short resolver route is needed: look the tag
-> up, require an owner session (redirect to `/owner-login` and return here after),
-> then forward to the vehicle page with the params filled in. **Do not wire this
-> template before that route exists** or the most important button in the product
-> is a 404.
+> **The button target is live.** `/v/:tagId` exists (`src/backend/app.js`,
+> tested in `src/backend/tests/vehicle-deep-link.test.js`). It resolves the tag,
+> requires an owner session, parks the intent through sign-in for a signed-out
+> owner, and lands on the dashboard scrolled to the Activity list, which is where
+> the Call Back button lives.
+>
+> The id in the button is the tag's **ObjectId, not its scan token**. The token
+> is the QR secret printed on the sticker, and a forwarded message carrying it
+> would hand a stranger the scan page for that vehicle.
+>
+> `lib/integrations/meta.js` already passes the button parameter. Switching to v3
+> once approved is one line: `OWNER_ALERT_TEMPLATE`.
 
 ---
 
@@ -109,7 +114,7 @@ After that, masked calls switch off and your document vault drops to 3 files.
 Renewing keeps both, from Rs 249 for a year.
 ```
 
-**Footer:** `Powered by EditTree`
+**Footer:** `Powered by ParkTag`
 
 **Button (URL, dynamic):**
 `https://app.parktag.me/owner-membership?tag={{1}}` — text: `Keep premium on`
@@ -139,7 +144,7 @@ Masked calls are now off, so a scanner can no longer reach you by phone through
 the tag. Your QR still works and your documents are safe.
 ```
 
-**Footer:** `Powered by EditTree`
+**Footer:** `Powered by ParkTag`
 
 **Button (URL, dynamic):** `https://app.parktag.me/owner-membership?tag={{1}}` — text: `Turn premium back on`
 
@@ -162,7 +167,7 @@ Hi *{{1}}*, the *{{2}}* you stored for your *{{3}}* expires on *{{4}}*.
 Your copy is in your ParkTag vault whenever you need it.
 ```
 
-**Footer:** `Powered by EditTree`
+**Footer:** `Powered by ParkTag`
 
 **Button (URL, dynamic):** `https://app.parktag.me/owner-documents?tag={{1}}` — text: `Open my documents`
 
@@ -189,7 +194,7 @@ It takes about a minute: stick it on the windscreen, scan it with your phone
 camera, and enter your details. Until then it cannot reach you.
 ```
 
-**Footer:** `Powered by EditTree`
+**Footer:** `Powered by ParkTag`
 
 **Button (URL, static):** `https://app.parktag.me/owner` — text: `Activate my tag`
 
@@ -212,7 +217,7 @@ missed it.
 You can call them back privately for the next 10 minutes.
 ```
 
-**Footer:** `Powered by EditTree`
+**Footer:** `Powered by ParkTag`
 
 **Button (URL, dynamic):** `https://app.parktag.me/v/{{1}}` — text: `Call them back`
 
@@ -238,7 +243,7 @@ Hi *{{1}}*, good news. *{{2}}* used your ParkTag referral, so we have added
 Your premium now runs until *{{4}}*.
 ```
 
-**Footer:** `Powered by EditTree`
+**Footer:** `Powered by ParkTag`
 
 **Button (URL, static):** `https://app.parktag.me/owner` — text: `See my account`
 
@@ -246,7 +251,34 @@ Your premium now runs until *{{4}}*.
 
 ---
 
-## 3. Housekeeping in WhatsApp Manager
+## 3. The footer says the wrong company
+
+Every approved ParkTag template currently ends **`Powered by EditTree`**. The
+customer bought a ParkTag, the message comes from ParkTag, and the link goes to
+`app.parktag.me`, so naming a company they have never heard of is the one line
+in the message that does not belong to them. It should read **`Powered by
+ParkTag`** everywhere.
+
+New templates in section 2 already say ParkTag. The five live ones need editing
+in WhatsApp Manager:
+
+| Template | Sent today |
+| --- | --- |
+| `parktag_order_update_v2` | yes, regularly |
+| `parktag_membership_confirmed` | yes |
+| `parktag_tag_activated` | about to be, this release |
+| `parktag_cart_reminder` | about to be, this release |
+| `parktag_owner_notification_v2` | yes, this release |
+
+A footer edit sends the template back through review, so **do these one at a
+time and confirm each is APPROVED before the next**. A template in review still
+sends on its last approved version, so there is no outage, but editing all five
+at once means every one of them is unverifiable at the same moment.
+
+`parktag_upgrade_offer` is MARKETING and also carries the wrong footer. Leave it
+until the win-back campaign is actually built, and edit it then.
+
+## 4. Housekeeping in WhatsApp Manager
 
 - **`hello_world`** and **`send_invoice_customer`** are not ParkTag's. The second
   is a leftover from another EditTree workflow, is MARKETING, and points its
@@ -260,12 +292,12 @@ Your premium now runs until *{{4}}*.
   `value.messages` and records the opt-out. **It could not be honoured before**,
   so this template should not have been sent at all.
 
-## 4. Rules for whoever writes the next one
+## 5. Rules for whoever writes the next one
 
 The house style is set by `parktag_order_update_v2`, which is the best template
 in the account:
 
-1. A `ParkTag` text header and a `Powered by EditTree` footer. Always.
+1. A `ParkTag` text header and a `Powered by ParkTag` footer. Always.
 2. Bold the name and the one fact that matters. Nothing else.
 3. A blank line between facts. Not one paragraph.
 4. A URL **button**, never a bare URL in the body. A link in body text is not

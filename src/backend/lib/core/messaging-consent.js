@@ -53,6 +53,32 @@ export function canSendUtility(owner) {
 }
 
 /**
+ * May THIS order's buyer be sent a marketing message?
+ *
+ * Orders are the awkward case, because most of them have no account behind
+ * them. A guest checkout is anonymous by design — routes/shop/index.js writes
+ * `ownerId: null` and attaches the order to nobody — so there is no owner
+ * document to hold a consent flag. The order therefore carries its own.
+ *
+ * Two rules, and the ordering between them matters:
+ *
+ *   1. Consent may come from EITHER the order or the account. A guest who
+ *      ticked the box at checkout has consented, whether or not they ever
+ *      create an account.
+ *   2. An opt-out on the ACCOUNT beats a tick on the order, always. Somebody
+ *      who later replies STOP has withdrawn consent, and an older checkbox on
+ *      a months-old order must not resurrect it. This is the asymmetry that
+ *      makes the whole thing lawful rather than merely recorded.
+ */
+export function orderMayReceiveMarketing(order, owner = null) {
+  // A withdrawal, or a hard stop, ends it regardless of what any order says.
+  if (owner?.marketingOptOut === true) return false;
+  if (owner?.messagingHardStop) return false;
+
+  return Boolean(order?.marketingOptInAt) || Boolean(owner?.marketingOptInAt);
+}
+
+/**
  * Is a free 24-hour customer service window open?
  *
  * Meta bills utility templates, EXCEPT inside the window a customer opens by

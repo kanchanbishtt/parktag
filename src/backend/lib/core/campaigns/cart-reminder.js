@@ -9,18 +9,29 @@
 // `parktag_cart_reminder` was created in WhatsApp Manager months ago, approved
 // as UTILITY, and has delivered zero messages because no code ever called it.
 //
-// ── Utility, and why that is honest here ───────────────────────────────────
+// ── This is MARKETING, and it used not to be ───────────────────────────────
 //
-// This is not a "you might like" push. It names one specific order the customer
-// themselves started, states a fact about it (the payment did not complete, so
-// nothing shipped), and links to finishing it. Meta approved it as utility on
-// that basis and it is sent on that basis: no consent check, no offer in the
-// body, no discount. The moment it carries a discount it becomes marketing and
-// moves behind canSendMarketing().
+// The comment here used to argue that the reminder was honestly utility: it
+// names one specific order the customer started and links to finishing it, and
+// Meta had approved it as UTILITY. That reasoning is now wrong, and the way it
+// went wrong is worth recording.
+//
+// Editing the footer (EditTree -> ParkTag) sent the template back through
+// review, and Meta reclassified it to MARKETING on the way. That was not the
+// footer's doing: "finish your order" is an invitation to complete a purchase,
+// which is abandoned-cart, which is marketing by Meta's own taxonomy. The
+// utility approval was legacy, and re-review simply applied the current rule.
+//
+// So the campaign now needs consent, and the consequence is deliberate and
+// visible: with nothing capturing marketing opt-in yet, this campaign selects
+// recipients and sends to NOBODY. That is the correct state for a marketing
+// message with no consent record. It starts working the moment opt-in is
+// captured at checkout, and not one message before.
 
 import { sendOnce } from "../message-log.js";
 import { isMetaWhatsappConfigured, sendMetaWhatsappCartReminder } from "../../integrations/meta.js";
 import { firstNameOf } from "../owner-name.js";
+import { orderMayReceiveMarketing } from "../messaging-consent.js";
 
 // The window, and why it has BOTH ends.
 //
@@ -58,6 +69,7 @@ export async function run(env, collections, { now, limit, dryRun, log }) {
     .toArray();
 
   let sent = 0;
+  let refusedForConsent = 0;
   const selected = [];
 
   for (const order of orders) {
@@ -66,6 +78,24 @@ export async function run(env, collections, { now, limit, dryRun, log }) {
     // step has no way to be reached at all, which is correct: we know nothing
     // about that person and should not.
     if (!phone) continue;
+
+    // Consent, checked per recipient rather than per campaign.
+    //
+    // A guest order has no account, so the order carries its own consent stamp;
+    // a signed-in buyer's account carries theirs, and an opt-out on the account
+    // overrides an older tick on the order. orderMayReceiveMarketing holds both
+    // rules so this loop cannot get one of them wrong.
+    const owner = order.ownerId
+      ? await collections.owners.findOne(
+          { _id: order.ownerId },
+          { projection: { marketingOptInAt: 1, marketingOptOut: 1, messagingHardStop: 1 } }
+        )
+      : null;
+
+    if (!orderMayReceiveMarketing(order, owner)) {
+      refusedForConsent += 1;
+      continue;
+    }
 
     const name = firstNameOf(order?.shippingAddress?.fullName) || "there";
     const product = order.productName || "your ParkTag";
@@ -104,11 +134,20 @@ export async function run(env, collections, { now, limit, dryRun, log }) {
   }
 
   if (dryRun) {
-    log?.info?.({ campaign: id, wouldSend: selected.length, selected }, "[campaign] dry run");
-    return { sent: 0, dryRun: true, wouldSend: selected.length };
+    log?.info?.(
+      { campaign: id, wouldSend: selected.length, refusedForConsent, selected },
+      "[campaign] dry run"
+    );
+    // `selected` is returned, not just logged. A dry run exists to be read,
+    // and a count alone cannot answer "is it picking the RIGHT people",
+    // which is the only question worth asking before a first live tick.
+    return { sent: 0, dryRun: true, wouldSend: selected.length, refusedForConsent, selected };
   }
 
-  return { sent, considered: orders.length };
+  // refusedForConsent is reported rather than swallowed. While opt-in capture
+  // is missing this number IS the campaign, and a silent zero would read as
+  // "no abandoned carts" rather than "nobody may be told about theirs".
+  return { sent, considered: orders.length, refusedForConsent };
 }
 
 // The app, not the landing site. env.appBaseUrl points at the service that

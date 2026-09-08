@@ -37,7 +37,7 @@ const ENV = {
   delhiveryApiKey: "a-real-looking-key",
   delhiveryPickupLocation: "ParkTag",
   delhiveryBaseUrl: "https://track.delhivery.com",
-  delhiveryPickupTime: "14:00:00"
+  delhiveryPickupTime: "10:00:00"
 };
 
 // The same environment with the test-run signal removed, so the guard lets the
@@ -89,19 +89,20 @@ function okResponse(body = { success: true, pickup_id: 987654 }) {
 }
 
 describe("the pickup date", () => {
-  // Delhivery is asked for the next working day rather than today: a parcel
-  // booked at 23:50 cannot be handed to a rider who came at 14:00.
+  // Delhivery is asked for the next day rather than today: a parcel booked at
+  // 23:50 cannot be handed to a rider who came at 10:00 that morning.
   test("a weekday rolls to the next day", () => {
     // Tuesday 8 September 2026.
     assert.equal(nextPickupDate(new Date("2026-09-08T10:00:00+05:30")), "2026-09-09");
   });
 
-  test("Saturday skips Sunday and lands on Monday", () => {
-    // Saturday 12 September 2026 -> Sunday is closed -> Monday the 14th.
-    assert.equal(nextPickupDate(new Date("2026-09-12T10:00:00+05:30")), "2026-09-14");
+  // The warehouse record lists working_days as all seven including SUN, so a
+  // weekend skip would push every Saturday order back a day for nothing.
+  test("Saturday goes to Sunday, because the warehouse works Sundays", () => {
+    assert.equal(nextPickupDate(new Date("2026-09-12T10:00:00+05:30")), "2026-09-13");
   });
 
-  test("Sunday rolls to Monday", () => {
+  test("Sunday goes to Monday", () => {
     assert.equal(nextPickupDate(new Date("2026-09-13T10:00:00+05:30")), "2026-09-14");
   });
 
@@ -147,7 +148,7 @@ describe("requesting a pickup", () => {
     const sent = JSON.parse(calls[0].init.body);
     assert.equal(sent.pickup_location, "ParkTag");
     assert.equal(sent.pickup_date, "2026-09-09");
-    assert.equal(sent.pickup_time, "14:00:00");
+    assert.equal(sent.pickup_time, "10:00:00");
     assert.equal(sent.expected_package_count, 3);
 
     assert.equal(result.pickupId, "987654");

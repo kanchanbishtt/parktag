@@ -205,6 +205,29 @@ export async function sendMetaWhatsappAlert(env, { to, ownerName, reason, tagId 
 // exists because the scan page is used by strangers standing at someone else's
 // car; this message goes to a number the owner has just proved by OTP, about a
 // plate painted on the outside of their own vehicle.
+// The premium year is ending, against the approved `parktag_trial_ending`:
+//
+//   {{1}} first name   {{2}} vehicle   {{3}} how long is left ("30 days")
+//   button  "Keep premium on" -> app.parktag.me/owner-membership?tag={{1}}
+//
+// UTILITY, and it stayed utility because the PRICE came out of the body at
+// submission. Meta reclassified three sibling templates to MARKETING on
+// re-review; the ones that survived all describe a dated change to a service
+// the customer currently holds, with no invitation to buy in the text. Adding
+// "from Rs 249" here would very likely flip it, and the e-mail counterpart
+// carries the price instead.
+export async function sendMetaWhatsappTrialEnding(env, { to, name, vehicle, remaining, tagId }) {
+  return sendTemplate(env, {
+    to,
+    template: "parktag_trial_ending",
+    components: [
+      ...bodyComponent(name, vehicle, remaining),
+      { type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: String(tagId) }] }
+    ],
+    publicMessage: "Unable to send the WhatsApp renewal reminder."
+  });
+}
+
 export async function sendMetaWhatsappTagActivated(env, { to, name, vehicle, plate }) {
   return sendTemplate(env, {
     to,

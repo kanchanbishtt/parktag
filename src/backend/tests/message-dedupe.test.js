@@ -27,7 +27,12 @@ import { getEnv } from "../lib/env.js";
 import { getCollections, ensureCoreIndexes } from "../lib/db/repositories.js";
 import { closeMongoConnection } from "../lib/db/mongo.js";
 import { sendOnce, resetDedupeIndexCheck } from "../lib/core/message-log.js";
-import { canSendMarketing, canSendUtility, hasOpenServiceWindow } from "../lib/core/messaging-consent.js";
+import {
+  canSendMarketing,
+  canSendUtility,
+  hasOpenServiceWindow,
+  orderMayReceiveMarketing
+} from "../lib/core/messaging-consent.js";
 
 assertDisposableDatabase();
 
@@ -210,6 +215,28 @@ describe("consent separates offers from service messages", () => {
 
   test("a hard stop silences everything", () => {
     assert.equal(canSendUtility({ messagingHardStop: true }), false);
+  });
+
+  test("a guest order carries its own consent", () => {
+    // A guest checkout is anonymous by design (ownerId: null), so there is no
+    // account to hold a flag. Without this, cart-reminder could never reach the
+    // buyers it exists for.
+    assert.equal(orderMayReceiveMarketing({ marketingOptInAt: "2026-09-08T00:00:00.000Z" }, null), true);
+    assert.equal(orderMayReceiveMarketing({}, null), false, "an unticked guest order was treated as consent");
+  });
+
+  test("an account opt-out beats an older tick on the order", () => {
+    // THE asymmetry that makes this lawful rather than merely recorded. Someone
+    // who replies STOP has withdrawn consent, and a checkbox they ticked on a
+    // months-old order must not resurrect it.
+    const order = { marketingOptInAt: "2026-01-01T00:00:00.000Z" };
+    assert.equal(orderMayReceiveMarketing(order, { marketingOptOut: true }), false);
+    assert.equal(orderMayReceiveMarketing(order, { messagingHardStop: true }), false);
+    assert.equal(orderMayReceiveMarketing(order, {}), true);
+  });
+
+  test("consent on the account covers an order that predates it", () => {
+    assert.equal(orderMayReceiveMarketing({}, { marketingOptInAt: "2026-09-08T00:00:00.000Z" }), true);
   });
 
   test("the free service window expires", () => {

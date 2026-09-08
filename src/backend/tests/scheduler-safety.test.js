@@ -124,9 +124,36 @@ describe("only one instance ticks", () => {
   });
 });
 
+describe("cart-reminder needs consent now that it is MARKETING", () => {
+  test("an order with no consent is refused, not sent", async () => {
+    // The template was reclassified UTILITY -> MARKETING at re-review. This
+    // campaign shipped with no consent check because it was built against the
+    // old classification, so this is the assertion that stops it going out
+    // again if somebody restores the old behaviour.
+    await seedOrder(4);
+
+    const result = await cartReminder.run(DRY_ENV, collections, {
+      now: new Date(), limit: 50, dryRun: true, log: null
+    });
+
+    assert.equal(result.wouldSend, 0, "a marketing message was selected with no consent on file");
+    assert.equal(result.refusedForConsent, 1, "the refusal was not counted, so a silent zero hides it");
+  });
+
+  test("an order carrying consent is selected", async () => {
+    await seedOrder(4, { marketingOptInAt: new Date().toISOString() });
+
+    const result = await cartReminder.run(DRY_ENV, collections, {
+      now: new Date(), limit: 50, dryRun: true, log: null
+    });
+
+    assert.equal(result.wouldSend, 1, "a consented buyer was refused");
+  });
+});
+
 describe("a dry run is genuinely inert", () => {
   test("it selects the order and sends nothing", async () => {
-    await seedOrder(4);
+    await seedOrder(4, { marketingOptInAt: new Date().toISOString() });
 
     const before = await collections.messages.countDocuments({ campaign: "cart-reminder" });
 
@@ -150,7 +177,7 @@ describe("the cart-reminder window is bounded at both ends", () => {
   test("too new is not selected", async () => {
     // Somebody one hour in may still be on the Razorpay sheet. Messaging them
     // mid-payment is the worst possible moment to say the payment failed.
-    await seedOrder(1);
+    await seedOrder(1, { marketingOptInAt: new Date().toISOString() });
 
     const result = await cartReminder.run(DRY_ENV, collections, {
       now: new Date(), limit: 50, dryRun: true, log: null
@@ -163,7 +190,7 @@ describe("the cart-reminder window is bounded at both ends", () => {
     // THE containment property. If this ever passes with an order from last
     // week, the query has become open-ended and every abandoned order in
     // history is a candidate on every tick.
-    await seedOrder(48);
+    await seedOrder(48, { marketingOptInAt: new Date().toISOString() });
 
     const result = await cartReminder.run(DRY_ENV, collections, {
       now: new Date(), limit: 50, dryRun: true, log: null
@@ -173,7 +200,7 @@ describe("the cart-reminder window is bounded at both ends", () => {
   });
 
   test("a paid order is never chased", async () => {
-    await seedOrder(4, { status: "paid" });
+    await seedOrder(4, { status: "paid", marketingOptInAt: new Date().toISOString() });
 
     const result = await cartReminder.run(DRY_ENV, collections, {
       now: new Date(), limit: 50, dryRun: true, log: null
@@ -183,7 +210,7 @@ describe("the cart-reminder window is bounded at both ends", () => {
   });
 
   test("an order with no phone number is skipped, not crashed on", async () => {
-    await seedOrder(4, { shippingAddress: { fullName: "No Phone" } });
+    await seedOrder(4, { shippingAddress: { fullName: "No Phone" }, marketingOptInAt: new Date().toISOString() });
 
     const result = await cartReminder.run(DRY_ENV, collections, {
       now: new Date(), limit: 50, dryRun: true, log: null

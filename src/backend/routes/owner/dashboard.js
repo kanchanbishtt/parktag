@@ -12,6 +12,7 @@ import {
 import { getCollections, ensurePendingCallsIndexes, getVaultBucket } from "../../lib/db/repositories.js";
 import { purgeVaultDocuments, deleteUsage } from "../../lib/core/vault.js";
 import { callEntitlement } from "../../lib/core/call-access.js";
+import { membershipCountdown } from "../../lib/core/membership-fulfilment.js";
 import {
   cleanGender,
   cleanDateOfBirth,
@@ -244,6 +245,15 @@ export function registerOwnerRoutes(app, env) {
           // Sent as the entitlement rather than as a bare flag so the UI cannot
           // re-derive the rule and get a different answer from the server.
           callAccess: callEntitlement(tag),
+          // How long this tag's premium cover has left, for the countdown on
+          // the profile card. Computed here and sent whole for the same reason
+          // callAccess just above is: the browser would otherwise have to be
+          // given premiumSince, activatedAt, createdAt and the subscription and
+          // re-implement the precedence, the skew clamp and the trial length to
+          // reach a number the server already knows. Two implementations of one
+          // rule is two answers, and this one is printed as a date the owner
+          // will hold us to. Null for an E-Tag, which has no cover to count.
+          membership: membershipCountdown(tag),
           // Returned in full (not masked) because this is the owner's own
           // session reading back a number they typed, so the SOS field can
           // prefill on any device instead of only where it was first saved.

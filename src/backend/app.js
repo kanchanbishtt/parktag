@@ -76,6 +76,7 @@ const ownerLoginPage = path.join(pagesRoot, "owner/login.html");
 const hubPage = path.join(pagesRoot, "hub.html");
 const shopPage = path.join(pagesRoot, "shop.html");
 const getPage = path.join(pagesRoot, "get.html");
+const directPage = path.join(pagesRoot, "direct.html");
 const forgotPasswordPage = path.join(pagesRoot, "owner/forgot-password.html");
 const resetPasswordPage = path.join(pagesRoot, "owner/reset-password.html");
 const ownerVerifyPage = path.join(pagesRoot, "owner/verify.html");
@@ -1074,6 +1075,19 @@ export async function buildApp() {
     recordAppPageVisit(app, env, request, "/get");
 
     const html = await fs.readFile(getPage, "utf8");
+    reply.type("text/html");
+    return html;
+  });
+
+  // The direct-sale checkout. Handed to somebody who has already been quoted a
+  // price, so it is never linked from anywhere and carries a noindex.
+  //
+  // Counted like /get and /shop: this page exists to be sent to one person at a
+  // time, and whether they actually opened it is the only signal there is.
+  app.get("/direct", async (request, reply) => {
+    recordAppPageVisit(app, env, request, "/direct");
+
+    const html = await fs.readFile(directPage, "utf8");
     reply.type("text/html");
     return html;
   });

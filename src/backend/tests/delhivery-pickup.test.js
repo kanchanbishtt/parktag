@@ -174,6 +174,45 @@ describe("requesting a pickup", () => {
       /pickup already exists/
     );
   });
+
+  // The documented 400 for this endpoint puts its whole explanation in
+  // `pickup_location`, and it is the likeliest failure on a first deploy:
+  // DELHIVERY_PICKUP_LOCATION must match a registered warehouse exactly.
+  // A generic "request failed" here would send somebody reading raw JSON.
+  test("an unregistered warehouse reports what is actually wrong", async () => {
+    await assert.rejects(
+      () =>
+        withFetch(
+          () =>
+            new Response(
+              JSON.stringify({
+                pickup_location: "Invalid Pickup Location ClientWarehouse matching query does not exist."
+              }),
+              { status: 400, headers: { "content-type": "application/json" } }
+            ),
+          () => requestPickup(LIVE, { pickupDate: "2026-09-09", expectedPackageCount: 1 })
+        ),
+      /ClientWarehouse matching query does not exist/
+    );
+  });
+
+  // Delhivery assigns the slot; the one asked for is only a request. Recording
+  // the requested time would tell somebody to be there at the wrong hour.
+  test("the slot Delhivery assigns wins over the one requested", async () => {
+    const { result } = await withFetch(
+      () =>
+        okResponse({
+          pickup_id: 118775,
+          pickup_date: '2026-09-09',
+          pickup_time: '16:30:00',
+          expected_package_count: 1
+        }),
+      () => requestPickup(LIVE, { pickupDate: '2026-09-09', expectedPackageCount: 1 })
+    );
+
+    assert.equal(result.atTime, '16:30:00', 'the assigned slot was discarded');
+    assert.equal(result.forDate, '2026-09-09');
+  });
 });
 
 describe("one pickup per warehouse per day", () => {

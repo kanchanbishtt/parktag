@@ -29,6 +29,7 @@ import { verifyRecaptchaV2 } from "../../lib/integrations/recaptcha.js";
 import { clientErrorMessage } from "../../lib/errors.js";
 import { findByCanonicalEmail } from "../../lib/auth/identity.js";
 import { recordDemoActivation } from "../../lib/core/marketing-stock.js";
+import { linkTagToOrder } from "../../lib/core/order-linking.js";
 import { sendActivationNotice } from "../../lib/core/activation-notice.js";
 
 // Report reasons, matched exactly. An open text field for the reason would let
@@ -794,6 +795,16 @@ export function registerPublicRoutes(app, env) {
     // the customer walks away. The account is always new on this path.
     await recordDemoActivation(collections, { tagId: tag._id, ownerId, isNewOwner: true });
 
+    // Join this sticker to the order that paid for it, on the phone that was
+    // just OTP-verified. Nobody types a serial: it is printed under the
+    // adhesive, so reading one means peeling a sticker somebody has already
+    // stuck down.
+    //
+    // Best effort by design. The customer is mid-activation and waiting; a
+    // bookkeeping miss must never cost them that, and an unlinked tag shows up
+    // on the reconciliation report anyway.
+    await linkTagToOrder(collections, { tagId: tag._id, phone }, app.log);
+
     // Same notice as /activate below. This path sets an e-mail and a password
     // and may have no mobile at all, which is exactly why the notice tries both
     // channels rather than assuming WhatsApp.
@@ -1045,6 +1056,16 @@ export function registerPublicRoutes(app, env) {
     // matching call in /claim. isNewOwner matters here: a customer who already
     // had an account keeps it when the sticker is deactivated.
     await recordDemoActivation(collections, { tagId: tag._id, ownerId: owner._id, isNewOwner });
+
+    // Join this sticker to the order that paid for it, on the phone that was
+    // just OTP-verified. Nobody types a serial: it is printed under the
+    // adhesive, so reading one means peeling a sticker somebody has already
+    // stuck down.
+    //
+    // Best effort by design. The customer is mid-activation and waiting; a
+    // bookkeeping miss must never cost them that, and an unlinked tag shows up
+    // on the reconciliation report anyway.
+    await linkTagToOrder(collections, { tagId: tag._id, phone }, app.log);
 
     // Log them straight in so the success screen can hand off to the dashboard.
     const sessionId = await createSession(app, {

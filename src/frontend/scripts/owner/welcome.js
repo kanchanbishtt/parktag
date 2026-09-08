@@ -199,6 +199,194 @@ const PR_SK = {
   phone: '<span class="pt-pr-sk" style="display:inline-block;width:106px;height:.78em;border-radius:5px;vertical-align:middle"></span>'
 };
 
+// ── Membership countdown ──────────────────────────────────────────────────
+//
+// One row per premium tag, drawn from the entitlement the server already
+// computed. Nothing here re-derives a date: `tag.membership` arrives whole, and
+// this only decides how to say it. The rule about which field the free year is
+// counted from, the clamp for a start date ahead of our clock and the trial
+// length all live on the server, where the vault and the membership screen read
+// them too — a second implementation in the browser would be a second answer to
+// a question we print as a date the owner will hold us to.
+//
+// Per tag rather than one figure for the account, because entitlement is per
+// tag: subscription.js reads tag.subscription and nothing else. A single number
+// for somebody holding two tags would have to pick one and be wrong about the
+// other.
+function _memDate(iso) {
+  const at = new Date(iso);
+  if (!Number.isFinite(at.getTime())) return null;
+  // Same call the membership screen makes, so the two screens cannot name the
+  // same instant differently.
+  return at.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+}
+
+const MEM_DAY = 24 * 60 * 60 * 1000;
+let _memTimer = null;
+let _memWatching = false;
+
+// The payload was computed when the dashboard answered. A number of days is
+// wrong the moment it crosses its own boundary, and this page can sit open for
+// days — somebody who left it open overnight was reading yesterday's figure
+// until they happened to reload.
+//
+// So the days are measured here against the end instant the SERVER named,
+// rather than trusted from the moment it was fetched. Only the arithmetic moves
+// into the browser. Which date cover runs to, and whether this tag is on its
+// free year or a paid period, are still the server's answers — the rule about
+// which field the year counts from, the skew clamp and the trial length all
+// stay where the vault and the membership screen read them.
+function _memLive(m, now) {
+  if (!m || !m.endsAt) return m;
+  const end = Date.parse(m.endsAt);
+  if (!Number.isFinite(end)) return m;
+
+  // The instant the server named has passed while this page was open. Say so,
+  // rather than go on showing a number the clock has already disproved.
+  if (end <= now) {
+    return { state: "lapsed", endsAt: null, daysLeft: 0, totalDays: null, elapsedDays: null };
+  }
+
+  const daysLeft = Math.max(1, Math.ceil((end - now) / MEM_DAY));
+  const total = m.totalDays;
+  const elapsedDays = (total === null || total === undefined)
+    ? m.elapsedDays
+    : Math.min(total, Math.max(0, total - daysLeft));
+
+  return Object.assign({}, m, { daysLeft, elapsedDays });
+}
+
+// When the soonest row next changes its number.
+//
+// Not midnight: a countdown in whole days steps at the same time of day its
+// cover expires, so a card whose cover ends at 09:30 ticks at 09:30. Waking on
+// the wrong boundary would leave the figure stale for up to a day either side.
+function _memNextTick(views, now) {
+  let soonest = Infinity;
+  for (const m of views) {
+    if (!m || !m.endsAt) continue;
+    const end = Date.parse(m.endsAt);
+    if (!Number.isFinite(end) || end <= now) continue;
+    const remainder = (end - now) % MEM_DAY;
+    soonest = Math.min(soonest, remainder === 0 ? MEM_DAY : remainder);
+  }
+  return soonest;
+}
+
+function _memRow(tag, m) {
+  const li = document.createElement("li");
+  li.className = m.state === "lapsed" ? "pt-pr-mem-row is-lapsed" : "pt-pr-mem-row";
+
+  const hd = document.createElement("div");
+  hd.className = "pt-pr-mem-hd";
+
+  const veh = document.createElement("span");
+  veh.className = "pt-pr-mem-veh";
+  // textContent throughout: a plate number is owner-supplied.
+  veh.textContent = [tag.vehicleLabel || "Vehicle", tag.plateNumber].filter(Boolean).join(" · ");
+
+  const left = document.createElement("span");
+  left.className = "pt-pr-mem-left";
+  const figure = document.createElement("em");
+
+  if (m.state === "lapsed") {
+    figure.textContent = "Expired";
+    left.append(figure);
+  } else if (m.state === "open" || m.daysLeft === null) {
+    figure.textContent = "Active";
+    left.append(figure);
+  } else if (m.daysLeft <= 0) {
+    // daysLeft is rounded up on the server, so live cover never reaches zero.
+    // Defensive only, and it must not read as "expired" when it is not.
+    figure.textContent = "Last day";
+    left.append(figure);
+  } else {
+    figure.textContent = String(m.daysLeft);
+    left.append(figure, document.createTextNode(" " + (m.daysLeft === 1 ? "day" : "days") + " left"));
+  }
+
+  hd.append(veh, left);
+  li.append(hd);
+
+  // Only where the server sent a window it actually knows end to end.
+  if (m.totalDays && m.elapsedDays !== null && m.elapsedDays !== undefined) {
+    const pct = Math.max(0, Math.min(100, Math.round((m.elapsedDays / m.totalDays) * 100)));
+    const bar = document.createElement("div");
+    bar.className = "pt-pr-mem-bar";
+    bar.setAttribute("role", "progressbar");
+    bar.setAttribute("aria-valuemin", "0");
+    bar.setAttribute("aria-valuemax", String(m.totalDays));
+    bar.setAttribute("aria-valuenow", String(m.elapsedDays));
+    bar.setAttribute("aria-label", "Days used of your free year");
+    const fill = document.createElement("i");
+    fill.style.width = pct + "%";
+    bar.append(fill);
+    li.append(bar);
+  }
+
+  const sub = document.createElement("span");
+  sub.className = "pt-pr-mem-sub";
+  const on = m.endsAt ? _memDate(m.endsAt) : null;
+  if (m.state === "lapsed") {
+    sub.textContent = "Renew to keep masked calls on this tag.";
+  } else if (m.state === "open") {
+    sub.textContent = "Premium, with no end date on this tag.";
+  } else if (m.state === "subscribed") {
+    sub.textContent = on ? "Premium until " + on + "." : "Premium.";
+  } else {
+    sub.textContent = on ? "Free year, until " + on + "." : "Free year.";
+  }
+  li.append(sub);
+
+  return li;
+}
+
+function renderMembership() {
+  const list = document.getElementById("prMembership");
+  const note = document.getElementById("prPremNote");
+  if (!list || !note) return;
+
+  const rows = (allTags || []).filter((t) => t && t.membership);
+
+  // An account with no premium tag has no cover to count down, so the card goes
+  // on making the offer it always made rather than showing an empty list.
+  if (!rows.length) {
+    list.replaceChildren();
+    list.hidden = true;
+    note.hidden = false;
+    return;
+  }
+
+  const now = Date.now();
+  const views = rows.map((t) => _memLive(t.membership, now));
+
+  list.replaceChildren(...rows.map((t, i) => _memRow(t, views[i])));
+  list.hidden = false;
+  note.hidden = true;
+
+  // Wake exactly when the soonest figure changes. One timer for the whole list,
+  // reset on every render, so switching tabs cannot leave several running.
+  if (_memTimer) { clearTimeout(_memTimer); _memTimer = null; }
+  const next = _memNextTick(views, now);
+  if (Number.isFinite(next)) {
+    // Capped at six hours. A laptop that slept through the deadline wakes with a
+    // timer whose delay has already elapsed in wall-clock terms, and browsers do
+    // not agree on whether that fires late or not at all; a ceiling means the
+    // worst case is one stale render rather than a card frozen for a year.
+    _memTimer = setTimeout(renderMembership, Math.min(next + 1000, 6 * 60 * 60 * 1000));
+  }
+
+  // Sleeping and waking is the case a timer cannot cover on its own. Registered
+  // once, and only from here, so a page that never shows this card never
+  // subscribes.
+  if (!_memWatching) {
+    _memWatching = true;
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) renderMembership();
+    });
+  }
+}
+
 function renderProfileView() {
   const card = document.getElementById("prIdentity");
   const avatar = document.getElementById("prAvatar");
@@ -231,6 +419,11 @@ function renderProfileView() {
     }
   }
   if (avatar) avatar.textContent = _prInitial(o);
+
+  // Drawn here rather than only from load(), because switchTab paints this view
+  // too — a cold open on #profile would otherwise show the static offer until
+  // something else happened to redraw.
+  renderMembership();
 
   // textContent, not innerHTML — this is owner-supplied and goes in as text.
   // It also clears the skeleton span in the same assignment.

@@ -12,6 +12,14 @@
 //   1. due()/run() must query a BOUNDED window (see scheduler.js).
 //   2. every send goes through sendOnce() with a natural dedupeKey.
 
+import * as trialEnding from "./trial-ending.js";
 import * as cartReminder from "./cart-reminder.js";
 
-export const CAMPAIGNS = [cartReminder];
+// Ordered by how much the customer would mind missing it, because the
+// per-tick send budget is spent top-down: if the cap is ever hit, it is the
+// least important campaign that goes short.
+//
+// trial-ending outranks cart-reminder because a missed renewal notice costs
+// somebody a feature they are still paying attention to, while a missed cart
+// nudge costs a sale that was already half-lost.
+export const CAMPAIGNS = [trialEnding, cartReminder];

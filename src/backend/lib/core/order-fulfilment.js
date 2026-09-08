@@ -28,6 +28,7 @@ import { isMetaWhatsappConfigured, sendMetaWhatsappOrderUpdate } from "../integr
 import { sendCapiEventBestEffort, purchaseEventId, isMetaCapiConfigured } from "../integrations/meta-capi.js";
 import { firstNameOf, resolveOwnerName } from "./owner-name.js";
 import { grantReferralReward } from "./referrals.js";
+import { consumePromo } from "./promo-codes.js";
 
 // Tell the buyer their order exists, without ever blocking the caller — the
 // order already exists by this point, so a notification failure must never turn
@@ -219,8 +220,13 @@ export async function fulfilPaidOrder(env, collections, { order, paymentId, log 
   // parcel then sat waiting for somebody to remember. Best-effort: the payment
   // has already succeeded and the tag is already minted by this point, so
   // neither failure must propagate. Each goes on the order for retry instead.
+  // A handover sale has no parcel. The buyer took the sticker away in their
+  // hand, so booking a courier would create a label nobody posts, a pickup
+  // nobody hands anything to, and a stuck-order alert chasing both forever.
+  const isHandover = order.fulfilment === "handover" || order.deliveredInPerson === true;
+
   let bookedWaybill = null;
-  if (isDelhiveryConfigured(env) && order.shippingAddress) {
+  if (!isHandover && isDelhiveryConfigured(env) && order.shippingAddress) {
     try {
       const { waybill, pickup } = await bookShipmentAndPickup(env, collections, {
         orderId: order.orderId,
@@ -271,6 +277,14 @@ export async function fulfilPaidOrder(env, collections, { order, paymentId, log 
   // lands would report a purchase complete while the reward is still in
   // flight. It cannot throw.
   await grantReferralReward(env, collections, order, log);
+
+  // Burn the discount code, HERE and nowhere else, for exactly the reason the
+  // referral reward is granted here: this is past the conditional status flip
+  // above, so it happens once however the browser callback and the webhook
+  // race. Counting at checkout instead would burn a single-use code on a cart
+  // that is never paid for, and the buyer would be told their own code had
+  // already been used.
+  await consumePromo(collections, order.promoCode, order.orderNumber, log);
 
   await sendOrderConfirmation(env, collections, ownerId, {
     orderNumber: order.orderNumber,

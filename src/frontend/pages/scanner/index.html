@@ -8,6 +8,7 @@
     <link rel="icon" href="/images/icon.png" type="image/png" />
     <link rel="apple-touch-icon" href="/images/apple-touch-icon.png" />
     <link rel="stylesheet" href="/styles/styles.css?v=__ASSET_VERSION__" />
+    <link rel="stylesheet" href="/styles/pt-steps.css?v=__ASSET_VERSION__" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -125,6 +126,13 @@
 
         <p id="plate-verify-status" class="pt-status" data-tone="info">Enter the last 4 digits shown on the vehicle plate.</p>
 
+        <!-- Where the step run mounts. Empty until a request is in flight, and
+             emptied again afterwards, so the card is unchanged at rest.
+             data-pt-owns-progress stops ux-feedback.js also starting the thin
+             bar at the top of the viewport: two indicators telling slightly
+             different stories is worse than one. -->
+        <div id="plate-verify-steps" data-pt-owns-progress></div>
+
         <hr class="pt-verify-rule" />
 
         <!-- Back to the choices, not off the site: verification is a step
@@ -237,6 +245,9 @@
                    maxlength="15" placeholder="Phone number" />
           </div>
           <button class="pt-btn pt-btn-step" type="submit" id="act-send-otp-btn">Verify Mobile</button>
+          <!-- Sending the code is a real ~3s wait: the token is written, then
+               the template goes out through Meta. Measured in production. -->
+          <div id="act-otp-steps" data-pt-owns-progress></div>
           <button type="button" class="pt-step-back" data-goto="2">← Previous Step</button>
         </form>
 
@@ -246,6 +257,18 @@
           <input id="act-otp" class="pt-input pt-input-lg" type="text" inputmode="numeric"
                  autocomplete="one-time-code" maxlength="6" placeholder="······" />
           <button class="pt-btn pt-btn-step" type="submit" id="act-verify-btn">Verify &amp; Activate</button>
+
+          <!-- Activation is the longest wait in the app: the server checks the
+               code, creates or links the account, registers the vehicle and
+               signs the buyer in. Naming those is the difference between a
+               pause and a stall.
+
+               Mounted BELOW the button, deliberately away from the four-dot
+               #act-progress track at the top of the card. Those dots mean
+               "which question you are on"; this bar means "what is happening
+               right now", and stacking them would read as one broken
+               indicator. -->
+          <div id="act-steps" data-pt-owns-progress></div>
           <div class="pt-step-links">
             <button type="button" class="pt-step-back" data-goto="3">← Previous Step</button>
             <button type="button" class="pt-step-resend" id="act-resend-btn">Resend code</button>

@@ -286,6 +286,21 @@ async function showRecall() {
   }
 }
 
+// A step run, or a harmless stand-in when the shared module has not loaded.
+// Presentation only: nothing here may throw into the order path, because a
+// decoration must never be able to stop somebody buying.
+function stepRun(mountId, steps) {
+  try {
+    const mount = byId(mountId);
+    if (!mount || !window.ptProgress || typeof window.ptProgress.steps !== "function") {
+      return { begin() {}, advance() {}, slow() {}, done() {}, fail() {}, destroy() {} };
+    }
+    return window.ptProgress.steps(mount, steps);
+  } catch {
+    return { begin() {}, advance() {}, slow() {}, done() {}, fail() {}, destroy() {} };
+  }
+}
+
 function showSheet() {
   byId("gtSheetBd").hidden = false;
   byId("gtSheet").hidden = false;
@@ -327,6 +342,27 @@ async function buy(sku) {
 
   _busy = true;
 
+  // The sheet opens NOW, in a working state, rather than only after payment.
+  // Creating the order takes a few seconds (address validation, an order
+  // number, then Razorpay's own API) and until this the buyer stared at an
+  // unchanged product grid with no sign their tap had registered.
+  { const el = byId("gtWorking"); if (el) el.hidden = false; }
+  { const el = byId("gtDone"); if (el) el.hidden = true; }
+  const orderSteps = stepRun("gtSteps", [
+    { label: "Checking your address", weight: 1 },
+    { label: "Reserving your pack", weight: 1 },
+    { label: "Opening secure payment", weight: 2 }
+  ]);
+  orderSteps.begin();
+  showSheet();
+
+  // Each names real work inside create-order: validateAddress, then the order
+  // number and the shopOrder write, then createRazorpayOrder. One request from
+  // here, so the run walks the stages on a schedule and can only be FINISHED by
+  // the response arriving.
+  const orderPacing = [700, 1500].map((delay) => setTimeout(() => orderSteps.advance(), delay));
+  const stopOrderPacing = () => orderPacing.forEach(clearTimeout);
+
   let order;
   try {
     // Invisible bot score for the server to check. Resolves to "" when
@@ -349,12 +385,20 @@ async function buy(sku) {
     // last line that does not.
     remember(order.orderNumber, address);
   } catch (err) {
+    stopOrderPacing();
+    orderSteps.fail("");
+    orderSteps.destroy();
+    hideSheet();
     _busy = false;
     say((err && err.message) || "Could not start the payment. Please try again.");
     return;
   }
 
   if (typeof Razorpay !== "function") {
+    stopOrderPacing();
+    orderSteps.fail("");
+    orderSteps.destroy();
+    hideSheet();
     _busy = false;
     say("The payment window could not load. Check your connection and try again.");
     return;
@@ -395,10 +439,23 @@ async function buy(sku) {
     }
   });
 
+  // Razorpay's own sheet is about to cover everything, so the run is finished
+  // and cleared first: leaving a half-filled bar underneath it would still be
+  // there if the buyer dismissed the payment window.
+  stopOrderPacing();
+  orderSteps.done();
+  orderSteps.destroy();
+  { const el = byId("gtWorking"); if (el) el.hidden = true; }
+  hideSheet();
+
   rzp.open();
 }
 
 function showDone(done) {
+  // Swap the working state back out. Without this the sheet would show the
+  // spent progress bar above the confirmation.
+  { const w = byId("gtWorking"); if (w) w.hidden = true; }
+  { const d = byId("gtDone"); if (d) d.hidden = false; }
   _busy = false;
   byId("gtDoneSub").textContent = done.pending
     ? `Payment received. Order ${done.orderNumber} is being confirmed, you will get a WhatsApp update shortly.`

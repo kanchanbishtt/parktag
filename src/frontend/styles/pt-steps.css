@@ -1,0 +1,58 @@
+/* Named step progress, shared by the scanner and both storefronts.
+ *
+ * Its own file because the three pages that use it load three different
+ * stylesheets: the scanner has styles.css, /shop has shop.css and /get has
+ * get.css. Every colour therefore carries a literal fallback, so the component
+ * looks the same on a page that does not define the --pt-* tokens.
+ *
+ * Behaviour and the honesty rule live in scripts/ux-feedback.js. */
+
+/* ── Named step progress ─────────────────────────────────────────────────
+ * Mounted inside the card being looked at, unlike #pt-progress-bar which is
+ * three pixels at the top of the viewport and, on a phone, under the browser
+ * chrome. Fill comes from work that has completed; see ux-feedback.js. */
+
+.pt-steps {
+  margin: 14px 0 2px;
+}
+
+.pt-steps-track {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(3, 22, 45, 0.10);
+  overflow: hidden;
+}
+
+.pt-steps-fill {
+  display: block;
+  height: 100%;
+  width: 0%;
+  border-radius: inherit;
+  background: var(--pt-amber, #FF2700);
+  /* Matches the easing cadence in ux-feedback.js so the paint does not fight
+   * the interval that drives it. */
+  transition: width 140ms linear, background-color 200ms ease;
+}
+
+.pt-steps-ok .pt-steps-fill { background: var(--pt-green-dark, #128C7E); }
+.pt-steps-bad .pt-steps-fill { background: var(--pt-navy-mid, #495B7B); }
+
+.pt-steps-label {
+  margin: 9px 0 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  /* 4.6:1 on the white card, so the one line that says what is happening is
+   * actually readable rather than a whisper. */
+  color: var(--pt-sub, #495B7B);
+  text-align: center;
+  min-height: 1.15em;          /* no reflow as the label changes length */
+}
+
+/* Not --pt-green-dark: #128C7E is 4.14:1 on white and this is normal-size
+ * text, which needs 4.5. Darkened to 5.21:1. */
+.pt-steps-ok .pt-steps-label { color: #0F7A6E; }
+.pt-steps-bad .pt-steps-label { color: var(--pt-amber-dark, #D92200); }
+
+@media (prefers-reduced-motion: reduce) {
+  .pt-steps-fill { transition: none; }
+}

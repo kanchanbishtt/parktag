@@ -308,14 +308,32 @@ function showSheet() {
   document.body.style.overflow = "hidden";
 }
 
-function hideSheet() {
-  if (_busy) return; // never close over a payment in flight
+// Take the sheet down, whatever is in flight.
+//
+// Split out from hideSheet() because the guard there is about DISMISSAL — the
+// backdrop, Escape, the Done button — and not every close is a dismissal. Two
+// callers legitimately need the sheet gone while _busy is still set, and both
+// used to call hideSheet() and silently get nothing:
+//
+//   - a failed create-order, which left the buyer reading "Setting up your
+//     order" forever with the real error hidden behind it;
+//   - the hand-off to Razorpay, whose own window is about to cover the page.
+//     Leaving this sheet underneath meant that dismissing Razorpay returned the
+//     buyer to a blank sheet over a page that could no longer scroll.
+function closeSheet() {
   // Ends the loop rather than leaving it drawing against a canvas nobody can
   // see: the host stays on the page after the sheet closes.
   clearConfetti(byId("gtCfti"), "gt-cfti");
   byId("gtSheet").hidden = true;
   byId("gtSheetBd").hidden = true;
   document.body.style.overflow = "";
+}
+
+// What a dismissal gesture calls: the backdrop, Escape, the Done button. None
+// of those may close the sheet out from under a live checkout.
+function hideSheet() {
+  if (_busy) return; // never close over a payment in flight
+  closeSheet();
 }
 
 // Razorpay's own sheet reports its own failures, so this only has to speak up
@@ -394,8 +412,8 @@ async function buy(sku) {
     stopOrderPacing();
     orderSteps.fail("");
     orderSteps.destroy();
-    hideSheet();
-    _busy = false;
+    _busy = false; // the flow is over; let the buyer try again
+    closeSheet();
     say((err && err.message) || "Could not start the payment. Please try again.");
     return;
   }
@@ -404,8 +422,8 @@ async function buy(sku) {
     stopOrderPacing();
     orderSteps.fail("");
     orderSteps.destroy();
-    hideSheet();
-    _busy = false;
+    _busy = false; // the flow is over; let the buyer try again
+    closeSheet();
     say("The payment window could not load. Check your connection and try again.");
     return;
   }
@@ -452,7 +470,7 @@ async function buy(sku) {
   orderSteps.done();
   orderSteps.destroy();
   { const el = byId("gtWorking"); if (el) el.hidden = true; }
-  hideSheet();
+  closeSheet();
 
   rzp.open();
 }

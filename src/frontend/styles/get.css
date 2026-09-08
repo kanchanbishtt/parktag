@@ -991,3 +991,99 @@
 .gt-code-n { margin: 0; font-size: 0.85rem; font-weight: 600; min-height: 1.2em; }
 .gt-code-ok { color: #1a7f4b; }
 .gt-code-bad { color: #b3261e; }
+
+/* Apply button beside the code. Without it the only way to apply a code was to
+ * blur the field, which nobody discovers. */
+.gt-code-row { display: flex; gap: 0.5rem; align-items: stretch; }
+.gt-code-row .gt-code-i { flex: 1 1 auto; }
+.gt-code-go {
+  flex: 0 0 auto;
+  padding: 0 1.2rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* ── The handover sheet on /direct ──────────────────────────────────────────
+ *
+ * Deliberately the same shape and language as the delivery sheet the address
+ * step shows: rounded sheet off the bottom, grip, eyebrow, one primary action,
+ * a cancel link, and the Razorpay line. A buyer should see one checkout, not
+ * two.
+ *
+ * It exists because the first version raised window.prompt, and a browser
+ * dialog on a payment page reads as a scam. It also cannot carry the reassurance
+ * that the money is going somewhere real. */
+.dr-ov {
+  position: fixed;
+  inset: 0;
+  background: rgba(11, 37, 69, 0.55);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 60;
+  padding: 0;
+}
+@media (min-width: 640px) { .dr-ov { align-items: center; padding: 1.5rem; } }
+
+.dr-sheet {
+  background: #fff;
+  width: 100%;
+  max-width: 30rem;
+  border-radius: 1.25rem 1.25rem 0 0;
+  padding: 0.75rem 1.25rem 1.5rem;
+  display: grid;
+  gap: 0.85rem;
+  max-height: 92vh;
+  overflow-y: auto;
+}
+@media (min-width: 640px) { .dr-sheet { border-radius: 1.25rem; } }
+
+.dr-grip {
+  width: 2.5rem; height: 0.25rem;
+  background: #d7dde6; border-radius: 999px;
+  margin: 0.25rem auto 0.5rem;
+}
+.dr-eyebrow {
+  font-size: 0.72rem; font-weight: 800; letter-spacing: 0.09em;
+  text-transform: uppercase; color: #e02b1d;
+}
+.dr-sheet-t { margin: 0; font-size: 1.4rem; line-height: 1.2; }
+.dr-sheet-s { margin: 0 0 0.25rem; color: #5a6a80; font-size: 0.92rem; line-height: 1.45; }
+
+.dr-f { display: grid; gap: 0.35rem; font-size: 0.85rem; font-weight: 600; }
+.dr-req { color: #e02b1d; }
+.dr-f input {
+  font: inherit;
+  /* 16px or more, or iOS zooms the page on focus mid-checkout. */
+  font-size: 1rem;
+  font-weight: 400;
+  padding: 0.8rem 0.85rem;
+  border: 1px solid #e3e7ee;
+  border-radius: 0.7rem;
+  background: #fff;
+  width: 100%;
+  box-sizing: border-box;
+}
+.dr-f input:focus-visible { outline: 2px solid #0b2545; outline-offset: 1px; }
+
+.dr-sheet-err {
+  margin: 0; padding: 0.65rem 0.8rem;
+  background: #fdecea; color: #b3261e;
+  border-radius: 0.6rem; font-size: 0.88rem; font-weight: 600;
+}
+
+.dr-primary {
+  font: inherit; font-size: 1.05rem; font-weight: 700;
+  color: #fff; background: #0b2545;
+  border: 0; border-radius: 0.75rem;
+  padding: 0.95rem 1rem; min-height: 3.25rem;
+  cursor: pointer; width: 100%;
+}
+.dr-primary[disabled] { opacity: 0.6; cursor: default; }
+.dr-link {
+  font: inherit; font-size: 0.95rem; font-weight: 600;
+  background: none; border: 0; color: #5a6a80;
+  padding: 0.5rem; cursor: pointer;
+}
+.dr-sheet-n { margin: 0; text-align: center; font-size: 0.8rem; color: #5a6a80; }
+.dr-secure { text-align: center; font-size: 0.75rem; color: #7a8798; }

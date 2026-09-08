@@ -27,6 +27,11 @@ import { checkPincodeServiceability, trackingUrl } from "../../lib/integrations/
 // Shared with the public order-tracking page, so both show the same status off
 // the same cache.
 import { getOrderTracking } from "../../lib/core/order-tracking.js";
+import {
+  referralCodeFor,
+  REFERRAL_DISCOUNT_PAISE,
+  REFERRAL_REWARD_MONTHS
+} from "../../lib/core/referrals.js";
 
 // Strip an address DB doc down to the shippable fields (no _id/ownerId/timestamps).
 function shapeAddress(doc) {
@@ -287,7 +292,28 @@ export function registerOwnerRoutes(app, env) {
       // the browser draws and the window the server enforces cannot drift
       // apart. The route re-checks regardless — a stale button gets a clean
       // 410, never a call it should not have placed.
-      callbackWindowMs: CALLBACK_WINDOW_MS
+      callbackWindowMs: CALLBACK_WINDOW_MS,
+
+      // The owner's referral code, and the two numbers the card has to state.
+      //
+      // Minted on first read rather than at signup, so the unique index only
+      // carries rows for owners who have actually looked. Best effort: a code
+      // that cannot be minted costs a referral card, and must never cost
+      // somebody their dashboard.
+      //
+      // The amounts are sent rather than written into the page, for the same
+      // reason callbackWindowMs is: the card would otherwise carry its own copy
+      // of "Rs 50" and "1 month" and drift from what the checkout actually
+      // applies. That is precisely how the pack sheet came to promise "No extra
+      // charge for COD" while place-cod added Rs 50.
+      referral: {
+        code: await referralCodeFor(collections, ownerId).catch(() => null),
+        discountPaise: REFERRAL_DISCOUNT_PAISE,
+        rewardMonths: REFERRAL_REWARD_MONTHS,
+        // Prepaid only. The card must say so, or somebody shares a link and
+        // their friend pays COD and neither of them gets anything.
+        prepaidOnly: true
+      }
     };
   });
 

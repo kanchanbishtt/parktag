@@ -64,9 +64,18 @@ export async function ensurePickupRequested(env, collections, { pickupDate, expe
     const result = await requestPickup(env, { pickupDate: forDate, expectedPackageCount });
     await collections.pickupRequests.updateOne(
       { _id: claimId },
-      { $set: { status: "requested", pickupId: result.pickupId, requestedAt: new Date() } }
+      {
+        $set: {
+          status: "requested",
+          pickupId: result.pickupId,
+          // The slot Delhivery actually assigned, which can differ from the one
+          // asked for. This is when somebody has to be there with the parcel.
+          atTime: result.atTime,
+          requestedAt: new Date()
+        }
+      }
     );
-    return { requested: true, pickupId: result.pickupId, forDate };
+    return { requested: true, pickupId: result.pickupId, forDate: result.forDate, atTime: result.atTime };
   } catch (err) {
     // Drop the claim rather than leaving it behind as "requested". A failed
     // attempt that keeps its row would block every later order from retrying,

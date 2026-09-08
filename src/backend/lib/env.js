@@ -241,7 +241,12 @@ export function getEnv() {
     // the one pickup value that depends on somebody being at the address to
     // hand the parcel over, which is a fact about the day rather than about
     // the code. 24-hour, with seconds, as Delhivery expects.
-    delhiveryPickupTime: process.env.DELHIVERY_PICKUP_TIME || "14:00:00"
+    //
+    // 10:00 is the START of the warehouse's registered preferred pickup slot
+    // (10:00 to 14:00, working hours 10:00 to 18:00). This defaulted to 14:00
+    // until that record was actually read, which was the slot's closing edge
+    // and left no room for the rider to be late.
+    delhiveryPickupTime: process.env.DELHIVERY_PICKUP_TIME || "10:00:00"
   };
 
   // Strip surrounding whitespace from every configured string.

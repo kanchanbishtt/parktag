@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>ParkTag · Direct order</title>
+
+    <!-- Not a storefront. This page is handed to somebody who has already been
+         quoted a price, so it must never be found by a search engine offering
+         a discount to anybody who lands on it. -->
+    <meta name="robots" content="noindex, nofollow" />
+
+    <link rel="icon" href="/images/favicon.svg" />
+    <link rel="stylesheet" href="/styles/styles.css?v=__ASSET_VERSION__" />
+    <link rel="stylesheet" href="/styles/direct.css?v=__ASSET_VERSION__" />
+  </head>
+  <body class="dr-body">
+    <main class="dr-wrap">
+      <header class="dr-head">
+        <img class="dr-logo" src="/images/parktag-logo.svg" alt="ParkTag" width="132" height="32" />
+        <h1 class="dr-title">Complete your order</h1>
+        <p class="dr-sub">Enter the code you were given to see your price.</p>
+      </header>
+
+      <form class="dr-card" id="drForm" novalidate>
+        <fieldset class="dr-field">
+          <legend class="dr-legend">Which tag</legend>
+          <div class="dr-packs" id="drPacks" role="radiogroup" aria-label="Choose your pack">
+            <!-- Filled from /api/shop/public-catalogue. Prices are never written
+                 here, so this page cannot disagree with the server about cost. -->
+          </div>
+        </fieldset>
+
+        <label class="dr-field">
+          <span class="dr-legend">Your code</span>
+          <input class="dr-input dr-code" id="drCode" name="code" type="text"
+                 autocomplete="off" autocapitalize="characters" spellcheck="false"
+                 inputmode="text" maxlength="16" placeholder="e.g. AJNARA99" />
+          <span class="dr-hint" id="drCodeNote" role="status" aria-live="polite"></span>
+        </label>
+
+        <label class="dr-field">
+          <span class="dr-legend">Your name</span>
+          <input class="dr-input" id="drName" name="fullName" type="text"
+                 autocomplete="name" maxlength="80" required />
+        </label>
+
+        <label class="dr-field">
+          <span class="dr-legend">Mobile number</span>
+          <input class="dr-input" id="drPhone" name="phone" type="tel"
+                 autocomplete="tel" inputmode="numeric" maxlength="10" required />
+          <span class="dr-hint">We use this to link your sticker to this order.</span>
+        </label>
+
+        <!-- Hidden until the code says this one is being posted. A handover sale
+             has no parcel, so asking for an address would be a form nobody
+             needs to fill in. -->
+        <div class="dr-ship" id="drShip" hidden>
+          <p class="dr-shipnote">This one gets posted, so we need a delivery address.</p>
+
+          <label class="dr-field">
+            <span class="dr-legend">House / flat and street</span>
+            <input class="dr-input" id="drLine1" name="line1" type="text" autocomplete="address-line1" maxlength="120" />
+          </label>
+          <label class="dr-field">
+            <span class="dr-legend">Area or landmark <em>(optional)</em></span>
+            <input class="dr-input" id="drLine2" name="line2" type="text" autocomplete="address-line2" maxlength="120" />
+          </label>
+          <div class="dr-row">
+            <label class="dr-field">
+              <span class="dr-legend">City</span>
+              <input class="dr-input" id="drCity" name="city" type="text" autocomplete="address-level2" maxlength="60" />
+            </label>
+            <label class="dr-field">
+              <span class="dr-legend">PIN code</span>
+              <input class="dr-input" id="drPin" name="pincode" type="text"
+                     inputmode="numeric" autocomplete="postal-code" maxlength="6" />
+            </label>
+          </div>
+          <label class="dr-field">
+            <span class="dr-legend">State</span>
+            <input class="dr-input" id="drState" name="state" type="text" autocomplete="address-level1" maxlength="60" />
+          </label>
+        </div>
+
+        <div class="dr-total" id="drTotal" hidden>
+          <div class="dr-total-row">
+            <span>Pack price</span>
+            <span id="drCatalog"></span>
+          </div>
+          <div class="dr-total-row dr-total-off" id="drOffRow" hidden>
+            <span id="drOffLabel">Your code</span>
+            <span id="drOff"></span>
+          </div>
+          <div class="dr-total-row dr-total-pay">
+            <span>To pay</span>
+            <span id="drPay"></span>
+          </div>
+        </div>
+
+        <p class="dr-error" id="drError" role="alert" hidden></p>
+
+        <button class="dr-cta" id="drCta" type="submit">Pay securely</button>
+
+        <p class="dr-fine">
+          Payment is handled by Razorpay. ParkTag never sees your card details.
+        </p>
+      </form>
+
+      <section class="dr-done" id="drDone" hidden aria-live="polite">
+        <h2 class="dr-done-title">Paid. Thank you.</h2>
+        <p class="dr-done-sub">
+          Your order number is <strong id="drDoneNo"></strong>. Scan the QR on your
+          sticker to activate it.
+        </p>
+      </section>
+    </main>
+
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+    <script type="module" src="/scripts/direct.js?v=__ASSET_VERSION__"></script>
+  </body>
+</html>

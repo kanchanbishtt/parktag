@@ -658,6 +658,49 @@ export function registerShopRoutes(app, env) {
   // display and the charge cannot drift apart again. None of this is secret —
   // it is a shop's price list — but it stays behind a session like the rest of
   // /api/shop rather than becoming an unauthenticated endpoint.
+  // What a code is worth, before anybody pays. Used by /direct so the buyer can
+  // see the negotiated price on screen rather than discovering it when the
+  // Razorpay sheet opens, which on a page whose entire purpose is a negotiated
+  // price would be the one thing it must not do.
+  //
+  // This answers with a PRICE, never a promise. create-order resolves the code
+  // again from scratch and that resolution is the one that decides what is
+  // charged: a buyer who keeps this response open while the code expires pays
+  // the catalogue price, which is correct.
+  //
+  // Rate limited because it is the only endpoint that reports whether a code
+  // exists, and guessing is the obvious way to attack it.
+  app.post(
+    "/api/shop/promo/check",
+    { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } },
+    async (request, reply) => {
+      const { code, productId, phone } = request.body || {};
+
+      const product = getShopProduct(productId);
+      if (!product) { reply.code(400); return { ok: false, error: "Unknown product." }; }
+
+      const collections = await getCollections(env);
+      if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
+
+      const catalogPaise = Math.round(product.amount * 100);
+      const promo = await resolvePromo(collections, code, { deliveryPhone: phone });
+
+      // A rejection is not an error. Every reason here is an ordinary thing for
+      // a buyer to do, and the page shows the catalogue price and carries on.
+      if (!promo.ok) {
+        return { ok: false, reason: promo.reason, catalogPaise, payablePaise: catalogPaise };
+      }
+
+      return {
+        ok: true,
+        catalogPaise,
+        discountPaise: promo.discountPaise,
+        payablePaise: expectedOrderPaise(catalogPaise, {}, promo.discountPaise),
+        fulfilment: promo.fulfilment
+      };
+    }
+  );
+
   app.get("/api/shop/pricing", async (request, reply) => {
     const blocked = await requireSession(app, "owner")(request, reply);
     if (blocked) return blocked;

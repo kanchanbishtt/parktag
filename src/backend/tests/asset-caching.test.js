@@ -175,7 +175,7 @@ async function pageVersion() {
 test("no page ships an unsubstituted token", async () => {
   // A literal reaching the browser is not fatal -- it just never gets cached --
   // but it means a page was added without the substitution reaching it.
-  for (const url of ["/hub", "/track-order", "/report-tag", "/owner-login", "/verify"]) {
+  for (const url of ["/hub", "/track-order", "/report-tag", "/owner-login", "/verify", "/direct"]) {
     const response = await app.inject({ method: "GET", url });
     assert.equal(response.statusCode, 200, `${url} should render`);
     assert.ok(

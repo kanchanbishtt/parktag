@@ -576,6 +576,11 @@ export function registerShopRoutes(app, env) {
         ok: true,
         fulfilled: outcome.firstTime,
         orderNumber: order.orderNumber,
+        // Whether a confirmation actually went out, so the screen can say what
+        // happened instead of asserting it. Null when this request did not do
+        // the fulfilling — the webhook did — in which case a message may well
+        // have been sent and this caller is simply not the one who knows.
+        notified: outcome.notified,
         // What the buyer needs to find this order again without an account.
         trackWith: (order.shippingAddress && order.shippingAddress.phone || "").slice(-4)
       };
@@ -1168,8 +1173,12 @@ export function registerShopRoutes(app, env) {
 
     // Best-effort confirmation (e-mail, or WhatsApp when no e-mail) — the COD
     // order is now prepaid/online; carries the tracking link if a waybill exists.
+    //
+    // Null when this request did not do the fulfilling: the webhook got there
+    // first and may well have sent one, so the screen must not claim otherwise.
+    let notified = null;
     if (firstTime) {
-      await sendOrderConfirmation(env, collections, ownerId, {
+      notified = await sendOrderConfirmation(env, collections, ownerId, {
         orderNumber, productName: order.productName, amountPaise: order.prepayAmount, cod: false,
         waybill: order.waybill,
         deliveryPhone: order.shippingAddress && order.shippingAddress.phone,
@@ -1206,6 +1215,9 @@ export function registerShopRoutes(app, env) {
       replaced,
       newTagId,
       orderNumber,
+      // Whether a confirmation actually reached them, so the screen can report
+      // it rather than assert it.
+      notified,
       // What was charged and what it saved, off the stored order — the toast
       // used to congratulate the buyer on saving ₹50 whatever the figure was.
       amountPaise: order.prepayAmount,

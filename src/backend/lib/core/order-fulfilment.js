@@ -41,6 +41,15 @@ import { firstNameOf, resolveOwnerName } from "./owner-name.js";
 //
 // Each send is independently guarded so one channel failing cannot silence the
 // other — the shape the old early-return could not express.
+// Returns TRUE only if a channel actually accepted the message.
+//
+// It always knew — `reached` has been computed here all along — but it kept the
+// answer and returned undefined, so the confirmation screen went on telling
+// every buyer "we have sent the details to your mobile" whether or not anything
+// had been. For a signed-in buyer that is a small lie: they also got an e-mail
+// and can open the order in their dashboard. For a GUEST it is the whole story,
+// because there is no e-mail and no account — so a failed send left somebody
+// who had just paid believing a message was coming that never was.
 export async function sendOrderConfirmation(env, collections, ownerId, details, log) {
   try {
     // A guest order has no ownerId at all, so the lookup can only ever miss.
@@ -126,7 +135,7 @@ export async function sendOrderConfirmation(env, collections, ownerId, details, 
     // No attempts at all resolves to [], which is correctly "nobody was
     // reached" rather than a silent success.
     const reached = (await Promise.all(attempts)).some(Boolean);
-    if (reached) return;
+    if (reached) return true;
 
     // Nothing could be sent, and for a guest this WAS the whole notification:
     // no account to sign into, and — if they closed the tab during payment — an
@@ -147,8 +156,13 @@ export async function sendOrderConfirmation(env, collections, ownerId, details, 
       "[order] a PAID order could not be confirmed to its buyer — no e-mail on file " +
         "and no WhatsApp channel. They have not been told, and a guest has no order number to track with."
     );
+    return false;
   } catch (err) {
     log?.error?.({ err }, "Order confirmation notification failed");
+    // Unreachable as far as the buyer is concerned, so it is reported as such.
+    // Returning undefined here would read as falsy anyway; saying it outright
+    // keeps the contract one type.
+    return false;
   }
 }
 
@@ -167,7 +181,11 @@ export async function fulfilPaidOrder(env, collections, { order, paymentId, log 
   );
 
   if (paidTransition.modifiedCount !== 1) {
-    return { firstTime: false, replaced: false, newTagId: null };
+    // Somebody else already fulfilled this order, so no message was sent from
+    // here. Null, not false: "not this caller's doing" is not the same claim as
+    // "the buyer was not reached", and the screen must not turn the first into
+    // the second.
+    return { firstTime: false, replaced: false, newTagId: null, notified: null };
   }
 
   let replaced = false;
@@ -234,7 +252,9 @@ export async function fulfilPaidOrder(env, collections, { order, paymentId, log 
   }
 
   // Sent after booking so it can carry the tracking link when a waybill exists.
-  await sendOrderConfirmation(env, collections, ownerId, {
+  // Kept, because the screen the buyer is looking at right now says whether a
+  // message went out, and it must not say so on trust.
+  const notified = await sendOrderConfirmation(env, collections, ownerId, {
     orderNumber: order.orderNumber,
     productName: order.productName,
     amountPaise: order.amount,
@@ -282,5 +302,5 @@ export async function fulfilPaidOrder(env, collections, { order, paymentId, log 
     });
   }
 
-  return { firstTime: true, replaced, newTagId };
+  return { firstTime: true, replaced, newTagId, notified };
 }

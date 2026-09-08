@@ -460,3 +460,48 @@ describe("the track order button", () => {
     );
   });
 });
+
+// Saying so to the BUYER, not only to the log.
+//
+// The error above answers the question from our side. The confirmation screen
+// was still telling every buyer "we have sent the details to your mobile"
+// regardless, because this function computed `reached` and then returned
+// undefined — the one caller who could act on it never learned the answer.
+//
+// For a signed-in buyer that is a small lie; they also get an e-mail and the
+// order is in their dashboard. For a guest it is the whole story: no account,
+// no e-mail, and if they closed the tab during payment, no order number either.
+// So the return value is part of the contract now, and the screen reads it.
+describe("the answer reaches the caller, not just the log", () => {
+  test("nobody reachable resolves to false", async () => {
+    const reached = await sendOrderConfirmation(
+      UNREACHABLE_ENV, stubCollections(), null, DETAILS, stubLog()
+    );
+    assert.equal(reached, false, "the screen cannot tell the buyer nothing was sent");
+  });
+
+  test("no delivery phone at all is still false, not undefined", async () => {
+    const reached = await sendOrderConfirmation(
+      UNREACHABLE_ENV,
+      stubCollections(),
+      null,
+      { ...DETAILS, deliveryPhone: null },
+      stubLog()
+    );
+    assert.equal(reached, false);
+    assert.notEqual(reached, undefined, "undefined reads as falsy but is not an answer");
+  });
+
+  // The catch is the branch a caller is most likely to be misled by: something
+  // threw, nothing was sent, and the old code swallowed it and returned
+  // undefined all the same.
+  test("a thrown failure resolves to false rather than undefined", async () => {
+    const exploding = {
+      owners: { async findOne() { throw new Error("mongo is down"); } }
+    };
+    const reached = await sendOrderConfirmation(
+      UNREACHABLE_ENV, exploding, "some-owner-id", DETAILS, stubLog()
+    );
+    assert.equal(reached, false);
+  });
+});

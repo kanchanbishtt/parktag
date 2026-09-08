@@ -417,7 +417,16 @@ function showDone(done) {
   _busy = false;
   byId("shDoneSub").textContent = done.pending
     ? `Payment received. Order ${done.orderNumber} is being confirmed. You will get a WhatsApp update shortly.`
-    : `Order ${done.orderNumber} is on its way. We have sent the details to your mobile.`;
+    // `notified === false` is the server saying, plainly, that nothing
+    // reached them: no e-mail on file and the WhatsApp send failed. The
+    // order is paid and will ship either way, so this must not read as a
+    // failed purchase — but promising a message that is not coming is how
+    // a paid order becomes "did it go through?" a day later. Null means
+    // this response did not do the fulfilling and cannot say; the original
+    // wording stands, because a message probably did go out.
+    : done.notified === false
+      ? `Order ${done.orderNumber} is confirmed and on its way. We could not message you, so please note the order number down. You can look it up any time under Track an order.`
+      : `Order ${done.orderNumber} is on its way. We have sent the details to your mobile.`;
   showSheet();
 
   if (window.ptTrack) {

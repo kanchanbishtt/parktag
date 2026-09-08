@@ -516,7 +516,16 @@ export function hasActiveDocumentSubscription(tag, now = Date.now()) {
 // All three are only ever a fallback TOWARDS expiry: an unparseable or missing
 // date yields no trial at all rather than an open-ended one, so a malformed tag
 // cannot mint free storage.
-export function premiumTrialEndsAt(tag, now = Date.now()) {
+// The instant the free year is counted FROM, and the single place that decides
+// which field says so.
+//
+// Split out of premiumTrialEndsAt because two callers now need it and the rule
+// is not obvious: three fields in precedence order, a refusal on anything
+// unparseable, and a clamp for a start date that is ahead of our own clock.
+// The profile countdown measures its progress bar against this, so the instant
+// the bar starts from and the instant entitlement is decided from are the same
+// value rather than two readings of the same three fields.
+export function premiumTrialStartsAt(tag, now = Date.now()) {
   if (!tag || !tag.premium) return null;
   const startedAt = new Date(tag.premiumSince || tag.activatedAt || tag.createdAt || "").getTime();
   if (!Number.isFinite(startedAt)) return null;
@@ -533,7 +542,13 @@ export function premiumTrialEndsAt(tag, now = Date.now()) {
   // instances must not deny a customer the window they just activated, so
   // anything inside the grace counts as "now" instead of being thrown out.
   if (startedAt > now + TRIAL_START_SKEW_GRACE_MS) return null;
-  return addMonths(Math.min(startedAt, now), PREMIUM_TRIAL_MONTHS);
+  return Math.min(startedAt, now);
+}
+
+export function premiumTrialEndsAt(tag, now = Date.now()) {
+  const startedAt = premiumTrialStartsAt(tag, now);
+  if (startedAt === null) return null;
+  return addMonths(startedAt, PREMIUM_TRIAL_MONTHS);
 }
 
 export function isInPremiumTrial(tag, now = Date.now()) {

@@ -37,7 +37,7 @@ const ENV = {
   delhiveryApiKey: "a-real-looking-key",
   delhiveryPickupLocation: "ParkTag",
   delhiveryBaseUrl: "https://track.delhivery.com",
-  delhiveryPickupTime: "14:00:00"
+  delhiveryPickupTime: "10:00:00"
 };
 
 // The same environment with the test-run signal removed, so the guard lets the
@@ -89,19 +89,20 @@ function okResponse(body = { success: true, pickup_id: 987654 }) {
 }
 
 describe("the pickup date", () => {
-  // Delhivery is asked for the next working day rather than today: a parcel
-  // booked at 23:50 cannot be handed to a rider who came at 14:00.
+  // Delhivery is asked for the next day rather than today: a parcel booked at
+  // 23:50 cannot be handed to a rider who came at 10:00 that morning.
   test("a weekday rolls to the next day", () => {
     // Tuesday 8 September 2026.
     assert.equal(nextPickupDate(new Date("2026-09-08T10:00:00+05:30")), "2026-09-09");
   });
 
-  test("Saturday skips Sunday and lands on Monday", () => {
-    // Saturday 12 September 2026 -> Sunday is closed -> Monday the 14th.
-    assert.equal(nextPickupDate(new Date("2026-09-12T10:00:00+05:30")), "2026-09-14");
+  // The warehouse record lists working_days as all seven including SUN, so a
+  // weekend skip would push every Saturday order back a day for nothing.
+  test("Saturday goes to Sunday, because the warehouse works Sundays", () => {
+    assert.equal(nextPickupDate(new Date("2026-09-12T10:00:00+05:30")), "2026-09-13");
   });
 
-  test("Sunday rolls to Monday", () => {
+  test("Sunday goes to Monday", () => {
     assert.equal(nextPickupDate(new Date("2026-09-13T10:00:00+05:30")), "2026-09-14");
   });
 
@@ -147,7 +148,7 @@ describe("requesting a pickup", () => {
     const sent = JSON.parse(calls[0].init.body);
     assert.equal(sent.pickup_location, "ParkTag");
     assert.equal(sent.pickup_date, "2026-09-09");
-    assert.equal(sent.pickup_time, "14:00:00");
+    assert.equal(sent.pickup_time, "10:00:00");
     assert.equal(sent.expected_package_count, 3);
 
     assert.equal(result.pickupId, "987654");
@@ -173,6 +174,45 @@ describe("requesting a pickup", () => {
         ),
       /pickup already exists/
     );
+  });
+
+  // The documented 400 for this endpoint puts its whole explanation in
+  // `pickup_location`, and it is the likeliest failure on a first deploy:
+  // DELHIVERY_PICKUP_LOCATION must match a registered warehouse exactly.
+  // A generic "request failed" here would send somebody reading raw JSON.
+  test("an unregistered warehouse reports what is actually wrong", async () => {
+    await assert.rejects(
+      () =>
+        withFetch(
+          () =>
+            new Response(
+              JSON.stringify({
+                pickup_location: "Invalid Pickup Location ClientWarehouse matching query does not exist."
+              }),
+              { status: 400, headers: { "content-type": "application/json" } }
+            ),
+          () => requestPickup(LIVE, { pickupDate: "2026-09-09", expectedPackageCount: 1 })
+        ),
+      /ClientWarehouse matching query does not exist/
+    );
+  });
+
+  // Delhivery assigns the slot; the one asked for is only a request. Recording
+  // the requested time would tell somebody to be there at the wrong hour.
+  test("the slot Delhivery assigns wins over the one requested", async () => {
+    const { result } = await withFetch(
+      () =>
+        okResponse({
+          pickup_id: 118775,
+          pickup_date: '2026-09-09',
+          pickup_time: '16:30:00',
+          expected_package_count: 1
+        }),
+      () => requestPickup(LIVE, { pickupDate: '2026-09-09', expectedPackageCount: 1 })
+    );
+
+    assert.equal(result.atTime, '16:30:00', 'the assigned slot was discarded');
+    assert.equal(result.forDate, '2026-09-09');
   });
 });
 

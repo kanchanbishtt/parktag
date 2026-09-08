@@ -21,7 +21,8 @@
     "verify:document-tiers": "node src/backend/scripts/verify-document-tiers.js",
     "dev:mail": "maildev",
     "backfill:mount-types": "node src/backend/scripts/backfill-mount-types.js",
-    "campaigns:dry-run": "node --env-file=.env src/backend/scripts/campaign-dry-run.js"
+    "campaigns:dry-run": "node --env-file=.env src/backend/scripts/campaign-dry-run.js",
+    "retry:shipment": "node --env-file=.env src/backend/scripts/retry-shipment.mjs"
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.2",

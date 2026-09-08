@@ -459,7 +459,10 @@ export function registerShopRoutes(app, env) {
       // Only /direct sends this. A checkout that sends no code takes exactly
       // the path it always did.
       const promo = await resolvePromo(collections, rawPromo, {
-        deliveryPhone: (rawAddress || {}).phone
+        deliveryPhone: (rawAddress || {}).phone,
+        // Without this a code tied to one pack comes off any of them, and
+        // omitting the product would be the way around the restriction.
+        productId
       });
       const handover = promo.ok && promo.fulfilment === FULFILMENT_HANDOVER;
 
@@ -690,7 +693,7 @@ export function registerShopRoutes(app, env) {
       if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
 
       const catalogPaise = Math.round(product.amount * 100);
-      const promo = await resolvePromo(collections, code, { deliveryPhone: phone });
+      const promo = await resolvePromo(collections, code, { deliveryPhone: phone, productId });
 
       // A rejection is not an error. Every reason here is an ordinary thing for
       // a buyer to do, and the page shows the catalogue price and carries on.

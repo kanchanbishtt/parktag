@@ -146,6 +146,44 @@ describe("minting an order gates on everything", () => {
   });
 });
 
+describe("a code can be tied to one pack", () => {
+  // Rs 99 off a Rs 499 Pack of 2 is a fifth off. The same Rs 99 against a
+  // Rs 299 single tag is a third of the price, and the buyer would be right to
+  // think they had been promised it.
+  test("the pack it was negotiated for is accepted", async () => {
+    await seedCode({ productIds: ["pt-car-2"] });
+    const got = await resolvePromo(collections, "AJNARA99", { deliveryPhone: BUYER, productId: "pt-car-2" });
+    assert.equal(got.ok, true);
+  });
+
+  test("another pack is refused", async () => {
+    await seedCode({ productIds: ["pt-car-2"] });
+    const got = await resolvePromo(collections, "AJNARA99", { deliveryPhone: BUYER, productId: "pt-car-1" });
+    assert.equal(got.ok, false);
+    assert.equal(got.reason, "wrong-pack");
+  });
+
+  // The restriction has to survive a request that simply omits the product,
+  // or leaving it out would be the way around it.
+  test("no product named is refused when the code is tied", async () => {
+    await seedCode({ productIds: ["pt-car-2"] });
+    assert.equal((await resolvePromo(collections, "AJNARA99", { deliveryPhone: BUYER })).ok, false);
+  });
+
+  // A general campaign code should need no ceremony.
+  test("an untied code works on any pack", async () => {
+    await seedCode();
+    for (const productId of ["pt-car-1", "pt-car-2", "pt-bike-1"]) {
+      assert.equal((await resolvePromo(collections, "AJNARA99", { deliveryPhone: BUYER, productId })).ok, true);
+    }
+  });
+
+  test("an empty list is not a restriction", async () => {
+    await seedCode({ productIds: [] });
+    assert.equal((await resolvePromo(collections, "AJNARA99", { deliveryPhone: BUYER, productId: "pt-car-1" })).ok, true);
+  });
+});
+
 describe("a single-use code belongs to one buyer", () => {
   // The point of binding: a screenshot forwarded to a WhatsApp group is worth
   // nothing to anybody else.

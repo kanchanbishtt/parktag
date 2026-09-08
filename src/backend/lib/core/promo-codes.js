@@ -78,13 +78,25 @@ export function normalisePromoCode(raw) {
  * None of them should cost anybody a checkout. The caller drops the discount and
  * carries on at the catalogue price.
  */
-export async function resolvePromo(collections, rawCode, { deliveryPhone = null } = {}) {
+export async function resolvePromo(collections, rawCode, { deliveryPhone = null, productId = null } = {}) {
   const code = normalisePromoCode(rawCode);
   if (!code || !PROMO_CODE_PATTERN.test(code)) return { ok: false, reason: "malformed" };
 
   const promo = await collections.promoCodes.findOne({ code });
   if (!promo) return { ok: false, reason: "unknown" };
   if (promo.active === false) return { ok: false, reason: "revoked" };
+
+  // A code negotiated for one pack must not come off another. "Rs 99 off the
+  // Pack of 2" applied to a Rs 299 single tag is a third of the price given
+  // away, and the buyer would be right to think they were promised it.
+  //
+  // An EMPTY or absent list means every pack, so a general campaign code needs
+  // no ceremony. Only a list that exists and excludes this product refuses.
+  if (Array.isArray(promo.productIds) && promo.productIds.length > 0) {
+    if (!productId || !promo.productIds.includes(productId)) {
+      return { ok: false, reason: "wrong-pack", productIds: promo.productIds };
+    }
+  }
 
   if (promo.expiresAt && new Date(promo.expiresAt).getTime() <= Date.now()) {
     return { ok: false, reason: "expired" };

@@ -284,14 +284,19 @@
 
 /* ── Emergency ───────────────────────────────────────────────────────── */
 
+/* Not the pink-and-red this used to be. Red on a pink ground is the styling of
+   an error, and a visitor reads that before they read a word: a panel about a
+   feature was announcing itself as something gone wrong, halfway down a page
+   whose job is to sell a sticker. It uses the same navy tint a selected plan
+   card gets, so it reads as one more thing the tag does. */
 .gt-sos {
   margin-top: 18px;
-  background: #FFF5F3;
-  border: 1px solid #FFD6CC;
+  background: var(--gt-navy-tint);
+  border: 1px solid var(--gt-line);
   border-radius: 16px;
   padding: 16px 16px 14px;
 }
-.gt-sos-t { margin: 0; font-size: .95rem; font-weight: 800; color: var(--gt-red); }
+.gt-sos-t { margin: 0; font-size: .95rem; font-weight: 800; color: var(--gt-ink); }
 .gt-sos-s { margin: 6px 0 0; font-size: .84rem; line-height: 1.55; color: var(--gt-ink-2); }
 
 /* ── Features ────────────────────────────────────────────────────────── */

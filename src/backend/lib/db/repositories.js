@@ -185,6 +185,26 @@ const CORE_INDEXES = [
     }
   ],
   ["owners", { phone: 1 }, { name: "phone" }],
+  // Referral codes. Unique, and that uniqueness is the collision handling:
+  // referralCodeFor() draws a random code and lets this index refuse a
+  // duplicate rather than reading first and racing another caller into the
+  // same one.
+  //
+  // PARTIAL, for the same reason owners.mobile is. Codes are minted lazily, so
+  // most owners have no `referralCode` at all, and a plain unique index reads
+  // every missing field as the same null and collides on the second such owner.
+  [
+    "owners",
+    { referralCode: 1 },
+    {
+      name: "referral_code_unique",
+      unique: true,
+      partialFilterExpression: { referralCode: { $type: "string", $gt: "" } }
+    }
+  ],
+  // Backs the per-referrer reward cap, which counts this referrer's rewarded
+  // orders inside a rolling window on every paid referral order.
+  ["shopOrders", { referredBy: 1, referralRewardedAt: -1 }, { name: "referral_rewards" }],
   ["contactRequests", { token: 1, createdAt: -1 }, { name: "token_recent" }],
   ["contactRequests", { ownerId: 1, createdAt: -1 }, { name: "owner_recent" }],
   ["contactRequests", { providerRequestId: 1 }, { name: "provider_request" }],

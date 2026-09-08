@@ -72,9 +72,25 @@ if (!/^\d{4}-\d{2}-\d{2}$/.test(saleDate)) {
   process.exit(1);
 }
 
+// Channels where nothing was ever charged. A giveaway and an owner's own tag
+// are real stock leaving the building and belong in the ledger, but they are
+// not revenue, and recording them at a notional price would inflate the only
+// figure anybody reads.
+const FREE_CHANNELS = new Set(["giveaway", "internal"]);
+
 const amountPaise = Math.round(Number(amountRupees) * 100);
-if (!Number.isFinite(amountPaise) || amountPaise <= 0) {
-  console.error(`\n--amount must be a positive number of rupees, got "${amountRupees}"\n`);
+if (!Number.isFinite(amountPaise) || amountPaise < 0) {
+  console.error(`\n--amount must be a number of rupees, got "${amountRupees}"\n`);
+  process.exit(1);
+}
+// Zero is meaningful on a giveaway and a mistake on a sale. Refusing it
+// everywhere forced a fake price onto free stock; allowing it everywhere would
+// let a real sale be recorded as worth nothing.
+if (amountPaise === 0 && !FREE_CHANNELS.has(channel)) {
+  console.error(
+    `\nRs 0 needs a free channel. Use --channel giveaway or --channel internal, ` +
+      `or give a real --amount for a "${channel}" sale.\n`
+  );
   process.exit(1);
 }
 

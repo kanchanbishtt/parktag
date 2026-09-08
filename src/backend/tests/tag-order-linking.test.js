@@ -78,6 +78,9 @@ async function seedTag(overrides = {}) {
   const _id = new ObjectId();
   await collections.tags.insertOne({
     _id,
+    // Every real tag carries one, and `tags` has a unique index on it. Seeding
+    // two without meant both wrote token: null and the second was refused.
+    token: `qa-link-${_id}`,
     batchLabel: "qa-link",
     batchNumber: "01",
     serialNumber: 3057,

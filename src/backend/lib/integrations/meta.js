@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 
 import { redactText, safeEqual } from "../auth/security.js";
 import { toE164 } from "../core/phone.js";
+import { refuseInTestRun } from "../core/external-guard.js";
 
 // Meta signs every webhook POST with `X-Hub-Signature-256: sha256=<hex hmac>`
 // computed over the *raw* request body using the App Secret (Meta App
@@ -49,6 +50,12 @@ export function isMetaWhatsappConfigured(env) {
 // link in order-fulfilment.js, which used to send "" whenever a waybill had not
 // come back from Delhivery yet and so failed every pre-shipment confirmation.
 async function sendTemplate(env, { to, template, components, publicMessage }) {
+  // Every template send passes through here, so this is the only place the
+  // guard has to sit. Test fixtures carry real, dialable numbers: 9812345678
+  // in guest-checkout.test.js belongs to somebody who has never heard of
+  // ParkTag, and every run of that suite messaged them.
+  refuseInTestRun(env, "Sending a WhatsApp template");
+
   if (!isMetaWhatsappConfigured(env)) {
     throw new Error(
       "Meta WhatsApp is not configured: missing metaWhatsappPhoneNumberId or metaWhatsappAccessToken"

@@ -8,6 +8,8 @@
 // staging sandbox (staging-express.delhivery.com 401s for this key), so
 // production is genuinely the only environment available to test against.
 
+import { refuseInTestRun } from "../core/external-guard.js";
+
 export function isDelhiveryConfigured(env) {
   return Boolean(env.delhiveryApiKey && env.delhiveryPickupLocation);
 }
@@ -69,6 +71,11 @@ export function trackingUrl(waybill) {
 // delivery. Throws on failure — the caller decides how to handle a booking
 // failure (see shop/index.js).
 export async function createShipment(env, { orderId, address, productName, codAmountPaise }) {
+  // A booked waybill is a parcel Delhivery expects to COLLECT and an invoice
+  // they expect to be paid. The test suite booked 39 of them in one week and
+  // then deleted its own order rows, so nothing in the database showed it.
+  refuseInTestRun(env, "Booking a Delhivery shipment");
+
   if (!isDelhiveryConfigured(env)) {
     throw new Error("Delhivery is not configured");
   }

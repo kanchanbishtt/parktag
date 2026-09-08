@@ -59,6 +59,14 @@ export async function getCollections(env) {
     // callback for a verification code matched nothing and vanished — the
     // webhook's own comment flags this.
     messages: db.collection(withPrefix(prefix, "messages")),
+    // One row per Delhivery pickup, claimed BEFORE the request goes out.
+    //
+    // A pickup covers a warehouse for a whole day, not a parcel, so this is
+    // what stops three sales before lunch summoning three vans. Two orders paid
+    // in the same second both read "no pickup yet", so the guarantee has to be
+    // the unique (pickupLocation, pickupDate) index rather than a lookup. Same
+    // shape and same reasoning as `messages` above. See lib/core/shipping.js.
+    pickupRequests: db.collection(withPrefix(prefix, "pickup_requests")),
     // Atomic sequence counters (e.g. the running shop order number). Each doc is
     // { _id: <name>, seq: <n> }, incremented with findOneAndUpdate($inc).
     counters: db.collection(withPrefix(prefix, "counters")),
@@ -266,6 +274,14 @@ const CORE_INDEXES = [
   // hence the loud name and this note. lib/core/message-log.js verifies the
   // index is present before it will run a campaign send.
   ["messages", { campaign: 1, dedupeKey: 1 }, { unique: true, name: "campaign_dedupe_unique" }],
+  // The same guarantee for courier pickups. Without it, every order of the day
+  // requests its own rider: Delhivery either rejects the duplicates or sends
+  // repeat visits, and both are somebody's afternoon. See lib/core/shipping.js.
+  [
+    "pickupRequests",
+    { pickupLocation: 1, pickupDate: 1 },
+    { unique: true, name: "pickup_location_date_unique" }
+  ],
   // Delivery statuses arrive from Meta keyed on the wamid alone.
   //
   // Partial, for the same reason owners.mobile is: an e-mail row has no wamid,

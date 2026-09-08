@@ -191,9 +191,18 @@ export function nextPickupDate(now = new Date()) {
 // per day can be open at a time.
 //
 // It has NOT been run against this account. Staging was re-tested on 8 Sep 2026
-// and still answers 401 "Login or API Key Required" for the production key, so
-// the sandbox needs a separate staging key this account does not have. The
-// first real call will therefore be a production one.
+// and still answers 401 "Login or API Key Required" for the production key,
+// while the same key returns 200 on production. Delhivery's own notes confirm
+// why: tokens are environment-specific and do not work across environments, so
+// the sandbox needs a separate staging token issued for this account. The first
+// real call will therefore be a production one.
+//
+// IF THAT FIRST CALL 404s, TRY express.delhivery.com. Delhivery's integration
+// notes single this endpoint out: "Some APIs use https://express.delhivery.com
+// as their production URL (e.g., Pickup Request)". Its own OpenAPI spec lists
+// track.delhivery.com, which is what delhiveryBaseUrl resolves to and what the
+// rest of this file uses, so that is what we send. The two disagree, and this
+// comment exists so the next person does not rediscover it from a 404.
 export async function requestPickup(env, { pickupDate, expectedPackageCount = 1 }) {
   // Same class of call as createShipment: it dispatches a real van.
   refuseInTestRun(env, "Requesting a Delhivery pickup");

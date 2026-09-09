@@ -207,6 +207,9 @@ function syncHeroLinks() {
 
 let _sku = null;
 let _busy = false;
+// The amount the SERVER priced this order at, AFTER any code was applied, kept
+// so the purchase event reports what was actually taken. Measurement only.
+let _paidPaise = 0;
 
 // ── The code ───────────────────────────────────────────────────────────────
 //
@@ -584,6 +587,7 @@ async function buy(sku) {
     // here on depends on the buyer's browser still being alive; this is the
     // last line that does not.
     remember(order.orderNumber, address);
+    _paidPaise = order.amount || 0;
     // Spent. A second purchase this session should not silently reuse it.
     clearReferralCode();
   } catch (err) {
@@ -668,7 +672,15 @@ function showDone(done) {
   burstConfetti(byId("gtCfti"), "gt-cfti");
 
   if (window.ptTrack) {
-    ptTrack("purchase", { transaction_id: done.orderNumber, items: [{ item_id: _sku, quantity: 1 }] });
+    // The discounted amount, which is the revenue. Without value/currency both
+    // Meta and GA4 book the conversion at zero, and the valueless browser event
+    // can win event_id de-duplication against the server's CAPI Purchase.
+    ptTrack("purchase", {
+      transaction_id: done.orderNumber,
+      value: _paidPaise / 100,
+      currency: "INR",
+      items: [{ item_id: _sku, quantity: 1 }]
+    });
   }
 }
 
@@ -789,7 +801,10 @@ function wireGallery() {
   });
 }
 
-function wireCheckout() {
+// `products` is the catalogue already on screen, passed in only so
+// begin_checkout can carry a value. A missing entry costs the value on one
+// event and nothing else -- it must never stop the click reaching buy().
+function wireCheckout(products) {
   const code = byId("drCode");
   if (code) {
     code.addEventListener("change", () => checkCode(_sku));
@@ -826,7 +841,12 @@ function wireCheckout() {
     const sku = link.dataset.sku || HERO_PACK;
 
     if (window.ptTrack) {
-      ptTrack("begin_checkout", { method: "guest", items: [{ item_id: sku, quantity: 1 }] });
+      const priced = products && products[sku];
+      ptTrack("begin_checkout", {
+        method: "guest",
+        items: [{ item_id: sku, quantity: 1 }],
+        ...(priced ? { value: priced.amountPaise / 100, currency: "INR" } : {})
+      });
     }
     buy(sku);
   });
@@ -875,7 +895,7 @@ async function load() {
   renderChips(payload.products);
   renderPacks(payload.products);
   renderBar(payload.products);
-  wireCheckout();
+  wireCheckout(payload.products);
 
   // After the page is usable, never in front of it. A returning buyer's order
   // matters, but not more than the shop rendering.

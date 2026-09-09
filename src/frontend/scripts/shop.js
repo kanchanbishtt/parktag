@@ -262,6 +262,9 @@ async function showRecall() {
 
 let _sku = null;
 let _busy = false;
+// The amount the SERVER priced this order at, kept so the purchase event can
+// report revenue. Measurement only -- nothing is ever charged from it.
+let _paidPaise = 0;
 
 // A step run, or a harmless stand-in when the shared module has not loaded.
 // Presentation only: nothing here may throw into the order path, because a
@@ -366,6 +369,7 @@ async function buy(sku) {
     if (!res.ok || !order.ok) throw new Error(order && order.error);
     // Before the payment window opens, not after it closes.
     remember(order.orderNumber, address);
+    _paidPaise = order.amount || 0;
     // Spent. A second purchase this session must not silently reuse it.
     clearReferralCode();
   } catch (err) {
@@ -445,11 +449,22 @@ function showDone(done) {
   showSheet();
 
   if (window.ptTrack) {
-    ptTrack("purchase", { transaction_id: done.orderNumber, items: [{ item_id: _sku, quantity: 1 }] });
+    // Without value/currency both Meta and GA4 book the conversion at zero,
+    // and the valueless browser event can win the event_id de-duplication
+    // against the server's CAPI Purchase and erase the amount there too.
+    ptTrack("purchase", {
+      transaction_id: done.orderNumber,
+      value: _paidPaise / 100,
+      currency: "INR",
+      items: [{ item_id: _sku, quantity: 1 }]
+    });
   }
 }
 
-function wireCheckout() {
+// `products` is the catalogue already on screen, passed in only so
+// begin_checkout can carry a value. A missing entry costs the value on one
+// event and nothing else -- it must never stop the click reaching buy().
+function wireCheckout(products) {
   byId("shDoneX").addEventListener("click", hideSheet);
   byId("shSheetBd").addEventListener("click", hideSheet);
   document.addEventListener("keydown", (e) => {
@@ -467,7 +482,12 @@ function wireCheckout() {
     const sku = link.dataset.sku;
 
     if (window.ptTrack) {
-      ptTrack("begin_checkout", { method: "guest", items: [{ item_id: sku, quantity: 1 }] });
+      const priced = products && products[sku];
+      ptTrack("begin_checkout", {
+        method: "guest",
+        items: [{ item_id: sku, quantity: 1 }],
+        ...(priced ? { value: priced.amountPaise / 100, currency: "INR" } : {})
+      });
     }
     buy(sku);
   });
@@ -498,7 +518,7 @@ async function load() {
   }
 
   renderGrid(payload.products);
-  wireCheckout();
+  wireCheckout(payload.products);
   byId("shYear").textContent = String(new Date().getFullYear());
 
   // After the page is usable, never in front of it.

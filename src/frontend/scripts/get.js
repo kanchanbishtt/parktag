@@ -190,6 +190,11 @@ function syncHeroLinks() {
 
 let _sku = null;
 let _busy = false;
+// The amount the SERVER priced this order at, kept so the purchase event can
+// report revenue. Never used to charge anything -- Razorpay is opened with
+// order.amount straight off the response, and the server re-derives the price
+// at verify. This is for measurement only.
+let _paidPaise = 0;
 
 // ── Remembering an order the buyer may never see confirmed ─────────────────
 //
@@ -406,6 +411,7 @@ async function buy(sku) {
     // here on depends on the buyer's browser still being alive; this is the
     // last line that does not.
     remember(order.orderNumber, address);
+    _paidPaise = order.amount || 0;
     // Spent. A second purchase this session should not silently reuse it.
     clearReferralCode();
   } catch (err) {
@@ -490,7 +496,17 @@ function showDone(done) {
   burstConfetti(byId("gtCfti"), "gt-cfti");
 
   if (window.ptTrack) {
-    ptTrack("purchase", { transaction_id: done.orderNumber, items: [{ item_id: _sku, quantity: 1 }] });
+    // value and currency are not decoration. Without them Meta and GA4 record
+    // the conversion at zero, so nothing downstream can bid on or report
+    // revenue. Meta also gets this from the server (meta-capi.js), but the two
+    // de-duplicate on a shared event_id and whichever lands first wins -- so a
+    // valueless browser event can beat the server's and erase the amount.
+    ptTrack("purchase", {
+      transaction_id: done.orderNumber,
+      value: _paidPaise / 100,
+      currency: "INR",
+      items: [{ item_id: _sku, quantity: 1 }]
+    });
   }
 }
 
@@ -611,7 +627,10 @@ function wireGallery() {
   });
 }
 
-function wireCheckout() {
+// `products` is the catalogue already on screen, passed in only so the
+// begin_checkout event can carry a value. A missing entry costs the value on
+// one event and nothing else -- it must never stop the click reaching buy().
+function wireCheckout(products) {
   byId("gtDoneX").addEventListener("click", hideSheet);
   byId("gtSheetBd").addEventListener("click", hideSheet);
   document.addEventListener("keydown", (e) => {
@@ -635,7 +654,12 @@ function wireCheckout() {
     const sku = link.dataset.sku || HERO_PACK;
 
     if (window.ptTrack) {
-      ptTrack("begin_checkout", { method: "guest", items: [{ item_id: sku, quantity: 1 }] });
+      const priced = products && products[sku];
+      ptTrack("begin_checkout", {
+        method: "guest",
+        items: [{ item_id: sku, quantity: 1 }],
+        ...(priced ? { value: priced.amountPaise / 100, currency: "INR" } : {})
+      });
     }
     buy(sku);
   });
@@ -684,7 +708,7 @@ async function load() {
   renderChips(payload.products);
   renderPacks(payload.products);
   renderBar(payload.products);
-  wireCheckout();
+  wireCheckout(payload.products);
 
   // After the page is usable, never in front of it. A returning buyer's order
   // matters, but not more than the shop rendering.

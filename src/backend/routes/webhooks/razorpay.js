@@ -165,6 +165,54 @@ export function registerRazorpayWebhookRoutes(app, env) {
       return { ok: true, fulfilled: outcome.firstTime };
     }
 
+    // ₹20 callback passes, in their own collection for the third time and the
+    // same reason. Checked before shopOrders on the same "cheapest miss" logic.
+    //
+    // Only the PASS is credited here, never the call. The dial is registered by
+    // whoever the owner is in front of — the verify route, in the same request
+    // that takes the payment — and a webhook that fired a masked call would ring
+    // an owner who has closed the tab and walked away, on behalf of a scanner
+    // who has been waiting however long Razorpay took to retry. So this makes
+    // sure the thing they paid for exists; pressing Call is still theirs.
+    const callbackOrder = await collections.callbackOrders.findOne({ orderId });
+    if (callbackOrder) {
+      const now = new Date();
+      // Guarded on absence, so a webhook arriving after the browser already
+      // verified cannot reset a pass that has since been used.
+      const claimed = await collections.tags.updateOne(
+        {
+          _id: callbackOrder.tagId,
+          premium: { $ne: true },
+          "callbackPass.paidAt": { $in: [null, undefined] }
+        },
+        {
+          $set: {
+            callbackPass: {
+              orderId: callbackOrder.orderId,
+              requestId: callbackOrder.requestId,
+              paidAt: now.toISOString(),
+              usedAt: null
+            },
+            updatedAt: now.toISOString()
+          }
+        }
+      );
+
+      await collections.callbackOrders.updateOne(
+        { orderId, status: { $ne: "paid" } },
+        { $set: { status: "paid", paymentId, paidAt: now.toISOString() } }
+      );
+
+      if (claimed.modifiedCount) {
+        request.log.info(
+          { event: "razorpay-webhook-callback-pass", orderId },
+          "[razorpay webhook] credited a callback pass the browser never confirmed"
+        );
+      }
+
+      return { ok: true, fulfilled: Boolean(claimed.modifiedCount) };
+    }
+
     const order = await collections.shopOrders.findOne({ orderId });
     if (!order) {
       // Not one of ours, or the row was never written. Acknowledged rather than

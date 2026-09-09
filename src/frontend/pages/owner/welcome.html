@@ -1729,6 +1729,16 @@
   .pt-act-cta:disabled { opacity: .6; cursor: default; }
   .pt-act-cta.ok       { background: #10B981; }
 
+  /* The paid callback. Same shape and same slot as the free one — it does the
+     same thing — but it carries a price, and a price on a red action button is
+     the one place in this column where the amount has to be readable at a
+     glance rather than styled to match. Slightly tighter line-height because
+     this button is the only two-line .pt-act-cta. */
+  .pt-act-cta.pt-act-pay { line-height: 1.2; padding: 7px 14px; }
+  .pt-act-pay-amt {
+    display: block; font-size: .9rem; font-weight: 900; letter-spacing: 0;
+  }
+
   /* No-phone prompt inline */
   .pt-act-nophone {
     flex-shrink: 0; font-size: .72rem; font-weight: 700; color: #D97706;

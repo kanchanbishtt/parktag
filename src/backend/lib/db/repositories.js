@@ -44,6 +44,13 @@ export async function getCollections(env) {
     // reachable from there is a ₹49 payment that ships physical stock. Two
     // collections means that route cannot find one at all.
     membershipOrders: db.collection(withPrefix(prefix, "membership_orders")),
+    // ₹20 one-time callback passes for E-Tags (lib/core/callback-pass.js).
+    // Separate from both collections above for the reason spelled out for
+    // membershipOrders: /api/shop/verify-payment resolves an order by its
+    // Razorpay id and hands whatever it finds to fulfilPaidOrder, which mints a
+    // tag and books a courier. A ₹20 callback row reachable from there would
+    // ship a sticker. A third collection is what makes that unreachable.
+    callbackOrders: db.collection(withPrefix(prefix, "callback_orders")),
     // Delivery addresses for physical sticker fulfilment — one active doc per
     // owner (upserted on ownerId), snapshotted onto each order at purchase time.
     addresses: db.collection(withPrefix(prefix, "addresses")),
@@ -229,6 +236,8 @@ const CORE_INDEXES = [
   // orderId is unique here, unlike on shopOrders: it is what the webhook and
   // verify-payment both key on, and two rows for one Razorpay order would let
   // the same payment be activated twice.
+  ["callbackOrders", { orderId: 1 }, { unique: true, name: "razorpay_order" }],
+  ["callbackOrders", { ownerId: 1, status: 1, createdAt: -1 }, { name: "owner_status_recent" }],
   ["membershipOrders", { orderId: 1 }, { unique: true, name: "razorpay_order" }],
   ["membershipOrders", { ownerId: 1, status: 1, createdAt: -1 }, { name: "owner_status_recent" }],
   ["addresses", { ownerId: 1 }, { unique: true, name: "owner_unique" }],

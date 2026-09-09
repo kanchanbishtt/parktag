@@ -282,9 +282,12 @@
       <h2 class="gt-h2" id="packs">Choose a pack</h2>
       <div class="gt-code">
         <label class="gt-code-l" for="drCode">Your code</label>
-        <input class="gt-code-i" id="drCode" name="code" type="text"
-               autocomplete="off" autocapitalize="characters" spellcheck="false"
-               maxlength="16" placeholder="Enter your code" />
+        <div class="gt-code-row">
+          <input class="gt-code-i" id="drCode" name="code" type="text"
+                 autocomplete="off" autocapitalize="characters" spellcheck="false"
+                 maxlength="16" placeholder="Enter your code" />
+          <button class="gt-btn gt-code-go" id="drCodeApply" type="button">Apply</button>
+        </div>
         <p class="gt-code-n" id="drCodeNote" role="status" aria-live="polite"></p>
       </div>
 
@@ -363,5 +366,40 @@
     <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
     <script src="/scripts/owner/address-step.js?v=__ASSET_VERSION__"></script>
     <script type="module" src="/scripts/direct.js?v=__ASSET_VERSION__"></script>
+
+    <!-- ── Handover contact ────────────────────────────────────────────────
+         A face to face sale has no parcel, so there is no address to collect.
+         Name and phone are still required: the phone is what links the sticker
+         to this order when the buyer activates it.
+
+         Written here rather than raised with window.prompt, which is what this
+         replaced. A browser dialog on a payment page reads as a scam, and it
+         cannot carry the lock icon or the Razorpay line that tell somebody
+         their money is going somewhere real. -->
+    <div class="dr-ov" id="drOv" hidden>
+      <div class="dr-sheet" role="dialog" aria-modal="true" aria-labelledby="drSheetT">
+        <div class="dr-grip"></div>
+        <span class="dr-eyebrow">Collection</span>
+        <h3 class="dr-sheet-t" id="drSheetT">Who is this for?</h3>
+        <p class="dr-sheet-s">You are collecting this in person, so we only need who to put it under.</p>
+
+        <p class="dr-sheet-err" id="drErr" role="alert" hidden></p>
+
+        <label class="dr-f">
+          <span>Full name <span class="dr-req" aria-hidden="true">*</span></span>
+          <input id="drName" type="text" autocomplete="name" maxlength="80" placeholder="Buyer name" />
+        </label>
+
+        <label class="dr-f">
+          <span>Mobile number <span class="dr-req" aria-hidden="true">*</span></span>
+          <input id="drPhone" type="tel" inputmode="numeric" autocomplete="tel" maxlength="10" placeholder="10-digit mobile" />
+        </label>
+
+        <button class="dr-primary" id="drGo" type="button">Continue to pay</button>
+        <button class="dr-link" id="drCancel" type="button">Cancel</button>
+        <p class="dr-sheet-n">We use the number to link your sticker to this order.</p>
+        <div class="dr-secure">Secured by Razorpay · UPI · Cards · Net Banking</div>
+      </div>
+    </div>
   </body>
 </html>

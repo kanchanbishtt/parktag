@@ -29,6 +29,7 @@ import { registerOwnerRoutes } from "./routes/owner/dashboard.js";
 import { registerVaultRoutes } from "./routes/owner/vault.js";
 import { registerLoginPinRoutes } from "./routes/owner/login-pin.js";
 import { registerMembershipRoutes } from "./routes/owner/membership.js";
+import { registerCallbackPassRoutes } from "./routes/owner/callback-pass.js";
 import { MAX_FILE_BYTES } from "./lib/core/vault.js";
 import { cacheControlFor, resolveAssetVersion } from "./lib/core/asset-version.js";
 import { registerProviderRoutes } from "./routes/webhooks/exotel.js";
@@ -1322,6 +1323,7 @@ export async function buildApp() {
   registerVaultRoutes(app, env);
   registerLoginPinRoutes(app, env);
   registerMembershipRoutes(app, env);
+  registerCallbackPassRoutes(app, env);
   registerAdminRoutes(app, env);
   registerAdminTrafficRoutes(app, env);
   registerAdminMarketingRoutes(app, env);

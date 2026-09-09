@@ -1,4 +1,4 @@
-import { callbackState, CALLABLE, NEEDS_PREMIUM, NEEDS_SUBSCRIPTION } from "./callback-eligibility.js";
+import { callbackState, CALLABLE, NEEDS_PAYMENT, PASS_SPENT, NEEDS_PREMIUM, NEEDS_SUBSCRIPTION } from "./callback-eligibility.js";
 
 // ── Banners carousel ─────────────────────────────────────────────
 const track    = document.getElementById("carTrack");
@@ -1277,6 +1277,25 @@ function formatCallDuration(seconds) {
 // that predates the field.
 let _callbackWindowMs = 48 * 60 * 60 * 1000;
 
+// The ₹20 callback's two published numbers, defaulted to values that OFFER
+// NOTHING until the server says otherwise.
+//
+// A zero threshold would mean 'any amount of window left is enough' and a zero
+// price would render 'Call back ₹0'. On a response that predates these fields
+// the safe failure is no Pay button at all, so the price starts at 0 and the
+// row falls through to the ordinary upgrade nudge — a page that has never been
+// told the price cannot invent one.
+let _callbackPassMinRemainingMs = Infinity;
+let _callbackPassPaise = 0;
+
+// Paise to a printable price. Whole rupees when it divides evenly, which ₹20
+// does — "₹20.00" on a button reads like a form field, not a price.
+function rupees(paise) {
+  const value = Number(paise) / 100;
+  if (!Number.isFinite(value)) return "";
+  return `₹${Number.isInteger(value) ? value : value.toFixed(2)}`;
+}
+
 // A contact that no longer maps to a tag the owner holds — a deleted vehicle,
 // or a tag transferred away. Grey rather than a palette colour, so it never
 // impersonates one of the vehicles still in the list above.
@@ -1436,7 +1455,12 @@ function renderActivity(requests) {
   // way contactAvailable and unlimitedContact already work. The server enforces
   // the identical rule; this only decides which controls get drawn.
   const stateOf = (r) =>
-    callbackState(r, { tags: allTags, now, windowMs: _callbackWindowMs });
+    callbackState(r, {
+      tags: allTags,
+      now,
+      windowMs: _callbackWindowMs,
+      passMinRemainingMs: _callbackPassMinRemainingMs
+    });
 
   const isReturnable = (r) => stateOf(r) === CALLABLE;
 
@@ -1449,6 +1473,15 @@ function renderActivity(requests) {
   // nudge because sending them to the shop to buy a sticker they are holding is
   // the kind of prompt that reads as a bug.
   const blockedOnlySubscription = (r) => stateOf(r) === NEEDS_SUBSCRIPTION;
+
+  // An E-Tag that can buy its one callback for this row. Priced in the button,
+  // because a button that opens a payment sheet without naming a figure first
+  // is the kind of thing people tap once and never again.
+  const canBuyCallback = (r) => stateOf(r) === NEEDS_PAYMENT;
+
+  // Bought it, used it. The row stops offering money and starts offering the
+  // sticker, which is what the one-time pass exists to advertise.
+  const passAlreadySpent = (r) => stateOf(r) === PASS_SPENT;
 
   // Exactly one row may be called back: the newest returnable one.
   //
@@ -1596,6 +1629,26 @@ function renderActivity(requests) {
       // it says so and goes straight to where that is fixed.
       cta = `<button class="pt-act-nophone pt-act-upsell" onclick="switchTab('shop')"
         title="Callback is available on premium tags">Premium<br>to call back</button>`;
+    } else if (canBuyCallback(r)) {
+      // The one thing on this list that costs money, so it says so on its face
+      // and never opens a payment sheet the owner has not seen a price for.
+      //
+      // Needs a profile number for the same reason the free callback does —
+      // register-call dials it — and create-order refuses without one, so the
+      // check is here rather than after the money.
+      if (!_ownerMobile) {
+        cta = `<span class="pt-act-nophone">Add phone<br>to call back</span>`;
+      } else {
+        const payId = `cbPay-${r.id}`;
+        cta = `<button class="pt-act-cta pt-act-pay" id="${payId}" data-request-id="${esc(r.id)}"
+          title="One callback for this vehicle"
+          onclick="payForCallback('${esc(payId)}')">Call Back<br><span class="pt-act-pay-amt">${esc(rupees(_callbackPassPaise))}</span></button>`;
+      }
+    } else if (passAlreadySpent(r)) {
+      // Used their one. Same slot and treatment as the other upsells, and it
+      // deliberately does NOT offer a second ₹20 — the pass is once per tag.
+      cta = `<button class="pt-act-nophone pt-act-upsell" onclick="switchTab('shop')"
+        title="You've used the one-time callback for this vehicle">Go premium<br>to call back</button>`;
     } else if (blockedOnlySubscription(r)) {
       // Same slot and treatment, different destination: this owner already has
       // the tag, so the thing standing in the way is the subscription.
@@ -1857,6 +1910,124 @@ async function callBack(btnId = "cbBtn") {
   }
 }
 window.callBack = callBack;
+
+// Buy the one ₹20 callback for a contact, then place it.
+//
+// The whole flow is: mint an order, open Razorpay, and on success post ONE
+// request that verifies the payment and hands back the number to dial. The
+// verify route registers the call itself precisely so there is no second round
+// trip here — the owner is watching a clock, and a charge followed by a
+// separate "now placing your call…" step is where that clock gets lost.
+//
+// Failure after payment is treated as loudly as success: the messages below
+// never say "try again" without also saying the money arrived, because the one
+// thing an owner must never have to guess is whether they were charged.
+async function payForCallback(btnId) {
+  const btn = btnId ? document.getElementById(btnId) : null;
+  const label = btn ? btn.innerHTML : "";
+  const requestId = btn?.dataset?.requestId || null;
+  if (!requestId) return;
+
+  const restore = () => {
+    if (btn) { btn.disabled = false; btn.innerHTML = label; btn.classList.remove("pt-btn-loading"); }
+  };
+
+  if (typeof Razorpay === "undefined") {
+    _toast("Payment could not start. Check your connection and try again.", "err");
+    return;
+  }
+
+  if (btn) { btn.disabled = true; btn.classList.add("pt-btn-loading"); btn.textContent = "Starting…"; }
+
+  let order;
+  try {
+    const res = await fetch("/api/owner/callback/create-order", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ requestId })
+    });
+    order = await res.json();
+    if (!order.ok) {
+      // Every one of these is a state the page thought it was not in, so the
+      // list is re-rendered rather than left showing a button that just failed.
+      if (order.code === "PASS_SPENT") {
+        _toast(order.error || "You've already used the callback for this vehicle.", "err");
+      } else if (order.code === "CALLBACK_WINDOW_EXPIRED") {
+        _toast("The callback window for this contact has passed.", "err");
+      } else if (order.code === "NO_PHONE") {
+        _toast("Add your mobile number to your profile to enable callback.", "err");
+      } else {
+        _toast(order.error || "Couldn't start the payment. Try again.", "err");
+      }
+      restore();
+      renderActivity(allRequests);
+      return;
+    }
+  } catch {
+    _toast("Network error. Please try again.", "err");
+    restore();
+    return;
+  }
+
+  restore();
+
+  const rzp = new Razorpay({
+    key: order.keyId,
+    amount: order.amount,
+    currency: order.currency,
+    order_id: order.orderId,
+    // A zero-width space, so Razorpay renders our logo alone instead of
+    // falling back to the account's business name. Same trick, and the same
+    // reason, as the shop checkout.
+    name: "​",
+    description: "One-time callback",
+    image: "/images/parktag-checkout-logo.png",
+    prefill: order.prefill || {},
+    theme: { color: "#FF2700" },
+    handler: async function (response) {
+      try {
+        const vr = await fetch("/api/owner/callback/verify-payment", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            razorpay_order_id: response.razorpay_order_id,
+            razorpay_payment_id: response.razorpay_payment_id,
+            razorpay_signature: response.razorpay_signature
+          })
+        });
+        const vd = await vr.json();
+
+        if (vd.ok && vd.virtualNumber) {
+          // Identical to the free callback from here on: the number goes on
+          // screen FIRST and the dialer is only attempted afterwards, because
+          // `tel:` does nothing on most desktops and the owner would otherwise
+          // be left holding a paid call they cannot see the number for.
+          openCallSheet(vd.virtualNumber);
+          if (deviceCanDial()) {
+            setTimeout(() => { window.location.href = `tel:${vd.virtualNumber}`; }, 120);
+          }
+        } else {
+          // Paid, but not placed. Say both halves.
+          _toast(vd.error || "Payment received, but the call couldn't be placed. Please try again.", "err");
+        }
+      } catch {
+        _toast("Payment received, but we couldn't confirm it. Refresh before paying again.", "err");
+      } finally {
+        // Either way the tag has changed underneath this list — the pass is now
+        // paid, or spent — so the row is redrawn from the server's view of it.
+        loadDashboard();
+      }
+    },
+    modal: {
+      // Dismissing the sheet is not a failure and must not be reported as one.
+      // Nothing was charged; the button simply comes back.
+      ondismiss: function () { renderActivity(allRequests); }
+    }
+  });
+
+  rzp.open();
+}
+window.payForCallback = payForCallback;
 
 // The callback mobile is the number the masked-call feature dials, so it can't
 // be saved on trust — the owner must prove control of it with an OTP. Step 1

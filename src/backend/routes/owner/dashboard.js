@@ -12,6 +12,15 @@ import {
 import { getCollections, ensurePendingCallsIndexes, getVaultBucket } from "../../lib/db/repositories.js";
 import { purgeVaultDocuments, deleteUsage } from "../../lib/core/vault.js";
 import { callEntitlement } from "../../lib/core/call-access.js";
+import {
+  callbackPassPayload,
+  callbackPassState,
+  hasLiveCallbackPass,
+  CALLBACK_PASS_MIN_REMAINING_MS,
+  CALLBACK_PASS_PAISE,
+  PASS_READY
+} from "../../lib/core/callback-pass.js";
+import { registerOwnerToScannerCall } from "../../lib/core/pending-call.js";
 import { membershipCountdown } from "../../lib/core/membership-fulfilment.js";
 import {
   cleanGender,
@@ -66,7 +75,11 @@ function shapeAddress(doc) {
 // new version going through review, so a constant here can never keep it in
 // step. Move this and the two copies move with it, or the app promises a window
 // it does not honour.
-const CALLBACK_WINDOW_MS = 10 * 60 * 1000;
+//
+// Exported because the ₹20 callback pass is sold against this same window —
+// routes/owner/callback-pass.js refuses to sell one that is nearly closed, and
+// a second copy of the number there would be a third place to keep in step.
+export const CALLBACK_WINDOW_MS = 10 * 60 * 1000;
 
 // Said in two places below — when the account holds no premium tag at all, and
 // when the contact they named arrived on an E-Tag — and the owner should not be
@@ -245,6 +258,17 @@ export function registerOwnerRoutes(app, env) {
           // Sent as the entitlement rather than as a bare flag so the UI cannot
           // re-derive the rule and get a different answer from the server.
           callAccess: callEntitlement(tag),
+          // The ₹20 one-time callback: whether this tag can buy one, is
+          // holding one, or has spent it. Sent whole for the same reason
+          // callAccess is — the page draws a Pay button, a Call button or an
+          // upgrade nudge off this, and re-deriving "is the pass still live"
+          // in the browser is how the two would come to disagree about
+          // whether the owner has already been charged.
+          //
+          // Always present, including on premium tags, where it reads
+          // `not-applicable` — an absent field would be indistinguishable
+          // from an older server on a cached page.
+          callbackPass: callbackPassPayload(tag),
           // How long this tag's premium cover has left, for the countdown on
           // the profile card. Computed here and sent whole for the same reason
           // callAccess just above is: the browser would otherwise have to be
@@ -303,6 +327,13 @@ export function registerOwnerRoutes(app, env) {
       // apart. The route re-checks regardless — a stale button gets a clean
       // 410, never a call it should not have placed.
       callbackWindowMs: CALLBACK_WINDOW_MS,
+      // How much of that window must remain for the ₹20 callback to still be
+      // offered, and what it costs. Published for the same reason the window
+      // is: the page hides the Pay button below this, create-order refuses
+      // below it, and two copies of the number would eventually be two
+      // numbers — a button that takes money the next route declines.
+      callbackPassMinRemainingMs: CALLBACK_PASS_MIN_REMAINING_MS,
+      callbackPassPaise: CALLBACK_PASS_PAISE,
 
       // The owner's referral code, and the two numbers the card has to state.
       //
@@ -1218,7 +1249,36 @@ export function registerOwnerRoutes(app, env) {
       .filter((tag) => callEntitlement(tag).masking)
       .map((tag) => tag.token);
 
-    if (!premiumTokens.length) {
+    // E-Tags holding a live ₹20 pass are callable too — for exactly one contact
+    // each (lib/core/callback-pass.js).
+    //
+    // Queried separately rather than by widening the premium filter above,
+    // because these two are not the same permission and must not be summed into
+    // one list of "tags that may call". A premium tag may call back anyone who
+    // contacted it, repeatedly, for as long as its cover runs. A passed E-Tag
+    // may make one dial, to one person. Keeping the sets apart is what lets the
+    // check after the contact is resolved be specific about which one applies.
+    const passTags = await collections.tags
+      .find(
+        {
+          ownerId,
+          premium: { $ne: true },
+          deletedAt: { $in: [null, undefined] },
+          "callbackPass.paidAt": { $exists: true },
+          "callbackPass.usedAt": { $in: [null, undefined] }
+        },
+        { projection: { token: 1, premium: 1, callbackPass: 1 } }
+      )
+      .toArray();
+
+    // Re-filtered in code rather than trusted from the query: the query cannot
+    // express "paid within the last ten minutes" against a stored ISO string,
+    // and a pass whose fresh window has closed is spent.
+    const livePassTags = passTags.filter((tag) => callbackPassState(tag) === PASS_READY);
+    const passTokens = livePassTags.map((tag) => tag.token);
+    const callableTokens = [...premiumTokens, ...passTokens];
+
+    if (!callableTokens.length) {
       // Distinguishing the two cases matters: "buy a premium tag" is useless
       // advice to somebody who already owns one whose free year has run out.
       const lapsed = callableTags.length > 0;
@@ -1270,7 +1330,7 @@ export function registerOwnerRoutes(app, env) {
     // yesterday's row id cannot dial its way past this.
     const filter = {
       ownerId,
-      token: { $in: premiumTokens },
+      token: { $in: callableTokens },
       phone: { $exists: true, $ne: null },
       createdAt: { $gte: windowStart }
     };
@@ -1294,7 +1354,7 @@ export function registerOwnerRoutes(app, env) {
     // looking for a bug instead of at the upgrade that would fix it.
     if (wanted) {
       const named = await collections.contactRequests.findOne({ _id: wanted, ownerId });
-      if (named && !premiumTokens.includes(named.token)) {
+      if (named && !callableTokens.includes(named.token)) {
         // Same split as the account-level check above. A contact that arrived
         // on a premium tag whose call window has closed is NOT an upgrade
         // prompt — that owner is holding the sticker this would tell them to
@@ -1331,29 +1391,53 @@ export function registerOwnerRoutes(app, env) {
       };
     }
 
+    // Which permission is actually paying for this call?
+    //
+    // A premium token needs nothing further — its entitlement covers whoever
+    // contacted it. A pass token does: the ₹20 was sold against ONE row in the
+    // activity list, and a pass that could dial any contact on the tag would be
+    // an unlimited callback for as long as its ten minutes ran.
+    //
+    // `paidPassTag` doubles as the flag for the consumption write further down,
+    // so a premium callback can never spend a pass the owner is still holding.
+    let paidPassTag = null;
+    if (!premiumTokens.includes(recentContact.token)) {
+      paidPassTag =
+        livePassTags.find((tag) => hasLiveCallbackPass(tag, recentContact._id)) || null;
+
+      if (!paidPassTag) {
+        reply.code(402);
+        return {
+          ok: false,
+          code: "PREMIUM_REQUIRED",
+          error: PREMIUM_REQUIRED_MESSAGE
+        };
+      }
+    }
+
     const now = new Date();
 
-    await collections.pendingCalls.insertOne({
-      callerPhone: toE164(ownerPhone),
-      targetPhone: recentContact.phone,
-      token: recentContact.token,
+    await registerOwnerToScannerCall(collections, {
+      ownerPhone,
+      contact: recentContact,
       ownerId,
-      requestId: recentContact._id,
-      type: "owner_to_scanner",
-      consumed: false,
-      createdAt: now.toISOString(),
-      expiresAt: new Date(now.getTime() + 10 * 60 * 1000)
+      now
     });
+
+    // A paid pass is spent by the dial it authorised, not by the payment.
+    //
+    // Stamped only once the bridge above exists, so an owner whose call could
+    // not be registered at all still holds what they bought. `usedAt` missing
+    // is the difference between "used it" and "paid and got nothing".
+    if (paidPassTag) {
+      await collections.tags.updateOne(
+        { _id: paidPassTag._id, "callbackPass.usedAt": { $in: [null, undefined] } },
+        { $set: { "callbackPass.usedAt": now.toISOString(), updatedAt: now.toISOString() } }
+      );
+    }
 
     return { ok: true, virtualNumber: env.exotelCallerId };
   });
 
 }
 
-function toE164(input) {
-  const digits = String(input || "").replace(/\D/g, "");
-  if (digits.length === 10) return `+91${digits}`;
-  if (digits.length === 11 && digits.startsWith("0")) return `+91${digits.slice(1)}`;
-  if (digits.length === 12 && digits.startsWith("91")) return `+${digits}`;
-  return `+${digits}`;
-}

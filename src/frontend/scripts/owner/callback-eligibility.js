@@ -15,6 +15,15 @@
 // deliberately in step, including the awkward parts — see the tag lookup below.
 
 export const CALLABLE = "callable";
+// An E-Tag that can buy its one ₹20 callback for this contact, right now.
+// Distinct from CALLABLE because the row draws a price and opens Razorpay
+// rather than dialling, and distinct from NEEDS_PREMIUM because there is
+// something the owner can do about it without buying a sticker.
+export const NEEDS_PAYMENT = "needs-payment";
+// The one paid callback on this E-Tag has been used. Kept apart from
+// NEEDS_PREMIUM so the row can say "go premium" rather than offering the ₹20
+// again — the whole point of a one-time pass is that it does not come back.
+export const PASS_SPENT = "pass-spent";
 export const NEEDS_PREMIUM = "needs-premium";
 // Owns a premium tag, but its call window has closed. Kept apart from
 // NEEDS_PREMIUM because "upgrade this vehicle to a premium tag" is useless
@@ -28,8 +37,13 @@ export const NOT_CALLABLE = "not-callable";
  * @param tags     the dashboard's `tags` array (deleted tags are already absent)
  * @param now      epoch ms
  * @param windowMs the callback window the server published (`callbackWindowMs`)
+ * @param passMinRemainingMs how much window must be left for the ₹20 callback
+ *        to still be offered (`callbackPassMinRemainingMs`)
  */
-export function callbackState(request, { tags = [], now = Date.now(), windowMs = 0 } = {}) {
+export function callbackState(
+  request,
+  { tags = [], now = Date.now(), windowMs = 0, passMinRemainingMs = 0 } = {}
+) {
   // Nobody to dial. An anonymous report is a notification, not a conversation.
   if (!request || !request.phone) return NOT_CALLABLE;
 
@@ -68,9 +82,38 @@ export function callbackState(request, { tags = [], now = Date.now(), windowMs =
   // two would drift.
   if (tag.callAccess) {
     if (tag.callAccess.masking) return CALLABLE;
+
     // Premium but out of window is a different message from never having
     // bought one at all.
-    return tag.callAccess.premium ? NEEDS_SUBSCRIPTION : NEEDS_PREMIUM;
+    if (tag.callAccess.premium) return NEEDS_SUBSCRIPTION;
+
+    // An E-Tag. Before falling back to the upgrade nudge, ask whether this one
+    // can buy — or has already bought — its single ₹20 callback.
+    //
+    // The verdict is the SERVER's, read off the tag payload, for the same
+    // reason callAccess is: whether a pass is live depends on when it was paid
+    // for, and a browser deciding that for itself would offer a dial the route
+    // refuses, or hide one the owner has been charged for.
+    const pass = tag.callbackPass;
+    if (pass) {
+      // Paid, unused, and bought for THIS row. A pass on a different contact
+      // is not a permission to ring this one — the server scopes it the same
+      // way, so offering it here would only produce a 402 on tap.
+      if (pass.state === "ready") {
+        return String(pass.requestId) === String(request.id) ? CALLABLE : NEEDS_PREMIUM;
+      }
+      if (pass.state === "spent") return PASS_SPENT;
+      if (pass.state === "purchasable") {
+        // Withdrawn near the end of the window rather than sold at a price the
+        // clock is about to make worthless. `passMinRemainingMs` comes from the
+        // server beside the window itself, so this threshold and the one
+        // create-order enforces are the same number.
+        const remaining = windowMs - age;
+        return remaining >= passMinRemainingMs ? NEEDS_PAYMENT : NOT_CALLABLE;
+      }
+    }
+
+    return NEEDS_PREMIUM;
   }
 
   // No `callAccess` in the payload: a page loaded from a cached response served

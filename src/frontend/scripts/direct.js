@@ -172,7 +172,10 @@ function renderBar(products) {
   const name = byId("gtBarName");
   const sub = byId("gtBarSub");
   if (name) name.textContent = hero.name;
-  if (sub) sub.textContent = `${rupees(hero.amountPaise)} · Free delivery · COD available`;
+  // No COD claim here, unlike /get. A code on this page can make the sale a
+  // handover collected in person, and promising Cash on Delivery beside it
+  // would be offering something this checkout does not do.
+  if (sub) sub.textContent = `${rupees(hero.amountPaise)} · Secure payment`;
 }
 
 // The hero and bar buttons carry the lead pack in their href so they work with
@@ -266,26 +269,64 @@ async function checkCode(sku) {
 
 // A handover sale needs a name and a phone and nothing else. The phone is not
 // optional: it is what links the sticker to this order when the buyer activates
-// it, which is the whole reason these sales come through the checkout.
+// it, which is the whole reason these sales come through the checkout at all.
 //
-// Reuses the same sheet the address step uses, so the buyer sees one visual
-// language rather than two.
+// This replaced two window.prompt calls. A browser dialog on a payment page
+// reads as a scam, and it cannot carry the lock or the Razorpay line that tell
+// somebody their money is going somewhere real. The sheet in the page is shaped
+// like the delivery sheet the address step shows, so a buyer sees one checkout.
+//
+// Resolves with the contact, or false if they back out. Backing out is an
+// ordinary thing to do, not an error.
 function collectHandoverContact() {
   return new Promise((resolve) => {
-    const name = window.prompt("Buyer's full name");
-    if (!name || name.trim().length < 2) { resolve(false); return; }
+    const ov = byId("drOv");
+    const name = byId("drName");
+    const phone = byId("drPhone");
+    const err = byId("drErr");
+    const go = byId("drGo");
+    const cancel = byId("drCancel");
+    if (!ov || !name || !phone || !go) { resolve(false); return; }
 
-    const phone = window.prompt("Buyer's 10-digit mobile number");
-    if (!phone || !/^[6-9][0-9]{9}$/.test(phone.trim())) {
-      say("Enter a valid 10-digit mobile number.");
-      resolve(false);
-      return;
+    const fail = (message) => {
+      err.textContent = message;
+      err.hidden = false;
+    };
+
+    const close = (value) => {
+      ov.hidden = true;
+      go.removeEventListener("click", onGo);
+      cancel.removeEventListener("click", onCancel);
+      ov.removeEventListener("click", onBackdrop);
+      document.removeEventListener("keydown", onKey);
+      resolve(value);
+    };
+
+    function onGo() {
+      const n = name.value.trim();
+      const p = phone.value.trim();
+      if (n.length < 2) { fail("Please enter the buyer's name."); name.focus(); return; }
+      if (!/^[6-9][0-9]{9}$/.test(p)) { fail("Enter a valid 10-digit mobile number."); phone.focus(); return; }
+
+      close({
+        fullName: n, phone: p,
+        line1: "", line2: "", landmark: "", city: "", state: "", pincode: ""
+      });
     }
+    function onCancel() { close(false); }
+    // Tapping the dark area is how people dismiss a sheet on a phone.
+    function onBackdrop(event) { if (event.target === ov) close(false); }
+    function onKey(event) { if (event.key === "Escape") close(false); }
 
-    resolve({
-      fullName: name.trim(), phone: phone.trim(),
-      line1: "", line2: "", landmark: "", city: "", state: "", pincode: ""
-    });
+    err.hidden = true;
+    err.textContent = "";
+    ov.hidden = false;
+    name.focus();
+
+    go.addEventListener("click", onGo);
+    cancel.addEventListener("click", onCancel);
+    ov.addEventListener("click", onBackdrop);
+    document.addEventListener("keydown", onKey);
   });
 }
 
@@ -753,7 +794,14 @@ function wireCheckout() {
   if (code) {
     code.addEventListener("change", () => checkCode(_sku));
     code.addEventListener("blur", () => checkCode(_sku));
+    // Enter applies it too. Somebody typing a code expects Enter to do
+    // something, and without this it submitted nothing and looked broken.
+    code.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") { event.preventDefault(); void checkCode(_sku); }
+    });
   }
+  const apply = byId("drCodeApply");
+  if (apply) apply.addEventListener("click", () => checkCode(_sku));
 
   byId("gtDoneX").addEventListener("click", hideSheet);
   byId("gtSheetBd").addEventListener("click", hideSheet);

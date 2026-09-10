@@ -158,7 +158,13 @@ function renderBar(products) {
   const name = byId("gtBarName");
   const sub = byId("gtBarSub");
   if (name) name.textContent = hero.name;
-  if (sub) sub.textContent = `${rupees(hero.amountPaise)} · Free delivery · COD available`;
+  // No COD claim here, deliberately. Guest checkout is prepaid only --
+  // /api/shop/place-cod exists on the signed-in owner shop and nowhere else --
+  // so this bar used to promise a payment method the very next tap could not
+  // offer. Every rupee of ad spend lands on this page, which made it the worst
+  // place in the app to break a promise. Restore the words only alongside a
+  // guest COD route, never on their own.
+  if (sub) sub.textContent = `${rupees(hero.amountPaise)} · Free delivery`;
 }
 
 // The hero and bar buttons carry the lead pack in their href so they work with

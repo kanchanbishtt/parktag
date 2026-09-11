@@ -50,10 +50,11 @@ const FAQS = [
   },
   {
     q: "How long does delivery take?",
-    // Delivery is free and COD exists, both of which the app's own shop says
-    // and this page did not. The ₹50 COD figure is the surcharge the checkout
-    // actually applies, not a rounded guess.
-    a: "Delivery is free on every order, anywhere in India. We ship within 1–2 business days and delivery takes 2–4 business days, with a tracking number once dispatched. Cash on Delivery is available and adds a ₹50 handling fee, so a ₹499 pack is ₹549 when the courier collects it.",
+    // No COD sentence here. It used to quote the ₹50 surcharge, which is real
+    // on the signed-in owner shop, but every route this page and the ads lead
+    // to is the guest checkout, and that is prepaid only. A visitor reading
+    // this answer would arrive at a checkout that cannot honour it.
+    a: "Delivery is free on every order, anywhere in India. We ship within 1–2 business days and delivery takes 2–4 business days, with a tracking number once dispatched.",
   },
 ];
 

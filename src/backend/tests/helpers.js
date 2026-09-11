@@ -19,6 +19,59 @@ import { createPasswordHash } from "../lib/auth/security.js";
 // connection rather than after it has deleted somebody's account.
 const DISPOSABLE_PREFIX = /^(test|ci)[_-]/i;
 
+// Pin the runtime mode, for the same reason the prefix above is pinned: what
+// these suites exercise must not depend on whose shell they were launched from.
+//
+// getEnv() reads APP_ENV, and everything downstream branches on it — production
+// refuses to boot without RAZORPAY_KEY_ID/_SECRET (which checkout-pricing and
+// shop-idempotency delete on purpose, so they can never reach the live account),
+// the Exotel webhook fails closed without a matching ?token=, and the session
+// cookie is Secure regardless of the connection. All three are correct
+// production behaviour and all three are the opposite of what these suites
+// assert, because they are written against the dev-mode app — which is what CI
+// runs them as (`APP_ENV: dev` in .github/workflows/ci.yml).
+//
+// A local run through `railway run --environment production` inherits
+// APP_ENV=production from the injected variables, so the same checkout, call
+// and login suites that pass in CI fail on a developer machine on a green
+// commit. Setting it here means the harness decides, not the ambient shell.
+//
+// A suite that genuinely wants production behaviour builds its own env object
+// and passes it in directly (see guest-checkout-bot-gate), and env-validation
+// sets APP_ENV per test around a bare getEnv() — neither goes through here.
+//
+// The same argument applies to every other integration credential, and for a
+// second reason on top of reproducibility. A configured secret does not just
+// change a branch, it points the branch at a live account: EXOTEL_WEBHOOK_SECRET
+// makes the status webhook demand a ?token= the suites do not send (401 instead
+// of the fail-open dev path), APP_BASE_URL set to the live site makes the CSRF
+// origin check reject TEST_ORIGIN and marks session cookies Secure over plain
+// HTTP, and META_WHATSAPP_* is what assertUndeliverableIdentifier() exists to
+// keep away from a real handset. CI has none of them set — the job block in
+// .github/workflows/ci.yml is APP_ENV, the three MONGODB_* and EXOTEL_CALLER_ID,
+// and nothing else — so the suites are written for their absence, while a
+// developer's ~/.parktag/.env and `railway run --environment production` both
+// supply the live values.
+//
+// Clearing them here is the same bargain as DISPOSABLE_PREFIX above: the tests
+// get to say what they run against instead of inheriting it. Matched by family
+// so a newly added EXOTEL_/META_/RAZORPAY_ variable is covered on the day it is
+// introduced rather than the day someone debugs a local-only failure.
+const AMBIENT_CREDENTIALS =
+  /^(EXOTEL_|META_|WHATSAPP_|RAZORPAY_|DELHIVERY_|GOOGLE_|FIREBASE_|RECAPTCHA_|EMAIL_|ANALYTICS_|GA4_|GEOIP_|SUPER_ADMIN_|REVIEWER_SETUP_|DEMO_SEED_|SCHEDULER_|CAMPAIGN_)|^(APP_BASE_URL|LANDING_BASE_URL|SCAN_BASE_URL|INTERNAL_TEST_PHONES|SUPPORT_WHATSAPP_NUMBER)$/;
+
+for (const key of Object.keys(process.env)) {
+  if (AMBIENT_CREDENTIALS.test(key)) delete process.env[key];
+}
+
+process.env.APP_ENV = "dev";
+// Restored after the sweep because CI sets it deliberately: both register-call
+// routes answer 503 with no virtual number configured, so without it the
+// contact rows the routing and callback suites read back are never written.
+// Not a real Exotel line, and nothing dials — the routes only record where a
+// call should go and hand the number back.
+process.env.EXOTEL_CALLER_ID = "08000000000";
+
 export function assertDisposableDatabase() {
   const prefix = process.env.MONGODB_COLLECTION_PREFIX || "";
 

@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>ParkTag | Complete your order</title>
+    <!-- Handed to somebody already quoted a price. A page offering a discount
+         to anybody who finds it should not be findable. -->
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="description" content="A QR sticker for your windscreen. Someone blocks your gate, they scan it and reach you, and your mobile number stays private. Masked calls, WhatsApp alerts and an emergency contact. One year of Premium included, free delivery." />
+
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="icon" href="/images/icon.png" type="image/png" />
+    <link rel="apple-touch-icon" href="/images/apple-touch-icon.png" />
+
+    <link rel="stylesheet" href="/styles/get.css?v=__ASSET_VERSION__" />
+    <link rel="stylesheet" href="/styles/pt-steps.css?v=__ASSET_VERSION__" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+    <!-- The funnel starts here now. Without this the drop between "saw the
+         marketing site" and "reached a price" stays unmeasurable, which is the
+         whole thing this page was built to fix. Surface "app", so GA4 and the
+         Pixel both report: this is a shop window, not a credential page. -->
+    <script src="/pt-analytics.js" data-surface="app" defer></script>
+    <script src="/scripts/ux-feedback.js?v=__ASSET_VERSION__" defer></script>
+  </head>
+
+  <body class="gt-body">
+
+    <!-- The one nav control is a way IN. This page is reached by people who
+         have never signed in, so a dashboard-style header would offer them
+         nothing but a locked door. -->
+    <header class="gt-header">
+      <a class="gt-logo" href="/direct" aria-label="ParkTag">
+        <img src="/images/dark-logo.png" alt="ParkTag" />
+      </a>
+      <a class="gt-btn gt-signin" href="/owner-login">Sign in</a>
+    </header>
+
+    <main class="gt-main">
+
+      <!-- ── Order recall ──────────────────────────────────────────────────
+           The record this buyer's own device kept.
+
+           A guest has no account, so if the tab dies between paying and the
+           confirmation screen there is nothing anywhere that connects them to
+           the order: no dashboard to sign in to, and an order number they never
+           saw. The webhook still fulfils it and it still ships — they just
+           cannot find it. So get.js writes the number here before Razorpay
+           opens, and shows this only once the server has confirmed the order
+           was really paid, which is why an abandoned checkout never produces
+           a bar claiming an order exists. -->
+      <a class="gt-recall" id="gtRecall" hidden>
+        <span class="gt-recall-i" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M3.5 7.5 12 3l8.5 4.5v9L12 21l-8.5-4.5v-9Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="m3.5 7.5 8.5 4.5 8.5-4.5M12 12v9" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+        </span>
+        <span class="gt-recall-b">
+          <strong>Your ParkTag order is on its way</strong>
+          <span id="gtRecallS"></span>
+        </span>
+        <span class="gt-recall-go" aria-hidden="true">Track &rarr;</span>
+      </a>
+
+      <!-- ── Hero ────────────────────────────────────────────────────────────
+           The product leads, then the claim. Somebody arriving cold from an ad
+           cannot judge "masked calls for your parked car" until they have seen
+           what the thing physically is, so the images come first and the words
+           follow. The old standalone "The tag" section below the packs is gone:
+           this is that section, moved to the top and given three more shots.
+
+           A scroll-snap track, not a carousel library. Swipe, trackpad scroll,
+           momentum and keyboard scrolling all come free from the browser; only
+           the dots are wired in get.js, and with JS off it stays a scrollable
+           strip of all four rather than one frozen slide.
+
+           Slide 1 is eager because it is the LCP element. The rest are lazy and
+           never load for somebody who does not swipe.
+
+           Mixed aspect ratios on purpose (the windscreen shot is portrait, the
+           artwork landscape), so the frame is fixed and each image is CONTAINED
+           inside it. Cropping to one ratio would cut the printed copy off the
+           artwork. -->
+      <section class="gt-hero" aria-labelledby="gtTitle">
+        <div class="gt-gal">
+          <ul class="gt-gal-track" id="gtGal" tabindex="0" aria-label="ParkTag product images">
+            <li class="gt-gal-slide">
+              <img
+                src="/images/final-landing-sticker.png"
+                width="1000" height="600"
+                fetchpriority="high" decoding="async"
+                alt="The ParkTag tag: scan the code to contact the vehicle owner, with call and WhatsApp buttons"
+              />
+              <p class="gt-gal-c">Scan to call or WhatsApp the owner. No app needed.</p>
+            </li>
+            <li class="gt-gal-slide">
+              <img
+                src="/images/shop-gal-windscreen.webp"
+                width="747" height="1000"
+                loading="lazy" decoding="async"
+                alt="A ParkTag tag fixed inside a car windscreen, seen from outside the glass"
+              />
+              <p class="gt-gal-c">Sticks inside the windscreen. Scannable from outside.</p>
+            </li>
+            <li class="gt-gal-slide">
+              <img
+                src="/images/shop-gal-in-hand.webp"
+                width="1000" height="965"
+                loading="lazy" decoding="async"
+                alt="A ParkTag tag held in one hand in front of a car dashboard, showing its size"
+              />
+              <p class="gt-gal-c">Card sized. Keep it on the dashboard or the glovebox.</p>
+            </li>
+            <li class="gt-gal-slide">
+              <img
+                src="/images/shop-gal-desk.webp"
+                width="1000" height="961"
+                loading="lazy" decoding="async"
+                alt="A ParkTag tag on a desk beside a car key, showing the printed front and the QR back"
+              />
+              <p class="gt-gal-c">Laminated and weatherproof, printed front and back.</p>
+            </li>
+          </ul>
+
+          <div class="gt-gal-dots" id="gtGalDots">
+            <button class="gt-gal-dot" type="button" data-slide="0" aria-label="Show image 1 of 4"></button>
+            <button class="gt-gal-dot" type="button" data-slide="1" aria-label="Show image 2 of 4"></button>
+            <button class="gt-gal-dot" type="button" data-slide="2" aria-label="Show image 3 of 4"></button>
+            <button class="gt-gal-dot" type="button" data-slide="3" aria-label="Show image 4 of 4"></button>
+          </div>
+        </div>
+
+        <div class="gt-hero-bd">
+          <h1 class="gt-title" id="gtTitle">
+            <span class="gt-mark">Masked calls &amp; WhatsApp</span>
+            <span class="gt-title-2">for your parked car</span>
+          </h1>
+
+          <p class="gt-lede">
+            Someone blocks your gate, they scan the tag and reach you straight
+            away. Your number stays private.
+          </p>
+
+          <!-- Prices are fetched, never written here. The page must not be able
+               to quote a figure the checkout does not charge. -->
+          <ul class="gt-chips" id="gtChips">
+            <li class="gt-chip gt-chip-price"><span class="gt-sk gt-sk-chip">&nbsp;</span></li>
+            <li class="gt-chip">1 year membership included</li>
+            <li class="gt-chip gt-chip-ok">Free delivery</li>
+          </ul>
+
+          <!-- The href is an in-page fallback for a no-JS visitor, deliberately
+               NOT /shop: this page is an ad landing page and must not hand its
+               traffic to the other storefront. get.js intercepts on data-sku. -->
+          <a class="gt-btn gt-cta" href="#packs" id="gtCta" data-sku="pt-car-2">Order now</a>
+
+          <p class="gt-fine">One-time buy, no monthly fees · 7-day replacement</p>
+        </div>
+      </section>
+
+      <!-- ── What it actually is ───────────────────────────────────────── -->
+      <p class="gt-trust">
+        A QR sticker for your windscreen · Works with any phone camera ·
+        Laminated and weatherproof
+      </p>
+
+      <!-- ── Emergency ─────────────────────────────────────────────────── -->
+      <section class="gt-sos" aria-labelledby="gtSosTitle">
+        <h2 class="gt-sos-t" id="gtSosTitle">When you can't answer, your family can</h2>
+        <p class="gt-sos-s">
+          Add an emergency contact to your tag. If you're ever unable to pick
+          up, whoever scans reaches them instead, and still never sees a
+          number.
+        </p>
+      </section>
+
+      <!-- ── Features ────────────────────────────────────────────────────────
+           Four claims, at most two lines of title and three of body each. The
+           copy is written to that ceiling and get.css clamps it, so a longer
+           edit later cannot ladder one card past its neighbours and leave the
+           row ragged. -->
+      <h2 class="gt-h2">Why a ParkTag</h2>
+      <ul class="gt-feats">
+        <li class="gt-feat">
+          <span class="gt-feat-i" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M6 10V7a6 6 0 1112 0v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="4" y="10" width="16" height="10" rx="2.5" stroke="currentColor" stroke-width="2"/></svg>
+          </span>
+          <h3 class="gt-feat-t">Private number</h3>
+          <p class="gt-feat-s">The caller reaches you on a masked number and never sees your real mobile.</p>
+        </li>
+        <li class="gt-feat">
+          <span class="gt-feat-i" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 005 5L15 13l5 2v4a1 1 0 01-1 1A15 15 0 014 5a1 1 0 011-1z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+          </span>
+          <h3 class="gt-feat-t">Call or WhatsApp</h3>
+          <p class="gt-feat-s">Whoever scans picks either one. The alert lands on your phone in seconds.</p>
+        </li>
+        <li class="gt-feat">
+          <span class="gt-feat-i" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="2"/><rect x="14" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="2"/><rect x="3" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="2"/><path d="M14 14h3v3h-3zM20 20h1M17 20v1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </span>
+          <h3 class="gt-feat-t">No app to scan</h3>
+          <p class="gt-feat-s">Any iPhone or Android camera opens it. Only you need an account.</p>
+        </li>
+        <li class="gt-feat">
+          <span class="gt-feat-i" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M12 3l7 3v6c0 4.2-2.9 7.6-7 9-4.1-1.4-7-4.8-7-9V6l7-3z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+          <h3 class="gt-feat-t">A year included</h3>
+          <p class="gt-feat-s">Premium is free for 1 year from activation. Basic alerts never expire.</p>
+        </li>
+      </ul>
+
+      <!-- ── What you get ────────────────────────────────────────────────────
+           The detail a cold visitor needs before paying a stranger online, and
+           the reason this page is longer than the shop grid: an ad click has no
+           marketing site behind it to answer any of this.
+
+           Everything here is checkable. The material and mounting are what
+           ships, the situations are the ones the scanner screen actually
+           offers, and the membership line matches what activation grants. -->
+      <h2 class="gt-h2">What you get</h2>
+      <ul class="gt-specs">
+        <li class="gt-spec">
+          <span class="gt-spec-i" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M12 3.5c3 3.4 5 6.2 5 8.6a5 5 0 0 1-10 0c0-2.4 2-5.2 5-8.6Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M4.5 4.5l15 15" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+          </span>
+          <div>
+            <h3 class="gt-spec-t">Built for Indian roads</h3>
+            <p class="gt-spec-s">Laminated weatherproof vinyl that mounts on the inside of your windshield, so rain, dust and car washes never touch the print.</p>
+          </div>
+        </li>
+        <li class="gt-spec">
+          <span class="gt-spec-i" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="7.5" width="12" height="9.5" rx="2.5" stroke="currentColor" stroke-width="1.7"/><path d="M8 7.5V6.5A2.5 2.5 0 0 1 10.5 4h8A2.5 2.5 0 0 1 21 6.5v7a2.5 2.5 0 0 1-2.5 2.5H17" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+          </span>
+          <div>
+            <h3 class="gt-spec-t">Two tags in a pack</h3>
+            <p class="gt-spec-s">Cover the front and rear of one vehicle, or take one tag each for two vehicles.</p>
+          </div>
+        </li>
+        <li class="gt-spec">
+          <span class="gt-spec-i" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M5.5 11.5 7.1 7.3A2 2 0 0 1 9 6h6a2 2 0 0 1 1.9 1.3l1.6 4.2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><rect x="3" y="11.5" width="18" height="6" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="M6.5 14.5h.01M17.5 14.5h.01" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+          </span>
+          <div>
+            <h3 class="gt-spec-t">For every parking situation</h3>
+            <p class="gt-spec-s">Blocked driveway, headlights left on, a window open in the rain, a tow warning or a minor scratch. Anyone can reach you in seconds instead of leaving a note nobody sees.</p>
+          </div>
+        </li>
+        <li class="gt-spec">
+          <span class="gt-spec-i" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12.5" r="8.5" stroke="currentColor" stroke-width="1.7"/><path d="M12 8v4.5l3 1.8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+          <div>
+            <h3 class="gt-spec-t">Activation takes a minute</h3>
+            <p class="gt-spec-s">Scan the code yourself to register the vehicle. No app to install, no paperwork.</p>
+          </div>
+        </li>
+        <li class="gt-spec">
+          <span class="gt-spec-i" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M4 8h8M17.5 8H20M4 16h2.5M12 16h8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="14.8" cy="8" r="2.3" stroke="currentColor" stroke-width="1.7"/><circle cx="9.2" cy="16" r="2.3" stroke="currentColor" stroke-width="1.7"/></svg>
+          </span>
+          <div>
+            <h3 class="gt-spec-t">You stay in control</h3>
+            <p class="gt-spec-s">Manage your tags from your dashboard, pause one anytime, and deactivate it in one tap if you sell the vehicle.</p>
+          </div>
+        </li>
+        <li class="gt-spec">
+          <span class="gt-spec-i" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><rect x="3.5" y="5.5" width="17" height="15" rx="2.5" stroke="currentColor" stroke-width="1.7"/><path d="M8 3.5v4M16 3.5v4M3.5 10.5h17" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="m9.3 15.2 2 2 3.5-3.6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+          <div>
+            <h3 class="gt-spec-t">Membership that does not lapse</h3>
+            <p class="gt-spec-s">One tap masked calling for a full year. After that you keep getting WhatsApp alerts whenever someone scans. The sticker never stops working.</p>
+          </div>
+        </li>
+      </ul>
+
+      <!-- ── Packs ─────────────────────────────────────────────────────── -->
+      <h2 class="gt-h2" id="packs">Choose a pack</h2>
+      <div class="gt-code">
+        <label class="gt-code-l" for="drCode">Your code</label>
+        <div class="gt-code-row">
+          <input class="gt-code-i" id="drCode" name="code" type="text"
+                 autocomplete="off" autocapitalize="characters" spellcheck="false"
+                 maxlength="16" placeholder="Enter your code" />
+          <button class="gt-btn gt-code-go" id="drCodeApply" type="button">Apply</button>
+        </div>
+        <p class="gt-code-n" id="drCodeNote" role="status" aria-live="polite"></p>
+      </div>
+
+      <ul class="gt-packs" id="gtPacks">
+        <li class="gt-pack gt-sk-pack"><span class="gt-sk">&nbsp;</span></li>
+        <li class="gt-pack gt-sk-pack"><span class="gt-sk">&nbsp;</span></li>
+      </ul>
+
+      <p class="gt-note" id="gtNote" hidden></p>
+
+      <!-- ── How it works ──────────────────────────────────────────────── -->
+      <h2 class="gt-h2">How it works</h2>
+      <ol class="gt-steps">
+        <li class="gt-step"><span class="gt-step-n">1</span><p>Stick the tag inside your windscreen.</p></li>
+        <li class="gt-step"><span class="gt-step-n">2</span><p>Activate it once and add your number. It stays hidden.</p></li>
+        <li class="gt-step"><span class="gt-step-n">3</span><p>Anyone who needs you scans it and calls. You pick up.</p></li>
+      </ol>
+
+      <footer class="gt-foot">
+        <a href="/track-order">Track an order</a>
+        <span aria-hidden="true">·</span>
+        <a href="/owner-login">Sign in</a>
+      </footer>
+    </main>
+
+    <!-- ── Sticky buy bar ──────────────────────────────────────────────── -->
+    <div class="gt-bar" id="gtBar">
+      <div class="gt-bar-txt">
+        <strong id="gtBarName">ParkTag Car Tag</strong>
+        <span id="gtBarSub">Free delivery · 1 year Premium</span>
+      </div>
+      <!-- In-page fallback, not /shop: an ad landing page must not hand its
+           paid traffic to the other storefront. get.js intercepts on data-sku. -->
+      <a class="gt-btn gt-bar-cta" href="#packs" id="gtBarCta" data-sku="pt-car-2">Order now →</a>
+    </div>
+
+    <!-- ── Checkout ────────────────────────────────────────────────────────
+         The delivery step is NOT built here. address-step.js is the shared
+         sheet every physical-sticker purchase already uses — the dashboard,
+         the vehicle detail page and the Shop tab all await the same
+         window.ptCollectAddress() — and it is a self-contained global that
+         injects its own markup and styles, so the storefront gets the identical
+         window rather than a second one that looks almost like it.
+
+         Only the confirmation below is local, because no other flow has one:
+         a signed-in buyer sees their order in the dashboard afterwards, and a
+         guest has no dashboard to be sent to. -->
+    <div class="gt-sheet-bd" id="gtSheetBd" hidden></div>
+
+    <section class="gt-sheet" id="gtSheet" hidden aria-modal="true" role="dialog" aria-labelledby="gtDoneT">
+      <!-- Shown while the order is being created, then replaced by the
+           confirmation below. Before this the sheet only ever appeared AFTER
+           payment, so the several seconds between the address form closing and
+           Razorpay opening had nothing on screen at all. -->
+      <div class="gt-working" id="gtWorking" data-pt-owns-progress hidden>
+        <h2 class="gt-done-t">Setting up your order</h2>
+        <div id="gtSteps"></div>
+      </div>
+
+      <div class="gt-done" id="gtDone">
+        <div class="gt-done-i" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <h2 class="gt-done-t" id="gtDoneT">Order confirmed</h2>
+        <p class="gt-done-s" id="gtDoneSub"></p>
+        <a class="gt-btn gt-cta" id="gtDoneTrack" href="/track-order">Track this order</a>
+        <button class="gt-done-x" id="gtDoneX" type="button">Done</button>
+      </div>
+    </section>
+
+    <!-- The celebration burst is drawn here rather than inside the sheet: the
+         sheet scrolls its own overflow and would clip the paper to the card.
+         Empty and pointer-events:none until confetti.js puts a canvas in it. -->
+    <div class="gt-cfti-host" id="gtCfti" aria-hidden="true"></div>
+
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+    <script src="/scripts/owner/address-step.js?v=__ASSET_VERSION__"></script>
+    <script type="module" src="/scripts/direct.js?v=__ASSET_VERSION__"></script>
+
+    <!-- ── Handover contact ────────────────────────────────────────────────
+         A face to face sale has no parcel, so there is no address to collect.
+         Name and phone are still required: the phone is what links the sticker
+         to this order when the buyer activates it.
+
+         Written here rather than raised with window.prompt, which is what this
+         replaced. A browser dialog on a payment page reads as a scam, and it
+         cannot carry the lock icon or the Razorpay line that tell somebody
+         their money is going somewhere real. -->
+    <div class="dr-ov" id="drOv" hidden>
+      <div class="dr-sheet" role="dialog" aria-modal="true" aria-labelledby="drSheetT">
+        <div class="dr-grip"></div>
+        <span class="dr-eyebrow">Collection</span>
+        <h3 class="dr-sheet-t" id="drSheetT">Who is this for?</h3>
+        <p class="dr-sheet-s">You are collecting this in person, so we only need who to put it under.</p>
+
+        <p class="dr-sheet-err" id="drErr" role="alert" hidden></p>
+
+        <label class="dr-f">
+          <span>Full name <span class="dr-req" aria-hidden="true">*</span></span>
+          <input id="drName" type="text" autocomplete="name" maxlength="80" placeholder="Buyer name" />
+        </label>
+
+        <label class="dr-f">
+          <span>Mobile number <span class="dr-req" aria-hidden="true">*</span></span>
+          <input id="drPhone" type="tel" inputmode="numeric" autocomplete="tel" maxlength="10" placeholder="10-digit mobile" />
+        </label>
+
+        <button class="dr-primary" id="drGo" type="button">Continue to pay</button>
+        <button class="dr-link" id="drCancel" type="button">Cancel</button>
+        <p class="dr-sheet-n">We use the number to link your sticker to this order.</p>
+        <div class="dr-secure">Secured by Razorpay · UPI · Cards · Net Banking</div>
+      </div>
+    </div>
+  </body>
+</html>

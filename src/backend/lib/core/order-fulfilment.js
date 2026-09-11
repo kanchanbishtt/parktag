@@ -21,11 +21,14 @@
 import { toObjectId } from "../auth/auth.js";
 import { createPremiumTagForVehicle } from "./tag-issuance.js";
 import { reassignVaultDocuments } from "./vault.js";
-import { createShipment, isDelhiveryConfigured, trackingUrl } from "../integrations/delhivery.js";
+import { isDelhiveryConfigured, trackingUrl } from "../integrations/delhivery.js";
+import { bookShipmentAndPickup } from "./shipping.js";
 import { sendOrderConfirmationEmail } from "../integrations/email.js";
 import { isMetaWhatsappConfigured, sendMetaWhatsappOrderUpdate } from "../integrations/meta.js";
 import { sendCapiEventBestEffort, purchaseEventId, isMetaCapiConfigured } from "../integrations/meta-capi.js";
 import { firstNameOf, resolveOwnerName } from "./owner-name.js";
+import { grantReferralReward } from "./referrals.js";
+import { consumePromo } from "./promo-codes.js";
 
 // Tell the buyer their order exists, without ever blocking the caller — the
 // order already exists by this point, so a notification failure must never turn
@@ -107,7 +110,10 @@ export async function sendOrderConfirmation(env, collections, ownerId, details, 
           status: details.waybill
             ? "Confirmed and handed to the courier"
             : details.cod
-              ? "Confirmed — Cash on Delivery"
+              // No em-dash. This string is not a comment: it is {{3}} in an
+              // approved Meta template, so it lands verbatim in a customer's
+              // WhatsApp and cannot be edited after the fact.
+              ? "Confirmed, Cash on Delivery"
               : "Confirmed and being packed",
           // No tracking link here any more: it is a "Track order" button on the
           // template, and its parameter is the order number above. That removes
@@ -208,21 +214,44 @@ export async function fulfilPaidOrder(env, collections, { order, paymentId, log 
     }
   }
 
-  // Auto-book the Delhivery shipment. Best-effort: the payment has already
-  // succeeded and the tag is already minted by this point, so a booking failure
-  // must never propagate — it goes on the order for retry instead.
+  // Auto-book the Delhivery shipment AND ask for a rider to collect it.
+  //
+  // Both, because a waybill on its own is a label: it used to end here, and the
+  // parcel then sat waiting for somebody to remember. Best-effort: the payment
+  // has already succeeded and the tag is already minted by this point, so
+  // neither failure must propagate. Each goes on the order for retry instead.
+  // A handover sale has no parcel. The buyer took the sticker away in their
+  // hand, so booking a courier would create a label nobody posts, a pickup
+  // nobody hands anything to, and a stuck-order alert chasing both forever.
+  const isHandover = order.fulfilment === "handover" || order.deliveredInPerson === true;
+
   let bookedWaybill = null;
-  if (isDelhiveryConfigured(env) && order.shippingAddress) {
+  if (!isHandover && isDelhiveryConfigured(env) && order.shippingAddress) {
     try {
-      const { waybill } = await createShipment(env, {
+      const { waybill, pickup } = await bookShipmentAndPickup(env, collections, {
         orderId: order.orderId,
         address: order.shippingAddress,
         productName: order.productName
-      });
+      }, log);
       bookedWaybill = waybill;
       await collections.shopOrders.updateOne(
         { orderId: order.orderId },
-        { $set: { waybill, shipmentBookedAt: new Date().toISOString() }, $unset: { shipmentError: "" } }
+        {
+          $set: {
+            waybill,
+            shipmentBookedAt: new Date().toISOString(),
+            // Recorded either way. `pickupError` is what the Slack failure
+            // alert watches for, and a pickup that never happened is the one
+            // failure the customer cannot see and we cannot infer later.
+            ...(pickup.requested
+              ? { pickupRequestedFor: pickup.forDate, pickupId: pickup.pickupId }
+              : { pickupError: pickup.error || pickup.reason })
+          },
+          $unset: {
+            shipmentError: "",
+            ...(pickup.requested ? { pickupError: "" } : {})
+          }
+        }
       );
     } catch (err) {
       log?.error?.({ err, orderId: order.orderId }, "Delhivery shipment booking failed");
@@ -234,6 +263,29 @@ export async function fulfilPaidOrder(env, collections, { order, paymentId, log 
   }
 
   // Sent after booking so it can carry the tracking link when a waybill exists.
+  // The referrer's month, if this order carried a code.
+  //
+  // HERE, and nowhere else. This is past the conditional `status: "created"`
+  // update above, which is the gate that lets exactly one of the browser
+  // callback and the Razorpay webhook through however they race. Granting at
+  // order creation would pay out on checkouts that are never completed;
+  // granting in verify-payment would miss every payment whose buyer closed the
+  // tab, which is the sale the webhook exists to rescue.
+  //
+  // Awaited, unlike the notifications below it, because it writes an
+  // entitlement rather than sending a message: a caller that returns before it
+  // lands would report a purchase complete while the reward is still in
+  // flight. It cannot throw.
+  await grantReferralReward(env, collections, order, log);
+
+  // Burn the discount code, HERE and nowhere else, for exactly the reason the
+  // referral reward is granted here: this is past the conditional status flip
+  // above, so it happens once however the browser callback and the webhook
+  // race. Counting at checkout instead would burn a single-use code on a cart
+  // that is never paid for, and the buyer would be told their own code had
+  // already been used.
+  await consumePromo(collections, order.promoCode, order.orderNumber, log);
+
   await sendOrderConfirmation(env, collections, ownerId, {
     orderNumber: order.orderNumber,
     productName: order.productName,

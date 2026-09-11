@@ -8,6 +8,8 @@
 // staging sandbox (staging-express.delhivery.com 401s for this key), so
 // production is genuinely the only environment available to test against.
 
+import { refuseInTestRun } from "../core/external-guard.js";
+
 export function isDelhiveryConfigured(env) {
   return Boolean(env.delhiveryApiKey && env.delhiveryPickupLocation);
 }
@@ -69,6 +71,11 @@ export function trackingUrl(waybill) {
 // delivery. Throws on failure — the caller decides how to handle a booking
 // failure (see shop/index.js).
 export async function createShipment(env, { orderId, address, productName, codAmountPaise }) {
+  // A booked waybill is a parcel Delhivery expects to COLLECT and an invoice
+  // they expect to be paid. The test suite booked 39 of them in one week and
+  // then deleted its own order rows, so nothing in the database showed it.
+  refuseInTestRun(env, "Booking a Delhivery shipment");
+
   if (!isDelhiveryConfigured(env)) {
     throw new Error("Delhivery is not configured");
   }
@@ -134,6 +141,119 @@ export async function createShipment(env, { orderId, address, productName, codAm
   }
 
   return { waybill, refnum: pkg.refnum || orderId, raw: data };
+}
+
+// The date to ask a rider for, as YYYY-MM-DD.
+//
+// Computed in IST, not in the container's timezone. Railway runs UTC, so an
+// order paid at 01:30 IST is still 20:00 the previous day to `new Date()`, and
+// a naive local date would book a rider for a day that has already passed.
+//
+// Next day rather than today: a parcel booked at 23:50 cannot be handed to a
+// rider who came this morning, and being a day early is a wasted visit while
+// being a day late is just a day late. Delhivery's own record for this
+// warehouse agrees, carrying `pickup_after_days: 1`.
+//
+// NO WEEKEND SKIP, and that is checked rather than assumed. The warehouse
+// record lists `working_days` as all seven including SUN, so skipping Sunday
+// would push every Saturday order back a day for nothing. If a warehouse is
+// ever added that genuinely closes on some day, read `working_days` from
+// Delhivery rather than hardcoding a guess about which day that is.
+export function nextPickupDate(now = new Date()) {
+  const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+  const DAY_MS = 24 * 60 * 60 * 1000;
+
+  // Shift into IST, then treat the result as if it were UTC so toISOString
+  // reads the Indian calendar day rather than the container's.
+  const ist = new Date(now.getTime() + IST_OFFSET_MS + DAY_MS);
+
+  return ist.toISOString().slice(0, 10);
+}
+
+// Ask Delhivery to send a rider to the warehouse on `pickupDate`.
+//
+// A waybill is only a label. Without one of these nobody collects the parcel,
+// which is how order PT-260804-00006 was lost: booked on 4 August, never moved.
+//
+// One request covers a WAREHOUSE and a DATE, not a parcel. `expectedPackageCount`
+// is how many are expected, and the rider takes what is handed over. Callers
+// must therefore deduplicate per date; see ensurePickupRequested in
+// lib/core/shipping.js, which is the only thing that should call this directly.
+//
+// Returns { requested, pickupId, forDate }. THROWS on a refused or failed
+// request so the caller can record it; the caller is responsible for making
+// sure that failure never reaches the customer.
+//
+// NOTE ON VERIFICATION. The request and response shapes below were checked
+// against Delhivery's own published specification for this endpoint, which
+// confirms the path, the Token auth header, the JSON content type, all four
+// required fields, and `pickup_id` on the success body. Two behaviours it
+// states are the reason ensurePickupRequested exists at all: a pickup is raised
+// against a WAREHOUSE rather than a waybill, and only one request per warehouse
+// per day can be open at a time.
+//
+// It has NOT been run against this account. Staging was re-tested on 8 Sep 2026
+// and still answers 401 "Login or API Key Required" for the production key,
+// while the same key returns 200 on production. Delhivery's own notes confirm
+// why: tokens are environment-specific and do not work across environments, so
+// the sandbox needs a separate staging token issued for this account. The first
+// real call will therefore be a production one.
+//
+// IF THAT FIRST CALL 404s, TRY express.delhivery.com. Delhivery's integration
+// notes single this endpoint out: "Some APIs use https://express.delhivery.com
+// as their production URL (e.g., Pickup Request)". Its own OpenAPI spec lists
+// track.delhivery.com, which is what delhiveryBaseUrl resolves to and what the
+// rest of this file uses, so that is what we send. The two disagree, and this
+// comment exists so the next person does not rediscover it from a 404.
+export async function requestPickup(env, { pickupDate, expectedPackageCount = 1 }) {
+  // Same class of call as createShipment: it dispatches a real van.
+  refuseInTestRun(env, "Requesting a Delhivery pickup");
+
+  if (!isDelhiveryConfigured(env)) {
+    return { requested: false, pickupId: null, forDate: pickupDate, reason: "not-configured" };
+  }
+
+  const response = await fetch(`${env.delhiveryBaseUrl}/fm/request/new/`, {
+    method: "POST",
+    headers: { ...authHeaders(env), "content-type": "application/json" },
+    body: JSON.stringify({
+      pickup_location: env.delhiveryPickupLocation,
+      pickup_date: pickupDate,
+      pickup_time: env.delhiveryPickupTime || "14:00:00",
+      expected_package_count: expectedPackageCount
+    })
+  });
+
+  const text = await response.text();
+  let data = null;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    data = { raw: text };
+  }
+
+  // A 200 carrying a failure body is common enough here that the status alone
+  // is not evidence a rider was dispatched.
+  const pickupId = data?.pickup_id ?? data?.pickup_request_id ?? null;
+  if (!response.ok || data?.success === false || pickupId === null) {
+    // `pickup_location` first: a 400 from this endpoint puts its whole
+    // explanation there ("Invalid Pickup Location ClientWarehouse matching
+    // query does not exist"), which is the most likely failure on a first
+    // deploy and the one worth reading without digging through raw JSON.
+    const reason =
+      data?.pickup_location || data?.error || data?.message || data?.rmk || JSON.stringify(data);
+    throw new Error(`Delhivery pickup request failed: ${reason}`);
+  }
+
+  // Delhivery may assign a different slot to the one asked for, so the returned
+  // time is recorded rather than the requested one. It is what the rider
+  // actually turns up for.
+  return {
+    requested: true,
+    pickupId: String(pickupId),
+    forDate: data?.pickup_date || pickupDate,
+    atTime: data?.pickup_time || null
+  };
 }
 
 // Convert an already-booked COD shipment to Prepaid so the courier stops

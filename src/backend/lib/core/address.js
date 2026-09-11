@@ -36,6 +36,34 @@ export function validateAddress(raw) {
   };
 }
 
+// A handover sale has no parcel, so it has no address to validate.
+//
+// The buyer is standing in front of somebody with the sticker already in their
+// hand: asking for a house number and a PIN code is friction for a delivery
+// that will never happen, and it leaves an order the stuck-parcel alert then
+// chases forever for a missing waybill.
+//
+// Name and phone are still REQUIRED, and the phone is the one that matters.
+// It is what links the activated tag back to this order later, which is the
+// whole reason these sales come through the checkout at all rather than
+// arriving as a UPI message nobody writes down.
+//
+// The same shape as validateAddress returns, with the postal fields empty, so
+// every consumer downstream reads one kind of object.
+export function validateHandoverContact(raw) {
+  const body = raw || {};
+  const fullName = clean(body.fullName, 80);
+  const phone = clean(body.phone, 10);
+
+  if (fullName.length < 2) return { ok: false, error: "Please enter the buyer's full name." };
+  if (!PHONE_RE.test(phone)) return { ok: false, error: "Enter a valid 10-digit mobile number." };
+
+  return {
+    ok: true,
+    address: { fullName, phone, line1: "", line2: "", landmark: "", city: "", state: "", pincode: "" }
+  };
+}
+
 // Flatten an address into Razorpay `notes` (string values only) so the shipping
 // destination is visible on the payment in the Razorpay dashboard for reconciliation.
 export function addressToNotes(address) {

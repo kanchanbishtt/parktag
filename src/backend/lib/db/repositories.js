@@ -44,9 +44,41 @@ export async function getCollections(env) {
     // reachable from there is a ₹49 payment that ships physical stock. Two
     // collections means that route cannot find one at all.
     membershipOrders: db.collection(withPrefix(prefix, "membership_orders")),
+    // ₹20 one-time callback passes for E-Tags (lib/core/callback-pass.js).
+    // Separate from both collections above for the reason spelled out for
+    // membershipOrders: /api/shop/verify-payment resolves an order by its
+    // Razorpay id and hands whatever it finds to fulfilPaidOrder, which mints a
+    // tag and books a courier. A ₹20 callback row reachable from there would
+    // ship a sticker. A third collection is what makes that unreachable.
+    callbackOrders: db.collection(withPrefix(prefix, "callback_orders")),
     // Delivery addresses for physical sticker fulfilment — one active doc per
     // owner (upserted on ownerId), snapshotted onto each order at purchase time.
     addresses: db.collection(withPrefix(prefix, "addresses")),
+    // Every outbound WhatsApp and e-mail, one row each, claimed BEFORE the send.
+    //
+    // This is the idempotency guarantee for anything the scheduler drives. A
+    // campaign that runs twice, a container that restarts mid-tick, or two
+    // instances racing all collide on the unique (campaign, dedupeKey) index
+    // and only one send survives. See lib/core/message-log.js.
+    //
+    // It also gives routes/webhooks/meta.js a row to match delivery statuses
+    // against. OTP sends discarded the wamid, so every sent/delivered/failed
+    // callback for a verification code matched nothing and vanished — the
+    // webhook's own comment flags this.
+    messages: db.collection(withPrefix(prefix, "messages")),
+    // Discount codes for a negotiated price, so an offline or WhatsApp sale can
+    // go through the ordinary checkout instead of around it. The browser sends
+    // the CODE and the server looks the money up here, which is the same rule
+    // referrals are built on. See lib/core/promo-codes.js.
+    promoCodes: db.collection(withPrefix(prefix, "promo_codes")),
+    // One row per Delhivery pickup, claimed BEFORE the request goes out.
+    //
+    // A pickup covers a warehouse for a whole day, not a parcel, so this is
+    // what stops three sales before lunch summoning three vans. Two orders paid
+    // in the same second both read "no pickup yet", so the guarantee has to be
+    // the unique (pickupLocation, pickupDate) index rather than a lookup. Same
+    // shape and same reasoning as `messages` above. See lib/core/shipping.js.
+    pickupRequests: db.collection(withPrefix(prefix, "pickup_requests")),
     // Atomic sequence counters (e.g. the running shop order number). Each doc is
     // { _id: <name>, seq: <n> }, incremented with findOneAndUpdate($inc).
     counters: db.collection(withPrefix(prefix, "counters")),
@@ -173,6 +205,26 @@ const CORE_INDEXES = [
     }
   ],
   ["owners", { phone: 1 }, { name: "phone" }],
+  // Referral codes. Unique, and that uniqueness is the collision handling:
+  // referralCodeFor() draws a random code and lets this index refuse a
+  // duplicate rather than reading first and racing another caller into the
+  // same one.
+  //
+  // PARTIAL, for the same reason owners.mobile is. Codes are minted lazily, so
+  // most owners have no `referralCode` at all, and a plain unique index reads
+  // every missing field as the same null and collides on the second such owner.
+  [
+    "owners",
+    { referralCode: 1 },
+    {
+      name: "referral_code_unique",
+      unique: true,
+      partialFilterExpression: { referralCode: { $type: "string", $gt: "" } }
+    }
+  ],
+  // Backs the per-referrer reward cap, which counts this referrer's rewarded
+  // orders inside a rolling window on every paid referral order.
+  ["shopOrders", { referredBy: 1, referralRewardedAt: -1 }, { name: "referral_rewards" }],
   ["contactRequests", { token: 1, createdAt: -1 }, { name: "token_recent" }],
   ["contactRequests", { ownerId: 1, createdAt: -1 }, { name: "owner_recent" }],
   ["contactRequests", { providerRequestId: 1 }, { name: "provider_request" }],
@@ -184,6 +236,8 @@ const CORE_INDEXES = [
   // orderId is unique here, unlike on shopOrders: it is what the webhook and
   // verify-payment both key on, and two rows for one Razorpay order would let
   // the same payment be activated twice.
+  ["callbackOrders", { orderId: 1 }, { unique: true, name: "razorpay_order" }],
+  ["callbackOrders", { ownerId: 1, status: 1, createdAt: -1 }, { name: "owner_status_recent" }],
   ["membershipOrders", { orderId: 1 }, { unique: true, name: "razorpay_order" }],
   ["membershipOrders", { ownerId: 1, status: 1, createdAt: -1 }, { name: "owner_status_recent" }],
   ["addresses", { ownerId: 1 }, { unique: true, name: "owner_unique" }],
@@ -220,7 +274,59 @@ const CORE_INDEXES = [
   // strings the rest of the codebase writes. MongoDB's TTL monitor only acts on
   // Date-typed fields and silently ignores strings, so a string here would make
   // the retention above quietly do nothing.
-  ["landingVisits", { createdAt: 1 }, { expireAfterSeconds: 15552000, name: "ttl" }]
+  ["landingVisits", { createdAt: 1 }, { expireAfterSeconds: 15552000, name: "ttl" }],
+  // ── Outbound message log ────────────────────────────────────────────────
+  //
+  // THIS unique index is load-bearing in a way none of the others are. It is
+  // not a performance index and it is not a data-hygiene index: it is the only
+  // thing standing between a scheduler bug and the same customer being messaged
+  // repeatedly. sendOnce() claims a row here before it sends, so a duplicate
+  // claim throws E11000 and the send never happens.
+  //
+  // ensureCoreIndexes below logs and continues when an index cannot be built.
+  // If THIS one fails, campaign sends lose their only duplicate protection —
+  // hence the loud name and this note. lib/core/message-log.js verifies the
+  // index is present before it will run a campaign send.
+  ["messages", { campaign: 1, dedupeKey: 1 }, { unique: true, name: "campaign_dedupe_unique" }],
+  // A code is looked up by its text on every checkout that names one, and two
+  // rows sharing a code would make which discount applies a coin toss.
+  ["promoCodes", { code: 1 }, { unique: true, name: "promo_code_unique" }],
+  // The same guarantee for courier pickups. Without it, every order of the day
+  // requests its own rider: Delhivery either rejects the duplicates or sends
+  // repeat visits, and both are somebody's afternoon. See lib/core/shipping.js.
+  [
+    "pickupRequests",
+    { pickupLocation: 1, pickupDate: 1 },
+    { unique: true, name: "pickup_location_date_unique" }
+  ],
+  // Delivery statuses arrive from Meta keyed on the wamid alone.
+  //
+  // Partial, for the same reason owners.mobile is: an e-mail row has no wamid,
+  // and a plain unique index would read every one of those missing fields as
+  // the same null and refuse to build on the second e-mail ever sent.
+  [
+    "messages",
+    { wamid: 1 },
+    {
+      name: "wamid_unique",
+      unique: true,
+      partialFilterExpression: { wamid: { $type: "string", $gt: "" } }
+    }
+  ],
+  ["messages", { ownerId: 1, sentAt: -1 }, { name: "owner_recent" }],
+  // 400 days, and the number is chosen rather than rounded.
+  //
+  // Retention on this collection is not housekeeping, because the row IS the
+  // dedupe record: once it expires, the campaign that wrote it can fire again.
+  // The longest natural cycle in the product is the 365-day premium trial
+  // (PREMIUM_TRIAL_MONTHS in lib/core/vault.js), so anything shorter than a
+  // year could drop a "we already told them" row while the thing it refers to
+  // is still live. 400 clears the year with room for a leap day and a late run.
+  //
+  // A real BSON Date, not an ISO string: MongoDB's TTL monitor silently ignores
+  // strings, which is how a retention rule quietly does nothing (see the note
+  // on landingVisits above).
+  ["messages", { createdAt: 1 }, { expireAfterSeconds: 34560000, name: "ttl" }]
 ];
 
 let coreIndexesEnsured = false;

@@ -8,10 +8,11 @@ import {
 import { getCollections } from "../../lib/db/repositories.js";
 import { requireSession, toObjectId, tryObjectId } from "../../lib/auth/auth.js";
 import { generateOrderNumber } from "../../lib/core/order-number.js";
-import { addressToNotes, validateAddress } from "../../lib/core/address.js";
+import { addressToNotes, validateAddress, validateHandoverContact } from "../../lib/core/address.js";
 import { createPremiumTagForVehicle } from "../../lib/core/tag-issuance.js";
 import { reassignVaultDocuments } from "../../lib/core/vault.js";
-import { createShipment, isDelhiveryConfigured, updateShipmentToPrepaid, trackingUrl } from "../../lib/integrations/delhivery.js";
+import { isDelhiveryConfigured, updateShipmentToPrepaid, trackingUrl } from "../../lib/integrations/delhivery.js";
+import { bookShipmentAndPickup } from "../../lib/core/shipping.js";
 import { getOrderTracking } from "../../lib/core/order-tracking.js";
 import { safeEqual } from "../../lib/auth/security.js";
 import { fulfilPaidOrder, sendOrderConfirmation } from "../../lib/core/order-fulfilment.js";
@@ -24,6 +25,13 @@ import {
 } from "../../lib/auth/otp.js";
 import { isMetaWhatsappConfigured } from "../../lib/integrations/meta.js";
 import { verifyRecaptcha } from "../../lib/integrations/recaptcha.js";
+import {
+  REFERRAL_DISCOUNT_PAISE,
+  expectedOrderPaise,
+  resolveReferral
+} from "../../lib/core/referrals.js";
+import { FULFILMENT_HANDOVER, promoValueFor, resolvePromo } from "../../lib/core/promo-codes.js";
+import { isInternalPhone } from "../../lib/core/internal-orders.js";
 
 // Flash-offer discount for converting a COD order to prepaid (paise). Kept
 // server-side so the ₹50 saving can't be inflated by a tampered client.
@@ -369,8 +377,12 @@ export function registerShopRoutes(app, env) {
     // gets through mints a real order in the Razorpay dashboard.
     { config: { rateLimit: { max: 8, timeWindow: "1 minute" } } },
     async (request, reply) => {
-      const { productId, variant: rawVariant, address: rawAddress, recaptchaToken } =
-        request.body || {};
+      const {
+        productId, variant: rawVariant, address: rawAddress, recaptchaToken,
+        ref: rawRef,
+        // Only /direct sends this. A CODE, never an amount.
+        promo: rawPromo
+      } = request.body || {};
 
       // Bot check on the one money-adjacent endpoint any stranger can reach.
       //
@@ -434,16 +446,36 @@ export function registerShopRoutes(app, env) {
       const product = getShopProduct(productId);
       if (!product) { reply.code(400); return { ok: false, error: "Unknown product." }; }
 
-      // Same validator the signed-in flow uses when an owner saves an address,
-      // so a guest cannot ship to something the dashboard would have rejected.
-      const checked = validateAddress(rawAddress);
-      if (!checked.ok) { reply.code(400); return { ok: false, error: checked.error }; }
-      const shipping = checked.address;
-
       const variant = shapeVariant(rawVariant);
 
       const collections = await getCollections(env);
       if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
+
+      // Resolved BEFORE the address is validated, because a handover code is
+      // what decides whether an address is required at all. The phone is read
+      // off the raw body for this one purpose; everything the order actually
+      // stores still comes from a validator below.
+      //
+      // Only /direct sends this. A checkout that sends no code takes exactly
+      // the path it always did.
+      const promo = await resolvePromo(collections, rawPromo, {
+        deliveryPhone: (rawAddress || {}).phone,
+        // Without this a code tied to one pack comes off any of them, and
+        // omitting the product would be the way around the restriction.
+        productId
+      });
+      const handover = promo.ok && promo.fulfilment === FULFILMENT_HANDOVER;
+
+      // Same validator the signed-in flow uses when an owner saves an address,
+      // so a guest cannot ship to something the dashboard would have rejected.
+      //
+      // A handover sale is the exception: the buyer is standing in front of
+      // somebody with the sticker in their hand, so there is no parcel to post
+      // and no address to collect. Name and phone still are required, because
+      // the phone is what later links the activated tag back to this order.
+      const checked = handover ? validateHandoverContact(rawAddress) : validateAddress(rawAddress);
+      if (!checked.ok) { reply.code(400); return { ok: false, error: checked.error }; }
+      const shipping = checked.address;
 
       // Reuse an identical unpaid guest order rather than minting a second one.
       // The signed-in route does this keyed on the owner; here the address IS
@@ -451,7 +483,23 @@ export function registerShopRoutes(app, env) {
       // the current price is what "the same checkout, reloaded" looks like.
       // Without it, a reload burns an order number and leaves an abandoned
       // order in the Razorpay account every time.
-      const expectedPaise = Math.round(product.amount * 100);
+      // A guest has no account to compare a code against, so the DELIVERY PHONE
+      // is the only identity available -- and it is the check that matters most
+      // here. Without it anybody could put their own code into their own guest
+      // checkout and take Rs 50 off every order while minting themselves a
+      // month each time. resolveReferral compares in E.164, so a referrer
+      // stored as "9812345678" is still recognised behind "+919812345678".
+      const referral = await resolveReferral(collections, rawRef, {
+        deliveryPhone: shipping.phone
+      });
+      const referredBy = referral.ok ? referral.referrerId : null;
+
+      const promoDiscountPaise = promo.ok ? promo.discountPaise : 0;
+      const expectedPaise = expectedOrderPaise(
+        Math.round(product.amount * 100),
+        { referredBy },
+        promoDiscountPaise
+      );
       const reusable = await collections.shopOrders.findOne(
         {
           ownerId: null,
@@ -480,7 +528,9 @@ export function registerShopRoutes(app, env) {
 
       try {
         const order = await createRazorpayOrder(env, {
-          amount: product.amount, // server catalogue price, never the client's
+          // Server-derived, never the client's. expectedOrderPaise applies the
+          // referral discount if and only if resolveReferral approved one.
+          amount: expectedPaise / 100,
           receipt: `ptg_${productId}_${Date.now()}`,
           notes: { productId, productName: product.name, guest: "1", ...addressToNotes(shipping) }
         });
@@ -502,7 +552,26 @@ export function registerShopRoutes(app, env) {
           currency: order.currency,
           status: "created",
           shippingAddress: shipping,
+          // Ours, not a customer's. Five COD tests to our own Noida address
+          // once reported Rs 2,144 of revenue that never existed, and the daily
+          // digest would have gone on reporting it. Marked, never blocked:
+          // nothing else about the order changes, because a test that behaves
+          // differently tests nothing.
+          internal: isInternalPhone(env, shipping.phone),
           replaceTagId: null,
+          referredBy,
+          referralCode: referral.ok ? referral.code : null,
+          referralDiscountPaise: referredBy ? REFERRAL_DISCOUNT_PAISE : 0,
+          // The CODE is what verify-payment re-reads; the amount beside it is
+          // for display and for the admin panel only. See expectedOrderPaise:
+          // deriving the discount from a number on the row would hand an editor
+          // of that row whatever discount they typed in.
+          promoCode: promo.ok ? promo.code : null,
+          promoDiscountPaise,
+          // A handover order has no parcel. Recorded so fulfilment books no
+          // waybill and the stuck-order alert does not chase one forever.
+          ...(handover ? { fulfilment: FULFILMENT_HANDOVER, deliveredInPerson: true } : {}),
+          channel: promo.ok ? "direct" : "shop",
           createdAt: new Date().toISOString()
         });
 
@@ -510,6 +579,8 @@ export function registerShopRoutes(app, env) {
           ok: true,
           orderId: order.id,
           orderNumber,
+          referralDiscountPaise: referredBy ? REFERRAL_DISCOUNT_PAISE : 0,
+          promoDiscountPaise,
           amount: order.amount,
           currency: order.currency,
           // Public key, the same one GET /api/shop/razorpay-key serves.
@@ -597,6 +668,49 @@ export function registerShopRoutes(app, env) {
   // display and the charge cannot drift apart again. None of this is secret —
   // it is a shop's price list — but it stays behind a session like the rest of
   // /api/shop rather than becoming an unauthenticated endpoint.
+  // What a code is worth, before anybody pays. Used by /direct so the buyer can
+  // see the negotiated price on screen rather than discovering it when the
+  // Razorpay sheet opens, which on a page whose entire purpose is a negotiated
+  // price would be the one thing it must not do.
+  //
+  // This answers with a PRICE, never a promise. create-order resolves the code
+  // again from scratch and that resolution is the one that decides what is
+  // charged: a buyer who keeps this response open while the code expires pays
+  // the catalogue price, which is correct.
+  //
+  // Rate limited because it is the only endpoint that reports whether a code
+  // exists, and guessing is the obvious way to attack it.
+  app.post(
+    "/api/shop/promo/check",
+    { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } },
+    async (request, reply) => {
+      const { code, productId, phone } = request.body || {};
+
+      const product = getShopProduct(productId);
+      if (!product) { reply.code(400); return { ok: false, error: "Unknown product." }; }
+
+      const collections = await getCollections(env);
+      if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
+
+      const catalogPaise = Math.round(product.amount * 100);
+      const promo = await resolvePromo(collections, code, { deliveryPhone: phone, productId });
+
+      // A rejection is not an error. Every reason here is an ordinary thing for
+      // a buyer to do, and the page shows the catalogue price and carries on.
+      if (!promo.ok) {
+        return { ok: false, reason: promo.reason, catalogPaise, payablePaise: catalogPaise };
+      }
+
+      return {
+        ok: true,
+        catalogPaise,
+        discountPaise: promo.discountPaise,
+        payablePaise: expectedOrderPaise(catalogPaise, {}, promo.discountPaise),
+        fulfilment: promo.fulfilment
+      };
+    }
+  );
+
   app.get("/api/shop/pricing", async (request, reply) => {
     const blocked = await requireSession(app, "owner")(request, reply);
     if (blocked) return blocked;
@@ -643,6 +757,17 @@ export function registerShopRoutes(app, env) {
     const collections = await getCollections(env);
     if (!collections) { reply.code(500); return { error: "Database not configured." }; }
 
+    // The referral code, if the buyer arrived on a ?ref= link. A CODE, never an
+    // amount: the discount below is a server constant and the browser has no
+    // say in it. A code that does not resolve, or that is the buyer's own, is
+    // dropped silently rather than failing the checkout -- a mistyped referral
+    // must never stand between somebody and paying us.
+    const referral = await resolveReferral(collections, (request.body || {}).ref, {
+      buyerOwnerId: ownerId,
+      deliveryPhone: null
+    });
+    const referredBy = referral.ok ? referral.referrerId : null;
+
     // Refuse to take money for a physical item with nowhere to ship it. The
     // checkout form saves the address first, so a missing one is out-of-order.
     const addressDoc = await collections.addresses.findOne({ ownerId });
@@ -678,7 +803,7 @@ export function registerShopRoutes(app, env) {
     // unpaid, and still priced at the current catalog rate — a stored order
     // whose price has since moved would be rejected by verify-payment's amount
     // check, so handing it back would strand the buyer at the payment sheet.
-    const expectedPaise = Math.round(product.amount * 100);
+    const expectedPaise = expectedOrderPaise(Math.round(product.amount * 100), { referredBy });
     const reusable = await collections.shopOrders.findOne({
       ownerId,
       status: "created",
@@ -710,7 +835,11 @@ export function registerShopRoutes(app, env) {
 
     try {
       const order = await createRazorpayOrder(env, {
-        amount: product.amount, // server catalog price (INR) → paise inside helper
+        // Paise, converted here rather than handing the helper rupees: a
+        // referral price is not a whole number of rupees away from the catalog
+        // one in general, and rounding twice is how a checkout ends up a paisa
+        // off the amount verify-payment expects.
+        amount: expectedPaise / 100,
         receipt: `pt_${productId}_${Date.now()}`,
         notes: { productId, productName: product.name, replaceTagId: validReplaceTagId || "", ...addressToNotes(shipping) }
       });
@@ -732,7 +861,14 @@ export function registerShopRoutes(app, env) {
           currency: order.currency,
           status: "created",
           shippingAddress: shipping,
+          // See the note on the guest order above.
+          internal: isInternalPhone(env, shipping.phone),
           replaceTagId: validReplaceTagId,
+          // Written only after resolveReferral approved it. expectedOrderPaise
+          // reads this field, not the discount number beside it.
+          referredBy,
+          referralCode: referral.ok ? referral.code : null,
+          referralDiscountPaise: referredBy ? REFERRAL_DISCOUNT_PAISE : 0,
           createdAt: new Date().toISOString()
         });
       }
@@ -741,6 +877,7 @@ export function registerShopRoutes(app, env) {
         ok: true,
         orderId: order.id,
         orderNumber,
+        referralDiscountPaise: referredBy ? REFERRAL_DISCOUNT_PAISE : 0,
         amount: order.amount,
         currency: order.currency,
         prefill: await checkoutPrefill(collections, ownerId)
@@ -815,7 +952,27 @@ export function registerShopRoutes(app, env) {
         reply.code(403); return { ok: false, error: "This order does not belong to your account." };
       }
       const product = getShopProduct(order.productId);
-      const expectedPaise = product ? Math.round(product.amount * 100) : null;
+      // expectedOrderPaise, not the bare catalog price. A referral order is
+      // legitimately ₹50 below catalog, and this check used to reject exactly
+      // that as a mismatch — after the buyer had already paid. It derives the
+      // discount from `order.referredBy` (server-written, post-validation)
+      // rather than from any amount stored on the row, so a tampered discount
+      // still fails here.
+      //
+      // The promo value is looked up FRESH from promoCodes against the code on
+      // the row, never read from `order.promoDiscountPaise`. Same reasoning as
+      // the referral above: a code is a decision the server made, an amount is
+      // a number somebody could have edited in.
+      //
+      // promoValueFor, not resolvePromo, and that is deliberate. This check runs
+      // on every arrival and it arrives twice by design, because the browser
+      // callback and the Razorpay webhook race. Fulfilment consumes the code
+      // between them, so re-applying the usage gate here would call a
+      // single-use code exhausted and reject a payment already taken.
+      const promoPaise = await promoValueFor(collections, order.promoCode);
+      const expectedPaise = product
+        ? expectedOrderPaise(Math.round(product.amount * 100), order, promoPaise)
+        : null;
       if (expectedPaise === null || order.amount !== expectedPaise) {
         reply.code(400); return { ok: false, error: "Order amount mismatch." };
       }
@@ -983,6 +1140,9 @@ export function registerShopRoutes(app, env) {
       currency: "INR",
       status: "cod",
       shippingAddress: shipping,
+      // COD is where this bit most. It takes no money up front, so a test order
+      // to our own address is pure phantom revenue that never resolves.
+      internal: isInternalPhone(env, shipping.phone),
       replaceTagId: validReplaceTagId,
       flashOfferExpiresAt,
       createdAt: new Date().toISOString()
@@ -995,16 +1155,28 @@ export function registerShopRoutes(app, env) {
     let bookedWaybill = null;
     if (isDelhiveryConfigured(env)) {
       try {
-        const { waybill } = await createShipment(env, {
+        const { waybill, pickup } = await bookShipmentAndPickup(env, collections, {
           orderId: orderNumber,
           address: shipping,
           productName: product.name,
           codAmountPaise: amountPaise
-        });
+        }, request.log);
         bookedWaybill = waybill;
         await collections.shopOrders.updateOne(
           { orderNumber },
-          { $set: { waybill, shipmentBookedAt: new Date().toISOString() }, $unset: { shipmentError: "" } }
+          {
+            $set: {
+              waybill,
+              shipmentBookedAt: new Date().toISOString(),
+              ...(pickup.requested
+                ? { pickupRequestedFor: pickup.forDate, pickupId: pickup.pickupId }
+                : { pickupError: pickup.error || pickup.reason })
+            },
+            $unset: {
+              shipmentError: "",
+              ...(pickup.requested ? { pickupError: "" } : {})
+            }
+          }
         );
       } catch (err) {
         request.log.error({ err, orderNumber }, "Delhivery COD shipment booking failed");

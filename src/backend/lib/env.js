@@ -131,6 +131,16 @@ export function getEnv() {
     emailSmtpPass: process.env.EMAIL_SMTP_PASS || "",
     emailFrom: process.env.EMAIL_FROM || "noreply@parktag.me",
     appBaseUrl: process.env.APP_BASE_URL || "http://localhost:4000",
+    // ── Scheduled campaigns ─────────────────────────────────────────────
+    // OFF unless explicitly switched on, and the default is the point. This
+    // process sends WhatsApp messages to real customers on a timer, and it also
+    // runs on every developer's laptop and in every test run. Opt-in is the
+    // only default under which a local `npm run dev` cannot message anybody.
+    schedulerEnabled: process.env.SCHEDULER_ENABLED === "1",
+    // Select recipients, log them, send nothing. Run this against production
+    // data before the first live tick of any new campaign: a wrong date
+    // comparison matches every row, and on WhatsApp there is no recall.
+    campaignDryRun: process.env.CAMPAIGN_DRY_RUN === "1",
     // The marketing site, a separate Railway service. Used to recognise our own
     // host so an internal link is not counted as an inbound traffic source.
     landingBaseUrl: process.env.LANDING_BASE_URL || "",
@@ -226,7 +236,26 @@ export function getEnv() {
     // or account manager, not something this app creates programmatically.
     delhiveryPickupLocation: process.env.DELHIVERY_PICKUP_LOCATION || "",
     delhiverySellerGstTin: process.env.DELHIVERY_SELLER_GST_TIN || "",
-    delhiveryHsnCode: process.env.DELHIVERY_HSN_CODE || ""
+    delhiveryHsnCode: process.env.DELHIVERY_HSN_CODE || "",
+    // When the rider should come. A knob rather than a constant because it is
+    // the one pickup value that depends on somebody being at the address to
+    // hand the parcel over, which is a fact about the day rather than about
+    // the code. 24-hour, with seconds, as Delhivery expects.
+    //
+    // 10:00 is the START of the warehouse's registered preferred pickup slot
+    // (10:00 to 14:00, working hours 10:00 to 18:00). This defaulted to 14:00
+    // until that record was actually read, which was the slot's closing edge
+    // and left no room for the rider to be late.
+    delhiveryPickupTime: process.env.DELHIVERY_PICKUP_TIME || "10:00:00",
+    // Our own mobile numbers, comma separated. Orders placed to one of these
+    // are marked internal and kept out of revenue.
+    //
+    // Configuration rather than a constant because a list of real mobile
+    // numbers has no business in a public repository, and it changes whenever
+    // somebody joins or leaves. Unset means nothing is internal, which
+    // over-reports our testing rather than hiding a real sale. See
+    // lib/core/internal-orders.js.
+    internalTestPhones: process.env.INTERNAL_TEST_PHONES || ""
   };
 
   // Strip surrounding whitespace from every configured string.

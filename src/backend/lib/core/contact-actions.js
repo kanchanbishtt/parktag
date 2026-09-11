@@ -139,7 +139,11 @@ export async function createContactAction(env, input) {
 
       if (mobile && isMetaWhatsappConfigured(env)) {
         attempts.push(
-          sendMetaWhatsappAlert(env, { to: mobile, ownerName, reason: reasonText })
+          // tagId is what the v3 template's "Call them back" button carries, as
+          // the dynamic suffix of /v/:tagId. Passed now rather than when v3
+          // clears review, so the switch in meta.js really is one line. The v2
+          // template in use today ignores it.
+          sendMetaWhatsappAlert(env, { to: mobile, ownerName, reason: reasonText, tagId: String(tag._id) })
             .then((result) => { provider = result; return true; })
             .catch((err) => {
               console.error("[WaveTag] owner alert WhatsApp failed:", err?.message, err?.providerDetail);
@@ -154,7 +158,11 @@ export async function createContactAction(env, input) {
             to: owner.email,
             ownerName,
             reason: reasonText,
-            plateNumber: tag.plateNumber || null
+            plateNumber: tag.plateNumber || null,
+            // Same destination as the WhatsApp button, so an owner who reads
+            // the mail instead of the message lands in the same place with the
+            // same control in front of them.
+            tagId: String(tag._id)
           })
             .then(() => true)
             .catch((err) => {

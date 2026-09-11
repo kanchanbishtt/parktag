@@ -19,6 +19,7 @@
 // copy rather than anything charged, so it belongs on this side.
 import { getCaptchaToken } from "./recaptcha.js";
 import { burstConfetti, clearConfetti } from "./confetti.js";
+import { referralCode, clearReferralCode } from "./referral-link.js";
 const PACKS = [
   {
     id: "pt-car-1",
@@ -157,7 +158,13 @@ function renderBar(products) {
   const name = byId("gtBarName");
   const sub = byId("gtBarSub");
   if (name) name.textContent = hero.name;
-  if (sub) sub.textContent = `${rupees(hero.amountPaise)} · Free delivery · COD available`;
+  // No COD claim here, deliberately. Guest checkout is prepaid only --
+  // /api/shop/place-cod exists on the signed-in owner shop and nowhere else --
+  // so this bar used to promise a payment method the very next tap could not
+  // offer. Every rupee of ad spend lands on this page, which made it the worst
+  // place in the app to break a promise. Restore the words only alongside a
+  // guest COD route, never on their own.
+  if (sub) sub.textContent = `${rupees(hero.amountPaise)} · Free delivery`;
 }
 
 // The hero and bar buttons carry the lead pack in their href so they work with
@@ -189,6 +196,11 @@ function syncHeroLinks() {
 
 let _sku = null;
 let _busy = false;
+// The amount the SERVER priced this order at, kept so the purchase event can
+// report revenue. Never used to charge anything -- Razorpay is opened with
+// order.amount straight off the response, and the server re-derives the price
+// at verify. This is for measurement only.
+let _paidPaise = 0;
 
 // ── Remembering an order the buyer may never see confirmed ─────────────────
 //
@@ -307,14 +319,32 @@ function showSheet() {
   document.body.style.overflow = "hidden";
 }
 
-function hideSheet() {
-  if (_busy) return; // never close over a payment in flight
+// Take the sheet down, whatever is in flight.
+//
+// Split out from hideSheet() because the guard there is about DISMISSAL — the
+// backdrop, Escape, the Done button — and not every close is a dismissal. Two
+// callers legitimately need the sheet gone while _busy is still set, and both
+// used to call hideSheet() and silently get nothing:
+//
+//   - a failed create-order, which left the buyer reading "Setting up your
+//     order" forever with the real error hidden behind it;
+//   - the hand-off to Razorpay, whose own window is about to cover the page.
+//     Leaving this sheet underneath meant that dismissing Razorpay returned the
+//     buyer to a blank sheet over a page that could no longer scroll.
+function closeSheet() {
   // Ends the loop rather than leaving it drawing against a canvas nobody can
   // see: the host stays on the page after the sheet closes.
   clearConfetti(byId("gtCfti"), "gt-cfti");
   byId("gtSheet").hidden = true;
   byId("gtSheetBd").hidden = true;
   document.body.style.overflow = "";
+}
+
+// What a dismissal gesture calls: the backdrop, Escape, the Done button. None
+// of those may close the sheet out from under a live checkout.
+function hideSheet() {
+  if (_busy) return; // never close over a payment in flight
+  closeSheet();
 }
 
 // Razorpay's own sheet reports its own failures, so this only has to speak up
@@ -374,7 +404,10 @@ async function buy(sku) {
     const res = await fetch("/api/shop/guest/create-order", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ productId: sku, address, recaptchaToken })
+      // `ref` is a HINT, never a price. The server resolves it, refuses a
+      // self-referral and decides the discount; an absent or junk code just
+      // means no discount, never a failed checkout.
+      body: JSON.stringify({ productId: sku, address, recaptchaToken, ref: referralCode() })
     });
     order = await res.json();
     // The server's message names the field that is wrong rather than saying
@@ -384,12 +417,15 @@ async function buy(sku) {
     // here on depends on the buyer's browser still being alive; this is the
     // last line that does not.
     remember(order.orderNumber, address);
+    _paidPaise = order.amount || 0;
+    // Spent. A second purchase this session should not silently reuse it.
+    clearReferralCode();
   } catch (err) {
     stopOrderPacing();
     orderSteps.fail("");
     orderSteps.destroy();
-    hideSheet();
-    _busy = false;
+    _busy = false; // the flow is over; let the buyer try again
+    closeSheet();
     say((err && err.message) || "Could not start the payment. Please try again.");
     return;
   }
@@ -398,8 +434,8 @@ async function buy(sku) {
     stopOrderPacing();
     orderSteps.fail("");
     orderSteps.destroy();
-    hideSheet();
-    _busy = false;
+    _busy = false; // the flow is over; let the buyer try again
+    closeSheet();
     say("The payment window could not load. Check your connection and try again.");
     return;
   }
@@ -446,7 +482,7 @@ async function buy(sku) {
   orderSteps.done();
   orderSteps.destroy();
   { const el = byId("gtWorking"); if (el) el.hidden = true; }
-  hideSheet();
+  closeSheet();
 
   rzp.open();
 }
@@ -466,7 +502,17 @@ function showDone(done) {
   burstConfetti(byId("gtCfti"), "gt-cfti");
 
   if (window.ptTrack) {
-    ptTrack("purchase", { transaction_id: done.orderNumber, items: [{ item_id: _sku, quantity: 1 }] });
+    // value and currency are not decoration. Without them Meta and GA4 record
+    // the conversion at zero, so nothing downstream can bid on or report
+    // revenue. Meta also gets this from the server (meta-capi.js), but the two
+    // de-duplicate on a shared event_id and whichever lands first wins -- so a
+    // valueless browser event can beat the server's and erase the amount.
+    ptTrack("purchase", {
+      transaction_id: done.orderNumber,
+      value: _paidPaise / 100,
+      currency: "INR",
+      items: [{ item_id: _sku, quantity: 1 }]
+    });
   }
 }
 
@@ -483,7 +529,8 @@ function wireGallery() {
 
   const slides = Array.from(track.children);
   const buttons = Array.from(dots.children);
-  const behavior = matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+  const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)");
+  const behavior = reduceMotion.matches ? "auto" : "smooth";
 
   dots.addEventListener("click", (event) => {
     const dot = event.target.closest("button[data-slide]");
@@ -505,9 +552,91 @@ function wireGallery() {
 
   track.addEventListener("scroll", sync, { passive: true });
   sync();
+
+  // ── Autoplay ──────────────────────────────────────────────────────────────
+  //
+  // The track is a scroll-snap strip, so advancing it is just a scroll; the
+  // dots keep themselves in step through the sync() listener above and need no
+  // separate bookkeeping.
+  //
+  // The index is held here rather than read back from scrollLeft on each tick.
+  // Reading the live position only works while no scroll is in flight, which
+  // ties the interval to however long a smooth scroll happens to take — at a
+  // short interval the read rounds to whichever slide sits under the midpoint
+  // and the show stutters between two frames instead of moving on. Counting
+  // instead of measuring keeps the cadence independent of the animation.
+  const SLIDE_MS = 2500;
+
+  let index = 0;
+  let timer = null;
+  let onScreen = true;
+  let surrendered = false; // the visitor took the wheel; we do not take it back
+
+  const advance = () => {
+    // Wrapping from the last slide to the first is a jump across the whole
+    // strip. Smoothed, that reads as a fast rewind through every image; taken
+    // instantly it reads as the loop starting again, which is what it is.
+    const wrapping = index === slides.length - 1;
+    index = (index + 1) % slides.length;
+    track.scrollTo({
+      left: index * track.clientWidth,
+      behavior: wrapping ? "auto" : behavior
+    });
+  };
+
+  const pause = () => { if (timer) { clearInterval(timer); timer = null; } };
+
+  const play = () => {
+    if (timer || surrendered || !onScreen) return;
+    // A single slide has nowhere to go, and a visitor who has asked for less
+    // motion should not be handed a carousel that advances on its own at all.
+    if (slides.length < 2 || reduceMotion.matches) return;
+    timer = setInterval(advance, SLIDE_MS);
+  };
+
+  // Any deliberate input — a swipe, a dot, an arrow key — ends the autoplay for
+  // good. Pausing while a finger is down and resuming after would fight someone
+  // trying to look at one image, which is the whole reason they touched it.
+  const surrender = () => { surrendered = true; pause(); };
+  for (const type of ["pointerdown", "keydown", "wheel"]) {
+    track.addEventListener(type, surrender, { passive: true });
+  }
+  dots.addEventListener("pointerdown", surrender, { passive: true });
+
+  // Cursor over the images is not a surrender, only a reason to hold still
+  // while someone reads the caption.
+  track.addEventListener("mouseenter", pause);
+  track.addEventListener("mouseleave", play);
+
+  // Nothing should animate in a background tab: it burns battery to redraw a
+  // strip nobody is looking at, and the catch-up on return is ugly.
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) pause(); else play();
+  });
+
+  // Same argument once the hero has been scrolled past.
+  if ("IntersectionObserver" in window) {
+    const io = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        onScreen = entry.isIntersecting;
+        if (onScreen) play(); else pause();
+      }
+    }, { threshold: 0.5 });
+    io.observe(track);
+  } else {
+    play();
+  }
+
+  // A visitor can turn the setting on without reloading.
+  reduceMotion.addEventListener("change", () => {
+    if (reduceMotion.matches) pause(); else play();
+  });
 }
 
-function wireCheckout() {
+// `products` is the catalogue already on screen, passed in only so the
+// begin_checkout event can carry a value. A missing entry costs the value on
+// one event and nothing else -- it must never stop the click reaching buy().
+function wireCheckout(products) {
   byId("gtDoneX").addEventListener("click", hideSheet);
   byId("gtSheetBd").addEventListener("click", hideSheet);
   document.addEventListener("keydown", (e) => {
@@ -531,7 +660,12 @@ function wireCheckout() {
     const sku = link.dataset.sku || HERO_PACK;
 
     if (window.ptTrack) {
-      ptTrack("begin_checkout", { method: "guest", items: [{ item_id: sku, quantity: 1 }] });
+      const priced = products && products[sku];
+      ptTrack("begin_checkout", {
+        method: "guest",
+        items: [{ item_id: sku, quantity: 1 }],
+        ...(priced ? { value: priced.amountPaise / 100, currency: "INR" } : {})
+      });
     }
     buy(sku);
   });
@@ -580,7 +714,7 @@ async function load() {
   renderChips(payload.products);
   renderPacks(payload.products);
   renderBar(payload.products);
-  wireCheckout();
+  wireCheckout(payload.products);
 
   // After the page is usable, never in front of it. A returning buyer's order
   // matters, but not more than the shop rendering.

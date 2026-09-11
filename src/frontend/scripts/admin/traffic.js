@@ -93,6 +93,107 @@ function renderList(title, rows) {
   return card;
 }
 
+// The shop funnel: views of /shop, checkouts started, orders paid. Counted by
+// the server rather than by a browser tag, so an ad blocker cannot remove it.
+function renderFunnel(funnel) {
+  const card = document.createElement("div");
+  card.className = "card";
+  const h = document.createElement("h2");
+  h.textContent = "Shop funnel";
+  card.append(h);
+
+  const t = funnel.totals;
+  const steps = [
+    ["Shop views", t.shopViews],
+    ["Checkouts started", t.checkoutsStarted],
+    ["Paid", t.paid]
+  ];
+  // Scaled against the top of the funnel, so the drop between steps is the
+  // thing the bars actually show.
+  const top = t.shopViews || t.checkoutsStarted || 1;
+
+  for (const [label, value] of steps) {
+    const el = document.createElement("div");
+    el.className = "row";
+
+    const name = document.createElement("div");
+    name.className = "row-name";
+    name.textContent = label;
+
+    const num = document.createElement("div");
+    num.className = "row-num";
+    num.textContent = String(value);
+
+    const sub = document.createElement("div");
+    sub.className = "row-sub";
+    sub.textContent = top ? Math.round((value / top) * 100) + "%" : "";
+
+    const bar = document.createElement("div");
+    bar.className = "bar";
+    const fill = document.createElement("i");
+    fill.style.width = Math.max(2, Math.round((value / top) * 100)) + "%";
+    bar.append(fill);
+
+    el.append(name, num, sub, document.createElement("span"), bar);
+    card.append(el);
+  }
+
+  return card;
+}
+
+// Everyone who typed a delivery address and did not pay. The whole reason the
+// funnel is worth having: these are people who can still be called.
+function renderAbandoned(rows) {
+  const card = document.createElement("div");
+  card.className = "card";
+  const h = document.createElement("h2");
+  h.textContent = "Abandoned checkouts (" + rows.length + ")";
+  card.append(h);
+
+  for (const row of rows) {
+    const el = document.createElement("div");
+    el.className = "row";
+
+    const name = document.createElement("div");
+    name.className = "row-name";
+    name.textContent = row.name || row.orderNumber || "Unknown";
+
+    const num = document.createElement("div");
+    num.className = "row-num";
+    num.textContent = row.amount ? "Rs " + Math.round(row.amount / 100) : "";
+
+    const sub = document.createElement("div");
+    sub.className = "row-sub";
+    sub.textContent = [row.productName, row.city, when(row.createdAt)].filter(Boolean).join(" · ");
+
+    // A tap-to-message link rather than a number to copy out by hand. The
+    // point of the list is that following one of these up takes one tap.
+    const act = document.createElement("span");
+    if (row.phone) {
+      const wa = document.createElement("a");
+      wa.href = "https://wa.me/91" + String(row.phone).replace(/\D/g, "").slice(-10);
+      wa.target = "_blank";
+      wa.rel = "noopener";
+      wa.textContent = row.phone;
+      act.append(wa);
+    }
+
+    el.append(name, num, sub, act, document.createElement("div"));
+    card.append(el);
+  }
+  return card;
+}
+
+// "3h ago" reads faster than a timestamp when the question is whether a cart
+// is still warm.
+function when(iso) {
+  if (!iso) return "";
+  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 60) return mins + "m ago";
+  if (mins < 1440) return Math.round(mins / 60) + "h ago";
+  return Math.round(mins / 1440) + "d ago";
+}
+
 function renderDaily(daily) {
   const card = document.createElement("div");
   card.className = "card";
@@ -179,6 +280,13 @@ async function load() {
       bodyEl.append(empty);
       return;
     }
+
+    // Before the landing-traffic early return below. The shop funnel is about
+    // app.parktag.me and stands on its own: a day with no marketing-site visits
+    // can still have somebody reach the shop through an ad's direct link, and
+    // hiding the funnel then would hide exactly the case worth seeing.
+    if (data.funnel) bodyEl.append(renderFunnel(data.funnel));
+    if (data.abandoned && data.abandoned.length) bodyEl.append(renderAbandoned(data.abandoned));
 
     if (data.totals.views === 0) return;
 

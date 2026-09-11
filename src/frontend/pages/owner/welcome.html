@@ -544,13 +544,21 @@
        one card, one thing to tap.
 
        Every value is drawn from colours already in this file. */
+    /* A two-column grid rather than a flex row, because the card now holds two
+       different shapes: a heading beside a button, and under them a list that
+       wants the card's full width. As a flex row the list inherited the body
+       column and stopped two thirds across, leaving dead space beneath the
+       button. Grid areas also let the markup keep its reading order — heading,
+       cover, then the action — while the button still paints top right. */
     .pt-pr-prem {
       background: linear-gradient(135deg, #FFF7F5 0%, #FFFFFF 50%, #F3F5F8 100%);
       border: 1.5px solid rgba(255,39,0,.16);
       border-radius: 18px; padding: 16px 16px 17px; margin-bottom: 18px;
-      display: flex; align-items: flex-start; gap: 12px;
+      display: grid; grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-areas: "bd cta" "list list";
+      align-items: start; column-gap: 12px;
     }
-    .pt-pr-prem-bd { flex: 1; min-width: 0; }
+    .pt-pr-prem-bd { grid-area: bd; min-width: 0; }
     .pt-pr-prem-t {
       font-size: 1.08rem; font-weight: 800; color: #03162D; margin: 0;
       letter-spacing: -.015em; line-height: 1.25;
@@ -567,7 +575,7 @@
        ink to stay balanced. Blue is still present: it is the navy title and the
        tint the wash resolves into. */
     .pt-pr-prem-cta {
-      flex-shrink: 0; background: #FF2700; color: #fff; border: none; border-radius: 12px;
+      grid-area: cta; flex-shrink: 0; background: #FF2700; color: #fff; border: none; border-radius: 12px;
       display: inline-flex; align-items: center; justify-content: center; text-decoration: none;
       padding: 10px 16px; font-family: inherit; font-size: .81rem; font-weight: 800;
       cursor: pointer; white-space: nowrap; transition: filter .15s;
@@ -576,6 +584,63 @@
        to the palette. */
     .pt-pr-prem-cta:hover { filter: brightness(.92); }
     .pt-pr-prem-cta:active { filter: brightness(.85); }
+
+    /* Membership countdown, one row per premium tag.
+       ---------------------------------------------
+       Deliberately built from what this card already has rather than as a new
+       component: the days number takes .pt-pr-prem-s em's job of being the one
+       thing in brand red, and the row sits inside the same body column, so the
+       card grows a list without changing its shape or its edge.
+
+       Entitlement is per tag everywhere else in this codebase, so it is per tag
+       here. One figure for an account holding two tags would have to pick one,
+       and would be wrong about the other. */
+    .pt-pr-mem { grid-area: list; list-style: none; margin: 12px 0 0; padding: 0; }
+    /* Stated rather than left to the UA sheet: the element is a grid item, and
+       a grid item's display is blockified, so a bare [hidden] can be overridden
+       by the grid context on some engines. */
+    .pt-pr-mem[hidden] { display: none; }
+    .pt-pr-mem-row { padding: 9px 0 0; }
+    /* A hairline between rows, never above the first one: the gap to the title
+       is already doing that job and a second line there reads as a stray rule. */
+    .pt-pr-mem-row + .pt-pr-mem-row { border-top: 1px solid rgba(3,22,45,.07); margin-top: 9px; }
+
+    .pt-pr-mem-hd {
+      display: flex; align-items: baseline; justify-content: space-between;
+      gap: 10px; min-width: 0;
+    }
+    /* The vehicle, quietly. It is the label for the number, not the point. */
+    .pt-pr-mem-veh {
+      font-size: .73rem; font-weight: 700; color: #6B7280; min-width: 0;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .pt-pr-mem-left { font-size: .73rem; color: #6B7280; flex-shrink: 0; }
+    /* Same treatment the static "1 year" had: the only red in the sentence, and
+       weighted up as well as coloured because colour alone is a whisper at this
+       size. */
+    .pt-pr-mem-left em { font-style: normal; font-weight: 800; font-size: .95rem; color: #FF2700; }
+    /* Cover that has run out is not an accent, it is a state. Amber rather than
+       the brand red, so it does not read as another call to action sitting
+       next to the real one. */
+    .pt-pr-mem-row.is-lapsed .pt-pr-mem-left em { color: #B45309; font-size: .8rem; }
+
+    /* A determinate bar, and only where the window is genuinely known end to
+       end. The server sends totalDays null for a paid period because only its
+       END is stored, and no bar is drawn in that case rather than one measured
+       against a guessed start. */
+    .pt-pr-mem-bar {
+      height: 5px; border-radius: 999px; background: rgba(3,22,45,.09);
+      margin: 7px 0 0; overflow: hidden;
+    }
+    .pt-pr-mem-bar > i {
+      display: block; height: 100%; border-radius: 999px;
+      background: linear-gradient(90deg, #FF2700, #FF6A47);
+      transition: width .5s ease;
+    }
+    .pt-pr-mem-row.is-lapsed .pt-pr-mem-bar > i { background: #B45309; }
+    @media (prefers-reduced-motion: reduce) { .pt-pr-mem-bar > i { transition: none; } }
+
+    .pt-pr-mem-sub { display: block; font-size: .68rem; color: #9AA3B2; margin: 6px 0 0; line-height: 1.45; }
 
     /* Segmented control. A track with the selected pill sitting inside it,
        rather than three loose buttons — the shared background is what tells you
@@ -1664,6 +1729,16 @@
   .pt-act-cta:disabled { opacity: .6; cursor: default; }
   .pt-act-cta.ok       { background: #10B981; }
 
+  /* The paid callback. Same shape and same slot as the free one — it does the
+     same thing — but it carries a price, and a price on a red action button is
+     the one place in this column where the amount has to be readable at a
+     glance rather than styled to match. Slightly tighter line-height because
+     this button is the only two-line .pt-act-cta. */
+  .pt-act-cta.pt-act-pay { line-height: 1.2; padding: 7px 14px; }
+  .pt-act-pay-amt {
+    display: block; font-size: .9rem; font-weight: 900; letter-spacing: 0;
+  }
+
   /* No-phone prompt inline */
   .pt-act-nophone {
     flex-shrink: 0; font-size: .72rem; font-weight: 700; color: #D97706;
@@ -2037,8 +2112,12 @@
     <section class="pt-pr-prem" aria-labelledby="prPremTitle">
       <div class="pt-pr-prem-bd">
         <h3 class="pt-pr-prem-t" id="prPremTitle">Premium membership</h3>
-        <p class="pt-pr-prem-s">Free for your first <em>1 year</em>, counted from the day you activate the tag.</p>
+        <!-- Shown until the dashboard answers, and kept for an account with no
+             premium tag at all: there is no cover to count down, so the card
+             goes on making the offer it always made. -->
+        <p class="pt-pr-prem-s" id="prPremNote">Free for your first <em>1 year</em>, counted from the day you activate the tag.</p>
       </div>
+      <ul class="pt-pr-mem" id="prMembership" hidden></ul>
       <!-- The membership screen, not the shop tab. The shop sells physical
            tags; plans are their own thing and now have their own page. -->
       <a class="pt-pr-prem-cta" href="/owner-membership" role="button">View plans</a>

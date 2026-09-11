@@ -43,7 +43,7 @@ import { hasActiveSubscription } from "../../lib/core/subscription.js";
 // first, and the owner would have no idea until they looked.
 async function resolveTargetTag(collections, ownerId, requestedTagId) {
   const owned = await collections.tags
-    .find({ ownerId, deletedAt: { $exists: false } })
+    .find({ ownerId, deletedAt: { $in: [null, undefined] } })
     .project({ _id: 1, plateNumber: 1, premium: 1, premiumSince: 1, activatedAt: 1, createdAt: 1, subscription: 1, callSubscription: 1, documentSubscription: 1 })
     .toArray();
 
@@ -106,7 +106,7 @@ export function registerMembershipRoutes(app, env) {
         // like it has no trial and the screen offers a membership to someone
         // already covered by the free year — which is what it used to do.
         const tags = await collections.tags
-          .find({ ownerId, deletedAt: { $exists: false } })
+          .find({ ownerId, deletedAt: { $in: [null, undefined] } })
           .project({
             _id: 1, plateNumber: 1, premium: 1, premiumSince: 1, activatedAt: 1, createdAt: 1,
             subscription: 1, callSubscription: 1, documentSubscription: 1

@@ -12,6 +12,8 @@
 
 // Display-only. The lead pack comes first: which one leads is a merchandising
 // decision, so it is written down rather than derived from price.
+import { referralCode, clearReferralCode } from "./referral-link.js";
+
 const PACKS = [
   {
     id: "pt-car-2",
@@ -260,6 +262,9 @@ async function showRecall() {
 
 let _sku = null;
 let _busy = false;
+// The amount the SERVER priced this order at, kept so the purchase event can
+// report revenue. Measurement only -- nothing is ever charged from it.
+let _paidPaise = 0;
 
 // A step run, or a harmless stand-in when the shared module has not loaded.
 // Presentation only: nothing here may throw into the order path, because a
@@ -282,11 +287,29 @@ function showSheet() {
   document.body.style.overflow = "hidden";
 }
 
-function hideSheet() {
-  if (_busy) return; // never close over a payment in flight
+// Take the sheet down, whatever is in flight.
+//
+// Split out from hideSheet() because the guard there is about DISMISSAL — the
+// backdrop, Escape, the Done button — and not every close is a dismissal. Two
+// callers legitimately need the sheet gone while _busy is still set, and both
+// used to call hideSheet() and silently get nothing:
+//
+//   - a failed create-order, which left the buyer reading "Setting up your
+//     order" forever with the real error hidden behind it;
+//   - the hand-off to Razorpay, whose own window is about to cover the page.
+//     Leaving this sheet underneath meant that dismissing Razorpay returned the
+//     buyer to a blank sheet over a page that could no longer scroll.
+function closeSheet() {
   byId("shSheet").hidden = true;
   byId("shSheetBd").hidden = true;
   document.body.style.overflow = "";
+}
+
+// What a dismissal gesture calls: the backdrop, Escape, the Done button. None
+// of those may close the sheet out from under a live checkout.
+function hideSheet() {
+  if (_busy) return; // never close over a payment in flight
+  closeSheet();
 }
 
 function say(message) {
@@ -338,18 +361,23 @@ async function buy(sku) {
     const res = await fetch("/api/shop/guest/create-order", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ productId: sku, address })
+      // A HINT, never a price. The server resolves the code, refuses a
+      // self-referral and decides the discount.
+      body: JSON.stringify({ productId: sku, address, ref: referralCode() })
     });
     order = await res.json();
     if (!res.ok || !order.ok) throw new Error(order && order.error);
     // Before the payment window opens, not after it closes.
     remember(order.orderNumber, address);
+    _paidPaise = order.amount || 0;
+    // Spent. A second purchase this session must not silently reuse it.
+    clearReferralCode();
   } catch (err) {
     stopOrderPacing();
     orderSteps.fail("");
     orderSteps.destroy();
-    hideSheet();
-    _busy = false;
+    _busy = false; // the flow is over; let the buyer try again
+    closeSheet();
     say((err && err.message) || "Could not start the payment. Please try again.");
     return;
   }
@@ -358,8 +386,8 @@ async function buy(sku) {
     stopOrderPacing();
     orderSteps.fail("");
     orderSteps.destroy();
-    hideSheet();
-    _busy = false;
+    _busy = false; // the flow is over; let the buyer try again
+    closeSheet();
     say("The payment window could not load. Check your connection and try again.");
     return;
   }
@@ -404,7 +432,7 @@ async function buy(sku) {
   orderSteps.done();
   orderSteps.destroy();
   { const el = byId("shWorking"); if (el) el.hidden = true; }
-  hideSheet();
+  closeSheet();
 
   rzp.open();
 }
@@ -421,11 +449,22 @@ function showDone(done) {
   showSheet();
 
   if (window.ptTrack) {
-    ptTrack("purchase", { transaction_id: done.orderNumber, items: [{ item_id: _sku, quantity: 1 }] });
+    // Without value/currency both Meta and GA4 book the conversion at zero,
+    // and the valueless browser event can win the event_id de-duplication
+    // against the server's CAPI Purchase and erase the amount there too.
+    ptTrack("purchase", {
+      transaction_id: done.orderNumber,
+      value: _paidPaise / 100,
+      currency: "INR",
+      items: [{ item_id: _sku, quantity: 1 }]
+    });
   }
 }
 
-function wireCheckout() {
+// `products` is the catalogue already on screen, passed in only so
+// begin_checkout can carry a value. A missing entry costs the value on one
+// event and nothing else -- it must never stop the click reaching buy().
+function wireCheckout(products) {
   byId("shDoneX").addEventListener("click", hideSheet);
   byId("shSheetBd").addEventListener("click", hideSheet);
   document.addEventListener("keydown", (e) => {
@@ -443,7 +482,12 @@ function wireCheckout() {
     const sku = link.dataset.sku;
 
     if (window.ptTrack) {
-      ptTrack("begin_checkout", { method: "guest", items: [{ item_id: sku, quantity: 1 }] });
+      const priced = products && products[sku];
+      ptTrack("begin_checkout", {
+        method: "guest",
+        items: [{ item_id: sku, quantity: 1 }],
+        ...(priced ? { value: priced.amountPaise / 100, currency: "INR" } : {})
+      });
     }
     buy(sku);
   });
@@ -474,7 +518,7 @@ async function load() {
   }
 
   renderGrid(payload.products);
-  wireCheckout();
+  wireCheckout(payload.products);
   byId("shYear").textContent = String(new Date().getFullYear());
 
   // After the page is usable, never in front of it.

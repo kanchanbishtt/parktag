@@ -16,7 +16,7 @@
 // copy of the same fact is how they came to disagree in the first place.
 
 import { hasActiveSubscription } from "./subscription.js";
-import { premiumTrialEndsAt } from "./vault.js";
+import { premiumTrialEndsAt, premiumTrialStartsAt } from "./vault.js";
 import { addMonths } from "./calendar.js";
 import { getMembershipPlan } from "./membership-plans.js";
 import { firstNameOf, resolveOwnerName } from "./owner-name.js";
@@ -66,6 +66,88 @@ export function membershipPeriodStart(tag, now = Date.now()) {
   }
 
   return start;
+}
+
+const COUNTDOWN_DAY_MS = 24 * 60 * 60 * 1000;
+
+// What the profile card counts down, for ONE tag.
+//
+// Kept next to membershipPeriodStart because the two answer halves of the same
+// question and must not drift, and deliberately not written in terms of it: that
+// function answers "when would a NEW period begin", so it floors at `now` for a
+// tag whose cover has run out. Counting down to that would render a lapsed tag
+// as "0 days left" — indistinguishable from one expiring tonight, and the wrong
+// thing to tell somebody whose calls have already stopped. The end is therefore
+// read from the two sources directly, and a tag with neither is reported as
+// lapsed rather than as almost-expired.
+//
+// Entitlement is per tag here for the same reason it is everywhere else in this
+// codebase: subscription.js reads tag.subscription and nothing else. A single
+// figure for an account holding two tags would have to pick one of them, and
+// whichever it picked would be wrong about the other.
+export function membershipCountdown(tag, now = Date.now()) {
+  // An E-Tag has no membership to count down. Not "0 days left" — that would
+  // put an expiry on something that never had one.
+  if (!tag || !tag.premium) return null;
+
+  const sub = tag.subscription || tag.callSubscription || tag.documentSubscription;
+  const subscribed = hasActiveSubscription(tag, now);
+
+  // An active subscription with no end date is a comped or grandfathered tag.
+  // hasActiveSubscription treats that as open-ended on purpose, so there is
+  // genuinely nothing to count down and the card says so instead of inventing
+  // a date.
+  if (subscribed && sub && (sub.currentPeriodEnd === null || sub.currentPeriodEnd === undefined)) {
+    return { state: "open", endsAt: null, daysLeft: null, totalDays: null, elapsedDays: null };
+  }
+
+  const paidEndRaw = subscribed && sub && sub.currentPeriodEnd
+    ? new Date(sub.currentPeriodEnd).getTime()
+    : NaN;
+  const paidEnd = Number.isFinite(paidEndRaw) && paidEndRaw > now ? paidEndRaw : 0;
+
+  const trialEndRaw = premiumTrialEndsAt(tag, now);
+  const trialEnd = trialEndRaw !== null && now < trialEndRaw ? trialEndRaw : 0;
+
+  const endsAt = Math.max(paidEnd, trialEnd);
+  if (!endsAt) {
+    return { state: "lapsed", endsAt: null, daysLeft: 0, totalDays: null, elapsedDays: null };
+  }
+
+  // Rounded UP, so the last part-day still reads as a day left. Rounding down
+  // would tell somebody with eleven hours of cover that they have none.
+  const daysLeft = Math.max(0, Math.ceil((endsAt - now) / COUNTDOWN_DAY_MS));
+
+  // A paying subscriber is never labelled as being on a trial, even inside the
+  // first year — the same rule call-access.js states, for the same reason: the
+  // access is identical but the sentence is not, and telling somebody who has
+  // paid that their cover is a trial would be alarming and wrong.
+  const onPaidPeriod = paidEnd > trialEnd;
+
+  // The bar is drawn only where the window is genuinely known from end to end.
+  // The free year has both: premiumTrialStartsAt gives the instant it runs
+  // from, and the window is a fixed length. A paid period stores only its END
+  // (subscription: { status, currentPeriodEnd }), so there is no honest
+  // denominator for one — and a bar against a guessed start would be a
+  // decoration wearing the costume of information. Null means "no bar", and the
+  // card falls back to the sentence alone.
+  let totalDays = null;
+  let elapsedDays = null;
+  if (!onPaidPeriod && trialEnd) {
+    const startedAt = premiumTrialStartsAt(tag, now);
+    if (startedAt !== null) {
+      totalDays = Math.max(1, Math.round((trialEnd - startedAt) / COUNTDOWN_DAY_MS));
+      elapsedDays = Math.min(totalDays, Math.max(0, totalDays - daysLeft));
+    }
+  }
+
+  return {
+    state: onPaidPeriod ? "subscribed" : "trial",
+    endsAt: new Date(endsAt).toISOString(),
+    daysLeft,
+    totalDays,
+    elapsedDays
+  };
 }
 
 // The date premium runs until, as a person in India would read it.

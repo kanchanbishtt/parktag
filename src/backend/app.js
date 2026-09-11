@@ -14,6 +14,7 @@ import { renderAnalyticsBundle } from "./lib/analytics.js";
 import { BoundedTtlMap } from "./lib/bounded-map.js";
 import { clientError, clientErrorMessage } from "./lib/errors.js";
 import { readSession } from "./lib/auth/session.js";
+import { tryObjectId } from "./lib/auth/auth.js";
 import { createSharedRateLimitStore } from "./lib/auth/rate-limit-store.js";
 import { getCollections } from "./lib/db/repositories.js";
 import { trustProxy } from "./lib/core/proxy-trust.js";
@@ -22,12 +23,13 @@ import { registerAdminRoutes } from "./routes/admin/index.js";
 import { registerAdminTrafficRoutes } from "./routes/admin/traffic.js";
 import { registerAdminMarketingRoutes } from "./routes/admin/marketing.js";
 import { registerAuthRoutes } from "./routes/auth/credentials.js";
-import { registerAnalyticsRoutes } from "./routes/system/analytics.js";
+import { registerAnalyticsRoutes, recordAppPageVisit } from "./routes/system/analytics.js";
 import { registerDemoRoutes } from "./routes/system/demo.js";
 import { registerOwnerRoutes } from "./routes/owner/dashboard.js";
 import { registerVaultRoutes } from "./routes/owner/vault.js";
 import { registerLoginPinRoutes } from "./routes/owner/login-pin.js";
 import { registerMembershipRoutes } from "./routes/owner/membership.js";
+import { registerCallbackPassRoutes } from "./routes/owner/callback-pass.js";
 import { MAX_FILE_BYTES } from "./lib/core/vault.js";
 import { cacheControlFor, resolveAssetVersion } from "./lib/core/asset-version.js";
 import { registerProviderRoutes } from "./routes/webhooks/exotel.js";
@@ -75,6 +77,7 @@ const ownerLoginPage = path.join(pagesRoot, "owner/login.html");
 const hubPage = path.join(pagesRoot, "hub.html");
 const shopPage = path.join(pagesRoot, "shop.html");
 const getPage = path.join(pagesRoot, "get.html");
+const directPage = path.join(pagesRoot, "direct.html");
 const forgotPasswordPage = path.join(pagesRoot, "owner/forgot-password.html");
 const resetPasswordPage = path.join(pagesRoot, "owner/reset-password.html");
 const ownerVerifyPage = path.join(pagesRoot, "owner/verify.html");
@@ -938,6 +941,69 @@ export async function buildApp() {
     return reply.redirect("/owner-welcome");
   });
 
+  // ── /v/:tagId — the vehicle deep link ────────────────────────────────────
+  //
+  // Exists because of a Meta constraint and an ownership one.
+  //
+  // A WhatsApp URL button is a FIXED approved base plus exactly ONE variable
+  // suffix. The dashboard needs a session, and the vehicle views want several
+  // parameters, so neither can be linked to directly from a template. This is
+  // the single short URL a template can carry.
+  //
+  // It matters most on the owner alert. That message tells somebody a stranger
+  // is standing at their car, and CALLBACK_WINDOW_MS gives them ten minutes to
+  // ring that person back — a window that, until now, expired while they looked
+  // for an app that does not exist.
+  //
+  // The id is the tag's ObjectId, deliberately NOT its scan token. The token is
+  // the QR secret printed on the sticker; putting it in a message that can be
+  // forwarded would hand a stranger the scan page for that vehicle.
+  //
+  // Every failure lands on the same place, and that is the point: a tag that
+  // does not exist and a tag belonging to somebody else are indistinguishable
+  // from outside, so this cannot be used to test whether an id is real.
+  app.get("/v/:tagId", async (request, reply) => {
+    const tagId = tryObjectId(request.params.tagId);
+    const session = await readSession(app, request);
+
+    if (!session || session.role !== "owner") {
+      // Signed out. The intent travels as a query string ONLY as far as the
+      // login page, which parks it in sessionStorage — sign-in hops through
+      // screens we do not control (the OTP step, the Google round trip) and a
+      // query string is dropped on the way. Same mechanism as ?next=shop.
+      const suffix = tagId ? `&tag=${encodeURIComponent(String(tagId))}` : "";
+      return reply.redirect(`/owner-login?next=vehicle${suffix}`);
+    }
+
+    if (!tagId) return reply.redirect("/owner-welcome");
+
+    let collections = null;
+    try {
+      collections = await getCollections(env);
+    } catch {
+      // The database is unreachable. The dashboard will say so far better than
+      // a stack trace would, and a 500 on a link somebody tapped from a message
+      // about their car is the worst possible answer.
+      return reply.redirect("/owner-welcome");
+    }
+    if (!collections) return reply.redirect("/owner-welcome");
+
+    const tag = await collections.tags
+      .findOne({ _id: tagId }, { projection: { ownerId: 1 } })
+      .catch(() => null);
+
+    // String comparison: session.userId is a string and tag.ownerId is an
+    // ObjectId, so == would be false for the rightful owner and every alert
+    // button would silently land on the plain dashboard.
+    if (!tag || !tag.ownerId || String(tag.ownerId) !== String(session.userId)) {
+      return reply.redirect("/owner-welcome");
+    }
+
+    // The Activity list is where the Call Back button lives (welcome.js), and
+    // it is on the default view, so no tab switch is needed — only the scroll.
+    return reply.redirect(`/owner-welcome?v=${encodeURIComponent(String(tagId))}`);
+  });
+
   // Public "buy a tag" entry point. Every order CTA on the marketing site aims
   // here instead of at /register-owner, so buying starts the way people expect
   // a shop to start — sign in, then browse — rather than by demanding vehicle
@@ -976,6 +1042,11 @@ export async function buildApp() {
       return reply.redirect(`/owner-welcome?shop=1${carry}`);
     }
 
+    // Counted here rather than in the browser. The shop is where the ads
+    // land, so this is the number the spend is judged on, and a client-side
+    // tag is the one thing a visitor can switch off.
+    recordAppPageVisit(app, env, request, "/shop");
+
     // The page reads ?sku itself to highlight the chosen card; the value is
     // never echoed from here.
     const html = await fs.readFile(shopPage, "utf8");
@@ -999,8 +1070,25 @@ export async function buildApp() {
   // into a Location header and an unvalidated pack id there is a header
   // injection; serving a file echoes nothing, so the whole question goes away.
   // A sku in the query is now simply ignored.
-  app.get("/get", async (_request, reply) => {
+  app.get("/get", async (request, reply) => {
+    // Counted like /shop. This page is handed out deliberately, so knowing
+    // whether anyone actually opened it is the only way to tell.
+    recordAppPageVisit(app, env, request, "/get");
+
     const html = await fs.readFile(getPage, "utf8");
+    reply.type("text/html");
+    return html;
+  });
+
+  // The direct-sale checkout. Handed to somebody who has already been quoted a
+  // price, so it is never linked from anywhere and carries a noindex.
+  //
+  // Counted like /get and /shop: this page exists to be sent to one person at a
+  // time, and whether they actually opened it is the only signal there is.
+  app.get("/direct", async (request, reply) => {
+    recordAppPageVisit(app, env, request, "/direct");
+
+    const html = await fs.readFile(directPage, "utf8");
     reply.type("text/html");
     return html;
   });
@@ -1235,6 +1323,7 @@ export async function buildApp() {
   registerVaultRoutes(app, env);
   registerLoginPinRoutes(app, env);
   registerMembershipRoutes(app, env);
+  registerCallbackPassRoutes(app, env);
   registerAdminRoutes(app, env);
   registerAdminTrafficRoutes(app, env);
   registerAdminMarketingRoutes(app, env);

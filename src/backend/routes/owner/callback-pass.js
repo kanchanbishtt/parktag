@@ -121,6 +121,32 @@ export function registerCallbackPassRoutes(app, env) {
         };
       }
 
+      // Only the newest contact on this vehicle may be bought.
+      //
+      // The page offers one ₹20 button per vehicle, on its newest contact; this
+      // holds a stale tab to the same rule. Without it, an owner could pay to
+      // ring someone who contacted the car earlier and has since moved on,
+      // while the person who just tried to reach them waits. "Newer" is judged
+      // exactly as the page judges it — a contact with a number that did not
+      // end in a conversation — so the button and this route cannot disagree
+      // about which row is the live one.
+      const newer = await collections.contactRequests.findOne({
+        ownerId,
+        token: contact.token,
+        _id: { $ne: contact._id },
+        phone: { $exists: true, $ne: null },
+        callOutcome: { $ne: "answered" },
+        createdAt: { $gt: contact.createdAt }
+      });
+      if (newer) {
+        reply.code(410);
+        return {
+          ok: false,
+          code: "CALLBACK_NOT_LATEST",
+          error: "Only your most recent contact can be called back."
+        };
+      }
+
       // Hand back an order the owner already started rather than minting a
       // second one. Tapping Pay twice, or reloading mid-checkout, otherwise
       // leaves two live order ids for one intended purchase — both payable,

@@ -32,6 +32,20 @@ export const NEEDS_PREMIUM = "needs-premium";
 export const NEEDS_SUBSCRIPTION = "needs-subscription";
 export const NOT_CALLABLE = "not-callable";
 
+// Does this tag hold a live ₹20 pass bought for this exact row?
+//
+// Reads the server's verdict (`state`, `expiresAt`) rather than re-deriving it
+// from a payment time. `expiresAt` is re-checked against the clock because a
+// page left open outlives the moment it was rendered — and an unparseable one
+// counts as expired, never as unlimited.
+export function hasLivePassFor(tag, request, now = Date.now()) {
+  const pass = tag && tag.callbackPass;
+  if (!pass || pass.state !== "ready" || !request) return false;
+  if (String(pass.requestId) !== String(request.id)) return false;
+  const ends = Date.parse(pass.expiresAt);
+  return Number.isFinite(ends) && now < ends;
+}
+
 /**
  * @param request  a row from the dashboard's `requests` array
  * @param tags     the dashboard's `tags` array (deleted tags are already absent)
@@ -52,6 +66,19 @@ export function callbackState(
   // `=== "missed"` would hide the button from all of them. Unknown means keep
   // offering it.
   if (request.callOutcome === "answered") return NOT_CALLABLE;
+
+  // A paid ₹20 callback for THIS row runs on its own clock, and is checked
+  // before the free window below for that reason.
+  //
+  // The payment grants a fresh ten minutes from the moment it was verified —
+  // that is the promise that makes it safe to sell at minute seven. The
+  // normal path spends the pass instantly (the payment route places the call),
+  // but an owner whose call could not be placed, or who closed the tab and was
+  // credited by the webhook, comes back to a row whose own ten minutes may be
+  // long gone. Gating them on the contact's age would leave them holding a
+  // paid callback with no button to use it.
+  const ownTag = tags.find((candidate) => candidate && candidate.token === request.token);
+  if (hasLivePassFor(ownTag, request, now)) return CALLABLE;
 
   // Two separate spans, and keeping them apart is the point: the list shows 48
   // hours of history, a callback lasts ten minutes. Seeing who called is not
@@ -100,16 +127,32 @@ export function callbackState(
       // is not a permission to ring this one — the server scopes it the same
       // way, so offering it here would only produce a 402 on tap.
       if (pass.state === "ready") {
-        return String(pass.requestId) === String(request.id) ? CALLABLE : NEEDS_PREMIUM;
+        if (String(pass.requestId) !== String(request.id)) return NEEDS_PREMIUM;
+        // Bought for this row but its own clock has run out while the page sat
+        // open: the server now reads it as spent, so the row says so rather
+        // than offering a dial the route will refuse.
+        return hasLivePassFor(tag, request, now) ? CALLABLE : PASS_SPENT;
       }
       if (pass.state === "spent") return PASS_SPENT;
       if (pass.state === "purchasable") {
+        // No usable threshold means the page never received it — an older
+        // server, or a page that failed to read the field. Fall back to exactly
+        // what this row showed before the ₹20 option existed, the upgrade
+        // nudge, rather than to nothing. Falling to not-callable here is what
+        // once made the whole feature vanish without a trace: an empty row
+        // reads as "nothing to do", where a nudge at least reads as a choice.
+        if (!Number.isFinite(passMinRemainingMs)) return NEEDS_PREMIUM;
         // Withdrawn near the end of the window rather than sold at a price the
         // clock is about to make worthless. `passMinRemainingMs` comes from the
         // server beside the window itself, so this threshold and the one
         // create-order enforces are the same number.
+        //
+        // Below it the row falls back to the upgrade nudge it showed before
+        // the ₹20 option existed — not to nothing, which would make the last
+        // three minutes the one stretch where an E-Tag row stops mentioning
+        // that callback exists at all.
         const remaining = windowMs - age;
-        return remaining >= passMinRemainingMs ? NEEDS_PAYMENT : NOT_CALLABLE;
+        return remaining >= passMinRemainingMs ? NEEDS_PAYMENT : NEEDS_PREMIUM;
       }
     }
 

@@ -1,4 +1,4 @@
-import { callbackState, CALLABLE, NEEDS_PAYMENT, PASS_SPENT, NEEDS_PREMIUM, NEEDS_SUBSCRIPTION } from "./callback-eligibility.js";
+import { callbackState, hasLivePassFor, CALLABLE, NEEDS_PAYMENT, PASS_SPENT, NEEDS_PREMIUM, NEEDS_SUBSCRIPTION } from "./callback-eligibility.js";
 
 // ── Banners carousel ─────────────────────────────────────────────
 const track    = document.getElementById("carTrack");
@@ -1248,9 +1248,27 @@ function formatExactTime(iso) {
 // Rounded UP, so a window with forty seconds in it reads "1 min left" rather
 // than "0 min left" while the button is still there and still works. Under a
 // minute it stops counting and says so.
-function callbackTimeLeft(target, now) {
+// When the page must stop offering a call back on this row, in epoch ms.
+//
+// Usually ten minutes from the scanner's contact. A row holding a live ₹20 pass
+// runs on the pass's own clock instead — the payment bought a fresh ten
+// minutes, and counting from the contact would tell someone who has just paid
+// that their callback expired a while ago.
+function callbackDeadline(target, now) {
+  const tag = allTags.find((t) => t && t.token === target.token);
+  if (hasLivePassFor(tag, target, now)) return Date.parse(tag.callbackPass.expiresAt);
+  return new Date(target.createdAt).getTime() + _callbackWindowMs;
+}
+
+// When the ₹20 offer on a row is withdrawn: the free window, less the minimum
+// the server requires to still be left when it sells one.
+function payOfferDeadline(target) {
+  return new Date(target.createdAt).getTime() + _callbackWindowMs - _callbackPassMinRemainingMs;
+}
+
+function callbackTimeLeft(target, now, deadline = target ? callbackDeadline(target, now) : 0) {
   if (!target) return "";
-  const msLeft = _callbackWindowMs - (now - new Date(target.createdAt).getTime());
+  const msLeft = deadline - now;
   if (msLeft <= 0) return "";
   if (msLeft < 60000) return "less than a minute left";
   return `${Math.ceil(msLeft / 60000)} min left`;
@@ -1282,9 +1300,11 @@ let _callbackWindowMs = 48 * 60 * 60 * 1000;
 //
 // A zero threshold would mean 'any amount of window left is enough' and a zero
 // price would render 'Call back ₹0'. On a response that predates these fields
-// the safe failure is no Pay button at all, so the price starts at 0 and the
-// row falls through to the ordinary upgrade nudge — a page that has never been
-// told the price cannot invent one.
+// the safe failure is no Pay button, and callbackState turns the Infinity
+// threshold into the ordinary upgrade nudge — a page that has never been told
+// the price cannot invent one. Both are assigned from the payload in
+// loadDashboard; tests/callback-pass.test.js fails if that read goes missing,
+// which it once did, silently, and hid the button in production.
 let _callbackPassMinRemainingMs = Infinity;
 let _callbackPassPaise = 0;
 
@@ -1490,7 +1510,27 @@ function renderActivity(requests) {
   // something earlier and have since moved on, while the person still waiting
   // gets no priority at all.
   const callbackTarget = recent.find(isReturnable) || null;
-  const canCallBack = (r) => callbackTarget !== null && r.id === callbackTarget.id;
+
+  // A row holding a live ₹20 pass keeps its button even when a newer contact
+  // has become the target. The owner has paid to call that person, and the
+  // server dials a paid contact as named rather than by recency.
+  const holdsLivePass = (r) =>
+    hasLivePassFor(allTags.find((t) => t && t.token === r.token), r, now);
+  const canCallBack = (r) =>
+    (callbackTarget !== null && r.id === callbackTarget.id) || holdsLivePass(r);
+
+  // One ₹20 offer per vehicle, on its newest purchasable contact.
+  //
+  // The same reasoning as the single callback target above, applied per tag
+  // because the pass is per tag: a scanner who rang twice would otherwise put
+  // two "Call Back ₹20" buttons on the list for one person, and an older
+  // contact would be sold as if it were the live one. create-order enforces
+  // the same rule, so an older row cannot be bought from a stale tab either.
+  const payTargets = new Map();
+  for (const r of recent) {
+    if (canBuyCallback(r) && !payTargets.has(r.token)) payTargets.set(r.token, r);
+  }
+  const isPayTarget = (r) => payTargets.get(r.token) === r;
 
   // The banner and the row now point at the same contact. They used to disagree
   // — the banner had its own 60-minute idea of "urgent" while the rows had
@@ -1511,13 +1551,28 @@ function renderActivity(requests) {
   // ── Callback prompt (after Overview) ──────────────────────────
   const prompt = document.getElementById("callbackPrompt");
   if (prompt) {
-    if (eligible) {
-      const ageMs  = Date.now() - new Date(eligible.createdAt).getTime();
-      const v      = vehicleOf(eligible.token);
-      const masked = eligible.phone ? `•••• ${String(eligible.phone).slice(-4)}` : "Unknown caller";
-      const cta    = _ownerMobile
-        ? `<button class="pt-act-cta" id="cbBtnPrompt" onclick="callBack('cbBtnPrompt')" style="flex-shrink:0">Call Back</button>`
-        : `<span class="pt-act-nophone" style="flex-shrink:0">Add phone<br>to call back</span>`;
+    // With nothing callable outright, the banner carries an E-Tag's ₹20 offer
+    // instead — the newest one. It is the most prominent callback surface on
+    // the page, and a premium owner gets it for every callable contact; an
+    // E-Tag owner who can buy the same call should not have to find it in the
+    // list. Its countdown is to the offer being withdrawn, not to the free
+    // window, so the card leaves at the same moment its button would stop
+    // working.
+    const payPrompt = eligible ? null : (recent.find((r) => canBuyCallback(r) && isPayTarget(r)) || null);
+    const subject   = eligible || payPrompt;
+    if (subject) {
+      const ageMs  = Date.now() - new Date(subject.createdAt).getTime();
+      const v      = vehicleOf(subject.token);
+      const masked = subject.phone ? `•••• ${String(subject.phone).slice(-4)}` : "Unknown caller";
+      const left   = payPrompt
+        ? callbackTimeLeft(payPrompt, now, payOfferDeadline(payPrompt))
+        : callbackTimeLeft(eligible, now);
+      const cta    = !_ownerMobile
+        ? `<span class="pt-act-nophone" style="flex-shrink:0">Add phone<br>to call back</span>`
+        : payPrompt
+          ? `<button class="pt-act-cta pt-act-pay" id="cbPayPrompt" data-request-id="${esc(payPrompt.id)}"
+              onclick="payForCallback('cbPayPrompt')" style="flex-shrink:0">Call Back<br><span class="pt-act-pay-amt">${esc(rupees(_callbackPassPaise))}</span></button>`
+          : `<button class="pt-act-cta" id="cbBtnPrompt" onclick="callBack('cbBtnPrompt')" style="flex-shrink:0">Call Back</button>`;
       prompt.style.display = "block";
       prompt.innerHTML = `
 <div class="pt-cb-prompt">
@@ -1527,7 +1582,7 @@ function renderActivity(requests) {
     <!-- The window is ten minutes and the button removes itself when it ends.
          Saying how long is left turns that from something that vanished into
          something that expired. -->
-    <span class="pt-cb-prompt-left">${esc(callbackTimeLeft(eligible, now))}</span>
+    <span class="pt-cb-prompt-left">${esc(left)}</span>
   </div>
   <div class="pt-act-card urgent" style="margin:0;border-radius:14px">
     <div class="pt-act-ic" style="background:#FFE3DD;color:#FF2700">
@@ -1629,9 +1684,11 @@ function renderActivity(requests) {
       // it says so and goes straight to where that is fixed.
       cta = `<button class="pt-act-nophone pt-act-upsell" onclick="switchTab('shop')"
         title="Callback is available on premium tags">Premium<br>to call back</button>`;
-    } else if (canBuyCallback(r)) {
+    } else if (canBuyCallback(r) && isPayTarget(r)) {
       // The one thing on this list that costs money, so it says so on its face
       // and never opens a payment sheet the owner has not seen a price for.
+      // Older purchasable rows on the same vehicle fall through to no button,
+      // exactly as older returnable rows do for a premium tag.
       //
       // Needs a profile number for the same reason the free callback does —
       // register-call dials it — and create-order refuses without one, so the
@@ -1693,7 +1750,18 @@ function renderActivity(requests) {
 
   container.innerHTML = cards;
 
-  scheduleCallbackExpiry(callbackTarget, now);
+  // Each ₹20 offer changes twice on its own: it is withdrawn at the threshold
+  // (the row falls back to the premium nudge), and the nudge leaves when the
+  // free window closes. Both are queued so neither outlives the server's rule.
+  const deadlines = [];
+  if (callbackTarget) deadlines.push(callbackDeadline(callbackTarget, now));
+  for (const r of payTargets.values()) {
+    deadlines.push(payOfferDeadline(r), new Date(r.createdAt).getTime() + _callbackWindowMs);
+  }
+  for (const r of recent) {
+    if (holdsLivePass(r)) deadlines.push(callbackDeadline(r, now));
+  }
+  scheduleCallbackExpiry(deadlines, now);
 }
 
 // Take the button away the moment the ten minutes are up.
@@ -1706,22 +1774,30 @@ function renderActivity(requests) {
 // Re-renders from the same data rather than refetching: the only thing that
 // changed is the clock, and isReturnable is evaluated against `now` each pass.
 let _callbackExpiryTimer = null;
-function scheduleCallbackExpiry(target, now) {
+//
+// Takes every moment at which some control on the list changes by itself —
+// the callback target's window closing, a ₹20 offer being withdrawn at its
+// threshold, a paid pass running out — and wakes at the soonest. Each
+// re-render schedules the next, so one timer walks the list through all of
+// them. It used to take only the callback target, which left a "Call Back ₹20"
+// button on screen for as long as the tab stayed open.
+function scheduleCallbackExpiry(deadlines, now) {
   if (_callbackExpiryTimer) {
     clearTimeout(_callbackExpiryTimer);
     _callbackExpiryTimer = null;
   }
-  if (!target) return;
 
-  const msLeft = _callbackWindowMs - (now - new Date(target.createdAt).getTime());
-  if (msLeft <= 0) return;
+  const next = deadlines
+    .filter((d) => Number.isFinite(d) && d > now)
+    .sort((a, b) => a - b)[0];
+  if (next === undefined) return;
 
   // A second past the boundary, so the re-render lands on the far side of it
   // rather than racing the comparison it is about to make.
   _callbackExpiryTimer = setTimeout(() => {
     _callbackExpiryTimer = null;
     renderActivity(allRequests);
-  }, msLeft + 1000);
+  }, next - now + 1000);
 }
 
 // Will `tel:` actually reach a dialer here?
@@ -1954,6 +2030,10 @@ async function payForCallback(btnId) {
         _toast(order.error || "You've already used the callback for this vehicle.", "err");
       } else if (order.code === "CALLBACK_WINDOW_EXPIRED") {
         _toast("The callback window for this contact has passed.", "err");
+      } else if (order.code === "CALLBACK_NOT_LATEST") {
+        // Someone newer contacted this vehicle while the page sat open. The
+        // re-render below moves the offer to them.
+        _toast("Someone else has contacted this vehicle since. Showing the latest.", "err");
       } else if (order.code === "NO_PHONE") {
         _toast("Add your mobile number to your profile to enable callback.", "err");
       } else {
@@ -2335,6 +2415,17 @@ async function load() {
     // agree. Older responses omit it and keep the built-in default.
     if (typeof data.callbackWindowMs === "number" && data.callbackWindowMs > 0) {
       _callbackWindowMs = data.callbackWindowMs;
+    }
+    // The ₹20 callback's threshold and price, on the same contract as the
+    // window above: the server owns both numbers, the page only draws them.
+    // Without these the threshold stays at its fail-closed Infinity and every
+    // E-Tag row resolves to not-callable — no Pay button, and no upgrade
+    // nudge either, because the row no longer reads as needs-premium.
+    if (typeof data.callbackPassMinRemainingMs === "number" && data.callbackPassMinRemainingMs >= 0) {
+      _callbackPassMinRemainingMs = data.callbackPassMinRemainingMs;
+    }
+    if (typeof data.callbackPassPaise === "number" && data.callbackPassPaise > 0) {
+      _callbackPassPaise = data.callbackPassPaise;
     }
     renderGrid(getDisplayTags(), true);
     renderNoticeboard(allTags);

@@ -1278,6 +1278,14 @@ export function registerOwnerRoutes(app, env) {
     const passTokens = livePassTags.map((tag) => tag.token);
     const callableTokens = [...premiumTokens, ...passTokens];
 
+    // The exact contacts those passes were bought for. A pass authorises ONE
+    // row, so it is matched by id below — never by widening the tag's token,
+    // which would make every contact on that E-Tag a candidate for the dial.
+    const passRequestIds = livePassTags
+      .map((tag) => tryObjectId(String(tag.callbackPass.requestId)))
+      .filter(Boolean);
+    const isPassContact = (id) => passRequestIds.some((passId) => String(passId) === String(id));
+
     if (!callableTokens.length) {
       // Distinguishing the two cases matters: "buy a premium tag" is useless
       // advice to somebody who already owns one whose free year has run out.
@@ -1328,11 +1336,21 @@ export function registerOwnerRoutes(app, env) {
     //
     // Resolved here rather than trusted from the body, so a stale page holding
     // yesterday's row id cannot dial its way past this.
+    //
+    // Two kinds of candidate, on two different clocks. A premium tag's contacts
+    // are returnable for ten minutes from when they arrived. A paid pass's
+    // contact is returnable for as long as the PASS is live — ten minutes from
+    // the payment, which is what the ₹20 bought. Holding the paid contact to
+    // its own arrival time would strand an owner whose call could not be placed
+    // at payment, or who was credited by the webhook after closing the tab:
+    // paid, and refused on the grounds that too much time had passed.
     const filter = {
       ownerId,
-      token: { $in: callableTokens },
       phone: { $exists: true, $ne: null },
-      createdAt: { $gte: windowStart }
+      $or: [
+        { token: { $in: premiumTokens }, createdAt: { $gte: windowStart } },
+        { _id: { $in: passRequestIds } }
+      ]
     };
 
     // Note what this filter does NOT do: refuse a call that was answered.
@@ -1344,9 +1362,14 @@ export function registerOwnerRoutes(app, env) {
     // by how the call went. An owner who cuts off after four seconds and wants
     // to redial is doing something entirely legitimate, and refusing it here
     // would turn a tidier list into a dead end.
-    const recentContact = await collections.contactRequests.findOne(filter, {
-      sort: { createdAt: -1 }
-    });
+    //
+    // With one exception: a contact the owner has PAID to call back, named
+    // explicitly, is dialled as named. "Newest only" protects a live caller
+    // from being skipped for a stale one; it was never meant to let a newer
+    // contact on another vehicle void a callback somebody has already bought.
+    const recentContact = wanted && isPassContact(wanted)
+      ? await collections.contactRequests.findOne({ _id: wanted, ownerId, phone: { $exists: true, $ne: null } })
+      : await collections.contactRequests.findOne(filter, { sort: { createdAt: -1 } });
 
     // Before falling back to "the window has passed": if the row they named is
     // real and theirs and simply arrived on an E-Tag, say THAT. Telling an owner
@@ -1354,7 +1377,10 @@ export function registerOwnerRoutes(app, env) {
     // looking for a bug instead of at the upgrade that would fix it.
     if (wanted) {
       const named = await collections.contactRequests.findOne({ _id: wanted, ownerId });
-      if (named && !callableTokens.includes(named.token)) {
+      // Callable if it arrived on a premium tag, or if it is the very contact
+      // a live pass was bought for. Another contact on a passed E-Tag is
+      // neither, and gets the same premium answer as any other E-Tag row.
+      if (named && !premiumTokens.includes(named.token) && !isPassContact(named._id)) {
         // Same split as the account-level check above. A contact that arrived
         // on a premium tag whose call window has closed is NOT an upgrade
         // prompt — that owner is holding the sticker this would tell them to

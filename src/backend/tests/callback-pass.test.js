@@ -16,8 +16,8 @@
 
 // Before importing anything that reads the environment. Placeholders are the
 // safer choice AND the sufficient one: verifying a signature is a local HMAC
-// that reaches no API, and no test here calls create-order, so no order is
-// minted in anyone's Razorpay dashboard.
+// that reaches no API, and the one test that calls create-order is refused
+// before an order is minted, so nothing reaches anyone's Razorpay dashboard.
 process.env.RAZORPAY_KEY_ID = "rzp_test_ci_placeholder";
 process.env.RAZORPAY_KEY_SECRET = "ci_placeholder_secret";
 // register-call refuses without a caller id, and a runner has no telephony
@@ -316,19 +316,79 @@ test("a paid pass calls back the contact it was bought for", async () => {
 test("a pass bought for one contact cannot ring another", async () => {
   const tag = await seedTag();
   const paidFor = await seedContact({ phone: SCANNER_A, createdAt: minutesAgo(4) });
-  // A newer contact on the same tag, which the pass was NOT bought for. The
-  // route resolves the most recent, so this is the one it will try to ring.
-  await seedContact({ phone: SCANNER_B, createdAt: minutesAgo(1) });
+  // A newer contact on the same tag, which the pass was NOT bought for.
+  const newer = await seedContact({ phone: SCANNER_B, createdAt: minutesAgo(1) });
 
   await collections.tags.updateOne(
     { _id: tag._id },
     { $set: { callbackPass: { paidAt: new Date().toISOString(), usedAt: null, requestId: paidFor._id } } }
   );
 
-  const res = await callBack({});
-
-  assert.equal(res.statusCode, 402);
+  // Naming the newer contact is refused outright: the pass is not theirs.
+  const named = await callBack({ requestId: String(newer._id) });
+  assert.equal(named.statusCode, 402);
   assert.equal(await collections.pendingCalls.countDocuments({}), 0);
+
+  // The id-less form (the banner's button) rings the person who was paid
+  // for — not the newer contact, even though it is more recent.
+  const idless = await callBack({});
+  assert.equal(idless.statusCode, 200);
+  const pending = await collections.pendingCalls.find({}).toArray();
+  assert.equal(pending.length, 1);
+  assert.equal(pending[0].targetPhone, SCANNER_A, "the paid-for person, never the newer one");
+});
+
+test("a paid pass outlives the contact's own ten minutes", async () => {
+  // The case that stranded money: the call could not be placed at payment
+  // (or the webhook credited the pass after the tab closed), and the owner
+  // comes back once the contact's free window has gone. The payment bought a
+  // fresh ten minutes from when it was verified, and that is what counts.
+  const tag = await seedTag();
+  const contact = await seedContact({ createdAt: minutesAgo(12) });
+  await collections.tags.updateOne(
+    { _id: tag._id },
+    { $set: { callbackPass: { paidAt: minutesAgo(2), usedAt: null, requestId: contact._id } } }
+  );
+
+  const res = await callBack({ requestId: String(contact._id) });
+
+  assert.equal(res.statusCode, 200, "a live pass is honoured past the contact's own window");
+  const after = await collections.tags.findOne({ _id: tag._id });
+  assert.ok(after.callbackPass.usedAt, "and the dial spends it");
+});
+
+test("a newer contact on another vehicle does not void a paid callback", async () => {
+  const etag = await seedTag();
+  const premium = await seedTag({ token: "pass-premium-tok", premium: true });
+  // Premium tags need an entitlement window; a fresh premiumSince gives one.
+  await collections.tags.updateOne({ _id: premium._id }, { $set: { premiumSince: new Date().toISOString() } });
+
+  const paidFor = await seedContact({ phone: SCANNER_A, createdAt: minutesAgo(4) });
+  await seedContact({ token: premium.token, phone: SCANNER_B, createdAt: minutesAgo(1) });
+  await collections.tags.updateOne(
+    { _id: etag._id },
+    { $set: { callbackPass: { paidAt: minutesAgo(1), usedAt: null, requestId: paidFor._id } } }
+  );
+
+  const res = await callBack({ requestId: String(paidFor._id) });
+
+  assert.equal(res.statusCode, 200, "the paid contact is dialled as named");
+  const pending = await collections.pendingCalls.findOne({});
+  assert.equal(pending.targetPhone, SCANNER_A);
+});
+
+test("an older contact on the same vehicle cannot be bought", async () => {
+  // Refused before any Razorpay order is minted, so this never reaches the
+  // payments API.
+  await seedTag();
+  const older = await seedContact({ phone: SCANNER_A, createdAt: minutesAgo(4) });
+  await seedContact({ phone: SCANNER_B, createdAt: minutesAgo(1) });
+
+  const res = await authed("/api/owner/callback/create-order", { requestId: String(older._id) });
+
+  assert.equal(res.statusCode, 410);
+  assert.equal(res.json().code, "CALLBACK_NOT_LATEST");
+  assert.equal(await collections.callbackOrders.countDocuments({}), 0, "no order was minted");
 });
 
 test("a spent pass sends them to premium, not to a second payment", async () => {
@@ -413,4 +473,81 @@ test("a forged signature grants nothing", async () => {
   assert.equal(res.statusCode, 400);
   const after = await collections.tags.findOne({ _id: tag._id });
   assert.equal(after.callbackPass, undefined);
+});
+
+// ── the page ───────────────────────────────────────────────────────────────
+
+// The ₹20 button first shipped invisible. The server published the threshold
+// and the price, the rule module handled them correctly, and every test above
+// passed — but the dashboard script declared both with fail-closed defaults and
+// never assigned them from the payload. The threshold stayed at Infinity, so
+// every E-Tag row resolved to not-callable and drew nothing at all.
+//
+// So this checks the seam that broke, generically: every callback number the
+// dashboard publishes must actually be read by the page. A field added to one
+// side and not the other fails here instead of on somebody's phone.
+test("the page reads every callback number the dashboard publishes", async () => {
+  const dash = await app.inject({
+    method: "GET",
+    url: "/api/owner/dashboard",
+    headers: { origin: ORIGIN, cookie: `wavetag_session=${cookie}` }
+  });
+  assert.equal(dash.statusCode, 200);
+
+  const published = Object.keys(dash.json()).filter((key) => /^callback/.test(key));
+  assert.ok(
+    published.includes("callbackPassMinRemainingMs") && published.includes("callbackPassPaise"),
+    `the dashboard should publish the pass threshold and price, got: ${published.join(", ")}`
+  );
+
+  const js = await app.inject({ method: "GET", url: "/scripts/owner/welcome.js" });
+  assert.equal(js.statusCode, 200);
+  for (const field of published) {
+    assert.match(js.body, new RegExp(String.raw`data\.${field}\b`), `the page never reads ${field}`);
+  }
+});
+
+// ── what each row shows, from the module the page itself loads ─────────────
+
+test("each E-Tag row draws the right control at every point in its life", async () => {
+  const rules = await import("../../frontend/scripts/owner/callback-eligibility.js");
+  const WINDOW = 10 * 60 * 1000;
+  const MIN_LEFT = 3 * 60 * 1000;
+  const now = Date.now();
+
+  const etag = (pass) => ({
+    token: "t",
+    premium: false,
+    callAccess: { tier: "etag-used", masking: false, premium: false },
+    callbackPass: pass
+  });
+  const row = (minutesOld) => ({
+    id: "row-1",
+    token: "t",
+    phone: "+919999999994",
+    callOutcome: null,
+    createdAt: new Date(now - minutesOld * 60e3).toISOString()
+  });
+  const state = (tag, r, passMinRemainingMs = MIN_LEFT) =>
+    rules.callbackState(r, { tags: [tag], now, windowMs: WINDOW, passMinRemainingMs });
+  const purchasable = { state: "purchasable", requestId: null, expiresAt: null };
+
+  assert.equal(state(etag(purchasable), row(1)), rules.NEEDS_PAYMENT, "early in the window: offer ₹20");
+  assert.equal(state(etag(purchasable), row(8)), rules.NEEDS_PREMIUM,
+    "under the threshold: back to the premium nudge, not an empty row");
+  assert.equal(state(etag(purchasable), row(1), Infinity), rules.NEEDS_PREMIUM,
+    "threshold never received: the nudge, not an empty row (the production bug)");
+  assert.equal(state(etag(purchasable), row(30)), rules.NOT_CALLABLE, "past the window: nothing");
+
+  const live = { state: "ready", requestId: "row-1", expiresAt: new Date(now + 8 * 60e3).toISOString() };
+  assert.equal(state(etag(live), row(12)), rules.CALLABLE,
+    "a live pass is callable past the contact's own window");
+  assert.equal(state(etag(live), { ...row(2), id: "someone-else" }), rules.NEEDS_PREMIUM,
+    "but only for the row it was bought for");
+
+  const lapsed = { state: "ready", requestId: "row-1", expiresAt: new Date(now - 1000).toISOString() };
+  assert.equal(state(etag(lapsed), row(2)), rules.PASS_SPENT,
+    "a pass whose clock ran out while the page sat open reads as spent");
+
+  assert.equal(state(etag({ state: "spent", requestId: null, expiresAt: null }), row(1)), rules.PASS_SPENT);
 });

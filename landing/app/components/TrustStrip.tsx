@@ -1,6 +1,6 @@
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import type { IconDefinition } from "@fortawesome/fontawesome-svg-core";
-import { faTruckFast, faMoneyBill1, faCalendarCheck, faArrowRotateLeft } from "@fortawesome/free-solid-svg-icons";
+import { faTruckFast, faShieldHalved, faCalendarCheck, faArrowRotateLeft } from "@fortawesome/free-solid-svg-icons";
 
 // The trust bar under the hero: four reassurances, each a claim plus the line
 // that backs it, on one navy plate.
@@ -16,9 +16,13 @@ import { faTruckFast, faMoneyBill1, faCalendarCheck, faArrowRotateLeft } from "@
 // "Made in India", which the reference strip carries, is deliberately absent.
 // It is a manufacturing claim and nothing in this repo establishes it, so it
 // would be the one line here that a buyer could not verify.
+// Cash on delivery is deliberately absent, for the same reason "Made in India"
+// is: it is a claim a buyer could act on and we would not honour. The only
+// checkout an ad or this page sends anyone to is the guest one, and that is
+// prepaid. Restore the line only alongside a guest COD route.
 const ITEMS: [IconDefinition, string, string][] = [
   [faTruckFast, "Free delivery", "Anywhere in India"],
-  [faMoneyBill1, "Cash on delivery", "Pay when it arrives"],
+  [faShieldHalved, "Number stays private", "Masked calls and chat"],
   [faCalendarCheck, "1 year included", "Premium on every tag"],
   [faArrowRotateLeft, "7-day replacement", "If damaged or faulty"],
 ];

@@ -845,10 +845,12 @@ Covers UX and security improvements made after M13 call flow was confirmed worki
 - [x] `callback-eligibility.js` — `NEEDS_PAYMENT` for a running premium row past the free window (within the horizon); live paid rows are `CALLABLE`; E-Tag rows never offered ₹20; `PASS_SPENT` removed
 - [x] `welcome.js` — "Call Back ₹20" on each vehicle's newest contact; banner carries it for the first hour; paid rows keep Call Back until their 10 minutes end; timer re-renders at every boundary
 - [x] Payment flow — `CALLBACK_INCLUDED` falls back to the free call (clock skew), `PASS_ALREADY_PAID` reloads to the paid row, verify retried on a dropped connection, call sheet says the paid window allows redials
+- [x] Found in local QA: stale-tab refusals (`CALLBACK_NOT_LATEST`, premium/subscription changes) now refetch the list instead of re-drawing the stale copy; a paid row that ended in a conversation no longer keeps its Call Back button; the post-payment reload called a non-existent `loadDashboard()`
 
 ### Verification
 
 - [x] `callback-pass.test.js`, `callback-eligibility.test.js`, `callback-premium-only.test.js`, `callback-from-activity.test.js`, `razorpay-webhook.test.js` pass
+- [x] Local QA, real dashboard in headless Chrome, 89/89: free window, window closing live, paying ₹20 (new order), checkout dismissed then reused, tab closed → webhook settles, paid window ending live, stale tabs (newer contact / already paid), phone clock ahead, no mobile, lapsed premium, E-Tag, member past year one, two vehicles, API refusals, Exotel dial-whom + status callback. Run with no provider credentials, every outbound connection blocked, Razorpay's order API answered in-process (never contacted), checkout sheet stubbed
 - [ ] Live: premium contact older than 10 min → Call Back ₹20 → Razorpay test payment → call sheet opens → dial from the owner's mobile connects to the scanner
 - [ ] Live: close the tab right after paying → webhook settles → dashboard shows Call Back on that row for the rest of the 10 minutes
 

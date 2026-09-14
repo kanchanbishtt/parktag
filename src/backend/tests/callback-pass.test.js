@@ -710,6 +710,16 @@ test("the payment flow only calls functions the page defines", async () => {
   }
 });
 
+// Found in local QA: after a paid callback was answered, the row read
+// "Answered 42s" and still offered Call Back, because the page let a live
+// payment put a button on a row without asking the shared rule first. The rule
+// already says an answered row is not returnable; the page must defer to it.
+test("a paid row only gets a button when the shared rule calls it returnable", async () => {
+  const js = await app.inject({ method: "GET", url: "/scripts/owner/welcome.js" });
+  assert.match(js.body, /const canCallBack = \(r\) =>\s*isReturnable\(r\) &&/,
+    "canCallBack must require isReturnable before a live payment can add a button");
+});
+
 test("each premium row draws the right control at every point in its life", async () => {
   const rules = await import("../../frontend/scripts/owner/callback-eligibility.js");
   const now = Date.now();

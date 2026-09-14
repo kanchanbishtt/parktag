@@ -1506,9 +1506,14 @@ function renderActivity(requests) {
   // A row the owner has paid ₹20 for keeps its button even when a newer
   // contact has become the target. The owner has paid to call that person, and
   // the server dials a paid contact as named rather than by recency.
+  //
+  // Still only a row the shared rule calls returnable: a paid callback that
+  // ended in a conversation stops offering the button exactly as a free one
+  // does. Checking the payment alone put "Call Back" beside "Answered 42s".
   const holdsLivePass = (r) => hasLivePass(r, now);
   const canCallBack = (r) =>
-    (callbackTarget !== null && r.id === callbackTarget.id) || holdsLivePass(r);
+    isReturnable(r) &&
+    ((callbackTarget !== null && r.id === callbackTarget.id) || holdsLivePass(r));
 
   // One ₹20 offer per vehicle, on its newest contact.
   //
@@ -1970,10 +1975,11 @@ async function callBack(btnId = "cbBtn") {
       }
     } else if (data.code === "PREMIUM_REQUIRED" || data.code === "CALL_SUBSCRIPTION_REQUIRED") {
       // A stale tab, or a tag that stopped being premium — or whose call
-      // service ran out — since the page loaded. Re-rendering swaps the button
-      // for the nudge that matches.
+      // service ran out — since the page loaded. The tag changed on the
+      // server, so the list is fetched again rather than re-drawn from the
+      // copy that just produced this refusal; the fresh one draws the nudge.
       _toast(data.error || "Calling back is a premium feature. Upgrade this vehicle to use it.", "err");
-      renderActivity(allRequests);
+      load();
     } else if (data.code === "NO_PHONE") {
       _toast("Add your mobile number to your profile to enable callback.", "err");
       restore();
@@ -1984,10 +1990,12 @@ async function callBack(btnId = "cbBtn") {
       renderActivity(allRequests);
     } else if (data.code === "CALLBACK_NOT_LATEST") {
       // Another contact arrived while this page sat open, so the row that was
-      // offered is no longer the newest. Re-rendering moves the button to the
-      // one the server will actually honour.
+      // offered is no longer the newest. That contact is not in this page's
+      // copy of the list — re-drawing the same copy would put the button right
+      // back where it was — so the list is fetched again, which moves the
+      // button to the one the server will actually honour.
       _toast("Someone else has contacted you since. Showing the latest.", "err");
-      renderActivity(allRequests);
+      load();
     } else {
       _toast(data.error || "Couldn't initiate callback. Try again.", "err");
       restore();
@@ -2089,12 +2097,15 @@ async function payForCallback(btnId) {
       }
 
       // Every other one is a state the page thought it was not in, so the
-      // list is re-rendered rather than left showing a button that just failed.
+      // list is fetched again rather than left showing a button that just
+      // failed. Fetched, not re-drawn: a newer contact, a tag that changed or
+      // a mobile that went missing is news this page's copy does not have, and
+      // re-drawing that copy would put the same button straight back.
       if (order.code === "CALLBACK_WINDOW_EXPIRED") {
         _toast("This contact is too old to call back.", "err");
       } else if (order.code === "CALLBACK_NOT_LATEST") {
         // Someone newer contacted this vehicle while the page sat open. The
-        // re-render below moves the offer to them.
+        // reload below moves the offer to them.
         _toast("Someone else has contacted this vehicle since. Showing the latest.", "err");
       } else if (order.code === "NO_PHONE") {
         _toast("Add your mobile number to your profile to enable callback.", "err");
@@ -2102,7 +2113,7 @@ async function payForCallback(btnId) {
         _toast(order.error || "Couldn't start the payment. Try again.", "err");
       }
       restore();
-      renderActivity(allRequests);
+      load();
       return;
     }
   } catch {

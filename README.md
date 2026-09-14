@@ -357,7 +357,8 @@ WAVETAG_VERIFY_MESSAGE=<test-message>   # whatsapp script only
 | `POST /api/shop/create-order` / `verify-payment` | Razorpay shop checkout; a paid order with `replaceTagId` mints a premium tag + removes the free tag (M18) |
 | `POST /api/owner/tags/:tagId/status`   | Activate / deactivate                |
 | `DELETE /api/owner/tags/:tagId`        | Soft-delete a vehicle                |
-| `POST /api/owner/callback/register-call` | Owner → finder callback            |
+| `POST /api/owner/callback/register-call` | Owner → finder callback (premium, 10 min from the contact — or 10 min from a paid callback) |
+| `POST /api/owner/callback/create-order` / `verify-payment` | ₹20 paid callback once a premium tag's free 10 minutes are over; verify registers the call in the same request (M19) |
 
 ### Admin (desktop-first operator console)
 

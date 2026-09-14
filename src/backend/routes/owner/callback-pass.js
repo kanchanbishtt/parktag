@@ -5,34 +5,46 @@ import {
   isRazorpayConfigured,
   verifyRazorpaySignature
 } from "../../lib/integrations/payments.js";
+import { callEntitlement } from "../../lib/core/call-access.js";
 import {
   CALLBACK_PASS_PAISE,
-  CALLBACK_PASS_SPENT_MESSAGE,
-  callbackPassState,
-  canPurchaseCallbackPass,
-  PASS_PURCHASABLE,
-  PASS_READY,
-  PASS_SPENT
+  callbackPassEndsAt,
+  callbackPassOffer,
+  findLiveCallbackPasses,
+  isLiveCallbackPass,
+  settleCallbackOrder,
+  OFFER_INCLUDED,
+  OFFER_PREMIUM_REQUIRED,
+  OFFER_SUBSCRIPTION_REQUIRED,
+  OFFER_TOO_OLD
 } from "../../lib/core/callback-pass.js";
 import { registerOwnerToScannerCall } from "../../lib/core/pending-call.js";
-import { CALLBACK_WINDOW_MS } from "./dashboard.js";
+import {
+  CALLBACK_WINDOW_MS,
+  CALL_SUBSCRIPTION_REQUIRED_MESSAGE,
+  PREMIUM_REQUIRED_MESSAGE
+} from "./dashboard.js";
 
-// Selling one callback to an E-Tag.
+// Buying back a premium tag's callback once its free ten minutes are over.
 //
 // Two routes, and the second one does more than its name suggests: it verifies
 // the payment AND registers the call, in one request, returning the number to
 // dial. That is deliberate and it is the point of the feature.
 //
 // The alternative — verify, respond, let the page call register-call — puts a
-// second round trip between the owner's money and their phone ringing, at the
-// exact moment they are watching a ten-minute clock they just paid to beat. It
-// also opens a gap where the payment succeeded and the follow-up did not, which
-// is the one failure this design must not have: a charge with no call.
+// second round trip between the owner's money and their phone ringing, and
+// opens a gap where the payment succeeded and the follow-up did not. That is
+// the one failure this design must not have: a charge with no call.
 //
 // So the dial is registered inside the same handler that verifies the
-// signature. Verification is a local HMAC (no network), the pass write and the
-// bridge insert are two indexed writes, and nothing here calls Razorpay's API
-// or Exotel's. An owner taps Pay and gets a number back.
+// signature. Verification is a local HMAC (no network), settling the order and
+// inserting the bridge are two indexed writes, and nothing here calls
+// Razorpay's API or Exotel's. An owner taps Pay and gets a number back.
+//
+// If the call cannot be placed at that moment — no virtual number configured,
+// no mobile on the profile — the payment still stands and so does the ten
+// minutes it bought: the dashboard reads the paid order and draws an ordinary
+// Call Back button on that row, which register-call honours until it ends.
 export function registerCallbackPassRoutes(app, env) {
   // Mint a ₹20 order for one contact.
   app.post(
@@ -48,7 +60,7 @@ export function registerCallbackPassRoutes(app, env) {
         return { ok: false, error: "Payments are not configured." };
       }
 
-      // A pass is bought against ONE contact, so the id is required here —
+      // A callback is bought against ONE contact, so the id is required here —
       // unlike register-call, which falls back to the most recent. There is no
       // sensible default for "which stranger am I paying to ring".
       const { requestId } = request.body || {};
@@ -73,11 +85,27 @@ export function registerCallbackPassRoutes(app, env) {
         return { ok: false, code: "NO_NUMBER", error: "This person did not leave a number." };
       }
 
+      // Already paid, and still running. Checked before anything that could
+      // refuse on the contact's age or recency: a stale tab showing the price
+      // on a row the owner has since paid for must be told to use what they
+      // bought, never "too old" or "not the latest" — and never charged twice.
+      const live = await findLiveCallbackPasses(collections, ownerId);
+      const endsAt = live.get(String(contact._id));
+      if (endsAt) {
+        reply.code(409);
+        return {
+          ok: false,
+          code: "PASS_ALREADY_PAID",
+          error: "You've already paid to call this person back. Tap Call Back to connect.",
+          expiresAt: new Date(endsAt).toISOString()
+        };
+      }
+
       const owner = await collections.owners.findOne({ _id: ownerId });
       if (!owner?.mobile) {
-        // Checked BEFORE taking money, not after. register-call refuses without
-        // a profile number, so selling a pass to an owner who has not saved one
-        // would be charging for a call that cannot be placed.
+        // Checked BEFORE taking money, not after. The bridge is keyed to the
+        // owner's own number, so selling a callback to an owner who has not
+        // saved one would be charging for a call that cannot be placed.
         reply.code(402);
         return { ok: false, code: "NO_PHONE", error: "Add your phone number to enable callback." };
       }
@@ -89,35 +117,66 @@ export function registerCallbackPassRoutes(app, env) {
       });
       if (!tag) { reply.code(404); return { ok: false, error: "Vehicle not found." }; }
 
-      // A premium tag must not be sold this. Its callback is already included,
-      // and charging ₹20 for something the owner has paid for once would be
-      // indefensible however the page came to offer it.
-      if (tag.premium) {
-        reply.code(400);
-        return { ok: false, code: "NOT_APPLICABLE", error: "Callback is already included on this vehicle." };
-      }
-
-      const state = callbackPassState(tag);
-      if (state === PASS_READY) {
-        reply.code(409);
-        return { ok: false, code: "PASS_ALREADY_PAID", error: "You've already paid for this callback." };
-      }
-      if (state === PASS_SPENT) {
-        reply.code(402);
-        return { ok: false, code: "PASS_SPENT", error: CALLBACK_PASS_SPENT_MESSAGE };
-      }
-
-      // The pre-gate. Re-checked here and not merely drawn in the page: the
-      // button is hidden under three minutes, but a stale tab still holds one.
-      if (!canPurchaseCallbackPass(tag, {
+      // The same entitlement register-call and the page read, so a tag cannot
+      // be sold a callback that the route which dials it would call lapsed.
+      const offer = callbackPassOffer(callEntitlement(tag), {
         contactCreatedAt: contact.createdAt,
         freeWindowMs: CALLBACK_WINDOW_MS
-      })) {
+      });
+
+      if (offer === OFFER_PREMIUM_REQUIRED) {
+        reply.code(402);
+        return { ok: false, code: "PREMIUM_REQUIRED", error: PREMIUM_REQUIRED_MESSAGE };
+      }
+      if (offer === OFFER_SUBSCRIPTION_REQUIRED) {
+        reply.code(402);
+        return { ok: false, code: "CALL_SUBSCRIPTION_REQUIRED", error: CALL_SUBSCRIPTION_REQUIRED_MESSAGE };
+      }
+      if (offer === OFFER_INCLUDED) {
+        // Not an error the owner caused: the page decides from the device's
+        // clock and this from the server's, and the two can straddle the
+        // boundary by a few seconds. The page answers this code by placing
+        // the included call instead, so a tap on "₹20" a moment early still
+        // ends in a call — without a charge.
+        reply.code(409);
+        return {
+          ok: false,
+          code: "CALLBACK_INCLUDED",
+          error: "This contact can still be called back for free."
+        };
+      }
+      if (offer === OFFER_TOO_OLD) {
         reply.code(410);
         return {
           ok: false,
           code: "CALLBACK_WINDOW_EXPIRED",
-          error: "The callback window for this contact has passed."
+          error: "This contact is too old to call back."
+        };
+      }
+
+      // Only the newest contact on this vehicle may be bought.
+      //
+      // The page offers one ₹20 button per vehicle, on its newest contact; this
+      // holds a stale tab to the same rule. Without it an owner could pay to
+      // ring someone who contacted the car earlier and has since moved on, and
+      // a scanner who tried twice would be two purchases for one person.
+      // "Newer" is judged exactly as the page judges it — a contact that left a
+      // number and did not end in a conversation — so the button and this
+      // route cannot disagree about which row is the live one.
+      const newer = await collections.contactRequests.findOne({
+        ownerId,
+        token: contact.token,
+        _id: { $ne: contact._id },
+        phone: { $nin: [null, ""] },
+        callOutcome: { $ne: "answered" },
+        createdAt: { $gt: contact.createdAt }
+      });
+      if (newer) {
+        reply.code(410);
+        return {
+          ok: false,
+          code: "CALLBACK_NOT_LATEST",
+          error: "Only your most recent contact can be called back."
         };
       }
 
@@ -125,8 +184,7 @@ export function registerCallbackPassRoutes(app, env) {
       // second one. Tapping Pay twice, or reloading mid-checkout, otherwise
       // leaves two live order ids for one intended purchase — both payable,
       // which on a ₹20 product means being charged ₹40 for one call. The same
-      // rule the shop and membership checkouts follow, and it matters more
-      // here because the window makes people tap twice.
+      // rule the shop and membership checkouts follow.
       const reusable = await collections.callbackOrders.findOne(
         { ownerId, status: "created", requestId: contact._id, amount: CALLBACK_PASS_PAISE },
         { sort: { createdAt: -1 } }
@@ -148,7 +206,10 @@ export function registerCallbackPassRoutes(app, env) {
           // In rupees: createRazorpayOrder multiplies by 100. The stored and
           // re-checked figure is the paise constant.
           amount: CALLBACK_PASS_PAISE / 100,
-          receipt: `ptcb_${String(contact._id)}`,
+          // One contact can be bought back more than once (each purchase is
+          // its own ten minutes), so the receipt carries a time component.
+          // Razorpay caps receipts at 40 characters; this is at most 38.
+          receipt: `ptcb_${String(contact._id)}_${Date.now().toString(36)}`,
           notes: { kind: "callback-pass", token: contact.token, requestId: String(contact._id) }
         });
 
@@ -210,7 +271,8 @@ export function registerCallbackPassRoutes(app, env) {
       if (!collections) {
         // "Cannot check" must not resolve to "checked out fine" — and here it
         // must not resolve to "call placed" either. The money is already taken
-        // at this point, so this is logged loudly rather than swallowed.
+        // at this point, so this is logged loudly rather than swallowed. The
+        // webhook settles the order independently once the database is back.
         request.log.error({ orderId: razorpay_order_id }, "[callback pass] verify reached with no database");
         reply.code(500);
         return { ok: false, error: "Could not confirm your payment. Please contact support." };
@@ -236,71 +298,58 @@ export function registerCallbackPassRoutes(app, env) {
 
       const now = new Date();
 
-      // Stamp the pass, once.
-      //
-      // Guarded on the pass being absent so a replayed verify — the same
-      // signature posted twice by a double-tapped handler, or a webhook that
-      // arrives alongside it — cannot overwrite a pass that has since been
-      // USED and hand the owner a second free dial off one payment.
-      const claimed = await collections.tags.findOneAndUpdate(
-        {
-          _id: order.tagId,
-          ownerId,
-          premium: { $ne: true },
-          "callbackPass.paidAt": { $in: [null, undefined] }
-        },
-        {
-          $set: {
-            callbackPass: {
-              orderId: order.orderId,
-              requestId: order.requestId,
-              paidAt: now.toISOString(),
-              usedAt: null
-            },
-            updatedAt: now.toISOString()
-          }
-        },
-        { returnDocument: "after" }
-      );
+      // Settle the order, once. If the webhook — or an earlier copy of this
+      // request — got here first, this changes nothing and `paidAt` stays
+      // where it was, so a replay can never restart the ten minutes.
+      const { order: settled } = await settleCallbackOrder(collections, {
+        orderId: order.orderId,
+        paymentId: razorpay_payment_id,
+        now
+      });
 
-      await collections.callbackOrders.updateOne(
-        { orderId: order.orderId, status: { $ne: "paid" } },
-        { $set: { status: "paid", paymentId: razorpay_payment_id, paidAt: now.toISOString() } }
-      );
-
-      // `claimed` is null when a pass was already on the tag — this payment is
-      // a duplicate, or the webhook beat the browser here. Not an error: the
-      // owner paid and is entitled to a call, so fall through to the tag as it
-      // stands and let the dial below decide.
-      const tag = claimed || (await collections.tags.findOne({ _id: order.tagId, ownerId }));
-
-      if (callbackPassState(tag) !== PASS_READY) {
-        // Spent already. Says so plainly rather than reporting success for a
-        // call that will not happen.
-        reply.code(409);
-        return { ok: false, code: "PASS_SPENT", error: CALLBACK_PASS_SPENT_MESSAGE };
+      if (!isLiveCallbackPass(settled, now.getTime())) {
+        // Only reachable by replaying a payment whose ten minutes are already
+        // over — the owner has had what it bought.
+        reply.code(410);
+        return {
+          ok: false,
+          code: "PASS_EXPIRED",
+          error: "This paid callback has ended. You can buy another from the activity list."
+        };
       }
 
-      // Now place it.
+      const expiresAt = new Date(callbackPassEndsAt(settled)).toISOString();
+
+      // Now place it. From here on every refusal says the money arrived, and
+      // leaves the paid ten minutes standing: the dashboard reads the settled
+      // order and offers an ordinary Call Back on the row until they end.
       if (!env.exotelCallerId) {
-        // Paid, but the call service is down. The pass stays UNUSED, so the
-        // owner keeps what they bought and the row will still offer the dial.
         request.log.error({ orderId: order.orderId }, "[callback pass] paid with no caller id configured");
         reply.code(503);
-        return { ok: false, code: "CALL_UNAVAILABLE", error: "Payment received. The call service is unavailable — please try the call button in a moment." };
+        return {
+          ok: false,
+          code: "CALL_UNAVAILABLE",
+          error: "Payment received. The call service is unavailable — tap Call Back again in a moment.",
+          expiresAt
+        };
       }
 
       const contact = await collections.contactRequests.findOne({ _id: order.requestId, ownerId });
       if (!contact?.phone) {
         request.log.error({ orderId: order.orderId }, "[callback pass] paid for a contact that has no number");
         reply.code(410);
-        return { ok: false, code: "CONTACT_GONE", error: "Payment received, but this contact is no longer available." };
+        return { ok: false, code: "CONTACT_GONE", error: "Payment received, but this contact is no longer available. Please contact support." };
       }
 
       const owner = await collections.owners.findOne({ _id: ownerId });
       if (!owner?.mobile) {
         reply.code(402);
-        return { ok: false, code: "NO_PHONE", error: "Payment received. Add your mobile number to place the call." };
+        return {
+          ok: false,
+          code: "NO_PHONE",
+          error: "Payment received. Add your mobile number, then tap Call Back.",
+          expiresAt
+        };
       }
 
       await ensurePendingCallsIndexes(collections);
@@ -311,15 +360,7 @@ export function registerCallbackPassRoutes(app, env) {
         now
       });
 
-      // Spent by the dial, not by the payment — the same rule register-call
-      // follows, written the same guarded way so whichever path gets there
-      // first is the one that consumes it.
-      await collections.tags.updateOne(
-        { _id: order.tagId, "callbackPass.usedAt": { $in: [null, undefined] } },
-        { $set: { "callbackPass.usedAt": now.toISOString(), updatedAt: now.toISOString() } }
-      );
-
-      return { ok: true, virtualNumber: env.exotelCallerId };
+      return { ok: true, virtualNumber: env.exotelCallerId, expiresAt };
     }
   );
 }

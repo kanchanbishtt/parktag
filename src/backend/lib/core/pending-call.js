@@ -6,10 +6,11 @@
 // the other's number.
 //
 // Extracted because there are now two ways to earn one of these: a premium
-// tag's included callback, and an E-Tag's ₹20 pass. Both end in exactly this
-// row, and two copies of it would be two chances for the paid path to write a
-// subtly different bridge than the free one — a different expiry, a missing
-// `consumed`, a raw ten-digit number where the webhook matches on E.164.
+// tag's included callback, and the ₹20 callback bought once that free window
+// has closed. Both end in exactly this row, and two copies of it would be two
+// chances for the paid path to write a subtly different bridge than the free
+// one — a different expiry, a missing `consumed`, a raw ten-digit number where
+// the webhook matches on E.164.
 //
 // The AUTHORISATION for each path stays where it belongs: this function asks no
 // questions and grants nothing. Callers decide who may call whom.

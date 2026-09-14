@@ -44,7 +44,9 @@ export async function getCollections(env) {
     // reachable from there is a ₹49 payment that ships physical stock. Two
     // collections means that route cannot find one at all.
     membershipOrders: db.collection(withPrefix(prefix, "membership_orders")),
-    // ₹20 one-time callback passes for E-Tags (lib/core/callback-pass.js).
+    // ₹20 paid callbacks — a premium tag's callback, bought back once its free
+    // ten minutes are over (lib/core/callback-pass.js). A settled row IS the
+    // paid callback; nothing else records it.
     // Separate from both collections above for the reason spelled out for
     // membershipOrders: /api/shop/verify-payment resolves an order by its
     // Razorpay id and hands whatever it finds to fulfilPaidOrder, which mints a

@@ -11,6 +11,16 @@ const MESSAGE_TEMPLATES = {
 };
 
 let actionLocked = false;
+// The Emergency call's own in-flight guard. It used to share actionLocked, which
+// a placed owner call keeps for the rest of the visit (one grant, one owner
+// call) — so a scanner who rang the owner, got no answer and then tapped
+// Emergency pressed a button that did nothing, and redialling reached the owner
+// again instead of next of kin. The reverse held too: after an SOS, Private Call
+// and WhatsApp were dead. SOS never spends the free contact, and the server
+// bounds it on its own (the grant, the daily ceiling), so it needs no share of
+// that lock. Held after a placed SOS for the same reason as the owner call: the
+// Tap to Call retry must redial, not register a second emergency call.
+let sosLocked = false;
 let verifiedPlateLastFour = "";
 let expectedPlateLastFour = "";
 let pendingAction = null;
@@ -441,6 +451,7 @@ function resetActionState() {
   verifyPhoneOnly = false;
   setHidden("plate-verify-plate-block", false);
   actionLocked = false;
+  sosLocked = false;
   verifiedPlateLastFour = "";
   expectedPlateLastFour = "";
   contactGrant = "";
@@ -608,7 +619,7 @@ function closeContactPanels() {
 }
 
 async function handleSosCall() {
-  if (actionLocked) return;
+  if (sosLocked) return;
 
   const token = byId("request-token")?.value.trim();
   const phone = byId("sos-phone")?.value.trim();
@@ -618,7 +629,7 @@ async function handleSosCall() {
     return;
   }
 
-  actionLocked = true;
+  sosLocked = true;
   setBtnLoading("sos-final-call-button", true, "Connecting");
   setRequestStatus("request-status", "", "info");
 
@@ -631,7 +642,7 @@ async function handleSosCall() {
   sosSteps.begin();
 
   const releaseSos = () => {
-    actionLocked = false;
+    sosLocked = false;
     setBtnLoading("sos-final-call-button", false);
   };
 

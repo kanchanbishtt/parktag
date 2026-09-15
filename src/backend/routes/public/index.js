@@ -148,9 +148,16 @@ async function supersedePendingCalls(collections, callerPhone, token, now) {
 //
 // Rows written before this check existed carry no registrantIpHash, so they
 // read as another client and can cost one retry. They expire within ten minutes.
-async function claimCallerNumber(collections, { callerPhone, registrantIpHash, now, log }) {
+//
+// Rows for THIS vehicle are not part of the contest. supersedePendingCalls
+// retires them as soon as this registration is written, and they route to the
+// same vehicle's owner or next of kin, so there is nothing to hijack through
+// them. Counting them refused the accident case: a scanner whose phone changed
+// address between Private Call and Emergency (mobile data does this) was told
+// their own number was "waiting from another device", and the SOS never went.
+async function claimCallerNumber(collections, { callerPhone, token, registrantIpHash, now, log }) {
   const live = await collections.pendingCalls
-    .find({ callerPhone, consumed: false, expiresAt: { $gt: now } })
+    .find({ callerPhone, token: { $ne: token }, consumed: false, expiresAt: { $gt: now } })
     .toArray();
 
   const foreign = live.filter((row) => row.registrantIpHash !== registrantIpHash);
@@ -1408,6 +1415,7 @@ export function registerPublicRoutes(app, env) {
     if (
       !(await claimCallerNumber(collections, {
         callerPhone,
+        token,
         registrantIpHash,
         now,
         log: request.log
@@ -1566,6 +1574,7 @@ export function registerPublicRoutes(app, env) {
     if (
       !(await claimCallerNumber(collections, {
         callerPhone,
+        token,
         registrantIpHash,
         now,
         log: request.log

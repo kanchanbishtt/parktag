@@ -3,6 +3,7 @@ import { ObjectId } from "mongodb";
 import { createContactAction, isSupportedContactReason } from "../../lib/core/contact-actions.js";
 import { callEntitlement, callBlockedCode, callBlockedMessage } from "../../lib/core/call-access.js";
 import { captureScannerLocation } from "../../lib/core/scan-location.js";
+import { toE164 } from "../../lib/core/phone.js";
 import { createPasswordHash, createSecureToken, safeEqual, hashIp, minutesFromNow, getClientIp, maskPlateNumber, getPlateLastFour, isNonEmptyString } from "../../lib/auth/security.js";
 import { createSession, writeSessionCookie } from "../../lib/auth/session.js";
 import { sendCapiEventBestEffort, activationEventId } from "../../lib/integrations/meta-capi.js";
@@ -148,9 +149,16 @@ async function supersedePendingCalls(collections, callerPhone, token, now) {
 //
 // Rows written before this check existed carry no registrantIpHash, so they
 // read as another client and can cost one retry. They expire within ten minutes.
-async function claimCallerNumber(collections, { callerPhone, registrantIpHash, now, log }) {
+//
+// Rows for THIS vehicle are not part of the contest. supersedePendingCalls
+// retires them as soon as this registration is written, and they route to the
+// same vehicle's owner or next of kin, so there is nothing to hijack through
+// them. Counting them refused the accident case: a scanner whose phone changed
+// address between Private Call and Emergency (mobile data does this) was told
+// their own number was "waiting from another device", and the SOS never went.
+async function claimCallerNumber(collections, { callerPhone, token, registrantIpHash, now, log }) {
   const live = await collections.pendingCalls
-    .find({ callerPhone, consumed: false, expiresAt: { $gt: now } })
+    .find({ callerPhone, token: { $ne: token }, consumed: false, expiresAt: { $gt: now } })
     .toArray();
 
   const foreign = live.filter((row) => row.registrantIpHash !== registrantIpHash);
@@ -1325,11 +1333,21 @@ export function registerPublicRoutes(app, env) {
       reply.code(400);
       return { ok: false, error: "phone is required" };
     }
-    // Validated the same way every other number in the app is. toE164 below
-    // will happily turn "abc" into "+" and a single digit into "+1", and a row
-    // keyed on either can never match a real CallFrom — it just sits in
-    // pendingCalls until it expires.
+    // Validated the same way every other number in the app is. A row keyed on
+    // something that is not a phone number can never match a real CallFrom —
+    // it just sits in pendingCalls until it expires.
     if (!isMobileIdentifier(phone)) {
+      reply.code(400);
+      return { ok: false, error: "Enter a valid mobile number." };
+    }
+    // The key Dial Whom matches Exotel's CallFrom against, so it must be the
+    // canonical form lib/core/phone.js gives every other number. This route had
+    // its own normaliser with no trunk-zero case: a scanner who typed
+    // 09876543210 was stored as +09876543210, Exotel reported +919876543210,
+    // and the call rang out on a busy tone. Anything that cannot be read is
+    // refused here rather than stored as a route that can never match.
+    const callerPhone = toE164(phone);
+    if (!callerPhone) {
       reply.code(400);
       return { ok: false, error: "Enter a valid mobile number." };
     }
@@ -1359,7 +1377,7 @@ export function registerPublicRoutes(app, env) {
       return { ok: false, error: "Your verification expired. Please verify the vehicle again." };
     }
 
-    if (!(await claimGrantForPhone(collections, grantSession, toE164(phone)))) {
+    if (!(await claimGrantForPhone(collections, grantSession, callerPhone))) {
       reply.code(403);
       return {
         ok: false,
@@ -1393,11 +1411,11 @@ export function registerPublicRoutes(app, env) {
     const ownerPhone = owner?.mobile || owner?.phone || null;
     if (!ownerPhone) {
       reply.code(422);
-      return { ok: false, error: "Owner has not set a phone number. Call unavailable." };
+      // The code lets the page retire its Call Now button: retrying cannot
+      // succeed until the owner adds a number.
+      return { ok: false, code: "OWNER_NO_PHONE", error: "Owner has not set a phone number. Call unavailable." };
     }
 
-    // Normalize to E.164 so the Dial Whom lookup matches Exotel's CallFrom format.
-    const callerPhone = toE164(phone);
     const now = new Date();
 
     // Salted with the number rather than the tag, so the value identifies the
@@ -1408,6 +1426,7 @@ export function registerPublicRoutes(app, env) {
     if (
       !(await claimCallerNumber(collections, {
         callerPhone,
+        token,
         registrantIpHash,
         now,
         log: request.log
@@ -1491,11 +1510,17 @@ export function registerPublicRoutes(app, env) {
       reply.code(400);
       return { ok: false, error: "phone is required" };
     }
-    // Validated the same way every other number in the app is. toE164 below
-    // will happily turn "abc" into "+" and a single digit into "+1", and a row
-    // keyed on either can never match a real CallFrom — it just sits in
-    // pendingCalls until it expires.
+    // Validated the same way every other number in the app is. A row keyed on
+    // something that is not a phone number can never match a real CallFrom —
+    // it just sits in pendingCalls until it expires.
     if (!isMobileIdentifier(phone)) {
+      reply.code(400);
+      return { ok: false, error: "Enter a valid mobile number." };
+    }
+    // Canonical, for the same reason as /register-call: a trunk-zero number
+    // stored in any other shape can never match Exotel's CallFrom.
+    const callerPhone = toE164(phone);
+    if (!callerPhone) {
       reply.code(400);
       return { ok: false, error: "Enter a valid mobile number." };
     }
@@ -1525,7 +1550,7 @@ export function registerPublicRoutes(app, env) {
       return { ok: false, error: "Your verification expired. Please verify the vehicle again." };
     }
 
-    if (!(await claimGrantForPhone(collections, grantSession, toE164(phone)))) {
+    if (!(await claimGrantForPhone(collections, grantSession, callerPhone))) {
       reply.code(403);
       return {
         ok: false,
@@ -1545,7 +1570,12 @@ export function registerPublicRoutes(app, env) {
       return { ok: false, error: "Call service is not configured." };
     }
 
-    if (!isNonEmptyString(tag.emergencyContact)) {
+    // A stored contact that cannot be read as a phone number is no contact at
+    // all — contacts saved before the owner route normalised them can be. The
+    // page answers NO_EMERGENCY_CONTACT with the public helplines, which is
+    // where this scanner has to go, rather than a masked call that rings out.
+    const targetPhone = isNonEmptyString(tag.emergencyContact) ? toE164(tag.emergencyContact) : null;
+    if (!targetPhone) {
       reply.code(422);
       return {
         ok: false,
@@ -1554,8 +1584,6 @@ export function registerPublicRoutes(app, env) {
       };
     }
 
-    const callerPhone = toE164(phone);
-    const targetPhone = toE164(tag.emergencyContact);
     const now = new Date();
 
     // Salted with the number rather than the tag, so the value identifies the
@@ -1566,6 +1594,7 @@ export function registerPublicRoutes(app, env) {
     if (
       !(await claimCallerNumber(collections, {
         callerPhone,
+        token,
         registrantIpHash,
         now,
         log: request.log
@@ -1807,11 +1836,4 @@ export function registerPublicRoutes(app, env) {
       return { ok: true };
     }
   );
-}
-
-function toE164(input) {
-  const digits = String(input || "").replace(/\D/g, "");
-  if (digits.length === 10) return `+91${digits}`;
-  if (digits.length === 12 && digits.startsWith("91")) return `+${digits}`;
-  return `+${digits}`;
 }

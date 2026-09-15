@@ -309,6 +309,167 @@ describe("caller number claims", () => {
     assert.equal(routes.length, 1);
     assert.equal(routes[0].type, "scanner_to_emergency");
   });
+
+  test("escalating to Emergency survives the handset changing address", async () => {
+    // A phone on mobile data can come back from a different address between two
+    // taps (carrier NAT, IPv4 vs IPv6). The owner route it registered a moment
+    // ago is for this same vehicle and is retired by this registration anyway,
+    // so it must not be read as another client holding the number.
+    const token = await createTag();
+    const phone = nextPhone();
+    const firstAddress = uniqueAddress();
+    const grant = await grantFor(token, firstAddress);
+
+    await collections.tags.updateOne(
+      { token },
+      { $set: { emergencyContact: SECOND_OWNER_PHONE } }
+    );
+
+    const call = await post(`/api/tags/${token}/register-call`, { phone, grant }, firstAddress);
+    assert.equal(call.statusCode, 200);
+
+    const sos = await post(
+      `/api/tags/${token}/register-emergency-call`,
+      { phone, grant },
+      uniqueAddress()
+    );
+    assert.equal(sos.statusCode, 200, `escalation refused: ${sos.body}`);
+
+    const dialed = await dial(`+91${phone}`);
+    assert.equal(dialed.body, SECOND_OWNER_PHONE);
+  });
+
+  test("a changed address still cannot take over another vehicle's route", async () => {
+    // The same-vehicle allowance above must not widen into the hijack the claim
+    // check exists to stop: a different client, a different tag, same number.
+    const victimTag = await createTag();
+    const attackerTag = await createTag({ ownerPhone: SECOND_OWNER_PHONE });
+    await collections.tags.updateOne(
+      { token: attackerTag },
+      { $set: { emergencyContact: "+919000000023" } }
+    );
+    const phone = nextPhone();
+
+    assert.equal((await registerCall(victimTag, phone, uniqueAddress())).statusCode, 200);
+
+    const attackerAddress = uniqueAddress();
+    const attacker = await post(
+      `/api/tags/${attackerTag}/register-emergency-call`,
+      { phone, grant: await grantFor(attackerTag, attackerAddress) },
+      attackerAddress
+    );
+    assert.equal(attacker.statusCode, 409);
+    assert.equal(attacker.json().code, "CALLER_IN_USE");
+
+    const dialed = await dial(`+91${phone}`);
+    assert.equal(dialed.body, OWNER_PHONE);
+  });
+});
+
+describe("the caller's number as typed", () => {
+  // Exotel reports an Indian caller as 0XXXXXXXXXX, and Dial Whom normalises
+  // that to +91XXXXXXXXXX. Registration has to land on the same key whichever
+  // way the scanner wrote their own number, or the call rings out busy.
+  async function sosTag() {
+    const token = await createTag();
+    await collections.tags.updateOne({ token }, { $set: { emergencyContact: SECOND_OWNER_PHONE } });
+    return token;
+  }
+
+  test("a number typed with the trunk zero reaches the owner", async () => {
+    const token = await createTag();
+    const phone = nextPhone();
+    const address = uniqueAddress();
+
+    const res = await registerCall(token, `0${phone}`, address);
+    assert.equal(res.statusCode, 200, res.body);
+
+    const routes = await liveRoutesFor(`+91${phone}`);
+    assert.equal(routes.length, 1, "the route was not stored under the canonical number");
+
+    const dialed = await dial(`0${phone}`);
+    assert.equal(dialed.body, OWNER_PHONE);
+  });
+
+  test("a number typed with the trunk zero reaches the emergency contact", async () => {
+    const token = await sosTag();
+    const phone = nextPhone();
+    const address = uniqueAddress();
+
+    const res = await post(
+      `/api/tags/${token}/register-emergency-call`,
+      { phone: `0${phone}`, grant: await grantFor(token, address) },
+      address
+    );
+    assert.equal(res.statusCode, 200, res.body);
+
+    const dialed = await dial(`0${phone}`);
+    assert.equal(dialed.body, SECOND_OWNER_PHONE);
+  });
+
+  test("every common spelling of one number lands on one route", async () => {
+    const phone = nextPhone();
+    for (const typed of [phone, `0${phone}`, `91${phone}`, `+91${phone}`, `+91 ${phone.slice(0, 5)} ${phone.slice(5)}`]) {
+      const token = await createTag();
+      const address = uniqueAddress();
+      const res = await registerCall(token, typed, address);
+      assert.equal(res.statusCode, 200, `${typed}: ${res.body}`);
+      const [route] = await collections.pendingCalls.find({ token }).toArray();
+      assert.equal(route.callerPhone, `+91${phone}`, `${typed} was stored as ${route.callerPhone}`);
+      await collections.pendingCalls.deleteMany({ token });
+    }
+  });
+
+  test("a number that cannot be read is refused before the grant is spent", async () => {
+    const token = await sosTag();
+    const address = uniqueAddress();
+    const grant = await grantFor(token, address);
+
+    // Shapes isMobileIdentifier lets through but nothing can dial: too short
+    // for a mobile, and ten digits outside the 6-9 mobile range.
+    for (const phone of ["1234567", "123456789", "1234567890"]) {
+      for (const route of ["register-call", "register-emergency-call"]) {
+        const res = await post(`/api/tags/${token}/${route}`, { phone, grant }, address);
+        assert.equal(res.statusCode, 400, `${route} accepted ${phone}: ${res.body}`);
+      }
+    }
+
+    const session = await collections.verificationSessions.findOne({ token, grantId: grant });
+    assert.equal((session.grantPhones || []).length, 0, "a refused number used up a grant slot");
+    assert.equal(await collections.pendingCalls.countDocuments({ token }), 0);
+    const tag = await collections.tags.findOne({ token });
+    assert.notEqual(tag.freeContactUsed, true);
+  });
+
+  test("a stored emergency contact that cannot be dialled reads as none", async () => {
+    const token = await createTag();
+    await collections.tags.updateOne({ token }, { $set: { emergencyContact: "12345" } });
+    const address = uniqueAddress();
+
+    const res = await post(
+      `/api/tags/${token}/register-emergency-call`,
+      { phone: nextPhone(), grant: await grantFor(token, address) },
+      address
+    );
+
+    // NO_EMERGENCY_CONTACT is what sends the page to the public helplines.
+    assert.equal(res.statusCode, 422);
+    assert.equal(res.json().code, "NO_EMERGENCY_CONTACT");
+    assert.equal(await collections.pendingCalls.countDocuments({ token }), 0);
+  });
+
+  test("an owner with no phone is a named refusal, and costs the tag nothing", async () => {
+    const token = await createTag();
+    const tag = await collections.tags.findOne({ token });
+    await collections.owners.updateOne({ _id: tag.ownerId }, { $unset: { mobile: "", phone: "" } });
+
+    const res = await registerCall(token, nextPhone(), uniqueAddress());
+
+    assert.equal(res.statusCode, 422);
+    assert.equal(res.json().code, "OWNER_NO_PHONE");
+    const after = await collections.tags.findOne({ token });
+    assert.notEqual(after.freeContactUsed, true);
+  });
 });
 
 describe("dial-whom routing", () => {

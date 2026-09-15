@@ -25,6 +25,7 @@ import {
   shapeProfileDetails
 } from "../../lib/core/profile-details.js";
 import { formatScannerLocation } from "../../lib/core/scan-location.js";
+import { toE164 } from "../../lib/core/phone.js";
 import { clientErrorMessage } from "../../lib/errors.js";
 import { createQrDataUrl, createPrintQrDataUrl } from "../../lib/core/qr-output.js";
 import { createEtagForVehicle, buildTagScanUrl, VEHICLE_LABELS, etagIdFor, stickerSerialFor } from "../../lib/core/tag-issuance.js";
@@ -848,6 +849,13 @@ export function registerOwnerRoutes(app, env) {
     if (!tagId) { reply.code(400); return { ok: false, error: "Invalid tag id" }; }
 
     const emergencyContact = toE164(raw);
+    // toE164 is stricter than the digit count above — it will not guess at a
+    // shape it cannot read. Storing its null would wipe the SOS number while
+    // the dashboard reported "saved".
+    if (!emergencyContact) {
+      reply.code(400);
+      return { ok: false, error: "Enter a valid emergency contact number." };
+    }
 
     // Guard against an owner pointing the SOS at the tag's own masked-call
     // number or at their own mobile — in an accident that reaches nobody new.

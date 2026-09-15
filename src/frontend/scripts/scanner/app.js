@@ -923,6 +923,23 @@ async function loadScannerView() {
   }
 }
 
+// Whether the server will accept this as the number a masked call rings back.
+// Mirrors isMobileIdentifier (lib/auth/otp.js) and toE164 (lib/core/phone.js);
+// keep the three in step. It has to run here, before the plate: the server's
+// refusal only arrives after /verify, by which time the scanner has spent a
+// plate attempt and is holding a Call Now button that fails the same way.
+function isDialableNumber(raw) {
+  const shape = String(raw ?? "").trim().replace(/[\s\-()]/g, "");
+  if (!/^\+?\d{7,15}$/.test(shape)) return false;
+
+  const mobile = (digits) => /^[6-9]\d{9}$/.test(digits);
+  if (shape.startsWith("+")) return shape.length - 1 >= 8;
+  if (shape.startsWith("00")) return shape.length - 2 >= 8;
+  if (shape.length === 11 && shape.startsWith("0")) return mobile(shape.slice(1));
+  if (shape.length === 12 && shape.startsWith("91")) return mobile(shape.slice(2));
+  return shape.length === 10 && mobile(shape);
+}
+
 async function handlePlateVerification(event) {
   event.preventDefault();
 
@@ -956,7 +973,7 @@ async function handlePlateVerification(event) {
 
   if (pendingVerifiedAction === "call" || pendingVerifiedAction === "sos") {
     const typed = byId("plate-verify-phone")?.value.trim() || "";
-    if (typed.replace(/\D/g, "").length < 7) {
+    if (!isDialableNumber(typed)) {
       setRequestStatus(
         "plate-verify-status",
         pendingVerifiedAction === "sos"
@@ -1094,7 +1111,12 @@ async function handlePlateVerification(event) {
   contactBlockedCode = data.contactBlockedCode || null;
   setContactAvailability(data.contactAvailable !== false);
 
-  if (data.contactAvailable === false) {
+  // A spent or lapsed tag closes the owner call and the alert, not Emergency.
+  // The server exempts SOS from the free contact and from the call
+  // subscription, and this used to drop it anyway: the scanner confirmed the
+  // warning, read the plate, typed their number, and landed on the sticker
+  // upsell with no emergency call placed and nothing saying why.
+  if (data.contactAvailable === false && pendingVerifiedAction !== "sos") {
     pendingVerifiedAction = "";
     setRequestStatus("request-status", "Verified ✓", "success");
     return;
@@ -1313,6 +1335,19 @@ async function handleFinalCallAction() {
       callSteps.fail("");
       callSteps.destroy();
       releaseCall();
+      return;
+    }
+    if (data.code === "OWNER_NO_PHONE") {
+      // Nothing the scanner can retry: every tap would get the same answer
+      // until the owner adds a number. Say why and retire the call for this
+      // visit. WhatsApp stays live (releaseCall frees its lock), and Emergency
+      // never shared it.
+      callSteps.fail("");
+      callSteps.destroy();
+      releaseCall();
+      setDisabled("final-call-button", true);
+      setDisabled("call-owner-button", true);
+      setRequestStatus("dial-status", data.error || "The owner has no phone number on file.", "error");
       return;
     }
     if (!ok) throw new Error(data.error || "Could not register the call.");

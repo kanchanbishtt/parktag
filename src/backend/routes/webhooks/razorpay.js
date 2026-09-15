@@ -29,6 +29,7 @@ import crypto from "node:crypto";
 import { getCollections } from "../../lib/db/repositories.js";
 import { fulfilPaidOrder } from "../../lib/core/order-fulfilment.js";
 import { activateMembership } from "../../lib/core/membership-fulfilment.js";
+import { settleCallbackOrder } from "../../lib/core/callback-pass.js";
 
 // Events that mean "the money for this order is captured". `order.paid` fires
 // once an order is fully paid, which is the state fulfilment cares about;
@@ -165,52 +166,37 @@ export function registerRazorpayWebhookRoutes(app, env) {
       return { ok: true, fulfilled: outcome.firstTime };
     }
 
-    // ₹20 callback passes, in their own collection for the third time and the
+    // ₹20 paid callbacks, in their own collection for the third time and the
     // same reason. Checked before shopOrders on the same "cheapest miss" logic.
     //
-    // Only the PASS is credited here, never the call. The dial is registered by
-    // whoever the owner is in front of — the verify route, in the same request
-    // that takes the payment — and a webhook that fired a masked call would ring
-    // an owner who has closed the tab and walked away, on behalf of a scanner
-    // who has been waiting however long Razorpay took to retry. So this makes
-    // sure the thing they paid for exists; pressing Call is still theirs.
+    // Only the ORDER is settled here, never the call. A settled order is the
+    // paid callback (lib/core/callback-pass.js), so this is all it takes for
+    // the owner's dashboard to offer Call Back on that row. The dial itself is
+    // registered by whoever the owner is in front of — the verify route, in the
+    // same request that takes the payment — because a webhook that fired a
+    // masked call would ring an owner who has closed the tab and walked away,
+    // on behalf of a scanner who has been waiting however long Razorpay took
+    // to retry. So this makes sure the thing they paid for exists; pressing
+    // Call is still theirs.
+    //
+    // Settling is a conditional update from "created", so a webhook arriving
+    // after the browser already verified changes nothing — in particular it
+    // cannot move `paidAt` and restart the ten minutes.
     const callbackOrder = await collections.callbackOrders.findOne({ orderId });
     if (callbackOrder) {
-      const now = new Date();
-      // Guarded on absence, so a webhook arriving after the browser already
-      // verified cannot reset a pass that has since been used.
-      const claimed = await collections.tags.updateOne(
-        {
-          _id: callbackOrder.tagId,
-          premium: { $ne: true },
-          "callbackPass.paidAt": { $in: [null, undefined] }
-        },
-        {
-          $set: {
-            callbackPass: {
-              orderId: callbackOrder.orderId,
-              requestId: callbackOrder.requestId,
-              paidAt: now.toISOString(),
-              usedAt: null
-            },
-            updatedAt: now.toISOString()
-          }
-        }
-      );
+      const { firstTime } = await settleCallbackOrder(collections, {
+        orderId,
+        paymentId: paymentId || callbackOrder.paymentId || null
+      });
 
-      await collections.callbackOrders.updateOne(
-        { orderId, status: { $ne: "paid" } },
-        { $set: { status: "paid", paymentId, paidAt: now.toISOString() } }
-      );
-
-      if (claimed.modifiedCount) {
+      if (firstTime) {
         request.log.info(
           { event: "razorpay-webhook-callback-pass", orderId },
-          "[razorpay webhook] credited a callback pass the browser never confirmed"
+          "[razorpay webhook] settled a paid callback the browser never confirmed"
         );
       }
 
-      return { ok: true, fulfilled: Boolean(claimed.modifiedCount) };
+      return { ok: true, fulfilled: firstTime };
     }
 
     const order = await collections.shopOrders.findOne({ orderId });

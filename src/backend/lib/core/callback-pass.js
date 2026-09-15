@@ -1,147 +1,151 @@
-// One paid callback, for a tag that is not entitled to any.
+// A paid callback, for a premium tag whose free callback window has closed.
 //
-// Calling a scanner back is a premium behaviour (see call-access.js). An E-Tag
-// gets one free masked CONTACT — the scanner reaching the owner — and nothing
-// in the other direction: when that scanner hangs up, or the owner misses it,
-// there has never been a route back to them. The tag is not premium, so
-// register-call refuses, and the activity row shows an upgrade nudge instead of
-// a button.
+// A premium tag includes calling a scanner back, but only for ten minutes from
+// the moment they made contact (CALLBACK_WINDOW_MS in routes/owner/dashboard.js).
+// Past that, register-call refuses and the row used to go quiet — so an owner
+// who missed the call and opened the app twenty minutes later had no way back
+// to the person who had tried to reach them.
 //
-// This sells that one call back for ₹20, once per tag, and then stops.
+// This sells that way back for ₹20: the callback, reopened for one contact, for
+// a fresh ten minutes from the moment the payment is confirmed.
 //
-//   E-Tag, no pass bought    the row offers "Call back ₹20".
-//   E-Tag, pass paid         the row offers the call. One dial.
-//   E-Tag, pass spent        no offer. The nudge returns, and it says premium.
-//   Premium tag              none of this applies. callEntitlement decides,
-//                            exactly as it does today.
+//   Premium, inside the free window   "Call Back", included. Unchanged.
+//   Premium, window closed            "Call Back ₹20" on the vehicle's newest
+//                                     contact, for as long as the activity list
+//                                     shows it.
+//   Premium, paid                     "Call Back" again, for ten minutes from
+//                                     the payment. Redialling inside that time
+//                                     is included, exactly as it is in the free
+//                                     window — it is the same product.
+//   Premium, paid window closed       "Call Back ₹20" again.
+//   Premium, call service lapsed      nothing is sold. The masked call is off on
+//                                     that tag; the answer is the subscription.
+//   E-Tag                             nothing is sold. Callback is a premium
+//                                     feature, and the row says so.
 //
-// Deliberately NOT a subscription, a wallet, or a credit balance. The ladder
-// this sits on is "an E-Tag can be made to work once, then buy the sticker",
-// and a second purchasable callback would compete with the thing it is meant to
-// advertise.
-//
-// Per TAG, not per owner. Every other paid behaviour in the app is decided by
-// the specific tag that was scanned — `premium`, `freeContactUsed`,
-// `contactAvailable` — and an owner holding three E-Tags has three separate
-// stickers on three separate cars. An account-level pass would mean paying for
-// one vehicle and silently spending it on another.
+// THE PASS IS THE PAID ORDER. There is no pass field on the tag or the contact:
+// a callback order whose status is "paid" is the permission, and its `paidAt`
+// starts the clock. The browser's verify-payment and Razorpay's webhook both
+// settle orders, and they race by design — settling is a conditional update
+// from "created", so exactly one of them writes `paidAt` and the other reads
+// it. One record, written once, with nothing beside it to fall out of step.
 
 // ₹20, in paise. Stored on the order and re-checked at verify time, so an order
 // minted before a price change cannot be settled at the old figure.
 export const CALLBACK_PASS_PAISE = 2000;
 
 // How long a paid callback stays usable, measured from the moment the payment
-// was verified — NOT from the scanner's contact.
+// was confirmed — never from the scanner's contact, which is by definition
+// already more than ten minutes old.
 //
-// This is the whole reason the price is collectable at all. The free window
-// runs ten minutes from when the scanner made contact, and an owner who opens
-// the app eight minutes in would be buying two minutes: enough to lose the
-// window inside Razorpay's own checkout sheet and be charged for nothing. So
-// the payment grants a fresh ten minutes of its own.
-//
-// It is the same ten minutes, and that is intentional — a paid callback is the
-// same product as a premium one, not a longer one.
+// The same ten minutes as the free window, deliberately: this reopens the
+// callback the owner already had, it does not sell a longer one.
 export const CALLBACK_PASS_WINDOW_MS = 10 * 60 * 1000;
 
-// Below this much left on the FREE window, the offer is withdrawn rather than
-// shown at a price.
+// How old a contact may be and still be bought back.
 //
-// Nothing breaks if someone pays with ten seconds left — the fresh window above
-// covers them. This exists because being asked for money at 9:55 reads as the
-// app taking a payment it knows is about to be useless, and because an owner
-// who pays and then watches the row vanish underneath them has no way to tell
-// that the thing they bought still works.
-export const CALLBACK_PASS_MIN_REMAINING_MS = 3 * 60 * 1000;
+// The same 48 hours the activity list shows. A contact the owner can see is a
+// contact they can pay to return; one that has dropped off the list has no row
+// to put a button on, and selling a call to someone the owner can no longer
+// even see would be selling a call to a stranger.
+export const CALLBACK_PASS_MAX_AGE_MS = 48 * 60 * 60 * 1000;
 
-export const PASS_NOT_APPLICABLE = "not-applicable";
-export const PASS_PURCHASABLE = "purchasable";
-export const PASS_READY = "ready";
-export const PASS_SPENT = "spent";
+// Whether a contact can be bought back right now, and if not, why not. Each
+// answer is a different reply from create-order and a different row on the
+// page, so they are named rather than collapsed into a boolean.
+export const OFFER_AVAILABLE = "available";
+// Still inside the free window. Charging for something the tag already
+// includes would be indefensible however the page came to offer it.
+export const OFFER_INCLUDED = "included";
+export const OFFER_PREMIUM_REQUIRED = "premium-required";
+export const OFFER_SUBSCRIPTION_REQUIRED = "subscription-required";
+export const OFFER_TOO_OLD = "too-old";
 
-// Has this tag's paid callback been used up?
-//
-// Two ways to spend one, and they are not the same event:
-//
-//   usedAt   a dial was registered. The owner got what they paid for, whether
-//            or not the scanner picked up — one dial is the deal.
-//   lapsed   paid, never dialled, and the fresh window has since closed.
-//
-// The second is deliberately terminal too. A pass that came back to life after
-// its window would be a credit sitting on the account, which is the balance
-// this file's header rules out. In practice it is close to unreachable: the
-// payment route registers the call in the same request that verifies it, so a
-// pass is normally spent within a second of being bought.
-function isSpent(pass, now) {
-  if (!pass || !pass.paidAt) return false;
-  if (pass.usedAt) return true;
-  const paidAt = new Date(pass.paidAt).getTime();
-  // An unparseable date is treated as spent, not as unlimited. Junk on a
-  // record must never mint service — the same rule hasActiveCallSubscription
-  // follows for a malformed subscription end date.
-  if (!Number.isFinite(paidAt)) return true;
-  return now - paidAt >= CALLBACK_PASS_WINDOW_MS;
+// When a settled order's paid callback ends, in epoch ms. NaN for anything
+// that is not a paid order with a parseable payment time, so every caller that
+// compares against it reads junk as "already over" rather than as unlimited —
+// the same rule hasActiveCallSubscription follows for a malformed end date.
+export function callbackPassEndsAt(order) {
+  if (!order || order.status !== "paid") return NaN;
+  const paidAt = new Date(order.paidAt).getTime();
+  if (!Number.isFinite(paidAt)) return NaN;
+  return paidAt + CALLBACK_PASS_WINDOW_MS;
 }
 
-// What this tag may do about a PAID callback. The one place it is decided: the
-// purchase route, the payment route, register-call and the dashboard payload
-// all read this, so they cannot drift into disagreeing about the same tag.
-//
-// Premium tags return `not-applicable` rather than any of the other three.
-// Their callback is decided by callEntitlement and always was; a premium tag
-// that happens to carry a stale pass field must not be routed through here.
-export function callbackPassState(tag, now = Date.now()) {
-  if (!tag || tag.premium) return PASS_NOT_APPLICABLE;
-  const pass = tag.callbackPass;
-  if (!pass || !pass.paidAt) return PASS_PURCHASABLE;
-  return isSpent(pass, now) ? PASS_SPENT : PASS_READY;
+export function isLiveCallbackPass(order, now = Date.now()) {
+  return now < callbackPassEndsAt(order);
 }
 
-// May this tag be offered a paid callback right now, for a contact that arrived
-// at `contactCreatedAt`?
+// May this contact be bought back right now?
 //
-// `freeWindowMs` is the caller's callback window (CALLBACK_WINDOW_MS), passed
-// in rather than imported so this module has one clock and the route keeps
-// owning the other.
-export function canPurchaseCallbackPass(tag, { contactCreatedAt, now = Date.now(), freeWindowMs } = {}) {
-  if (callbackPassState(tag, now) !== PASS_PURCHASABLE) return false;
+// `access` is the tag's callEntitlement(), passed in rather than computed here
+// so this module stays free of the vault and subscription imports behind it.
+// `freeWindowMs` is the route's CALLBACK_WINDOW_MS for the same reason: one
+// clock, owned in one place.
+//
+// The page draws its button from the same inputs (callAccess and the published
+// window and horizon — see callback-eligibility.js), so a button it shows and a
+// purchase this refuses can only come from a tab left open across a boundary.
+export function callbackPassOffer(access, { contactCreatedAt, now = Date.now(), freeWindowMs } = {}) {
+  if (!access || !access.premium) return OFFER_PREMIUM_REQUIRED;
+  // Premium, but its call service has lapsed. Selling a masked call on top of
+  // a tag whose masking is off would be selling the subscription one call at a
+  // time, and the owner is better told what they actually need.
+  if (!access.masking) return OFFER_SUBSCRIPTION_REQUIRED;
 
   const created = new Date(contactCreatedAt).getTime();
-  if (!Number.isFinite(created)) return false;
+  // Junk in, nothing sold.
+  if (!Number.isFinite(created)) return OFFER_TOO_OLD;
 
-  const remaining = freeWindowMs - (now - created);
-  return remaining >= CALLBACK_PASS_MIN_REMAINING_MS;
+  const age = now - created;
+  // The boundary belongs to the free window, matching register-call, which
+  // still honours a contact exactly CALLBACK_WINDOW_MS old.
+  if (age <= freeWindowMs) return OFFER_INCLUDED;
+  if (age > CALLBACK_PASS_MAX_AGE_MS) return OFFER_TOO_OLD;
+  return OFFER_AVAILABLE;
 }
 
-// Is there a live paid pass on this tag that authorises a dial right now?
+// Every live paid callback on this account, keyed by the contact it was bought
+// for: Map<requestId string, ends-at epoch ms>.
 //
-// Scoped to the contact it was bought for. A pass is sold against one row in
-// the activity list — the person who just tried to reach them — and letting it
-// dial a different contact would mean paying to call one stranger and reaching
-// another.
-export function hasLiveCallbackPass(tag, requestId, now = Date.now()) {
-  if (callbackPassState(tag, now) !== PASS_READY) return false;
-  return String(tag.callbackPass.requestId) === String(requestId);
+// Read by the dashboard (to draw the button) and register-call (to honour it),
+// from this one function, so the two cannot disagree about whether a pass is
+// still running. The query narrows to recent payments; the clock is re-checked
+// in code because an unparseable `paidAt` must not ride through on a string
+// comparison.
+export async function findLiveCallbackPasses(collections, ownerId, now = Date.now()) {
+  const since = new Date(now - CALLBACK_PASS_WINDOW_MS).toISOString();
+  const orders = await collections.callbackOrders
+    .find({ ownerId, status: "paid", paidAt: { $gt: since } })
+    .project({ requestId: 1, paidAt: 1, status: 1 })
+    .toArray();
+
+  const live = new Map();
+  for (const order of orders) {
+    const endsAt = callbackPassEndsAt(order);
+    if (!(now < endsAt)) continue;
+    const key = String(order.requestId);
+    // Two live passes on one contact means two payments inside ten minutes —
+    // create-order refuses that, so only a race gets here. The later one is
+    // what the owner is looking at, so it wins.
+    if (!live.has(key) || live.get(key) < endsAt) live.set(key, endsAt);
+  }
+  return live;
 }
 
-// What the dashboard sends per tag, so the page can draw the right control
-// without re-deriving any of the above. Mirrors how callAccess is published:
-// the entitlement travels, never the raw fields it was computed from.
-export function callbackPassPayload(tag, now = Date.now()) {
-  const state = callbackPassState(tag, now);
-  return {
-    state,
-    pricePaise: CALLBACK_PASS_PAISE,
-    // Only meaningful while READY, and the page uses it to stop offering a
-    // dial the server would refuse.
-    expiresAt:
-      state === PASS_READY
-        ? new Date(new Date(tag.callbackPass.paidAt).getTime() + CALLBACK_PASS_WINDOW_MS).toISOString()
-        : null,
-    requestId: state === PASS_READY ? String(tag.callbackPass.requestId) : null
-  };
+// Settle a callback order: "created" to "paid", exactly once.
+//
+// Called by verify-payment and by the Razorpay webhook. The conditional update
+// is the whole guard — of two concurrent callers exactly one matches, so a
+// replayed verify, a double-tapped handler or a webhook arriving alongside the
+// browser can never move `paidAt` and hand out a second ten minutes for one
+// payment. Returns the order as it now stands, and whether this call was the
+// one that settled it.
+export async function settleCallbackOrder(collections, { orderId, paymentId, now = new Date() }) {
+  const claimed = await collections.callbackOrders.updateOne(
+    { orderId, status: "created" },
+    { $set: { status: "paid", paymentId: paymentId || null, paidAt: now.toISOString() } }
+  );
+  const order = await collections.callbackOrders.findOne({ orderId });
+  return { order, firstTime: claimed.modifiedCount === 1 };
 }
-
-// Why a spent pass shows no button. Said once here so the toast, the row and
-// the route cannot phrase the same refusal three ways.
-export const CALLBACK_PASS_SPENT_MESSAGE =
-  "You've used the one-time callback for this vehicle. Go premium to keep calling back.";

@@ -16,12 +16,15 @@ import assert from "node:assert/strict";
 import {
   callbackState,
   CALLABLE,
+  NEEDS_PAYMENT,
   NEEDS_PREMIUM,
+  NEEDS_SUBSCRIPTION,
   NOT_CALLABLE
 } from "../../frontend/scripts/owner/callback-eligibility.js";
 
 const NOW = Date.parse("2026-08-25T12:00:00.000Z");
 const TEN_MIN = 10 * 60 * 1000;
+const TWO_DAYS = 48 * 60 * 60 * 1000;
 
 const PREMIUM_TAG = { token: "prem", premium: true, plateNumber: "DL5CB1234" };
 const ETAG = { token: "free", premium: false, plateNumber: "DL8SX9911" };
@@ -84,12 +87,52 @@ test("missed and unknown outcomes both stay callable", () => {
   assert.equal(stateOf({ callOutcome: "failed" }), CALLABLE);
 });
 
-test("past the window it is not callable, and not an upsell either", () => {
+test("past the window it is not callable for free, and not an upsell either", () => {
   // Seeing who called lasts 48 hours; ringing them back lasts ten minutes.
   // Nagging about an upgrade over a contact from yesterday would be noise.
+  // (These tags carry no `callAccess` and no horizon is passed, so the paid
+  // callback below is not in play here — it needs both.)
   const old = { createdAt: new Date(NOW - 11 * 60 * 1000).toISOString() };
   assert.equal(stateOf(old), NOT_CALLABLE);
   assert.equal(stateOf({ ...old, token: "free" }), NOT_CALLABLE);
+});
+
+test("past the window, a running premium tag can buy the callback back", () => {
+  const running = { token: "prem", premium: true, callAccess: { premium: true, masking: true } };
+  const lapsed = { token: "prem", premium: true, callAccess: { premium: true, masking: false } };
+  const etag = { token: "free", premium: false, callAccess: { premium: false, masking: false } };
+  const at = (minutes, tags, passMaxAgeMs = TWO_DAYS) =>
+    callbackState(contact({ token: tags[0].token, createdAt: new Date(NOW - minutes * 60 * 1000).toISOString() }), {
+      tags,
+      now: NOW,
+      windowMs: TEN_MIN,
+      passMaxAgeMs
+    });
+
+  assert.equal(at(11, [running]), NEEDS_PAYMENT);
+  assert.equal(at(11, [running], 0), NOT_CALLABLE, "no horizon published, nothing offered");
+  assert.equal(at(49 * 60, [running]), NOT_CALLABLE, "older than the list shows, nothing offered");
+  assert.equal(at(11, [lapsed]), NOT_CALLABLE, "a lapsed tag needs a subscription, not ₹20 a call");
+  assert.equal(at(11, [etag]), NOT_CALLABLE, "an E-Tag is never sold the premium callback");
+  assert.equal(at(2, [lapsed]), NEEDS_SUBSCRIPTION);
+});
+
+test("a row the owner has paid for is callable on the payment's clock", () => {
+  const running = { token: "prem", premium: true, callAccess: { premium: true, masking: true } };
+  const paid = contact({
+    createdAt: new Date(NOW - 45 * 60 * 1000).toISOString(),
+    callbackPassExpiresAt: new Date(NOW + 5 * 60 * 1000).toISOString()
+  });
+  const opts = { tags: [running], now: NOW, windowMs: TEN_MIN, passMaxAgeMs: TWO_DAYS };
+
+  assert.equal(callbackState(paid, opts), CALLABLE);
+  assert.equal(
+    callbackState({ ...paid, callbackPassExpiresAt: new Date(NOW - 1).toISOString() }, opts),
+    NEEDS_PAYMENT,
+    "once it ends, the row offers ₹20 again"
+  );
+  assert.equal(callbackState({ ...paid, callOutcome: "answered" }, opts), NOT_CALLABLE,
+    "a conversation that happened ends the offer, paid or not");
 });
 
 test("the boundary itself is still inside the window", () => {
@@ -122,8 +165,10 @@ test("a WhatsApp report that left a number is callable on a premium tag", () => 
   assert.equal(stateOf({ action: "message", token: "free" }), NEEDS_PREMIUM);
 });
 
-test("the three answers are distinct", () => {
-  // They drive three different controls; collapsing any two would silently
-  // merge "upgrade to reach them" with "there is nothing to do here".
-  assert.equal(new Set([CALLABLE, NEEDS_PREMIUM, NOT_CALLABLE]).size, 3);
+test("the answers are distinct", () => {
+  // They drive different controls; collapsing any two would silently merge,
+  // say, "upgrade to reach them" with "there is nothing to do here", or "pay
+  // ₹20" with "renew your subscription".
+  const answers = [CALLABLE, NEEDS_PAYMENT, NEEDS_PREMIUM, NEEDS_SUBSCRIPTION, NOT_CALLABLE];
+  assert.equal(new Set(answers).size, answers.length);
 });

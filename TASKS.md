@@ -26,6 +26,7 @@ Rules:
 - [x] M16. Per-vehicle official sticker upgrade & gated download on My Vehicles cards (₹199 in-place upgrade **superseded by M18**)
 - [x] M17. Print queue split (to-print vs printed) & delete safeguards
 - [x] M18. Free-trial → buy-premium-via-shop & tag replacement (₹199 in-place upgrade retired; paid shop order mints a new premium tag + removes the spent free tag) — code complete; live browser checkout pending
+- [x] M19. ₹20 paid callback for premium tags after the free 10-minute window (replaces the E-Tag ₹20 pass) — code complete and suite-verified; live Razorpay + Exotel run pending
 
 ## M1. Confirm MVP Scope And Repo Workflow
 
@@ -821,6 +822,37 @@ Covers UX and security improvements made after M13 call flow was confirmed worki
 - [ ] Same path from the vehicle-detail page (redirects to `/owner-welcome?shop=1&replace=…`)
 - [ ] A generic shop purchase (no replace-context) still behaves as a plain order — no tag minted/removed
 - [ ] Removed `purchase-order`/`purchase-verify` endpoints 404; premium tags still download
+
+## M19. Paid Callback After The Free Window (Premium)
+
+> A premium tag includes calling a scanner back for 10 minutes from their contact. After that,
+> the owner can pay ₹20 to reopen the callback for that one contact, for 10 minutes from the
+> payment. Replaces the ₹20 one-time pass that was built for E-Tags by mistake — E-Tags go back
+> to the plain "Premium to call back" nudge. See `wiki/paid-callback-after-window.md`.
+
+### Backend
+
+- [x] `lib/core/callback-pass.js` — the pass is the settled `callbackOrders` row (no pass field on the tag or contact); `callbackPassOffer()` (premium + masking, past the free window, ≤ 48h old), `findLiveCallbackPasses()`, `settleCallbackOrder()` (conditional `created → paid`, so browser and webhook settle once)
+- [x] `POST /api/owner/callback/create-order` — refuses E-Tags (`PREMIUM_REQUIRED`), lapsed premium (`CALL_SUBSCRIPTION_REQUIRED`), contacts still inside the free window (`CALLBACK_INCLUDED`), older than 48h (`CALLBACK_WINDOW_EXPIRED`), not the vehicle's newest (`CALLBACK_NOT_LATEST`), already paid (`PASS_ALREADY_PAID`); reuses a started order
+- [x] `POST /api/owner/callback/verify-payment` — signature, owner and amount checks, settles the order, registers the Exotel bridge in the same request and returns the virtual number; replays inside the 10 minutes are harmless, after it `PASS_EXPIRED`
+- [x] Razorpay webhook settles a callback order the browser never confirmed (never places the call)
+- [x] `register-call` honours a live paid callback for the named contact on its own clock; a premium contact past its window without one answers `CALLBACK_WINDOW_EXPIRED`
+- [x] Dashboard: `callbackPassExpiresAt` per contact row; publishes `callbackPassPaise` + `callbackPassMaxAgeMs` (drops the E-Tag `callbackPassMinRemainingMs` and per-tag `callbackPass`)
+- [x] Side fix: `register-call` now projects `subscription`/`documentSubscription`, so a premium member past the first year is no longer refused a callback the dashboard offers
+
+### Frontend
+
+- [x] `callback-eligibility.js` — `NEEDS_PAYMENT` for a running premium row past the free window (within the horizon); live paid rows are `CALLABLE`; E-Tag rows never offered ₹20; `PASS_SPENT` removed
+- [x] `welcome.js` — "Call Back ₹20" on each vehicle's newest contact; banner carries it for the first hour; paid rows keep Call Back until their 10 minutes end; timer re-renders at every boundary
+- [x] Payment flow — `CALLBACK_INCLUDED` falls back to the free call (clock skew), `PASS_ALREADY_PAID` reloads to the paid row, verify retried on a dropped connection, call sheet says the paid window allows redials
+- [x] Found in local QA: stale-tab refusals (`CALLBACK_NOT_LATEST`, premium/subscription changes) now refetch the list instead of re-drawing the stale copy; a paid row that ended in a conversation no longer keeps its Call Back button; the post-payment reload called a non-existent `loadDashboard()`
+
+### Verification
+
+- [x] `callback-pass.test.js`, `callback-eligibility.test.js`, `callback-premium-only.test.js`, `callback-from-activity.test.js`, `razorpay-webhook.test.js` pass
+- [x] Local QA, real dashboard in headless Chrome, 89/89: free window, window closing live, paying ₹20 (new order), checkout dismissed then reused, tab closed → webhook settles, paid window ending live, stale tabs (newer contact / already paid), phone clock ahead, no mobile, lapsed premium, E-Tag, member past year one, two vehicles, API refusals, Exotel dial-whom + status callback. Run with no provider credentials, every outbound connection blocked, Razorpay's order API answered in-process (never contacted), checkout sheet stubbed
+- [ ] Live: premium contact older than 10 min → Call Back ₹20 → Razorpay test payment → call sheet opens → dial from the owner's mobile connects to the scanner
+- [ ] Live: close the tab right after paying → webhook settles → dashboard shows Call Back on that row for the rest of the 10 minutes
 
 ## Current Focus
 

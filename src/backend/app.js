@@ -22,6 +22,7 @@ import { stickerSerialFor } from "./lib/core/tag-issuance.js";
 import { registerAdminRoutes } from "./routes/admin/index.js";
 import { registerAdminTrafficRoutes } from "./routes/admin/traffic.js";
 import { registerAdminMarketingRoutes } from "./routes/admin/marketing.js";
+import { registerAdminPromoCodeRoutes } from "./routes/admin/promo-codes.js";
 import { registerAuthRoutes } from "./routes/auth/credentials.js";
 import { registerAnalyticsRoutes, recordAppPageVisit } from "./routes/system/analytics.js";
 import { registerDemoRoutes } from "./routes/system/demo.js";
@@ -62,6 +63,7 @@ const trackOrderPage = path.join(pagesRoot, "scanner/track-order.html");
 const reportTagPage = path.join(pagesRoot, "scanner/report-tag.html");
 const adminPage = path.join(pagesRoot, "admin/index.html");
 const adminMarketingPage = path.join(pagesRoot, "admin/marketing.html");
+const adminPromoCodesPage = path.join(pagesRoot, "admin/promo-codes.html");
 const adminOverviewPage = path.join(pagesRoot, "admin/overview.html");
 const adminTrafficPage = path.join(pagesRoot, "admin/traffic.html");
 const adminEtagsPage = path.join(pagesRoot, "admin/etags.html");
@@ -1228,6 +1230,10 @@ export async function buildApp() {
     return guardAdmin(request, reply, adminMarketingPage);
   });
 
+  app.get("/admin/promo-codes", async (request, reply) => {
+    return guardAdmin(request, reply, adminPromoCodesPage);
+  });
+
   app.get("/admin/owners", async (request, reply) => {
     return guardAdmin(request, reply, adminOwnersPage);
   });
@@ -1327,6 +1333,7 @@ export async function buildApp() {
   registerAdminRoutes(app, env);
   registerAdminTrafficRoutes(app, env);
   registerAdminMarketingRoutes(app, env);
+  registerAdminPromoCodeRoutes(app, env);
   registerAnalyticsRoutes(app, env);
 
   return app;

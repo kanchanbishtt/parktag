@@ -28,6 +28,7 @@ delete process.env.RAZORPAY_KEY_ID;
 delete process.env.RAZORPAY_KEY_SECRET;
 
 import { createSession } from "../lib/auth/session.js";
+import { expectedOrderPaise } from "../lib/core/referrals.js";
 import {
   startTestApp,
   stopTestApp,
@@ -197,5 +198,20 @@ describe("the checkout page reads its prices from the server", () => {
       page.includes("codSurchargePaise"),
       "the COD total is not built from the surcharge the server actually applies"
     );
+  });
+});
+
+describe("what the order is expected to cost, with quantity and shipping", () => {
+  test("catalog price scales by quantity before any discount is applied", () => {
+    assert.equal(expectedOrderPaise(149700, {}), 149700);
+  });
+  test("a shipping fee is added on top, after the discount", () => {
+    assert.equal(expectedOrderPaise(49900, {}, 9900, 4900), 49900 - 9900 + 4900);
+  });
+  test("shipping is added AFTER the one-rupee floor, never absorbed by it", () => {
+    assert.equal(expectedOrderPaise(29900, {}, 999999, 4900), 100 + 4900);
+  });
+  test("no shipping fee leaves the total exactly as before (regression guard)", () => {
+    assert.equal(expectedOrderPaise(49900, {}, 9900, 0), expectedOrderPaise(49900, {}, 9900));
   });
 });

@@ -364,3 +364,51 @@ describe("the code alphabet", () => {
     assert.equal((await resolvePromo(collections, "ajnara99", { deliveryPhone: BUYER })).ok, true);
   });
 });
+
+describe("a code can be tied to a discount mode", () => {
+  test("an absent discountMode reads as flat (back-compat with every existing code)", async () => {
+    await seedCode({ discountPaise: 9900 });
+    const got = await resolvePromo(collections, "AJNARA99", { deliveryPhone: BUYER, quantity: 1 });
+    assert.equal(got.discountPaise, 9900);
+  });
+  test("per_unit multiplies by the quantity passed in", async () => {
+    await seedCode({ discountMode: "per_unit", discountPaise: 5000 });
+    const got = await resolvePromo(collections, "AJNARA99", { deliveryPhone: BUYER, quantity: 3 });
+    assert.equal(got.discountPaise, 15000);
+  });
+  test("percent needs the pack to compute against — productId + quantity", async () => {
+    await seedCode({ discountMode: "percent", discountPercent: 10, productIds: ["pt-car-2"] });
+    const got = await resolvePromo(collections, "AJNARA99", { deliveryPhone: BUYER, productId: "pt-car-2", quantity: 2 });
+    assert.equal(got.ok, true);
+    assert.equal(got.discountPaise, 9980);
+  });
+});
+
+describe("promoValueFor honours the mode too, still without gating", () => {
+  test("a consumed per_unit code still reports its full (quantity-scaled) value", async () => {
+    await seedCode({ discountMode: "per_unit", discountPaise: 5000, singleUse: true, boundPhone: BUYER, usedCount: 1 });
+    const value = await promoValueFor(collections, "AJNARA99", { subtotalPaise: 149700, quantity: 3 });
+    assert.equal(value, 15000);
+  });
+  test("an unknown code is still worth nothing, quantity or not", async () => {
+    assert.equal(await promoValueFor(collections, "MADEUPPP", { subtotalPaise: 149700, quantity: 3 }), 0);
+  });
+});
+
+describe("a code can carry a shipping fee", () => {
+  test("no shippingFeePaise on the code means no fee, exactly like before this feature existed", async () => {
+    await seedCode();
+    const got = await resolvePromo(collections, "AJNARA99", { deliveryPhone: BUYER });
+    assert.equal(got.shippingFeePaise, 0);
+  });
+  test("a configured fee is returned when resolved", async () => {
+    await seedCode({ shippingFeePaise: 4900 });
+    const got = await resolvePromo(collections, "AJNARA99", { deliveryPhone: BUYER, quantity: 1 });
+    assert.equal(got.shippingFeePaise, 4900);
+  });
+  test("the fee is waived above the free-shipping threshold", async () => {
+    await seedCode({ shippingFeePaise: 4900, freeShippingAbovePaise: 99900, productIds: ["pt-car-2"] });
+    const got = await resolvePromo(collections, "AJNARA99", { deliveryPhone: BUYER, productId: "pt-car-2", quantity: 2 });
+    assert.equal(got.shippingFeePaise, 4900);
+  });
+});

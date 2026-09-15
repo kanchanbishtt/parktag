@@ -308,3 +308,41 @@ describe("it never costs somebody their activation", () => {
     assert.equal(got.linked, false);
   });
 });
+
+describe("capacity scales with quantity", () => {
+  test("a quantity-3 order of a Pack of 2 (tags: 2) holds six stickers", async () => {
+    const order = await seedOrder({ productId: "pt-car-2", quantity: 3, amount: 149700 });
+    const results = [];
+    for (let i = 0; i < 6; i += 1) {
+      const tagId = await seedTag({ serialNumber: 3060 + i });
+      results.push((await linkTagToOrder(collections, { tagId, phone: PHONE })).linked);
+    }
+    assert.deepEqual(results, [true, true, true, true, true, true]);
+    assert.equal((await orderFor(order.orderNumber)).assignedTagIds.length, 6);
+  });
+
+  test("the seventh sticker on that same order is refused — capacity is exactly 6, not unbounded", async () => {
+    await seedOrder({ productId: "pt-car-2", quantity: 3, amount: 149700 });
+    for (let i = 0; i < 6; i += 1) {
+      const tagId = await seedTag({ serialNumber: 3070 + i });
+      await linkTagToOrder(collections, { tagId, phone: PHONE });
+    }
+    const seventh = await seedTag({ serialNumber: 3080 });
+    assert.equal((await linkTagToOrder(collections, { tagId: seventh, phone: PHONE })).linked, false);
+  });
+
+  test("a legacy order with no quantity field still gets capacity 1x (back-compat)", async () => {
+    const order = await seedOrder({ productId: "pt-car-1" });
+    const first = await seedTag({ serialNumber: 3090 });
+    const second = await seedTag({ serialNumber: 3091 });
+    assert.equal((await linkTagToOrder(collections, { tagId: first, phone: PHONE })).linked, true);
+    assert.equal((await linkTagToOrder(collections, { tagId: second, phone: PHONE })).linked, false);
+    assert.equal((await orderFor(order.orderNumber)).assignedTagIds.length, 1);
+  });
+
+  test("quantity 0 or negative on a malformed row still floors to capacity 1x, never 0", async () => {
+    await seedOrder({ productId: "pt-car-1", quantity: 0 });
+    const tagId = await seedTag({ serialNumber: 3092 });
+    assert.equal((await linkTagToOrder(collections, { tagId, phone: PHONE })).linked, true);
+  });
+});

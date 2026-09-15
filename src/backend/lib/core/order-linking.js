@@ -51,9 +51,14 @@ const PAID_STATES = ["paid", "cod"];
 // legacy product falls back to 1, because linking too few stickers leaves the
 // rest on the reconciliation report where somebody sees them, while linking
 // too many would attach a stranger's sticker to this order.
+// `quantity` scales it further: a quantity-3 order of a Pack of 2 holds six
+// stickers, not two. A legacy order with no `quantity` field floors to 1 —
+// exactly today's behaviour before the field existed.
 function capacityOf(order) {
   const product = getShopProduct(order.productId);
-  return Math.max(1, Number(product && product.tags) || 1);
+  const perUnit = Math.max(1, Number(product && product.tags) || 1);
+  const quantity = Math.max(1, Number(order.quantity) || 1);
+  return perUnit * quantity;
 }
 
 /**
@@ -95,7 +100,15 @@ export async function linkTagToOrder(collections, { tagId, phone }, log) {
           status: { $in: PAID_STATES },
           deletedAt: { $in: [null, undefined] }
         },
-        { projection: { orderNumber: 1, createdAt: 1, shippingAddress: 1, productId: 1, assignedTagIds: 1 } }
+        {
+          projection: {
+            orderNumber: 1, createdAt: 1, shippingAddress: 1, productId: 1, assignedTagIds: 1,
+            // capacityOf() needs this to size a multi-pack order correctly —
+            // left out of the projection, every candidate read back as
+            // quantity-less and capacityOf floored every order to 1x.
+            quantity: 1
+          }
+        }
       )
       .toArray();
 

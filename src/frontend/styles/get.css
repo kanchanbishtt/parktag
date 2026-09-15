@@ -388,6 +388,16 @@
 .gt-pack-now { font-size: .95rem; font-weight: 800; }
 .gt-pack-was { font-size: .74rem; color: var(--gt-ink-3); text-decoration: line-through; }
 
+/* How many of THIS pack, not a cart -- there is no remove button, only fewer
+   or more. The three controls sit in one bordered pill, the shape a stepper
+   already reads as everywhere else. */
+.gt-pack-qty { display: flex; align-items: center; gap: 0; margin-top: 8px; width: max-content; border: 1px solid var(--gt-line); border-radius: 8px; overflow: hidden; }
+.gt-pack-qty-btn { width: 28px; height: 28px; border: 0; background: var(--gt-ground); color: var(--gt-ink); font-size: 1rem; line-height: 1; font-family: inherit; cursor: pointer; }
+.gt-pack-qty-btn:hover { background: var(--gt-line); }
+.gt-pack-qty-n { display: inline-flex; align-items: center; justify-content: center; min-width: 24px; height: 28px; border-left: 1px solid var(--gt-line); border-right: 1px solid var(--gt-line); font-size: .8rem; font-weight: 700; }
+/* Shown only above one -- see applyQtyTotal() in direct.js/get.js. */
+.gt-pack-qty-total { display: block; margin-top: 4px; font-size: .74rem; color: var(--gt-ink-3); }
+
 /* NOT align-self: stretch, which is what it used to be. That tied the button's
    height to its row, so a pack with a two-line description grew a taller Order
    button than the pack above it — the buttons were never the same size twice.

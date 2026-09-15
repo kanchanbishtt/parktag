@@ -66,6 +66,20 @@ function rupees(paise) {
   return `₹${Math.round(paise / 100).toLocaleString("en-IN")}`;
 }
 
+// The running total, shown only above one. At quantity 1 it would just repeat
+// the unit price a second time for no reason. It is qty multiplied against the
+// server's own per-unit amountPaise -- never a computed discount, and never a
+// number this page invented.
+function applyQtyTotal(el, priced, qty) {
+  if (qty > 1) {
+    el.hidden = false;
+    el.textContent = `${qty} × ${rupees(priced.amountPaise)} = ${rupees(priced.amountPaise * qty)}`;
+  } else {
+    el.hidden = true;
+    el.textContent = "";
+  }
+}
+
 function renderChips(products) {
   const hero = products[HERO_PACK];
   const chip = document.querySelector(".gt-chip-price");
@@ -127,6 +141,49 @@ function renderPacks(products) {
     }
 
     bd.append(name, desc, price);
+
+    // The quantity stepper. Skipped for a sold-out pack: there is nothing here
+    // to set a count on.
+    //
+    // Built with <button>, never <a>, and kept a SIBLING of the Order anchor
+    // rather than nested inside it: the delegated click handler below matches
+    // on `a[data-sku]` via closest(), and a plain button outside that anchor's
+    // subtree can never satisfy it. Tapping − or + must never also fire a
+    // checkout.
+    if (!pack.soldOut) {
+      const qty = _qty.get(pack.id) || 1;
+
+      const stepper = document.createElement("div");
+      stepper.className = "gt-pack-qty";
+
+      const dec = document.createElement("button");
+      dec.type = "button";
+      dec.className = "gt-pack-qty-btn";
+      dec.dataset.qtyDir = "dec";
+      dec.dataset.sku = pack.id;
+      dec.textContent = "−";
+      dec.setAttribute("aria-label", `Fewer ${priced.name}`);
+
+      const count = document.createElement("span");
+      count.className = "gt-pack-qty-n";
+      count.textContent = String(qty);
+
+      const inc = document.createElement("button");
+      inc.type = "button";
+      inc.className = "gt-pack-qty-btn";
+      inc.dataset.qtyDir = "inc";
+      inc.dataset.sku = pack.id;
+      inc.textContent = "+";
+      inc.setAttribute("aria-label", `More ${priced.name}`);
+
+      stepper.append(dec, count, inc);
+
+      const total = document.createElement("span");
+      total.className = "gt-pack-qty-total";
+      applyQtyTotal(total, priced, qty);
+
+      bd.append(stepper, total);
+    }
 
     // A sold-out pack gets a plain element with NO data-sku and no href, so it
     // is inert in both paths at once: the delegated click handler matches on
@@ -201,6 +258,17 @@ let _busy = false;
 // order.amount straight off the response, and the server re-derives the price
 // at verify. This is for measurement only.
 let _paidPaise = 0;
+// How many of _sku the buyer actually paid for, kept the same way _paidPaise
+// is: so the purchase event reports the real count instead of the "1" every
+// checkout used to hardcode. Measurement only.
+let _paidQty = 1;
+
+// How many of each pack the buyer wants, keyed by sku. A Map rather than a
+// data attribute that has to be re-parsed off the DOM -- buy() reads it
+// directly at tap time, the same way _sku is read rather than pulled back off
+// an element. Floored at 1 wherever it is written: this is "how many of this
+// pack", not a cart with a remove button, so there is no zero.
+const _qty = new Map();
 
 // ── Remembering an order the buyer may never see confirmed ─────────────────
 //
@@ -359,6 +427,9 @@ function say(message) {
 async function buy(sku) {
   if (_busy) return;
   _sku = sku;
+  // Read once, up front, so the value submitted below can never drift from
+  // whatever the stepper happens to show by the time the request lands.
+  const quantity = _qty.get(sku) || 1;
 
   if (typeof window.ptCollectAddress !== "function") {
     say("The delivery step could not load. Please refresh and try again.");
@@ -407,7 +478,7 @@ async function buy(sku) {
       // `ref` is a HINT, never a price. The server resolves it, refuses a
       // self-referral and decides the discount; an absent or junk code just
       // means no discount, never a failed checkout.
-      body: JSON.stringify({ productId: sku, address, recaptchaToken, ref: referralCode() })
+      body: JSON.stringify({ productId: sku, address, recaptchaToken, ref: referralCode(), quantity })
     });
     order = await res.json();
     // The server's message names the field that is wrong rather than saying
@@ -418,6 +489,7 @@ async function buy(sku) {
     // last line that does not.
     remember(order.orderNumber, address);
     _paidPaise = order.amount || 0;
+    _paidQty = quantity;
     // Spent. A second purchase this session should not silently reuse it.
     clearReferralCode();
   } catch (err) {
@@ -511,7 +583,7 @@ function showDone(done) {
       transaction_id: done.orderNumber,
       value: _paidPaise / 100,
       currency: "INR",
-      items: [{ item_id: _sku, quantity: 1 }]
+      items: [{ item_id: _sku, quantity: _paidQty }]
     });
   }
 }
@@ -643,6 +715,32 @@ function wireCheckout(products) {
     if (e.key === "Escape" && !byId("gtSheet").hidden) hideSheet();
   });
 
+  // The stepper's own delegated listener, separate from the Order handler
+  // below. It matches on `button[data-qty-dir]`, which an `a[data-sku]` click
+  // can never satisfy and vice versa, so a tap on − or + can never also open
+  // checkout.
+  document.addEventListener("click", (event) => {
+    const btn = event.target.closest && event.target.closest("button[data-qty-dir]");
+    if (!btn) return;
+
+    const sku = btn.dataset.sku;
+    const priced = products && products[sku];
+    if (!sku || !priced) return;
+
+    const current = _qty.get(sku) || 1;
+    // Floored at 1, never a max: there is no "remove from cart" step here, and
+    // an upper bound was a deliberate product decision NOT to add.
+    const next = btn.dataset.qtyDir === "inc" ? current + 1 : Math.max(1, current - 1);
+    _qty.set(sku, next);
+
+    const card = btn.closest(".gt-pack");
+    if (!card) return;
+    const n = card.querySelector(".gt-pack-qty-n");
+    if (n) n.textContent = String(next);
+    const total = card.querySelector(".gt-pack-qty-total");
+    if (total) applyQtyTotal(total, priced, next);
+  });
+
   // One listener for every Order control, including the pack buttons rendered
   // after this runs.
   //
@@ -663,7 +761,7 @@ function wireCheckout(products) {
       const priced = products && products[sku];
       ptTrack("begin_checkout", {
         method: "guest",
-        items: [{ item_id: sku, quantity: 1 }],
+        items: [{ item_id: sku, quantity: _qty.get(sku) || 1 }],
         ...(priced ? { value: priced.amountPaise / 100, currency: "INR" } : {})
       });
     }

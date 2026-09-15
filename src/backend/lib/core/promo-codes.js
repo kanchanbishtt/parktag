@@ -30,6 +30,7 @@
 // compute the full catalogue price, and reject a payment already taken.
 
 import { toE164 } from "./phone.js";
+import { getShopProduct } from "../integrations/payments.js";
 
 // A WIDER alphabet than referrals.js uses, and that difference is deliberate.
 //
@@ -69,6 +70,42 @@ export function normalisePromoCode(raw) {
   return String(raw || "").trim().toUpperCase();
 }
 
+// The three ways a code's discount can be shaped. Exported so the admin route
+// validates against the same list it is defined in, rather than a second
+// hand-typed copy that can drift.
+export const DISCOUNT_MODES = ["flat", "per_unit", "percent"];
+
+// What one code is worth, in paise, for a cart of this size.
+//
+// Absent or unrecognised `discountMode` reads as "flat" — today's only
+// behaviour, before this field existed, and the one every code minted before
+// this feature still carries. Failing towards the mode that already shipped
+// means a code nobody re-saves keeps doing exactly what it always did.
+export function discountPaiseFor(promo, { subtotalPaise, quantity = 1 } = {}) {
+  const mode = DISCOUNT_MODES.includes(promo?.discountMode) ? promo.discountMode : "flat";
+  const qty = Math.max(1, Math.trunc(Number(quantity) || 1));
+
+  if (mode === "percent") {
+    const pct = Math.min(100, Math.max(0, Number(promo?.discountPercent) || 0));
+    return Math.round((Number(subtotalPaise) || 0) * pct / 100);
+  }
+
+  const base = Math.max(0, Number(promo?.discountPaise) || 0);
+  return mode === "per_unit" ? base * qty : base;
+}
+
+// What shipping costs on top, in paise, once a code's fee and free-shipping
+// threshold are applied. The threshold checks the PRE-discount subtotal — the
+// price of the goods before the code's own discount comes off — so a buyer's
+// shipping status does not move depending on how much the code took off.
+export function shippingFeePaiseFor(promo, { subtotalPaise } = {}) {
+  const fee = Math.max(0, Number(promo?.shippingFeePaise) || 0);
+  if (!fee) return 0;
+  const threshold = promo?.freeShippingAbovePaise;
+  if (threshold != null && Number(subtotalPaise) >= Number(threshold)) return 0;
+  return fee;
+}
+
 /**
  * May this buyer have this price?
  *
@@ -78,7 +115,11 @@ export function normalisePromoCode(raw) {
  * None of them should cost anybody a checkout. The caller drops the discount and
  * carries on at the catalogue price.
  */
-export async function resolvePromo(collections, rawCode, { deliveryPhone = null, productId = null } = {}) {
+export async function resolvePromo(
+  collections,
+  rawCode,
+  { deliveryPhone = null, productId = null, quantity = 1 } = {}
+) {
   const code = normalisePromoCode(rawCode);
   if (!code || !PROMO_CODE_PATTERN.test(code)) return { ok: false, reason: "malformed" };
 
@@ -121,10 +162,19 @@ export async function resolvePromo(collections, rawCode, { deliveryPhone = null,
     if (!buyer || !bound || buyer !== bound) return { ok: false, reason: "not-yours" };
   }
 
+  // The subtotal a percent mode needs to compute against. Only resolvable when
+  // the caller named a product — a percent code checked with no pack in play
+  // (e.g. an untied general campaign code before a pack is chosen) is worth 0
+  // until one is, which is the correct direction to fail: never invent a price.
+  const product = productId ? getShopProduct(productId) : null;
+  const qty = Math.max(1, Math.trunc(Number(quantity) || 1));
+  const subtotalPaise = product ? Math.round(product.amount * 100) * qty : 0;
+
   return {
     ok: true,
     code,
-    discountPaise: Math.max(0, Number(promo.discountPaise) || 0),
+    discountPaise: discountPaiseFor(promo, { subtotalPaise, quantity: qty }),
+    shippingFeePaise: shippingFeePaiseFor(promo, { subtotalPaise }),
     fulfilment: fulfilmentOf(promo)
   };
 }
@@ -138,13 +188,21 @@ export async function resolvePromo(collections, rawCode, { deliveryPhone = null,
  * An unknown code is worth nothing, so a row naming one falls back to the
  * catalogue price and fails the amount check. That is the correct direction to
  * fail: a code somebody invented buys them no discount.
+ *
+ * `subtotalPaise`/`quantity` are needed to price a `per_unit` or `percent`
+ * code the same way resolvePromo did at mint time — passed in by the caller
+ * rather than re-derived here, because verify-payment already has both as
+ * server-derived, order-pinned values (see the route).
  */
-export async function promoValueFor(collections, rawCode) {
+export async function promoValueFor(collections, rawCode, { subtotalPaise = 0, quantity = 1 } = {}) {
   const code = normalisePromoCode(rawCode);
   if (!code) return 0;
 
-  const promo = await collections.promoCodes.findOne({ code }, { projection: { discountPaise: 1 } });
-  return promo ? Math.max(0, Number(promo.discountPaise) || 0) : 0;
+  const promo = await collections.promoCodes.findOne(
+    { code },
+    { projection: { discountMode: 1, discountPaise: 1, discountPercent: 1 } }
+  );
+  return promo ? discountPaiseFor(promo, { subtotalPaise, quantity }) : 0;
 }
 
 /**

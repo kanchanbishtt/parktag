@@ -30,7 +30,13 @@ import {
   expectedOrderPaise,
   resolveReferral
 } from "../../lib/core/referrals.js";
-import { FULFILMENT_HANDOVER, promoValueFor, resolvePromo } from "../../lib/core/promo-codes.js";
+import {
+  FULFILMENT_HANDOVER,
+  normalisePromoCode,
+  promoValueFor,
+  resolvePromo,
+  shippingFeePaiseFor
+} from "../../lib/core/promo-codes.js";
 import { isInternalPhone } from "../../lib/core/internal-orders.js";
 
 // Flash-offer discount for converting a COD order to prepaid (paise). Kept
@@ -127,6 +133,27 @@ const SHOP_VARIANTS = new Set(["Car", "Auto", "Bike", "Scooter", "Helmet"]);
 // buyer their purchase to fix a cosmetic field.
 function shapeVariant(variant) {
   return typeof variant === "string" && SHOP_VARIANTS.has(variant) ? variant : null;
+}
+
+// How many packs the buyer is ordering. Absent — the field an existing client
+// never sends — defaults to one. Present-but-wrong (zero, negative, a
+// fraction, a numeric string, null) is refused outright rather than coerced,
+// because a client bug that mangled the quantity must fail loudly at checkout
+// rather than silently bill for the wrong number of packs. No upper bound: a
+// real bulk buyer is a real bulk buyer.
+function parseQuantity(raw) {
+  if (raw === undefined) return { ok: true, quantity: 1 };
+  if (typeof raw !== "number" || !Number.isInteger(raw) || raw < 1) return { ok: false };
+  return { ok: true, quantity: raw };
+}
+
+// The `quantity` clause for a reuse-lookup filter. A quantity-1 request has to
+// match orders written before this field existed as well as ones that wrote
+// it explicitly — Mongo's equality match treats "field is null" and "field is
+// absent" alike, so `{ $in: [1, null] }` covers both without a migration.
+// Anything above 1 always had to be an explicit field, so it matches exactly.
+function reuseQuantityFilter(quantity) {
+  return quantity === 1 ? { $in: [1, null] } : quantity;
 }
 
 // Contact details to prefill Razorpay's sheet with.
@@ -381,8 +408,15 @@ export function registerShopRoutes(app, env) {
         productId, variant: rawVariant, address: rawAddress, recaptchaToken,
         ref: rawRef,
         // Only /direct sends this. A CODE, never an amount.
-        promo: rawPromo
+        promo: rawPromo,
+        quantity: rawQuantity
       } = request.body || {};
+
+      // Checked before anything else costs a network round trip (reCAPTCHA,
+      // the DB) — a malformed quantity is refused for free.
+      const quantityCheck = parseQuantity(rawQuantity);
+      if (!quantityCheck.ok) { reply.code(400); return { ok: false, error: "Invalid quantity." }; }
+      const quantity = quantityCheck.quantity;
 
       // Bot check on the one money-adjacent endpoint any stranger can reach.
       //
@@ -462,7 +496,8 @@ export function registerShopRoutes(app, env) {
         deliveryPhone: (rawAddress || {}).phone,
         // Without this a code tied to one pack comes off any of them, and
         // omitting the product would be the way around the restriction.
-        productId
+        productId,
+        quantity
       });
       const handover = promo.ok && promo.fulfilment === FULFILMENT_HANDOVER;
 
@@ -494,12 +529,21 @@ export function registerShopRoutes(app, env) {
       });
       const referredBy = referral.ok ? referral.referrerId : null;
 
+      const catalogPaise = Math.round(product.amount * 100) * quantity;
       const promoDiscountPaise = promo.ok ? promo.discountPaise : 0;
+      const shippingFeePaise = promo.ok ? promo.shippingFeePaise : 0;
       const expectedPaise = expectedOrderPaise(
-        Math.round(product.amount * 100),
+        catalogPaise,
         { referredBy },
-        promoDiscountPaise
+        promoDiscountPaise,
+        shippingFeePaise
       );
+      // quantity and promoCode both joined this filter as part of the
+      // quantity/pricing-modes feature: without them, a quantity-1 order (or
+      // one minted under a different code) that happened to net the same
+      // discounted total could be handed back for an unrelated request,
+      // misattributing whatever a redemption later burns against the wrong
+      // code and shorting the buyer's actual pack count.
       const reusable = await collections.shopOrders.findOne(
         {
           ownerId: null,
@@ -507,6 +551,8 @@ export function registerShopRoutes(app, env) {
           status: "created",
           productId,
           variant,
+          quantity: reuseQuantityFilter(quantity),
+          promoCode: promo.ok ? promo.code : null,
           amount: expectedPaise
         },
         { sort: { createdAt: -1 } }
@@ -548,6 +594,7 @@ export function registerShopRoutes(app, env) {
           productId,
           productName: product.name,
           variant,
+          quantity,
           amount: order.amount,
           currency: order.currency,
           status: "created",
@@ -684,7 +731,7 @@ export function registerShopRoutes(app, env) {
     "/api/shop/promo/check",
     { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } },
     async (request, reply) => {
-      const { code, productId, phone } = request.body || {};
+      const { code, productId, phone, quantity: rawQuantity } = request.body || {};
 
       const product = getShopProduct(productId);
       if (!product) { reply.code(400); return { ok: false, error: "Unknown product." }; }
@@ -692,20 +739,27 @@ export function registerShopRoutes(app, env) {
       const collections = await getCollections(env);
       if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
 
+      // Display-only — create-order resolves the code again from scratch and
+      // that resolution is the one that decides what is charged — so a
+      // malformed quantity is clamped rather than refused, the same way
+      // discountPaiseFor treats one.
+      const quantity = Math.max(1, Math.trunc(Number(rawQuantity) || 1));
       const catalogPaise = Math.round(product.amount * 100);
-      const promo = await resolvePromo(collections, code, { deliveryPhone: phone, productId });
+      const promo = await resolvePromo(collections, code, { deliveryPhone: phone, productId, quantity });
 
       // A rejection is not an error. Every reason here is an ordinary thing for
       // a buyer to do, and the page shows the catalogue price and carries on.
       if (!promo.ok) {
-        return { ok: false, reason: promo.reason, catalogPaise, payablePaise: catalogPaise };
+        const payablePaise = catalogPaise * quantity;
+        return { ok: false, reason: promo.reason, catalogPaise, payablePaise };
       }
 
       return {
         ok: true,
         catalogPaise,
         discountPaise: promo.discountPaise,
-        payablePaise: expectedOrderPaise(catalogPaise, {}, promo.discountPaise),
+        shippingFeePaise: promo.shippingFeePaise,
+        payablePaise: catalogPaise * quantity - promo.discountPaise + promo.shippingFeePaise,
         fulfilment: promo.fulfilment
       };
     }
@@ -745,8 +799,12 @@ export function registerShopRoutes(app, env) {
     if (blocked) return blocked;
     const ownerId = toObjectId(request.session.userId);
 
-    const { productId, replaceTagId } = request.body || {};
+    const { productId, replaceTagId, quantity: rawQuantity } = request.body || {};
     if (!productId) { reply.code(400); return { error: "productId required." }; }
+
+    const quantityCheck = parseQuantity(rawQuantity);
+    if (!quantityCheck.ok) { reply.code(400); return { error: "Invalid quantity." }; }
+    const quantity = quantityCheck.quantity;
 
     const product = getShopProduct(productId);
     if (!product) { reply.code(400); return { error: "Unknown product." }; }
@@ -803,7 +861,8 @@ export function registerShopRoutes(app, env) {
     // unpaid, and still priced at the current catalog rate — a stored order
     // whose price has since moved would be rejected by verify-payment's amount
     // check, so handing it back would strand the buyer at the payment sheet.
-    const expectedPaise = expectedOrderPaise(Math.round(product.amount * 100), { referredBy });
+    const catalogPaise = Math.round(product.amount * 100) * quantity;
+    const expectedPaise = expectedOrderPaise(catalogPaise, { referredBy });
     const reusable = await collections.shopOrders.findOne({
       ownerId,
       status: "created",
@@ -813,6 +872,12 @@ export function registerShopRoutes(app, env) {
       // also matches the orders written before this field existed.
       variant,
       replaceTagId: validReplaceTagId,
+      // Same reasoning as the guest route's reuse filter: without it, a
+      // quantity-1 order that happened to net the same total as a
+      // quantity-3 request could be handed back for the wrong pack count.
+      // reuseQuantityFilter matches quantity-1 requests against rows written
+      // before this field existed too — see its comment.
+      quantity: reuseQuantityFilter(quantity),
       amount: expectedPaise
     }, { sort: { createdAt: -1 } });
 
@@ -857,6 +922,7 @@ export function registerShopRoutes(app, env) {
           productId,
           productName: product.name,
           variant,
+          quantity,
           amount: order.amount, // paise
           currency: order.currency,
           status: "created",
@@ -969,9 +1035,23 @@ export function registerShopRoutes(app, env) {
       // callback and the Razorpay webhook race. Fulfilment consumes the code
       // between them, so re-applying the usage gate here would call a
       // single-use code exhausted and reject a payment already taken.
-      const promoPaise = await promoValueFor(collections, order.promoCode);
+      //
+      // `quantity` is read off the STORED order, exactly like `product.amount`
+      // above — a server-derived, order-pinned value, never re-accepted from
+      // the client. A legacy order with none reads as 1.
+      const quantity = Number(order.quantity) || 1;
+      const subtotalPaise = product ? Math.round(product.amount * 100) * quantity : 0;
+      const promoPaise = await promoValueFor(collections, order.promoCode, { subtotalPaise, quantity });
+      // The shipping fee, fresh off the promo doc's own fields — never off a
+      // value stored on the order row, for the same reason the promo/referral
+      // amounts above are not trusted from the row: a stored number is
+      // something an editor of that row could have typed in.
+      const promoDoc = order.promoCode
+        ? await collections.promoCodes.findOne({ code: normalisePromoCode(order.promoCode) })
+        : null;
+      const shippingPaise = shippingFeePaiseFor(promoDoc, { subtotalPaise });
       const expectedPaise = product
-        ? expectedOrderPaise(Math.round(product.amount * 100), order, promoPaise)
+        ? expectedOrderPaise(subtotalPaise, order, promoPaise, shippingPaise)
         : null;
       if (expectedPaise === null || order.amount !== expectedPaise) {
         reply.code(400); return { ok: false, error: "Order amount mismatch." };
@@ -1041,9 +1121,13 @@ export function registerShopRoutes(app, env) {
     if (blocked) return blocked;
     const ownerId = toObjectId(request.session.userId);
 
-    const { productId, replaceTagId, otp } = request.body || {};
+    const { productId, replaceTagId, otp, quantity: rawQuantity } = request.body || {};
     if (!productId) { reply.code(400); return { error: "productId required." }; }
     const variant = shapeVariant((request.body || {}).variant);
+
+    const quantityCheck = parseQuantity(rawQuantity);
+    if (!quantityCheck.ok) { reply.code(400); return { error: "Invalid quantity." }; }
+    const quantity = quantityCheck.quantity;
 
     const product = getShopProduct(productId);
     if (!product) { reply.code(400); return { error: "Unknown product." }; }
@@ -1123,8 +1207,12 @@ export function registerShopRoutes(app, env) {
     }
 
     const orderNumber = await generateOrderNumber(collections);
-    // COD amount = catalog price + ₹50 COD surcharge (the courier collects this).
-    const amountPaise = Math.round(product.amount * 100) + COD_SURCHARGE_PAISE;
+    // COD amount = catalog price × quantity + ₹50 COD surcharge. The surcharge
+    // does NOT scale with quantity — it is a flat per-shipment handling fee
+    // (covers the outbound leg and a refused parcel's return leg once, not
+    // once per sticker in the box), the same reasoning FLASH_DISCOUNT_PAISE's
+    // header documents for why it must stay a fixed rupee figure.
+    const amountPaise = Math.round(product.amount * 100) * quantity + COD_SURCHARGE_PAISE;
     // When the confirmation screen's flash offer stops being valid. Written
     // down at order time so the deadline the buyer is shown and the one
     // cod-prepay-order enforces are the same deadline.
@@ -1136,6 +1224,7 @@ export function registerShopRoutes(app, env) {
       productId,
       productName: product.name,
       variant,
+      quantity,
       amount: amountPaise, // paise (full COD price)
       currency: "INR",
       status: "cod",

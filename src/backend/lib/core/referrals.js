@@ -72,13 +72,20 @@ const REWARD_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
  * `order.promoCode`, and it is deliberately NOT read off the order. The order
  * stores its own `promoDiscountPaise` for display only; reading that back here
  * would hand an editor of the row whatever discount they typed into it.
+ *
+ * `shippingFeePaise` is added AFTER the one-rupee floor below, not before. The
+ * floor exists to protect the PRODUCT price from being discounted to nothing;
+ * shipping is a separate line, charged on top, and must never be a way to
+ * launder a fee into the floor's protection — a ₹9,999 discount code must not
+ * make ₹49 of shipping disappear along with the rest of the price.
  */
-export function expectedOrderPaise(catalogPaise, order, promoDiscountPaise = 0) {
+export function expectedOrderPaise(catalogPaise, order, promoDiscountPaise = 0, shippingFeePaise = 0) {
   const referral = order && order.referredBy ? REFERRAL_DISCOUNT_PAISE : 0;
   const promo = Math.max(0, Number(promoDiscountPaise) || 0);
+  const shipping = Math.max(0, Number(shippingFeePaise) || 0);
   // Never below ₹1. Razorpay refuses a zero or negative amount, and a discount
   // that could exceed the price would be a way to be paid for taking stock.
-  return Math.max(catalogPaise - referral - promo, 100);
+  return Math.max(catalogPaise - referral - promo, 100) + shipping;
 }
 
 // Unambiguous alphabet: no I, L, O, U, 0 or 1.

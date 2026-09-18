@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 import Fastify from 'fastify';
 import { ObjectId } from 'mongodb';
 import { verifySlackSignature, validResponseUrl, registerSlackCommandRoutes } from '../routes/webhooks/slack.js';
-import { parseCommand, resetDocument, findTag, setTagStatus } from '../lib/core/slack-commands.js';
+import { parseCommand, resetDocument, findTag, setTagStatus, resetTag } from '../lib/core/slack-commands.js';
 
 const secret='test-signing-key';
 function signed(text='tag PT-Batch-002-000007', overrides={}) {
@@ -66,4 +66,8 @@ test('lookup distinguishes same serial across batches; status refuses unclaimed 
  assert.equal((await findTag(c,'PT-01-000007'))._id,1);
  await assert.rejects(()=>findTag(c,'000007'),/complete/);
  await assert.rejects(()=>setTagStatus(c,tags[0],'activate','UADMIN'),/no linked owner/);
+});
+
+test('reset refuses malformed tags before starting a transaction or revoking scanner access', async()=>{
+ await assert.rejects(()=>resetTag({},null,{ownerId:new ObjectId()},'UADMIN','test'),/no printed QR token/);
 });

@@ -74,6 +74,7 @@ export function resetDocument(tag, actor, now) {
 }
 
 export async function resetTag(collections, client, tag, actor, commandId) {
+  if (typeof tag.token !== 'string' || !tag.token.trim()) fail('Reset stopped: this tag has no printed QR token. Review it in admin.');
   if (!tag.ownerId && tag.status === 'unclaimed') return `${safe(labelForTag(tag))} is already unlinked and ready to claim.`;
   const session = client.startSession();
   try {

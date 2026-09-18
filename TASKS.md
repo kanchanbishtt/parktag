@@ -880,3 +880,6 @@ Covers UX and security improvements made after M13 call flow was confirmed worki
 ## Internal test batch reporting, 2026-09-18
 - [x] Exclude PT-Batch-002 from order linking and server activation conversions; exclude internal orders from server Purchase sends. 41 targeted tests passed. Production: 10 test tags classified and incorrect PT-260728-00002 linkage removed. Active n8n activation wording and daily digest exclusions corrected.
 - [x] Railway deployment bbbebd4f-20b1-4737-9de0-ae86bf546692 succeeded; live health verified.
+
+## Quantity checkout CI, 2026-09-18
+- [x] Correct the missing-Razorpay assertion and verify quantity-1 legacy reuse and quantity-3 pricing without a provider call. All 8 quantity tests pass with an isolated test prefix.

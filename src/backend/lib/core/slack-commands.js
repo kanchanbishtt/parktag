@@ -4,23 +4,48 @@ import { stickerSerialFor, tagLifecycleDefaults } from './tag-issuance.js';
 import { getOrderTracking } from './order-tracking.js';
 import { toE164 } from './phone.js';
 
-export const COMMAND_HELP = `*ParkTag commands*
-/parktag tag PT-Batch-002-000007 — owner, vehicle, batch and status
-/parktag track PT-260917-00027 — Delhivery status (or enter its waybill)
-/parktag order PT-260917-00027 — payment, shipment and linked stickers
-/parktag customer +91XXXXXXXXXX — customer's tags and orders
-/parktag batch Batch-002 — stock and activation counts
-/parktag activate <sticker> — resume an already linked sticker
-/parktag deactivate <sticker> — pause contact without unlinking
-/parktag reset <sticker> confirm — unlink the owner; keep the printed QR usable
-/parktag sales — today's and this month's real orders
-/parktag help — this list
-Replies are private to you. Reset keeps the account and order history; tags with vault documents or membership orders require admin review.`;
+export const COMMAND_HELP = `🚗 *ParkTag commands*
+Your quick desk for stickers, customers and deliveries.
+
+*🔎 Look things up*
+\`/parktag tag PT-Batch-002-000007\`
+Owner, vehicle, batch and current status
+\`/parktag customer +91XXXXXXXXXX\`
+Customer’s stickers and recent orders
+\`/parktag batch Batch-002\`
+Stock and activation counts
+
+*📦 Orders & deliveries*
+\`/parktag track PT-260917-00027\`
+Delhivery status • accepts a waybill too
+\`/parktag order PT-260917-00027\`
+Payment, shipment and linked stickers
+\`/parktag sales\`
+Today’s and this month’s paid / COD orders
+
+*🛠 Manage a sticker*
+\`/parktag activate STICKER-ID\` • Resume contact
+\`/parktag deactivate STICKER-ID\` • Pause contact; keep owner linked
+\`/parktag reset STICKER-ID confirm\` • Unlink for fresh activation
+Replace STICKER-ID with the complete printed ID.
+
+*🔒 Just for you*
+Replies are private. Reset keeps the customer account and order history. Tags with vault documents or membership orders need admin review.
+\`/parktag help\` brings this menu back.`;
 
 export class CommandError extends Error {}
 const fail = (message) => { throw new CommandError(message); };
 const safe = (v) => String(v ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').slice(0,160);
 const money = (n) => `₹${(Number(n || 0) / 100).toFixed(2)}`;
+const dateLabel = value => {
+  if (!value) return 'Not recorded';
+  // Provider timestamps without an offset must not be guessed as UTC.
+  if (typeof value === 'string' && !/(Z|[+-]\d{2}:?\d{2})$/i.test(value)) return safe(value);
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return safe(value);
+  return new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }).format(date) + ' IST';
+};
+const statusLabel = value => `${({active:'🟢',inactive:'⏸️',unclaimed:'⚪',paid:'✅',cod:'📦'})[value] || '•'} ${safe(value || 'Unknown')}`;
 export const labelForTag = (t) => t.serialNumber == null ? `PT-${String(t._id).slice(-8).toUpperCase()}` : `PT-${t.batchNumber || '01'}-${String(t.serialNumber).padStart(6, '0')}`;
 
 export function parseCommand(text = '') {
@@ -60,7 +85,7 @@ export async function setTagStatus(collections, tag, action, actor) {
     { $set: { status, updatedAt: new Date().toISOString(), lastSlackAction: { action, actor, at: new Date().toISOString() } } }
   );
   if (!result.matchedCount) fail('The tag changed while this command ran. Look it up and try again.');
-  return `${safe(labelForTag(tag))}: *${status}*. Owner remains linked.`;
+  return `${status === 'active' ? '🟢' : '⏸️'} *Sticker ${status === 'active' ? 'resumed' : 'paused'}*\n\n*Sticker:* ${safe(labelForTag(tag))}\n*Status:* ${status}\nOwner remains linked.`;
 }
 
 // Retain physical identity only. A deny-list silently inherits newly added
@@ -96,7 +121,7 @@ export async function resetTag(collections, client, tag, actor, commandId) {
       await collections.pendingCalls.deleteMany({ token: current.token }, { session });
     });
   } finally { await session.endSession(); }
-  return `${safe(labelForTag(tag))}: *reset and unlinked*. The printed QR is unchanged and ready for a fresh activation. The previous customer’s account and order history were kept.`;
+  return `✅ *Sticker reset and unlinked*\n\n*Sticker:* ${safe(labelForTag(tag))}\n*Ready for:* Fresh activation by scanning the printed QR\n\n🔒 The customer’s account and order history were kept.`;
 }
 
 const realOrders = { internal: { $ne: true }, channel: { $nin: ['internal','giveaway'] }, deletedAt: null };
@@ -108,7 +133,7 @@ export async function runCommand(collections, env, command, actor, commandId, cl
     if (action === 'reset') return resetTag(collections, client, tag, actor, commandId);
     if (action !== 'tag') return setTagStatus(collections, tag, action, actor);
     const owner = tag.ownerId ? await collections.owners.findOne({ _id: tag.ownerId }, { projection: { displayName: 1, mobile: 1, phone: 1 } }) : null;
-    return `*${safe(labelForTag(tag))}*\nBatch: ${safe(tag.batchNumber)} · Status: ${safe(tag.status)}${isInternalTag(tag) ? ' · INTERNAL TEST' : ''}\nOwner: ${safe(owner?.displayName || 'Unlinked')}\nPhone: ${safe(owner?.mobile || owner?.phone || '—')}\nVehicle: ${safe(tag.vehicleLabel || '—')} ${safe(tag.plateNumber || '')}\nActivated: ${safe(tag.activatedAt || 'Not activated')}\nLinked order: ${safe(tag.assignedOrderNumber || 'None')}`;
+    return `🏷️ *Sticker details*\n${safe(labelForTag(tag))}\n\n*Status:* ${statusLabel(tag.status)}${isInternalTag(tag) ? '  •  🧪 INTERNAL TEST' : ''}\n*Batch:* ${safe(tag.batchNumber)}\n\n*👤 Owner:* ${safe(owner?.displayName || 'Unlinked')}\n*Phone:* ${safe(owner?.mobile || owner?.phone || '—')}\n*🚗 Vehicle:* ${safe(tag.vehicleLabel || '—')} ${safe(tag.plateNumber || '')}\n\n*Activated:* ${tag.activatedAt ? dateLabel(tag.activatedAt) : 'Not activated'}\n*Linked order:* ${safe(tag.assignedOrderNumber || 'None')}`;
   }
   if (action === 'order' || action === 'track') {
     if (!/^(PT-\d{6}-\d{5}|\d{8,20})$/i.test(argument)) fail('Enter a complete order number or numeric waybill.');
@@ -118,15 +143,15 @@ export async function runCommand(collections, env, command, actor, commandId, cl
       if (!order.waybill) return `${safe(order.orderNumber)}: no waybill yet${order.deliveredInPerson ? ' (handed over in person)' : ''}.`;
       const tracking = await getOrderTracking(collections, env, order);
       const scan = tracking?.scans?.[0];
-      return `*${safe(order.orderNumber)}* · Waybill ${safe(order.waybill)}\nStatus: ${safe(tracking?.status || 'Unavailable from Delhivery')}\nLast scan: ${safe(scan?.location || '—')} · ${safe(scan?.dateTime || tracking?.statusDateTime || '—')}\n${safe(tracking?.instructions || '')}\nSnapshot: ${safe(tracking?.fetchedAt || 'live request')}. Tracking is cached for up to 15 minutes.`;
+      return `🚚 *Delivery tracking*\n${safe(order.orderNumber)}\n\n*Status:* ${safe(tracking?.status || 'Unavailable from Delhivery')}\n*Waybill:* ${safe(order.waybill)}\n\n*📍 Last scan:* ${safe(scan?.location || 'Not available')}\n*Scanned at:* ${dateLabel(scan?.dateTime || tracking?.statusDateTime)}\n${tracking?.instructions ? safe(tracking.instructions)+'\n' : ''}\n_Updated: ${dateLabel(tracking?.fetchedAt)} • Cached for up to 15 minutes._`;
     }
     const tags = await collections.tags.find({ assignedOrderNumber: order.orderNumber, deletedAt: null }).limit(30).toArray();
-    return `*${safe(order.orderNumber)}*${order.internal ? ' · INTERNAL TEST' : ''}\n${safe(order.productName)} · ${money(order.amount)} · ${safe(order.status)}\nCustomer: ${safe(order.shippingAddress?.fullName || '—')}\nWaybill: ${safe(order.waybill || 'Not booked')}\nCurrently linked stickers: ${tags.map(t=>safe(labelForTag(t))).join(', ') || 'None yet'}`;
+    return `📦 *Order details*\n${safe(order.orderNumber)}${order.internal ? ' · 🧪 INTERNAL TEST' : ''}\n\n${safe(order.productName)} · ${money(order.amount)} · ${statusLabel(order.status)}\n\n*Customer:* ${safe(order.shippingAddress?.fullName || '—')}\n*Waybill:* ${safe(order.waybill || 'Not booked')}\n\n*Currently linked stickers:* ${tags.map(t=>safe(labelForTag(t))).join(', ') || 'None yet'}`;
   }
   if (action === 'batch') {
     if (!/^[A-Za-z0-9-]{1,100}$/.test(argument)) fail('Enter the batch label, for example Batch-002.');
     const rows = await collections.tags.aggregate([{ $match: { batchNumber: argument, deletedAt: null } }, { $group: { _id: '$status', n: { $sum: 1 } } }]).toArray();
-    return rows.length ? `*Batch ${safe(argument)}*\n${rows.map(r=>`${safe(r._id)}: ${r.n}`).join('\n')}\nTotal: ${rows.reduce((n,r)=>n+r.n,0)}${argument === 'Batch-002' ? '\nInternal testing only.' : ''}` : 'No stickers found for that exact batch label.';
+    return rows.length ? `🏷️ *Batch ${safe(argument)}*\n\n${rows.map(r=>`${statusLabel(r._id)}: *${r.n}*`).join('\n')}\n\n*Total:* ${rows.reduce((n,r)=>n+r.n,0)}${argument === 'Batch-002' ? '\n🧪 Internal testing only.' : ''}` : 'No stickers found for that exact batch label.';
   }
   if (action === 'customer') {
     if (!/^\+?[0-9]{10,15}$/.test(argument)) fail('Use a phone number with country code, for example +919876543210.');
@@ -135,7 +160,7 @@ export async function runCommand(collections, env, command, actor, commandId, cl
     const owners = await collections.owners.find({ $or: [{ phone: { $in: forms } }, { mobile: { $in: forms } }] }, { projection: { _id: 1, displayName: 1 } }).limit(5).toArray();
     const tags = await collections.tags.find({ ownerId: { $in: owners.map(o=>o._id) }, deletedAt: null }).limit(21).toArray();
     const orders = await collections.shopOrders.find({ 'shippingAddress.phone': { $in: forms }, deletedAt: null }, { projection: { orderNumber: 1, status: 1, internal: 1 } }).sort({ createdAt:-1 }).limit(11).toArray();
-    return `*Customer ${safe(phone)}*\n${owners.map(o=>safe(o.displayName)).join(', ') || 'No linked account'}\nStickers:\n${tags.slice(0,20).map(t=>`${safe(labelForTag(t))} · ${safe(t.status)}`).join('\n') || 'None'}${tags.length>20?'\nMore tags in admin.':''}\nRecent orders:\n${orders.slice(0,10).map(o=>`${safe(o.orderNumber)} · ${safe(o.status)}${o.internal?' · TEST':''}`).join('\n') || 'None'}`;
+    return `👤 *Customer details*\n${safe(phone)}\n${owners.map(o=>safe(o.displayName)).join(', ') || 'No linked account'}\n\n*🏷️ Stickers*\n${tags.slice(0,20).map(t=>`${safe(labelForTag(t))} · ${safe(t.status)}`).join('\n') || 'None'}${tags.length>20?'\nMore tags in admin.':''}\n\n*📦 Recent orders*\n${orders.slice(0,10).map(o=>`${safe(o.orderNumber)} · ${safe(o.status)}${o.internal?' · TEST':''}`).join('\n') || 'None'}`;
   }
   if (action === 'sales') {
     const ist = new Date(Date.now()+330*60000).toISOString();
@@ -143,6 +168,6 @@ export async function runCommand(collections, env, command, actor, commandId, cl
     const month = new Date(`${ist.slice(0,7)}-01T00:00:00+05:30`).toISOString();
     const rows = await collections.shopOrders.aggregate([{ $match: { ...realOrders, status: { $in: ['paid','cod'] }, createdAt: { $gte: month } } }, { $facet: { today: [{ $match: { createdAt: { $gte: today } } }, { $group: { _id: '$status', count: {$sum:1}, amount: {$sum:'$amount'} } }], month: [{ $group: { _id: '$status', count: {$sum:1}, amount: {$sum:'$amount'} } }] } }]).toArray();
     const format = entries => ['paid','cod'].map(status=>{const r=(entries||[]).find(x=>x._id===status);return `${status==='paid'?'Paid':'COD orders'}: ${r?.count||0} · ${money(r?.amount)}`;}).join('\n');
-    return `*Today (IST)*\n${format(rows[0]?.today)}\n*This month*\n${format(rows[0]?.month)}\nInternal tests and giveaways excluded. Amazon orders are not in this ledger.`;
+    return `📊 *ParkTag sales*\n\n*☀️ Today (IST)*\n${format(rows[0]?.today)}\n\n*🗓️ This month*\n${format(rows[0]?.month)}\n\n_Internal tests and giveaways excluded. Amazon orders are not in this ledger._`;
   }
 }

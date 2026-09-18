@@ -11,7 +11,14 @@ export function verifySlackSignature(secret, body, timestamp, signature, now = D
 export function validResponseUrl(value, teamId) {
   try { const u = new URL(value); return u.protocol==='https:' && u.hostname==='hooks.slack.com' && !u.port && !u.username && !u.password && u.pathname.startsWith(`/commands/${teamId}/`) && !u.search && !u.hash; } catch { return false; }
 }
-const privateReply = text => ({ response_type:'ephemeral', text });
+const privateReply = text => ({
+  response_type: 'ephemeral', text,
+  // Fall back to text for unusually long records rather than exceed Slack's section limit.
+  blocks: text.split('\n\n').some(part => part.length > 3000) ? undefined : text.split('\n\n').flatMap((part, index) => [
+    ...(index ? [{ type: 'divider' }] : []),
+    { type: 'section', text: { type: 'mrkdwn', text: part, verbatim: true } },
+  ]),
+});
 
 export function registerSlackCommandRoutes(app, env, dependencies = {}) {
   const load = dependencies.getCollections || getCollections;
@@ -31,7 +38,7 @@ export function registerSlackCommandRoutes(app, env, dependencies = {}) {
     const id = crypto.createHash('sha256').update(request.headers['x-slack-request-timestamp']+':').update(request.rawBody).digest('hex');
     // Acknowledge immediately. Dedup is in Mongo, so Slack retries or another
     // replica cannot run a reset twice. The response URL is never persisted.
-    reply.send(privateReply('Working on it…'));
+    reply.code(200).send(); // Quiet acknowledgement; one private result follows.
     setImmediate(async () => {
       let text;
       let collections;

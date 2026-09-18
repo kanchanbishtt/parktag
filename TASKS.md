@@ -889,4 +889,10 @@ Covers UX and security improvements made after M13 call flow was confirmed worki
 - [x] Implement PR-only superseded-run cancellation, three isolated backend test shards, and the existing `verify` gate. Gate checked against 576 outcome combinations; full workflow validation tracked in the PR.
 ## Slack operator commands, 2026-09-18
 - [x] Implement signed /parktag commands with Girish/team/channel restrictions, private replies, exact batch lookup, tracking, status controls and transactional ownership reset. Thirteen focused tests passed, including real reset transactions against isolated Atlas collections.
-- [ ] Merge/deploy and register the Slack slash command, then verify a real private help/lookup reply.
+- [x] Merge/deploy and register the Slack slash command; private help and tag lookup verified live on 2026-09-18.
+
+## Slack reply presentation, 2026-09-18
+
+- [x] Group help and results with Block Kit sections, dividers, status icons and readable IST dates; retain private replies and text fallback.
+- [x] Acknowledge silently so asynchronous commands show one result instead of an extra working message. Existing command tests pass.
+- [ ] Merge and deploy formatting update.

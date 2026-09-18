@@ -40,3 +40,7 @@ Commands are acknowledged before work starts. Mongo records deduplicate repeated
 ## Validation
 
 Run unit tests with `node --test src/backend/tests/slack-commands.test.js`. Integration tests require a disposable collection prefix matching `test_`/`ci_`, plus MongoDB configuration. `slack-operations.integration.test.js` tests real public routes, ownership retention, reset archiving and revocation, and vault/membership guards. Two transaction tests explicitly skip on standalone MongoDB in CI; all passed locally with an isolated Atlas test prefix.
+
+### Reply presentation
+
+Replies use private Block Kit sections with dividers and a text fallback. Help groups lookup, shipment and tag-management commands. Offset-bearing timestamps display in IST; provider timestamps without a timezone retain their original text. Background commands acknowledge with an empty HTTP 200 and send one private result.

@@ -1,5 +1,6 @@
 import test, { before, after, beforeEach, describe } from "node:test";
 import assert from "node:assert/strict";
+import { validateAddress } from "../lib/core/address.js";
 
 delete process.env.RAZORPAY_KEY_ID;
 delete process.env.RAZORPAY_KEY_SECRET;
@@ -37,13 +38,34 @@ describe("guest checkout accepts a quantity", () => {
       assert.notEqual(res.json().error, "Razorpay not configured.");
     });
   }
-  test("a missing quantity defaults to 1 (back-compat with existing clients)", async () => {
+  test("valid input reaches the missing-payment-configuration guard", async () => {
     const res = await guestCreateOrder({ productId: "pt-car-2", address: ADDRESS });
     assert.equal(res.statusCode, 500, res.body);
-    assert.equal(res.json().error, "Failed to create order. Please try again.");
+    assert.equal(res.json().error, "Razorpay not configured.");
   });
-  test("quantity 3 is accepted and reaches order pricing", async () => {
+  test("a missing quantity defaults to 1 (back-compat with existing clients)", async () => {
+    await collections.shopOrders.insertOne({
+      orderId: "order_qty_one", orderNumber: "PT-QTY-ONE", ownerId: null,
+      guest: true, status: "created", productId: "pt-car-2", variant: null,
+      promoCode: null, amount: 49900, currency: "INR",
+      shippingAddress: validateAddress(ADDRESS).address, createdAt: new Date().toISOString()
+    });
+    const res = await guestCreateOrder({ productId: "pt-car-2", address: ADDRESS });
+    assert.equal(res.statusCode, 200, res.body);
+    assert.equal(res.json().orderId, "order_qty_one");
+    assert.equal(res.json().amount, 49900);
+    assert.equal(await collections.shopOrders.countDocuments({}), 1);
+  });
+  test("quantity 3 reuses the correctly priced multi-pack order", async () => {
+    await collections.shopOrders.insertOne({
+      orderId: "order_qty_three", orderNumber: "PT-QTY-THREE", ownerId: null,
+      guest: true, status: "created", productId: "pt-car-2", variant: null,
+      quantity: 3, promoCode: null, amount: 149700, currency: "INR",
+      shippingAddress: validateAddress(ADDRESS).address, createdAt: new Date().toISOString()
+    });
     const res = await guestCreateOrder({ productId: "pt-car-2", address: ADDRESS, quantity: 3 });
-    assert.equal(res.statusCode, 500, res.body);
+    assert.equal(res.statusCode, 200, res.body);
+    assert.equal(res.json().orderId, "order_qty_three");
+    assert.equal(res.json().amount, 149700);
   });
 });

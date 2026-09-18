@@ -2,7 +2,7 @@ import { ObjectId } from "mongodb";
 import { getCollections } from "../../lib/db/repositories.js";
 import { createSession, writeSessionCookie } from "../../lib/auth/session.js";
 import { isNonEmptyString } from "../../lib/auth/security.js";
-import { chargeExternalOtpSend } from "../../lib/auth/otp.js";
+import { chargeExternalOtpSend, normalizeIdentifier, resolveOwnerByVerifiedMobile, isDuplicateMobileError } from "../../lib/auth/otp.js";
 import { clientErrorMessage } from "../../lib/errors.js";
 
 const FIREBASE_API_BASE = "https://identitytoolkit.googleapis.com/v1/accounts";
@@ -39,13 +39,13 @@ async function firebasePost(path, apiKey, body) {
   return data;
 }
 
-async function findOrCreateOwner(collections, phoneE164) {
-  const phoneDigits = phoneE164.replace(/[^\d]/g, "");
-  const phone10 = phoneDigits.length >= 10 ? phoneDigits.slice(-10) : phoneDigits;
-
-  let owner = await collections.owners.findOne({
-    $or: [{ mobile: phoneE164 }, { mobile: phoneDigits }, { mobile: phone10 }]
-  });
+export async function findOrCreateOwner(collections, phoneE164) {
+  phoneE164 = normalizeIdentifier(phoneE164);
+  const resolved = await resolveOwnerByVerifiedMobile(collections, phoneE164);
+  if (resolved.conflict) {
+    return { conflict: true };
+  }
+  let owner = resolved.owner;
 
   const isNew = !owner;
   if (isNew) {
@@ -53,6 +53,8 @@ async function findOrCreateOwner(collections, phoneE164) {
     owner = {
       _id: ownerId,
       mobile: phoneE164,
+      phone: phoneE164,
+      mobileVerified: true,
       // Not the phone number. Writing the identifier here made every screen
       // reading displayName render it as a person's name — the dashboard
       // greeted these owners with "Hi 9876500123". Null means "not known yet",
@@ -62,7 +64,14 @@ async function findOrCreateOwner(collections, phoneE164) {
       role: "owner",
       createdAt: new Date().toISOString()
     };
-    await collections.owners.insertOne(owner);
+    try {
+      await collections.owners.insertOne(owner);
+    } catch (error) {
+      if (!isDuplicateMobileError(error)) throw error;
+      const winner = await resolveOwnerByVerifiedMobile(collections, phoneE164);
+      if (!winner.owner) throw error;
+      return { owner: winner.owner, isNew: false };
+    }
   }
   return { owner, isNew };
 }
@@ -109,7 +118,11 @@ export function registerFirebasePhoneAuthRoute(app, env) {
       const collections = await getCollections(env);
       if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
 
-      const { owner, isNew } = await findOrCreateOwner(collections, phoneE164);
+      const { owner, isNew, conflict } = await findOrCreateOwner(collections, phoneE164);
+      if (conflict) {
+        reply.code(409);
+        return { ok: false, code: "ACCOUNT_EXISTS", error: "Sign in with your existing email or Google account, then link this number in Settings." };
+      }
       const sessionId = await createSession(app, {
         id: String(owner._id),
         role: "owner",
@@ -241,7 +254,11 @@ export function registerFirebasePhoneAuthRoute(app, env) {
         return { ok: false, error: "Database not configured." };
       }
 
-      const { owner, isNew } = await findOrCreateOwner(collections, phoneE164);
+      const { owner, isNew, conflict } = await findOrCreateOwner(collections, phoneE164);
+      if (conflict) {
+        reply.code(409);
+        return { ok: false, code: "ACCOUNT_EXISTS", error: "Sign in with your existing email or Google account, then link this number in Settings." };
+      }
 
       const sessionId = await createSession(app, {
         id: String(owner._id),

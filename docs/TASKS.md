@@ -1,5 +1,21 @@
 # WaveTag Backend Execution Tracker
 
+## Different vehicles on one phone: corrected incident scope
+
+- [x] Reproduce an existing ten-digit mobile owner being missed by activation, which creates a second +91 owner (regression failed with 2 owners instead of 1 before the fix).
+- [x] Reuse mobile spelling resolution in OTP verification and activation; align Firebase with the same canonical-first selection, legacy conflict guard and duplicate-insert recovery.
+- [x] Keep international phone lookups from matching unrelated Indian accounts by their last ten digits.
+- [x] Verify 17 identity/activation tests, 11 account-identity tests and 59 phone/frontend tests, all passed on local disposable collections where applicable.
+- [x] Add read-only `src/backend/scripts/audit-tag-ownership.js` for batch/plate/owner linkage inspection without printing QR tokens, phone numbers or credentials.
+- [ ] Inspect actual production records, confirm the customer's cause, recover any proven split ownership, deploy and verify the customer's dashboard. Current connection is local only; this is not yet a confirmed production repair.
+
+## Same-plate premium sticker visibility regression
+
+- [x] Verify ten batch-002 premium activations reuse the existing mobile owner and preserve all eleven tags through a fresh OTP login and dashboard response.
+- [x] Verify another owner's same-plate tag remains excluded. Backend ownership queries need no change for this incident.
+- [x] Run `one-number-one-account.test.js` against disposable local `test_premium_visibility_` collections: 10 tests passed. Frontend reconciliation suite: 3 tests passed.
+- [ ] Production verification after deployment: sign in as the affected owner, confirm each activated sticker serial appears, and open/download each sticker using its own tag ID.
+
 This file tracks execution work for `Backend-Gateway`.
 
 Rules:

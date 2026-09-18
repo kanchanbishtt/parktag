@@ -16,8 +16,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { ObjectId } from "mongodb";
 
-import { startTestApp, stopTestApp, TEST_ORIGIN } from "./helpers.js";
-import { createOtpHash } from "../lib/auth/security.js";
+import { startTestApp, stopTestApp, TEST_ORIGIN, uniqueAddress } from "./helpers.js";
+import { dashboardTags } from "../../frontend/scripts/owner/dashboard-tags.js";
+import { findOrCreateOwner } from "../routes/auth/firebase.js";
+import { resolveOwnerByVerifiedMobile, findOwnerByMobile, storedPhoneVariants } from "../lib/auth/otp.js";
+import { createOtpHash, createPasswordHash } from "../lib/auth/security.js";
 import { ensureCoreIndexes } from "../lib/db/repositories.js";
 
 let app;
@@ -75,6 +78,122 @@ async function seedOwnerHolding(number, extra = {}) {
   await collections.owners.insertOne(owner);
   return owner;
 }
+
+for (const scenario of [
+  { label: "same vehicle", storedMobile: E164, samePlate: true },
+  { label: "different vehicles", storedMobile: E164, samePlate: false },
+  { label: "different vehicles with legacy domestic mobile", storedMobile: PHONE10, samePlate: false }
+]) test(`ten premium stickers remain visible after mobile login: ${scenario.label}`, async () => {
+  const owner = await seedOwnerHolding(scenario.storedMobile, { email: null });
+  const now = new Date().toISOString();
+  const old = { _id: new ObjectId(), token: "premium-existing", ownerId: owner._id,
+    status: "active", premium: true, plateNumber: "UP16BM8251", createdAt: now };
+  await collections.tags.insertOne(old);
+  const tokens = Array.from({ length: 10 }, (_, i) => `premium-batch002-${i}`);
+  await collections.tags.insertMany(tokens.map((token, i) => ({
+    _id: new ObjectId(), token, status: "unclaimed", ownerId: null,
+    premium: true, batchNumber: "Batch-002", serialNumber: i + 1, createdAt: now
+  })));
+  // An unrelated owner's sticker must never appear, even with the same plate.
+  await collections.tags.insertOne({ ...old, _id: new ObjectId(), token: "foreign-premium", ownerId: new ObjectId() });
+  for (const [index, token] of tokens.entries()) {
+    await seedOtp();
+    const activation = await app.inject({
+      method: "POST", url: `/api/tags/${token}/activate`,
+      remoteAddress: uniqueAddress(), headers: { origin: ORIGIN },
+      payload: { displayName: "Existing Owner", phone: index % 2 ? E164 : PHONE10,
+        code: CODE, plateNumber: scenario.samePlate ? "UP16BM8251" : `DL01AB${1000 + index}`, vehicleType: "car" }
+    });
+    assert.equal(activation.statusCode, 200, activation.body);
+  }
+  assert.equal(await collections.owners.countDocuments({}), 1);
+  assert.equal(await collections.tags.countDocuments({ ownerId: owner._id }), 11);
+  await seedOtp();
+  const login = await app.inject({ method: "POST", url: "/api/auth/verify-otp",
+    remoteAddress: uniqueAddress(), headers: { origin: ORIGIN },
+    payload: { identifier: PHONE10, code: CODE } });
+  assert.equal(login.statusCode, 200, login.body);
+  const cookies = login.headers["set-cookie"];
+  const dashboard = await app.inject({ method: "GET", url: "/api/owner/dashboard",
+    headers: { cookie: Array.isArray(cookies) ? cookies.join("; ") : cookies } });
+  assert.equal(dashboard.statusCode, 200, dashboard.body);
+  const tags = dashboard.json().tags;
+  assert.equal(tags.length, 11);
+  assert.deepEqual(new Set(dashboardTags(tags).map(t => t.token)), new Set([old.token, ...tokens]));
+  assert.equal(new Set(tags.filter(t => t.serial).map(t => t.serial)).size, 10);
+});
+
+test("activation and Firebase reuse each historical Indian mobile spelling", async () => {
+  for (const mobile of [PHONE10, `91${PHONE10}`, `0${PHONE10}`, E164]) {
+    await collections.owners.deleteMany({});
+    const owner = await seedOwnerHolding(mobile);
+    assert.equal(String((await resolveOwnerByVerifiedMobile(collections, E164)).owner._id), String(owner._id));
+    const firebase = await findOrCreateOwner(collections, E164);
+    assert.equal(firebase.isNew, false);
+    assert.equal(String(firebase.owner._id), String(owner._id));
+    assert.equal(await collections.owners.countDocuments({}), 1);
+  }
+});
+
+test("all mobile paths prefer the same canonical account when a historical split exists", async () => {
+  await seedOwnerHolding(PHONE10, { email: null, createdAt: "2020-01-01T00:00:00.000Z" });
+  const canonical = await seedOwnerHolding(E164);
+  const owners = [
+    await findOwnerByMobile(collections, E164),
+    (await resolveOwnerByVerifiedMobile(collections, E164)).owner,
+    (await findOrCreateOwner(collections, E164)).owner
+  ];
+  assert.ok(owners.every(o => String(o._id) === String(canonical._id)));
+  // Consistency is not a licence to merge accounts or move private records.
+  assert.equal(await collections.owners.countDocuments({}), 2);
+});
+
+test("phone PIN login and OTP login return the same tag set despite an older phone alias", async () => {
+  const pin = "748193";
+  const loginPinHash = await createPasswordHash(pin);
+  await seedOwnerHolding(PHONE10, { email: null, loginPinHash, createdAt: "2020-01-01T00:00:00.000Z" });
+  const canonical = await seedOwnerHolding(E164, { loginPinHash });
+  await collections.tags.insertOne({ _id: new ObjectId(), ownerId: canonical._id,
+    token: "canonical-pin-tag", premium: true, status: "active", plateNumber: "DL01AB4444" });
+  await seedOtp();
+  for (const request of [
+    { url: "/api/auth/login", payload: { identifier: PHONE10, pin } },
+    { url: "/api/auth/verify-otp", payload: { identifier: PHONE10, code: CODE } }
+  ]) {
+    const login = await app.inject({ method: "POST", remoteAddress: uniqueAddress(),
+      headers: { origin: ORIGIN }, ...request });
+    assert.equal(login.statusCode, 200, login.body);
+    const raw = login.headers["set-cookie"];
+    const dashboard = await app.inject({ method: "GET", url: "/api/owner/dashboard",
+      headers: { cookie: Array.isArray(raw) ? raw.join("; ") : raw } });
+    assert.equal(dashboard.statusCode, 200, dashboard.body);
+    assert.deepEqual(dashboard.json().tags.map(t => t.token), ["canonical-pin-tag"]);
+  }
+});
+
+test("Firebase does not fork or adopt a credentialed legacy phone-only account", async () => {
+  await seedOwnerHolding(null, { phone: PHONE10, passwordHash: "existing-credential" });
+  assert.equal((await findOrCreateOwner(collections, E164)).conflict, true);
+  assert.equal(await collections.owners.countDocuments({}), 1);
+});
+
+test("Firebase adopts a credential-free legacy phone account and verifies new owners", async () => {
+  const owner = await seedOwnerHolding(null, { phone: PHONE10, email: null });
+  const adopted = await findOrCreateOwner(collections, E164);
+  assert.equal(String(adopted.owner._id), String(owner._id));
+  assert.equal(adopted.owner.mobileVerified, true);
+  await collections.owners.deleteMany({});
+  const created = await findOrCreateOwner(collections, E164);
+  assert.equal(created.isNew, true);
+  assert.equal(created.owner.mobileVerified, true);
+  assert.equal(created.owner.phone, E164);
+});
+
+test("foreign mobiles cannot resolve an Indian account by their last ten digits", async () => {
+  await seedOwnerHolding(PHONE10);
+  assert.equal(await findOwnerByMobile(collections, `+44${PHONE10}`), null);
+  assert.ok(!storedPhoneVariants(`+44${PHONE10}`).includes(PHONE10));
+});
 
 test("the index itself", async (t) => {
   await t.test("is partial, so the many owners with no mobile still insert", async () => {

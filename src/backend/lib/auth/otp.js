@@ -240,6 +240,11 @@ export async function sendOtp(env, identifier, { purpose = OTP_PURPOSE_AUTH } = 
 // misses the rows most likely to be duplicates.
 export function storedPhoneVariants(normalizedMobile) {
   const digits = String(normalizedMobile).replace(/\D/g, "");
+  // Domestic aliases belong only to Indian mobile numbers. Taking the last
+  // ten digits of a foreign number could match a different person's account.
+  if (!/^91[6-9]\d{9}$/.test(digits)) {
+    return [...new Set([normalizedMobile, digits, `+${digits}`].filter(Boolean))];
+  }
   const last10 = digits.slice(-10);
   // `0${last10}` is not a spelling anyone typed on purpose — it is what the
   // old normalizePhone WROTE. It had no case for the domestic trunk prefix, so
@@ -315,16 +320,37 @@ export function isDuplicateMobileError(error) {
   return Boolean(error && error.code === 11000 && error.keyPattern && error.keyPattern.mobile);
 }
 
+// All phone sign-in and activation paths must choose the same account.
+// Preserve the canonical account when historical duplicates already exist;
+// otherwise reuse a legacy mobile spelling instead of creating a second owner.
+export async function findOwnerByMobile(collections, normalizedMobile, { allowLegacyPhone = false } = {}) {
+  const variants = storedPhoneVariants(normalizedMobile);
+  const match = { mobile: { $in: variants } };
+  // PIN/password login may also select a phone-only account because it verifies
+  // that account's secret. OTP callers use the separate legacy adoption guard.
+  const filter = allowLegacyPhone ? { $or: [match,
+    { mobile: { $in: [null, ""] }, phone: { $in: variants } }
+  ] } : match;
+  // One query on hits and misses, including PIN/password login. A legacy phone
+  // contact must not outrank an actual mobile identity merely because it is older.
+  const [owner] = await collections.owners.aggregate([
+    { $match: filter },
+    { $set: { __mobilePriority: { $cond: [
+      { $eq: ["$mobile", normalizedMobile] }, 0,
+      { $cond: [{ $in: ["$mobile", variants] }, 1, 2] }
+    ] } } },
+    { $sort: { __mobilePriority: 1, createdAt: 1, _id: 1 } },
+    { $limit: 1 },
+    { $unset: "__mobilePriority" }
+  ]).toArray();
+  return owner || null;
+}
+
 export async function resolveOwnerByVerifiedMobile(collections, normalizedMobile) {
-  // Oldest first, so a number that somehow ends up on two rows always resolves
-  // to the same one. Unsorted findOne let the answer change between calls on
-  // identical data — the tag holder on one request, an empty account on the
-  // next. The unique index in db/repositories.js is what stops the second row
-  // existing; this is what keeps the answer stable if one ever does.
-  const owner = await collections.owners.findOne(
-    { mobile: normalizedMobile },
-    { sort: { createdAt: 1, _id: 1 } }
-  );
+  // Use the same identity precedence as OTP, Firebase and PIN login. Historical
+  // aliases can coexist despite the exact-string unique index; never choose
+  // between them using unspecified database order.
+  const owner = await findOwnerByMobile(collections, normalizedMobile);
   if (owner) return { owner, adopted: false, conflict: false };
 
   // Legacy `phone` values were never normalised, so match the stored variants.
@@ -488,10 +514,7 @@ export async function verifyOtp(env, identifier, code, { purpose = OTP_PURPOSE_A
     // Same deterministic order as resolveOwnerByVerifiedMobile. These two
     // lookups decide the same question on the same data and must never
     // disagree; unsorted, they could pick different rows on the same request.
-    ? await collections.owners.findOne(
-        { mobile: normalized },
-        { sort: { createdAt: 1, _id: 1 } }
-      )
+    ? await findOwnerByMobile(collections, normalized)
     : await findByCanonicalEmail(collections.owners, normalized);
 
   return {

@@ -9,7 +9,7 @@ import {
 } from "./security.js";
 import { readSession } from "./session.js";
 import { findByCanonicalEmail } from "./identity.js";
-import { isMobileIdentifier, normalizeIdentifier } from "./otp.js";
+import { isMobileIdentifier, normalizeIdentifier, findOwnerByMobile } from "./otp.js";
 
 export async function findUserByEmail(env, role, email) {
   const collections = await getCollections(env);
@@ -77,8 +77,8 @@ export async function loginUser(env, role, email, password) {
 // ONE query on each branch. Two — try this, fall back to that — costs more
 // round trips when the account does not exist than when it does, and that
 // difference is an enumeration oracle no matter how identical the responses
-// are. The mobile branch matches the normalised number and the legacy `phone`
-// spellings in a single $or for exactly that reason.
+// are. The shared mobile resolver ranks canonical identity, legacy mobile,
+// then legacy phone in one query, consistently with activation and OTP login.
 //
 // Nothing here interpolates the caller's string into a pattern: `identifier`
 // reaches Mongo as a literal filter value or not at all. A non-string body
@@ -87,20 +87,7 @@ export async function loginUser(env, role, email, password) {
 async function findOwnerByIdentifier(collections, identifier) {
   if (isMobileIdentifier(identifier)) {
     const mobile = normalizeIdentifier(identifier);
-    const digits = String(mobile).replace(/\D/g, "");
-    const last10 = digits.slice(-10);
-
-    // Oldest first, so a number that somehow sits on two rows always resolves
-    // to the same account — the same rule resolveOwnerByVerifiedMobile follows.
-    return collections.owners.findOne(
-      {
-        $or: [
-          { mobile },
-          { phone: { $in: [mobile, digits, last10, `+${digits}`] } }
-        ]
-      },
-      { sort: { createdAt: 1, _id: 1 } }
-    );
+    return findOwnerByMobile(collections, mobile, { allowLegacyPhone: true });
   }
 
   return findByCanonicalEmail(collections.owners, identifier);

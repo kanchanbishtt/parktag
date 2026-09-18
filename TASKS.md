@@ -13,6 +13,15 @@ Rules:
 
 ## Milestones
 
+- [ ] Investigate corrected report: different vehicle plates on one mobile number. Verify identity resolution and inspect production ownership before declaring the incident resolved; same-plate display fix alone is insufficient.
+- [x] Final verification: rerun 17 identity tests; independently confirm an already-split 11-tag identity still displays only 1 tag after OTP login. Historical recovery remains unresolved, not covered by the preventive fix.
+- [x] Reproduce legacy domestic-mobile account splitting during different-vehicle activation; share canonical-first, legacy-aware mobile resolution across OTP, activation and Firebase. Verify 87 relevant tests; prepare read-only ownership audit.
+- [x] Align phone-and-PIN login with the same resolver in one database query; verify 18 identity/activation tests including PIN/OTP tag-set consistency.
+- [ ] Complete GitHub/Railway device-login authentication initiated with the user's authorization; production repair and deployment await account-holder sign-in approval.
+
+- [x] Fix dashboard hiding distinct activated stickers with the same plate; initial load and refresh share ID-based reconciliation, cards show sticker serials, and 13 focused tests pass (including ten batch-002 activations plus an existing premium tag followed by fresh mobile login).
+- [ ] Deploy the same-plate sticker visibility fix and verify the affected customer's production dashboard (only local MongoDB is configured in this workspace).
+
 - [x] M1. Confirm MVP scope and repo workflow
 - [x] M2. Define the minimal end-to-end product slice
 - [x] M3. Build a deployable backend server for the MVP demo

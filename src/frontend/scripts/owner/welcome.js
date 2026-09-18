@@ -1,4 +1,5 @@
 import { callbackState, hasLivePass, CALLABLE, NEEDS_PAYMENT, NEEDS_PREMIUM, NEEDS_SUBSCRIPTION } from "./callback-eligibility.js";
+import { dashboardTags } from "./dashboard-tags.js";
 
 // ── Banners carousel ─────────────────────────────────────────────
 const track    = document.getElementById("carTrack");
@@ -1017,6 +1018,7 @@ function vehicleCard(tag, idx) {
     <div class="pt-vlc-body">
       <p class="pt-vlc-name">${labelSafe}</p>
       <p class="pt-vlc-plate">${plateSafe}</p>
+      ${tag.serial ? `<p class="pt-vlc-plate">${esc(tag.serial)}</p>` : ""}
     </div>
     <div class="pt-vlc-meta">
       <span class="pt-vlc-pill ${pillClass}">${pill}</span>
@@ -2358,13 +2360,7 @@ async function syncLocalVehicles(localVehicles, userId) {
     const res = await fetch("/api/owner/dashboard");
     if (!res.ok) return;
     const data = await res.json();
-    const seen = new Set();
-    allTags = (data.tags || []).filter(t => {
-      const p = (t.plateNumber || "").toUpperCase();
-      if (!p || seen.has(p)) return false;
-      seen.add(p);
-      return true;
-    });
+    allTags = dashboardTags(data.tags || []);
     renderGrid(getDisplayTags(), true);
     renderNoticeboard(allTags);
   } catch {}
@@ -2464,24 +2460,7 @@ async function load() {
     // Read only THIS user's saved vehicles
     const saved   = userId ? readSavedVehicles(userId) : [];
     const apiTags = data.tags || [];
-    // Dedup by _id first, fall back to plate number
-    const apiIds  = new Set(apiTags.map(t => String(t._id || "")).filter(Boolean));
-    const apiNums = new Set(apiTags.map(t => (t.plateNumber || "").toUpperCase()).filter(Boolean));
-    const localOnly = saved.filter(v =>
-      !(v._id && apiIds.has(String(v._id))) &&
-      !apiNums.has((v.number || "").toUpperCase())
-    );
-
-    // Dedup apiTags themselves by plate number (handles stale DB duplicates)
-    const seenPlates = new Set();
-    const dedupedApi = apiTags.filter(t => {
-      const plate = (t.plateNumber || t.number || "").toUpperCase();
-      if (!plate || seenPlates.has(plate)) return false;
-      seenPlates.add(plate);
-      return true;
-    });
-
-    allTags     = [...localOnly, ...dedupedApi];
+    allTags     = dashboardTags(apiTags, saved);
     allRequests = data.requests || [];
     // Take the window from the server so the button and the route it calls
     // agree. Older responses omit it and keep the built-in default.

@@ -870,3 +870,13 @@ Covers UX and security improvements made after M13 call flow was confirmed worki
 - [x] Complete M6 security hardening checklist (boundaries code-verified; limitations write-up pending)
 - [ ] Lock shop payment amounts server-side (M15)
 - [x] Surface per-vehicle official sticker upgrade & gated download on My Vehicles cards (M16)
+
+## Meta purchase matching, 2026-09-18
+
+- [x] Preserve actual Meta click/browser cookies across landing and shop; store checkout IP, user agent and cookies on new/reused orders; pass saved context to paid-order CAPI events and log acceptance. Verified with 39 focused tests using disposable collection prefix test_meta_tracking_20260918_.
+- [x] Deploy to production (Railway 626f5f19-a07a-4441-b89e-755cb764299b, SUCCESS); live health and shared-cookie analytics bundle verified.
+- [ ] Verify receipt and matching for the next real paid order in Meta Events Manager; no historical order replay performed.
+
+## Internal test batch reporting, 2026-09-18
+- [x] Exclude PT-Batch-002 from order linking and server activation conversions; exclude internal orders from server Purchase sends. 41 targeted tests passed. Production: 10 test tags classified and incorrect PT-260728-00002 linkage removed. Active n8n activation wording and daily digest exclusions corrected.
+- [x] Railway deployment bbbebd4f-20b1-4737-9de0-ae86bf546692 succeeded; live health verified.

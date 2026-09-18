@@ -289,6 +289,7 @@ export async function createUnclaimedTags(collections, input) {
       vehicleType: null,
       plateNumber: null,
       status: "unclaimed",
+      internal: input.batchNumber === "Batch-002",
       batchNumber: input.batchNumber || null,
       batchLabel: input.batchLabel || null,
       // Denormalised onto every tag, the same way runSerialStart/End are: a run

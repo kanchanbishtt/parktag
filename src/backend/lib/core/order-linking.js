@@ -33,6 +33,7 @@
 // nothing: no phone, no paid order, an order already holding a tag, or a tag
 // that already names one.
 
+import { isInternalTag } from "./internal-orders.js";
 import { toE164 } from "./phone.js";
 import { getShopProduct } from "../integrations/payments.js";
 
@@ -84,6 +85,8 @@ export async function linkTagToOrder(collections, { tagId, phone }, log) {
     const tag = await collections.tags.findOne({ _id: tagId });
     if (!tag) return { linked: false, reason: "no-tag" };
 
+    if (isInternalTag(tag)) return { linked: false, reason: "internal-test-tag" };
+
     // Re-registering a sticker after a deactivation must not move it onto a
     // different order and rewrite what already happened.
     if (tag.assignedOrderNumber) {
@@ -98,6 +101,8 @@ export async function linkTagToOrder(collections, { tagId, phone }, log) {
       .find(
         {
           status: { $in: PAID_STATES },
+          internal: { $ne: true },
+          channel: { $nin: ["internal", "giveaway"] },
           deletedAt: { $in: [null, undefined] }
         },
         {

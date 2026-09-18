@@ -131,7 +131,11 @@ export async function sendCapiEvent(env, {
       return { ok: false, error: `meta capi ${response.status}`, detail: detail.slice(0, 300) };
     }
 
-    return { ok: true };
+    const receipt = await response.json();
+    if (!(receipt.events_received > 0)) {
+      return { ok: false, error: "meta capi no events accepted" };
+    }
+    return { ok: true, eventsReceived: receipt.events_received };
   } catch (error) {
     return { ok: false, error: error?.name === "TimeoutError" ? "timeout" : String(error?.message || error) };
   }
@@ -149,11 +153,18 @@ export function sendCapiEventBestEffort(logger, env, event) {
 
   sendCapiEvent(env, event)
     .then((result) => {
+      if (result.ok) {
+        logger?.info?.(
+          { event: "meta-capi-accepted", eventName: event.eventName, eventId: event.eventId,
+            eventsReceived: result.eventsReceived },
+          "[meta capi] event accepted"
+        );
+      }
       if (!result.ok && !result.skipped) {
         // Takes a logger rather than the app so it can be called from the core
         // helpers too, which are handed a `log` and have no app to reach for.
         logger?.warn?.(
-          { event: "meta-capi-failed", eventName: event.eventName, reason: result.error },
+          { event: "meta-capi-failed", eventName: event.eventName, eventId: event.eventId, reason: result.error },
           "[meta capi] event not delivered"
         );
       }

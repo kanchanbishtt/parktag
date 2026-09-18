@@ -346,3 +346,25 @@ describe("capacity scales with quantity", () => {
     assert.equal((await linkTagToOrder(collections, { tagId, phone: PHONE })).linked, true);
   });
 });
+
+describe('internal testing never becomes a sale link', () => {
+  test('Batch-002 is excluded even before an internal flag is backfilled', async () => {
+    const order = await seedOrder();
+    const tagId = await seedTag({ batchNumber: 'Batch-002' });
+    const result = await linkTagToOrder(collections, { tagId, phone: PHONE });
+    assert.equal(result.reason, 'internal-test-tag');
+    assert.equal((await linked(tagId)).assignedOrderNumber, undefined);
+    assert.equal((await orderFor(order.orderNumber)).assignedTagIds, undefined);
+  });
+  test('an internal order is excluded even when its channel says shop', async () => {
+    await seedOrder({ internal: true, channel: 'shop' });
+    const tagId = await seedTag();
+    assert.equal((await linkTagToOrder(collections, { tagId, phone: PHONE })).linked, false);
+  });
+  test('a real order can still be selected when an older test order shares the phone', async () => {
+    await seedOrder({ internal: true, createdAt: '2026-01-01' });
+    const real = await seedOrder();
+    const tagId = await seedTag();
+    assert.equal((await linkTagToOrder(collections, { tagId, phone: PHONE })).orderNumber, real.orderNumber);
+  });
+});

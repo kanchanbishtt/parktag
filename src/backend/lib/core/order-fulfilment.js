@@ -1,3 +1,4 @@
+import { isInternalPhone } from "./internal-orders.js";
 // What happens once an online order is actually paid for.
 //
 // This used to live inline in POST /api/shop/verify-payment, which meant the
@@ -314,13 +315,19 @@ export async function fulfilPaidOrder(env, collections, { order, paymentId, log 
   // on the path a customer is waiting on at the end of a payment; dev, staging
   // and any production deploy from before the token was set all take the cheap
   // branch.
-  if (isMetaCapiConfigured(env)) {
+  if (isMetaCapiConfigured(env) && order.internal !== true &&
+      order.channel !== "internal" && !isInternalPhone(env, order.shippingAddress?.phone)) {
     const buyer = await collections.owners.findOne({ _id: ownerId });
     sendCapiEventBestEffort(log, env, {
       eventName: "Purchase",
       eventId: purchaseEventId(order.orderNumber),
       actionSource: "website",
+      eventSourceUrl: order.metaCheckoutContext?.eventSourceUrl,
       userData: {
+        fbc: order.metaCheckoutContext?.fbc,
+        fbp: order.metaCheckoutContext?.fbp,
+        clientIp: order.metaCheckoutContext?.clientIp,
+        userAgent: order.metaCheckoutContext?.userAgent,
         phone: (order.shippingAddress && order.shippingAddress.phone) || buyer?.phone || buyer?.mobile,
         email: buyer?.email
       },

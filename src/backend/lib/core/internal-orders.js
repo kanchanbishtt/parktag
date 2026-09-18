@@ -62,3 +62,8 @@ export function isInternalPhone(env, phone) {
   const ours = internalPhoneList(env);
   return ours.length > 0 && ours.includes(number);
 }
+
+// PT-Batch-002 is reserved for internal testing, including future stickers.
+export function isInternalTag(tag) {
+  return tag?.internal === true || tag?.batchNumber === "Batch-002";
+}

@@ -1,3 +1,4 @@
+import { captureMetaCheckoutContext } from "../../lib/integrations/meta-checkout-context.js";
 import {
   createRazorpayOrder,
   verifyRazorpaySignature,
@@ -559,6 +560,15 @@ export function registerShopRoutes(app, env) {
       );
 
       if (reusable && JSON.stringify(reusable.shippingAddress) === JSON.stringify(shipping)) {
+        // A checkout retry may arrive after the Pixel set its cookies, or after
+        // this fix shipped. Keep the latest browser context on the reused order.
+        await collections.shopOrders.updateOne(
+          { _id: reusable._id, status: "created" },
+          { $set: { metaCheckoutContext: {
+            ...reusable.metaCheckoutContext,
+            ...captureMetaCheckoutContext(request)
+          } } }
+        );
         return {
           ok: true,
           orderId: reusable.orderId,
@@ -583,6 +593,7 @@ export function registerShopRoutes(app, env) {
 
         const orderNumber = await generateOrderNumber(collections);
         await collections.shopOrders.insertOne({
+      metaCheckoutContext: captureMetaCheckoutContext(request),
           orderId: order.id,
           orderNumber,
           paymentMethod: "online",
@@ -882,6 +893,15 @@ export function registerShopRoutes(app, env) {
     }, { sort: { createdAt: -1 } });
 
     if (reusable && JSON.stringify(reusable.shippingAddress) === JSON.stringify(shipping)) {
+        // A checkout retry may arrive after the Pixel set its cookies, or after
+        // this fix shipped. Keep the latest browser context on the reused order.
+        await collections.shopOrders.updateOne(
+          { _id: reusable._id, status: "created" },
+          { $set: { metaCheckoutContext: {
+            ...reusable.metaCheckoutContext,
+            ...captureMetaCheckoutContext(request)
+          } } }
+        );
       return {
         ok: true,
         orderId: reusable.orderId,
@@ -915,6 +935,7 @@ export function registerShopRoutes(app, env) {
       const orderNumber = await generateOrderNumber(collections);
       {
         await collections.shopOrders.insertOne({
+      metaCheckoutContext: captureMetaCheckoutContext(request),
           orderId: order.id,
           orderNumber,
           paymentMethod: "online",
@@ -1218,6 +1239,7 @@ export function registerShopRoutes(app, env) {
     // cod-prepay-order enforces are the same deadline.
     const flashOfferExpiresAt = new Date(Date.now() + FLASH_WINDOW_MS).toISOString();
     await collections.shopOrders.insertOne({
+      metaCheckoutContext: captureMetaCheckoutContext(request),
       orderNumber,
       paymentMethod: "cod",
       ownerId,

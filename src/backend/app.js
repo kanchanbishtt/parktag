@@ -704,6 +704,7 @@ export async function buildApp() {
         // the events die at the network boundary.
         connectSrc: [
           "'self'",
+          "https://identitytoolkit.googleapis.com",
           "https://www.google.com",
           "https://www.google.co.in",
           "https://*.google-analytics.com",

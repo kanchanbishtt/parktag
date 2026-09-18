@@ -1,4 +1,5 @@
 import { getCaptchaToken } from "../recaptcha.js";
+import { getFirebaseCaptchaToken } from "../firebase-sms.js";
 
 // Remember that this visitor arrived here on their way to the shop (/shop sends
 // signed-out buyers to /owner-login?next=shop), so the dashboard can open the
@@ -45,6 +46,9 @@ if (_q.get("next") === "vehicle") {
 }
 
 let _currentPhone = null;
+let _phoneChannel = "whatsapp";
+let _smsSessionInfo = null;
+let _phoneBusy = false;
 
 // HTML-escape any value before interpolating it into innerHTML. tag.plateNumber
 // / tag.vehicleLabel are owner-supplied free text with no character allowlist
@@ -64,41 +68,61 @@ function normalizePhoneE164(raw) {
 
 async function sendWhatsappOtp(raw) {
   const phone = normalizePhoneE164(raw);
+  const channel = byId("phone-channel")?.value === "sms" ? "sms" : "whatsapp";
+  let sessionInfo = null;
+  if (channel === "sms") {
+    const recaptchaToken = await getFirebaseCaptchaToken();
+    const data = await fetchJson("/api/auth/firebase-phone/send", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ phone, recaptchaToken })
+    });
+    if (!data.sessionInfo) throw new Error("Could not start SMS verification. Please try again.");
+    sessionInfo = data.sessionInfo;
+  } else {
+    const recaptchaToken = await getCaptchaToken("send_otp");
+    await fetchJson("/api/auth/send-otp", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ identifier: phone, recaptchaToken })
+    });
+  }
+  // Commit the channel only after a successful send. Failed resends must not
+  // change which verification endpoint receives the user's current code.
   _currentPhone = phone;
-
-  const recaptchaToken = await getCaptchaToken("send_otp");
-  await fetchJson("/api/auth/send-otp", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ identifier: phone, recaptchaToken })
-  });
-
+  _phoneChannel = channel;
+  _smsSessionInfo = sessionInfo;
+  byId("phone-otp-inp").value = "";
   byId("phone-step2").style.display = "";
   byId("owner-form-step1").style.display = "none";
   const sub = byId("card-sub");
   if (sub) {
     const last4 = phone.replace(/\D/g, "").slice(-4);
     const masked = phone.slice(0, -4).replace(/\d/g, "X") + last4;
-    sub.innerHTML = `Enter the 6-digit code sent to your WhatsApp <strong style="color:#323232;font-weight:800">${masked}</strong>.`;
+    sub.innerHTML = `Enter the 6-digit code sent by ${channel === "sms" ? "SMS" : "WhatsApp"} to <strong style="color:#323232;font-weight:800">${masked}</strong>.`;
     sub.style.marginBottom = "0";
   }
 }
 
 async function verifyWhatsappOtp() {
   const otp = byId("phone-otp-inp")?.value?.trim();
-  if (!otp || otp.length !== 6) { setStatus("Enter the 6-digit code.", "error"); return; }
+  if (!otp || !/^\d{6}$/.test(otp)) { setStatus("Enter the 6-digit code.", "error"); return; }
+  if (_phoneBusy) return;
+  _phoneBusy = true;
   const btn = byId("phone-verify-btn");
   if (btn) { btn.disabled = true; btn.classList.add("pt-btn-loading"); }
   try {
-    const data = await fetchJson("/api/auth/verify-otp", {
+    const data = await fetchJson(_phoneChannel === "sms" ? "/api/auth/firebase-phone/verify" : "/api/auth/verify-otp", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ identifier: _currentPhone, code: otp })
+      body: JSON.stringify(_phoneChannel === "sms"
+        ? { sessionInfo: _smsSessionInfo, code: otp }
+        : { identifier: _currentPhone, code: otp })
     });
-    window.location.href = data.isNewUser ? "/owner-welcome?new=1" : "/owner-welcome";
+    window.location.href = (data.isNewUser || data.isNew) ? "/owner-welcome?new=1" : "/owner-welcome";
   } catch (error) {
     if (btn) { btn.disabled = false; btn.classList.remove("pt-btn-loading"); }
     setStatus(error instanceof Error ? error.message : "Verification failed.", "error");
+  } finally {
+    _phoneBusy = false;
   }
 }
 
@@ -330,7 +354,7 @@ const IDENTIFIER_MODES = {
   mobile: {
     label: "Mobile number",
     placeholder: "10-digit mobile number",
-    sub: "Enter your mobile number and we'll send you a code on WhatsApp.",
+    sub: "Choose WhatsApp or SMS to receive your sign-in code.",
     inputmode: "tel",
     autocomplete: "tel",
     toggle: "Use email address instead"
@@ -349,6 +373,7 @@ function applyIdentifierMode(mode) {
   const conf = IDENTIFIER_MODES[mode];
   if (!conf) return;
   _identifierMode = mode;
+  if (byId("phone-channel-field")) byId("phone-channel-field").hidden = mode !== "mobile";
 
   const input = byId("owner-identifier");
   const label = byId("identifier-label");
@@ -391,6 +416,7 @@ function updateIdentifierBadge() {
 }
 
 async function loginOwner() {
+  if (_phoneBusy) return;
   const raw = byId("owner-identifier")?.value?.trim();
   if (!raw) {
     setStatus(
@@ -414,11 +440,14 @@ async function loginOwner() {
   if (btn) { btn.disabled = true; btn.classList.add("pt-btn-loading"); }
 
   if (type === "mobile") {
+    _phoneBusy = true;
     try {
       await sendWhatsappOtp(raw);
     } catch (error) {
       if (btn) { btn.disabled = false; btn.classList.remove("pt-btn-loading"); }
       setStatus(error instanceof Error ? error.message : "Failed to send code.", "error");
+    } finally {
+      _phoneBusy = false;
     }
     return;
   }
@@ -439,20 +468,19 @@ async function loginOwner() {
 }
 
 async function resendWhatsappOtp() {
-  if (!_currentPhone) return;
+  if (!_currentPhone || _phoneBusy) return;
+  _phoneBusy = true;
   const btn = byId("phone-resend-btn");
   if (btn) { btn.disabled = true; btn.classList.add("pt-btn-loading"); }
   try {
-    const recaptchaToken = await getCaptchaToken("send_otp");
-    await fetchJson("/api/auth/send-otp", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ identifier: _currentPhone, recaptchaToken })
-    });
-    setStatus("A new code has been sent to your WhatsApp.", "success");
+    // Resend through the channel on which this challenge was issued.
+    if (byId("phone-channel")) byId("phone-channel").value = _phoneChannel;
+    await sendWhatsappOtp(_currentPhone);
+    setStatus(`A new code has been sent by ${_phoneChannel === "sms" ? "SMS" : "WhatsApp"}.`, "success");
   } catch (error) {
     setStatus(error instanceof Error ? error.message : "Failed to resend code.", "error");
   } finally {
+    _phoneBusy = false;
     if (btn) { btn.disabled = false; btn.classList.remove("pt-btn-loading"); }
   }
 }
@@ -597,6 +625,7 @@ if (hasEl("owner-identifier")) {
 }
 if (hasEl("identifier-mode-toggle")) {
   byId("identifier-mode-toggle").addEventListener("click", () => {
+    if (_phoneBusy) return;
     applyIdentifierMode(_identifierMode === "mobile" ? "email" : "mobile");
     setStatus("", "info");
     const input = byId("owner-identifier");
@@ -610,6 +639,9 @@ if (hasEl("phone-resend-btn")) byId("phone-resend-btn").addEventListener("click"
 if (hasEl("phone-back-btn")) {
   byId("phone-back-btn").addEventListener("click", e => {
     e.preventDefault();
+    if (_phoneBusy) return;
+    _smsSessionInfo = null;
+    _currentPhone = null;
     byId("phone-step2").style.display = "none";
     byId("owner-form-step1").style.display = "";
     setStatus("", "info");
@@ -624,6 +656,7 @@ if (hasEl("phone-back-btn")) {
 }
 if (hasEl("use-password-btn")) {
   byId("use-password-btn").addEventListener("click", () => {
+    if (_phoneBusy) return;
     byId("phone-step2").style.display = "none";
     byId("password-step").style.display = "";
     byId("password-inp").focus();

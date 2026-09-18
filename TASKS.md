@@ -905,3 +905,11 @@ Covers UX and security improvements made after M13 call flow was confirmed worki
 - [x] Group help and results with Block Kit sections, dividers, status icons and readable IST dates; retain private replies and text fallback.
 - [x] Acknowledge silently so asynchronous commands show one result instead of an extra working message. Existing command tests pass.
 - [ ] Merge and deploy formatting update.
+## WhatsApp and SMS owner login, 2026-09-18
+- [x] Add SMS alongside WhatsApp using existing Firebase endpoints, Firebase reCAPTCHA and shared send limits. Focused mocked-provider tests cover login, resend, email regression, invalid codes and account reuse.
+- [x] Identify live Firebase project: parktag-449be belongs to biz.edittree@gmail.com, not contact@edittree.in. Phone enabled; Spark plan. Ten focused tests pass.
+- [ ] User completes correct project billing setup; approve adding app.parktag.me authorized domain, then deploy and verify SMS delivery. Earlier parktag1 Blaze restoration is a separate project.
+
+## Primary Firebase switch, 2026-09-18
+- [x] User chose parktag1 under contact@edittree.in. Verified existing production API key already belongs to parktag1 and is valid; only FIREBASE_PROJECT_ID was mismatched. Target already on Blaze, Phone enabled, app.parktag.me authorized, India-only SMS policy. Set Railway production project ID to parktag1 without redeploy pending release checks.
+- [ ] Deploy WhatsApp/SMS login choice and verify live configuration/UI; real handset delivery remains a user test.

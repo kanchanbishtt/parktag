@@ -49,7 +49,7 @@
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="2"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
         </div>
         <h1 class="pt-card-title" id="card-title">Owner Sign In</h1>
-        <p class="pt-card-sub" id="card-sub" style="margin-bottom:20px">Enter your mobile number and we'll send you a code on WhatsApp.</p>
+        <p class="pt-card-sub" id="card-sub" style="margin-bottom:20px">Choose WhatsApp or SMS to receive your sign-in code.</p>
 
         <div class="pt-form" id="owner-form-step1">
           <label class="pt-field">
@@ -73,6 +73,14 @@
               "></span>
             </div>
           </label>
+          <label class="pt-field" id="phone-channel-field">
+            <span>Send code via</span>
+            <select id="phone-channel" class="pt-input">
+              <option value="whatsapp">WhatsApp</option>
+              <option value="sms">SMS</option>
+            </select>
+          </label>
+          <p style="font-size:0.78rem;color:#6B7280">For SMS verification, Google processes your phone number to prevent spam and abuse.</p>
           <button id="owner-login-button" class="pt-btn pt-btn-primary pt-btn-full" style="margin-top:4px">Continue</button>
           <!-- Email stays a first-class way in, just not the default one.
                Anyone who only ever had an email account must still be able to
@@ -83,6 +91,7 @@
           </p>
         </div>
 
+        <div id="firebase-sms-recaptcha"></div>
         <p id="owner-auth-status" class="pt-status" data-tone="info" style="padding:12px 0 0;text-align:center"></p>
 
         <div id="phone-step2" style="display:none;margin-top:4px">

@@ -16,6 +16,8 @@ export async function getCollections(env) {
   const prefix = env.mongoCollectionPrefix || "";
 
   return {
+    slackCommands: db.collection(withPrefix(prefix, "slack_commands")),
+    tagResetHistory: db.collection(withPrefix(prefix, "tag_reset_history")),
     admins: db.collection(withPrefix(prefix, "admins")),
     owners: db.collection(withPrefix(prefix, "owners")),
     tags: db.collection(withPrefix(prefix, "tags")),

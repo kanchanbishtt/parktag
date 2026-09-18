@@ -321,3 +321,7 @@ Verification:
 ## Internal test batch reporting, 2026-09-18
 - [x] Exclude PT-Batch-002 from order linking and server activation conversions; exclude internal orders from server Purchase sends. 41 targeted tests passed. Production: 10 test tags classified and incorrect PT-260728-00002 linkage removed. Active n8n activation wording and daily digest exclusions corrected.
 - [x] Railway deployment bbbebd4f-20b1-4737-9de0-ae86bf546692 succeeded; live health verified.
+
+## Slack operator commands, 2026-09-18
+- [x] Implement signed /parktag commands with Girish/team/channel restrictions, private replies, exact batch lookup, tracking, status controls and transactional ownership reset. Twelve focused tests passed, including real reset transactions against isolated Atlas collections.
+- [ ] Merge/deploy and register the Slack slash command, then verify a real private help/lookup reply.

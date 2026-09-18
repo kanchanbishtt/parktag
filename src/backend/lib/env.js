@@ -175,6 +175,10 @@ export function getEnv() {
     // polluting the production GA4 property and Pixel with test traffic. Unset
     // → /pt-analytics.js ships a no-op and ptTrack() does nothing.
     ga4MeasurementId: process.env.GA4_MEASUREMENT_ID || "",
+    slackSigningSecret: process.env.SLACK_SIGNING_SECRET || "",
+    slackTeamId: process.env.SLACK_TEAM_ID || "",
+    slackChannelId: process.env.SLACK_CHANNEL_ID || "",
+    slackAdminUserIds: process.env.SLACK_ADMIN_USER_IDS || "",
     metaPixelId: process.env.META_PIXEL_ID || "",
     // Conversions API. Unlike the two IDs above this one IS a secret — it is a
     // system-user access token from Events Manager and can write events to the

@@ -320,7 +320,12 @@ export async function fulfilPaidOrder(env, collections, { order, paymentId, log 
       eventName: "Purchase",
       eventId: purchaseEventId(order.orderNumber),
       actionSource: "website",
+      eventSourceUrl: order.metaCheckoutContext?.eventSourceUrl,
       userData: {
+        fbc: order.metaCheckoutContext?.fbc,
+        fbp: order.metaCheckoutContext?.fbp,
+        clientIp: order.metaCheckoutContext?.clientIp,
+        userAgent: order.metaCheckoutContext?.userAgent,
         phone: (order.shippingAddress && order.shippingAddress.phone) || buyer?.phone || buyer?.mobile,
         email: buyer?.email
       },

@@ -75,6 +75,38 @@
     return;
   }
 
+  // Share actual Meta identifiers between the landing domain and app checkout.
+  // Never create an fbc from a UTM label: only a real fbclid represents a click.
+  if (pixelReady) {
+    try {
+      var host = window.location.hostname;
+      var sharedDomain = host === "parktag.me" || /\.parktag\.me$/.test(host);
+      var cookieScope = sharedDomain ? "; Domain=parktag.me" : "";
+      var secure = window.location.protocol === "https:" ? "; Secure" : "";
+      function metaCookie(name) {
+        var match = document.cookie.match(new RegExp("(?:^|; )" + name + "=([^;]*)"));
+        return match ? decodeURIComponent(match[1]) : "";
+      }
+      function saveMetaCookie(name, value) {
+        document.cookie = name + "=" + encodeURIComponent(value) +
+          "; Path=/; Max-Age=7776000; SameSite=Lax" + cookieScope + secure;
+      }
+      var clickId = new URLSearchParams(window.location.search).get("fbclid");
+      var fbc = metaCookie("_fbc");
+      if (clickId && /^[A-Za-z0-9_-]{1,1024}$/.test(clickId)) {
+        if (!fbc || fbc.split(".").slice(3).join(".") !== clickId) {
+          fbc = "fb.1." + Date.now() + "." + clickId;
+        }
+      }
+      if (fbc) saveMetaCookie("_fbc", fbc);
+      var fbp = metaCookie("_fbp") || "fb.1." + Date.now() + "." +
+        Math.floor(Math.random() * 2147483647);
+      saveMetaCookie("_fbp", fbp);
+    } catch (_) {
+      // Disabled cookies must never interfere with checkout.
+    }
+  }
+
   // ---------------------------------------------------------------- event map
 
   // `pixel: null` means the event is GA4-only and must never reach Meta.

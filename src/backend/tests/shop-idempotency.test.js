@@ -125,6 +125,24 @@ describe("LOW #7 — reloading checkout does not mint a second order", () => {
     );
   });
 
+  test("retrying an existing checkout stores the actual Meta browser context", async () => {
+    const seeded = await seedCreatedOrder();
+    const response = await app.inject({
+      method: "POST", url: "/api/shop/create-order",
+      remoteAddress: "203.0.113.5",
+      cookies: { wavetag_session: cookie,
+        _fbc: "fb.1.1750000000000.actual_click", _fbp: "fb.1.1750000000000.12345" },
+      headers: { origin: "http://localhost", "user-agent": "checkout browser" },
+      payload: { productId: "pt-car-1" }
+    });
+    assert.equal(response.statusCode, 200, response.body);
+    const stored = await collections.shopOrders.findOne({ orderId: seeded.orderId });
+    assert.equal(stored.metaCheckoutContext.fbc, "fb.1.1750000000000.actual_click");
+    assert.equal(stored.metaCheckoutContext.fbp, "fb.1.1750000000000.12345");
+    assert.equal(stored.metaCheckoutContext.userAgent, "checkout browser");
+    assert.equal(stored.metaCheckoutContext.clientIp, "203.0.113.5");
+  });
+
   // There is deliberately no "the counter did not advance" test. The counter is
   // only touched after a successful Razorpay call, which this file cannot make,
   // so such a test would pass whether or not reuse worked — it could not fail,

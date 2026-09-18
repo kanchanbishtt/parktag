@@ -1,3 +1,4 @@
+import { isInternalTag, isInternalPhone } from "../../lib/core/internal-orders.js";
 import { ObjectId } from "mongodb";
 
 import { createContactAction, isSupportedContactReason } from "../../lib/core/contact-actions.js";
@@ -1102,7 +1103,7 @@ export function registerPublicRoutes(app, env) {
     //
     // Best-effort by construction. An activation must never fail because Meta
     // was slow.
-    sendCapiEventBestEffort(app.log, env, {
+    if (!isInternalTag(tag) && !isInternalPhone(env, mobile)) sendCapiEventBestEffort(app.log, env, {
       eventName: "TagActivated",
       eventId: activationEventId(String(tag._id)),
       actionSource: "app",

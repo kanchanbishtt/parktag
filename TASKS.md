@@ -13,6 +13,11 @@ Rules:
 
 ## Milestones
 
+### Dashboard load regression after premium ownership fix
+- [x] Reproduce successful dashboard responses being replaced by an error because `localOnly` was undefined.
+- [x] Restore pending-vehicle migration selection and verify complete load/card rendering with 2 and 11 premium tags, with and without pending vehicles (7 tests pass).
+- [ ] Deploy follow-up correction and verify the affected owner's live dashboard.
+
 - [ ] Investigate corrected report: different vehicle plates on one mobile number. Verify identity resolution and inspect production ownership before declaring the incident resolved; same-plate display fix alone is insufficient.
 - [x] Final verification: rerun 17 identity tests; independently confirm an already-split 11-tag identity still displays only 1 tag after OTP login. Historical recovery remains unresolved, not covered by the preventive fix.
 - [x] Reproduce legacy domestic-mobile account splitting during different-vehicle activation; share canonical-first, legacy-aware mobile resolution across OTP, activation and Firebase. Verify 87 relevant tests; prepare read-only ownership audit.

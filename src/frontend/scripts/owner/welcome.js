@@ -2461,6 +2461,10 @@ async function load() {
     const saved   = userId ? readSavedVehicles(userId) : [];
     const apiTags = data.tags || [];
     allTags     = dashboardTags(apiTags, saved);
+    // The reconciler preserves object references; only remaining local
+    // placeholders need migration, never tags already returned by the API.
+    const serverTags = new Set(apiTags);
+    const localOnly = allTags.filter(tag => !serverTags.has(tag));
     allRequests = data.requests || [];
     // Take the window from the server so the button and the route it calls
     // agree. Older responses omit it and keep the built-in default.

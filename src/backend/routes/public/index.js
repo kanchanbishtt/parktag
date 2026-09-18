@@ -36,6 +36,13 @@ import { sendActivationNotice } from "../../lib/core/activation-notice.js";
 
 // Report reasons, matched exactly. An open text field for the reason would let
 // a reporter write anything into a record support reads later.
+// Pausing contact does not relinquish ownership. Only unowned stock can be
+// activated; use the same guard in the atomic write to prevent claim races.
+const claimableFilter = { ownerId: null, deletedAt: null, status: { $in: ["unclaimed", "inactive"] } };
+function isClaimable(tag) {
+  return !tag.ownerId && !tag.deletedAt && ["unclaimed", "inactive"].includes(tag.status);
+}
+
 const REPORT_REASONS = ["sold", "wrong_number", "no_answer", "abuse", "other"];
 
 // Verification security parameters (spec: 3 attempts, then temporary lockout).
@@ -363,17 +370,17 @@ export function registerPublicRoutes(app, env) {
         // that the button is worth showing.
         emergencyAvailable:
           tag.status === "active" && isNonEmptyString(tag.emergencyContact),
-        claimable: ["unclaimed", "inactive"].includes(tag.status),
+        claimable: isClaimable(tag),
         // Which vehicle type the activation wizard opens on, derived from the
         // sticker's mount type (see suggestedVehicleTypeForMount). Sent only
         // for a tag that can still be claimed — it is an input hint for the
         // wizard, and has no meaning for a scanner looking at someone else's
         // active tag. Null on tags issued before mount types existed, and the
         // wizard then opens with nothing chosen rather than guessing.
-        suggestedVehicleType: ["unclaimed", "inactive"].includes(tag.status)
+        suggestedVehicleType: isClaimable(tag)
           ? suggestedVehicleTypeForMount(tag.mountType)
           : null,
-        vehicleCategory: ["unclaimed", "inactive"].includes(tag.status)
+        vehicleCategory: isClaimable(tag)
           ? vehicleCategoryForMount(tag.mountType)
           : null
       },
@@ -710,7 +717,7 @@ export function registerPublicRoutes(app, env) {
       };
     }
 
-    if (!["unclaimed", "inactive"].includes(tag.status)) {
+    if (!isClaimable(tag)) {
       reply.code(400);
       return {
         ok: false,
@@ -780,8 +787,8 @@ export function registerPublicRoutes(app, env) {
       };
     }
 
-    await collections.tags.updateOne(
-      { _id: tag._id },
+    const claimedTag = await collections.tags.updateOne(
+      { _id: tag._id, ...claimableFilter },
       {
         $set: {
           ownerId,
@@ -798,6 +805,11 @@ export function registerPublicRoutes(app, env) {
         }
       }
     );
+
+    if (!claimedTag.matchedCount) {
+      reply.code(409);
+      return { ok: false, error: "This tag was claimed or changed. Refresh and try again." };
+    }
 
     // No-op unless this is a field-demo sticker opened for a demo. When it is,
     // it records who activated it so the sales screen can wipe them again if
@@ -930,7 +942,7 @@ export function registerPublicRoutes(app, env) {
       return { ok: false, error: "Tag not found" };
     }
 
-    if (!["unclaimed", "inactive"].includes(tag.status)) {
+    if (!isClaimable(tag)) {
       reply.code(400);
       return { ok: false, error: "Tag is not claimable" };
     }
@@ -1045,8 +1057,8 @@ export function registerPublicRoutes(app, env) {
     // to while this was null.
     const resolvedLabel = vehicleLabel || VEHICLE_LABELS[vehicleType] || tag.vehicleLabel;
 
-    await collections.tags.updateOne(
-      { _id: tag._id },
+    const claimedTag = await collections.tags.updateOne(
+      { _id: tag._id, ...claimableFilter },
       {
         $set: {
           ownerId: owner._id,
@@ -1060,6 +1072,11 @@ export function registerPublicRoutes(app, env) {
         }
       }
     );
+
+    if (!claimedTag.matchedCount) {
+      reply.code(409);
+      return { ok: false, error: "This tag was claimed or changed. Refresh and try again." };
+    }
 
     // No-op unless this is a field-demo sticker opened for a demo — see the
     // matching call in /claim. isNewOwner matters here: a customer who already

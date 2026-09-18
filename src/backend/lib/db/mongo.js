@@ -100,3 +100,9 @@ export async function closeMongoConnection() {
   clientPromise = null;
   await client.close();
 }
+
+// Used by operator actions that must archive and reset atomically.
+export async function getMongoClient(env) {
+  await getMongoDb(env);
+  return clientPromise;
+}

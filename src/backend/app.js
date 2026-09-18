@@ -19,6 +19,7 @@ import { createSharedRateLimitStore } from "./lib/auth/rate-limit-store.js";
 import { getCollections } from "./lib/db/repositories.js";
 import { trustProxy } from "./lib/core/proxy-trust.js";
 import { stickerSerialFor } from "./lib/core/tag-issuance.js";
+import { registerSlackCommandRoutes } from "./routes/webhooks/slack.js";
 import { registerAdminRoutes } from "./routes/admin/index.js";
 import { registerAdminTrafficRoutes } from "./routes/admin/traffic.js";
 import { registerAdminMarketingRoutes } from "./routes/admin/marketing.js";
@@ -457,6 +458,7 @@ export async function buildApp() {
     "application/x-www-form-urlencoded",
     { parseAs: "string" },
     (request, body, done) => {
+      request.rawBody = Buffer.from(body);
       const params = new URLSearchParams(body);
       const data = Object.fromEntries(params.entries());
       done(null, data);
@@ -1318,6 +1320,7 @@ export async function buildApp() {
   registerProviderRoutes(app, env);
   registerMetaWebhookRoutes(app, env);
   registerRazorpayWebhookRoutes(app, env);
+  registerSlackCommandRoutes(app, env);
   registerRegistrationRoutes(app, env);
   registerAuthRoutes(app, env);
   registerOtpAuthRoutes(app, env);

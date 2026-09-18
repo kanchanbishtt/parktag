@@ -193,6 +193,8 @@ export function registerFirebasePhoneAuthRoute(app, env) {
     // Charge the destination budget BEFORE calling Firebase, so a number that is
     // already over its limit costs nothing and receives nothing.
     try {
+      const collections = await getCollections(env);
+      await reserveSmsWindow(collections, phoneE164);
       await chargeExternalOtpSend(env, phoneE164);
     } catch (err) {
       reply.code(429);
@@ -276,4 +278,20 @@ export function registerFirebasePhoneAuthRoute(app, env) {
       return { ok: false, error: "Invalid or expired code. Please try again." };
     }
   });
+}
+
+// A stable MongoDB ID makes simultaneous requests compete for one reservation.
+// Reserve before contacting Firebase, including failed/uncertain sends.
+export async function reserveSmsWindow(collections, phone, now = Date.now()) {
+  if (!collections) throw new Error("Database not configured.");
+  try {
+    await collections.otpTokens.updateOne(
+      { _id: `sms-window:${normalizeIdentifier(phone)}`, expiresAt: { $lte: new Date(now).toISOString() } },
+      { $set: { channel: "sms-window", expiresAt: new Date(now + 600000).toISOString() } },
+      { upsert: true }
+    );
+  } catch (error) {
+    if (error.code !== 11000) throw error;
+    throw Object.assign(new Error("Please wait 10 minutes between SMS requests."), { expose: true });
+  }
 }

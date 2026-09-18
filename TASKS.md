@@ -912,4 +912,7 @@ Covers UX and security improvements made after M13 call flow was confirmed worki
 
 ## Primary Firebase switch, 2026-09-18
 - [x] User chose parktag1 under contact@edittree.in. Verified existing production API key already belongs to parktag1 and is valid; only FIREBASE_PROJECT_ID was mismatched. Target already on Blaze, Phone enabled, app.parktag.me authorized, India-only SMS policy. Set Railway production project ID to parktag1 without redeploy pending release checks.
-- [ ] Deploy WhatsApp/SMS login choice and verify live configuration/UI; real handset delivery remains a user test.
+- [x] Deploy WhatsApp/SMS login choice and verify live configuration/UI. PR #253 merged after all CI checks passed using explicitly approved owner override. Railway deployment e93c90a2-7c36-49ef-a1ab-80d23dc824a0 succeeded at commit 434e06a; live health OK, Firebase project parktag1, both channel options visible.
+- [ ] Account holder verifies actual WhatsApp/SMS handset delivery; no live OTPs sent during automated checks.
+
+- [x] WhatsApp remains default; SMS fallback revealed after 10 seconds with a server-enforced 10-minute per-number SMS reservation and UI cooldown. Targeted tests passed.

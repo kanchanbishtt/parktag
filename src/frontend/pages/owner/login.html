@@ -73,14 +73,7 @@
               "></span>
             </div>
           </label>
-          <label class="pt-field" id="phone-channel-field">
-            <span>Send code via</span>
-            <select id="phone-channel" class="pt-input">
-              <option value="whatsapp">WhatsApp</option>
-              <option value="sms">SMS</option>
-            </select>
-          </label>
-          <p style="font-size:0.78rem;color:#6B7280">For SMS verification, Google processes your phone number to prevent spam and abuse.</p>
+          <input id="phone-channel" type="hidden" value="whatsapp" />
           <button id="owner-login-button" class="pt-btn pt-btn-primary pt-btn-full" style="margin-top:4px">Continue</button>
           <!-- Email stays a first-class way in, just not the default one.
                Anyone who only ever had an email account must still be able to
@@ -91,6 +84,11 @@
           </p>
         </div>
 
+        <p id="sms-fallback" hidden style="text-align:center;font-size:0.85rem;color:#6B7280">
+          Don't have WhatsApp?
+          <button type="button" id="sms-fallback-btn" style="background:none;border:none;color:#FF2700;font-weight:700;cursor:pointer">Try SMS OTP verification</button>
+          <span style="display:block;font-size:0.78rem;margin-top:6px">You can request one SMS code every 10 minutes. Google processes your phone number to prevent spam and abuse.</span>
+        </p>
         <div id="firebase-sms-recaptcha"></div>
         <p id="owner-auth-status" class="pt-status" data-tone="info" style="padding:12px 0 0;text-align:center"></p>
 

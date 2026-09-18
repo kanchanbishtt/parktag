@@ -49,6 +49,18 @@ let _currentPhone = null;
 let _phoneChannel = "whatsapp";
 let _smsSessionInfo = null;
 let _phoneBusy = false;
+let _smsAvailable = false;
+let _smsNextSendAt = 0;
+function refreshSmsFallback() {
+  if (byId("sms-fallback")) byId("sms-fallback").hidden = !_smsAvailable || _identifierMode !== "mobile";
+  const remaining = Math.max(0, Math.ceil((_smsNextSendAt - Date.now()) / 1000));
+  for (const id of ["sms-fallback-btn", ...(_phoneChannel === "sms" ? ["phone-resend-btn"] : [])]) {
+    const btn = byId(id);
+    if (!btn) continue;
+    btn.disabled = _phoneBusy || remaining > 0;
+    btn.textContent = remaining > 0 ? `Try SMS in ${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, "0")}` : id === "sms-fallback-btn" ? "Try SMS OTP verification" : "Resend";
+  }
+}
 
 // HTML-escape any value before interpolating it into innerHTML. tag.plateNumber
 // / tag.vehicleLabel are owner-supplied free text with no character allowlist
@@ -71,6 +83,7 @@ async function sendWhatsappOtp(raw) {
   const channel = byId("phone-channel")?.value === "sms" ? "sms" : "whatsapp";
   let sessionInfo = null;
   if (channel === "sms") {
+    if (Date.now() < _smsNextSendAt) throw new Error("Please wait 10 minutes between SMS requests.");
     const recaptchaToken = await getFirebaseCaptchaToken();
     const data = await fetchJson("/api/auth/firebase-phone/send", {
       method: "POST", headers: { "content-type": "application/json" },
@@ -78,6 +91,7 @@ async function sendWhatsappOtp(raw) {
     });
     if (!data.sessionInfo) throw new Error("Could not start SMS verification. Please try again.");
     sessionInfo = data.sessionInfo;
+    _smsNextSendAt = Date.now() + 10 * 60 * 1000;
   } else {
     const recaptchaToken = await getCaptchaToken("send_otp");
     await fetchJson("/api/auth/send-otp", {
@@ -373,7 +387,7 @@ function applyIdentifierMode(mode) {
   const conf = IDENTIFIER_MODES[mode];
   if (!conf) return;
   _identifierMode = mode;
-  if (byId("phone-channel-field")) byId("phone-channel-field").hidden = mode !== "mobile";
+  refreshSmsFallback();
 
   const input = byId("owner-identifier");
   const label = byId("identifier-label");
@@ -642,6 +656,7 @@ if (hasEl("phone-back-btn")) {
     if (_phoneBusy) return;
     _smsSessionInfo = null;
     _currentPhone = null;
+    byId("phone-channel").value = "whatsapp";
     byId("phone-step2").style.display = "none";
     byId("owner-form-step1").style.display = "";
     setStatus("", "info");
@@ -685,4 +700,22 @@ if (hasEl("owner-done-btn")) byId("owner-done-btn").addEventListener("click", ()
 
 if (hasEl("owner-vehicle-details")) {
   await loadOwnerDashboard();
+}
+
+if (hasEl("sms-fallback-btn")) {
+  setTimeout(() => { _smsAvailable = true; refreshSmsFallback(); }, 10000);
+  setInterval(refreshSmsFallback, 1000);
+  byId("sms-fallback-btn").addEventListener("click", async () => {
+    if (!_smsAvailable || _phoneBusy || Date.now() < _smsNextSendAt) return;
+    byId("phone-channel").value = "sms";
+    if (!_currentPhone) { await loginOwner(); refreshSmsFallback(); return; }
+    _phoneBusy = true;
+    refreshSmsFallback();
+    try {
+      await sendWhatsappOtp(_currentPhone);
+      setStatus("An SMS verification code has been sent.", "success");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not send SMS.", "error");
+    } finally { _phoneBusy = false; refreshSmsFallback(); }
+  });
 }

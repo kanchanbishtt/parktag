@@ -13,3 +13,5 @@ The separate parktag-449be project belongs to biz.edittree@gmail.com and remains
 ## Verification
 
 Focused tests mock Firebase requests and use a disposable MongoDB prefix. Cover WhatsApp/SMS routing, resend failure, email regression, invalid OTP rejection, owner reuse and send-budget charging. Real handset delivery still requires an explicit test by an account holder. Do not solve a CAPTCHA or send a real OTP automatically during UI verification.
+
+Release: PR #253 merged with explicit owner override after all CI checks passed. Railway e93c90a2-7c36-49ef-a1ab-80d23dc824a0 succeeded at 434e06a. Live health, parktag1 config and both login options verified. 28 local targeted tests passed. Real handset delivery remains untested.

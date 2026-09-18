@@ -1,95 +1,29 @@
 name: CI
 
-# Both long-lived branches, not just main.
-#
-# Feature branches are PR'd into `staging` and only reach `main` in the
-# staging -> main release PR. Watching `main` alone therefore ran the suite for
-# the first time AFTER every feature had already been merged and deployed —
-# the tests were reporting history rather than gating anything.
-#
-# It is also what "Wait for CI" on a Railway service needs: that setting holds a
-# deploy until the branch's GitHub checks pass, so a service tracking `staging`
-# with no workflow watching `staging` would wait for a check that never runs.
 on:
   pull_request:
     branches: [main, staging]
   push:
     branches: [main, staging]
 
+# Superseded PR commits do not need to finish. Push runs use unique groups so
+# a newer commit never cancels verification of a main/staging release.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
-  verify:
+  scope:
+    name: Detect changes
     runs-on: ubuntu-latest
-
-    # The security tests exercise real routes against a real database, because
-    # the properties they pin (an operator object reaching a query filter, a
-    # per-account lockout counter, a token's attempt cap) only exist at the
-    # database boundary. The boot smoke test below also points at this URI, so
-    # it now starts against a reachable Mongo rather than a dead port.
-    services:
-      mongodb:
-        image: mongo:7
-        ports:
-          - 27017:27017
-        options: >-
-          --health-cmd "mongosh --quiet --eval 'db.runCommand({ ping: 1 })'"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 10
-
-    env:
-      APP_ENV: dev
-      MONGODB_URI: mongodb://127.0.0.1:27017
-      MONGODB_DB_NAME: wavetag
-      # Must match the disposable-prefix rule in src/backend/tests/helpers.js —
-      # the suite refuses to run against anything that isn't clearly throwaway.
-      MONGODB_COLLECTION_PREFIX: ci_
-      # Both register-call routes answer 503 when no virtual number is set, and a
-      # runner has no telephony credentials. Without this the routes never write
-      # a contact row, so every test that reads one back fails for a reason that
-      # has nothing to do with what it is testing — which is what the scanner
-      # location and callback suites have been failing on since 2026-08-27.
-      #
-      # Safe: nothing dials. These routes record where a call should be routed
-      # and hand the number back; the number below is not a real Exotel line.
-      # contact-routing.test.js already set this for itself at module scope,
-      # which fixed that one file and left every other suite broken. Setting it
-      # for the job fixes it once, for all of them.
-      EXOTEL_CALLER_ID: "08000000000"
-
+    outputs:
+      backend: ${{ steps.scope.outputs.backend }}
+      landing: ${{ steps.scope.outputs.landing }}
     steps:
-      # Full history so the scope step below can diff against the base commit.
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
-        with:
-          # 22, not 20: `node --test` only accepts glob patterns from 21 onward,
-          # and the test script scopes discovery with one so that the manual
-          # Exotel script at ./test.js is not picked up as a test.
-          node-version: 22
-          cache: npm
-
-      # Which halves of the repo does this change actually touch?
-      #
-      # landing/ is a separate Next app with its own package.json and no code
-      # imports from src/, so a change confined to it cannot break backend auth
-      # — the login suite spends four minutes proving something about a diff it
-      # never read. This scopes the suite to changes that can affect it.
-      #
-      # This is deliberately NOT a `paths:` filter on the workflow. Railway
-      # services here use "Wait for CI", which waits on this check by name; a
-      # filtered-out workflow never reports at all, so the deploy would hang
-      # forever rather than proceed. The job therefore always runs and always
-      # reports — only the expensive steps inside it are conditional.
-      #
-      # src/backend/assets/analytics.js is the trap worth naming: it is edited
-      # as part of "landing work" whenever an event is added, but it is backend
-      # code and lands under src/, so it correctly takes the full path.
-      #
-      # Done with git rather than a marketplace action on purpose. This step
-      # decides whether the security suite runs, so it should not be a
-      # third-party dependency that could be swapped under us.
       - name: Work out what changed
         id: scope
         run: |
@@ -132,44 +66,102 @@ jobs:
             echo "landing=false" >> "$GITHUB_OUTPUT"
           fi
 
+  backend:
+    name: Backend tests (${{ matrix.shard }}/3)
+    needs: scope
+    if: needs.scope.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    # Each shard has a separate runner AND Mongo container. Keep test files
+    # sequential within a shard: some suites clear whole fixture collections.
+    services:
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.runCommand({ ping: 1 })'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      APP_ENV: dev
+      MONGODB_URI: mongodb://127.0.0.1:27017
+      MONGODB_DB_NAME: wavetag_ci_${{ matrix.shard }}
+      MONGODB_COLLECTION_PREFIX: ci_
+      # Placeholder only; tests record routing without calling real handsets.
+      EXOTEL_CALLER_ID: "08000000000"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
       - run: npm ci
-        if: steps.scope.outputs.backend == 'true'
-
       - name: Check JS syntax
-        if: steps.scope.outputs.backend == 'true'
-        run: |
-          find src -name "*.js" -print0 | xargs -0 -n1 node --check
-
-      - name: Login security tests
-        if: steps.scope.outputs.backend == 'true'
-        run: npm test
-
-      # New, and not a speedup: CI has never built the landing site at all. A
-      # change that failed `next build` passed here and only fell over on
-      # Railway, after the merge. Landing changes now get a real check of their
-      # own instead of an unrelated one.
-      - name: Landing build
-        if: steps.scope.outputs.landing == 'true'
-        working-directory: landing
-        run: |
-          npm ci
-          npx next build
-
+        if: matrix.shard == 1
+        run: find src -name "*.js" -print0 | xargs -0 -n1 node --check
+      - name: Backend tests
+        run: node --test --test-concurrency=1 --test-shard=${{ matrix.shard }}/3 "src/backend/tests/**/*.test.js"
       - name: Boot smoke test
-        if: steps.scope.outputs.backend == 'true'
+        if: matrix.shard == 1
         run: |
-          PORT=4100 \
-          APP_BASE_URL=http://localhost:4100 \
-          node src/backend/server.js &
+          PORT=4100 APP_BASE_URL=http://localhost:4100 node src/backend/server.js &
           SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
           for i in $(seq 1 10); do
             if curl -sf http://localhost:4100/api/health > /dev/null; then
               echo "Server is up"
-              kill $SERVER_PID
               exit 0
             fi
             sleep 1
           done
           echo "Server failed to become healthy"
-          kill $SERVER_PID 2>/dev/null || true
           exit 1
+
+  landing:
+    name: Landing build
+    needs: scope
+    if: needs.scope.outputs.landing == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: landing/package-lock.json
+      - run: npm ci
+        working-directory: landing
+      - run: npx next build
+        working-directory: landing
+
+  # Preserve the existing required check name. A failed/cancelled prerequisite
+  # must never turn into a passing gate, even when another job was skipped.
+  verify:
+    needs: [scope, backend, landing]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify required checks
+        env:
+          SCOPE_RESULT: ${{ needs.scope.result }}
+          BACKEND_REQUIRED: ${{ needs.scope.outputs.backend }}
+          BACKEND_RESULT: ${{ needs.backend.result }}
+          LANDING_REQUIRED: ${{ needs.scope.outputs.landing }}
+          LANDING_RESULT: ${{ needs.landing.result }}
+        run: |
+          test "$SCOPE_RESULT" = success
+          case "$BACKEND_REQUIRED:$BACKEND_RESULT" in
+            true:success|false:skipped) ;;
+            *) echo "Backend checks did not complete as required"; exit 1 ;;
+          esac
+          case "$LANDING_REQUIRED:$LANDING_RESULT" in
+            true:success|false:skipped) ;;
+            *) echo "Landing checks did not complete as required"; exit 1 ;;
+          esac

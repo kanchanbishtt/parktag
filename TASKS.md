@@ -883,3 +883,7 @@ Covers UX and security improvements made after M13 call flow was confirmed worki
 
 ## Quantity checkout CI, 2026-09-18
 - [x] Correct the missing-Razorpay assertion and verify quantity-1 legacy reuse and quantity-3 pricing without a provider call. All 8 quantity tests pass with an isolated test prefix.
+
+## CI throughput, 2026-09-18
+
+- [x] Implement PR-only superseded-run cancellation, three isolated backend test shards, and the existing `verify` gate. Gate checked against 576 outcome combinations; full workflow validation tracked in the PR.

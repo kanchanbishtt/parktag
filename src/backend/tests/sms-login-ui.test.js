@@ -69,11 +69,24 @@ test('rejects nonnumeric codes without a verification request', async () => {
   assert.equal(h.calls.length, 1);
 });
 
-test('SMS fallback is hidden initially and revealed only after ten seconds', async () => {
+test('SMS fallback delay starts after WhatsApp send, not page load', async () => {
   const h = await harness();
+  assert.equal(h.elements['sms-fallback'].hidden, true);
+  assert.equal(h.timers.length, 0);
+  await h.api.loginOwner();
   assert.equal(h.elements['sms-fallback'].hidden, true);
   assert.equal(h.timers[0].ms, 10000);
   h.timers[0].fn();
   assert.equal(h.elements['sms-fallback'].hidden, false);
   assert.equal(h.elements['phone-channel'].value, 'whatsapp');
+});
+
+test('WhatsApp resend restarts fallback delay and invalidates old timer', async () => {
+  const h = await harness();
+  await h.api.loginOwner();
+  await h.api.resendWhatsappOtp();
+  h.timers[0].fn();
+  assert.equal(h.elements['sms-fallback'].hidden, true);
+  h.timers[1].fn();
+  assert.equal(h.elements['sms-fallback'].hidden, false);
 });

@@ -921,3 +921,5 @@ Covers UX and security improvements made after M13 call flow was confirmed worki
 - [ ] Account holder verifies actual WhatsApp/SMS handset delivery; no live OTPs sent during automated checks.
 
 - [x] WhatsApp remains default; SMS fallback revealed after 10 seconds with a server-enforced 10-minute per-number SMS reservation and UI cooldown. Targeted tests passed.
+
+- [x] SMS fallback layout corrected: below verification controls, compact typography, consent shown only when choosing SMS; 10-second delay starts after WhatsApp send and resets on resend/back. Targeted checks pass.

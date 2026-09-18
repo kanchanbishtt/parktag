@@ -84,12 +84,6 @@
           </p>
         </div>
 
-        <p id="sms-fallback" hidden style="text-align:center;font-size:0.85rem;color:#6B7280">
-          Don't have WhatsApp?
-          <button type="button" id="sms-fallback-btn" style="background:none;border:none;color:#FF2700;font-weight:700;cursor:pointer">Try SMS OTP verification</button>
-          <span style="display:block;font-size:0.78rem;margin-top:6px">You can request one SMS code every 10 minutes. Google processes your phone number to prevent spam and abuse.</span>
-        </p>
-        <div id="firebase-sms-recaptcha"></div>
         <p id="owner-auth-status" class="pt-status" data-tone="info" style="padding:12px 0 0;text-align:center"></p>
 
         <div id="phone-step2" style="display:none;margin-top:4px">
@@ -109,6 +103,12 @@
             Have a login PIN?
             <button id="use-password-btn" style="background:none;border:none;color:#FF2700;font-weight:700;font-size:0.85rem;cursor:pointer;padding:0;font-family:inherit">Sign in with PIN</button>
           </p>
+          <div id="sms-fallback" hidden style="text-align:center;margin-top:16px;padding-top:14px;border-top:1px solid #E5E7EB;font-size:0.85rem;color:#6B7280;line-height:1.5">
+            <span>Don't have WhatsApp?</span>
+            <button type="button" id="sms-fallback-btn" style="display:block;margin:4px auto 0;background:none;border:none;color:#FF2700;font-weight:700;font-size:inherit;font-family:inherit;cursor:pointer;padding:0">Try SMS OTP verification</button>
+          </div>
+          <p id="sms-consent" hidden style="font-size:0.75rem;color:#6B7280;line-height:1.45;margin:12px 0 0;text-align:center">Google processes your phone number to prevent spam and abuse. One SMS request is allowed every 10 minutes.</p>
+          <div id="firebase-sms-recaptcha" style="margin-top:12px"></div>
           <p style="text-align:center;margin-top:8px;margin-bottom:0">
             <a href="#" id="phone-back-btn" style="font-size:0.85rem;color:#FF2700;font-weight:600;text-decoration:none">← Back to sign in</a>
           </p>

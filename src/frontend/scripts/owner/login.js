@@ -51,8 +51,15 @@ let _smsSessionInfo = null;
 let _phoneBusy = false;
 let _smsAvailable = false;
 let _smsNextSendAt = 0;
+let _smsRevealGeneration = 0;
+function resetSmsFallback() {
+  _smsAvailable = false;
+  _smsRevealGeneration += 1;
+  if (byId("sms-consent")) byId("sms-consent").hidden = true;
+  refreshSmsFallback();
+}
 function refreshSmsFallback() {
-  if (byId("sms-fallback")) byId("sms-fallback").hidden = !_smsAvailable || _identifierMode !== "mobile";
+  if (byId("sms-fallback")) byId("sms-fallback").hidden = !_smsAvailable || !_currentPhone || _phoneChannel !== "whatsapp" || _identifierMode !== "mobile";
   const remaining = Math.max(0, Math.ceil((_smsNextSendAt - Date.now()) / 1000));
   for (const id of ["sms-fallback-btn", ...(_phoneChannel === "sms" ? ["phone-resend-btn"] : [])]) {
     const btn = byId(id);
@@ -84,6 +91,7 @@ async function sendWhatsappOtp(raw) {
   let sessionInfo = null;
   if (channel === "sms") {
     if (Date.now() < _smsNextSendAt) throw new Error("Please wait 10 minutes between SMS requests.");
+    if (byId("sms-consent")) byId("sms-consent").hidden = false;
     const recaptchaToken = await getFirebaseCaptchaToken();
     const data = await fetchJson("/api/auth/firebase-phone/send", {
       method: "POST", headers: { "content-type": "application/json" },
@@ -104,6 +112,15 @@ async function sendWhatsappOtp(raw) {
   _currentPhone = phone;
   _phoneChannel = channel;
   _smsSessionInfo = sessionInfo;
+  resetSmsFallback();
+  if (channel === "whatsapp") {
+    const generation = _smsRevealGeneration;
+    setTimeout(() => {
+      if (generation !== _smsRevealGeneration) return;
+      _smsAvailable = true;
+      refreshSmsFallback();
+    }, 10000);
+  }
   byId("phone-otp-inp").value = "";
   byId("phone-step2").style.display = "";
   byId("owner-form-step1").style.display = "none";
@@ -656,6 +673,7 @@ if (hasEl("phone-back-btn")) {
     if (_phoneBusy) return;
     _smsSessionInfo = null;
     _currentPhone = null;
+    resetSmsFallback();
     byId("phone-channel").value = "whatsapp";
     byId("phone-step2").style.display = "none";
     byId("owner-form-step1").style.display = "";
@@ -703,7 +721,7 @@ if (hasEl("owner-vehicle-details")) {
 }
 
 if (hasEl("sms-fallback-btn")) {
-  setTimeout(() => { _smsAvailable = true; refreshSmsFallback(); }, 10000);
+  refreshSmsFallback();
   setInterval(refreshSmsFallback, 1000);
   byId("sms-fallback-btn").addEventListener("click", async () => {
     if (!_smsAvailable || _phoneBusy || Date.now() < _smsNextSendAt) return;

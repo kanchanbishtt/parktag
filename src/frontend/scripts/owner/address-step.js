@@ -408,7 +408,7 @@
       // Fee on its own line, so a phone never wraps the price mid-bracket.
       els.payCod.textContent = "Cash on delivery · " + inr(codPaise);
       var codNote = document.createElement("small");
-      codNote.textContent = "Includes " + inr(Number(cod.feePaise)) + " COD fee · pay when it arrives";
+      codNote.textContent = "Includes " + inr(Number(cod.feePaise)) + " COD fee · offers apply to online payment only";
       els.payCod.appendChild(codNote);
     }
     payPrices = codOn ? { online: amountPaise, cod: codPaise, mrp: Number(summary.mrpPaise) } : null;
@@ -446,6 +446,9 @@
     var cod = payChoice === "cod";
     els.payChoice.querySelectorAll("input").forEach(function (input) { input.checked = input.value === payChoice; });
     if (payPrices) renderSummaryPrice(cod ? payPrices.cod : payPrices.online, payPrices.mrp);
+    // Codes never apply to COD, so the "applied" badge must not show beside it.
+    var offerBadge = els.summary.querySelector(".pt-addr-summary-offer");
+    if (offerBadge) offerBadge.classList.toggle("pt-hide", cod);
     els.summaryPay.textContent = cod
       ? "Nothing to pay now. Pay " + inr(payPrices.cod) + " in cash when your order arrives."
       : "No payment is taken on this step. Continue to pay securely using UPI, cards or net banking.";

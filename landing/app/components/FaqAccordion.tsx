@@ -61,7 +61,7 @@ const FAQS = [
     // COD is quoted only for the Duo Pack because that is the only pack the
     // guest checkout offers it on, and "where available" because a PIN code
     // Delhivery cannot collect cash at is refused at checkout.
-    a: "Delivery is free on every order, anywhere in India. We ship within 1–2 business days and delivery takes 2–4 business days, with a tracking number once dispatched. Cash on delivery is available on the Duo Pack for ₹30 extra, where Delhivery accepts cash.",
+    a: "Delivery is free on every order, anywhere in India. We ship within 1–2 business days and delivery takes 2–4 business days, with a tracking number once dispatched. Cash on delivery is available on the Duo Pack at ₹529 (₹499 MRP + ₹30 COD fee) where Delhivery accepts cash. The ₹399 launch price and other codes apply to online payment only.",
   },
 ];
 

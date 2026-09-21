@@ -742,7 +742,9 @@ export function registerShopRoutes(app, env) {
       //
       // Only /direct sends this. A checkout that sends no code takes exactly
       // the path it always did.
-      const promo = await resolvePromo(collections, rawPromo, {
+      // No code of any kind on Cash on Delivery, including the auto-applied
+      // launch offer: owner's rule, COD is always MRP plus the COD fee.
+      const promo = cod ? { ok: false } : await resolvePromo(collections, rawPromo, {
         deliveryPhone: (rawAddress || {}).phone,
         // Without this a code tied to one pack comes off any of them, and
         // omitting the product would be the way around the restriction.

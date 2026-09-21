@@ -29,10 +29,10 @@ async function bookedShipment(codAmountPaise) {
 }
 
 describe("Delhivery payment mode", () => {
-  test("a guest COD Duo Pack collects ₹429 in cash", async () => {
-    const shipment = await bookedShipment(42900);
+  test("a guest COD Duo Pack collects ₹529 in cash", async () => {
+    const shipment = await bookedShipment(52900);
     assert.equal(shipment.payment_mode, "COD");
-    assert.equal(shipment.cod_amount, "429");
+    assert.equal(shipment.cod_amount, "529");
   });
 
   test("a prepaid order collects nothing", async () => {

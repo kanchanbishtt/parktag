@@ -505,7 +505,7 @@ async function buy(sku) {
           mrpPaise: offer ? (product.amountPaise * quantity) + (addOn?.amountPaise || 0) : null,
           offerLabel: offer ? `${offer.code} auto-applied` : null,
           cod: cod
-            ? { amountPaise: pricedTotalPaise(sku, product, quantity, addOn) + cod.surchargePaise, feePaise: cod.surchargePaise }
+            ? { amountPaise: (product.amountPaise * quantity) + (addOn?.amountPaise || 0) + cod.surchargePaise, feePaise: cod.surchargePaise }
             : null
         }
       : null

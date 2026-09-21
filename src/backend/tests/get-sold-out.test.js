@@ -93,4 +93,16 @@ describe("sold-out packs on /get", () => {
     assert.doesNotMatch(source, /href = `\/shop/, "a pack CTA still links to /shop");
     assert.doesNotMatch(source, /el\.href = `\/shop/, "a hero CTA still links to /shop");
   });
+
+  test("the launch offer and acrylic add-on remain server-priced", () => {
+    assert.match(source, /_launchOffer = payload\.launchOffer \|\| null/);
+    assert.match(source, /promo: offer\?\.code/);
+    assert.match(source, /addOnId: addOn\?\.id/);
+    assert.match(source, /amountPaise: pricedTotalPaise\(sku, product, quantity, addOn\)/);
+    assert.doesNotMatch(
+      source,
+      /body:\s*JSON\.stringify\([^)]*amountPaise/s,
+      "the browser is sending an amount instead of letting the server price the order"
+    );
+  });
 });

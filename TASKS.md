@@ -24,7 +24,7 @@ Rules:
 - [x] Separate lifetime WhatsApp scan notifications from paid Premium features across the landing site and membership screen.
 - [x] Add the optional, admin-priced Clear Dashboard Plate checkout add-on using real product photos.
 - [x] Add transparent included-vs-Premium comparison and FAQ copy without publishing an unverified competitor trial length.
-- [ ] Deploy the landing and app storefront changes, then verify the live funnel.
+- [x] Deploy the landing and app storefront changes, then verify the live funnel.
 - [ ] Change Meta optimisation from View Content to Purchase after explicit publish confirmation.
 
 ### Dashboard load regression after premium ownership fix

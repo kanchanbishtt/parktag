@@ -10,16 +10,14 @@ import { faTruckFast, faShieldHalved, faCalendarCheck, faArrowRotateLeft } from 
 // sub-line, and a strip repeating those a screen later is the duplication this
 // page has too much of already. These four answer the other question a stranger
 // has — what happens after I pay — and every one is checkable in the checkout:
-// delivery is free on all orders, COD exists with a Rs 50 surcharge, every tag
+// delivery is free on all orders, every tag
 // ships with a year of Premium, and the refund policy is 7 days.
 //
 // "Made in India", which the reference strip carries, is deliberately absent.
 // It is a manufacturing claim and nothing in this repo establishes it, so it
 // would be the one line here that a buyer could not verify.
-// Cash on delivery is deliberately absent, for the same reason "Made in India"
-// is: it is a claim a buyer could act on and we would not honour. The only
-// checkout an ad or this page sends anyone to is the guest one, and that is
-// prepaid. Restore the line only alongside a guest COD route.
+// Cash on delivery (Duo Pack only, +₹30) is left to the pricing card and FAQ,
+// where the pack restriction can be said alongside it.
 const ITEMS: [IconDefinition, string, string][] = [
   [faTruckFast, "Free delivery", "Anywhere in India"],
   [faShieldHalved, "Number stays private", "Masked calls and chat"],

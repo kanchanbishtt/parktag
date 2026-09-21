@@ -702,6 +702,7 @@ export default function Home() {
                       "Cheaper than buying two Solo tags",
                       "1 year of Premium included",
                       "Lifetime WhatsApp scan notifications",
+                      "Cash on delivery available (+₹30)",
                       "Priority support",
                     ].map((f) => (
                       <li key={f} className="flex items-start gap-3 text-sm text-white/60">

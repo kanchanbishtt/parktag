@@ -58,11 +58,10 @@ const FAQS = [
   },
   {
     q: "How long does delivery take?",
-    // No COD sentence here. It used to quote the ₹50 surcharge, which is real
-    // on the signed-in owner shop, but every route this page and the ads lead
-    // to is the guest checkout, and that is prepaid only. A visitor reading
-    // this answer would arrive at a checkout that cannot honour it.
-    a: "Delivery is free on every order, anywhere in India. We ship within 1–2 business days and delivery takes 2–4 business days, with a tracking number once dispatched.",
+    // COD is quoted only for the Duo Pack because that is the only pack the
+    // guest checkout offers it on, and "where available" because a PIN code
+    // Delhivery cannot collect cash at is refused at checkout.
+    a: "Delivery is free on every order, anywhere in India. We ship within 1–2 business days and delivery takes 2–4 business days, with a tracking number once dispatched. Cash on delivery is available on the Duo Pack for ₹30 extra, where Delhivery accepts cash.",
   },
 ];
 

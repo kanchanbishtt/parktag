@@ -585,7 +585,7 @@ function packFootNote(empty, total, codSurcharge, codTotal) {
 // ── Order confirmation + COD flash offer ──────────────────────
 let _confState = null;   // { orderNumber, amountPaise }
 let _flashTimer = null;
-const FLASH_DISCOUNT_PAISE = 5000; // ₹50 (display only; backend enforces it)
+const FLASH_DISCOUNT_PAISE = 3000; // ₹30, the COD fee (display fallback only; backend enforces it)
 
 function rupees(paise) { return "₹" + Math.round(paise / 100); }
 
@@ -740,6 +740,8 @@ function showConfirmation({ orderNumber, amountPaise, cod, flashSeconds }) {
     const online = Math.max(amountPaise - discountPaise, 100);
     document.getElementById("ptFlashCod").textContent = rupees(amountPaise);
     document.getElementById("ptFlashOnline").textContent = rupees(online);
+    document.getElementById("ptFlashSaveHead").textContent = rupees(amountPaise - online);
+    document.getElementById("ptFlashSave").textContent = "Save " + rupees(amountPaise - online);
     const fbtn = document.getElementById("ptFlashBtn");
     fbtn.textContent = "Pay " + rupees(online) + " online now";
     fbtn.disabled = false;
@@ -860,7 +862,7 @@ function closeScanner() {
   document.getElementById("ptScanOv").classList.remove("open");
 }
 
-// Flash offer: convert this COD order to prepaid (−₹50) via Razorpay.
+// Flash offer: convert this COD order to prepaid (minus the COD fee) via Razorpay.
 async function codPrepay() {
   if (!_confState) return;
   const btn = document.getElementById("ptFlashBtn");

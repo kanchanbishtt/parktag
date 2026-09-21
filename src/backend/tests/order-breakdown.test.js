@@ -75,7 +75,25 @@ describe("orderBreakdown", () => {
     assert.equal(handover.some((row) => row.label === "Delivery"), false);
   });
 
-  test("COD and malformed orders get no breakdown rather than a wrong one", () => {
+  test("a guest COD order shows the COD fee and what is due at the door", () => {
+    const rows = orderBreakdown({ ...LAUNCH_DUO_WITH_PLATE, paymentMethod: "cod", amount: 47800, codSurchargePaise: 3000 });
+    assert.deepEqual(
+      rows.map(({ label, text, total }) => [label, text, Boolean(total)]),
+      [
+        ["MRP", "₹499", false],
+        ["Discount (LAUNCH100)", "-₹100", false],
+        ["Clear Dashboard Plate", "₹49", false],
+        ["Delivery", "Free", false],
+        ["Cash on delivery fee", "+₹30", false],
+        ["Total to pay on delivery", "₹478", true]
+      ]
+    );
+    // And a legacy row without mrpPaise still works the MRP back past the fee.
+    const { mrpPaise, ...legacy } = LAUNCH_DUO_WITH_PLATE;
+    assert.equal(orderBreakdown({ ...legacy, paymentMethod: "cod", amount: 47800, codSurchargePaise: 3000 })[0].paise, 49900);
+  });
+
+  test("COD without a stored fee, and malformed orders, get no breakdown rather than a wrong one", () => {
     assert.equal(orderBreakdown({ paymentMethod: "cod", amount: 54900 }), null);
     assert.equal(orderBreakdown({}), null);
     assert.equal(orderBreakdown(null), null);

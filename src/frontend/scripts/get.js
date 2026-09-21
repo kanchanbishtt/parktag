@@ -53,6 +53,9 @@ let _products = {};
 let _launchOffer = null;
 let _addOn = null;
 let _checkedOutAddOn = null;
+// { surchargePaise, productIds } off the catalogue: which packs take Cash on
+// Delivery and what it adds. Null means online only.
+let _cod = null;
 
 const byId = (id) => document.getElementById(id);
 
@@ -68,6 +71,10 @@ function rupees(paise) {
 // number this page invented.
 function offerFor(sku) {
   return _launchOffer && _launchOffer.productId === sku ? _launchOffer : null;
+}
+
+function codFor(sku) {
+  return _cod && _cod.productIds.includes(sku) ? _cod : null;
 }
 
 function pricedTotalPaise(sku, priced, qty, addOn = null) {
@@ -227,16 +234,14 @@ function renderBar(products) {
   const name = byId("gtBarName");
   const sub = byId("gtBarSub");
   if (name) name.textContent = hero.name;
-  // No COD claim here, deliberately. Guest checkout is prepaid only --
-  // /api/shop/place-cod exists on the signed-in owner shop and nowhere else --
-  // so this bar used to promise a payment method the very next tap could not
-  // offer. Every rupee of ad spend lands on this page, which made it the worst
-  // place in the app to break a promise. Restore the words only alongside a
-  // guest COD route, never on their own.
+  // COD is named only when the catalogue says the hero pack takes it, which
+  // is exactly when guest create-order accepts it. This bar once promised a
+  // payment method the next tap could not offer.
   const offer = offerFor(HERO_PACK);
+  const codNote = codFor(HERO_PACK) ? " · COD available" : "";
   if (sub) sub.textContent = offer
-    ? `${rupees(offer.offerPaise)} launch offer · MRP ${rupees(offer.mrpPaise)} · Free delivery`
-    : `${rupees(hero.amountPaise)} · Free delivery`;
+    ? `${rupees(offer.offerPaise)} launch offer · MRP ${rupees(offer.mrpPaise)} · Free delivery${codNote}`
+    : `${rupees(hero.amountPaise)} · Free delivery${codNote}`;
 }
 
 function renderAddOn(addOns) {
@@ -307,6 +312,8 @@ let _paidCoupon = null;
 // is: so the purchase event reports the real count instead of the "1" every
 // checkout used to hardcode. Measurement only.
 let _paidQty = 1;
+// Whether that order was placed as Cash on Delivery. Measurement and copy only.
+let _paidCod = false;
 
 // How many of each pack the buyer wants, keyed by sku. A Map rather than a
 // data attribute that has to be re-parsed off the DOM -- buy() reads it
@@ -485,20 +492,27 @@ async function buy(sku) {
   }
 
   // The shared sheet. Resolves with the address, or false if dismissed —
-  // backing out here is an ordinary thing to do, not an error.
+  // backing out here is an ordinary thing to do, not an error. It is also
+  // where the buyer picks online or Cash on Delivery, for a pack that takes it.
   const offer = offerFor(sku);
-  const address = await window.ptCollectAddress({
+  const cod = codFor(sku);
+  const picked = await window.ptCollectAddress({
     guest: true,
     orderSummary: product
       ? {
           name: `${quantity > 1 ? `${quantity} × ` : ""}${product.name}${addOn ? ` + ${addOn.name}` : ""}`,
           amountPaise: pricedTotalPaise(sku, product, quantity, addOn),
           mrpPaise: offer ? (product.amountPaise * quantity) + (addOn?.amountPaise || 0) : null,
-          offerLabel: offer ? `${offer.code} auto-applied` : null
+          offerLabel: offer ? `${offer.code} auto-applied` : null,
+          cod: cod
+            ? { amountPaise: pricedTotalPaise(sku, product, quantity, addOn) + cod.surchargePaise, feePaise: cod.surchargePaise }
+            : null
         }
       : null
   });
-  if (!address) return;
+  if (!picked) return;
+  const { paymentMethod = "online", ...address } = picked;
+  const payCod = paymentMethod === "cod";
 
   if (window.ptTrack && product) {
     ptTrack("add_shipping_info", {
@@ -520,7 +534,7 @@ async function buy(sku) {
   const orderSteps = stepRun("gtSteps", [
     { label: "Checking your address", weight: 1 },
     { label: "Reserving your pack", weight: 1 },
-    { label: "Opening secure payment", weight: 2 }
+    { label: payCod ? "Placing your order" : "Opening secure payment", weight: 2 }
   ]);
   orderSteps.begin();
   showSheet();
@@ -553,7 +567,8 @@ async function buy(sku) {
         ref: referralCode(),
         quantity,
         promo: offer?.code,
-        addOnId: addOn?.id
+        addOnId: addOn?.id,
+        paymentMethod
       })
     });
     order = await res.json();
@@ -567,6 +582,7 @@ async function buy(sku) {
     _paidPaise = order.amount || 0;
     _paidCoupon = order.promoCode || null;
     _paidQty = quantity;
+    _paidCod = order.paymentMethod === "cod";
     // Spent. A second purchase this session should not silently reuse it.
     clearReferralCode();
   } catch (err) {
@@ -576,6 +592,28 @@ async function buy(sku) {
     _busy = false; // the flow is over; let the buyer try again
     closeSheet();
     say((err && err.message) || "Could not start the payment. Please try again.");
+    return;
+  }
+
+  // The server's amount, not the page's: this is what Razorpay is about to ask
+  // for, or what the courier will collect.
+  if (window.ptTrack) {
+    ptTrack("add_payment_info", {
+      value: order.amount / 100,
+      currency: "INR",
+      ...(order.promoCode ? { coupon: order.promoCode } : {}),
+      ...(_paidCod ? { cod: true, method: "cod" } : {}),
+      items: [{ item_id: sku, quantity }, ...(addOn ? [{ item_id: addOn.id, quantity: 1 }] : [])]
+    });
+  }
+
+  // Cash on Delivery: the order is already placed and booked. No Razorpay,
+  // straight to the confirmation with the breakdown.
+  if (_paidCod) {
+    stopOrderPacing();
+    orderSteps.done();
+    orderSteps.destroy();
+    showDone(order);
     return;
   }
 
@@ -633,16 +671,6 @@ async function buy(sku) {
   { const el = byId("gtWorking"); if (el) el.hidden = true; }
   closeSheet();
 
-  // The server's amount, not the page's: this is what Razorpay is about to ask for.
-  if (window.ptTrack) {
-    ptTrack("add_payment_info", {
-      value: order.amount / 100,
-      currency: "INR",
-      ...(order.promoCode ? { coupon: order.promoCode } : {}),
-      items: [{ item_id: sku, quantity }, ...(addOn ? [{ item_id: addOn.id, quantity: 1 }] : [])]
-    });
-  }
-
   rzp.open();
 }
 
@@ -668,9 +696,11 @@ function showDone(done) {
   { const w = byId("gtWorking"); if (w) w.hidden = true; }
   { const d = byId("gtDone"); if (d) d.hidden = false; }
   _busy = false;
-  byId("gtDoneSub").textContent = done.pending
-    ? `Payment received. Order ${done.orderNumber} is being confirmed, you will get a WhatsApp update shortly.`
-    : `Order ${done.orderNumber} is on its way. We have sent the details to your mobile.`;
+  byId("gtDoneSub").textContent = done.paymentMethod === "cod"
+    ? `Order ${done.orderNumber} is placed. Pay ${rupees(done.amount)} in cash when it arrives. We have sent the details to your mobile.`
+    : done.pending
+      ? `Payment received. Order ${done.orderNumber} is being confirmed, you will get a WhatsApp update shortly.`
+      : `Order ${done.orderNumber} is on its way. We have sent the details to your mobile.`;
   renderBreakdown(done.breakdown);
   showSheet();
   // After the sheet is up, so the paper lands over a card that is already
@@ -688,6 +718,9 @@ function showDone(done) {
       value: _paidPaise / 100,
       currency: "INR",
       ...(_paidCoupon ? { coupon: _paidCoupon } : {}),
+      // Tagged so COD never accepted at the door can be told apart, as the
+      // signed-in shop does.
+      ...(_paidCod ? { cod: true, method: "cod" } : {}),
       items: [
         { item_id: _sku, quantity: _paidQty },
         ...(_checkedOutAddOn ? [{ item_id: _checkedOutAddOn.id, quantity: 1 }] : [])
@@ -924,6 +957,9 @@ async function load() {
 
   _products = payload.products;
   _launchOffer = payload.launchOffer || null;
+  _cod = typeof payload.codSurchargePaise === "number" && Array.isArray(payload.codProductIds)
+    ? { surchargePaise: payload.codSurchargePaise, productIds: payload.codProductIds }
+    : null;
   renderChips(payload.products);
   renderPacks(payload.products);
   renderBar(payload.products);

@@ -12,12 +12,12 @@ import { generateOrderNumber } from "../../lib/core/order-number.js";
 import { addressToNotes, validateAddress, validateHandoverContact } from "../../lib/core/address.js";
 import { createPremiumTagForVehicle } from "../../lib/core/tag-issuance.js";
 import { reassignVaultDocuments } from "../../lib/core/vault.js";
-import { isDelhiveryConfigured, updateShipmentToPrepaid, trackingUrl } from "../../lib/integrations/delhivery.js";
+import { isDelhiveryConfigured, updateShipmentToPrepaid, trackingUrl, checkPincodeServiceability } from "../../lib/integrations/delhivery.js";
 import { bookShipmentAndPickup } from "../../lib/core/shipping.js";
 import { getOrderTracking } from "../../lib/core/order-tracking.js";
 import { orderBreakdown, breakdownText } from "../../lib/core/order-breakdown.js";
 import { safeEqual } from "../../lib/auth/security.js";
-import { fulfilPaidOrder, sendOrderConfirmation } from "../../lib/core/order-fulfilment.js";
+import { fulfilPaidOrder, sendOrderConfirmation, sendPurchaseConversion } from "../../lib/core/order-fulfilment.js";
 import {
   sendOtp,
   verifyOtp,
@@ -34,6 +34,7 @@ import {
 } from "../../lib/core/referrals.js";
 import {
   FULFILMENT_HANDOVER,
+  consumePromo,
   normalisePromoCode,
   promoValueFor,
   resolvePromo,
@@ -41,16 +42,29 @@ import {
 } from "../../lib/core/promo-codes.js";
 import { isInternalPhone } from "../../lib/core/internal-orders.js";
 
-// Flash-offer discount for converting a COD order to prepaid (paise). Kept
-// server-side so the ₹50 saving can't be inflated by a tampered client.
-export const FLASH_DISCOUNT_PAISE = 5000;
+// COD carries a flat +₹30 handling fee on top of the price, once per order.
+// Paying online removes it, so the online price always equals the catalog
+// (or launch-offer) price. Its own figure, set by the business, not derived
+// from anything else.
+export const COD_SURCHARGE_PAISE = 3000;
 
-// COD carries a matching +₹50 handling surcharge on top of the catalog price.
-// Paying online — directly, or via the flash offer which subtracts the same
-// ₹50 — removes it, so the online price always equals the catalog price. Must
-// stay equal to FLASH_DISCOUNT_PAISE, or the flash-prepaid amount won't land
-// back exactly on the catalog price (e.g. catalog ₹499 → COD ₹549 → online ₹499).
-const COD_SURCHARGE_PAISE = FLASH_DISCOUNT_PAISE;
+// Flash-offer discount for converting a signed-in COD order to prepaid
+// (paise). Kept server-side so the saving can't be inflated by a tampered
+// client. Follows the COD fee, so the flash-prepaid amount lands back exactly
+// on the catalog price (e.g. catalog ₹499 → COD ₹529 → online ₹499).
+export const FLASH_DISCOUNT_PAISE = COD_SURCHARGE_PAISE;
+
+// Guest COD is the Duo Pack only; every other pack stays online-only.
+const GUEST_COD_PRODUCT_IDS = ["pt-car-2"];
+
+// Guest checkout does not OTP-verify the delivery phone, so COD there is held
+// to ONE open COD order per phone, plus a per-IP ceiling for someone typing a
+// fresh number each time. "Open" is a window, not a status: nothing moves a COD
+// order out of "cod" on delivery (see MAX_COD_ORDERS_PER_WINDOW below).
+// ponytail: window ≈ delivery time; OTP the phone if fake COD orders appear.
+const GUEST_COD_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
+const GUEST_COD_PER_IP = 3;
+const GUEST_COD_IP_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 // This public offer is an ordinary promo-code row. Revoking LAUNCH100 in the
 // admin dashboard removes the advertised price and stops checkout applying it.
@@ -83,7 +97,7 @@ const DASHBOARD_PLATE_PRODUCT_IDS = ["pt-car-2"];
 const MAX_COD_ORDERS_PER_WINDOW = 3;
 const COD_WINDOW_MS = 24 * 60 * 60 * 1000;
 
-// How long the "pay now and save Rs 50" offer on the confirmation screen is
+// How long the "pay now and skip the COD fee" offer on the confirmation screen is
 // actually good for.
 //
 // That screen has always shown a sixty-second countdown, and nothing anywhere
@@ -232,22 +246,28 @@ const UNSCORED_CHECKOUTS_PER_IP = 3;
 const UNSCORED_WINDOW_MS = 60 * 60 * 1000;
 
 async function unscoredCheckoutExhausted(collections, ip) {
-  // No counter available (Mongo not configured, or no address to key on) means
-  // no opinion. The per-IP rate limit on the route still applies.
-  if (!collections?.rateLimits || !ip) return false;
+  return ip ? windowCountExceeded(collections, `guest-checkout-unscored:${ip}`, UNSCORED_CHECKOUTS_PER_IP, UNSCORED_WINDOW_MS) : false;
+}
+
+// Count one hit against `id` and report whether it went over `limit` inside
+// the window. Shared by the unscored-checkout cap and the guest COD per-IP cap.
+async function windowCountExceeded(collections, id, limit, windowMs) {
+  // No counter available (Mongo not configured) means no opinion. The per-IP
+  // rate limit on the route still applies.
+  if (!collections?.rateLimits) return false;
 
   try {
     // Same atomic shape lib/auth/rate-limit-store.js uses: one round trip, and
     // `$$NOW` is the server's clock so replicas cannot smear the window.
     const windowAlive = { $gt: [{ $ifNull: ["$resetAt", "$$NOW"] }, "$$NOW"] };
     const result = await collections.rateLimits.findOneAndUpdate(
-      { _id: `guest-checkout-unscored:${ip}` },
+      { _id: id },
       [
         {
           $set: {
             count: { $cond: [windowAlive, { $add: [{ $ifNull: ["$count", 0] }, 1] }, 1] },
             resetAt: {
-              $cond: [windowAlive, "$resetAt", { $add: ["$$NOW", UNSCORED_WINDOW_MS] }]
+              $cond: [windowAlive, "$resetAt", { $add: ["$$NOW", windowMs] }]
             }
           }
         }
@@ -258,7 +278,7 @@ async function unscoredCheckoutExhausted(collections, ip) {
     // Driver 6 returns the document directly; older ones wrap it in `{ value }`.
     const doc = result && result.value !== undefined ? result.value : result;
     if (!doc || typeof doc.count !== "number") return false;
-    return doc.count > UNSCORED_CHECKOUTS_PER_IP;
+    return doc.count > limit;
   } catch {
     // A counter that cannot be read must not take the storefront down with it.
     return false;
@@ -326,6 +346,144 @@ async function mintReplacementIfNeeded(collections, ownerId, order) {
   await reassignVaultDocuments(collections, ownerId, oldTag._id, premiumTag._id);
 
   return { replaced: true, newTagId: String(premiumTag._id) };
+}
+
+// Best-effort COD shipment booking, shared by signed-in place-cod and guest COD:
+// gives the buyer a waybill + live tracking and tells the courier to collect
+// `amountPaise` in cash. Never blocks the order — it's already placed; a
+// booking failure is recorded on the order for retry, exactly like the prepaid
+// path. Returns the waybill, or null.
+async function bookCodShipment(env, collections, { orderNumber, shipping, productName, amountPaise }, log) {
+  if (!isDelhiveryConfigured(env)) return null;
+  try {
+    const { waybill, pickup } = await bookShipmentAndPickup(env, collections, {
+      orderId: orderNumber,
+      address: shipping,
+      productName,
+      codAmountPaise: amountPaise
+    }, log);
+    await collections.shopOrders.updateOne(
+      { orderNumber },
+      {
+        $set: {
+          waybill,
+          shipmentBookedAt: new Date().toISOString(),
+          ...(pickup.requested
+            ? { pickupRequestedFor: pickup.forDate, pickupId: pickup.pickupId }
+            : { pickupError: pickup.error || pickup.reason })
+        },
+        $unset: {
+          shipmentError: "",
+          ...(pickup.requested ? { pickupError: "" } : {})
+        }
+      }
+    );
+    return waybill;
+  } catch (err) {
+    log.error({ err, orderNumber }, "Delhivery COD shipment booking failed");
+    await collections.shopOrders.updateOne(
+      { orderNumber },
+      { $set: { shipmentError: err instanceof Error ? err.message : "Unknown error" } }
+    );
+    return null;
+  }
+}
+
+// The confirmation-screen payload for a guest COD order, fresh or reused.
+function guestCodResponse(order) {
+  return {
+    ok: true,
+    paymentMethod: "cod",
+    orderNumber: order.orderNumber,
+    amount: order.amount,
+    currency: order.currency,
+    promoCode: order.promoCode || null,
+    breakdown: orderBreakdown(order),
+    trackWith: (order.shippingAddress && order.shippingAddress.phone || "").slice(-4)
+  };
+}
+
+// Guest Cash on Delivery: no Razorpay, the order is placed as "cod" at once and
+// the courier collects `order.amount` at the door. Everything priced here was
+// already derived server-side by guest create-order; this only guards, writes,
+// books and tells people.
+async function placeGuestCod(env, collections, request, reply, order) {
+  const { shippingAddress: shipping } = order;
+
+  // One open COD order per delivery phone. The same checkout sent twice (a
+  // retry, a double tap that got past the button) gets its own order back
+  // rather than a refusal; anything else is refused.
+  const open = await collections.shopOrders.findOne(
+    {
+      guest: true,
+      status: "cod",
+      "shippingAddress.phone": shipping.phone,
+      createdAt: { $gt: new Date(Date.now() - GUEST_COD_WINDOW_MS).toISOString() }
+    },
+    { sort: { createdAt: -1 } }
+  );
+  if (open) {
+    const same = open.productId === order.productId && open.quantity === order.quantity &&
+      (open.addOnId || null) === order.addOnId && open.amount === order.amount &&
+      JSON.stringify(open.shippingAddress) === JSON.stringify(shipping);
+    if (same) return guestCodResponse(open);
+    reply.code(429);
+    return {
+      ok: false,
+      code: "COD_LIMIT",
+      error: `There is already a Cash on Delivery order (${open.orderNumber}) for this number. Please pay online for another one.`
+    };
+  }
+
+  if (await windowCountExceeded(collections, `guest-cod:${request.ip}`, GUEST_COD_PER_IP, GUEST_COD_IP_WINDOW_MS)) {
+    request.log.warn({ event: "guest-cod-ip-exhausted" }, "[guest checkout] too many COD orders from one address");
+    reply.code(429);
+    return { ok: false, code: "COD_LIMIT", error: "Too many Cash on Delivery orders from this connection. Please pay online." };
+  }
+
+  // A COD booking to a PIN code Delhivery will not collect cash at fails at the
+  // courier, after the buyer has been told the order is placed. Only an
+  // explicit "no" refuses; an unknown answer fails open, like the rest of
+  // checkout.
+  const serviceability = await checkPincodeServiceability(env, shipping.pincode);
+  if (serviceability.cod === false) {
+    reply.code(400);
+    return { ok: false, error: "Cash on Delivery is not available at this PIN code. Please pay online." };
+  }
+
+  const placed = {
+    ...order,
+    orderNumber: await generateOrderNumber(collections),
+    metaCheckoutContext: captureMetaCheckoutContext(request),
+    createdAt: new Date().toISOString()
+  };
+  await collections.shopOrders.insertOne(placed);
+
+  const waybill = await bookCodShipment(env, collections, {
+    orderNumber: placed.orderNumber,
+    shipping,
+    productName: placed.productName,
+    amountPaise: placed.amount
+  }, request.log);
+
+  // Placing a COD order is its "paid" moment: nothing later gates it, so the
+  // code is burnt and the conversion reported here, once.
+  await consumePromo(collections, placed.promoCode, placed.orderNumber, request.log);
+
+  await sendOrderConfirmation(env, collections, null, {
+    orderNumber: placed.orderNumber,
+    productName: placed.productName,
+    amountPaise: placed.amount,
+    breakdown: orderBreakdown(placed),
+    cod: true,
+    waybill,
+    deliveryPhone: shipping.phone,
+    deliveryName: shipping.fullName
+  }, request.log);
+
+  await sendPurchaseConversion(env, collections, placed, request.log);
+
+  return guestCodResponse(placed);
 }
 
 export function registerShopRoutes(app, env) {
@@ -424,7 +582,12 @@ export function registerShopRoutes(app, env) {
         app.log.warn({ err }, "Could not load dynamic public-shop settings");
       }
 
-      return { ok: true, products, launchOffer, addOns, codSurchargePaise: COD_SURCHARGE_PAISE };
+      // codProductIds: which packs guest checkout takes Cash on Delivery for,
+      // so the storefronts offer it exactly where create-order accepts it.
+      return {
+        ok: true, products, launchOffer, addOns,
+        codSurchargePaise: COD_SURCHARGE_PAISE, codProductIds: GUEST_COD_PRODUCT_IDS
+      };
     }
   );
 
@@ -462,7 +625,8 @@ export function registerShopRoutes(app, env) {
         // Only /direct sends this. A CODE, never an amount.
         promo: rawPromo,
         quantity: rawQuantity,
-        addOnId: rawAddOnId
+        addOnId: rawAddOnId,
+        paymentMethod: rawPaymentMethod
       } = request.body || {};
 
       // Checked before anything else costs a network round trip (reCAPTCHA,
@@ -470,6 +634,16 @@ export function registerShopRoutes(app, env) {
       const quantityCheck = parseQuantity(rawQuantity);
       if (!quantityCheck.ok) { reply.code(400); return { ok: false, error: "Invalid quantity." }; }
       const quantity = quantityCheck.quantity;
+
+      // Absent means online, which is every checkout from before COD existed.
+      const paymentMethod = rawPaymentMethod == null ? "online" : rawPaymentMethod;
+      if (paymentMethod !== "online" && paymentMethod !== "cod") {
+        reply.code(400); return { ok: false, error: "Unknown payment method." };
+      }
+      const cod = paymentMethod === "cod";
+      if (cod && !GUEST_COD_PRODUCT_IDS.includes(productId)) {
+        reply.code(400); return { ok: false, error: "Cash on Delivery is only available on the Duo Pack." };
+      }
 
       // Bot check on the one money-adjacent endpoint any stranger can reach.
       //
@@ -576,6 +750,10 @@ export function registerShopRoutes(app, env) {
         quantity
       });
       const handover = promo.ok && promo.fulfilment === FULFILMENT_HANDOVER;
+      // A handover has no parcel, so no courier to collect cash.
+      if (cod && handover) {
+        reply.code(400); return { ok: false, error: "Cash on Delivery is not available for this order." };
+      }
 
       // Same validator the signed-in flow uses when an owner saves an address,
       // so a guest cannot ship to something the dashboard would have rejected.
@@ -600,7 +778,10 @@ export function registerShopRoutes(app, env) {
       // checkout and take Rs 50 off every order while minting themselves a
       // month each time. resolveReferral compares in E.164, so a referrer
       // stored as "9812345678" is still recognised behind "+919812345678".
-      const referral = await resolveReferral(collections, rawRef, {
+      //
+      // Not on COD, for the reasons in referrals.js: the reward is never granted
+      // on a COD order, and COD is the cheap path for faking one.
+      const referral = cod ? { ok: false } : await resolveReferral(collections, rawRef, {
         deliveryPhone: shipping.phone
       });
       const referredBy = referral.ok ? referral.referrerId : null;
@@ -614,6 +795,36 @@ export function registerShopRoutes(app, env) {
         promoDiscountPaise,
         shippingFeePaise
       );
+      if (cod) {
+        return placeGuestCod(env, collections, request, reply, {
+          paymentMethod: "cod",
+          ownerId: null,
+          guest: true,
+          productId,
+          productName: addOn ? `${product.name} + ${addOn.name}` : product.name,
+          addOnId: addOn?.id || null,
+          addOns: addOn ? [addOn] : [],
+          variant,
+          quantity,
+          // What the courier collects: the online price plus the flat COD fee.
+          amount: expectedPaise + COD_SURCHARGE_PAISE,
+          currency: "INR",
+          status: "cod",
+          shippingAddress: shipping,
+          internal: isInternalPhone(env, shipping.phone),
+          replaceTagId: null,
+          referredBy: null,
+          referralCode: null,
+          referralDiscountPaise: 0,
+          promoCode: promo.ok ? promo.code : null,
+          promoDiscountPaise,
+          mrpPaise: Math.round(product.amount * 100) * quantity,
+          shippingFeePaise,
+          codSurchargePaise: COD_SURCHARGE_PAISE,
+          channel: promo.ok ? "direct" : "shop"
+        });
+      }
+
       // The same rows the buyer is shown after paying, built from the fields
       // stored below, so the Razorpay dashboard carries the identical account.
       const priceRows = orderBreakdown({
@@ -1343,7 +1554,7 @@ export function registerShopRoutes(app, env) {
     }
 
     const orderNumber = await generateOrderNumber(collections);
-    // COD amount = catalog price × quantity + ₹50 COD surcharge. The surcharge
+    // COD amount = catalog price × quantity + the flat COD surcharge. The surcharge
     // does NOT scale with quantity — it is a flat per-shipment handling fee
     // (covers the outbound leg and a refused parcel's return leg once, not
     // once per sticker in the box), the same reasoning FLASH_DISCOUNT_PAISE's
@@ -1374,44 +1585,9 @@ export function registerShopRoutes(app, env) {
       createdAt: new Date().toISOString()
     });
 
-    // Best-effort COD shipment booking: gives the buyer a waybill + live
-    // tracking in My Orders and tells the courier to collect the cash on
-    // delivery. Never blocks the order — it's already placed; a booking failure
-    // is recorded on the order for retry, exactly like the prepaid path.
-    let bookedWaybill = null;
-    if (isDelhiveryConfigured(env)) {
-      try {
-        const { waybill, pickup } = await bookShipmentAndPickup(env, collections, {
-          orderId: orderNumber,
-          address: shipping,
-          productName: product.name,
-          codAmountPaise: amountPaise
-        }, request.log);
-        bookedWaybill = waybill;
-        await collections.shopOrders.updateOne(
-          { orderNumber },
-          {
-            $set: {
-              waybill,
-              shipmentBookedAt: new Date().toISOString(),
-              ...(pickup.requested
-                ? { pickupRequestedFor: pickup.forDate, pickupId: pickup.pickupId }
-                : { pickupError: pickup.error || pickup.reason })
-            },
-            $unset: {
-              shipmentError: "",
-              ...(pickup.requested ? { pickupError: "" } : {})
-            }
-          }
-        );
-      } catch (err) {
-        request.log.error({ err, orderNumber }, "Delhivery COD shipment booking failed");
-        await collections.shopOrders.updateOne(
-          { orderNumber },
-          { $set: { shipmentError: err instanceof Error ? err.message : "Unknown error" } }
-        );
-      }
-    }
+    const bookedWaybill = await bookCodShipment(env, collections, {
+      orderNumber, shipping, productName: product.name, amountPaise
+    }, request.log);
 
     // Best-effort confirmation (e-mail, or WhatsApp when no e-mail); for COD it
     // carries the acceptance reminder + a tracking link once a waybill exists.
@@ -1435,7 +1611,7 @@ export function registerShopRoutes(app, env) {
     };
   });
 
-  // Flash offer: create a discounted (−₹50) Razorpay order to convert an
+  // Flash offer: create a discounted (minus the COD fee) Razorpay order to convert an
   // existing COD order to prepaid. The discount is applied here, server-side.
   app.post("/api/shop/cod-prepay-order", { config: { rateLimit: { max: 20, timeWindow: "1 minute" } } }, async (request, reply) => {
     const blocked = await requireSession(app, "owner")(request, reply);

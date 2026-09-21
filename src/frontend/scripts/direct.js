@@ -65,6 +65,11 @@ const HERO_PACK = "pt-car-2";
 
 let _products = {};
 let _launchOffer = null;
+// { surchargePaise, productIds } off the catalogue: which packs take Cash on
+// Delivery and what it adds. Null means online only.
+let _cod = null;
+// Whether the last order was placed as Cash on Delivery. Measurement and copy.
+let _paidCod = false;
 let _addOn = null;
 let _checkedOutAddOn = null;
 
@@ -669,8 +674,11 @@ async function buy(sku) {
   const handover = promoState && promoState.ok && promoState.fulfilment === "handover";
 
   // The shared sheet. Resolves with the address, or false if dismissed —
-  // backing out here is an ordinary thing to do, not an error.
-  const address = handover
+  // backing out here is an ordinary thing to do, not an error. It is also
+  // where the buyer picks online or Cash on Delivery, for a pack that takes it.
+  // Never on a handover: there is no courier to collect the cash.
+  const cod = !handover && _cod && _cod.productIds.includes(sku) ? _cod : null;
+  const picked = handover
     ? await collectHandoverContact()
     : await window.ptCollectAddress({
         guest: true,
@@ -679,11 +687,15 @@ async function buy(sku) {
               name: `${quantity > 1 ? `${quantity} × ` : ""}${product.name}${addOn ? ` + ${addOn.name}` : ""}`,
               amountPaise: payablePaise + (addOn?.amountPaise || 0),
               mrpPaise: promoState?.ok ? (product.amountPaise * quantity) + (addOn?.amountPaise || 0) : null,
-              offerLabel: promoState?.ok ? `${promoState.code || codeValue()} applied` : null
+              offerLabel: promoState?.ok ? `${promoState.code || codeValue()} applied` : null,
+              cod: cod
+                ? { amountPaise: payablePaise + (addOn?.amountPaise || 0) + cod.surchargePaise, feePaise: cod.surchargePaise }
+                : null
             }
           : null
       });
-  if (!address) return;
+  if (!picked) return;
+  const { paymentMethod = "online", ...address } = picked;
 
   if (window.ptTrack && product) {
     ptTrack("add_shipping_info", {
@@ -705,7 +717,7 @@ async function buy(sku) {
   const orderSteps = stepRun("gtSteps", [
     { label: "Checking your address", weight: 1 },
     { label: "Reserving your pack", weight: 1 },
-    { label: "Opening secure payment", weight: 2 }
+    { label: paymentMethod === "cod" ? "Placing your order" : "Opening secure payment", weight: 2 }
   ]);
   orderSteps.begin();
   showSheet();
@@ -742,7 +754,8 @@ async function buy(sku) {
         ref: referralCode(),
         promo: codeValue(),
         quantity,
-        addOnId: addOn?.id
+        addOnId: addOn?.id,
+        paymentMethod
       })
     });
     order = await res.json();
@@ -756,6 +769,7 @@ async function buy(sku) {
     _paidPaise = order.amount || 0;
     _paidCoupon = order.promoCode || null;
     _paidQty = quantity;
+    _paidCod = order.paymentMethod === "cod";
     // Spent. A second purchase this session should not silently reuse it.
     clearReferralCode();
   } catch (err) {
@@ -765,6 +779,28 @@ async function buy(sku) {
     _busy = false; // the flow is over; let the buyer try again
     closeSheet();
     say((err && err.message) || "Could not start the payment. Please try again.");
+    return;
+  }
+
+  // The server's amount, not the page's: this is what Razorpay is about to ask
+  // for, or what the courier will collect.
+  if (window.ptTrack) {
+    ptTrack("add_payment_info", {
+      value: order.amount / 100,
+      currency: "INR",
+      ...(order.promoCode ? { coupon: order.promoCode } : {}),
+      ...(_paidCod ? { cod: true, method: "cod" } : {}),
+      items: [{ item_id: sku, quantity }, ...(addOn ? [{ item_id: addOn.id, quantity: 1 }] : [])]
+    });
+  }
+
+  // Cash on Delivery: the order is already placed and booked. No Razorpay,
+  // straight to the confirmation with the breakdown.
+  if (_paidCod) {
+    stopOrderPacing();
+    orderSteps.done();
+    orderSteps.destroy();
+    showDone(order);
     return;
   }
 
@@ -822,16 +858,6 @@ async function buy(sku) {
   { const el = byId("gtWorking"); if (el) el.hidden = true; }
   closeSheet();
 
-  // The server's amount, not the page's: this is what Razorpay is about to ask for.
-  if (window.ptTrack) {
-    ptTrack("add_payment_info", {
-      value: order.amount / 100,
-      currency: "INR",
-      ...(order.promoCode ? { coupon: order.promoCode } : {}),
-      items: [{ item_id: sku, quantity }, ...(addOn ? [{ item_id: addOn.id, quantity: 1 }] : [])]
-    });
-  }
-
   rzp.open();
 }
 
@@ -857,9 +883,11 @@ function showDone(done) {
   { const w = byId("gtWorking"); if (w) w.hidden = true; }
   { const d = byId("gtDone"); if (d) d.hidden = false; }
   _busy = false;
-  byId("gtDoneSub").textContent = done.pending
-    ? `Payment received. Order ${done.orderNumber} is being confirmed, you will get a WhatsApp update shortly.`
-    : `Order ${done.orderNumber} is on its way. We have sent the details to your mobile.`;
+  byId("gtDoneSub").textContent = done.paymentMethod === "cod"
+    ? `Order ${done.orderNumber} is placed. Pay ${rupees(done.amount)} in cash when it arrives. We have sent the details to your mobile.`
+    : done.pending
+      ? `Payment received. Order ${done.orderNumber} is being confirmed, you will get a WhatsApp update shortly.`
+      : `Order ${done.orderNumber} is on its way. We have sent the details to your mobile.`;
   renderBreakdown(done.breakdown);
   showSheet();
   // After the sheet is up, so the paper lands over a card that is already
@@ -875,6 +903,9 @@ function showDone(done) {
       value: _paidPaise / 100,
       currency: "INR",
       ...(_paidCoupon ? { coupon: _paidCoupon } : {}),
+      // Tagged so COD never accepted at the door can be told apart, as the
+      // signed-in shop does.
+      ...(_paidCod ? { cod: true, method: "cod" } : {}),
       items: [
         { item_id: _sku, quantity: _paidQty },
         ...(_checkedOutAddOn ? [{ item_id: _checkedOutAddOn.id, quantity: 1 }] : [])
@@ -1110,6 +1141,9 @@ async function load() {
 
   _products = payload.products;
   _launchOffer = payload.launchOffer || null;
+  _cod = typeof payload.codSurchargePaise === "number" && Array.isArray(payload.codProductIds)
+    ? { surchargePaise: payload.codSurchargePaise, productIds: payload.codProductIds }
+    : null;
   // A campaign link (?promo=CODE&sku=...) pre-fills its code; the server still
   // decides whether it applies, exactly as if the buyer had typed it.
   const params = new URLSearchParams(location.search);

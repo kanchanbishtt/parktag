@@ -309,7 +309,15 @@ export async function fulfilPaidOrder(env, collections, { order, paymentId, log 
   // instead would miss every payment whose buyer closed the tab before the
   // confirmation request — which is precisely the sale the webhook exists to
   // rescue, and precisely the one Meta never heard about.
-  //
+  await sendPurchaseConversion(env, collections, order, log);
+
+  return { firstTime: true, replaced, newTagId };
+}
+
+// Exported for guest COD, whose "paid" moment is placing the order: nothing
+// later passes through fulfilPaidOrder for it. `order.amount` is what the
+// buyer pays, so for COD the conversion carries the COD total.
+export async function sendPurchaseConversion(env, collections, order, log) {
   // event_id is derived from the order number, so this and the browser's Pixel
   // Purchase resolve to the same string and Meta counts one conversion rather
   // than two. See eventId() in assets/analytics.js.
@@ -320,7 +328,7 @@ export async function fulfilPaidOrder(env, collections, { order, paymentId, log 
   // branch.
   if (isMetaCapiConfigured(env) && order.internal !== true &&
       order.channel !== "internal" && !isInternalPhone(env, order.shippingAddress?.phone)) {
-    const buyer = await collections.owners.findOne({ _id: ownerId });
+    const buyer = order.ownerId ? await collections.owners.findOne({ _id: order.ownerId }) : null;
     sendCapiEventBestEffort(log, env, {
       eventName: "Purchase",
       eventId: purchaseEventId(order.orderNumber),
@@ -346,6 +354,4 @@ export async function fulfilPaidOrder(env, collections, { order, paymentId, log 
       testEventCode: env.metaCapiTestEventCode || undefined
     });
   }
-
-  return { firstTime: true, replaced, newTagId };
 }

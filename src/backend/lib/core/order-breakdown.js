@@ -13,10 +13,14 @@ function rupees(paise) {
 }
 
 // Rows of { label, paise, text, total? }, or null when the order cannot be
-// itemised honestly. COD orders are left out: their amount carries a surcharge
-// and, once converted, a prepaid discount, neither of which this models.
+// itemised honestly. A COD order is itemised only when it stored the fee it was
+// placed with (guest COD does); older signed-in COD rows did not, and a
+// flash-prepay conversion moves their amount, so they are still left out.
 export function orderBreakdown(order) {
-  if (!order || typeof order.amount !== "number" || order.paymentMethod === "cod") return null;
+  if (!order || typeof order.amount !== "number") return null;
+  const cod = order.paymentMethod === "cod";
+  if (cod && !Number.isFinite(order.codSurchargePaise)) return null;
+  const codPaise = cod ? Math.max(0, order.codSurchargePaise) : 0;
 
   const addOns = (Array.isArray(order.addOns) ? order.addOns : [])
     .filter((item) => item && Number(item.amountPaise) > 0);
@@ -29,7 +33,7 @@ export function orderBreakdown(order) {
   // ponytail: the fallback is wrong only when a discount hit the ₹1 floor.
   const mrpPaise = Number.isFinite(order.mrpPaise)
     ? order.mrpPaise
-    : order.amount + promoPaise + referralPaise - addOnPaise - deliveryPaise;
+    : order.amount + promoPaise + referralPaise - addOnPaise - deliveryPaise - codPaise;
   const quantity = Number(order.quantity) > 1 ? Number(order.quantity) : 1;
 
   const rows = [{ label: quantity > 1 ? `MRP (${quantity} packs)` : "MRP", paise: mrpPaise }];
@@ -38,7 +42,8 @@ export function orderBreakdown(order) {
   for (const item of addOns) rows.push({ label: item.name || "Add-on", paise: Number(item.amountPaise) });
   // A handover has no parcel, so no delivery line at all.
   if (order.fulfilment !== "handover") rows.push({ label: "Delivery", paise: deliveryPaise, text: deliveryPaise ? undefined : "Free" });
-  rows.push({ label: "Total paid", paise: order.amount, total: true });
+  if (cod) rows.push({ label: "Cash on delivery fee", paise: codPaise, text: `+${rupees(codPaise)}` });
+  rows.push({ label: cod ? "Total to pay on delivery" : "Total paid", paise: order.amount, total: true });
 
   return rows.map((row) => ({
     ...row,

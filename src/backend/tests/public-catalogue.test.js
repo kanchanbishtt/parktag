@@ -67,8 +67,9 @@ describe("the public price list", () => {
   test("the COD surcharge is disclosed, not hidden", async () => {
     const body = (await get()).json();
 
-    assert.equal(typeof body.codSurchargePaise, "number");
-    assert.ok(body.codSurchargePaise >= 0);
+    assert.equal(body.codSurchargePaise, 3000);
+    // Guest COD is the Duo Pack only; Solo stays online-only.
+    assert.deepEqual(body.codProductIds, ["pt-car-2"]);
   });
 
   // "Public" is a promise about the response shape. If this endpoint ever
@@ -83,6 +84,6 @@ describe("the public price list", () => {
 
     // And it must not start setting one either.
     assert.equal(res.headers["set-cookie"], undefined);
-    assert.deepEqual(Object.keys(res.json()).sort(), ["addOns", "codSurchargePaise", "launchOffer", "ok", "products"]);
+    assert.deepEqual(Object.keys(res.json()).sort(), ["addOns", "codProductIds", "codSurchargePaise", "launchOffer", "ok", "products"]);
   });
 });

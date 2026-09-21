@@ -45,6 +45,12 @@
   // global in the first place.
   var guestMode = false;
 
+  // Guest Cash on Delivery. When the caller passes orderSummary.cod, the
+  // summary offers "Pay online" vs "Cash on delivery" and a guest resolves
+  // with { ...address, paymentMethod }. Online is the default on every open.
+  var payChoice = "online";
+  var payPrices = null; // { online, cod, mrp } for this open, or null: no COD offered
+
   // Inline icons (no network dependency — works offline / on flaky mobile data).
   var IC = {
     pin: '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 21s7-5.686 7-11a7 7 0 1 0-14 0c0 5.314 7 11 7 11Z" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="10" r="2.6" stroke="currentColor" stroke-width="1.7"/></svg>',
@@ -163,6 +169,10 @@
       ".pt-addr-summary-terms{display:flex;flex-wrap:wrap;gap:6px 12px;margin-top:11px;padding-top:10px;border-top:1px dashed var(--line);font-size:.7rem;font-weight:700;color:#4b5563;}",
       ".pt-addr-summary-terms span:before{content:'✓';color:#0E8A00;font-weight:900;margin-right:5px;}",
       ".pt-addr-summary-pay{margin:10px 0 0;font-size:.72rem;line-height:1.4;color:var(--muted);}",
+      "#pt-addr-paychoice{display:grid;gap:8px;margin-top:11px;padding:0;border:0;}",
+      ".pt-addr-payopt{display:flex;align-items:center;gap:10px;border:1.5px solid var(--line);border-radius:13px;padding:11px 12px;font-size:.84rem;font-weight:700;color:var(--ink);cursor:pointer;}",
+      ".pt-addr-payopt input{accent-color:var(--navy);margin:0;}",
+      ".pt-addr-payopt:has(input:checked){border-color:var(--navy);background:#F1F5FA;}",
 
       // Confirm card
       "#pt-addr-card{position:relative;display:flex;gap:13px;border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:18px;background:var(--card);}",
@@ -262,7 +272,7 @@
     }).join("");
 
     var secure =
-      '<div id="pt-addr-secure">' + IC.lock + "Secured by Razorpay · UPI · Cards · Net Banking</div>";
+      '<div id="pt-addr-secure">' + IC.lock + '<span class="pt-addr-secure-t">Secured by Razorpay · UPI · Cards · Net Banking</span></div>';
 
     ov.innerHTML =
       '<div id="pt-addr-sheet" role="dialog" aria-modal="true" aria-label="Delivery address">' +
@@ -273,7 +283,11 @@
       '<div id="pt-addr-summary" class="pt-hide" aria-label="Order summary">' +
       '<div class="pt-addr-summary-top"><div><div class="pt-addr-summary-label">Your order</div><div id="pt-addr-summary-name"></div></div><div id="pt-addr-summary-price"></div></div>' +
       '<div class="pt-addr-summary-terms"><span>Free delivery</span><span>1 year Premium</span><span>7-day replacement</span></div>' +
-      '<p class="pt-addr-summary-pay">No payment is taken on this step. Continue to pay securely using UPI, cards or net banking.</p>' +
+      '<fieldset id="pt-addr-paychoice" class="pt-hide"><legend class="pt-addr-summary-label">Payment</legend>' +
+      '<label class="pt-addr-payopt"><input type="radio" name="pt-addr-pay" value="online"><span id="pt-addr-pay-online"></span></label>' +
+      '<label class="pt-addr-payopt"><input type="radio" name="pt-addr-pay" value="cod"><span id="pt-addr-pay-cod"></span></label>' +
+      '</fieldset>' +
+      '<p class="pt-addr-summary-pay" id="pt-addr-summary-pay">No payment is taken on this step. Continue to pay securely using UPI, cards or net banking.</p>' +
       '</div>' +
 
       // ── Confirm view (returning buyer) ──
@@ -314,6 +328,11 @@
       summary: ov.querySelector("#pt-addr-summary"),
       summaryName: ov.querySelector("#pt-addr-summary-name"),
       summaryPrice: ov.querySelector("#pt-addr-summary-price"),
+      summaryPay: ov.querySelector("#pt-addr-summary-pay"),
+      payChoice: ov.querySelector("#pt-addr-paychoice"),
+      payOnline: ov.querySelector("#pt-addr-pay-online"),
+      payCod: ov.querySelector("#pt-addr-pay-cod"),
+      secureTexts: ov.querySelectorAll(".pt-addr-secure-t"),
       confirm: ov.querySelector("#pt-addr-confirm"),
       form: ov.querySelector("#pt-addr-form"),
       cardName: ov.querySelector("#pt-addr-card .pt-name"),
@@ -342,6 +361,7 @@
     els.edit.addEventListener("click", function () { showForm(savedAddress); });
 
     els.save.addEventListener("click", onSave);
+    els.payChoice.addEventListener("change", function (e) { setPayChoice(e.target.value); });
     ov.querySelector("#pt-addr-cancel").addEventListener("click", function () { close(false); });
     ov.querySelector("#pt-addr-cancel2").addEventListener("click", function () { close(false); });
     ov.addEventListener("click", function (e) { if (e.target === ov) close(false); });
@@ -367,17 +387,26 @@
       els.summary.classList.add("pt-hide");
       els.summaryName.textContent = "";
       els.summaryPrice.textContent = "";
+      els.payChoice.classList.add("pt-hide");
+      setPayChoice("online");
       return;
     }
     els.summaryName.textContent = name;
-    els.summaryPrice.textContent = "";
-    var mrpPaise = Number(summary.mrpPaise);
-    if (Number.isFinite(mrpPaise) && mrpPaise > amountPaise) {
-      var was = document.createElement("del");
-      was.textContent = "MRP ₹" + Math.round(mrpPaise / 100).toLocaleString("en-IN");
-      els.summaryPrice.appendChild(was);
+    renderSummaryPrice(amountPaise, Number(summary.mrpPaise));
+
+    // Only a guest can choose COD (it is guest create-order that takes it),
+    // and only when the caller priced it, above the online amount.
+    var cod = summary.cod;
+    var codPaise = guestMode && cod ? Number(cod.amountPaise) : NaN;
+    var codOn = Number.isFinite(codPaise) && codPaise > amountPaise;
+    els.payChoice.classList.toggle("pt-hide", !codOn);
+    if (codOn) {
+      els.payOnline.textContent = "Pay online · " + inr(amountPaise);
+      els.payCod.textContent = "Cash on delivery · " + inr(codPaise) + " (" + inr(Number(cod.feePaise)) + " COD fee)";
     }
-    els.summaryPrice.appendChild(document.createTextNode("₹" + Math.round(amountPaise / 100).toLocaleString("en-IN")));
+    payPrices = codOn ? { online: amountPaise, cod: codPaise, mrp: Number(summary.mrpPaise) } : null;
+    setPayChoice("online");
+
     var oldOffer = els.summary.querySelector(".pt-addr-summary-offer");
     if (oldOffer) oldOffer.remove();
     if (summary.offerLabel) {
@@ -387,6 +416,41 @@
       els.summary.appendChild(offer);
     }
     els.summary.classList.remove("pt-hide");
+  }
+
+  function inr(paise) {
+    return "₹" + Math.round(paise / 100).toLocaleString("en-IN");
+  }
+
+  function renderSummaryPrice(amountPaise, mrpPaise) {
+    els.summaryPrice.textContent = "";
+    if (Number.isFinite(mrpPaise) && mrpPaise > amountPaise) {
+      var was = document.createElement("del");
+      was.textContent = "MRP " + inr(mrpPaise);
+      els.summaryPrice.appendChild(was);
+    }
+    els.summaryPrice.appendChild(document.createTextNode(inr(amountPaise)));
+  }
+
+  // Everything that has to read true for the chosen method: the total, the
+  // "when do I pay" line, the Razorpay footer and the button.
+  function setPayChoice(choice) {
+    payChoice = payPrices && choice === "cod" ? "cod" : "online";
+    var cod = payChoice === "cod";
+    els.payChoice.querySelectorAll("input").forEach(function (input) { input.checked = input.value === payChoice; });
+    if (payPrices) renderSummaryPrice(cod ? payPrices.cod : payPrices.online, payPrices.mrp);
+    els.summaryPay.textContent = cod
+      ? "Nothing to pay now. Pay " + inr(payPrices.cod) + " in cash when your order arrives."
+      : "No payment is taken on this step. Continue to pay securely using UPI, cards or net banking.";
+    els.secureTexts.forEach(function (el) {
+      el.textContent = cod ? "Cash on delivery · pay when your order arrives" : "Secured by Razorpay · UPI · Cards · Net Banking";
+    });
+    if (guestMode && els.save) els.save.innerHTML = IC.lock + saveLabel();
+  }
+
+  function saveLabel() {
+    if (!guestMode) return "Save &amp; continue to pay";
+    return payChoice === "cod" ? "Place order, pay on delivery" : "Continue to pay";
   }
 
   function validate(v) {
@@ -449,9 +513,7 @@
         ? "Used for this delivery. Your tag is activated after it arrives."
         : "Saved to your profile. You won't need to enter it again.";
     }
-    if (els.save) {
-      els.save.innerHTML = IC.lock + (guestMode ? "Continue to pay" : "Save &amp; continue to pay");
-    }
+    if (els.save) els.save.innerHTML = IC.lock + saveLabel();
 
     els.title.textContent = prefill ? "Edit delivery address" : "Delivery address";
     els.sub.textContent = prefill
@@ -470,7 +532,10 @@
 
     // No account to save it to: hand the address straight back to the caller,
     // which sends it with the order.
-    if (guestMode) { close(v); return; }
+    if (guestMode) {
+      close(payPrices ? Object.assign({}, v, { paymentMethod: payChoice }) : v);
+      return;
+    }
 
     els.save.disabled = true;
     var label = els.save.innerHTML;
@@ -578,6 +643,8 @@
     guestMode = !!(options && options.guest);
     orderSummary = options && options.orderSummary ? options.orderSummary : null;
     if (!els) build();
+    // No summary means no priced COD: a stale choice must not carry over.
+    payPrices = null;
     showOrderSummary(orderSummary);
     return new Promise(function (resolve) {
       // If a sheet is somehow already open, cancel the previous waiter.

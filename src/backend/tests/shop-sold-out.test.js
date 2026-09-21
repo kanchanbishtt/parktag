@@ -92,12 +92,14 @@ describe("sold-out packs on /shop", () => {
     );
   });
 
-  // Unlike /get, this page's own Order buttons legitimately carry /shop hrefs
-  // as a no-JS fallback. What must not come back is COD copy: the storefront
-  // advertised cash on delivery the business had switched off.
-  test("no cash-on-delivery renderer remains", () => {
-    assert.doesNotMatch(source, /renderCod/, "the COD renderer is back in shop.js");
-    assert.doesNotMatch(source, /codSurchargePaise/, "shop.js reads the COD surcharge again");
+  // Guest COD is back, but only where the server takes it: the page reads the
+  // packs and the fee off the catalogue and sends a method, never an amount.
+  // The old renderer advertised COD on every pack the business had not agreed.
+  test("cash on delivery is offered from catalogue data, not page copy", () => {
+    assert.doesNotMatch(source, /renderCod/, "the old COD renderer is back in shop.js");
+    assert.match(source, /payload\.codProductIds/);
+    assert.match(source, /payload\.codSurchargePaise/);
+    assert.match(source, /paymentMethod\n\s*\}\)/, "create-order must be told the chosen method");
   });
 
   test("no unsourced customer rating is shown", () => {

@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { captureMetaCheckoutContext } from "../../lib/integrations/meta-checkout-context.js";
 import {
   createRazorpayOrder,
@@ -16,7 +17,7 @@ import { isDelhiveryConfigured, updateShipmentToPrepaid, trackingUrl, checkPinco
 import { bookShipmentAndPickup } from "../../lib/core/shipping.js";
 import { getOrderTracking } from "../../lib/core/order-tracking.js";
 import { orderBreakdown, breakdownText } from "../../lib/core/order-breakdown.js";
-import { safeEqual } from "../../lib/auth/security.js";
+import { createSecureToken, safeEqual } from "../../lib/auth/security.js";
 import { fulfilPaidOrder, sendOrderConfirmation, sendPurchaseConversion } from "../../lib/core/order-fulfilment.js";
 import {
   sendOtp,
@@ -41,6 +42,7 @@ import {
   shippingFeePaiseFor
 } from "../../lib/core/promo-codes.js";
 import { isInternalPhone } from "../../lib/core/internal-orders.js";
+import { clientErrorMessage } from "../../lib/errors.js";
 
 // COD carries a flat +₹30 handling fee on top of the price, once per order.
 // Paying online removes it, so the online price always equals the catalog
@@ -57,14 +59,21 @@ export const FLASH_DISCOUNT_PAISE = COD_SURCHARGE_PAISE;
 // Guest COD is the Duo Pack only; every other pack stays online-only.
 const GUEST_COD_PRODUCT_IDS = ["pt-car-2"];
 
-// Guest checkout does not OTP-verify the delivery phone, so COD there is held
-// to ONE open COD order per phone, plus a per-IP ceiling for someone typing a
-// fresh number each time. "Open" is a window, not a status: nothing moves a COD
-// order out of "cod" on delivery (see MAX_COD_ORDERS_PER_WINDOW below).
-// ponytail: window ≈ delivery time; OTP the phone if fake COD orders appear.
+// Guest COD is held to ONE open COD order per phone, plus a per-IP ceiling for
+// someone typing a fresh number each time, and the delivery phone must prove
+// itself with an OTP (see placeGuestCod). "Open" is a window, not a status:
+// nothing moves a COD order out of "cod" on delivery (see
+// MAX_COD_ORDERS_PER_WINDOW below).
+// ponytail: window ≈ delivery time.
 const GUEST_COD_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
 const GUEST_COD_PER_IP = 3;
 const GUEST_COD_IP_WINDOW_MS = 24 * 60 * 60 * 1000;
+// How long a verified delivery phone stays good for one COD order.
+const GUEST_COD_PROOF_MS = 10 * 60 * 1000;
+// Codes sent per IP per day for guest COD. Each one is a paid WhatsApp message
+// to a number the caller typed, so it has its own ceiling, looser than the
+// order cap because a resend is also a send.
+const GUEST_COD_OTP_PER_IP = 10;
 
 // This public offer is an ordinary promo-code row. Revoking LAUNCH100 in the
 // admin dashboard removes the advertised price and stops checkout applying it.
@@ -285,6 +294,34 @@ async function windowCountExceeded(collections, id, limit, windowMs) {
   }
 }
 
+// Guest COD phone proof: issued by cod-otp/verify, one order's worth. Kept in
+// rateLimits because that is already the keyed, TTL-expired store here; the
+// token is stored hashed, so a read of the collection cannot place an order.
+const guestCodProofId = (token) =>
+  `guest-cod-proof:${crypto.createHash("sha256").update(token).digest("hex")}`;
+
+async function issueGuestCodProof(collections, phone) {
+  const token = createSecureToken();
+  await collections.rateLimits.insertOne({
+    _id: guestCodProofId(token),
+    phone: normalizeIdentifier(phone),
+    resetAt: new Date(Date.now() + GUEST_COD_PROOF_MS)
+  });
+  return token;
+}
+
+// Single use and bound to the number: a token proven for any other phone, or
+// already spent, or expired, matches nothing and deletes nothing.
+async function consumeGuestCodProof(collections, token, phone) {
+  if (typeof token !== "string" || !token) return null;
+  const result = await collections.rateLimits.findOneAndDelete({
+    _id: guestCodProofId(token),
+    phone: normalizeIdentifier(phone),
+    resetAt: { $gt: new Date() }
+  });
+  return result && result.value !== undefined ? result.value : result;
+}
+
 function normalizeOrderNumber(raw) {
   const compact = String(raw || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
   const parts = /^PT(\d{6})(\d{5})$/.exec(compact);
@@ -407,7 +444,7 @@ function guestCodResponse(order) {
 // the courier collects `order.amount` at the door. Everything priced here was
 // already derived server-side by guest create-order; this only guards, writes,
 // books and tells people.
-async function placeGuestCod(env, collections, request, reply, order) {
+async function placeGuestCod(env, collections, request, reply, order, codToken) {
   const { shippingAddress: shipping } = order;
 
   // One open COD order per delivery phone. The same checkout sent twice (a
@@ -435,12 +472,6 @@ async function placeGuestCod(env, collections, request, reply, order) {
     };
   }
 
-  if (await windowCountExceeded(collections, `guest-cod:${request.ip}`, GUEST_COD_PER_IP, GUEST_COD_IP_WINDOW_MS)) {
-    request.log.warn({ event: "guest-cod-ip-exhausted" }, "[guest checkout] too many COD orders from one address");
-    reply.code(429);
-    return { ok: false, code: "COD_LIMIT", error: "Too many Cash on Delivery orders from this connection. Please pay online." };
-  }
-
   // A COD booking to a PIN code Delhivery will not collect cash at fails at the
   // courier, after the buyer has been told the order is placed. Only an
   // explicit "no" refuses; an unknown answer fails open, like the rest of
@@ -449,6 +480,23 @@ async function placeGuestCod(env, collections, request, reply, order) {
   if (serviceability.cod === false) {
     reply.code(400);
     return { ok: false, error: "Cash on Delivery is not available at this PIN code. Please pay online." };
+  }
+
+  // Fake COD parcels are the cost this guards: the delivery phone must have
+  // been proven by a code (see /api/shop/guest/cod-otp/verify). The proof is
+  // bound to that exact number and burnt here, after the refusals above, so a
+  // buyer turned away for a PIN code is not also made to verify again.
+  const proof = await consumeGuestCodProof(collections, codToken, shipping.phone);
+  if (!proof) {
+    reply.code(401);
+    return { ok: false, code: "COD_OTP_REQUIRED", error: "Please verify your mobile number to place a Cash on Delivery order." };
+  }
+
+  // After the proof, so a failed verification does not use up the day's orders.
+  if (await windowCountExceeded(collections, `guest-cod:${request.ip}`, GUEST_COD_PER_IP, GUEST_COD_IP_WINDOW_MS)) {
+    request.log.warn({ event: "guest-cod-ip-exhausted" }, "[guest checkout] too many COD orders from one address");
+    reply.code(429);
+    return { ok: false, code: "COD_LIMIT", error: "Too many Cash on Delivery orders from this connection. Please pay online." };
   }
 
   const placed = {
@@ -626,7 +674,9 @@ export function registerShopRoutes(app, env) {
         promo: rawPromo,
         quantity: rawQuantity,
         addOnId: rawAddOnId,
-        paymentMethod: rawPaymentMethod
+        paymentMethod: rawPaymentMethod,
+        // Cash on Delivery only: proof the delivery phone passed its OTP.
+        codToken
       } = request.body || {};
 
       // Checked before anything else costs a network round trip (reCAPTCHA,
@@ -643,6 +693,10 @@ export function registerShopRoutes(app, env) {
       const cod = paymentMethod === "cod";
       if (cod && !GUEST_COD_PRODUCT_IDS.includes(productId)) {
         reply.code(400); return { ok: false, error: "Cash on Delivery is only available on the Duo Pack." };
+      }
+      if (cod && (typeof codToken !== "string" || !codToken)) {
+        reply.code(401);
+        return { ok: false, code: "COD_OTP_REQUIRED", error: "Please verify your mobile number to place a Cash on Delivery order." };
       }
 
       // Bot check on the one money-adjacent endpoint any stranger can reach.
@@ -824,7 +878,7 @@ export function registerShopRoutes(app, env) {
           shippingFeePaise,
           codSurchargePaise: COD_SURCHARGE_PAISE,
           channel: promo.ok ? "direct" : "shop"
-        });
+        }, codToken);
       }
 
       // The same rows the buyer is shown after paying, built from the fields
@@ -976,6 +1030,73 @@ export function registerShopRoutes(app, env) {
         reply.code(500);
         return { ok: false, error: "Failed to create order. Please try again." };
       }
+    }
+  );
+
+  // Guest Cash on Delivery: prove the delivery phone before the order exists.
+  //
+  // A COD order costs a courier booking whether or not anyone pays, so a
+  // number nobody answers is a fake parcel. send puts a code on that number;
+  // verify trades it for a proof token that guest create-order burns on one
+  // COD order. No session, no account: the code is COD-scoped (see
+  // OTP_PURPOSE_COD_VERIFY), so it cannot sign anybody in. Online checkout
+  // never comes here.
+  //
+  // The WhatsApp body is still the "parktag_login" template, so the message
+  // reads as a sign-in code until a COD template is approved.
+  app.post(
+    "/api/shop/guest/cod-otp/send",
+    { config: { rateLimit: { max: 5, timeWindow: "5 minutes" } } },
+    async (request, reply) => {
+      const { phone, recaptchaToken } = request.body || {};
+      if (typeof phone !== "string" || !/^[6-9]\d{9}$/.test(phone)) {
+        reply.code(400); return { ok: false, error: "Enter a valid 10-digit mobile number." };
+      }
+      // Same bot check and the same allowance for an absent token as guest
+      // create-order; the per-IP send cap below is what bounds the unscored.
+      const captcha = await verifyRecaptcha(env, recaptchaToken, {
+        remoteIp: request.ip,
+        expectedAction: "guest_checkout"
+      });
+      if (!captcha.ok && captcha.reason !== "missing-token") {
+        reply.code(400);
+        return { ok: false, error: "We couldn't verify this request. Please refresh the page and try again." };
+      }
+      const collections = await getCollections(env);
+      if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
+      if (await windowCountExceeded(collections, `guest-cod-otp:${request.ip}`, GUEST_COD_OTP_PER_IP, GUEST_COD_IP_WINDOW_MS)) {
+        request.log.warn({ event: "guest-cod-otp-ip-exhausted" }, "[guest checkout] too many COD codes from one address");
+        reply.code(429);
+        return { ok: false, code: "COD_LIMIT", error: "Too many Cash on Delivery attempts from this connection. Please pay online." };
+      }
+      try {
+        await sendOtp(env, phone, { purpose: OTP_PURPOSE_COD_VERIFY });
+      } catch (err) {
+        reply.code(err && err.expose ? 400 : 500);
+        return { ok: false, error: clientErrorMessage(err, "Could not send the verification code. Please try again.", request.log) };
+      }
+      return { ok: true, phoneHint: "••••" + phone.slice(-4) };
+    }
+  );
+
+  app.post(
+    "/api/shop/guest/cod-otp/verify",
+    { config: { rateLimit: { max: 10, timeWindow: "5 minutes" } } },
+    async (request, reply) => {
+      const { phone, otp } = request.body || {};
+      if (typeof phone !== "string" || !/^[6-9]\d{9}$/.test(phone) || typeof otp !== "string" || !/^\d{6}$/.test(otp)) {
+        reply.code(400); return { ok: false, error: "Enter the 6-digit code." };
+      }
+      const collections = await getCollections(env);
+      if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
+      try {
+        // verifyOtp burns the code and holds the attempt cap.
+        await verifyOtp(env, phone, otp, { purpose: OTP_PURPOSE_COD_VERIFY });
+      } catch (err) {
+        reply.code(err && err.expose ? 401 : 500);
+        return { ok: false, error: clientErrorMessage(err, "Could not check the code. Please try again.", request.log) };
+      }
+      return { ok: true, codToken: await issueGuestCodProof(collections, phone) };
     }
   );
 

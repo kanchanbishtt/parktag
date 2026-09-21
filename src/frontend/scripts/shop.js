@@ -384,7 +384,7 @@ async function buy(sku, product) {
       : null
   });
   if (!picked) return;
-  const { paymentMethod = "online", ...address } = picked;
+  const { paymentMethod = "online", codToken, ...address } = picked;
 
   if (window.ptTrack && product) {
     ptTrack("add_shipping_info", {
@@ -431,7 +431,9 @@ async function buy(sku, product) {
         ref: referralCode(),
         promo: _launchOffer && _launchOffer.productId === sku ? _launchOffer.code : undefined,
         addOnId: addOn?.id,
-        paymentMethod
+        paymentMethod,
+        // Proof the delivery mobile passed its code; Cash on Delivery only.
+        codToken
       })
     });
     order = await res.json();

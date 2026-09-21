@@ -10,7 +10,9 @@
  * Resolves false if dismissed. Otherwise `true` for a signed-in owner, whose
  * address is saved to their profile — or, called as ptCollectAddress({ guest:
  * true }), the address object itself, because /get sells to someone with no
- * profile to save it to and sends the address with the order instead.
+ * profile to save it to and sends the address with the order instead. A guest
+ * who picks Cash on Delivery proves the mobile with a WhatsApp code first and
+ * gets { ...address, paymentMethod: "cod", codToken } for create-order.
  *
  * Two states, so returning buyers don't re-type an address they already gave:
  *   • No saved address  -> show the full form, save on submit.
@@ -50,6 +52,14 @@
   // with { ...address, paymentMethod }. Online is the default on every open.
   var payChoice = "online";
   var payPrices = null; // { online, cod, mrp } for this open, or null: no COD offered
+
+  // Guest COD phone check. The server will not place a COD order until the
+  // delivery mobile has passed a code, so the sheet sends one and verifies it
+  // before resolving. captchaFn is the caller's reCAPTCHA getter, or null.
+  var captchaFn = null;
+  var codAddress = null; // the validated address waiting on its code
+  var resendTimer = null;
+  var RESEND_SECONDS = 30; // above the server's 20s double-submit window
 
   // Inline icons (no network dependency — works offline / on flaky mobile data).
   var IC = {
@@ -203,8 +213,10 @@
       ".pt-addr-f select{-webkit-appearance:none;appearance:none;padding-right:38px;font-family:inherit;line-height:1.3;background:#fff url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2341506A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\") no-repeat right 12px center/18px;}",
       ".pt-addr-f select:invalid{color:#a8adb8;}",
       ".pt-addr-f select option{color:var(--ink);}",
-      "#pt-addr-err{display:none;background:#fdecec;color:#c0271b;font-size:.8rem;font-weight:600;padding:10px 13px;border-radius:11px;margin-bottom:13px;}",
-      "#pt-addr-err.pt-show{display:block;}",
+      "#pt-addr-err,#pt-addr-otp-err{display:none;background:#fdecec;color:#c0271b;font-size:.8rem;font-weight:600;padding:10px 13px;border-radius:11px;margin-bottom:13px;}",
+      "#pt-addr-err.pt-show,#pt-addr-otp-err.pt-show{display:block;}",
+      // The COD code: one wide field, digits spaced so a misread is visible.
+      "#pt-addr-code{font-size:1.3rem;font-weight:800;letter-spacing:.45em;text-align:center;font-variant-numeric:tabular-nums;}",
 
       // Buttons
       // Navy, not red. The glow moves with it — a navy button over a red halo
@@ -221,6 +233,7 @@
       ".pt-addr-secondary svg{width:16px;height:16px;color:var(--muted);}",
       ".pt-addr-secondary:hover{background:#EEF3F9;border-color:#D3DCE7;}",
       ".pt-addr-secondary:active{background:#E6ECF4;}",
+      ".pt-addr-secondary:disabled{opacity:.6;cursor:default;background:#fff;border-color:var(--line);}",
       ".pt-addr-link{width:100%;padding:12px;margin-top:6px;border:none;background:none;color:var(--muted);font-size:.85rem;font-weight:600;cursor:pointer;border-radius:12px;-webkit-tap-highlight-color:transparent;}",
       ".pt-addr-link:hover{color:#374151;}",
 
@@ -319,6 +332,16 @@
       '<p id="pt-addr-note">Saved to your profile. You won\'t need to enter it again.</p>' +
       secure +
       "</div>" +
+
+      // ── Code view (guest Cash on Delivery) ──
+      '<div id="pt-addr-otp" class="pt-hide">' +
+      '<div id="pt-addr-otp-err" role="alert"></div>' +
+      '<div class="pt-addr-f"><label for="pt-addr-code">6-digit code<span class="pt-req" aria-hidden="true">*</span></label>' +
+      '<input type="text" id="pt-addr-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="••••••" aria-describedby="pt-addr-sub" required aria-required="true"></div>' +
+      '<button id="pt-addr-verify" class="pt-addr-primary" type="button">' + IC.lock + "Verify &amp; place order</button>" +
+      '<button id="pt-addr-resend" class="pt-addr-secondary" type="button" disabled>Resend code</button>' +
+      '<button id="pt-addr-back" class="pt-addr-link" type="button">Change mobile number</button>' +
+      "</div>" +
       "</div>";
 
     document.body.appendChild(ov);
@@ -347,6 +370,11 @@
       edit: ov.querySelector("#pt-addr-edit"),
       save: ov.querySelector("#pt-addr-save"),
       note: ov.querySelector("#pt-addr-note"),
+      otp: ov.querySelector("#pt-addr-otp"),
+      otpErr: ov.querySelector("#pt-addr-otp-err"),
+      code: ov.querySelector("#pt-addr-code"),
+      verify: ov.querySelector("#pt-addr-verify"),
+      resend: ov.querySelector("#pt-addr-resend"),
       inputs: {}
     };
     FIELDS.forEach(function (f) { els.inputs[f.key] = ov.querySelector("#pt-addr-" + f.key); });
@@ -364,6 +392,16 @@
     els.edit.addEventListener("click", function () { showForm(savedAddress); });
 
     els.save.addEventListener("click", onSave);
+    els.code.addEventListener("input", function () {
+      this.value = this.value.replace(/[^0-9]/g, "");
+      // A pasted or autofilled code submits itself.
+      if (this.value.length === 6 && !els.verify.disabled) onVerify();
+    });
+    els.code.addEventListener("keydown", function (e) { if (e.key === "Enter") onVerify(); });
+    els.verify.addEventListener("click", onVerify);
+    els.resend.addEventListener("click", onResend);
+    // Back to the form with what they typed, to fix a wrong number.
+    ov.querySelector("#pt-addr-back").addEventListener("click", function () { showForm(codAddress); });
     els.payChoice.addEventListener("change", function (e) { setPayChoice(e.target.value); });
     ov.querySelector("#pt-addr-cancel").addEventListener("click", function () { close(false); });
     ov.querySelector("#pt-addr-cancel2").addEventListener("click", function () { close(false); });
@@ -530,6 +568,8 @@
       ? "Update where we should ship your sticker."
       : "Where should we ship your official ParkTag sticker?";
     els.confirm.classList.add("pt-hide");
+    els.otp.classList.add("pt-hide");
+    clearInterval(resendTimer);
     els.form.classList.remove("pt-hide");
     reveal(els.form);
   }
@@ -543,6 +583,7 @@
     // No account to save it to: hand the address straight back to the caller,
     // which sends it with the order.
     if (guestMode) {
+      if (payPrices && payChoice === "cod") { startCodCheck(v); return; }
       close(payPrices ? Object.assign({}, v, { paymentMethod: payChoice }) : v);
       return;
     }
@@ -574,11 +615,120 @@
     }
   }
 
+  // ── Guest Cash on Delivery: prove the mobile before resolving ──
+
+  async function sendCodCode(phone) {
+    var recaptchaToken = "";
+    try { recaptchaToken = captchaFn ? (await captchaFn()) || "" : ""; } catch (_) { /* server allows none */ }
+    var res = await fetch("/api/shop/guest/cod-otp/send", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ phone: phone, recaptchaToken: recaptchaToken })
+    });
+    var data = await res.json().catch(function () { return {}; });
+    if (!res.ok || !data.ok) throw new Error(data.error || "Could not send the code. Please try again.");
+  }
+
+  async function startCodCheck(v) {
+    els.save.disabled = true;
+    els.save.textContent = "Sending code…";
+    try {
+      await sendCodCode(v.phone);
+      codAddress = v;
+      showOtp();
+    } catch (e) {
+      showErr(e.message || "Could not send the code. Please try again.");
+    } finally {
+      els.save.disabled = false;
+      els.save.innerHTML = IC.lock + saveLabel();
+    }
+  }
+
+  function showOtpErr(msg) {
+    els.otpErr.textContent = msg;
+    els.otpErr.classList.add("pt-show");
+    els.code.setAttribute("aria-invalid", "true");
+  }
+  function clearOtpErr() {
+    els.otpErr.textContent = "";
+    els.otpErr.classList.remove("pt-show");
+    els.code.removeAttribute("aria-invalid");
+  }
+
+  function showOtp() {
+    clearOtpErr();
+    els.code.value = "";
+    els.title.textContent = "Confirm your mobile";
+    els.sub.textContent = "We sent a 6-digit code on WhatsApp to " + codAddress.phone +
+      ". Enter it to place your Cash on Delivery order.";
+    els.form.classList.add("pt-hide");
+    els.otp.classList.remove("pt-hide");
+    reveal(els.otp);
+    startResendTimer();
+    els.code.focus();
+  }
+
+  function startResendTimer() {
+    var left = RESEND_SECONDS;
+    clearInterval(resendTimer);
+    els.resend.disabled = true;
+    els.resend.textContent = "Resend code in " + left + "s";
+    resendTimer = setInterval(function () {
+      left -= 1;
+      if (left > 0) { els.resend.textContent = "Resend code in " + left + "s"; return; }
+      clearInterval(resendTimer);
+      els.resend.disabled = false;
+      els.resend.textContent = "Resend code";
+    }, 1000);
+  }
+
+  async function onResend() {
+    clearOtpErr();
+    els.resend.disabled = true;
+    els.resend.textContent = "Sending…";
+    try {
+      await sendCodCode(codAddress.phone);
+      startResendTimer();
+      els.code.focus();
+    } catch (e) {
+      showOtpErr(e.message || "Could not send the code. Please try again.");
+      els.resend.disabled = false;
+      els.resend.textContent = "Resend code";
+    }
+  }
+
+  async function onVerify() {
+    clearOtpErr();
+    var code = els.code.value.trim();
+    if (!/^[0-9]{6}$/.test(code)) { showOtpErr("Enter the 6-digit code."); els.code.focus(); return; }
+    els.verify.disabled = true;
+    var label = els.verify.innerHTML;
+    els.verify.textContent = "Verifying…";
+    try {
+      var res = await fetch("/api/shop/guest/cod-otp/verify", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ phone: codAddress.phone, otp: code })
+      });
+      var data = await res.json().catch(function () { return {}; });
+      if (!res.ok || !data.ok || !data.codToken) throw new Error(data.error || "Could not check the code. Please try again.");
+      clearInterval(resendTimer);
+      close(Object.assign({}, codAddress, { paymentMethod: "cod", codToken: data.codToken }));
+    } catch (e) {
+      showOtpErr(e.message || "Could not check the code. Please try again.");
+      els.code.select();
+    } finally {
+      els.verify.disabled = false;
+      els.verify.innerHTML = label;
+    }
+  }
+
   // `saved` is `true` for the signed-in flow and the address object in guest
   // mode. Passed through rather than coerced, because the guest caller needs
   // the values — and an object is truthy, so `if (!await ptCollectAddress())`
   // still reads the same at every existing call site.
   function close(saved) {
+    clearInterval(resendTimer);
     dismiss();
     var r = resolver;
     resolver = null;
@@ -652,6 +802,8 @@
   window.ptCollectAddress = function (options) {
     guestMode = !!(options && options.guest);
     orderSummary = options && options.orderSummary ? options.orderSummary : null;
+    captchaFn = options && typeof options.captchaToken === "function" ? options.captchaToken : null;
+    codAddress = null;
     if (!els) build();
     // No summary means no priced COD: a stale choice must not carry over.
     payPrices = null;
@@ -665,6 +817,8 @@
       // meanwhile via the overlay's own transition.
       els.confirm.classList.add("pt-hide");
       els.form.classList.add("pt-hide");
+      els.otp.classList.add("pt-hide");
+      clearInterval(resendTimer);
       els.sheet.classList.remove("pt-in");
       // Reopened mid-fade: drop the exit and cancel the timer that would
       // otherwise hide the overlay a moment from now.

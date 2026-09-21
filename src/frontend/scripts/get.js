@@ -498,6 +498,8 @@ async function buy(sku) {
   const cod = codFor(sku);
   const picked = await window.ptCollectAddress({
     guest: true,
+    // The COD phone check in the sheet sends a code, so it is bot-scored too.
+    captchaToken: () => getCaptchaToken("guest_checkout"),
     orderSummary: product
       ? {
           name: `${quantity > 1 ? `${quantity} × ` : ""}${product.name}${addOn ? ` + ${addOn.name}` : ""}`,
@@ -511,7 +513,7 @@ async function buy(sku) {
       : null
   });
   if (!picked) return;
-  const { paymentMethod = "online", ...address } = picked;
+  const { paymentMethod = "online", codToken, ...address } = picked;
   const payCod = paymentMethod === "cod";
 
   if (window.ptTrack && product) {
@@ -568,7 +570,9 @@ async function buy(sku) {
         quantity,
         promo: offer?.code,
         addOnId: addOn?.id,
-        paymentMethod
+        paymentMethod,
+        // Proof the delivery mobile passed its code; Cash on Delivery only.
+        codToken
       })
     });
     order = await res.json();

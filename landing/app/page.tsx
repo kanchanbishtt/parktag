@@ -507,12 +507,12 @@ export default function Home() {
                 Add the clear laser-cut sheet, apply the ParkTag to it, and place it on your dashboard instead. Your tag stays visible without being stuck directly to the car.
               </p>
               <ul className="space-y-3 text-sm text-[#495B7B] mb-7">
+                <li>✓ Add it to the Duo Pack for ₹49</li>
                 <li>✓ Optional and never added automatically</li>
                 <li>✓ Sized for the ParkTag sticker</li>
-                <li>✓ Price and availability shown in the shop</li>
               </ul>
               <a href={`${APP_URL}/shop?sku=pt-car-2`} className="inline-flex rounded-xl bg-[#03162D] px-6 py-3 font-bold text-white hover:bg-[#0B294B] transition-colors">
-                View pack and add-ons →
+                Get the Duo Pack →
               </a>
             </AnimateIn>
           </div>
@@ -539,6 +539,56 @@ export default function Home() {
                     <p className="text-sm leading-relaxed text-[#495B7B]">{copy}</p>
                   </div>
                 </AnimateIn>
+              ))}
+            </div>
+
+            {/* Real app screens. The plate and tag id on the first are sample values. */}
+            <AnimateIn>
+              <h3 className="mt-16 mb-8 text-center text-2xl font-extrabold text-[#03162D] tracking-tight">See what you get in the app</h3>
+            </AnimateIn>
+            <div className="flex gap-6 overflow-x-auto snap-x snap-mandatory pb-4 sm:grid sm:grid-cols-3 sm:overflow-visible">
+              {[
+                ["app-preview-manage-tag.png", "Manage your tag", "Contact page, notifications, location access and calls in one place."],
+                ["app-preview-membership.png", "Always included", "WhatsApp scan notifications stay free for the life of your active ParkTag."],
+                ["app-preview-premium-features.png", "Premium for 1 year", "Masked calls, callbacks, document vault and SOS, with your coverage date shown."],
+              ].map(([src, title, copy], index) => (
+                <AnimateIn key={src} delay={index * 70}>
+                  <figure className="w-[72vw] max-w-[280px] flex-shrink-0 snap-center mx-auto sm:w-auto">
+                    <img src={`/${src}`} alt={`ParkTag app: ${title}`} loading="lazy" className="w-full h-auto drop-shadow-xl" />
+                    <figcaption className="mt-4 text-center">
+                      <div className="font-extrabold text-[#03162D]">{title}</div>
+                      <p className="mt-1 text-sm leading-relaxed text-[#495B7B]">{copy}</p>
+                    </figcaption>
+                  </figure>
+                </AnimateIn>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ── BUYER CHECKLIST ── */}
+        {/* Deliberately names no competitor: we only state our own terms, and
+            give buyers the questions that expose hidden limits anywhere else. */}
+        <section className="bg-gray-50 py-20 sm:py-28">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6">
+            <AnimateIn>
+              <p className="mb-4"><SectionLabel>Before you buy</SectionLabel></p>
+              <h2 className="text-3xl sm:text-4xl font-extrabold text-[#03162D] tracking-tight mb-4">What to check before you buy any QR tag</h2>
+              <p className="text-[#495B7B] mb-10 max-w-2xl">&ldquo;Lifetime&rdquo; can hide a short free period. Ask these questions of any tag, including ours.</p>
+            </AnimateIn>
+            <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
+              {[
+                ["Is masked calling time-limited?", "Yes, and we say so. Masked calling is part of Premium, included free for the first year. Extend any time from ₹49."],
+                ["Do WhatsApp alerts cost extra?", "No. WhatsApp scan notifications stay free for the life of your active ParkTag, with no renewal."],
+                ["Is there a renewal price, and is it published?", "Yes. Premium plans are ₹49 for 1 month, ₹149 for 6 months and ₹249 for 12 months, shown in your dashboard before you pay."],
+                ["What still works if you never renew?", "QR scanning, WhatsApp scan alerts and your owner dashboard. Your tag never stops working."],
+                ["Does the person scanning need an app?", "No. Any phone camera or Google Lens opens it. Only you sign in."],
+                ["Does the scanner ever see your number?", "No. Calls go through a masked number and WhatsApp alerts come from ParkTag."],
+              ].map(([question, answer]) => (
+                <div key={question} className="grid sm:grid-cols-[2fr_3fr] gap-2 sm:gap-6 border-b border-gray-100 last:border-b-0 px-5 py-5 sm:px-6">
+                  <div className="font-extrabold text-[#03162D]">{question}</div>
+                  <div className="text-sm leading-relaxed text-[#495B7B]"><span className="font-bold text-[#FF2700]">ParkTag: </span>{answer}</div>
+                </div>
               ))}
             </div>
           </div>

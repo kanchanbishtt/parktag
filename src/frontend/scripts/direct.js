@@ -24,13 +24,8 @@
 // quotes a figure the checkout does not charge is the worst place for it to
 // happen again, because it is the first thing a stranger reads.
 //
-// So no amount anybody is CHARGED appears in this file. The one exception is
-// `orig` below — the struck-through "was" price, which is a marketing claim
-// rather than anything billed, and which is only rendered when it is genuinely
-// above the price being charged.
-
-// Display-only. `orig` is the struck-through "was" price, which is marketing
-// copy rather than anything charged, so it belongs on this side.
+// So no amount anybody is CHARGED appears in this file. The current price,
+// launch offer and crossed-out MRP all come from the live catalogue.
 import { getCaptchaToken } from "./recaptcha.js";
 import { burstConfetti, clearConfetti } from "./confetti.js";
 import { referralCode, clearReferralCode } from "./referral-link.js";
@@ -38,14 +33,12 @@ const PACKS = [
   {
     id: "pt-car-1",
     desc: "One tag for the windscreen of one car.",
-    image: "/images/shop-car.webp",
-    orig: 499
+    image: "/images/shop-car.webp"
   },
   {
     id: "pt-car-2",
     desc: "Best value. Tag two cars, or the front and back of one.",
-    image: "/images/shop-car-2.svg",
-    orig: 799
+    image: "/images/shop-car-2.svg"
   },
   // Out of stock, not withdrawn. A pack we still price but cannot ship is
   // shown with its price and no way to buy it, rather than dropped: a visitor
@@ -55,14 +48,12 @@ const PACKS = [
     id: "pt-combo",
     desc: "Car and bike together, for the whole household.",
     image: "/images/shop-combo.svg",
-    orig: 899,
     soldOut: true
   },
   {
     id: "pt-bike-1",
     desc: "For a two-wheeler, front and back.",
     image: "/images/shop-bike.webp",
-    orig: 499,
     soldOut: true
   }
 ];
@@ -71,6 +62,11 @@ const PACKS = [
 // or "the first": which pack leads is a merchandising decision, and deriving it
 // from price would silently change the headline the day a price moves.
 const HERO_PACK = "pt-car-2";
+
+let _products = {};
+let _launchOffer = null;
+let _addOn = null;
+let _checkedOutAddOn = null;
 
 const byId = (id) => document.getElementById(id);
 
@@ -84,10 +80,22 @@ function rupees(paise) {
 // the unit price a second time for no reason. It is qty multiplied against the
 // server's own per-unit amountPaise -- never a computed discount, and never a
 // number this page invented.
-function applyQtyTotal(el, priced, qty) {
+function offerFor(sku) {
+  return _launchOffer && _launchOffer.productId === sku ? _launchOffer : null;
+}
+
+function publicOfferTotalPaise(sku, priced, qty, addOn = null) {
+  const offer = offerFor(sku);
+  return (priced.amountPaise * qty) - (offer?.discountPaise || 0) + (addOn?.amountPaise || 0);
+}
+
+function applyQtyTotal(el, priced, qty, sku) {
   if (qty > 1) {
     el.hidden = false;
-    el.textContent = `${qty} × ${rupees(priced.amountPaise)} = ${rupees(priced.amountPaise * qty)}`;
+    const offer = offerFor(sku);
+    el.textContent = offer
+      ? `${qty} packs · ${offer.code} applied = ${rupees(publicOfferTotalPaise(sku, priced, qty))}`
+      : `${qty} × ${rupees(priced.amountPaise)} = ${rupees(priced.amountPaise * qty)}`;
   } else {
     el.hidden = true;
     el.textContent = "";
@@ -101,7 +109,10 @@ function renderChips(products) {
 
   // "Pack of 2 · ₹499" — the name already says which pack, so the chip does
   // not repeat the word ParkTag a third time on one screen.
-  chip.textContent = `${hero.name.replace(/^ParkTag\s*/, "")} · ${rupees(hero.amountPaise)}`;
+  const offer = offerFor(HERO_PACK);
+  chip.textContent = offer
+    ? `${hero.name.replace(/^ParkTag\s*/, "")} · ${rupees(offer.offerPaise)} launch offer · MRP ${rupees(offer.mrpPaise)}`
+    : `${hero.name.replace(/^ParkTag\s*/, "")} · ${rupees(hero.amountPaise)}`;
 }
 
 function renderPacks(products) {
@@ -140,17 +151,18 @@ function renderPacks(products) {
 
     const now = document.createElement("span");
     now.className = "gt-pack-now";
-    now.textContent = rupees(priced.amountPaise);
+    const offer = offerFor(pack.id);
+    now.textContent = rupees(offer ? offer.offerPaise : priced.amountPaise);
     price.append(now);
 
     // The struck-through price is shown only when it is genuinely higher than
     // what is being charged. A "was" that is not above the "now" is not a
     // saving, and printing one anyway is the kind of thing that turns a
     // discount into a misleading price claim.
-    if (pack.orig && pack.orig * 100 > priced.amountPaise) {
+    if (offer && offer.mrpPaise > offer.offerPaise) {
       const was = document.createElement("span");
       was.className = "gt-pack-was";
-      was.textContent = `₹${pack.orig.toLocaleString("en-IN")}`;
+      was.textContent = `MRP ${rupees(offer.mrpPaise)}`;
       price.append(was);
     }
 
@@ -194,7 +206,7 @@ function renderPacks(products) {
 
       const total = document.createElement("span");
       total.className = "gt-pack-qty-total";
-      applyQtyTotal(total, priced, qty);
+      applyQtyTotal(total, priced, qty, pack.id);
 
       bd.append(stepper, total);
     }
@@ -232,7 +244,28 @@ function renderBar(products) {
   // No COD claim here, unlike /get. A code on this page can make the sale a
   // handover collected in person, and promising Cash on Delivery beside it
   // would be offering something this checkout does not do.
-  if (sub) sub.textContent = `${rupees(hero.amountPaise)} · Secure payment`;
+  const offer = offerFor(HERO_PACK);
+  if (sub) sub.textContent = offer
+    ? `${rupees(offer.offerPaise)} launch offer · MRP ${rupees(offer.mrpPaise)} · Secure payment`
+    : `${rupees(hero.amountPaise)} · Secure payment`;
+}
+
+function renderAddOn(addOns) {
+  const host = byId("gtAddon");
+  const addOn = Array.isArray(addOns) ? addOns.find((item) => item.id === "dashboard-plate") : null;
+  _addOn = addOn || null;
+  if (!host || !addOn) {
+    if (host) host.hidden = true;
+    return;
+  }
+  byId("gtAddonImage").src = addOn.image;
+  byId("gtAddonDescription").textContent = addOn.description;
+  byId("gtAddonPrice").textContent = `+${rupees(addOn.amountPaise)}`;
+  host.hidden = false;
+}
+
+function selectedAddOn() {
+  return _addOn && byId("gtAddonCheck")?.checked ? _addOn : null;
 }
 
 // The hero and bar buttons carry the lead pack in their href so they work with
@@ -570,6 +603,9 @@ async function buy(sku) {
   // request submits can never be two different reads of a stepper the buyer
   // is still free to tap.
   const quantity = _qty.get(sku) || 1;
+  const product = _products[sku];
+  const addOn = selectedAddOn();
+  _checkedOutAddOn = addOn;
 
   if (typeof window.ptCollectAddress !== "function") {
     say("The delivery step could not load. Please refresh and try again.");
@@ -605,7 +641,22 @@ async function buy(sku) {
 
   // The shared sheet. Resolves with the address, or false if dismissed —
   // backing out here is an ordinary thing to do, not an error.
-  const address = handover ? await collectHandoverContact() : await window.ptCollectAddress({ guest: true });
+  const payablePaise = promoState?.ok
+    ? promoState.payablePaise
+    : (product?.amountPaise || 0) * quantity;
+  const address = handover
+    ? await collectHandoverContact()
+    : await window.ptCollectAddress({
+        guest: true,
+        orderSummary: product
+          ? {
+              name: `${quantity > 1 ? `${quantity} × ` : ""}${product.name}${addOn ? ` + ${addOn.name}` : ""}`,
+              amountPaise: payablePaise + (addOn?.amountPaise || 0),
+              mrpPaise: promoState?.ok ? (product.amountPaise * quantity) + (addOn?.amountPaise || 0) : null,
+              offerLabel: promoState?.ok ? `${promoState.code || codeValue()} applied` : null
+            }
+          : null
+      });
   if (!address) return;
 
   _busy = true;
@@ -655,7 +706,8 @@ async function buy(sku) {
         recaptchaToken,
         ref: referralCode(),
         promo: codeValue(),
-        quantity
+        quantity,
+        addOnId: addOn?.id
       })
     });
     order = await res.json();
@@ -759,7 +811,10 @@ function showDone(done) {
       transaction_id: done.orderNumber,
       value: _paidPaise / 100,
       currency: "INR",
-      items: [{ item_id: _sku, quantity: _paidQty }]
+      items: [
+        { item_id: _sku, quantity: _paidQty },
+        ...(_checkedOutAddOn ? [{ item_id: _checkedOutAddOn.id, quantity: 1 }] : [])
+      ]
     });
   }
 }
@@ -921,7 +976,7 @@ function wireCheckout(products) {
     const n = card.querySelector(".gt-pack-qty-n");
     if (n) n.textContent = String(next);
     const total = card.querySelector(".gt-pack-qty-total");
-    if (total) applyQtyTotal(total, priced, next);
+    if (total) applyQtyTotal(total, priced, next, sku);
   });
 
   byId("gtDoneX").addEventListener("click", hideSheet);
@@ -948,10 +1003,18 @@ function wireCheckout(products) {
 
     if (window.ptTrack) {
       const priced = products && products[sku];
+      const quantity = _qty.get(sku) || 1;
+      const addOn = selectedAddOn();
+      const trackedPaise = promoState?.ok && sku === HERO_PACK
+        ? promoState.payablePaise + (addOn?.amountPaise || 0)
+        : (priced ? publicOfferTotalPaise(sku, priced, quantity, addOn) : null);
       ptTrack("begin_checkout", {
         method: "guest",
-        items: [{ item_id: sku, quantity: _qty.get(sku) || 1 }],
-        ...(priced ? { value: priced.amountPaise / 100, currency: "INR" } : {})
+        items: [
+          { item_id: sku, quantity },
+          ...(addOn ? [{ item_id: addOn.id, quantity: 1 }] : [])
+        ],
+        ...(trackedPaise !== null ? { value: trackedPaise / 100, currency: "INR" } : {})
       });
     }
     buy(sku);
@@ -998,9 +1061,18 @@ async function load() {
     return;
   }
 
+  _products = payload.products;
+  _launchOffer = payload.launchOffer || null;
+  const code = byId("drCode");
+  if (code && !code.value && _launchOffer?.code) {
+    code.value = _launchOffer.code;
+    await checkCode(HERO_PACK);
+  }
+
   renderChips(payload.products);
   renderPacks(payload.products);
   renderBar(payload.products);
+  renderAddOn(payload.addOns);
   wireCheckout(payload.products);
 
   // After the page is usable, never in front of it. A returning buyer's order
@@ -1016,7 +1088,7 @@ async function load() {
     const hero = payload.products[HERO_PACK];
     ptTrack("view_item", {
       items: Object.entries(payload.products).map(([id, p]) => ({ item_id: id, item_name: p.name })),
-      ...(hero ? { value: hero.amountPaise / 100, currency: "INR" } : {})
+      ...(hero ? { value: publicOfferTotalPaise(HERO_PACK, hero, 1) / 100, currency: "INR" } : {})
     });
   }
 }

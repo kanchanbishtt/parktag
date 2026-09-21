@@ -413,7 +413,7 @@ export function registerShopRoutes(app, env) {
             addOns = [{
               id: "dashboard-plate",
               name: "Clear Dashboard Plate",
-              description: "Stick your ParkTag on this clear laser-cut plate and place it on your dashboard instead of sticking it on the windscreen.",
+              description: "10 × 6 cm · 2 mm clear crystal acrylic. Stick your ParkTag on the plate, then place it on your dashboard.",
               amountPaise: Math.round(Number(plate.pricePaise)),
               image: "/images/acrylic-dashboard-plate-real.jpg",
               productIds: DASHBOARD_PLATE_PRODUCT_IDS

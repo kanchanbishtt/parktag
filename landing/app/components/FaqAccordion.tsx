@@ -9,7 +9,7 @@ const FAQS = [
   },
   {
     q: "Do I have to stick the ParkTag directly on my car?",
-    a: "No. With the Duo Pack you can add the optional Clear Dashboard Plate for ₹49, stick the ParkTag on the plate, and place it on your dashboard instead of sticking it on the windscreen. It is never added automatically.",
+    a: "No. With the Duo Pack you can add the optional Clear Dashboard Plate for ₹49: 10 × 6 cm, 2 mm clear crystal acrylic. Stick your ParkTag on the plate, then place it on your dashboard instead of sticking it on the windscreen. It is never added automatically.",
   },
   {
     q: "How does ParkTag work?",

@@ -98,6 +98,9 @@ describe("sold-out packs on /get", () => {
     assert.match(source, /_launchOffer = payload\.launchOffer \|\| null/);
     assert.match(source, /promo: offer\?\.code/);
     assert.match(source, /addOnId: addOn\?\.id/);
+    // Duo Pack only: the plate is picked per sku, never from the checkbox alone.
+    assert.match(source, /\(_addOn\.productIds \|\| \[\]\)\.includes\(sku\)/);
+    assert.doesNotMatch(source, /selectedAddOn\(\)/);
     assert.match(source, /amountPaise: pricedTotalPaise\(sku, product, quantity, addOn\)/);
     assert.doesNotMatch(
       source,

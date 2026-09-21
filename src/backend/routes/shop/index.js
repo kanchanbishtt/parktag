@@ -56,6 +56,11 @@ const COD_SURCHARGE_PAISE = FLASH_DISCOUNT_PAISE;
 const PUBLIC_LAUNCH_PROMO_CODE = "LAUNCH100";
 const PUBLIC_LAUNCH_PRODUCT_ID = "pt-car-2";
 
+// The Clear Dashboard Plate is sold with the Duo Pack only. Served on the
+// catalogue so the storefronts can hide it, and enforced at create-order so a
+// hand-built request cannot attach it to any other pack.
+const DASHBOARD_PLATE_PRODUCT_IDS = ["pt-car-2"];
+
 // Ceiling on how many unpaid COD orders one ACCOUNT can have open in a rolling
 // window. COD takes no money up front and books a real courier shipment, so
 // every order is cost ParkTag carries whether or not the parcel is ever
@@ -407,9 +412,10 @@ export function registerShopRoutes(app, env) {
             addOns = [{
               id: "dashboard-plate",
               name: "Clear Dashboard Plate",
-              description: "Apply your ParkTag to this clear laser-cut sheet and place it on the dashboard instead of sticking the tag directly on the car.",
+              description: "Stick your ParkTag on this clear laser-cut plate and place it on your dashboard instead of sticking it on the windscreen.",
               amountPaise: Math.round(Number(plate.pricePaise)),
-              image: "/images/acrylic-dashboard-plate-real.jpg"
+              image: "/images/acrylic-dashboard-plate-real.jpg",
+              productIds: DASHBOARD_PLATE_PRODUCT_IDS
             }];
           }
         }
@@ -536,6 +542,10 @@ export function registerShopRoutes(app, env) {
         if (rawAddOnId !== "dashboard-plate") {
           reply.code(400);
           return { ok: false, error: "Unknown add-on." };
+        }
+        if (!DASHBOARD_PLATE_PRODUCT_IDS.includes(productId)) {
+          reply.code(400);
+          return { ok: false, error: "The Clear Dashboard Plate is only available with the Duo Pack." };
         }
         const settings = await collections.storeSettings.findOne({ _id: "public-shop" });
         const plate = settings?.dashboardPlate;

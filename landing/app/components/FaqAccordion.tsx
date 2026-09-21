@@ -9,7 +9,7 @@ const FAQS = [
   },
   {
     q: "Do I have to stick the ParkTag directly on my car?",
-    a: "No. You can add the optional clear dashboard plate in the shop, apply the ParkTag to the plate, and place the plate on your dashboard instead. Its live price and availability appear before checkout, and it is never selected automatically.",
+    a: "No. With the Duo Pack you can add the optional Clear Dashboard Plate in the shop, stick the ParkTag on the plate, and place it on your dashboard instead of sticking it on the windscreen. Its live price and availability appear before checkout, and it is never selected automatically.",
   },
   {
     q: "How does ParkTag work?",

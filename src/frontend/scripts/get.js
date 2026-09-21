@@ -254,8 +254,10 @@ function renderAddOn(addOns) {
   host.hidden = false;
 }
 
-function selectedAddOn() {
-  return _addOn && byId("gtAddonCheck")?.checked ? _addOn : null;
+// Duo Pack only. The box stays ticked if the buyer then orders another pack,
+// so the pack decides, not the box: any other sku gets no plate and no charge.
+function selectedAddOn(sku) {
+  return _addOn && byId("gtAddonCheck")?.checked && (_addOn.productIds || []).includes(sku) ? _addOn : null;
 }
 
 // The hero and bar buttons carry the lead pack in their href so they work with
@@ -465,7 +467,7 @@ async function buy(sku) {
   // whatever the stepper happens to show by the time the request lands.
   const quantity = _qty.get(sku) || 1;
   const product = _products[sku];
-  const addOn = selectedAddOn();
+  const addOn = selectedAddOn(sku);
   _checkedOutAddOn = addOn;
 
   if (typeof window.ptCollectAddress !== "function") {
@@ -819,7 +821,7 @@ function wireCheckout(products) {
     if (window.ptTrack) {
       const priced = products && products[sku];
       const quantity = _qty.get(sku) || 1;
-      const addOn = selectedAddOn();
+      const addOn = selectedAddOn(sku);
       ptTrack("begin_checkout", {
         method: "guest",
         items: [

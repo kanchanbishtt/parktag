@@ -119,6 +119,9 @@ describe("sold-out packs on /shop", () => {
   test("the launch offer and acrylic add-on are sent as identifiers, never client-authored prices", () => {
     assert.match(source, /promo:\s*_launchOffer/);
     assert.match(source, /addOnId:\s*addOn\?\.id/);
+    // Duo Pack only: the plate is picked per sku, never from the checkbox alone.
+    assert.match(source, /\(_addOn\.productIds \|\| \[\]\)\.includes\(sku\)/);
+    assert.doesNotMatch(source, /selectedAddOn\(\)/);
     assert.doesNotMatch(source, /addOnAmount/);
   });
 });

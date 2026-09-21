@@ -279,8 +279,10 @@ function renderAddOns(addOns) {
   host.hidden = false;
 }
 
-function selectedAddOn() {
-  return _addOn && byId("shAddonCheck")?.checked ? _addOn : null;
+// Duo Pack only. The box stays ticked if the buyer then orders another pack,
+// so the pack decides, not the box: any other sku gets no plate and no charge.
+function selectedAddOn(sku) {
+  return _addOn && byId("shAddonCheck")?.checked && (_addOn.productIds || []).includes(sku) ? _addOn : null;
 }
 
 // A step run, or a harmless stand-in when the shared module has not loaded.
@@ -347,7 +349,7 @@ async function buy(sku, product) {
     return;
   }
 
-  const addOn = selectedAddOn();
+  const addOn = selectedAddOn(sku);
   _checkedOutAddOn = addOn;
   const offerPrice = _launchOffer && _launchOffer.productId === sku ? _launchOffer.offerPaise : product?.amountPaise;
   const address = await window.ptCollectAddress({
@@ -523,7 +525,7 @@ function wireCheckout(products) {
     if (window.ptTrack) {
       const priced = products && products[sku];
       const offer = _launchOffer && _launchOffer.productId === sku ? _launchOffer : null;
-      const addOn = selectedAddOn();
+      const addOn = selectedAddOn(sku);
       const valuePaise = priced
         ? (offer ? offer.offerPaise : priced.amountPaise) + (addOn?.amountPaise || 0)
         : null;

@@ -62,7 +62,7 @@ plateSaveEl?.addEventListener("click", async () => {
     });
     const payload = await res.json();
     if (!res.ok || !payload.ok) throw new Error(payload.error || "Could not save the add-on.");
-    show("ok", plateEnabledEl.checked ? "Dashboard plate is live in the shop." : "Dashboard plate saved but hidden from the shop.");
+    show("ok", plateEnabledEl.checked ? "Dashboard plate is live in the shop for the Duo Pack." : "Dashboard plate saved but hidden from the shop.");
   } catch (err) {
     show("err", err.message || "Could not save the add-on.");
   } finally {

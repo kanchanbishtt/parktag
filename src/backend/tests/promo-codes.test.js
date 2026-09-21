@@ -125,6 +125,19 @@ describe("minting an order gates on everything", () => {
     assert.equal(got.reason, "expired");
   });
 
+  // Scheduled ahead of a campaign, so it must not work before its start.
+  test("a code before its startsAt is refused", async () => {
+    await seedCode({ startsAt: new Date(Date.now() + 60_000).toISOString() });
+    const got = await resolvePromo(collections, "AJNARA99", { deliveryPhone: BUYER });
+    assert.equal(got.ok, false);
+    assert.equal(got.reason, "not-started");
+  });
+
+  test("a code after its startsAt is accepted", async () => {
+    await seedCode({ startsAt: new Date(Date.now() - 1000).toISOString() });
+    assert.equal((await resolvePromo(collections, "AJNARA99", { deliveryPhone: BUYER })).ok, true);
+  });
+
   test("a code still inside its window is accepted", async () => {
     await seedCode({ expiresAt: new Date(Date.now() + 60_000).toISOString() });
     const got = await resolvePromo(collections, "AJNARA99", { deliveryPhone: BUYER });

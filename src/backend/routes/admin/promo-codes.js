@@ -4,6 +4,7 @@
 //   POST  /api/admin/promo-codes             create
 //   PATCH /api/admin/promo-codes/:code       partial update
 //   POST  /api/admin/promo-codes/:code/revoke   sets active: false
+//   GET   /api/admin/promo-codes/report      redemptions, paid orders, revenue per code
 //
 // Revocation is its own named-action route rather than a PATCH { active:
 // false } — the same reason marketing.js gives /deactivate and /sold their
@@ -37,6 +38,7 @@ const WRITABLE_FIELDS = [
   "singleUse",
   "boundPhone",
   "maxUses",
+  "startsAt",
   "expiresAt",
   "fulfilment"
 ];
@@ -88,6 +90,17 @@ function validatePromoFields(doc) {
 
   if (doc.productIds !== undefined && !Array.isArray(doc.productIds)) {
     return "productIds must be a list.";
+  }
+
+  // A date that does not parse would read as NaN in resolvePromo and silently
+  // never gate, so it is refused here instead.
+  for (const field of ["startsAt", "expiresAt"]) {
+    if (doc[field] != null && Number.isNaN(new Date(doc[field]).getTime())) {
+      return `${field} must be a valid date.`;
+    }
+  }
+  if (doc.startsAt && doc.expiresAt && new Date(doc.startsAt) >= new Date(doc.expiresAt)) {
+    return "startsAt must be before expiresAt.";
   }
 
   if (doc.fulfilment !== undefined && ![FULFILMENT_SHIP, FULFILMENT_HANDOVER].includes(doc.fulfilment)) {
@@ -151,6 +164,49 @@ export function registerAdminPromoCodeRoutes(app, env) {
     return { ok: true, data: items };
   });
 
+  // What each code actually brought in, read off the orders that carry it.
+  // usedCount is the promo row's own counter; the rest is summed from paid,
+  // real (non-internal) shop orders, so a test order never inflates a campaign.
+  app.get("/api/admin/promo-codes/report", async (request, reply) => {
+    const blocked = await requireSession(app, "admin")(request, reply);
+    if (blocked) return blocked;
+
+    const collections = await getCollections(env);
+    if (!collections) {
+      reply.code(503);
+      return { ok: false, error: "Database is not available." };
+    }
+
+    const [codes, totals] = await Promise.all([
+      collections.promoCodes.find({}, { projection: { code: 1, usedCount: 1 } }).toArray(),
+      collections.shopOrders.aggregate([
+        { $match: {
+          promoCode: { $type: "string" },
+          status: "paid",
+          internal: { $ne: true },
+          channel: { $nin: ["internal", "giveaway"] },
+          deletedAt: null
+        } },
+        { $group: {
+          _id: "$promoCode",
+          paidOrders: { $sum: 1 },
+          revenuePaise: { $sum: { $ifNull: ["$amount", 0] } },
+          discountPaise: { $sum: { $ifNull: ["$promoDiscountPaise", 0] } }
+        } }
+      ]).toArray()
+    ]);
+
+    const byCode = new Map(totals.map((row) => [row._id, row]));
+    const data = codes.map(({ code, usedCount }) => ({
+      code,
+      usedCount: Number(usedCount) || 0,
+      paidOrders: byCode.get(code)?.paidOrders || 0,
+      revenuePaise: byCode.get(code)?.revenuePaise || 0,
+      discountPaise: byCode.get(code)?.discountPaise || 0
+    }));
+    return { ok: true, data };
+  });
+
   app.post("/api/admin/promo-codes", async (request, reply) => {
     const blocked = await requireSession(app, "admin")(request, reply);
     if (blocked) return blocked;
@@ -176,6 +232,7 @@ export function registerAdminPromoCodeRoutes(app, env) {
       maxUses: body.maxUses != null ? Number(body.maxUses) : null,
       usedCount: 0,
       usedByOrders: [],
+      startsAt: typeof body.startsAt === "string" ? body.startsAt : null,
       expiresAt: typeof body.expiresAt === "string" ? body.expiresAt : null,
       active: true,
       createdAt: new Date().toISOString(),

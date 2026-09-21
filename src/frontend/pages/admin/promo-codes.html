@@ -43,7 +43,7 @@
        already use -- codes and discount figures are naturally tabular, unlike
        the sticker shelf's one-per-row cards. */
     .card { background: #fff; border: 1px solid #E3E3E1; border-radius: 14px; overflow: auto; }
-    table { width: 100%; border-collapse: collapse; font-size: .84rem; min-width: 760px; }
+    table { width: 100%; border-collapse: collapse; font-size: .84rem; min-width: 1100px; }
     th, td { text-align: left; padding: 10px; border-bottom: 1px solid #F1F2F4; white-space: nowrap; }
     th { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; color: #667; background: #FAFBFC; }
     tr:last-child td { border-bottom: none; }
@@ -54,8 +54,10 @@
     .pill.active { background: #E6F6EC; color: #17663A; }
     .pill.revoked { background: #EDEDEB; color: #5A5A57; }
 
+    .act { display: flex; gap: 6px; flex-wrap: wrap; }
     .act button { border: 0; border-radius: 8px; padding: 6px 12px; font-size: .78rem; font-weight: 700; cursor: pointer; font-family: inherit; background: #FDECEA; color: #8A1F1A; }
     .act button:hover:not(:disabled) { background: #F5C2C0; }
+    .act button[data-promo-action="edit"], .act button[data-promo-action="copy"] { background: #EDEDEB; color: #03162D; }
     .act button:disabled { background: #EDEDEB; color: #B5B5B1; cursor: not-allowed; }
 
     /* A revoked row stays in the table rather than being removed -- it dims
@@ -167,10 +169,11 @@
         <thead>
           <tr>
             <th>Code</th><th>Discount</th><th>Shipping</th><th>Free ship above</th>
-            <th>Uses</th><th>Status</th><th>Actions</th>
+            <th>Window</th><th>Uses</th><th>Paid orders</th><th>Revenue</th><th>Discount given</th>
+            <th>Status</th><th>Actions</th>
           </tr>
         </thead>
-        <tbody id="rows"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody>
+        <tbody id="rows"><tr><td colspan="11" class="empty">Loading…</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -223,6 +226,10 @@
 
       <label for="add-max-uses" class="spaced">Maximum uses (optional)</label>
       <input id="add-max-uses" type="number" inputmode="numeric" min="1" step="1" placeholder="Leave blank for unlimited" />
+
+      <label for="add-starts" class="spaced">Starts at (optional)</label>
+      <input id="add-starts" type="datetime-local" />
+      <p class="hint">Leave blank to make the code usable immediately.</p>
 
       <label for="add-expires" class="spaced">Expires at (optional)</label>
       <input id="add-expires" type="datetime-local" />

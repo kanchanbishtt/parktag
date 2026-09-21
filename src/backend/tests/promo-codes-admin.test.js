@@ -55,3 +55,55 @@ describe("creating a promo code validates its mode/value pairing", () => {
     assert.notEqual(again.statusCode, 200, again.body);
   });
 });
+
+describe("scheduling a promo code", () => {
+  test("startsAt is stored on create", async () => {
+    const startsAt = new Date(Date.now() + 86_400_000).toISOString();
+    const res = await post("/api/admin/promo-codes", { code: "QASTART1", discountPaise: 5000, startsAt });
+    assert.equal(res.statusCode, 200, res.body);
+    assert.equal((await collections.promoCodes.findOne({ code: "QASTART1" })).startsAt, startsAt);
+  });
+  test("a start after the expiry is refused", async () => {
+    const res = await post("/api/admin/promo-codes", {
+      code: "QASTART2", discountPaise: 5000,
+      startsAt: new Date(Date.now() + 2 * 86_400_000).toISOString(),
+      expiresAt: new Date(Date.now() + 86_400_000).toISOString()
+    });
+    assert.equal(res.statusCode, 400, res.body);
+  });
+});
+
+describe("the redemption report", () => {
+  const order = (overrides) => ({
+    orderId: `order_qa_rpt_${Math.random().toString(16).slice(2)}`,
+    orderNumber: `PT-QARPT-${Math.random().toString(16).slice(2, 8)}`,
+    promoCode: "QARPT001", status: "paid", amount: 39900, promoDiscountPaise: 10000,
+    currency: "INR", createdAt: new Date().toISOString(), ...overrides
+  });
+
+  after(async () => { await collections.shopOrders.deleteMany({ orderNumber: /^PT-QARPT-/ }); });
+
+  // Only paid, real orders count: an unpaid cart and an internal test order
+  // are seeded alongside to prove they are left out.
+  test("sums paid, real orders per code in paise", async () => {
+    await collections.promoCodes.insertOne({ code: "QARPT001", discountPaise: 10000, usedCount: 2, active: true });
+    await collections.shopOrders.insertMany([
+      order({}),
+      order({ amount: 44800 }),
+      order({ status: "created" }),
+      order({ internal: true })
+    ]);
+    const res = await app.inject({
+      method: "GET", url: "/api/admin/promo-codes/report",
+      remoteAddress: uniqueAddress(), cookies: { wavetag_session: cookie }
+    });
+    assert.equal(res.statusCode, 200, res.body);
+    const row = res.json().data.find((r) => r.code === "QARPT001");
+    assert.deepEqual(row, { code: "QARPT001", usedCount: 2, paidOrders: 2, revenuePaise: 84700, discountPaise: 20000 });
+  });
+
+  test("needs an admin session", async () => {
+    const res = await app.inject({ method: "GET", url: "/api/admin/promo-codes/report", remoteAddress: uniqueAddress() });
+    assert.notEqual(res.statusCode, 200);
+  });
+});

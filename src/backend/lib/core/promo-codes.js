@@ -18,7 +18,7 @@
 //
 // ── The two speeds, and why they differ ────────────────────────────────────
 //
-// resolvePromo() GATES: expiry, revocation, usage cap, and the phone a
+// resolvePromo() GATES: start date, expiry, revocation, usage cap, and the phone a
 // single-use code is bound to. That is the mint-time question, "may this buyer
 // have this price".
 //
@@ -137,6 +137,12 @@ export async function resolvePromo(
     if (!productId || !promo.productIds.includes(productId)) {
       return { ok: false, reason: "wrong-pack", productIds: promo.productIds };
     }
+  }
+
+  // A campaign scheduled ahead is not live yet. An unparseable date reads as
+  // NaN, which compares false and leaves the code usable, same as expiresAt.
+  if (promo.startsAt && new Date(promo.startsAt).getTime() > Date.now()) {
+    return { ok: false, reason: "not-started" };
   }
 
   if (promo.expiresAt && new Date(promo.expiresAt).getTime() <= Date.now()) {

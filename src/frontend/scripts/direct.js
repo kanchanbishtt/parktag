@@ -330,6 +330,7 @@ const CODE_REFUSALS = {
   malformed: "That code does not look right.",
   unknown: "We do not recognise that code.",
   revoked: "That code is no longer active.",
+  "not-started": "That code is not active yet.",
   expired: "That code has expired.",
   exhausted: "That code has already been used.",
   "not-yours": "That code was issued for a different mobile number.",

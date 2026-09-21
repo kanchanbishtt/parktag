@@ -83,6 +83,6 @@ describe("the public price list", () => {
 
     // And it must not start setting one either.
     assert.equal(res.headers["set-cookie"], undefined);
-    assert.deepEqual(Object.keys(res.json()).sort(), ["codSurchargePaise", "ok", "products"]);
+    assert.deepEqual(Object.keys(res.json()).sort(), ["addOns", "codSurchargePaise", "launchOffer", "ok", "products"]);
   });
 });

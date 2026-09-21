@@ -650,6 +650,7 @@ export function registerShopRoutes(app, env) {
           orderNumber: reusable.orderNumber,
           amount: reusable.amount,
           currency: reusable.currency,
+          promoCode: reusable.promoCode || null,
           keyId: env.razorpayKeyId,
           prefill: { name: shipping.fullName, contact: shipping.phone }
         };
@@ -722,6 +723,9 @@ export function registerShopRoutes(app, env) {
           orderNumber,
           referralDiscountPaise: referredBy ? REFERRAL_DISCOUNT_PAISE : 0,
           promoDiscountPaise,
+          // The code the SERVER applied, for the purchase event's `coupon`.
+          // Not what the page asked for: a refused code must not be reported.
+          promoCode: promo.ok ? promo.code : null,
           amount: order.amount,
           currency: order.currency,
           // Public key, the same one GET /api/shop/razorpay-key serves.

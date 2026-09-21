@@ -76,6 +76,11 @@ describe("analytics bundle", () => {
     assert.match(source, /var pixelAllowed = surface !== "scanner";/);
   });
 
+  test("the allow-list lets a purchase's coupon through to GA4", () => {
+    const allowList = source.slice(source.indexOf("var ALLOWED"), source.indexOf("function sanitize"));
+    assert.match(allowList, /\bcoupon: 1\b/);
+  });
+
   test("the PII allow-list admits no identifier fields", () => {
     // The allow-list is what stops a future call site posting a phone number,
     // a plate or a tag token to Google and Meta. If one of these ever appears

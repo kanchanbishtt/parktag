@@ -261,6 +261,8 @@ let _busy = false;
 // The amount the SERVER priced this order at, kept so the purchase event can
 // report revenue. Measurement only -- nothing is ever charged from it.
 let _paidPaise = 0;
+// The promo code the server actually applied, reported as GA4 `coupon`.
+let _paidCoupon = null;
 let _launchOffer = null;
 let _addOn = null;
 let _checkedOutAddOn = null;
@@ -408,6 +410,7 @@ async function buy(sku, product) {
     // Before the payment window opens, not after it closes.
     remember(order.orderNumber, address);
     _paidPaise = order.amount || 0;
+    _paidCoupon = order.promoCode || null;
     // Spent. A second purchase this session must not silently reuse it.
     clearReferralCode();
   } catch (err) {
@@ -494,6 +497,7 @@ function showDone(done) {
       transaction_id: done.orderNumber,
       value: _paidPaise / 100,
       currency: "INR",
+      ...(_paidCoupon ? { coupon: _paidCoupon } : {}),
       items: [
         { item_id: _sku, quantity: 1 },
         ...(_checkedOutAddOn ? [{ item_id: _checkedOutAddOn.id, quantity: 1 }] : [])

@@ -124,4 +124,12 @@ describe("sold-out packs on /shop", () => {
     assert.doesNotMatch(source, /selectedAddOn\(\)/);
     assert.doesNotMatch(source, /addOnAmount/);
   });
+
+  // Revenue is what the server charged (e.g. 399 with LAUNCH100, 448 with the
+  // plate), never the MRP, and the applied code travels as GA4 `coupon`.
+  test("the purchase event reports the charged amount and the applied coupon", () => {
+    assert.match(source, /_paidPaise = order\.amount \|\| 0;/);
+    assert.match(source, /_paidCoupon = order\.promoCode \|\| null;/);
+    assert.match(source, /value: _paidPaise \/ 100,\s*currency: "INR",\s*\.\.\.\(_paidCoupon \? \{ coupon: _paidCoupon \} : \{\}\)/);
+  });
 });

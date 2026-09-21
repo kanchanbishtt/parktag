@@ -294,6 +294,8 @@ let _busy = false;
 // order.amount straight off the response, and the server re-derives the price
 // at verify. This is for measurement only.
 let _paidPaise = 0;
+// The promo code the server actually applied, reported as GA4 `coupon`.
+let _paidCoupon = null;
 // How many of _sku the buyer actually paid for, kept the same way _paidPaise
 // is: so the purchase event reports the real count instead of the "1" every
 // checkout used to hardcode. Measurement only.
@@ -547,6 +549,7 @@ async function buy(sku) {
     // last line that does not.
     remember(order.orderNumber, address);
     _paidPaise = order.amount || 0;
+    _paidCoupon = order.promoCode || null;
     _paidQty = quantity;
     // Spent. A second purchase this session should not silently reuse it.
     clearReferralCode();
@@ -641,6 +644,7 @@ function showDone(done) {
       transaction_id: done.orderNumber,
       value: _paidPaise / 100,
       currency: "INR",
+      ...(_paidCoupon ? { coupon: _paidCoupon } : {}),
       items: [
         { item_id: _sku, quantity: _paidQty },
         ...(_checkedOutAddOn ? [{ item_id: _checkedOutAddOn.id, quantity: 1 }] : [])

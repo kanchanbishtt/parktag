@@ -142,7 +142,10 @@
   var ALLOWED = {
     value: 1, currency: 1, transaction_id: 1, items: 1,
     item_id: 1, item_name: 1, quantity: 1, price: 1,
-    method: 1, reason: 1, plan: 1, vehicle_type: 1, cod: 1
+    method: 1, reason: 1, plan: 1, vehicle_type: 1, cod: 1,
+    // A promo code (e.g. LAUNCH100), GA4's own purchase parameter. A code, not
+    // a person: it is the same string printed on a campaign.
+    coupon: 1
   };
 
   function sanitize(input) {

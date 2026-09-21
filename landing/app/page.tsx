@@ -596,7 +596,7 @@ export default function Home() {
               <AnimateIn delay={210}>
                 <figure>
                   {/* Shared with the customer's permission; his car's plate is blurred. */}
-                  <img src="/proof/customer-handover.webp" alt="ParkTag founder handing a ParkTag to customer Shivam beside his car" loading="lazy" className="w-full aspect-[4/5] object-cover rounded-2xl" />
+                  <img src="/proof/customer-handover.webp" alt="A ParkTag being handed to customer Shivam beside his car" loading="lazy" className="w-full aspect-[4/5] object-cover rounded-2xl" />
                   <figcaption className="mt-3 text-sm text-[#495B7B]"><strong className="text-[#03162D]">Shivam, Ajnara Homes.</strong> One of our first customers, delivered in person.</figcaption>
                 </figure>
               </AnimateIn>

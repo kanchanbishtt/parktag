@@ -566,6 +566,37 @@ export default function Home() {
           </div>
         </section>
 
+        {/* ── REAL INSTALLS ── */}
+        {/* Our own photos and footage of real tags. No stock, no renders. */}
+        <section className="bg-white py-20 sm:py-28">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6">
+            <AnimateIn>
+              <p className="mb-4"><SectionLabel>Real tags, real cars</SectionLabel></p>
+              <h2 className="text-3xl sm:text-4xl font-extrabold text-[#03162D] tracking-tight mb-10">Peel, stick, done. It stays put.</h2>
+            </AnimateIn>
+            <div className="grid gap-6 sm:grid-cols-3">
+              <AnimateIn>
+                <figure>
+                  <video src="/proof/sticking-demo.mp4" poster="/proof/sticking-demo-poster.jpg" autoPlay muted loop playsInline preload="none" className="w-full aspect-[4/5] object-cover rounded-2xl bg-gray-100" />
+                  <figcaption className="mt-3 text-sm text-[#495B7B]"><strong className="text-[#03162D]">Under a minute.</strong> Peel the backing and press it inside the windscreen.</figcaption>
+                </figure>
+              </AnimateIn>
+              <AnimateIn delay={70}>
+                <figure>
+                  <img src="/proof/tag-on-windscreen.webp" alt="ParkTag stuck inside a car windscreen" loading="lazy" className="w-full aspect-[4/5] object-cover rounded-2xl" />
+                  <figcaption className="mt-3 text-sm text-[#495B7B]"><strong className="text-[#03162D]">Scans through the glass.</strong> Mounted inside, readable from outside.</figcaption>
+                </figure>
+              </AnimateIn>
+              <AnimateIn delay={140}>
+                <figure>
+                  <img src="/proof/tag-in-rain.webp" alt="ParkTag on a rear windscreen covered in raindrops" loading="lazy" className="w-full aspect-[4/5] object-cover rounded-2xl" />
+                  <figcaption className="mt-3 text-sm text-[#495B7B]"><strong className="text-[#03162D]">Rain on the glass.</strong> The print sits inside, so weather never touches it.</figcaption>
+                </figure>
+              </AnimateIn>
+            </div>
+          </div>
+        </section>
+
         {/* ── BUYER CHECKLIST ── */}
         {/* Deliberately names no competitor: we only state our own terms, and
             give buyers the questions that expose hidden limits anywhere else. */}

@@ -91,7 +91,7 @@ before(async () => {
 after(async () => {
   await collections.shopOrders.deleteMany({}).catch(() => {});
   await purgeCodes().catch(() => {});
-  await collections.rateLimits.deleteMany({ _id: /^guest-cod(-otp|-proof)?:/ }).catch(() => {});
+  await collections.rateLimits.deleteMany({ _id: /^guest-cod(-otp|-proof|-lock)?:/ }).catch(() => {});
   if (previousPlate) await collections.storeSettings.replaceOne({ _id: "public-shop" }, previousPlate);
   else await collections.storeSettings.deleteOne({ _id: "public-shop" });
   await collections.promoCodes.deleteOne({ code: "LAUNCH100" });
@@ -101,7 +101,7 @@ after(async () => {
 
 beforeEach(async () => {
   await collections.shopOrders.deleteMany({}).catch(() => {});
-  await collections.rateLimits.deleteMany({ _id: /^guest-cod(-otp|-proof)?:/ }).catch(() => {});
+  await collections.rateLimits.deleteMany({ _id: /^guest-cod(-otp|-proof|-lock)?:/ }).catch(() => {});
   await purgeCodes();
 });
 
@@ -178,6 +178,34 @@ describe("guest Cash on Delivery", () => {
     assert.equal(another.statusCode, 429, another.body);
     assert.equal(another.json().code, "COD_LIMIT");
     assert.equal(await collections.shopOrders.countDocuments({ status: "cod" }), 1);
+  });
+
+  test("no code is sent to a phone that already has an open COD order", async () => {
+    const first = await cod();
+    assert.equal(first.statusCode, 200, first.body);
+    await purgeCodes();
+    const res = await post("/api/shop/guest/cod-otp/send", { phone: ADDRESS.phone, pincode: ADDRESS.pincode });
+    assert.equal(res.statusCode, 429, res.body);
+    assert.equal(res.json().code, "COD_LIMIT");
+    assert.equal(await collections.otpTokens.countDocuments({ identifier: normalizeIdentifier(ADDRESS.phone) }), 0,
+      "a paid WhatsApp code went to a buyer who cannot order");
+  });
+
+  test("a malformed PIN code is refused before any code is sent", async () => {
+    const res = await post("/api/shop/guest/cod-otp/send", { phone: OTHER_PHONE, pincode: "12" });
+    assert.equal(res.statusCode, 400, res.body);
+  });
+
+  test("two COD checkouts for one phone at the same moment place one order", async () => {
+    // Proofs first, one at a time; only the two orders race.
+    const tokenA = await proveCodPhone();
+    const tokenB = await proveCodPhone();
+    const order = (codToken, line1) =>
+      createOrder({ productId: "pt-car-2", address: { ...ADDRESS, line1 }, paymentMethod: "cod", codToken });
+    const [a, b] = await Promise.all([order(tokenA, "1 QA Street"), order(tokenB, "2 QA Street")]);
+    const placed = [a, b].filter((r) => r.statusCode === 200);
+    assert.equal(placed.length, 1, `${a.statusCode} ${a.body} | ${b.statusCode} ${b.body}`);
+    assert.equal(await collections.shopOrders.countDocuments({ guest: true, status: "cod", "shippingAddress.phone": ADDRESS.phone }), 1);
   });
 
   test("COD without a verified phone is refused and places nothing", async () => {

@@ -56,8 +56,10 @@ describe("a stock tag's window opens when it is activated", () => {
     // Two tags activated on the same day, printed months apart, must expire on
     // the same day. Asserted as equality rather than as "both in trial", so a
     // partial credit for shelf time would fail here too.
-    const fresh = stockTag(1, { activatedAt: ago(10) });
-    const shelved = stockTag(300, { activatedAt: ago(10) });
+    // One timestamp for both: two ago() calls can straddle a millisecond.
+    const activatedAt = ago(10);
+    const fresh = stockTag(1, { activatedAt });
+    const shelved = stockTag(300, { activatedAt });
 
     assert.equal(premiumTrialEndsAt(fresh), premiumTrialEndsAt(shelved));
   });

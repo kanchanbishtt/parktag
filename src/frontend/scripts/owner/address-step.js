@@ -617,13 +617,13 @@
 
   // ── Guest Cash on Delivery: prove the mobile before resolving ──
 
-  async function sendCodCode(phone) {
+  async function sendCodCode(phone, pincode) {
     var recaptchaToken = "";
     try { recaptchaToken = captchaFn ? (await captchaFn()) || "" : ""; } catch (_) { /* server allows none */ }
     var res = await fetch("/api/shop/guest/cod-otp/send", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ phone: phone, recaptchaToken: recaptchaToken })
+      body: JSON.stringify({ phone: phone, pincode: pincode, recaptchaToken: recaptchaToken })
     });
     var data = await res.json().catch(function () { return {}; });
     if (!res.ok || !data.ok) throw new Error(data.error || "Could not send the code. Please try again.");
@@ -633,7 +633,7 @@
     els.save.disabled = true;
     els.save.textContent = "Sending code…";
     try {
-      await sendCodCode(v.phone);
+      await sendCodCode(v.phone, v.pincode);
       codAddress = v;
       showOtp();
     } catch (e) {
@@ -687,7 +687,7 @@
     els.resend.disabled = true;
     els.resend.textContent = "Sending…";
     try {
-      await sendCodCode(codAddress.phone);
+      await sendCodCode(codAddress.phone, codAddress.pincode);
       startResendTimer();
       els.code.focus();
     } catch (e) {

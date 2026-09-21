@@ -440,25 +440,59 @@ function guestCodResponse(order) {
   };
 }
 
+// The open guest COD order for a delivery phone, if any. Shared by the code
+// send (so a buyer who cannot order is not sent a paid WhatsApp code first)
+// and by placeGuestCod itself.
+function findOpenGuestCod(collections, phone) {
+  return collections.shopOrders.findOne(
+    {
+      guest: true,
+      status: "cod",
+      "shippingAddress.phone": phone,
+      createdAt: { $gt: new Date(Date.now() - GUEST_COD_WINDOW_MS).toISOString() }
+    },
+    { sort: { createdAt: -1 } }
+  );
+}
+
+// Two COD checkouts for one phone arriving together would both pass the
+// open-order check before either is written. A short lock on the phone, keyed
+// by a unique _id in the TTL-expired rateLimits store, lets only one through.
+const GUEST_COD_LOCK_MS = 60 * 1000;
+
+async function placeGuestCod(env, collections, request, reply, order, codToken) {
+  const lockId = `guest-cod-lock:${order.shippingAddress.phone}`;
+  const lock = () => collections.rateLimits.insertOne({ _id: lockId, resetAt: new Date(Date.now() + GUEST_COD_LOCK_MS) });
+  try {
+    await lock();
+  } catch (err) {
+    if (err?.code !== 11000) throw err;
+    // A lock left by a crashed request outlives resetAt until the TTL sweep.
+    const stale = await collections.rateLimits.deleteOne({ _id: lockId, resetAt: { $lte: new Date() } });
+    if (!stale.deletedCount) {
+      reply.code(429);
+      return { ok: false, code: "COD_LIMIT", error: "An order for this number is already being placed. Please wait a moment." };
+    }
+    await lock();
+  }
+  try {
+    return await placeGuestCodLocked(env, collections, request, reply, order, codToken);
+  } finally {
+    await collections.rateLimits.deleteOne({ _id: lockId }).catch(() => {});
+  }
+}
+
 // Guest Cash on Delivery: no Razorpay, the order is placed as "cod" at once and
 // the courier collects `order.amount` at the door. Everything priced here was
 // already derived server-side by guest create-order; this only guards, writes,
 // books and tells people.
-async function placeGuestCod(env, collections, request, reply, order, codToken) {
+async function placeGuestCodLocked(env, collections, request, reply, order, codToken) {
   const { shippingAddress: shipping } = order;
 
   // One open COD order per delivery phone. The same checkout sent twice (a
   // retry, a double tap that got past the button) gets its own order back
   // rather than a refusal; anything else is refused.
-  const open = await collections.shopOrders.findOne(
-    {
-      guest: true,
-      status: "cod",
-      "shippingAddress.phone": shipping.phone,
-      createdAt: { $gt: new Date(Date.now() - GUEST_COD_WINDOW_MS).toISOString() }
-    },
-    { sort: { createdAt: -1 } }
-  );
+  const open = await findOpenGuestCod(collections, shipping.phone);
   if (open) {
     const same = open.productId === order.productId && open.quantity === order.quantity &&
       (open.addOnId || null) === order.addOnId && open.amount === order.amount &&
@@ -1042,15 +1076,19 @@ export function registerShopRoutes(app, env) {
   // OTP_PURPOSE_COD_VERIFY), so it cannot sign anybody in. Online checkout
   // never comes here.
   //
-  // The WhatsApp body is still the "parktag_login" template, so the message
-  // reads as a sign-in code until a COD template is approved.
+  // The WhatsApp body is the "parktag_login" AUTHENTICATION template, whose
+  // wording Meta fixes ("<code> is your verification code"); the sheet says
+  // what the code is for.
   app.post(
     "/api/shop/guest/cod-otp/send",
     { config: { rateLimit: { max: 5, timeWindow: "5 minutes" } } },
     async (request, reply) => {
-      const { phone, recaptchaToken } = request.body || {};
+      const { phone, pincode, recaptchaToken } = request.body || {};
       if (typeof phone !== "string" || !/^[6-9]\d{9}$/.test(phone)) {
         reply.code(400); return { ok: false, error: "Enter a valid 10-digit mobile number." };
+      }
+      if (pincode !== undefined && (typeof pincode !== "string" || !/^[1-9]\d{5}$/.test(pincode))) {
+        reply.code(400); return { ok: false, error: "Enter a valid 6-digit PIN code." };
       }
       // Same bot check and the same allowance for an absent token as guest
       // create-order; the per-IP send cap below is what bounds the unscored.
@@ -1068,6 +1106,22 @@ export function registerShopRoutes(app, env) {
         request.log.warn({ event: "guest-cod-otp-ip-exhausted" }, "[guest checkout] too many COD codes from one address");
         reply.code(429);
         return { ok: false, code: "COD_LIMIT", error: "Too many Cash on Delivery attempts from this connection. Please pay online." };
+      }
+      // Every code is a paid WhatsApp message, so the refusals create-order
+      // would give anyway are given here first. The same checks run again at
+      // create-order; these only save the message.
+      const open = await findOpenGuestCod(collections, phone);
+      if (open) {
+        reply.code(429);
+        return {
+          ok: false,
+          code: "COD_LIMIT",
+          error: `There is already a Cash on Delivery order (${open.orderNumber}) for this number. Please pay online for another one.`
+        };
+      }
+      if (pincode && (await checkPincodeServiceability(env, pincode)).cod === false) {
+        reply.code(400);
+        return { ok: false, error: "Cash on Delivery is not available at this PIN code. Please pay online." };
       }
       try {
         await sendOtp(env, phone, { purpose: OTP_PURPOSE_COD_VERIFY });

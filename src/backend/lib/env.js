@@ -141,6 +141,11 @@ export function getEnv() {
     // data before the first live tick of any new campaign: a wrong date
     // comparison matches every row, and on WhatsApp there is no recall.
     campaignDryRun: process.env.CAMPAIGN_DRY_RUN === "1",
+    // The review request campaign's own switch. Set it only once Meta shows
+    // parktag_review_request_v1 as APPROVED and UTILITY: sending an unapproved
+    // template fails every time, and a MARKETING one needs consent this
+    // campaign does not check. See lib/core/campaigns/review-request.js.
+    reviewRequestsEnabled: process.env.REVIEW_REQUESTS_ENABLED === "1",
     // The marketing site, a separate Railway service. Used to recognise our own
     // host so an internal link is not counted as an inbound traffic source.
     landingBaseUrl: process.env.LANDING_BASE_URL || "",

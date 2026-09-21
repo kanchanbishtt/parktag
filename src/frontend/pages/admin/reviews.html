@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>ParkTag Admin | Reviews</title>
+  <link rel="icon" href="/favicon.ico" sizes="32x32" />
+  <link rel="icon" href="/images/icon.png" type="image/png" />
+  <link rel="apple-touch-icon" href="/images/apple-touch-icon.png" />
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Segoe UI", Tahoma, sans-serif; background: #F1F1F0; color: #03162D; overflow-wrap: break-word; }
+    .wrap { max-width: 900px; margin: 0 auto; padding: 14px 12px 40px; }
+    .top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+    .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    .brand-logo { height: 30px; width: auto; mix-blend-mode: multiply; }
+    .brand-sep { color: #9aa5b1; }
+    .title { font-size: 1.15rem; margin: 0; }
+    .back { color: #03162D; text-decoration: none; font-weight: 600; font-size: .9rem; }
+    .sub { color: #667; font-size: .85rem; margin: 0 0 14px; }
+    .empty, .err { background: #fff; border: 1px dashed #CFCFCC; border-radius: 12px; padding: 26px; text-align: center; color: #667; font-size: .9rem; }
+    .err { color: #8A1F1A; border-color: #F5C2C0; }
+    .review { display: grid; grid-template-columns: 1fr 140px; gap: 14px; background: #fff; border: 1px solid #E3E3E1; border-radius: 14px; padding: 14px; margin-bottom: 12px; }
+    .review.is-approved { border-color: #B7E0C6; }
+    .review p { margin: 0 0 8px; line-height: 1.45; }
+    .meta { color: #667; font-size: .78rem; margin-bottom: 10px; }
+    .review img { width: 140px; aspect-ratio: 1; object-fit: cover; border-radius: 10px; background: #F1F1F0; }
+    .toggle { border: 0; border-radius: 8px; padding: 7px 14px; font-size: .8rem; font-weight: 700; cursor: pointer; font-family: inherit; background: #03162D; color: #fff; }
+    .is-approved .toggle { background: #EDEDEB; color: #03162D; }
+    .pill { display: inline-block; font-size: .68rem; font-weight: 800; padding: 2px 9px; border-radius: 20px; background: #E6F6EC; color: #17663A; margin-left: 6px; }
+    @media (max-width: 520px) { .review { grid-template-columns: 1fr; } .review img { width: 100%; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <div class="brand">
+        <img class="brand-logo" src="/images/light-logo.png" alt="ParkTag" width="735" height="280" />
+        <span class="brand-sep" aria-hidden="true">·</span>
+        <h1 class="title">Reviews</h1>
+      </div>
+      <a class="back" href="/admin/overview">← Back to Admin</a>
+    </div>
+    <p class="sub">Replies to the WhatsApp review request, newest first. Approved ones are served by /api/shop/reviews.</p>
+    <div id="reviews"><p class="empty">Loading…</p></div>
+  </div>
+  <script src="/scripts/admin/reviews.js?v=__ASSET_VERSION__"></script>
+</body>
+</html>

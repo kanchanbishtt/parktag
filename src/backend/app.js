@@ -24,6 +24,7 @@ import { registerAdminRoutes } from "./routes/admin/index.js";
 import { registerAdminTrafficRoutes } from "./routes/admin/traffic.js";
 import { registerAdminMarketingRoutes } from "./routes/admin/marketing.js";
 import { registerAdminPromoCodeRoutes } from "./routes/admin/promo-codes.js";
+import { registerAdminReviewRoutes } from "./routes/admin/reviews.js";
 import { registerAuthRoutes } from "./routes/auth/credentials.js";
 import { registerAnalyticsRoutes, recordAppPageVisit } from "./routes/system/analytics.js";
 import { registerDemoRoutes } from "./routes/system/demo.js";
@@ -46,6 +47,7 @@ import { registerPasswordResetRoutes } from "./routes/auth/password-reset.js";
 import { registerRuntimeRoutes } from "./routes/system/runtime.js";
 import { registerReviewerSetupRoute } from "./routes/system/reviewer-setup.js";
 import { registerShopRoutes } from "./routes/shop/index.js";
+import { registerShopReviewRoutes } from "./routes/shop/reviews.js";
 // Used by /shop to check that a pack id arriving from the public storefront is
 // a real product before it is carried into a redirect.
 import { getShopProduct } from "./lib/integrations/payments.js";
@@ -65,6 +67,7 @@ const reportTagPage = path.join(pagesRoot, "scanner/report-tag.html");
 const adminPage = path.join(pagesRoot, "admin/index.html");
 const adminMarketingPage = path.join(pagesRoot, "admin/marketing.html");
 const adminPromoCodesPage = path.join(pagesRoot, "admin/promo-codes.html");
+const adminReviewsPage = path.join(pagesRoot, "admin/reviews.html");
 const adminOverviewPage = path.join(pagesRoot, "admin/overview.html");
 const adminTrafficPage = path.join(pagesRoot, "admin/traffic.html");
 const adminEtagsPage = path.join(pagesRoot, "admin/etags.html");
@@ -1237,6 +1240,10 @@ export async function buildApp() {
     return guardAdmin(request, reply, adminPromoCodesPage);
   });
 
+  app.get("/admin/reviews", async (request, reply) => {
+    return guardAdmin(request, reply, adminReviewsPage);
+  });
+
   app.get("/admin/owners", async (request, reply) => {
     return guardAdmin(request, reply, adminOwnersPage);
   });
@@ -1329,6 +1336,7 @@ export async function buildApp() {
   registerFirebasePhoneAuthRoute(app, env);
   registerPasswordResetRoutes(app, env);
   registerShopRoutes(app, env);
+  registerShopReviewRoutes(app, env);
   registerOwnerRoutes(app, env);
   registerVaultRoutes(app, env);
   registerLoginPinRoutes(app, env);
@@ -1338,6 +1346,7 @@ export async function buildApp() {
   registerAdminTrafficRoutes(app, env);
   registerAdminMarketingRoutes(app, env);
   registerAdminPromoCodeRoutes(app, env);
+  registerAdminReviewRoutes(app, env);
   registerAnalyticsRoutes(app, env);
 
   return app;

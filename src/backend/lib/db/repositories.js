@@ -78,6 +78,10 @@ export async function getCollections(env) {
     // Public shop controls that change without a deploy. One document holds
     // the dashboard-plate price and whether stock is available.
     storeSettings: db.collection(withPrefix(prefix, "store_settings")),
+    // Buyers' replies to the post-delivery review request: text and a photo,
+    // held for an admin to approve before anything is public. One row per
+    // order; see lib/core/reviews.js.
+    reviews: db.collection(withPrefix(prefix, "reviews")),
     // One row per Delhivery pickup, claimed BEFORE the request goes out.
     //
     // A pickup covers a warehouse for a whole day, not a parcel, so this is
@@ -321,6 +325,11 @@ const CORE_INDEXES = [
     }
   ],
   ["messages", { ownerId: 1, sentAt: -1 }, { name: "owner_recent" }],
+  // Every inbound WhatsApp message asks "did we just ask this number for a
+  // review?", so that lookup is indexed. See lib/core/reviews.js.
+  ["shopOrders", { reviewRequestPhone: 1, reviewRequestSentAt: -1 }, { name: "review_request_phone" }],
+  ["reviews", { orderId: 1 }, { unique: true, name: "review_order_unique" }],
+  ["reviews", { approved: 1, receivedAt: -1 }, { name: "approved_recent" }],
   // 400 days, and the number is chosen rather than rounded.
   //
   // Retention on this collection is not housekeeping, because the row IS the

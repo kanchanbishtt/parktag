@@ -44,7 +44,8 @@ const EXPECTED = [
   { name: "parktag_login", bodyParams: 1, used: "OTP login, COD verification, account deletion" },
   { name: "parktag_owner_notification", bodyParams: 2, used: "scanner reports an issue with a vehicle" },
   { name: "parktag_order_update_v2", bodyParams: 3, used: "shop order confirmation + Track order button" },
-  { name: "parktag_membership_confirmed", bodyParams: 3, used: "membership purchase confirmation" }
+  { name: "parktag_membership_confirmed", bodyParams: 3, used: "membership purchase confirmation" },
+  { name: "parktag_review_request_v1", bodyParams: 1, used: "review request, 3 days after delivery" }
 ];
 
 function line(label, value) {

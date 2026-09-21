@@ -288,6 +288,46 @@ export async function sendMetaWhatsappOrderUpdate(env, { to, name, orderNumber, 
   });
 }
 
+// A few days after delivery, ask how it is going. Against
+// `parktag_review_request_v1`, created by scripts/create-review-template.js:
+//
+//   {{1}} first name
+//
+// No button: the whole point is a reply, and a reply is what opens the
+// conversation the webhook reads (lib/core/reviews.js).
+export const REVIEW_REQUEST_TEMPLATE = "parktag_review_request_v1";
+
+export async function sendMetaWhatsappReviewRequest(env, { to, name }) {
+  return sendTemplate(env, {
+    to,
+    template: REVIEW_REQUEST_TEMPLATE,
+    components: bodyComponent(name),
+    publicMessage: "Unable to send the WhatsApp review request."
+  });
+}
+
+// Inbound media arrives as an id, not bytes. Two hops: the id resolves to a
+// short-lived URL, and that URL needs the same bearer token. Returns null
+// rather than throwing, and refuses anything over `maxBytes` so one huge
+// upload cannot land in Mongo.
+export async function fetchMetaWhatsappMedia(env, mediaId, { maxBytes = 5 * 1024 * 1024 } = {}) {
+  if (!mediaId || !isMetaWhatsappConfigured(env)) return null;
+  const auth = { Authorization: `Bearer ${env.metaWhatsappAccessToken}` };
+  try {
+    const meta = await fetch(`https://graph.facebook.com/v19.0/${encodeURIComponent(mediaId)}`, { headers: auth });
+    const info = await meta.json();
+    if (!meta.ok || !info?.url || Number(info.file_size) > maxBytes) return null;
+
+    const file = await fetch(info.url, { headers: auth });
+    if (!file.ok) return null;
+    const data = Buffer.from(await file.arrayBuffer());
+    if (data.length > maxBytes) return null;
+    return { data, mimeType: info.mime_type || file.headers.get("content-type") || "application/octet-stream" };
+  } catch {
+    return null;
+  }
+}
+
 // Membership confirmation. Requires an approved template named
 // `parktag_membership_confirmed` with three body variables in this order:
 // {{1}} name, {{2}} plan label, {{3}} the date premium runs until.

@@ -4,6 +4,7 @@ import { isNonEmptyString, safeEqual, maskIdentifier } from "../../lib/auth/secu
 import { toE164 } from "../../lib/core/phone.js";
 import { recordDeliveryStatus } from "../../lib/core/message-log.js";
 import { serviceWindowUntil } from "../../lib/core/messaging-consent.js";
+import { recordReviewReply } from "../../lib/core/reviews.js";
 
 export function registerMetaWebhookRoutes(app, env) {
   // Meta sends a GET request to verify the webhook URL is real.
@@ -191,6 +192,14 @@ export function registerMetaWebhookRoutes(app, env) {
             await handleInboundMessage(collections, message, request.log).catch((err) => {
               request.log.error({ err }, "[meta webhook] inbound message not recorded");
             });
+
+            // A reply to a review request is kept for the admin to read. A
+            // STOP is a preference, not a review.
+            if (!isKeyword(message)) {
+              await recordReviewReply(env, collections, message).catch((err) => {
+                request.log.error({ err }, "[meta webhook] review reply not recorded");
+              });
+            }
           }
         }
       }
@@ -208,6 +217,11 @@ export function registerMetaWebhookRoutes(app, env) {
 // customer who most needs to hear from us.
 const STOP_WORDS = new Set(["stop", "unsubscribe", "stop promotions", "stop promo", "opt out"]);
 const START_WORDS = new Set(["start", "resume", "subscribe"]);
+
+function isKeyword(message) {
+  const said = String(message?.text?.body || message?.button?.text || "").trim().toLowerCase();
+  return STOP_WORDS.has(said) || START_WORDS.has(said);
+}
 
 async function handleInboundMessage(collections, message, log) {
   const from = message?.from;

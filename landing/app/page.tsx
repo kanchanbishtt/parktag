@@ -574,7 +574,7 @@ export default function Home() {
               <p className="mb-4"><SectionLabel>Real tags, real cars</SectionLabel></p>
               <h2 className="text-3xl sm:text-4xl font-extrabold text-[#03162D] tracking-tight mb-10">Peel, stick, done. It stays put.</h2>
             </AnimateIn>
-            <div className="grid gap-6 sm:grid-cols-3">
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
               <AnimateIn>
                 <figure>
                   <video src="/proof/sticking-demo.mp4" poster="/proof/sticking-demo-poster.jpg" autoPlay muted loop playsInline preload="none" className="w-full aspect-[4/5] object-cover rounded-2xl bg-gray-100" />
@@ -591,6 +591,13 @@ export default function Home() {
                 <figure>
                   <img src="/proof/tag-in-rain.webp" alt="ParkTag on a rear windscreen covered in raindrops" loading="lazy" className="w-full aspect-[4/5] object-cover rounded-2xl" />
                   <figcaption className="mt-3 text-sm text-[#495B7B]"><strong className="text-[#03162D]">Rain on the glass.</strong> The print sits inside, so weather never touches it.</figcaption>
+                </figure>
+              </AnimateIn>
+              <AnimateIn delay={210}>
+                <figure>
+                  {/* Shared with the customer's permission; his car's plate is blurred. */}
+                  <img src="/proof/customer-handover.webp" alt="ParkTag founder handing a ParkTag to customer Shivam beside his car" loading="lazy" className="w-full aspect-[4/5] object-cover rounded-2xl" />
+                  <figcaption className="mt-3 text-sm text-[#495B7B]"><strong className="text-[#03162D]">Shivam, Ajnara Homes.</strong> One of our first customers, delivered in person.</figcaption>
                 </figure>
               </AnimateIn>
             </div>

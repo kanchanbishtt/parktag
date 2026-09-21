@@ -548,9 +548,9 @@ export default function Home() {
             </AnimateIn>
             <div className="flex gap-6 overflow-x-auto snap-x snap-mandatory pb-4 sm:grid sm:grid-cols-3 sm:overflow-visible">
               {[
-                ["app-preview-manage-tag.png", "Manage your tag", "Contact page, notifications, location access and calls in one place."],
-                ["app-preview-membership.png", "Always included", "WhatsApp scan notifications stay free for the life of your active ParkTag."],
-                ["app-preview-premium-features.png", "Premium for 1 year", "Masked calls, callbacks, document vault and SOS, with your coverage date shown."],
+                ["app-preview-manage-tag-v2.png", "Manage your tag", "Contact page, notifications, location access and calls in one place."],
+                ["app-preview-membership-v2.png", "Always included", "WhatsApp scan notifications stay free for the life of your active ParkTag."],
+                ["app-preview-premium-features-v2.png", "Premium for 1 year", "Masked calls, callbacks, document vault and SOS, with your coverage date shown."],
               ].map(([src, title, copy], index) => (
                 <AnimateIn key={src} delay={index * 70}>
                   <figure className="w-[72vw] max-w-[280px] flex-shrink-0 snap-center mx-auto sm:w-auto">
@@ -589,7 +589,7 @@ export default function Home() {
               </AnimateIn>
               <AnimateIn delay={140}>
                 <figure>
-                  <img src="/proof/tag-in-rain.webp" alt="ParkTag on a rear windscreen covered in raindrops" loading="lazy" className="w-full aspect-[4/5] object-cover rounded-2xl" />
+                  <img src="/proof/tag-in-rain-v2.webp" alt="ParkTag on a rear windscreen covered in raindrops" loading="lazy" className="w-full aspect-[4/5] object-cover rounded-2xl" />
                   <figcaption className="mt-3 text-sm text-[#495B7B]"><strong className="text-[#03162D]">Rain on the glass.</strong> The print sits inside, so weather never touches it.</figcaption>
                 </figure>
               </AnimateIn>

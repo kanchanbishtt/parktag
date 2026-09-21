@@ -226,8 +226,8 @@ function renderCta() {
   if (!data.checkoutEnabled) {
     note.hidden = false;
     note.textContent =
-      `Memberships are not on sale here yet. Every premium tag already includes ` +
-      `${data.trial.headline.toLowerCase()} free from the day you activate it.`;
+      `Memberships are not on sale here yet. ${data.trial.headline} with your ` +
+      `ParkTag, from the day you activate it.`;
     return;
   }
 
@@ -237,7 +237,7 @@ function renderCta() {
   if (data.subscription && data.subscription.active && data.subscription.currentPeriodEnd) {
     note.hidden = false;
     const until = formatDate(data.subscription.currentPeriodEnd);
-    // Two kinds of cover, and calling the free year a "membership" would be
+    // Two kinds of cover, and calling the included year a "membership" would be
     // wrong twice over: the owner never bought it, and it is the thing the
     // button is trying to sell them. The date and the "adds to it" rule are
     // the same either way, because the server treats them the same.
@@ -250,8 +250,8 @@ function renderCta() {
       note,
       data.subscription.trial ? `Covered until ${until}` : `Member until ${until}`,
       data.subscription.trial
-        ? "The free year included with your premium tag. There is nothing to pay " +
-          "until then, buying now adds time after that date. It does not replace it."
+        ? `${data.trial.headline} with your ParkTag. There is nothing to pay ` +
+          "until then, extending now adds time after that date. It does not replace it."
         : "Buying again adds to that date rather than restarting from today."
     );
     return;

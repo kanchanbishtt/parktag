@@ -172,6 +172,7 @@
       "#pt-addr-paychoice{display:grid;gap:8px;margin-top:11px;padding:0;border:0;}",
       ".pt-addr-payopt{display:flex;align-items:center;gap:10px;border:1.5px solid var(--line);border-radius:13px;padding:11px 12px;font-size:.84rem;font-weight:700;color:var(--ink);cursor:pointer;}",
       ".pt-addr-payopt input{accent-color:var(--navy);margin:0;}",
+      ".pt-addr-payopt small{display:block;margin-top:2px;font-size:.72rem;font-weight:600;color:var(--muted);}",
       ".pt-addr-payopt:has(input:checked){border-color:var(--navy);background:#F1F5FA;}",
 
       // Confirm card
@@ -189,7 +190,9 @@
       // Form fields
       ".pt-addr-f{margin-bottom:13px;}",
       ".pt-addr-f.pt-half{display:inline-block;width:calc(50% - 5px);vertical-align:top;}",
-      ".pt-addr-f.pt-half+.pt-half{margin-left:8px;}",
+      // Only the right-hand half of a pair gets the gutter; PIN wraps to its own
+      // row and must line up with the full-width fields above it.
+      ".pt-addr-f.pt-half-r{margin-left:8px;}",
       ".pt-addr-f label{display:block;font-size:.72rem;font-weight:700;letter-spacing:.01em;color:#374151;margin-bottom:5px;}",
       ".pt-req{color:var(--r);margin-left:3px;font-weight:800;}",
       ".pt-addr-f input,.pt-addr-f select{width:100%;box-sizing:border-box;padding:12px 13px;border:1.5px solid var(--line);border-radius:13px;font-size:.94rem;color:var(--ink);background:#fff;outline:none;transition:border-color .15s,box-shadow .15s;}",
@@ -267,7 +270,7 @@
       } else {
         control = "<input " + attrs + req + ">";
       }
-      return '<div class="pt-addr-f' + (half ? " pt-half" : "") + '"><label for="pt-addr-' + f.key + '">' +
+      return '<div class="pt-addr-f' + (half ? " pt-half" : "") + (f.key === "state" ? " pt-half-r" : "") + '"><label for="pt-addr-' + f.key + '">' +
         f.label + star + "</label>" + control + "</div>";
     }).join("");
 
@@ -402,7 +405,11 @@
     els.payChoice.classList.toggle("pt-hide", !codOn);
     if (codOn) {
       els.payOnline.textContent = "Pay online · " + inr(amountPaise);
-      els.payCod.textContent = "Cash on delivery · " + inr(codPaise) + " (" + inr(Number(cod.feePaise)) + " COD fee)";
+      // Fee on its own line, so a phone never wraps the price mid-bracket.
+      els.payCod.textContent = "Cash on delivery · " + inr(codPaise);
+      var codNote = document.createElement("small");
+      codNote.textContent = "Includes " + inr(Number(cod.feePaise)) + " COD fee · pay when it arrives";
+      els.payCod.appendChild(codNote);
     }
     payPrices = codOn ? { online: amountPaise, cod: codPaise, mrp: Number(summary.mrpPaise) } : null;
     setPayChoice("online");

@@ -488,20 +488,13 @@ export default function Home() {
         <section className="bg-gray-50 py-20 sm:py-28">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 grid md:grid-cols-2 gap-10 items-center">
             <AnimateIn from="left">
-              <div className="grid grid-cols-2 gap-3">
+              <div>
                 <img
                   src="/acrylic-dashboard-plate-real.jpg"
                   alt="Actual clear laser-cut acrylic sheet with a ParkTag held in hand"
                   width={1200}
                   height={1600}
-                  className="col-span-2 w-full max-h-[520px] object-cover rounded-2xl border border-gray-200 shadow-xl"
-                />
-                <img
-                  src="/acrylic-dashboard-plate-detail.jpg"
-                  alt="Close view of the ParkTag applied to the clear acrylic sheet"
-                  width={759}
-                  height={1434}
-                  className="col-span-2 w-full max-h-44 object-cover object-center rounded-xl border border-gray-200"
+                  className="w-full max-h-[520px] object-cover rounded-2xl border border-gray-200 shadow-xl"
                 />
               </div>
             </AnimateIn>

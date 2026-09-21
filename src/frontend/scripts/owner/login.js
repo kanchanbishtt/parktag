@@ -476,7 +476,15 @@ async function loginOwner() {
       await sendWhatsappOtp(raw);
     } catch (error) {
       if (btn) { btn.disabled = false; btn.classList.remove("pt-btn-loading"); }
-      setStatus(error instanceof Error ? error.message : "Failed to send code.", "error");
+      // WhatsApp failing must not hide its own fallback. Keep the entered
+      // number, open the verification step, and offer SMS immediately.
+      _currentPhone = normalizePhoneE164(raw);
+      _phoneChannel = "whatsapp";
+      _smsAvailable = true;
+      byId("phone-step2").style.display = "";
+      byId("owner-form-step1").style.display = "none";
+      refreshSmsFallback();
+      setStatus("WhatsApp could not send the code. Please try SMS below.", "error");
     } finally {
       _phoneBusy = false;
     }

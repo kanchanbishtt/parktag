@@ -14,4 +14,12 @@ The separate parktag-449be project belongs to biz.edittree@gmail.com and remains
 
 Focused tests mock Firebase requests and use a disposable MongoDB prefix. Cover WhatsApp/SMS routing, resend failure, email regression, invalid OTP rejection, owner reuse and send-budget charging. Real handset delivery still requires an explicit test by an account holder. Do not solve a CAPTCHA or send a real OTP automatically during UI verification.
 
+On September 21, 2026, live testing exposed a coupling bug: the backend charged
+the shared destination budget and ten-minute SMS window before Firebase replied,
+but retained both after a definite Firebase rejection. Several rejected SMS
+attempts could therefore block WhatsApp too. Pending sends are now distinct,
+confirmed only after Firebase accepts them, and definite rejections roll back
+both reservations. The login page also exposes SMS immediately if WhatsApp
+sending fails instead of hiding the fallback behind WhatsApp success.
+
 Release: PR #253 merged with explicit owner override after all CI checks passed. Railway e93c90a2-7c36-49ef-a1ab-80d23dc824a0 succeeded at 434e06a. Live health, parktag1 config and both login options verified. 28 local targeted tests passed. Real handset delivery remains untested.

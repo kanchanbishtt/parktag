@@ -54,6 +54,20 @@ test('SMS send is charged against the shared destination budget', async () => {
   assert.ok(await collections.otpTokens.findOne({identifier: phone, channel: 'firebase', used: true}));
 });
 
+test('a rejected SMS does not block either OTP channel', async () => {
+  const rejectedPhone = '+919000000002';
+  rejectCode = true;
+  try {
+    const rejected = await post('send', {phone: rejectedPhone, recaptchaToken: 'fake-token'});
+    assert.equal(rejected.statusCode, 400);
+    assert.equal(await collections.otpTokens.countDocuments({identifier: rejectedPhone}), 0);
+    assert.equal(await collections.otpTokens.countDocuments({_id: `sms-window:${rejectedPhone}`}), 0);
+  } finally { rejectCode = false; }
+
+  const retry = await post('send', {phone: rejectedPhone, recaptchaToken: 'fresh-token'});
+  assert.equal(retry.statusCode, 200);
+});
+
 test('legacy mobile spelling reuses its account rather than making a duplicate', async () => {
   await collections.owners.updateOne({mobile: phone}, {$set: {mobile: '9000000001'}});
   const response = await post('verify', {sessionInfo: 'fake-session', code: '123456'});

@@ -192,11 +192,14 @@ export function registerFirebasePhoneAuthRoute(app, env) {
 
     // Charge the destination budget BEFORE calling Firebase, so a number that is
     // already over its limit costs nothing and receives nothing.
+    const collections = await getCollections(env);
+    let reservation = null;
+    let charge = null;
     try {
-      const collections = await getCollections(env);
-      await reserveSmsWindow(collections, phoneE164);
-      await chargeExternalOtpSend(env, phoneE164);
+      reservation = await reserveSmsWindow(collections, phoneE164);
+      charge = await chargeExternalOtpSend(env, phoneE164);
     } catch (err) {
+      if (reservation) await releaseSmsWindow(collections, reservation);
       reply.code(429);
       return {
         ok: false,
@@ -213,8 +216,19 @@ export function registerFirebasePhoneAuthRoute(app, env) {
         phoneNumber: phoneE164,
         recaptchaToken
       });
+      await collections.otpTokens.updateOne(
+        { _id: charge.insertedId, channel: "firebase-pending" },
+        { $set: { channel: "firebase", sentAt: new Date().toISOString() } }
+      );
       return { ok: true, sessionInfo: data.sessionInfo };
     } catch (err) {
+      // HTTP errors are definite rejections: no SMS was sent. Do not let a
+      // rejected Google request lock both SMS and WhatsApp for this number.
+      // A network error is ambiguous, so retain the reservation defensively.
+      if (err?.status) {
+        await collections.otpTokens.deleteOne({ _id: charge.insertedId, channel: "firebase-pending" });
+        await releaseSmsWindow(collections, reservation);
+      }
       request.log.error({ err }, "Firebase send-code failed");
       reply.code(400);
       return { ok: false, error: "Could not send verification code. Please check the number and try again." };
@@ -284,14 +298,26 @@ export function registerFirebasePhoneAuthRoute(app, env) {
 // Reserve before contacting Firebase, including failed/uncertain sends.
 export async function reserveSmsWindow(collections, phone, now = Date.now()) {
   if (!collections) throw new Error("Database not configured.");
+  const id = `sms-window:${normalizeIdentifier(phone)}`;
+  const expiresAt = new Date(now + 600000).toISOString();
   try {
     await collections.otpTokens.updateOne(
-      { _id: `sms-window:${normalizeIdentifier(phone)}`, expiresAt: { $lte: new Date(now).toISOString() } },
-      { $set: { channel: "sms-window", expiresAt: new Date(now + 600000).toISOString() } },
+      { _id: id, expiresAt: { $lte: new Date(now).toISOString() } },
+      { $set: { channel: "sms-window", expiresAt } },
       { upsert: true }
     );
   } catch (error) {
     if (error.code !== 11000) throw error;
     throw Object.assign(new Error("Please wait 10 minutes between SMS requests."), { expose: true });
   }
+  return { id, expiresAt };
+}
+
+async function releaseSmsWindow(collections, reservation) {
+  if (!collections || !reservation) return;
+  await collections.otpTokens.deleteOne({
+    _id: reservation.id,
+    channel: "sms-window",
+    expiresAt: reservation.expiresAt
+  });
 }

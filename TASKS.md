@@ -923,3 +923,9 @@ Covers UX and security improvements made after M13 call flow was confirmed worki
 - [x] WhatsApp remains default; SMS fallback revealed after 10 seconds with a server-enforced 10-minute per-number SMS reservation and UI cooldown. Targeted tests passed.
 
 - [x] SMS fallback layout corrected: below verification controls, compact typography, consent shown only when choosing SMS; 10-second delay starts after WhatsApp send and resets on resend/back. Targeted checks pass.
+
+## Live OTP delivery, 2026-09-21
+
+- [x] Stop rejected Firebase sends from consuming the shared WhatsApp/SMS budget or ten-minute SMS reservation; ignore legacy unconfirmed SMS markers.
+- [x] Expose SMS immediately when WhatsApp sending fails. Fifteen focused OTP tests pass.
+- [ ] Merge, deploy, and verify both channels on a real handset.

@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import vm from 'node:vm';
 
 const source = (await fs.readFile(new URL('../../frontend/scripts/owner/login.js', import.meta.url), 'utf8'))
-  .replace(/^import .*;\n/gm, '');
+  .replace(/^import .*;\r?\n/gm, '');
 async function harness(channel = 'whatsapp') {
   const ids = ['sms-fallback', 'sms-fallback-btn', 'phone-channel', 'phone-channel-field', 'owner-identifier', 'phone-otp-inp', 'phone-step2', 'owner-form-step1', 'card-sub', 'owner-auth-status', 'owner-login-button', 'phone-verify-btn', 'phone-resend-btn'];
   const elements = Object.fromEntries(ids.map(id => [id, { value: '', style: {}, dataset: {}, classList: {add(){}, remove(){}}, addEventListener(){}, setAttribute(){}}]));
@@ -29,6 +29,14 @@ test('WhatsApp remains default and uses existing OTP endpoints', async () => {
   h.elements['phone-otp-inp'].value = '123456';
   await h.api.verifyWhatsappOtp();
   assert.equal(h.calls[1].url, '/api/auth/verify-otp');
+});
+test('a WhatsApp failure exposes SMS immediately', async () => {
+  const h = await harness();
+  h.fail(true);
+  await h.api.loginOwner();
+  assert.equal(h.elements['phone-step2'].style.display, '');
+  assert.equal(h.elements['sms-fallback'].hidden, false);
+  assert.match(h.elements['owner-auth-status'].textContent, /try SMS/i);
 });
 test('SMS uses Firebase captcha, session verification, and new-owner redirect', async () => {
   const h = await harness('sms');

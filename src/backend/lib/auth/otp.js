@@ -49,6 +49,21 @@ const MAX_VERIFY_ATTEMPTS = 5;
 const MAX_SENDS_PER_WINDOW = 5;
 const SEND_WINDOW_MS = 60 * 60 * 1000;
 
+function sentWithinWindow(identifier, windowStart) {
+  return {
+    identifier,
+    createdAt: { $gt: windowStart },
+    // Older SMS code inserted `channel: firebase` before Firebase accepted the
+    // request. A rejected request therefore poisoned the shared WhatsApp/SMS
+    // budget. New pending rows use a distinct channel; legacy unconfirmed rows
+    // are ignored immediately after this deploy.
+    $or: [
+      { channel: { $ne: "firebase" } },
+      { sentAt: { $exists: true } }
+    ]
+  };
+}
+
 // What a code is allowed to do. A code is issued for one purpose and verifies
 // only against that purpose.
 //
@@ -153,10 +168,9 @@ export async function sendOtp(env, identifier, { purpose = OTP_PURPOSE_AUTH } = 
   // budget per destination means a second purpose cannot double the number of
   // messages that can be aimed at one victim.
   const windowStart = new Date(Date.now() - SEND_WINDOW_MS).toISOString();
-  const sentInWindow = await collections.otpTokens.countDocuments({
-    identifier: normalized,
-    createdAt: { $gt: windowStart }
-  });
+  const sentInWindow = await collections.otpTokens.countDocuments(
+    sentWithinWindow(normalized, windowStart)
+  );
   if (sentInWindow >= MAX_SENDS_PER_WINDOW) {
     throw clientError(
       "Too many verification codes requested. Please wait a while before trying again."
@@ -398,10 +412,9 @@ export async function chargeExternalOtpSend(env, identifier) {
 
   const normalized = normalizeIdentifier(identifier);
   const windowStart = new Date(Date.now() - SEND_WINDOW_MS).toISOString();
-  const sentInWindow = await collections.otpTokens.countDocuments({
-    identifier: normalized,
-    createdAt: { $gt: windowStart }
-  });
+  const sentInWindow = await collections.otpTokens.countDocuments(
+    sentWithinWindow(normalized, windowStart)
+  );
 
   if (sentInWindow >= MAX_SENDS_PER_WINDOW) {
     throw clientError(
@@ -410,18 +423,18 @@ export async function chargeExternalOtpSend(env, identifier) {
   }
 
   const now = new Date();
-  await collections.otpTokens.insertOne({
+  const inserted = await collections.otpTokens.insertOne({
     identifier: normalized,
     purpose: OTP_PURPOSE_AUTH,
     code: null,
-    channel: "firebase",
+    channel: "firebase-pending",
     used: true,
     attempts: 0,
     createdAt: now.toISOString(),
     expiresAt: new Date(now.getTime() + OTP_EXPIRY_MS).toISOString()
   });
 
-  return { ok: true };
+  return { ok: true, insertedId: inserted.insertedId };
 }
 
 export async function verifyOtp(env, identifier, code, { purpose = OTP_PURPOSE_AUTH } = {}) {

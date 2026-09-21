@@ -99,7 +99,7 @@ describe("sold-out packs on /shop", () => {
     assert.doesNotMatch(source, /renderCod/, "the old COD renderer is back in shop.js");
     assert.match(source, /payload\.codProductIds/);
     assert.match(source, /payload\.codSurchargePaise/);
-    assert.match(source, /paymentMethod\n\s*\}\)/, "create-order must be told the chosen method");
+    assert.match(source, /addOnId: addOn\?\.id,\n\s*paymentMethod,/, "create-order must be told the chosen method");
   });
 
   test("no unsourced customer rating is shown", () => {

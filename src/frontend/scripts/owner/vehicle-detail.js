@@ -383,7 +383,7 @@ function updatePremiumUI() {
 
   if (isFreeUsed) {
     // Free trial spent → send them to the shop to buy a premium tag.
-    if (copy) copy.textContent = "Your free trial has ended, buy a premium tag to continue.";
+    if (copy) copy.textContent = "Your free contact has been used. Buy a premium tag to keep being reachable.";
     if (buyBtn) { buyBtn.style.display = ""; buyBtn.disabled = !realId; }
   } else {
     // Free trial still live → informational only, no purchase yet.

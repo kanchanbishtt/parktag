@@ -318,7 +318,7 @@ function _memRow(tag, m) {
     bar.setAttribute("aria-valuemin", "0");
     bar.setAttribute("aria-valuemax", String(m.totalDays));
     bar.setAttribute("aria-valuenow", String(m.elapsedDays));
-    bar.setAttribute("aria-label", "Days used of your free year");
+    bar.setAttribute("aria-label", "Days used of your included Premium year");
     const fill = document.createElement("i");
     fill.style.width = pct + "%";
     bar.append(fill);
@@ -335,7 +335,7 @@ function _memRow(tag, m) {
   } else if (m.state === "subscribed") {
     sub.textContent = on ? "Premium until " + on + "." : "Premium.";
   } else {
-    sub.textContent = on ? "Free year, until " + on + "." : "Free year.";
+    sub.textContent = on ? "1 year Premium included, until " + on + "." : "1 year Premium included.";
   }
   li.append(sub);
 
@@ -1003,7 +1003,7 @@ function vehicleCard(tag, idx) {
         Download Premium Tag
       </button>`;
   } else if (hasId && trialExpired) {
-    actionsInner = `<p class="pt-vlc-trial">Your free trial has ended, buy a premium tag to continue.</p>
+    actionsInner = `<p class="pt-vlc-trial">Your free contact has been used. Buy a premium tag to keep being reachable.</p>
       <button class="pt-vlc-act buy" onclick="event.stopPropagation();goToShopForReplace('${tag.id}')">Buy Premium Tag</button>`;
   }
   const actions = actionsInner ? `\n  <div class="pt-vlc-actions">${actionsInner}</div>` : "";

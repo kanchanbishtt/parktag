@@ -216,7 +216,7 @@
   background: #fff;
 }
 .sh-addon[hidden] { display: none; }
-.sh-addon-img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 14px; }
+.sh-addon-img { width: 100%; height: auto; aspect-ratio: 16 / 9; max-height: 220px; object-fit: cover; object-position: center 20%; border-radius: 14px; }
 .sh-addon-kicker { margin: 0 0 7px; color: var(--sh-red); font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
 .sh-addon h2 { margin: 0 0 7px; font-size: 22px; color: var(--sh-ink); }
 .sh-addon-copy > p:not(.sh-addon-kicker) { margin: 0; color: var(--sh-ink-2); font-size: 14px; line-height: 1.5; }

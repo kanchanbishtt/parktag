@@ -1070,10 +1070,15 @@ async function load() {
 
   _products = payload.products;
   _launchOffer = payload.launchOffer || null;
+  // A campaign link (?promo=CODE&sku=...) pre-fills its code; the server still
+  // decides whether it applies, exactly as if the buyer had typed it.
+  const params = new URLSearchParams(location.search);
+  const linkCode = (params.get("promo") || "").trim().toUpperCase().slice(0, 32);
+  const linkSku = params.get("sku");
   const code = byId("drCode");
-  if (code && !code.value && _launchOffer?.code) {
-    code.value = _launchOffer.code;
-    await checkCode(HERO_PACK);
+  if (code && !code.value && (linkCode || _launchOffer?.code)) {
+    code.value = linkCode || _launchOffer.code;
+    await checkCode(linkCode && linkSku && payload.products[linkSku] ? linkSku : HERO_PACK);
   }
 
   renderChips(payload.products);

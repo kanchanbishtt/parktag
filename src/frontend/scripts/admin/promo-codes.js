@@ -121,11 +121,12 @@ function windowText(row) {
   return `${row.startsAt ? dateText(row.startsAt) : "Now"} → ${row.expiresAt ? dateText(row.expiresAt) : "No end"}`;
 }
 
-// Where to send buyers for this code. /shop and /direct do not read a
-// ?promo= parameter, so a link cannot carry the code: /direct is the page with
-// a code field, and the buyer types the code there.
-function campaignLink() {
-  return `${location.origin}/direct`;
+// Where to send buyers for this code. /direct pre-fills ?promo= into its code
+// field and opens on the code's first pack, so the buyer types nothing.
+function campaignLink(row) {
+  const params = new URLSearchParams({ promo: row.code });
+  if (row.productIds?.[0]) params.set("sku", row.productIds[0]);
+  return `${location.origin}/direct?${params}`;
 }
 
 function usesText(row) {
@@ -262,10 +263,10 @@ rowsEl.addEventListener("click", async (event) => {
   const action = btn.dataset.promoAction;
   if (action === "edit") { openSheet(rowsByCode.get(code)); return; }
   if (action === "copy") {
-    const link = campaignLink();
+    const link = campaignLink(rowsByCode.get(code));
     try {
       await navigator.clipboard.writeText(link);
-      show("ok", `Copied ${link}. Buyers enter ${code} in the code field there.`);
+      show("ok", `Copied ${link}. The code is applied automatically when the buyer opens it.`);
     } catch {
       window.prompt("Copy this link:", link);
     }

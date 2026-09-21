@@ -15,6 +15,7 @@ import { reassignVaultDocuments } from "../../lib/core/vault.js";
 import { isDelhiveryConfigured, updateShipmentToPrepaid, trackingUrl } from "../../lib/integrations/delhivery.js";
 import { bookShipmentAndPickup } from "../../lib/core/shipping.js";
 import { getOrderTracking } from "../../lib/core/order-tracking.js";
+import { orderBreakdown, breakdownText } from "../../lib/core/order-breakdown.js";
 import { safeEqual } from "../../lib/auth/security.js";
 import { fulfilPaidOrder, sendOrderConfirmation } from "../../lib/core/order-fulfilment.js";
 import {
@@ -613,6 +614,21 @@ export function registerShopRoutes(app, env) {
         promoDiscountPaise,
         shippingFeePaise
       );
+      // The same rows the buyer is shown after paying, built from the fields
+      // stored below, so the Razorpay dashboard carries the identical account.
+      const priceRows = orderBreakdown({
+        amount: expectedPaise,
+        mrpPaise: Math.round(product.amount * 100) * quantity,
+        quantity,
+        addOns: addOn ? [addOn] : [],
+        promoCode: promo.ok ? promo.code : null,
+        promoDiscountPaise,
+        referredBy,
+        referralDiscountPaise: referredBy ? REFERRAL_DISCOUNT_PAISE : 0,
+        shippingFeePaise,
+        fulfilment: handover ? FULFILMENT_HANDOVER : undefined
+      });
+      const priceSummary = breakdownText(priceRows.filter((row) => !row.total), ", ");
       // quantity and promoCode both joined this filter as part of the
       // quantity/pricing-modes feature: without them, a quantity-1 order (or
       // one minted under a different code) that happened to net the same
@@ -651,6 +667,7 @@ export function registerShopRoutes(app, env) {
           amount: reusable.amount,
           currency: reusable.currency,
           promoCode: reusable.promoCode || null,
+          description: `${reusable.orderNumber} · ${breakdownText((orderBreakdown(reusable) || []).filter((row) => !row.total), ", ")}`,
           keyId: env.razorpayKeyId,
           prefill: { name: shipping.fullName, contact: shipping.phone }
         };
@@ -669,6 +686,8 @@ export function registerShopRoutes(app, env) {
             productName: addOn ? `${product.name} + ${addOn.name}` : product.name,
             addOnId: addOn?.id || "",
             guest: "1",
+            // Razorpay caps a note at 256 characters.
+            breakdown: breakdownText(priceRows).slice(0, 256),
             ...addressToNotes(shipping)
           }
         });
@@ -710,6 +729,9 @@ export function registerShopRoutes(app, env) {
           // of that row whatever discount they typed in.
           promoCode: promo.ok ? promo.code : null,
           promoDiscountPaise,
+          // Stored so the breakdown shown after payment is read, not re-derived.
+          mrpPaise: Math.round(product.amount * 100) * quantity,
+          shippingFeePaise,
           // A handover order has no parcel. Recorded so fulfilment books no
           // waybill and the stuck-order alert does not chase one forever.
           ...(handover ? { fulfilment: FULFILMENT_HANDOVER, deliveredInPerson: true } : {}),
@@ -726,6 +748,10 @@ export function registerShopRoutes(app, env) {
           // The code the SERVER applied, for the purchase event's `coupon`.
           // Not what the page asked for: a refused code must not be reported.
           promoCode: promo.ok ? promo.code : null,
+          // Razorpay Checkout's description line: the order number and the
+          // same breakdown the buyer sees after paying, minus the total
+          // Checkout already shows.
+          description: `${orderNumber} · ${priceSummary}`,
           amount: order.amount,
           currency: order.currency,
           // Public key, the same one GET /api/shop/razorpay-key serves.
@@ -792,6 +818,8 @@ export function registerShopRoutes(app, env) {
         ok: true,
         fulfilled: outcome.firstTime,
         orderNumber: order.orderNumber,
+        // Read off the stored order, so the confirmation shows what was taken.
+        breakdown: orderBreakdown(order),
         // What the buyer needs to find this order again without an account.
         trackWith: (order.shippingAddress && order.shippingAddress.phone || "").slice(-4)
       };
@@ -1665,6 +1693,7 @@ export function registerShopRoutes(app, env) {
         orderNumber: order.orderNumber,
         productName: order.productName || null,
         amount: typeof order.amount === "number" ? order.amount : null,
+        breakdown: orderBreakdown(order),
         paymentMethod: isCod ? "cod" : "paid",
         // COD orders have no paidAt — fall back to when the order was placed.
         orderedAt: order.paidAt || order.createdAt || null,

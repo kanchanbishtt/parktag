@@ -115,6 +115,14 @@
   var EVENTS = {
     view_item:      { ga: "view_item",      pixel: "ViewContent" },
     begin_checkout: { ga: "begin_checkout", pixel: "InitiateCheckout" },
+    // The checkout's own steps, in order: address given, then Razorpay opened.
+    // GA4 has names for both; Meta has one for the second only.
+    add_shipping_info: { ga: "add_shipping_info", pixel: "AddShippingInfo", custom: true },
+    add_payment_info:  { ga: "add_payment_info",  pixel: "AddPaymentInfo" },
+    // The landing site's launch banner, clicked through to the shop.
+    select_promotion: { ga: "select_promotion", pixel: "SelectPromotion", custom: true },
+    // A box ticked for an optional extra (the Duo Pack's dashboard plate).
+    add_on_selected: { ga: "add_on_selected", pixel: "AddOnSelected", custom: true },
     purchase:       { ga: "purchase",       pixel: "Purchase" },
     sign_up:        { ga: "sign_up",        pixel: "CompleteRegistration" },
     tag_activated:  { ga: "tag_activated",  pixel: "TagActivated", custom: true },
@@ -145,7 +153,10 @@
     method: 1, reason: 1, plan: 1, vehicle_type: 1, cod: 1,
     // A promo code (e.g. LAUNCH100), GA4's own purchase parameter. A code, not
     // a person: it is the same string printed on a campaign.
-    coupon: 1
+    coupon: 1,
+    // select_promotion's identifiers: the campaign's code and its label, the
+    // same public strings as `coupon`.
+    promotion_id: 1, promotion_name: 1
   };
 
   function sanitize(input) {

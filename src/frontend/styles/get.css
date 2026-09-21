@@ -699,6 +699,12 @@
 .gt-done-t { margin: 12px 0 0; font-size: 1.05rem; font-weight: 800; }
 .gt-done-s { margin: 7px auto 16px; max-width: 26rem; font-size: .85rem; line-height: 1.55; color: var(--gt-ink-2); }
 
+/* What was paid, line by line. Rows come from the server; see renderBreakdown. */
+.gt-done-b { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; margin: 0 auto 16px; max-width: 26rem; font-size: .85rem; text-align: left; color: var(--gt-ink-2); }
+.gt-done-b[hidden] { display: none; }
+.gt-done-b dd { margin: 0; text-align: right; }
+.gt-done-b .gt-done-b-total { padding-top: 6px; border-top: 1px solid currentColor; font-weight: 700; color: inherit; }
+
 .gt-done-x {
   display: block;
   width: 100%;

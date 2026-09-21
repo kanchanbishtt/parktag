@@ -2,6 +2,7 @@ import { ObjectId } from 'mongodb';
 import { isInternalTag } from './internal-orders.js';
 import { stickerSerialFor, tagLifecycleDefaults } from './tag-issuance.js';
 import { getOrderTracking } from './order-tracking.js';
+import { orderBreakdown, breakdownText } from './order-breakdown.js';
 import { toE164 } from './phone.js';
 
 export const COMMAND_HELP = `🚗 *ParkTag commands*
@@ -146,7 +147,7 @@ export async function runCommand(collections, env, command, actor, commandId, cl
       return `🚚 *Delivery tracking*\n${safe(order.orderNumber)}\n\n*Status:* ${safe(tracking?.status || 'Unavailable from Delhivery')}\n*Waybill:* ${safe(order.waybill)}\n\n*📍 Last scan:* ${safe(scan?.location || 'Not available')}\n*Scanned at:* ${dateLabel(scan?.dateTime || tracking?.statusDateTime)}\n${tracking?.instructions ? safe(tracking.instructions)+'\n' : ''}\n_Updated: ${dateLabel(tracking?.fetchedAt)} • Cached for up to 15 minutes._`;
     }
     const tags = await collections.tags.find({ assignedOrderNumber: order.orderNumber, deletedAt: null }).limit(30).toArray();
-    return `📦 *Order details*\n${safe(order.orderNumber)}${order.internal ? ' · 🧪 INTERNAL TEST' : ''}\n\n${safe(order.productName)} · ${money(order.amount)} · ${statusLabel(order.status)}\n\n*Customer:* ${safe(order.shippingAddress?.fullName || '—')}\n*Waybill:* ${safe(order.waybill || 'Not booked')}\n\n*Currently linked stickers:* ${tags.map(t=>safe(labelForTag(t))).join(', ') || 'None yet'}`;
+    return `📦 *Order details*\n${safe(order.orderNumber)}${order.internal ? ' · 🧪 INTERNAL TEST' : ''}\n\n${safe(order.productName)} · ${money(order.amount)} · ${statusLabel(order.status)}\n${orderBreakdown(order) ? `*Price:* ${safe(breakdownText(orderBreakdown(order)))}\n` : ''}\n*Customer:* ${safe(order.shippingAddress?.fullName || '—')}\n*Waybill:* ${safe(order.waybill || 'Not booked')}\n\n*Currently linked stickers:* ${tags.map(t=>safe(labelForTag(t))).join(', ') || 'None yet'}`;
   }
   if (action === 'batch') {
     if (!/^[A-Za-z0-9-]{1,100}$/.test(argument)) fail('Enter the batch label, for example Batch-002.');

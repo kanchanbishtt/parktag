@@ -262,6 +262,13 @@ function renderAddOn(addOns) {
   byId("gtAddonDescription").textContent = addOn.description;
   byId("gtAddonPrice").textContent = `+${rupees(addOn.amountPaise)}`;
   host.hidden = false;
+  // Ticking the box, not the order that follows: this is how many people want
+  // the plate at all, including the ones who never pay.
+  byId("gtAddonCheck")?.addEventListener("change", (event) => {
+    if (event.target.checked && window.ptTrack) {
+      ptTrack("add_on_selected", { item_id: addOn.id, value: addOn.amountPaise / 100, currency: "INR" });
+    }
+  });
 }
 
 // Duo Pack only. The box stays ticked if the buyer then orders another pack,
@@ -628,6 +635,23 @@ async function buy(sku) {
   // simply not working.
   if (codeValue()) await checkCode(sku);
 
+  // What this buyer will be asked for: the server's price for THIS pack and
+  // quantity with the code applied (promoState was just re-checked against
+  // both), plus the plate. The begin_checkout value used to take the promo
+  // price only for the Duo Pack and the page's own sum for anything else.
+  const payablePaise = codeValue() && promoState && typeof promoState.payablePaise === "number"
+    ? promoState.payablePaise
+    : (product?.amountPaise || 0) * quantity;
+  const coupon = promoState?.ok ? (promoState.code || codeValue()) : null;
+  if (window.ptTrack) {
+    ptTrack("begin_checkout", {
+      method: "guest",
+      items: [{ item_id: sku, quantity }, ...(addOn ? [{ item_id: addOn.id, quantity: 1 }] : [])],
+      ...(product ? { value: (payablePaise + (addOn?.amountPaise || 0)) / 100, currency: "INR" } : {}),
+      ...(coupon ? { coupon } : {})
+    });
+  }
+
   // Said before the address step rather than after paying. A buyer who was
   // promised a price should learn here that it does not apply to this pack.
   if (codeValue() && !(promoState && promoState.ok)) {
@@ -646,9 +670,6 @@ async function buy(sku) {
 
   // The shared sheet. Resolves with the address, or false if dismissed —
   // backing out here is an ordinary thing to do, not an error.
-  const payablePaise = promoState?.ok
-    ? promoState.payablePaise
-    : (product?.amountPaise || 0) * quantity;
   const address = handover
     ? await collectHandoverContact()
     : await window.ptCollectAddress({
@@ -663,6 +684,15 @@ async function buy(sku) {
           : null
       });
   if (!address) return;
+
+  if (window.ptTrack && product) {
+    ptTrack("add_shipping_info", {
+      value: (payablePaise + (addOn?.amountPaise || 0)) / 100,
+      currency: "INR",
+      ...(coupon ? { coupon } : {}),
+      items: [{ item_id: sku, quantity }, ...(addOn ? [{ item_id: addOn.id, quantity: 1 }] : [])]
+    });
+  }
 
   _busy = true;
 
@@ -754,7 +784,7 @@ async function buy(sku) {
     amount: order.amount,
     currency: order.currency,
     name: "ParkTag",
-    description: order.orderNumber,
+    description: order.description || order.orderNumber,
     image: "/images/parktag-checkout-logo.png",
     prefill: order.prefill || {},
     theme: { color: "#03162D" },
@@ -792,7 +822,33 @@ async function buy(sku) {
   { const el = byId("gtWorking"); if (el) el.hidden = true; }
   closeSheet();
 
+  // The server's amount, not the page's: this is what Razorpay is about to ask for.
+  if (window.ptTrack) {
+    ptTrack("add_payment_info", {
+      value: order.amount / 100,
+      currency: "INR",
+      ...(order.promoCode ? { coupon: order.promoCode } : {}),
+      items: [{ item_id: sku, quantity }, ...(addOn ? [{ item_id: addOn.id, quantity: 1 }] : [])]
+    });
+  }
+
   rzp.open();
+}
+
+// The paid breakdown, row for row as verify-payment read it off the stored
+// order. Rendered, never summed: this page does no arithmetic on it.
+function renderBreakdown(rows) {
+  const host = byId("gtDoneBreakdown");
+  if (!host) return;
+  host.replaceChildren(...(Array.isArray(rows) ? rows : []).flatMap((row) => {
+    const dt = document.createElement("dt");
+    const dd = document.createElement("dd");
+    dt.textContent = row.label;
+    dd.textContent = row.text;
+    if (row.total) dt.className = dd.className = "gt-done-b-total";
+    return [dt, dd];
+  }));
+  host.hidden = !host.childElementCount;
 }
 
 function showDone(done) {
@@ -804,6 +860,7 @@ function showDone(done) {
   byId("gtDoneSub").textContent = done.pending
     ? `Payment received. Order ${done.orderNumber} is being confirmed, you will get a WhatsApp update shortly.`
     : `Order ${done.orderNumber} is on its way. We have sent the details to your mobile.`;
+  renderBreakdown(done.breakdown);
   showSheet();
   // After the sheet is up, so the paper lands over a card that is already
   // arriving. confetti.js declines outright under prefers-reduced-motion.
@@ -943,9 +1000,8 @@ function wireGallery() {
   });
 }
 
-// `products` is the catalogue already on screen, passed in only so
-// begin_checkout can carry a value. A missing entry costs the value on one
-// event and nothing else -- it must never stop the click reaching buy().
+// `products` is the catalogue already on screen, which the quantity stepper
+// reads its per-unit price from.
 function wireCheckout(products) {
   const code = byId("drCode");
   if (code) {
@@ -1006,25 +1062,9 @@ function wireCheckout(products) {
     if (!link) return;
 
     event.preventDefault();
-    const sku = link.dataset.sku || HERO_PACK;
-
-    if (window.ptTrack) {
-      const priced = products && products[sku];
-      const quantity = _qty.get(sku) || 1;
-      const addOn = selectedAddOn(sku);
-      const trackedPaise = promoState?.ok && sku === HERO_PACK
-        ? promoState.payablePaise + (addOn?.amountPaise || 0)
-        : (priced ? publicOfferTotalPaise(sku, priced, quantity, addOn) : null);
-      ptTrack("begin_checkout", {
-        method: "guest",
-        items: [
-          { item_id: sku, quantity },
-          ...(addOn ? [{ item_id: addOn.id, quantity: 1 }] : [])
-        ],
-        ...(trackedPaise !== null ? { value: trackedPaise / 100, currency: "INR" } : {})
-      });
-    }
-    buy(sku);
+    // begin_checkout fires inside buy(), once the code is re-checked for this
+    // pack, so its value is the price the buyer is actually about to pay.
+    buy(link.dataset.sku || HERO_PACK);
   });
 }
 
@@ -1100,7 +1140,9 @@ async function load() {
     const hero = payload.products[HERO_PACK];
     ptTrack("view_item", {
       items: Object.entries(payload.products).map(([id, p]) => ({ item_id: id, item_name: p.name })),
-      ...(hero ? { value: publicOfferTotalPaise(HERO_PACK, hero, 1) / 100, currency: "INR" } : {})
+      ...(hero ? { value: publicOfferTotalPaise(HERO_PACK, hero, 1) / 100, currency: "INR" } : {}),
+      // The launch offer on screen, so offer views can be told from plain ones.
+      ...(offerFor(HERO_PACK) ? { coupon: offerFor(HERO_PACK).code } : {})
     });
   }
 }

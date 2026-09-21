@@ -180,7 +180,7 @@ export async function sendOtpEmail(env, { to, code, purpose }) {
 // your parcel"). `amountPaise` is the amount in paise; `cod` toggles the COD vs
 // prepaid copy. Callers must treat a throw as non-fatal (the order already
 // exists) — mirrors how the OTP mail never blocks its flow.
-export async function sendOrderConfirmationEmail(env, { to, orderNumber, productName, amountPaise, cod, trackingUrl }) {
+export async function sendOrderConfirmationEmail(env, { to, orderNumber, productName, amountPaise, breakdown, cod, trackingUrl }) {
   const rupees = `₹${(Math.round(Number(amountPaise) || 0) / 100).toLocaleString("en-IN")}`;
 
   if (!isEmailConfigured(env)) {
@@ -223,7 +223,10 @@ export async function sendOrderConfirmationEmail(env, { to, orderNumber, product
         <div style="background:#F9FAFB;border:1px solid #E5E7EB;border-radius:12px;padding:16px;margin:16px 0">
           <p style="margin:0 0 6px;color:#111"><strong>Order:</strong> ${orderNumber}</p>
           <p style="margin:0 0 6px;color:#111"><strong>Item:</strong> ${productName}</p>
-          <p style="margin:0;color:#111"><strong>Amount:</strong> ${rupees}</p>
+          ${Array.isArray(breakdown) && breakdown.length
+            // Rows from lib/core/order-breakdown.js: labels are ours, amounts preformatted.
+            ? breakdown.map((row) => `<p style="margin:0 0 4px;color:#111;display:flex;justify-content:space-between${row.total ? ";font-weight:700;border-top:1px solid #E5E7EB;padding-top:6px;margin-top:6px" : ""}"><span>${escapeHtml(row.label)}</span><span>${escapeHtml(row.text)}</span></p>`).join("")
+            : `<p style="margin:0;color:#111"><strong>Amount:</strong> ${rupees}</p>`}
         </div>
         ${codBlock}
         ${trackBlock}

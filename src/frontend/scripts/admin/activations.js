@@ -75,7 +75,7 @@ function renderUnactivated(q) {
     return `
       <tr>
         <td data-label="Order #"><b>${esc(o.orderNumber || "-")}</b>${o.waybill ? `<br><span class="muted">AWB ${esc(o.waybill)}</span>` : ""}</td>
-        <td data-label="Product">${esc(o.productName || "-")}</td>
+        <td data-label="Product">${esc(o.productName || "-")}${o.priceBreakdown ? `<br><span class="muted">${esc(o.priceBreakdown)}</span>` : ""}</td>
         <td data-label="Owner">${esc(o.ownerName || "-")}${o.ownerEmail ? `<br><span class="muted">${esc(o.ownerEmail)}</span>` : ""}</td>
         <td data-label="Mobile">${telCell(o.ownerMobile)}</td>
         <td data-label="Payment">${pay}</td>

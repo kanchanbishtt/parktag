@@ -279,6 +279,13 @@ function renderAddOns(addOns) {
   byId("shAddonDescription").textContent = addOn.description;
   byId("shAddonPrice").textContent = `+${rupees(addOn.amountPaise)}`;
   host.hidden = false;
+  // Ticking the box, not the order that follows: this is how many people want
+  // the plate at all, including the ones who never pay.
+  byId("shAddonCheck")?.addEventListener("change", (event) => {
+    if (event.target.checked && window.ptTrack) {
+      ptTrack("add_on_selected", { item_id: addOn.id, value: addOn.amountPaise / 100, currency: "INR" });
+    }
+  });
 }
 
 // Duo Pack only. The box stays ticked if the buyer then orders another pack,
@@ -367,6 +374,15 @@ async function buy(sku, product) {
   });
   if (!address) return;
 
+  if (window.ptTrack && product) {
+    ptTrack("add_shipping_info", {
+      value: (offerPrice + (addOn?.amountPaise || 0)) / 100,
+      currency: "INR",
+      ...(_launchOffer && _launchOffer.productId === sku ? { coupon: _launchOffer.code } : {}),
+      items: [{ item_id: sku, quantity: 1 }, ...(addOn ? [{ item_id: addOn.id, quantity: 1 }] : [])]
+    });
+  }
+
   _busy = true;
 
   // The sheet opens NOW, in a working state, rather than only after payment.
@@ -439,7 +455,7 @@ async function buy(sku, product) {
     amount: order.amount,
     currency: order.currency,
     name: "ParkTag",
-    description: order.orderNumber,
+    description: order.description || order.orderNumber,
     image: "/images/parktag-checkout-logo.png",
     prefill: order.prefill || {},
     theme: { color: "#03162D" },
@@ -475,7 +491,30 @@ async function buy(sku, product) {
   { const el = byId("shWorking"); if (el) el.hidden = true; }
   closeSheet();
 
+  // The server's amount, not the page's: this is what Razorpay is about to ask for.
+  if (window.ptTrack) {
+    ptTrack("add_payment_info", {
+      value: order.amount / 100,
+      currency: "INR",
+      ...(order.promoCode ? { coupon: order.promoCode } : {}),
+      items: [{ item_id: sku, quantity: 1 }, ...(addOn ? [{ item_id: addOn.id, quantity: 1 }] : [])]
+    });
+  }
+
   rzp.open();
+}
+
+// The paid breakdown, row for row as verify-payment read it off the stored
+// order. Rendered, never summed: this page does no arithmetic on it.
+function renderBreakdown(rows) {
+  const host = byId("shDoneBreakdown");
+  if (!host) return;
+  host.replaceChildren(...(Array.isArray(rows) ? rows : []).flatMap((row) => {
+    const dt = el("dt", row.total ? "sh-done-b-total" : "", row.label);
+    const dd = el("dd", row.total ? "sh-done-b-total" : "", row.text);
+    return [dt, dd];
+  }));
+  host.hidden = !host.childElementCount;
 }
 
 function showDone(done) {
@@ -487,6 +526,7 @@ function showDone(done) {
   byId("shDoneSub").textContent = done.pending
     ? `Payment received. Order ${done.orderNumber} is being confirmed. You will get a WhatsApp update shortly.`
     : `Order ${done.orderNumber} is on its way. We have sent the details to your mobile.`;
+  renderBreakdown(done.breakdown);
   showSheet();
 
   if (window.ptTrack) {
@@ -584,9 +624,12 @@ async function load() {
   // event is the size of the drop the login wall was causing.
   if (window.ptTrack) {
     const lead = payload.products[PACKS[0].id];
+    // The launch offer's price when it is the one on screen, not the MRP.
+    const leadOffer = _launchOffer && _launchOffer.productId === PACKS[0].id ? _launchOffer : null;
     ptTrack("view_item", {
       items: Object.entries(payload.products).map(([id, p]) => ({ item_id: id, item_name: p.name })),
-      ...(lead ? { value: lead.amountPaise / 100, currency: "INR" } : {})
+      ...(lead ? { value: (leadOffer ? leadOffer.offerPaise : lead.amountPaise) / 100, currency: "INR" } : {}),
+      ...(leadOffer ? { coupon: leadOffer.code } : {})
     });
   }
 }

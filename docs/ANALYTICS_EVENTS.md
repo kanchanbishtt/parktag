@@ -54,6 +54,10 @@ destination later means editing `dispatch()` in one file, not the call sites.
 | `view_item` | `view_item` | `ViewContent` | `openProduct()` in welcome-shop.js |
 | `begin_checkout` | `begin_checkout` | `InitiateCheckout` | `startPayment()` and `packPlaceCod()` in welcome-shop.js |
 | `purchase` | `purchase` | `Purchase` | `showConfirmation()` in welcome-shop.js |
+| `select_promotion` | `select_promotion` | `SelectPromotion` (custom) | landing LaunchOffer.tsx banner click, `promotion_id` = the offer code |
+| `add_on_selected` | `add_on_selected` | `AddOnSelected` (custom) | shop/get/direct.js, dashboard-plate box ticked |
+| `add_shipping_info` | `add_shipping_info` | `AddShippingInfo` (custom) | shop/get/direct.js, once the address (or handover contact) step resolves |
+| `add_payment_info` | `add_payment_info` | `AddPaymentInfo` | shop/get/direct.js, just before Razorpay opens, value = server amount |
 | `sign_up` | `sign_up` | `CompleteRegistration` | welcome.js, on `?new=1` arrival |
 | `tag_activated` | `tag_activated` | `TagActivated` (custom) | scanner/app.js, after `/api/tags/:token/activate` |
 | `scan_received` | `scan_received` | **never** | scanner/app.js, after the tag resolves |

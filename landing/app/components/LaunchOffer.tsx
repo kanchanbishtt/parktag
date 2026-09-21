@@ -29,7 +29,15 @@ export function LaunchOfferBanner({ shopUrl }: { shopUrl: string }) {
   const offer = useLaunchOffer();
   if (!offer) return null;
   return (
-    <a href={`${shopUrl}?sku=${encodeURIComponent(offer.productId)}`} className="block bg-[#FEE600] px-4 py-2.5 text-center text-sm font-extrabold text-[#03162D] hover:bg-[#FFE900] transition-colors">
+    <a
+      href={`${shopUrl}?sku=${encodeURIComponent(offer.productId)}`}
+      // Never delays the navigation; ptTrack is a no-op until /pt-analytics.js loads.
+      onClick={() => window.ptTrack?.("select_promotion", {
+        promotion_id: offer.code,
+        promotion_name: "Launch offer",
+        items: [{ item_id: offer.productId }]
+      })}
+      className="block bg-[#FEE600] px-4 py-2.5 text-center text-sm font-extrabold text-[#03162D] hover:bg-[#FFE900] transition-colors">
       Launch offer: Duo Pack for {money(offer.offerPaise)} <span className="font-semibold">({money(offer.discountPaise)} off, code {offer.code} auto-applied)</span> →
     </a>
   );

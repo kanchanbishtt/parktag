@@ -171,6 +171,36 @@ describe("confirming a guest payment", () => {
     assert.equal(after.paymentId, paymentId);
   });
 
+  // The confirmation screen and /track-order both show what was paid, read off
+  // the stored order rather than re-priced by the page.
+  test("the confirmation and the tracking page carry the stored price breakdown", async () => {
+    const orderId = await seedOrder({
+      // /track-order only accepts a real-shaped number.
+      orderNumber: "PT-260921-00042",
+      amount: 44800,
+      mrpPaise: 49900,
+      promoCode: "LAUNCH100",
+      promoDiscountPaise: 10000,
+      shippingFeePaise: 0,
+      addOns: [{ id: "dashboard-plate", name: "Clear Dashboard Plate", amountPaise: 4900 }]
+    });
+    const paymentId = "pay_guest_breakdown";
+    const res = await post("/api/shop/guest/verify-payment", {
+      razorpay_order_id: orderId,
+      razorpay_payment_id: paymentId,
+      razorpay_signature: sign(orderId, paymentId)
+    });
+    const expected = [
+      ["MRP", "₹499"], ["Discount (LAUNCH100)", "-₹100"], ["Clear Dashboard Plate", "₹49"],
+      ["Delivery", "Free"], ["Total paid", "₹448"]
+    ];
+    assert.deepEqual(res.json().breakdown.map((row) => [row.label, row.text]), expected);
+
+    const tracked = await post("/api/shop/track-order", { orderNumber: "PT-260921-00042", lastFour: ADDRESS.phone.slice(-4) });
+    assert.equal(tracked.statusCode, 200);
+    assert.deepEqual(tracked.json().order.breakdown.map((row) => [row.label, row.text]), expected);
+  });
+
   // Razorpay retries its webhook, and the browser callback races it. Whichever
   // lands second must not fulfil a second time.
   test("confirming twice fulfils once", async () => {

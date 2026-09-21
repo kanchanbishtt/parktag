@@ -14,6 +14,7 @@ import {
   stickerSerialFor
 } from "../../lib/core/tag-issuance.js";
 import { NOT_MARKETING_STOCK, NOT_DEMO_OWNER } from "../../lib/core/marketing-stock.js";
+import { orderBreakdown, breakdownText } from "../../lib/core/order-breakdown.js";
 
 // Order the print queue the way the sheets should come off the printer: newest
 // batch first, and inside a batch ascending by the serial printed on the sticker.
@@ -523,6 +524,8 @@ export function registerAdminRoutes(app, env) {
         id: String(ord._id),
         orderNumber: ord.orderNumber || ord.orderId || null,
         productName: ord.productName || null,
+        // What the buyer was charged, line by line, off the stored order.
+        priceBreakdown: breakdownText(orderBreakdown(ord)) || null,
         paymentMethod: ord.paymentMethod || (ord.status === "cod" ? "cod" : "prepaid"),
         orderStatus: ord.status || null,
         waybill: ord.waybill || null,

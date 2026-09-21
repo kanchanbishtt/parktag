@@ -30,6 +30,7 @@ import { sendCapiEventBestEffort, purchaseEventId, isMetaCapiConfigured } from "
 import { firstNameOf, resolveOwnerName } from "./owner-name.js";
 import { grantReferralReward } from "./referrals.js";
 import { consumePromo } from "./promo-codes.js";
+import { orderBreakdown } from "./order-breakdown.js";
 
 // Tell the buyer their order exists, without ever blocking the caller — the
 // order already exists by this point, so a notification failure must never turn
@@ -54,6 +55,7 @@ export async function sendOrderConfirmation(env, collections, ownerId, details, 
       orderNumber: details.orderNumber,
       productName: details.productName,
       amountPaise: details.amountPaise,
+      breakdown: details.breakdown,
       cod: details.cod,
       trackingUrl: track
     };
@@ -291,6 +293,7 @@ export async function fulfilPaidOrder(env, collections, { order, paymentId, log 
     orderNumber: order.orderNumber,
     productName: order.productName,
     amountPaise: order.amount,
+    breakdown: orderBreakdown(order),
     cod: false,
     waybill: bookedWaybill,
     deliveryPhone: order.shippingAddress && order.shippingAddress.phone,

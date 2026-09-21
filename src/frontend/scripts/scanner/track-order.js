@@ -102,6 +102,17 @@ function renderResult(order) {
   if (ordered) meta.push(`Ordered ${ordered}`);
   byId("track-result-meta").textContent = meta.join(" · ");
 
+  // Rows from the server, read off the stored order. Rendered, never summed.
+  const breakdown = byId("track-result-breakdown");
+  if (breakdown) {
+    const rows = Array.isArray(order.breakdown) ? order.breakdown : [];
+    breakdown.replaceChildren(...rows.flatMap((row) => {
+      const cls = row.total ? "pt-track-breakdown-total" : "";
+      return [el("dt", cls, row.label), el("dd", cls, row.text)];
+    }));
+    breakdown.hidden = !rows.length;
+  }
+
   byId("track-result-status").textContent = humanizeStatus(order.shippingStatus);
 
   const time = byId("track-result-time");

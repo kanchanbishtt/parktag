@@ -5,10 +5,8 @@
 // fetched from /api/shop/public-catalogue, which serves the same SHOP_PRODUCTS
 // the order routes charge from. A storefront that quotes a figure the checkout
 // does not charge is the worst place for a price to drift, because it is the
-// first thing a stranger reads. So no amount anybody is CHARGED appears here.
-// The one exception is `orig` below, the struck-through "was" price, which is
-// a marketing claim rather than anything billed, and is only rendered when it
-// is genuinely above the price being charged.
+// first thing a stranger reads. So no amount anybody is CHARGED appears here;
+// even the crossed-out MRP comes from the live public catalogue.
 
 // Display-only. The lead pack comes first: which one leads is a merchandising
 // decision, so it is written down rather than derived from price.
@@ -19,14 +17,12 @@ const PACKS = [
     id: "pt-car-2",
     desc: "Two tags: two cars, or the front and back of one.",
     image: "/images/shop-car-2.svg",
-    orig: 799,
     badge: "Best seller"
   },
   {
     id: "pt-car-1",
     desc: "One tag for the windscreen of one car.",
-    image: "/images/shop-car.webp",
-    orig: 499
+    image: "/images/shop-car.webp"
   },
   // Out of stock, not withdrawn. A pack we still price but cannot ship is shown
   // with its price and no way to buy it, rather than dropped: somebody who came
@@ -37,14 +33,12 @@ const PACKS = [
     id: "pt-combo",
     desc: "Car and bike together, for the whole household.",
     image: "/images/shop-combo.svg",
-    orig: 899,
     soldOut: true
   },
   {
     id: "pt-bike-1",
     desc: "For a two-wheeler, front and back.",
     image: "/images/shop-bike.webp",
-    orig: 799,
     soldOut: true
   }
 ];
@@ -53,11 +47,9 @@ const byId = (id) => document.getElementById(id);
 
 const STAR = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2.5 2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6L2.5 9.4l6.6-.8L12 2.5Z" fill="currentColor"/></svg>';
 
-// PLACEHOLDER. The Amazon listing (B0HHG5KKJS) carried no rating on
-// 4 September 2026 and there is no reviews system of our own, so this figure is
-// not sourced from anywhere. Replace `value` with a real rating, and add
-// `count`, before this ships. Set to null to hide the row on every card.
-const RATING = { value: 4.8, count: null };
+// No rating is shown until it can be backed by a real source and review count.
+// An unsourced score damages trust more than an honest absence of social proof.
+const RATING = null;
 
 // Whole rupees. Every amount on the wire is paise, matching the order routes,
 // so the conversion happens once, here.
@@ -100,7 +92,7 @@ function ratingRow(rating) {
   return row;
 }
 
-function renderGrid(products) {
+function renderGrid(products, launchOffer) {
   const list = byId("shGrid");
   if (!list) return;
 
@@ -118,8 +110,12 @@ function renderGrid(products) {
     if (want === pack.id) li.classList.add("sh-card-hi");
     if (pack.soldOut) li.classList.add("sh-card-out");
 
+    const offer = launchOffer && launchOffer.productId === pack.id ? launchOffer : null;
+
     if (pack.soldOut) {
       li.append(el("span", "sh-badge sh-badge-out", "Sold out"));
+    } else if (offer) {
+      li.append(el("span", "sh-badge", `Launch offer · ${rupees(offer.discountPaise)} off`));
     } else if (pack.badge) {
       const badge = el("span", "sh-badge");
       badge.innerHTML = STAR; // static markup, never user input
@@ -144,12 +140,12 @@ function renderGrid(products) {
 
     const ft = el("div", "sh-card-ft");
     const price = el("div", "sh-price");
-    price.append(el("span", "sh-price-now", rupees(priced.amountPaise)));
+    price.append(el("span", "sh-price-now", rupees(offer ? offer.offerPaise : priced.amountPaise)));
     // Shown only when genuinely higher than what is charged. A "was" that is
     // not above the "now" is not a saving, and printing one anyway is the kind
     // of thing that turns a discount into a misleading price claim.
-    if (pack.orig && pack.orig * 100 > priced.amountPaise) {
-      price.append(el("span", "sh-price-was", `₹${pack.orig.toLocaleString("en-IN")}`));
+    if (offer && offer.mrpPaise > offer.offerPaise) {
+      price.append(el("span", "sh-price-was", `MRP ${rupees(offer.mrpPaise)}`));
     }
 
     // A real href, so the card still points somewhere with no JS. The click
@@ -265,6 +261,27 @@ let _busy = false;
 // The amount the SERVER priced this order at, kept so the purchase event can
 // report revenue. Measurement only -- nothing is ever charged from it.
 let _paidPaise = 0;
+let _launchOffer = null;
+let _addOn = null;
+let _checkedOutAddOn = null;
+
+function renderAddOns(addOns) {
+  const host = byId("shAddon");
+  const addOn = Array.isArray(addOns) ? addOns.find((item) => item.id === "dashboard-plate") : null;
+  _addOn = addOn || null;
+  if (!host || !addOn) {
+    if (host) host.hidden = true;
+    return;
+  }
+  byId("shAddonImage").src = addOn.image;
+  byId("shAddonDescription").textContent = addOn.description;
+  byId("shAddonPrice").textContent = `+${rupees(addOn.amountPaise)}`;
+  host.hidden = false;
+}
+
+function selectedAddOn() {
+  return _addOn && byId("shAddonCheck")?.checked ? _addOn : null;
+}
 
 // A step run, or a harmless stand-in when the shared module has not loaded.
 // Presentation only: nothing here may throw into the order path, because a
@@ -321,7 +338,7 @@ function say(message) {
   note.scrollIntoView({ block: "center", behavior: "smooth" });
 }
 
-async function buy(sku) {
+async function buy(sku, product) {
   if (_busy) return;
   _sku = sku;
 
@@ -330,7 +347,20 @@ async function buy(sku) {
     return;
   }
 
-  const address = await window.ptCollectAddress({ guest: true });
+  const addOn = selectedAddOn();
+  _checkedOutAddOn = addOn;
+  const offerPrice = _launchOffer && _launchOffer.productId === sku ? _launchOffer.offerPaise : product?.amountPaise;
+  const address = await window.ptCollectAddress({
+    guest: true,
+    orderSummary: product
+      ? {
+          name: addOn ? `${product.name} + ${addOn.name}` : product.name,
+          amountPaise: offerPrice + (addOn?.amountPaise || 0),
+          mrpPaise: _launchOffer && _launchOffer.productId === sku ? _launchOffer.mrpPaise : null,
+          offerLabel: _launchOffer && _launchOffer.productId === sku ? `${_launchOffer.code} auto-applied` : null
+        }
+      : null
+  });
   if (!address) return;
 
   _busy = true;
@@ -363,7 +393,13 @@ async function buy(sku) {
       headers: { "content-type": "application/json" },
       // A HINT, never a price. The server resolves the code, refuses a
       // self-referral and decides the discount.
-      body: JSON.stringify({ productId: sku, address, ref: referralCode() })
+      body: JSON.stringify({
+        productId: sku,
+        address,
+        ref: referralCode(),
+        promo: _launchOffer && _launchOffer.productId === sku ? _launchOffer.code : undefined,
+        addOnId: addOn?.id
+      })
     });
     order = await res.json();
     if (!res.ok || !order.ok) throw new Error(order && order.error);
@@ -456,7 +492,10 @@ function showDone(done) {
       transaction_id: done.orderNumber,
       value: _paidPaise / 100,
       currency: "INR",
-      items: [{ item_id: _sku, quantity: 1 }]
+      items: [
+        { item_id: _sku, quantity: 1 },
+        ...(_checkedOutAddOn ? [{ item_id: _checkedOutAddOn.id, quantity: 1 }] : [])
+      ]
     });
   }
 }
@@ -483,13 +522,21 @@ function wireCheckout(products) {
 
     if (window.ptTrack) {
       const priced = products && products[sku];
+      const offer = _launchOffer && _launchOffer.productId === sku ? _launchOffer : null;
+      const addOn = selectedAddOn();
+      const valuePaise = priced
+        ? (offer ? offer.offerPaise : priced.amountPaise) + (addOn?.amountPaise || 0)
+        : null;
       ptTrack("begin_checkout", {
         method: "guest",
-        items: [{ item_id: sku, quantity: 1 }],
-        ...(priced ? { value: priced.amountPaise / 100, currency: "INR" } : {})
+        items: [
+          { item_id: sku, quantity: 1 },
+          ...(addOn ? [{ item_id: addOn.id, quantity: 1 }] : [])
+        ],
+        ...(valuePaise !== null ? { value: valuePaise / 100, currency: "INR" } : {})
       });
     }
-    buy(sku);
+    buy(sku, products && products[sku]);
   });
 }
 
@@ -517,7 +564,9 @@ async function load() {
     return;
   }
 
-  renderGrid(payload.products);
+  _launchOffer = payload.launchOffer || null;
+  renderGrid(payload.products, _launchOffer);
+  renderAddOns(payload.addOns);
   wireCheckout(payload.products);
   byId("shYear").textContent = String(new Date().getFullYear());
 

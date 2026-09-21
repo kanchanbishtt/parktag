@@ -400,6 +400,30 @@ body {
 .mb-feat-ic.c5 { color: #DB2777; background: #FDEAF3; }
 .mb-feat-ic.c6 { color: #EA580C; background: #FEEEE2; }
 
+.mb-always { margin-bottom: var(--space-sec); }
+.mb-always-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #BBE8CC;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #F1FBF5, #FFFFFF);
+}
+.mb-always-copy { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 3px; }
+.mb-always-title { color: #03162D; font-size: .92rem; }
+.mb-always-note { color: #527060; font-size: .76rem; line-height: 1.35; }
+.mb-always-free {
+  flex: none;
+  border-radius: 999px;
+  background: #DCFCE7;
+  color: #16713A;
+  padding: 5px 8px;
+  font-size: .61rem;
+  font-weight: 900;
+  letter-spacing: .04em;
+}
+
 /* The breakpoints used to live here, in the middle of the file. They are all
    at the foot of it now — see "Responsive" — because a media block is not more
    specific than a plain rule, so anything it tried to override that happened to

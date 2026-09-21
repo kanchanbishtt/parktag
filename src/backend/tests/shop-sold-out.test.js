@@ -28,12 +28,14 @@ import { SHOP_PRODUCTS } from "../lib/integrations/payments.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SHOP_JS = path.join(HERE, "../../frontend/scripts/shop.js");
+const ADDRESS_STEP_JS = path.join(HERE, "../../frontend/scripts/owner/address-step.js");
 
 // Update this list when stock changes. It exists so that turning a pack back on
 // is a deliberate edit in two places rather than a silent one in the page.
 const SOLD_OUT = ["pt-combo", "pt-bike-1"];
 
 const source = await readFile(SHOP_JS, "utf8");
+const addressSource = await readFile(ADDRESS_STEP_JS, "utf8");
 
 // The `soldOut: true` entries the page actually declares.
 function declaredSoldOut(js) {
@@ -96,5 +98,27 @@ describe("sold-out packs on /shop", () => {
   test("no cash-on-delivery renderer remains", () => {
     assert.doesNotMatch(source, /renderCod/, "the COD renderer is back in shop.js");
     assert.doesNotMatch(source, /codSurchargePaise/, "shop.js reads the COD surcharge again");
+  });
+
+  test("no unsourced customer rating is shown", () => {
+    assert.match(source, /const RATING = null;/, "the shop is showing a rating without a verified source");
+    assert.doesNotMatch(source, /const RATING = \{/, "a hard-coded rating has returned");
+  });
+
+  test("checkout shows the selected pack and price before asking for an address", () => {
+    assert.match(source, /orderSummary:\s*product/);
+    assert.match(source, /name:\s*addOn\s*\?[^:]+:\s*product\.name/);
+    assert.match(source, /amountPaise:\s*offerPrice/);
+    assert.match(addressSource, /id="pt-addr-summary"/);
+    assert.match(addressSource, /No payment is taken on this step/);
+    assert.match(addressSource, /Free delivery/);
+    assert.match(addressSource, /7-day replacement/);
+    assert.match(addressSource, /UPI, cards or net banking/);
+  });
+
+  test("the launch offer and acrylic add-on are sent as identifiers, never client-authored prices", () => {
+    assert.match(source, /promo:\s*_launchOffer/);
+    assert.match(source, /addOnId:\s*addOn\?\.id/);
+    assert.doesNotMatch(source, /addOnAmount/);
   });
 });

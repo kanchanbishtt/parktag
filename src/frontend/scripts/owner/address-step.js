@@ -28,6 +28,7 @@
   var resolver = null; // resolve fn of the in-flight promise
   var savedAddress = null; // last address fetched from the server this open
   var profileName = "";    // owner's profile name, used only to prefill a blank
+  var orderSummary = null; // optional pack and price shown before collecting an address
 
   // Guest mode: the same sheet, on a page where there is no account.
   //
@@ -149,6 +150,20 @@
       "#pt-addr-sheet .pt-addr-sub{margin:0 0 18px;font-size:.86rem;line-height:1.4;color:var(--muted);}",
       ".pt-hide{display:none!important;}",
 
+      // Order context comes before the address fields. A cold visitor should
+      // never have to hand over their full address while wondering which pack
+      // they selected, what it costs, or when payment happens.
+      "#pt-addr-summary{border:1px solid var(--line);border-radius:16px;padding:14px 15px;margin:0 0 16px;background:#fff;}",
+      ".pt-addr-summary-top{display:flex;align-items-start;justify-content:space-between;gap:12px;}",
+      ".pt-addr-summary-label{font-size:.65rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:3px;}",
+      "#pt-addr-summary-name{font-size:.9rem;line-height:1.35;font-weight:800;color:var(--ink);}",
+      "#pt-addr-summary-price{flex:0 0 auto;font-size:1.08rem;font-weight:900;color:var(--navy);}",
+      "#pt-addr-summary-price del{display:block;font-size:.72rem;font-weight:600;color:var(--muted);}",
+      ".pt-addr-summary-offer{display:inline-flex;margin-top:9px;border-radius:999px;background:#E6F6EC;color:#17663A;padding:5px 9px;font-size:.68rem;font-weight:800;}",
+      ".pt-addr-summary-terms{display:flex;flex-wrap:wrap;gap:6px 12px;margin-top:11px;padding-top:10px;border-top:1px dashed var(--line);font-size:.7rem;font-weight:700;color:#4b5563;}",
+      ".pt-addr-summary-terms span:before{content:'✓';color:#0E8A00;font-weight:900;margin-right:5px;}",
+      ".pt-addr-summary-pay{margin:10px 0 0;font-size:.72rem;line-height:1.4;color:var(--muted);}",
+
       // Confirm card
       "#pt-addr-card{position:relative;display:flex;gap:13px;border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:18px;background:var(--card);}",
       "#pt-addr-card .pt-pin{flex:0 0 auto;width:40px;height:40px;border-radius:12px;background:var(--tint);color:var(--r);display:flex;align-items:center;justify-content:center;}",
@@ -255,6 +270,11 @@
       '<span class="pt-addr-eyebrow" id="pt-addr-eyebrow">' + IC.pin + '<span>Delivery</span></span>' +
       '<h3 id="pt-addr-title">Delivery address</h3>' +
       '<p class="pt-addr-sub" id="pt-addr-sub">Where should we ship your official ParkTag sticker?</p>' +
+      '<div id="pt-addr-summary" class="pt-hide" aria-label="Order summary">' +
+      '<div class="pt-addr-summary-top"><div><div class="pt-addr-summary-label">Your order</div><div id="pt-addr-summary-name"></div></div><div id="pt-addr-summary-price"></div></div>' +
+      '<div class="pt-addr-summary-terms"><span>Free delivery</span><span>1 year Premium</span><span>7-day replacement</span></div>' +
+      '<p class="pt-addr-summary-pay">No payment is taken on this step. Continue to pay securely using UPI, cards or net banking.</p>' +
+      '</div>' +
 
       // ── Confirm view (returning buyer) ──
       '<div id="pt-addr-confirm" class="pt-hide">' +
@@ -291,6 +311,9 @@
       sheet: ov.querySelector("#pt-addr-sheet"),
       title: ov.querySelector("#pt-addr-title"),
       sub: ov.querySelector("#pt-addr-sub"),
+      summary: ov.querySelector("#pt-addr-summary"),
+      summaryName: ov.querySelector("#pt-addr-summary-name"),
+      summaryPrice: ov.querySelector("#pt-addr-summary-price"),
       confirm: ov.querySelector("#pt-addr-confirm"),
       form: ov.querySelector("#pt-addr-form"),
       cardName: ov.querySelector("#pt-addr-card .pt-name"),
@@ -334,6 +357,36 @@
   function clearErr() {
     els.err.textContent = "";
     els.err.classList.remove("pt-show");
+  }
+
+  function showOrderSummary(summary) {
+    if (!els || !els.summary) return;
+    var name = summary && typeof summary.name === "string" ? summary.name.trim() : "";
+    var amountPaise = summary && Number(summary.amountPaise);
+    if (!name || !Number.isFinite(amountPaise) || amountPaise <= 0) {
+      els.summary.classList.add("pt-hide");
+      els.summaryName.textContent = "";
+      els.summaryPrice.textContent = "";
+      return;
+    }
+    els.summaryName.textContent = name;
+    els.summaryPrice.textContent = "";
+    var mrpPaise = Number(summary.mrpPaise);
+    if (Number.isFinite(mrpPaise) && mrpPaise > amountPaise) {
+      var was = document.createElement("del");
+      was.textContent = "MRP ₹" + Math.round(mrpPaise / 100).toLocaleString("en-IN");
+      els.summaryPrice.appendChild(was);
+    }
+    els.summaryPrice.appendChild(document.createTextNode("₹" + Math.round(amountPaise / 100).toLocaleString("en-IN")));
+    var oldOffer = els.summary.querySelector(".pt-addr-summary-offer");
+    if (oldOffer) oldOffer.remove();
+    if (summary.offerLabel) {
+      var offer = document.createElement("span");
+      offer.className = "pt-addr-summary-offer";
+      offer.textContent = summary.offerLabel;
+      els.summary.appendChild(offer);
+    }
+    els.summary.classList.remove("pt-hide");
   }
 
   function validate(v) {
@@ -523,7 +576,9 @@
   // storefront, which has no profile to save it to.
   window.ptCollectAddress = function (options) {
     guestMode = !!(options && options.guest);
+    orderSummary = options && options.orderSummary ? options.orderSummary : null;
     if (!els) build();
+    showOrderSummary(orderSummary);
     return new Promise(function (resolve) {
       // If a sheet is somehow already open, cancel the previous waiter.
       if (resolver) resolver(false);

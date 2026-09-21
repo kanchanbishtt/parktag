@@ -13,6 +13,20 @@ Rules:
 
 ## Milestones
 
+### Paid acquisition conversion repair
+- [x] Verify the production app serves configured GA4 and Meta Pixel tracking.
+- [x] Verify production has Meta Conversions API and Razorpay webhook secrets configured.
+- [x] Make the hero's ₹499 offer explicit as the two-tag Duo Pack.
+- [x] Deep-link Solo and Duo pricing actions to the matching shop packs.
+- [x] Remove the storefront's unsourced 4.8 rating until real review data exists.
+- [x] Add the selected pack, price, delivery, replacement and payment reassurance before the guest address form.
+- [x] Add the admin-controlled LAUNCH100 offer, auto-apply it to the Duo Pack, and show MRP ₹499 / offer ₹399 consistently.
+- [x] Separate lifetime WhatsApp scan notifications from paid Premium features across the landing site and membership screen.
+- [x] Add the optional, admin-priced Clear Dashboard Plate checkout add-on using real product photos.
+- [x] Add transparent included-vs-Premium comparison and FAQ copy without publishing an unverified competitor trial length.
+- [ ] Deploy the landing and app storefront changes, then verify the live funnel.
+- [ ] Change Meta optimisation from View Content to Purchase after explicit publish confirmation.
+
 ### Dashboard load regression after premium ownership fix
 - [x] Reproduce successful dashboard responses being replaced by an error because `localOnly` was undefined.
 - [x] Restore pending-vehicle migration selection and verify complete load/card rendering with 2 and 11 premium tags, with and without pending vehicles (7 tests pass).

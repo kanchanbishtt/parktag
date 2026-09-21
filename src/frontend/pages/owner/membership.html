@@ -37,7 +37,7 @@
       </span>
       Membership
     </h1>
-    <p class="mb-sub">Become a member, you would love it.</p>
+    <p class="mb-sub">Premium tools when you need them. Core scan alerts stay included.</p>
 
     <!-- The length comes from the server constant, never typed here: the
          dashboard once carried a hardcoded "45 days" that stayed wrong for a
@@ -45,7 +45,7 @@
 
          The number carries the offer. Leading with an icon here was decorating
          the trial instead of stating it: nobody skims past the length. -->
-    <section class="mb-trial" aria-label="Free trial">
+    <section class="mb-trial" aria-label="Premium included with your tag">
       <span class="mb-trial-num">
         <span id="mbTrialDays" class="mb-trial-days mb-sk mb-sk-days">&nbsp;</span>
         <!-- Filled from the server alongside the numeral. It was the literal
@@ -55,15 +55,20 @@
       </span>
       <div class="mb-trial-bd">
         <p class="mb-trial-t">
-          Free trial
+          Premium included
           <!-- Held back until the number beside it is known. A FREE badge next
                to a blank shimmer reads as a broken offer. -->
-          <span class="mb-trial-tag" id="mbTrialTag" hidden>FREE</span>
+          <span class="mb-trial-tag" id="mbTrialTag" hidden>INCLUDED</span>
         </p>
         <p class="mb-trial-s"><span id="mbTrialNote" class="mb-sk mb-sk-note">&nbsp;</span></p>
       </div>
     </section>
   </section>
+
+  <h2 class="mb-h">Always Included</h2>
+  <div class="mb-always" id="mbAlways" aria-busy="true">
+    <div class="mb-sk mb-sk-feat" aria-hidden="true"></div>
+  </div>
 
   <h2 class="mb-h">Choose Your Plan</h2>
   <div class="mb-plans" id="mbPlans" role="radiogroup" aria-label="Membership plans" aria-busy="true">
@@ -73,11 +78,11 @@
   </div>
 
   <h2 class="mb-h">Premium Features</h2>
-  <!-- Ten, because ten is what the default tag type shows. A skeleton of the
+  <!-- Eight, because WhatsApp is an always-included ParkTag benefit and the
+       included year is explained above rather than sold again as a feature.
+       A skeleton of the
        wrong length is still a layout shift, just an earlier one. -->
   <div class="mb-feats" id="mbFeats" aria-busy="true">
-    <div class="mb-sk mb-sk-feat" aria-hidden="true"></div>
-    <div class="mb-sk mb-sk-feat" aria-hidden="true"></div>
     <div class="mb-sk mb-sk-feat" aria-hidden="true"></div>
     <div class="mb-sk mb-sk-feat" aria-hidden="true"></div>
     <div class="mb-sk mb-sk-feat" aria-hidden="true"></div>
@@ -96,7 +101,7 @@
 <div class="mb-cta-bar">
   <button class="mb-cta" id="mbCta" type="button" disabled>
     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M13 2 4.5 13H11l-1 9 8.5-11H12l1-9z" fill="currentColor"/></svg>
-    <span id="mbCtaText">Go Pro</span>
+    <span id="mbCtaText">Choose Premium</span>
   </button>
 </div>
 
@@ -123,7 +128,7 @@
     <p class="mb-done-ord" id="mbDoneOrd" hidden></p>
 
     <ul class="mb-done-benes" id="mbDoneBenes">
-      <li><span class="mb-done-bico" aria-hidden="true"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="m5 12.5 4.5 4.5L19 7.5" stroke="#16A34A" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Unlimited masked calls &amp; WhatsApp</li>
+      <li><span class="mb-done-bico" aria-hidden="true"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="m5 12.5 4.5 4.5L19 7.5" stroke="#16A34A" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Unlimited masked calls</li>
       <li><span class="mb-done-bico" aria-hidden="true"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="m5 12.5 4.5 4.5L19 7.5" stroke="#16A34A" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>PIN-locked document vault</li>
       <li><span class="mb-done-bico" aria-hidden="true"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="m5 12.5 4.5 4.5L19 7.5" stroke="#16A34A" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Emergency SOS contact</li>
     </ul>

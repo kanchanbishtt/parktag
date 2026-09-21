@@ -11,6 +11,7 @@ import { WhatIsParkTag } from "./components/WhatIsParkTag";
 import { TrustStrip } from "./components/TrustStrip";
 import { HowItWorksSteps } from "./components/HowItWorksSteps";
 import { WhyBetter } from "./components/WhyBetter";
+import { DuoOfferButtonLabel, DuoOfferDetails, DuoOfferPrice, HeroOfferLabel, LaunchOfferBanner } from "./components/LaunchOffer";
 
 // Buy buttons point at /shop, which is the public storefront: packs, prices
 // and a guest checkout, no login. It used to be an intent route that sent a
@@ -182,8 +183,9 @@ export default function Home() {
   return (
     <>
       <SiteHeader />
+      <div className="pt-16"><LaunchOfferBanner shopUrl={`${APP_URL}/shop`} /></div>
 
-      <main className="flex-1 pt-16">
+      <main className="flex-1">
 
         {/* ── HERO ── */}
         {/* pb-0 only once the grid is side by side. Stacked, the sticker is the
@@ -244,14 +246,15 @@ export default function Home() {
                     </li>
                   ))}
                 </ul>
-                {/* One button, and it names the price. "Get Started" pointed at
+                {/* One button, and it names the pack and price. "Get Started" pointed at
                     a login screen, which is the wrong first destination for
                     someone who has never heard of the product, and is why this
-                    now goes to the shop. Naming ₹499 on the button also filters:
-                    anyone who clicks has already accepted the price. */}
+                    now goes to the shop. Naming the Duo Pack prevents the ₹499
+                    hero offer from looking inconsistent with the ₹299 Solo
+                    option shown later on the same page. */}
                 <div className="flex flex-wrap items-center gap-x-7 gap-y-3">
                   <GetStartedButton
-                    href={`${APP_URL}/shop`}
+                    href={`${APP_URL}/shop?sku=pt-car-2`}
                     // Brand guideline, components/actions/Button.jsx primary:
                     // background var(--accent) #FF2700, hover var(--accent-hover)
                     // #D92200, white text, var(--radius-button) which resolves
@@ -261,7 +264,7 @@ export default function Home() {
                     // "Brand red — the single accent. Signal, never decoration."
                     className="inline-flex items-center gap-2 bg-[#FF2700] hover:bg-[#D92200] text-white font-bold px-8 py-4 rounded-[14px] text-base transition-all shadow-[0_4px_16px_rgba(255,39,0,0.35)] hover:shadow-[0_6px_20px_rgba(255,39,0,0.45)]"
                   >
-                    Buy now · ₹499
+                    <HeroOfferLabel />
                     <span aria-hidden="true">→</span>
                   </GetStartedButton>
                   <a
@@ -481,6 +484,73 @@ export default function Home() {
 
         <HazardStripe />
 
+        {/* ── DASHBOARD PLATE ADD-ON ── */}
+        <section className="bg-gray-50 py-20 sm:py-28">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 grid md:grid-cols-2 gap-10 items-center">
+            <AnimateIn from="left">
+              <div className="grid grid-cols-2 gap-3">
+                <img
+                  src="/acrylic-dashboard-plate-real.jpg"
+                  alt="Actual clear laser-cut acrylic sheet with a ParkTag held in hand"
+                  width={1200}
+                  height={1600}
+                  className="col-span-2 w-full max-h-[520px] object-cover rounded-2xl border border-gray-200 shadow-xl"
+                />
+                <img
+                  src="/acrylic-dashboard-plate-detail.jpg"
+                  alt="Close view of the ParkTag applied to the clear acrylic sheet"
+                  width={759}
+                  height={1434}
+                  className="col-span-2 w-full max-h-44 object-cover object-center rounded-xl border border-gray-200"
+                />
+              </div>
+            </AnimateIn>
+            <AnimateIn from="right" delay={100}>
+              <p className="mb-4"><SectionLabel>Optional Add-on</SectionLabel></p>
+              <h2 className="text-3xl sm:text-4xl font-extrabold text-[#03162D] tracking-tight mb-4">
+                Prefer not to stick it on the glass?
+              </h2>
+              <p className="text-[#495B7B] leading-relaxed mb-6">
+                Add the clear laser-cut sheet, apply the ParkTag to it, and place it on your dashboard instead. Your tag stays visible without being stuck directly to the car.
+              </p>
+              <ul className="space-y-3 text-sm text-[#495B7B] mb-7">
+                <li>✓ Optional and never added automatically</li>
+                <li>✓ Sized for the ParkTag sticker</li>
+                <li>✓ Price and availability shown in the shop</li>
+              </ul>
+              <a href={`${APP_URL}/shop?sku=pt-car-2`} className="inline-flex rounded-xl bg-[#03162D] px-6 py-3 font-bold text-white hover:bg-[#0B294B] transition-colors">
+                View pack and add-ons →
+              </a>
+            </AnimateIn>
+          </div>
+        </section>
+
+        {/* ── WHAT IS INCLUDED ── */}
+        <section className="bg-white py-20 sm:py-28">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6">
+            <AnimateIn>
+              <p className="mb-4"><SectionLabel>Clear by design</SectionLabel></p>
+              <h2 className="text-3xl sm:text-4xl font-extrabold text-[#03162D] tracking-tight mb-4">Know what stays free and what is Premium.</h2>
+              <p className="text-[#495B7B] mb-10 max-w-2xl">No vague bundle language. Every active ParkTag keeps WhatsApp scan notifications. Premium tools are included for the first year and can be extended later.</p>
+            </AnimateIn>
+            <div className="grid md:grid-cols-3 gap-4">
+              {[
+                ["Always included", "WhatsApp scan notifications", "Lifetime free while your ParkTag is active"],
+                ["Included for 1 year", "Premium tools", "Masked calling, callback, location details, document vault and SOS"],
+                ["A basic phone sticker", "Shows your number", "ParkTag keeps your personal number hidden from scanners"],
+              ].map(([label, title, copy], index) => (
+                <AnimateIn key={label} delay={index * 70}>
+                  <div className="h-full rounded-2xl border border-gray-200 p-6">
+                    <div className="text-xs font-extrabold uppercase tracking-widest text-[#FF2700] mb-3">{label}</div>
+                    <h3 className="font-extrabold text-[#03162D] text-lg mb-2">{title}</h3>
+                    <p className="text-sm leading-relaxed text-[#495B7B]">{copy}</p>
+                  </div>
+                </AnimateIn>
+              ))}
+            </div>
+          </div>
+        </section>
+
         {/* ── PRICING ── */}
         <section id="pricing" className="bg-white py-20 sm:py-28">
           <div className="max-w-5xl mx-auto px-4 sm:px-6">
@@ -488,7 +558,7 @@ export default function Home() {
             <AnimateIn>
               <p className="mb-3"><SectionLabel>Pricing</SectionLabel></p>
               <h2 className="text-3xl sm:text-4xl font-extrabold text-[#03162D] mb-2 tracking-tight">Buy your ParkTag</h2>
-              <p className="text-[#495B7B] mb-12">Every premium tag includes a 1-year subscription. Shipped across India.</p>
+              <p className="text-[#495B7B] mb-12">One-time tag purchase. One year of Premium included. WhatsApp scan notifications stay free for the life of your active ParkTag.</p>
             </AnimateIn>
 
             <div className="grid sm:grid-cols-2 gap-5 mb-5">
@@ -513,9 +583,9 @@ export default function Home() {
                   <ul className="space-y-3 mb-10 flex-1">
                     {[
                       "1 waterproof QR tag, delivered to your door",
-                      "1-year subscription included",
-                      "Instant alert every time your tag is scanned",
-                      "Anonymous call + WhatsApp routing",
+                      "1 year of Premium included",
+                      "Lifetime WhatsApp scan notifications",
+                      "Masked calling during the included Premium year",
                       "Owner dashboard: toggle tag on / off",
                     ].map((f) => (
                       <li key={f} className="flex items-start gap-3 text-sm text-[#495B7B]">
@@ -528,7 +598,7 @@ export default function Home() {
                     ))}
                   </ul>
 
-                  <a href={`${APP_URL}/shop`} className="block text-center border-2 border-[#FF2700] text-[#FF2700] font-bold py-3 rounded-xl hover:bg-[#FF2700] hover:text-white transition-colors text-sm">
+                  <a href={`${APP_URL}/shop?sku=pt-car-1`} className="block text-center border-2 border-[#FF2700] text-[#FF2700] font-bold py-3 rounded-xl hover:bg-[#FF2700] hover:text-white transition-colors text-sm">
                     Get Solo Tag
                   </a>
                 </div>
@@ -546,17 +616,18 @@ export default function Home() {
 
                   <div className="text-xs font-bold tracking-widest uppercase text-white/40 mb-5">Duo Pack</div>
                   <div className="flex items-end gap-2 mb-1">
-                    <span className="text-5xl font-extrabold text-white tracking-tight leading-none">₹499</span>
+                    <DuoOfferPrice />
                     <span className="text-sm text-white/40 mb-1">1 year included</span>
                   </div>
-                  <div className="text-xs text-white/40 mb-8">1 car · front &amp; back · ₹249.50 per tag · saves ₹99</div>
+                  <div className="text-xs text-white/40 mb-8"><DuoOfferDetails /></div>
 
                   <ul className="space-y-3 mb-10 flex-1">
                     {[
                       "2 waterproof QR tags, shipped together",
                       "Everything in Solo, front and back of your car",
                       "₹99 cheaper than buying two Solo tags",
-                      "1-year subscription included",
+                      "1 year of Premium included",
+                      "Lifetime WhatsApp scan notifications",
                       "Priority support",
                     ].map((f) => (
                       <li key={f} className="flex items-start gap-3 text-sm text-white/60">
@@ -569,8 +640,8 @@ export default function Home() {
                     ))}
                   </ul>
 
-                  <a href={`${APP_URL}/shop`} className="block text-center bg-[#FF2700] hover:bg-[var(--red-hover)] text-white font-bold py-3 rounded-xl transition-colors text-sm">
-                    Get Duo Pack
+                  <a href={`${APP_URL}/shop?sku=pt-car-2`} className="block text-center bg-[#FF2700] hover:bg-[var(--red-hover)] text-white font-bold py-3 rounded-xl transition-colors text-sm">
+                    <DuoOfferButtonLabel />
                   </a>
                   {/* Duo Pack only — it is the same pack of 2 the Amazon
                       listing sells. Deliberately no longer claiming the two are
@@ -660,7 +731,7 @@ export default function Home() {
                 </a>
                 <BuyOnAmazonButton className="inline-flex items-center gap-1.5 text-base text-white/60 hover:text-white underline underline-offset-4 decoration-white/25 hover:decoration-white transition-colors" />
               </div>
-              <p className="text-white/25 text-sm mt-4">Starting at ₹299 · Ships across India · 1-year subscription included</p>
+              <p className="text-white/25 text-sm mt-4">Starting at ₹299 · Ships across India · 1 year of Premium included · WhatsApp alerts stay free</p>
             </AnimateIn>
           </div>
         </section>

@@ -135,6 +135,22 @@ function renderFeatures() {
   });
 }
 
+function renderAlwaysIncluded() {
+  const host = byId("mbAlways");
+  fill(host, "mb-in-1");
+
+  for (const feature of data.alwaysIncluded || []) {
+    const tile = el("div", "mb-always-card");
+    const icon = el("span", "mb-feat-ic c5");
+    icon.innerHTML = svg(ICONS[feature.icon] || ICONS.dot);
+    const copy = el("span", "mb-always-copy");
+    copy.append(el("strong", "mb-always-title", feature.label));
+    if (feature.note) copy.append(el("span", "mb-always-note", feature.note));
+    tile.append(icon, copy, el("span", "mb-always-free", "LIFETIME FREE"));
+    host.append(tile);
+  }
+}
+
 // ── Action ─────────────────────────────────────────────────────────────────
 
 // A bold lead line and the explanation under it. replaceChildren with real
@@ -196,7 +212,9 @@ function renderCta() {
   const plan = data.plans.find((p) => p.id === selectedPlan);
   const cta = byId("mbCta");
 
-  byId("mbCtaText").textContent = plan ? `Go Pro, ₹${plan.priceInr}` : "Go Pro";
+  const covered = Boolean(data.subscription && data.subscription.active);
+  const action = covered ? "Extend Premium" : "Choose Premium";
+  byId("mbCtaText").textContent = plan ? `${action}, ₹${plan.priceInr}` : action;
 
   // The flag comes from the server, so an environment with no Razorpay
   // configured shows the page and says why rather than opening a sheet that
@@ -425,7 +443,7 @@ async function load() {
     // Clear the skeleton on the way out. A shimmer that never resolves is a
     // page that looks like it is still loading forever, which is worse than an
     // error — nobody knows to retry.
-    for (const id of ["mbPlans", "mbFeats"]) fill(byId(id), null);
+    for (const id of ["mbPlans", "mbAlways", "mbFeats"]) fill(byId(id), null);
 
     // The banner goes entirely, rather than being emptied. Its whole content is
     // the trial length, and that is exactly what could not be fetched — an
@@ -476,6 +494,7 @@ async function load() {
   document.querySelector(".mb-trial").classList.add("mb-in");
 
   renderPlans();
+  renderAlwaysIncluded();
   renderFeatures();
   renderCta();
   // Wired here, not in the markup: /owner-membership refuses inline handlers

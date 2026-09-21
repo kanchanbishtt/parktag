@@ -15,13 +15,13 @@ import { SectionLabel } from "./SectionLabel";
 // "needs an app" cannot be checked from here. Swap in the name and the specific
 // numbers once there is a screenshot of their listing to stand behind.
 const ROWS: [string, string, string][] = [
-  ["App needed to scan", "Never", "Often required"],
-  ["Call + WhatsApp on the tag", "Printed on it", "QR code only"],
-  ["WhatsApp messaging", "Always free", "Limited or paid"],
-  ["Premium included", "1 full year", "Short trial"],
-  ["Your number shown", "Never", "Varies"],
-  ["Material", "Weatherproof vinyl", "Paper or laminate"],
-  ["In the pack", "2 tags · ₹499", "Usually one"],
+  ["App needed to scan", "Never", "Check the provider"],
+  ["Call + WhatsApp on the tag", "Printed on it", "Check the design"],
+  ["WhatsApp scan notifications", "Lifetime free", "Check the plan"],
+  ["Premium included", "1 full year", "Check the plan"],
+  ["Your number shown", "Never", "Check the setup"],
+  ["Material", "Weatherproof vinyl", "Check the material"],
+  ["In the pack", "2 tags · ₹499 MRP", "Check the pack"],
 ];
 
 export function WhyBetter() {

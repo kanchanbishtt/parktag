@@ -307,7 +307,7 @@ export async function sendMembershipConfirmationEmail(env, { to, name, planLabel
           <img src="${appBase(env)}/images/light-logo.png" alt="ParkTag" width="118" style="display:inline-block;height:30px;width:auto;border:0" />
         </div>
         <h2 style="color:#111;margin-bottom:8px">Hi ${safeName}, your membership is active</h2>
-        <p style="color:#555;line-height:1.6">Premium features are switched on for your tag: masked calls, scanner location, the document vault and WhatsApp alerts.</p>
+        <p style="color:#555;line-height:1.6">Premium features are switched on for your tag: masked calls, scanner location and the document vault. WhatsApp scan alerts remain included with every active ParkTag.</p>
         <div style="background:#ECFDF5;border:1px solid #A7F3D0;border-radius:12px;padding:16px;margin:16px 0">
           <p style="margin:0 0 6px;color:#065F46"><strong>Plan:</strong> ${safePlan}</p>
           <p style="margin:0;color:#065F46"><strong>Active until:</strong> ${safeEnds}</p>

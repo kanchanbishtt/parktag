@@ -51,6 +51,11 @@ export const FLASH_DISCOUNT_PAISE = 5000;
 // back exactly on the catalog price (e.g. catalog ₹499 → COD ₹549 → online ₹499).
 const COD_SURCHARGE_PAISE = FLASH_DISCOUNT_PAISE;
 
+// This public offer is an ordinary promo-code row. Revoking LAUNCH100 in the
+// admin dashboard removes the advertised price and stops checkout applying it.
+const PUBLIC_LAUNCH_PROMO_CODE = "LAUNCH100";
+const PUBLIC_LAUNCH_PRODUCT_ID = "pt-car-2";
+
 // Ceiling on how many unpaid COD orders one ACCOUNT can have open in a rolling
 // window. COD takes no money up front and books a real courier shipment, so
 // every order is cost ParkTag carries whether or not the parcel is ever
@@ -373,7 +378,46 @@ export function registerShopRoutes(app, env) {
         products[id] = { name: product.name, amountPaise: Math.round(product.amount * 100) };
       }
 
-      return { ok: true, products, codSurchargePaise: COD_SURCHARGE_PAISE };
+      // Prices must remain available even if Mongo has a short outage. The
+      // dynamic offer and add-on fail closed in that case.
+      let launchOffer = null;
+      let addOns = [];
+      try {
+        const collections = await getCollections(env);
+        if (collections) {
+          const product = getShopProduct(PUBLIC_LAUNCH_PRODUCT_ID);
+          const promo = await resolvePromo(collections, PUBLIC_LAUNCH_PROMO_CODE, {
+            productId: PUBLIC_LAUNCH_PRODUCT_ID,
+            quantity: 1
+          });
+          if (product && promo.ok && promo.discountPaise > 0) {
+            const mrpPaise = Math.round(product.amount * 100);
+            launchOffer = {
+              code: promo.code,
+              productId: PUBLIC_LAUNCH_PRODUCT_ID,
+              mrpPaise,
+              discountPaise: promo.discountPaise,
+              offerPaise: Math.max(0, mrpPaise - promo.discountPaise)
+            };
+          }
+
+          const settings = await collections.storeSettings.findOne({ _id: "public-shop" });
+          const plate = settings?.dashboardPlate;
+          if (plate?.enabled === true && Number(plate.pricePaise) >= 100) {
+            addOns = [{
+              id: "dashboard-plate",
+              name: "Clear Dashboard Plate",
+              description: "Apply your ParkTag to this clear laser-cut sheet and place it on the dashboard instead of sticking the tag directly on the car.",
+              amountPaise: Math.round(Number(plate.pricePaise)),
+              image: "/images/acrylic-dashboard-plate-real.jpg"
+            }];
+          }
+        }
+      } catch (err) {
+        app.log.warn({ err }, "Could not load dynamic public-shop settings");
+      }
+
+      return { ok: true, products, launchOffer, addOns, codSurchargePaise: COD_SURCHARGE_PAISE };
     }
   );
 
@@ -410,7 +454,8 @@ export function registerShopRoutes(app, env) {
         ref: rawRef,
         // Only /direct sends this. A CODE, never an amount.
         promo: rawPromo,
-        quantity: rawQuantity
+        quantity: rawQuantity,
+        addOnId: rawAddOnId
       } = request.body || {};
 
       // Checked before anything else costs a network round trip (reCAPTCHA,
@@ -486,6 +531,25 @@ export function registerShopRoutes(app, env) {
       const collections = await getCollections(env);
       if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
 
+      let addOn = null;
+      if (rawAddOnId !== undefined && rawAddOnId !== null) {
+        if (rawAddOnId !== "dashboard-plate") {
+          reply.code(400);
+          return { ok: false, error: "Unknown add-on." };
+        }
+        const settings = await collections.storeSettings.findOne({ _id: "public-shop" });
+        const plate = settings?.dashboardPlate;
+        if (plate?.enabled !== true || Number(plate.pricePaise) < 100) {
+          reply.code(409);
+          return { ok: false, error: "The dashboard plate is currently out of stock." };
+        }
+        addOn = {
+          id: "dashboard-plate",
+          name: "Clear Dashboard Plate",
+          amountPaise: Math.round(Number(plate.pricePaise))
+        };
+      }
+
       // Resolved BEFORE the address is validated, because a handover code is
       // what decides whether an address is required at all. The phone is read
       // off the raw body for this one purpose; everything the order actually
@@ -530,7 +594,7 @@ export function registerShopRoutes(app, env) {
       });
       const referredBy = referral.ok ? referral.referrerId : null;
 
-      const catalogPaise = Math.round(product.amount * 100) * quantity;
+      const catalogPaise = Math.round(product.amount * 100) * quantity + (addOn?.amountPaise || 0);
       const promoDiscountPaise = promo.ok ? promo.discountPaise : 0;
       const shippingFeePaise = promo.ok ? promo.shippingFeePaise : 0;
       const expectedPaise = expectedOrderPaise(
@@ -553,6 +617,7 @@ export function registerShopRoutes(app, env) {
           productId,
           variant,
           quantity: reuseQuantityFilter(quantity),
+          addOnId: addOn?.id || null,
           promoCode: promo.ok ? promo.code : null,
           amount: expectedPaise
         },
@@ -588,7 +653,13 @@ export function registerShopRoutes(app, env) {
           // referral discount if and only if resolveReferral approved one.
           amount: expectedPaise / 100,
           receipt: `ptg_${productId}_${Date.now()}`,
-          notes: { productId, productName: product.name, guest: "1", ...addressToNotes(shipping) }
+          notes: {
+            productId,
+            productName: addOn ? `${product.name} + ${addOn.name}` : product.name,
+            addOnId: addOn?.id || "",
+            guest: "1",
+            ...addressToNotes(shipping)
+          }
         });
 
         const orderNumber = await generateOrderNumber(collections);
@@ -603,7 +674,9 @@ export function registerShopRoutes(app, env) {
           ownerId: null,
           guest: true,
           productId,
-          productName: product.name,
+          productName: addOn ? `${product.name} + ${addOn.name}` : product.name,
+          addOnId: addOn?.id || null,
+          addOns: addOn ? [addOn] : [],
           variant,
           quantity,
           amount: order.amount,

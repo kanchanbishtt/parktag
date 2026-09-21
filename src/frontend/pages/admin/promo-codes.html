@@ -29,6 +29,15 @@
     .msg.err { background: #FDECEA; border: 1px solid #F5C2C0; color: #8A1F1A; display: block; }
     .msg.ok { background: #E6F6EC; border: 1px solid #B7E0C6; color: #17663A; display: block; }
     .empty { background: #fff; border: 1px dashed #CFCFCC; border-radius: 12px; padding: 26px; text-align: center; color: #667; font-size: .9rem; }
+    .store-card { display: grid; grid-template-columns: 120px 1fr; gap: 16px; align-items: center; margin-bottom: 16px; padding: 14px; background: #fff; border: 1px solid #E3E3E1; border-radius: 14px; }
+    .store-card img { width: 120px; aspect-ratio: 4/3; object-fit: cover; border-radius: 10px; }
+    .store-title { margin: 0 0 4px; font-size: 1rem; }
+    .store-sub { margin: 0 0 12px; color: #667; font-size: .82rem; line-height: 1.4; }
+    .store-controls { display: flex; align-items: end; gap: 10px; flex-wrap: wrap; }
+    .store-controls label { display: flex; flex-direction: column; gap: 5px; color: #5A5A57; font-size: .72rem; font-weight: 700; text-transform: uppercase; }
+    .store-controls input[type="number"] { width: 130px; padding: 9px 10px; border: 1px solid #D6D6D3; border-radius: 8px; font: inherit; }
+    .store-stock { flex-direction: row !important; align-items: center; min-height: 38px; }
+    .store-save { min-height: 38px; padding: 0 15px; border: 0; border-radius: 8px; background: #03162D; color: #fff; font-weight: 700; cursor: pointer; }
 
     /* Table, the same card-with-overflow shape the other list pages (Tags)
        already use -- codes and discount figures are naturally tabular, unlike
@@ -75,7 +84,7 @@
     .sheet label { display: block; font-size: .8rem; font-weight: 700; text-transform: uppercase;
                    letter-spacing: .04em; color: #5A5A57; margin-bottom: 6px; }
     .sheet label.spaced { margin-top: 16px; }
-    .sheet input[type="text"], .sheet input[type="number"], .sheet select {
+    .sheet input[type="text"], .sheet input[type="number"], .sheet input[type="datetime-local"], .sheet select {
       width: 100%; padding: 12px 14px; font-size: 1rem; font-family: inherit;
       border: 1px solid #D6D6D3; border-radius: 10px; background: #fff; color: #03162D;
     }
@@ -103,6 +112,7 @@
       .sheet-body { padding: 16px; }
       .sheet-actions { flex-wrap: wrap; }
     }
+    @media (max-width: 520px) { .store-card { grid-template-columns: 1fr; } .store-card img { width: 100%; } }
 
     /* Narrow screens: stack each row into a labelled card, the same treatment
        the Tags table already uses once it stops fitting one line. */
@@ -138,6 +148,19 @@
     </div>
 
     <div id="msg" class="msg"></div>
+
+    <section class="store-card" aria-labelledby="plate-title">
+      <img src="/images/acrylic-dashboard-plate-real.jpg" alt="Actual clear acrylic dashboard sheet with a ParkTag" />
+      <div>
+        <h2 class="store-title" id="plate-title">Clear Dashboard Plate add-on</h2>
+        <p class="store-sub">Set the live price and switch availability on only while plates are in stock. It is never preselected for buyers.</p>
+        <div class="store-controls">
+          <label>Price (₹)<input id="plate-price" type="number" inputmode="decimal" min="1" step="1" placeholder="Enter price" /></label>
+          <label class="store-stock"><input id="plate-enabled" type="checkbox" /> In stock and visible</label>
+          <button id="plate-save" class="store-save" type="button">Save add-on</button>
+        </div>
+      </div>
+    </section>
 
     <div class="card">
       <table>
@@ -197,6 +220,12 @@
       <label for="add-products" class="spaced">Packs this code applies to (optional)</label>
       <input id="add-products" type="text" placeholder="pt-car-1, pt-car-2" autocomplete="off" />
       <p class="hint">Comma-separated pack ids. Leave blank for every pack.</p>
+
+      <label for="add-max-uses" class="spaced">Maximum uses (optional)</label>
+      <input id="add-max-uses" type="number" inputmode="numeric" min="1" step="1" placeholder="Leave blank for unlimited" />
+
+      <label for="add-expires" class="spaced">Expires at (optional)</label>
+      <input id="add-expires" type="datetime-local" />
 
       <p id="add-msg" class="sheet-msg"></p>
 

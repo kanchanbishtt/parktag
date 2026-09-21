@@ -75,6 +75,9 @@ export async function getCollections(env) {
     // the CODE and the server looks the money up here, which is the same rule
     // referrals are built on. See lib/core/promo-codes.js.
     promoCodes: db.collection(withPrefix(prefix, "promo_codes")),
+    // Public shop controls that change without a deploy. One document holds
+    // the dashboard-plate price and whether stock is available.
+    storeSettings: db.collection(withPrefix(prefix, "store_settings")),
     // One row per Delhivery pickup, claimed BEFORE the request goes out.
     //
     // A pickup covers a warehouse for a whole day, not a parcel, so this is

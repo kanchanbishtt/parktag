@@ -116,12 +116,24 @@ export function membershipFeatures() {
     { id: "unlimited-calls", icon: "phone", label: "Unlimited masked calls" },
     { id: "callback", icon: "callback", label: "Call back missed callers" },
     { id: "geo", icon: "pin", label: "Scanner geo location & IP" },
-    { id: "whatsapp", icon: "whatsapp", label: "WhatsApp notifications" },
     { id: "documents", icon: "folder", label: `Store ${DOCS_PER_SUBSCRIBED_TAG} vehicle documents` },
     { id: "vault", icon: "lock", label: "PIN-locked document vault" },
     { id: "sos", icon: "alert", label: "Emergency SOS contact" },
-    { id: "multi-vehicle", icon: "car", label: "Add unlimited vehicles" },
-    { id: "trial", icon: "gift", label: `${PREMIUM_TRIAL_LABEL} free on activation` }
+    { id: "multi-vehicle", icon: "car", label: "Add unlimited vehicles" }
+  ];
+}
+
+// Benefits that do not depend on a paid membership. Keeping these separate is
+// important: WhatsApp scan alerts are part of the active ParkTag itself, not a
+// benefit that disappears when Premium cover ends.
+export function alwaysIncludedFeatures() {
+  return [
+    {
+      id: "whatsapp",
+      icon: "whatsapp",
+      label: "WhatsApp scan notifications",
+      note: "Included for the life of your active ParkTag"
+    }
   ];
 }
 
@@ -135,10 +147,10 @@ export function membershipTrial() {
     // for prose. Both come from the same derivation so they cannot disagree.
     value: PREMIUM_TRIAL_DISPLAY.value,
     unit: PREMIUM_TRIAL_DISPLAY.unit,
-    headline: PREMIUM_TRIAL_LABEL,
+    headline: `${PREMIUM_TRIAL_LABEL} Premium included`,
     // "premium tag", not "tag": the trial rides on a premium tag, and an owner
     // holding only a free eTag would otherwise read this as a promise to them.
-    note: "Auto-active when you activate your premium tag"
+    note: "Starts automatically when you activate your premium tag"
   };
 }
 

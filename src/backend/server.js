@@ -4,6 +4,7 @@ import { closeMongoConnection } from "./lib/db/mongo.js";
 import { getCollections, ensureCoreIndexes } from "./lib/db/repositories.js";
 import { verifyRazorpayCredentials } from "./lib/integrations/payments.js";
 import { startScheduler } from "./lib/core/scheduler.js";
+import { ensureCommerceDefaults } from "./lib/core/commerce-defaults.js";
 
 const env = getEnv();
 const app = await buildApp();
@@ -99,7 +100,10 @@ try {
 // reached, so the port stayed closed and health checks failed the whole time.
 // Boot must not depend on the database answering.
 getCollections(env)
-  .then((collections) => ensureCoreIndexes(collections, app.log))
+  .then(async (collections) => {
+    await ensureCoreIndexes(collections, app.log);
+    await ensureCommerceDefaults(collections, app.log);
+  })
   .catch((error) => {
     app.log.warn({ err: error }, "[indexes] core index setup skipped");
   });

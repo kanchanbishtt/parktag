@@ -98,6 +98,42 @@ function validatePromoFields(doc) {
 }
 
 export function registerAdminPromoCodeRoutes(app, env) {
+  app.get("/api/admin/shop-settings", async (request, reply) => {
+    const blocked = await requireSession(app, "admin")(request, reply);
+    if (blocked) return blocked;
+    const collections = await getCollections(env);
+    if (!collections) { reply.code(503); return { ok: false, error: "Database is not available." }; }
+    const settings = await collections.storeSettings.findOne({ _id: "public-shop" });
+    return { ok: true, data: settings?.dashboardPlate || { enabled: false, pricePaise: null } };
+  });
+
+  app.patch("/api/admin/shop-settings", async (request, reply) => {
+    const blocked = await requireSession(app, "admin")(request, reply);
+    if (blocked) return blocked;
+    const collections = await getCollections(env);
+    if (!collections) { reply.code(503); return { ok: false, error: "Database is not available." }; }
+
+    const enabled = request.body?.enabled === true;
+    const pricePaise = Math.round(Number(request.body?.pricePaise));
+    if (!Number.isFinite(pricePaise) || pricePaise < 100) {
+      reply.code(400);
+      return { ok: false, error: "Enter an add-on price of at least ₹1." };
+    }
+
+    const dashboardPlate = {
+      enabled,
+      pricePaise,
+      updatedAt: new Date().toISOString(),
+      updatedBy: request.session?.email || null
+    };
+    await collections.storeSettings.updateOne(
+      { _id: "public-shop" },
+      { $set: { dashboardPlate } },
+      { upsert: true }
+    );
+    return { ok: true, data: dashboardPlate };
+  });
+
   app.get("/api/admin/promo-codes", async (request, reply) => {
     const blocked = await requireSession(app, "admin")(request, reply);
     if (blocked) return blocked;
@@ -220,6 +256,36 @@ export function registerAdminPromoCodeRoutes(app, env) {
     const result = await collections.promoCodes.updateOne(
       { code },
       { $set: { active: false, revokedAt: new Date().toISOString(), revokedBy: request.session?.email || null } }
+    );
+    if (result.matchedCount === 0) {
+      reply.code(404);
+      return { ok: false, error: `No promo code ${code}.` };
+    }
+
+    return { ok: true };
+  });
+
+  app.post("/api/admin/promo-codes/:code/activate", async (request, reply) => {
+    const blocked = await requireSession(app, "admin")(request, reply);
+    if (blocked) return blocked;
+
+    const collections = await getCollections(env);
+    if (!collections) {
+      reply.code(503);
+      return { ok: false, error: "Database is not available." };
+    }
+
+    const code = normalisePromoCode(request.params.code);
+    const result = await collections.promoCodes.updateOne(
+      { code },
+      {
+        $set: {
+          active: true,
+          activatedAt: new Date().toISOString(),
+          activatedBy: request.session?.email || null
+        },
+        $unset: { revokedAt: "", revokedBy: "" }
+      }
     );
     if (result.matchedCount === 0) {
       reply.code(404);

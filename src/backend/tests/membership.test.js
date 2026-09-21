@@ -102,7 +102,7 @@ describe("the membership catalogue", () => {
     const body = (await get("/api/owner/membership")).json();
 
     assert.equal(body.trial.months, PREMIUM_TRIAL_MONTHS);
-    assert.equal(body.trial.headline, PREMIUM_TRIAL_LABEL);
+    assert.match(body.trial.headline, new RegExp(PREMIUM_TRIAL_LABEL, "i"));
     // The capsule stacks these two; together they must read as the headline.
     assert.equal(`${body.trial.value} ${body.trial.unit}`.toLowerCase(), PREMIUM_TRIAL_LABEL.toLowerCase());
     // The unit has to travel with the number. A hard-coded "DAYS" beside a
@@ -169,6 +169,14 @@ describe("the membership catalogue", () => {
       assert.ok(feature.icon, `${feature.id} has no icon key`);
       assert.equal(feature.scopes, undefined, `${feature.id} still carries a tag-type scope`);
     }
+  });
+
+  test("WhatsApp scan notifications are always included, not sold as Premium", async () => {
+    const { features, alwaysIncluded } = (await get("/api/owner/membership")).json();
+    assert.equal(features.some((feature) => feature.id === "whatsapp"), false);
+    const whatsapp = alwaysIncluded.find((feature) => feature.id === "whatsapp");
+    assert.ok(whatsapp, "the always-included WhatsApp benefit is missing");
+    assert.match(whatsapp.note, /life of your active ParkTag/i);
   });
 
   // The selector is gone from the payload as well as the page, so a stale
@@ -274,9 +282,9 @@ describe("the loading state", () => {
   // one: the tiles would appear and shove everything below them down the page.
   test("the tile count matches what the grid renders", async () => {
     const body = (await get("/owner-membership")).body;
-    const { features } = (await get("/api/owner/membership")).json();
+    const { features, alwaysIncluded } = (await get("/api/owner/membership")).json();
 
-    const rendered = features.length;
+    const rendered = features.length + alwaysIncluded.length;
     const placeholders = (body.match(/mb-sk-feat/g) || []).length;
 
     assert.equal(

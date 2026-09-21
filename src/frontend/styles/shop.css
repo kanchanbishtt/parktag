@@ -204,6 +204,30 @@
   .sh-card:hover { transform: translateY(-2px); }
 }
 
+.sh-addon {
+  display: grid;
+  grid-template-columns: minmax(180px, 300px) 1fr;
+  gap: 24px;
+  align-items: center;
+  margin-top: 28px;
+  padding: 18px;
+  border: 1px solid var(--sh-line);
+  border-radius: 20px;
+  background: #fff;
+}
+.sh-addon[hidden] { display: none; }
+.sh-addon-img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 14px; }
+.sh-addon-kicker { margin: 0 0 7px; color: var(--sh-red); font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+.sh-addon h2 { margin: 0 0 7px; font-size: 22px; color: var(--sh-ink); }
+.sh-addon-copy > p:not(.sh-addon-kicker) { margin: 0; color: var(--sh-ink-2); font-size: 14px; line-height: 1.5; }
+.sh-addon-choice { display: flex; align-items: center; gap: 10px; margin-top: 16px; padding: 12px 14px; border-radius: 13px; background: var(--sh-ground); cursor: pointer; font-size: 14px; font-weight: 700; }
+.sh-addon-choice input { width: 18px; height: 18px; accent-color: var(--sh-red); }
+.sh-addon-choice span { flex: 1; }
+.sh-addon-choice strong { color: var(--sh-ink); }
+@media (max-width: 620px) {
+  .sh-addon { grid-template-columns: 1fr; gap: 14px; }
+}
+
 /* A card the visitor arrived at with ?sku= in the URL. */
 .sh-card-hi { border-color: var(--sh-red); box-shadow: 0 0 0 3px rgba(255, 39, 0, .14); }
 

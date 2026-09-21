@@ -3,6 +3,7 @@ import { getCollections } from "../../lib/db/repositories.js";
 import {
   getMembershipPlan,
   membershipFeatures,
+  alwaysIncludedFeatures,
   membershipPlanPaise,
   membershipPlans,
   membershipTrial
@@ -146,6 +147,7 @@ export function registerMembershipRoutes(app, env) {
         trial: membershipTrial(),
         plans: membershipPlans(),
         features: membershipFeatures(),
+        alwaysIncluded: alwaysIncludedFeatures(),
         checkoutEnabled,
         subscription
       };

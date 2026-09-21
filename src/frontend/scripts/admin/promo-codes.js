@@ -12,6 +12,9 @@
 
 const rowsEl = document.getElementById("rows");
 const msgEl = document.getElementById("msg");
+const platePriceEl = document.getElementById("plate-price");
+const plateEnabledEl = document.getElementById("plate-enabled");
+const plateSaveEl = document.getElementById("plate-save");
 
 function show(kind, text) {
   msgEl.className = "msg " + kind;
@@ -22,6 +25,51 @@ function clearMsg() {
   msgEl.className = "msg";
   msgEl.textContent = "";
 }
+
+async function loadShopSettings() {
+  try {
+    const res = await fetch("/api/admin/shop-settings", { credentials: "same-origin" });
+    if (res.status === 401 || res.status === 403) { window.location.href = "/admin"; return; }
+    const payload = await res.json();
+    if (!res.ok || !payload.ok) throw new Error(payload.error || "Could not load shop settings.");
+    const settings = payload.data || {};
+    platePriceEl.value = settings.pricePaise ? String(Math.round(settings.pricePaise / 100)) : "";
+    plateEnabledEl.checked = settings.enabled === true;
+  } catch (err) {
+    show("err", err.message || "Could not load shop settings.");
+  }
+}
+
+plateSaveEl?.addEventListener("click", async () => {
+  const rupeesValue = Number.parseFloat(platePriceEl.value);
+  if (!Number.isFinite(rupeesValue) || rupeesValue < 1) {
+    show("err", "Enter the dashboard plate price before making it available.");
+    platePriceEl.focus();
+    return;
+  }
+  plateSaveEl.disabled = true;
+  plateSaveEl.textContent = "Saving…";
+  clearMsg();
+  try {
+    const res = await fetch("/api/admin/shop-settings", {
+      method: "PATCH",
+      credentials: "same-origin",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        pricePaise: Math.round(rupeesValue * 100),
+        enabled: plateEnabledEl.checked
+      })
+    });
+    const payload = await res.json();
+    if (!res.ok || !payload.ok) throw new Error(payload.error || "Could not save the add-on.");
+    show("ok", plateEnabledEl.checked ? "Dashboard plate is live in the shop." : "Dashboard plate saved but hidden from the shop.");
+  } catch (err) {
+    show("err", err.message || "Could not save the add-on.");
+  } finally {
+    plateSaveEl.disabled = false;
+    plateSaveEl.textContent = "Save add-on";
+  }
+});
 
 // Whole rupees, matching how every other admin/shop page reads out paise.
 function rupees(paise) {
@@ -109,12 +157,12 @@ function renderRow(row) {
   actTd.dataset.label = "Actions";
   const actWrap = document.createElement("div");
   actWrap.className = "act";
-  const revokeBtn = document.createElement("button");
-  revokeBtn.type = "button";
-  revokeBtn.textContent = "Revoke";
-  revokeBtn.dataset.revoke = row.code;
-  revokeBtn.disabled = status === "revoked";
-  actWrap.append(revokeBtn);
+  const actionBtn = document.createElement("button");
+  actionBtn.type = "button";
+  actionBtn.textContent = status === "revoked" ? "Activate" : "Revoke";
+  actionBtn.dataset.promoAction = status === "revoked" ? "activate" : "revoke";
+  actionBtn.dataset.code = row.code;
+  actWrap.append(actionBtn);
   actTd.append(actWrap);
 
   tr.append(codeTd, discountTd, shippingTd, freeShipTd, usesTd, statusTd, actTd);
@@ -157,19 +205,20 @@ async function load() {
 }
 
 rowsEl.addEventListener("click", async (event) => {
-  const btn = event.target.closest("button[data-revoke]");
+  const btn = event.target.closest("button[data-promo-action]");
   if (!btn || btn.disabled) return;
 
-  const code = btn.dataset.revoke;
-  if (!window.confirm(`Revoke ${code}? Nobody will be able to use it again.`)) return;
+  const code = btn.dataset.code;
+  const action = btn.dataset.promoAction;
+  if (action === "revoke" && !window.confirm(`Pause ${code}? The offer will disappear from the storefront immediately.`)) return;
 
   clearMsg();
   btn.disabled = true;
   const original = btn.textContent;
-  btn.textContent = "Revoking…";
+  btn.textContent = action === "activate" ? "Activating…" : "Revoking…";
 
   try {
-    const res = await fetch(`/api/admin/promo-codes/${encodeURIComponent(code)}/revoke`, {
+    const res = await fetch(`/api/admin/promo-codes/${encodeURIComponent(code)}/${action}`, {
       method: "POST",
       credentials: "same-origin",
       headers: { "content-type": "application/json" },
@@ -178,7 +227,7 @@ rowsEl.addEventListener("click", async (event) => {
     if (res.status === 401 || res.status === 403) { window.location.href = "/admin"; return; }
     const data = await res.json();
     if (!res.ok || !data.ok) throw new Error(data.error || "Could not revoke this code.");
-    show("ok", `Revoked ${code}.`);
+    show("ok", action === "activate" ? `Activated ${code}.` : `Paused ${code}.`);
   } catch (err) {
     show("err", err.message || "Could not revoke this code.");
     btn.textContent = original;
@@ -200,6 +249,8 @@ const percentEl = document.getElementById("add-discount-percent");
 const shippingEl = document.getElementById("add-shipping-rupees");
 const freeShipEl = document.getElementById("add-free-ship-rupees");
 const productsEl = document.getElementById("add-products");
+const maxUsesEl = document.getElementById("add-max-uses");
+const expiresEl = document.getElementById("add-expires");
 const cancelEl = document.getElementById("add-cancel");
 const submitEl = document.getElementById("add-submit");
 const sheetMsgEl = document.getElementById("add-msg");
@@ -231,6 +282,8 @@ function openSheet() {
   shippingEl.value = "";
   freeShipEl.value = "";
   productsEl.value = "";
+  maxUsesEl.value = "";
+  expiresEl.value = "";
   submitEl.disabled = false;
   submitEl.textContent = "Create code";
   sheetEl.showModal();
@@ -286,6 +339,16 @@ if (fabEl && sheetEl) {
     }
     const productIds = productsEl.value.split(",").map((s) => s.trim()).filter(Boolean);
     if (productIds.length) body.productIds = productIds;
+    if (maxUsesEl.value.trim()) {
+      const maxUses = Number.parseInt(maxUsesEl.value, 10);
+      if (!Number.isInteger(maxUses) || maxUses < 1) {
+        setSheetError("Maximum uses must be a whole number greater than 0.");
+        maxUsesEl.focus();
+        return;
+      }
+      body.maxUses = maxUses;
+    }
+    if (expiresEl.value) body.expiresAt = new Date(expiresEl.value).toISOString();
 
     submitEl.disabled = true;
     submitEl.textContent = "Creating…";
@@ -315,4 +378,5 @@ if (fabEl && sheetEl) {
   });
 }
 
+loadShopSettings();
 load();

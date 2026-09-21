@@ -334,7 +334,10 @@ export async function fulfilPaidOrder(env, collections, { order, paymentId, log 
       customData: {
         value: (order.amount || 0) / 100,
         currency: order.currency || "INR",
-        content_ids: [order.productId].filter(Boolean),
+        content_ids: [
+          order.productId,
+          ...(Array.isArray(order.addOns) ? order.addOns.map((item) => item?.id) : [])
+        ].filter(Boolean),
         content_type: "product"
       },
       testEventCode: env.metaCapiTestEventCode || undefined

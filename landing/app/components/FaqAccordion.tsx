@@ -4,6 +4,14 @@ import { useState } from "react";
 
 const FAQS = [
   {
+    q: "Are WhatsApp scan notifications a Premium feature?",
+    a: "No. WhatsApp scan notifications are included for the life of every active ParkTag. The first included year covers Premium tools such as masked calls, callback, scanner location details, the document vault and SOS features.",
+  },
+  {
+    q: "Do I have to stick the ParkTag directly on my car?",
+    a: "No. You can add the optional clear dashboard plate in the shop, apply the ParkTag to the plate, and place the plate on your dashboard instead. Its live price and availability appear before checkout, and it is never selected automatically.",
+  },
+  {
     q: "How does ParkTag work?",
     a: "You place a QR sticker on your vehicle. When someone scans it with any phone camera, you get notified instantly and can communicate anonymously through the ParkTag platform, without revealing your phone number.",
   },
@@ -40,7 +48,7 @@ const FAQS = [
     // is no checkout and no billing job behind tag.callSubscription. Naming a
     // figure here would be inventing one.
     q: "What happens after the first year?",
-    a: "Every tag includes one year of masked calling. After that, the tag keeps working. Anyone who scans it can still reach you and leave a message, and your number stays private exactly as before. The one thing that pauses is the masked phone call, until you renew. Renewals are not on sale yet; when they are, you will be able to switch calling back on from your dashboard.",
+    a: "Every tag includes one year of Premium. After that, the tag keeps working, WhatsApp scan notifications remain included, and your number stays private. Premium tools such as masked calling pause until you extend Premium from your dashboard.",
   },
   {
     // The refund policy already covers defects; it was reachable only from a

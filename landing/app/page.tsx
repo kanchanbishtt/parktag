@@ -618,7 +618,7 @@ export default function Home() {
                     {[
                       "2 waterproof QR tags, shipped together",
                       "Everything in Solo, front and back of your car",
-                      "₹99 cheaper than buying two Solo tags",
+                      "Cheaper than buying two Solo tags",
                       "1 year of Premium included",
                       "Lifetime WhatsApp scan notifications",
                       "Priority support",

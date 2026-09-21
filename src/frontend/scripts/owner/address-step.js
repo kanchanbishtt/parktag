@@ -498,7 +498,12 @@
     if (was && !hasWas) was.remove();
     if (hasWas) was.textContent = "MRP " + inr(mrpPaise);
     // Same element, new value: that is what makes it roll.
-    if (flow) flow.data = numberFlow.formatToData(Math.round(amountPaise / 100), INR_WHOLE);
+    if (flow) {
+      flow.data = numberFlow.formatToData(Math.round(amountPaise / 100), INR_WHOLE);
+      // The digits live in a shadow root that screen readers do not read.
+      flow.setAttribute("role", "img");
+      flow.setAttribute("aria-label", inr(amountPaise));
+    }
   }
 
   // Everything that has to read true for the chosen method: the total, the

@@ -175,6 +175,7 @@
       "#pt-addr-summary-name{font-size:.9rem;line-height:1.35;font-weight:800;color:var(--ink);}",
       "#pt-addr-summary-price{flex:0 0 auto;font-size:1.08rem;font-weight:900;color:var(--navy);}",
       "#pt-addr-summary-price del{display:block;font-size:.72rem;font-weight:600;color:var(--muted);}",
+      "#pt-addr-summary-price number-flow{font-variant-numeric:tabular-nums;}",
       ".pt-addr-summary-offer{display:inline-flex;margin-top:9px;border-radius:999px;background:#E6F6EC;color:#17663A;padding:5px 9px;font-size:.68rem;font-weight:800;}",
       ".pt-addr-summary-terms{display:flex;flex-wrap:wrap;gap:6px 12px;margin-top:11px;padding-top:10px;border-top:1px dashed var(--line);font-size:.7rem;font-weight:700;color:#4b5563;}",
       ".pt-addr-summary-terms span:before{content:'✓';color:#0E8A00;font-weight:900;margin-right:5px;}",
@@ -467,14 +468,37 @@
     return "₹" + Math.round(paise / 100).toLocaleString("en-IN");
   }
 
+  // The total rolls between the online and COD prices instead of jumping, so
+  // the difference is seen. NumberFlow is self-hosted because the CSP allows no
+  // script CDN. Decoration only: until (or unless) it loads, plain text shows.
+  var INR_WHOLE = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 });
+  var numberFlow = null;
+  import("/scripts/vendor/number-flow.js").then(function (m) {
+    m.define("number-flow", m.default);
+    numberFlow = m;
+  }).catch(function () { /* plain text it is */ });
+
   function renderSummaryPrice(amountPaise, mrpPaise) {
-    els.summaryPrice.textContent = "";
-    if (Number.isFinite(mrpPaise) && mrpPaise > amountPaise) {
-      var was = document.createElement("del");
-      was.textContent = "MRP " + inr(mrpPaise);
-      els.summaryPrice.appendChild(was);
+    var hasWas = Number.isFinite(mrpPaise) && mrpPaise > amountPaise;
+    var flow = els.summaryPrice.querySelector("number-flow");
+    if (!flow) {
+      els.summaryPrice.textContent = "";
+      if (numberFlow) {
+        flow = document.createElement("number-flow");
+        els.summaryPrice.appendChild(flow);
+      } else {
+        els.summaryPrice.appendChild(document.createTextNode(inr(amountPaise)));
+      }
     }
-    els.summaryPrice.appendChild(document.createTextNode(inr(amountPaise)));
+    var was = els.summaryPrice.querySelector("del");
+    if (hasWas && !was) {
+      was = document.createElement("del");
+      els.summaryPrice.insertBefore(was, els.summaryPrice.firstChild);
+    }
+    if (was && !hasWas) was.remove();
+    if (hasWas) was.textContent = "MRP " + inr(mrpPaise);
+    // Same element, new value: that is what makes it roll.
+    if (flow) flow.data = numberFlow.formatToData(Math.round(amountPaise / 100), INR_WHOLE);
   }
 
   // Everything that has to read true for the chosen method: the total, the

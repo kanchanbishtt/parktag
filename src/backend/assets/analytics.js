@@ -65,13 +65,16 @@
   // has without the identifier riding along.
   var pixelAllowed = surface !== "scanner";
 
-  // Microsoft Clarity (session replays and heatmaps), storefronts only: the ad
-  // landing page and the two shops. Never on owner, admin or scan pages, whose
-  // screens are somebody's account or a stranger at a vehicle. Clarity masks
+  // Microsoft Clarity (session replays and heatmaps): every page of the public
+  // marketing site (parktag.me, which loads this same bundle), and on the app
+  // only the ad landing page and the two shops. Never on owner, admin or scan
+  // pages, whose screens are somebody's account or a stranger at a vehicle. Clarity masks
   // typed input by default, and the address sheet is masked outright
   // (data-clarity-mask in owner/address-step.js). Independent of GA4/Pixel.
   var CLARITY_ID = "__CLARITY_PROJECT_ID__";
-  if (CLARITY_ID && /^\/(get|shop|direct)\/?$/.test(location.pathname)) {
+  var claritySite = /^(www\.)?parktag\.me$/.test(location.hostname) ||
+    /^\/(get|shop|direct)\/?$/.test(location.pathname);
+  if (CLARITY_ID && claritySite) {
     window.clarity = window.clarity || function () { (window.clarity.q = window.clarity.q || []).push(arguments); };
     var cl = document.createElement("script");
     cl.async = true;

@@ -37,7 +37,9 @@ const APP_ORIGIN = (() => {
 // Split out so the app's CSP (src/backend/app.js) can be read against the same
 // list; the two are separate policies on separate services and drifting apart
 // is how one of them silently stops collecting.
-const ANALYTICS_SCRIPT = `${APP_ORIGIN} https://www.googletagmanager.com https://connect.facebook.net`;
+// Microsoft Clarity rides in the same bundle (see the app's assets/analytics.js).
+const CLARITY = "https://www.clarity.ms https://*.clarity.ms";
+const ANALYTICS_SCRIPT = `${APP_ORIGIN} https://www.googletagmanager.com https://connect.facebook.net ${CLARITY}`;
 //
 // The bare hosts matter. gtag now reports to https://analytics.google.com/g/collect
 // and https://www.google.com/g/collect (and stats.g.doubleclick.net for the ads
@@ -49,11 +51,12 @@ const ANALYTICS_SCRIPT = `${APP_ORIGIN} https://www.googletagmanager.com https:/
 const ANALYTICS_CONNECT =
   "https://*.google-analytics.com https://analytics.google.com https://*.analytics.google.com " +
   "https://www.google.com https://www.google.co.in https://stats.g.doubleclick.net " +
-  "https://*.googletagmanager.com https://www.facebook.com https://connect.facebook.net";
+  "https://*.googletagmanager.com https://www.facebook.com https://connect.facebook.net " +
+  "https://www.clarity.ms https://*.clarity.ms";
 const ANALYTICS_IMG =
   "https://*.google-analytics.com https://analytics.google.com https://*.analytics.google.com " +
   "https://www.google.com https://www.google.co.in https://*.doubleclick.net " +
-  "https://*.googletagmanager.com https://www.facebook.com";
+  "https://*.googletagmanager.com https://www.facebook.com https://*.clarity.ms https://c.bing.com";
 
 const csp = [
   "default-src 'self'",

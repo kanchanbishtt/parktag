@@ -1607,6 +1607,32 @@
 
   .pt-ov-empty { padding: 36px 20px; text-align: center; color: #9CA3AF; font-size: .9rem; font-weight: 600; }
 
+  /* ── Refer a friend ──────────────────────────────────────────── */
+  .pt-ref {
+    margin-top: 20px; background: #FFF5F3; border: 1.5px solid #FECACA;
+    border-radius: 16px; padding: 18px 16px 14px;
+  }
+  .pt-ref-title { font-size: 1.1rem; font-weight: 900; color: #03162D; margin: 0 0 6px; }
+  .pt-ref-sub   { font-size: .82rem; color: #374151; margin: 0 0 12px; line-height: 1.55; font-weight: 500; }
+  .pt-ref-link {
+    background: #fff; border: 1px solid #E5E7EB; border-radius: 10px; padding: 10px 12px;
+    font-size: .82rem; font-weight: 700; color: #03162D; overflow-wrap: anywhere;
+    user-select: all; -webkit-user-select: all; margin-bottom: 12px;
+  }
+  .pt-ref-btns { display: flex; gap: 10px; }
+  .pt-ref-wa, .pt-ref-copy {
+    border-radius: 10px; padding: 11px 14px; font-size: .85rem; font-weight: 700;
+    cursor: pointer; font-family: inherit; min-height: 44px;
+  }
+  .pt-ref-wa   { flex: 1; background: #16A34A; color: #fff; border: none; }
+  .pt-ref-copy { background: #fff; color: #03162D; border: 1.5px solid #E5E7EB; }
+  .pt-ref-wa:focus-visible, .pt-ref-copy:focus-visible { outline: 3px solid rgba(255,39,0,.35); outline-offset: 2px; }
+  .pt-ref-fine { font-size: .72rem; color: #6B7280; margin: 10px 0 0; font-weight: 600; }
+  .pt-ref-sr {
+    position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip: rect(0 0 0 0); white-space: nowrap;
+  }
+
   /* ── Activity section ────────────────────────────────────────── */
   .pt-act { padding: 20px 0 0; }
   .pt-act-hd { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 14px; }
@@ -1973,6 +1999,22 @@
       </div>
       <!-- Vehicle list -->
       <div class="pt-vgrid" id="vehicleGrid"></div>
+
+      <!-- ── Refer a friend ── -->
+      <!-- Below the vehicles, so it never pushes an owner's own tags down.
+           Ships hidden and empty: renderReferral() fills every figure from the
+           dashboard payload and leaves it hidden when there is no code. -->
+      <section class="pt-ref" id="referralCard" aria-labelledby="refTitle" hidden>
+        <h2 class="pt-ref-title" id="refTitle"></h2>
+        <p class="pt-ref-sub" id="refSub"></p>
+        <div class="pt-ref-link" id="refLink"></div>
+        <div class="pt-ref-btns">
+          <button type="button" class="pt-ref-wa" onclick="shareReferral()">Share on WhatsApp</button>
+          <button type="button" class="pt-ref-copy" id="refCopyBtn" onclick="copyReferral()">Copy link</button>
+        </div>
+        <p class="pt-ref-fine">Online payment only</p>
+        <span class="pt-ref-sr" id="refStatus" role="status" aria-live="polite"></span>
+      </section>
 
       <!-- ── Activity section ── -->
       <section class="pt-act" id="activitySection" aria-label="Recent activity">

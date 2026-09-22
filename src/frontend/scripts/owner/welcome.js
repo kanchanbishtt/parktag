@@ -1906,27 +1906,17 @@ window.closeCallSheet = closeCallSheet;
 // Clipboard, with a fallback. navigator.clipboard is undefined on a page served
 // over plain http and can reject when the document is not focused, and this
 // button existing at all is the desktop half of the fix — so it must not be the
-// thing that fails silently.
-async function copyCallNumber() {
-  const btn = document.getElementById("cbCopyBtn");
-  const number = btn?.dataset?.number || "";
-  if (!number) return;
-  const done = () => {
-    if (btn) {
-      btn.textContent = "Copied";
-      setTimeout(() => { if (btn) btn.textContent = "Copy number"; }, 1800);
-    }
-  };
-
+// thing that fails silently. Shared by the callback number and the referral
+// link; resolves false when nothing was copied.
+async function writeClipboard(text) {
   try {
-    await navigator.clipboard.writeText(number);
-    done();
-    return;
+    await navigator.clipboard.writeText(text);
+    return true;
   } catch { /* fall through */ }
 
   try {
     const scratch = document.createElement("textarea");
-    scratch.value = number;
+    scratch.value = text;
     scratch.setAttribute("readonly", "");
     scratch.style.position = "fixed";
     scratch.style.opacity = "0";
@@ -1934,13 +1924,101 @@ async function copyCallNumber() {
     scratch.select();
     document.execCommand("copy");
     document.body.removeChild(scratch);
-    done();
+    return true;
   } catch {
+    return false;
+  }
+}
+
+async function copyCallNumber() {
+  const btn = document.getElementById("cbCopyBtn");
+  const number = btn?.dataset?.number || "";
+  if (!number) return;
+  if (await writeClipboard(number)) {
+    if (btn) {
+      btn.textContent = "Copied";
+      setTimeout(() => { if (btn) btn.textContent = "Copy number"; }, 1800);
+    }
+  } else {
     // Nothing copied and nothing pretended — the number is on screen to read.
     _toast("Couldn't copy. The number is shown above.", "err");
   }
 }
 window.copyCallNumber = copyCallNumber;
+
+// ── Refer a friend ────────────────────────────────────────────────
+// Every figure on the card comes off data.referral, never a literal here: the
+// dashboard route explains why the server owns them. No code (a mint that
+// failed) means no card at all, rather than a card with nothing to share.
+let _referral = null;
+
+function renderReferral(ref) {
+  const card = document.getElementById("referralCard");
+  if (!card) return;
+  const months = Number(ref?.rewardMonths) || 0;
+  if (!ref?.code || !(Number(ref.discountPaise) > 0) || months < 1) {
+    _referral = null;
+    card.hidden = true;
+    return;
+  }
+  const off = rupees(ref.discountPaise);
+  const link = `${location.origin}/get?ref=${encodeURIComponent(ref.code)}`;
+  _referral = { link, off };
+  document.getElementById("refTitle").textContent =
+    `Give ${off}, get ${months === 1 ? "a free month" : `${months} free months`}`;
+  document.getElementById("refSub").textContent =
+    `Your friend gets ${off} off when they pay online. You get ${months} ${months === 1 ? "month" : "months"} of Premium for each friend who buys.`;
+  document.getElementById("refLink").textContent = link.replace(/^https?:\/\//, "");
+  card.hidden = false;
+}
+
+function referralMessage() {
+  return `I use ParkTag on my car: anyone who needs to reach me scans the QR and I get a masked call or WhatsApp, my number stays private. Get ${_referral.off} off with my link: ${_referral.link}`;
+}
+
+function announceReferral(message) {
+  const status = document.getElementById("refStatus");
+  if (!status) return;
+  status.textContent = message;
+  setTimeout(() => { if (status.textContent === message) status.textContent = ""; }, 1800);
+}
+
+async function copyReferral() {
+  if (!_referral) return;
+  const btn = document.getElementById("refCopyBtn");
+  if (await writeClipboard(_referral.link)) {
+    if (window.ptTrack) ptTrack("share", { method: "copy", content_type: "referral" });
+    announceReferral("Link copied");
+    if (btn) {
+      btn.textContent = "Copied";
+      setTimeout(() => { if (btn) btn.textContent = "Copy link"; }, 1800);
+    }
+  } else {
+    _toast("Couldn't copy. The link is shown above.", "err");
+  }
+}
+window.copyReferral = copyReferral;
+
+// The phone's own share sheet where there is one (WhatsApp sits in it, next
+// to whatever else they use), wa.me everywhere else. Coarse pointer rather
+// than navigator.share alone: desktop Chrome has share too, and its sheet is
+// a worse route to WhatsApp than wa.me opening WhatsApp Web.
+async function shareReferral() {
+  if (!_referral) return;
+  const text = referralMessage();
+  if (navigator.share && window.matchMedia?.("(pointer: coarse)").matches) {
+    try {
+      await navigator.share({ text });
+      if (window.ptTrack) ptTrack("share", { method: "native", content_type: "referral" });
+      return;
+    } catch (err) {
+      if (err?.name === "AbortError") return; // they closed the sheet
+    }
+  }
+  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener");
+  if (window.ptTrack) ptTrack("share", { method: "whatsapp", content_type: "referral" });
+}
+window.shareReferral = shareReferral;
 
 async function callBack(btnId = "cbBtn") {
   const btn = document.getElementById(btnId);
@@ -2484,6 +2562,7 @@ async function load() {
     renderGrid(getDisplayTags(), true);
     renderNoticeboard(allTags);
     renderActivity(allRequests);
+    renderReferral(data.referral);
     // The identity card reads _owner, which only exists from the line above.
     // Without this it kept whatever the markup shipped with — and switchTab is
     // the only other thing that draws it, so an owner who tapped Profile while

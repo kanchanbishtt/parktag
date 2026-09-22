@@ -141,7 +141,11 @@
     // ptScannerEngaged, which strips the tag token from the URL before the
     // Pixel is ever loaded — see the surface note above.
     scan_received:  { ga: "scan_received",  pixel: "ScanReceived",  custom: true },
-    contact_action: { ga: "contact_action", pixel: "ContactAction", custom: true }
+    contact_action: { ga: "contact_action", pixel: "ContactAction", custom: true },
+    // An owner passing on their referral link from the dashboard card. GA4's
+    // own recommended event; GA4-only, because a share is not a conversion
+    // Meta should be bidding towards.
+    share:          { ga: "share",          pixel: null }
   };
 
   // Allow-list, not a deny-list. A deny-list means every future call site is one
@@ -156,7 +160,10 @@
     coupon: 1,
     // select_promotion's identifiers: the campaign's code and its label, the
     // same public strings as `coupon`.
-    promotion_id: 1, promotion_name: 1
+    promotion_id: 1, promotion_name: 1,
+    // GA4's share parameter: what kind of thing was shared ("referral"), never
+    // the link or its code.
+    content_type: 1
   };
 
   function sanitize(input) {

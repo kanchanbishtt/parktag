@@ -30,7 +30,7 @@ for (const count of [2, 11]) {
         window: { location: {} }, console: { error: (...args) => errors.push(args) },
         renderGreetingAffordance() {}, mergePendingVehicles() {},
         readSavedVehicles: () => pending ? [{ number: tags[0].plateNumber }, placeholder] : [],
-        renderNoticeboard() {}, renderActivity() {}, renderProfileView() {},
+        renderNoticeboard() {}, renderActivity() {}, renderReferral() {}, renderProfileView() {},
         syncLocalVehicles: (vehicles, userId) => synced.push({ vehicles, userId })
       });
       // Execute the real card renderer and entire load try/catch, including migration.

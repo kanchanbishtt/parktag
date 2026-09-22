@@ -65,6 +65,20 @@
   // has without the identifier riding along.
   var pixelAllowed = surface !== "scanner";
 
+  // Microsoft Clarity (session replays and heatmaps), storefronts only: the ad
+  // landing page and the two shops. Never on owner, admin or scan pages, whose
+  // screens are somebody's account or a stranger at a vehicle. Clarity masks
+  // typed input by default, and the address sheet is masked outright
+  // (data-clarity-mask in owner/address-step.js). Independent of GA4/Pixel.
+  var CLARITY_ID = "__CLARITY_PROJECT_ID__";
+  if (CLARITY_ID && /^\/(get|shop|direct)\/?$/.test(location.pathname)) {
+    window.clarity = window.clarity || function () { (window.clarity.q = window.clarity.q || []).push(arguments); };
+    var cl = document.createElement("script");
+    cl.async = true;
+    cl.src = "https://www.clarity.ms/tag/" + encodeURIComponent(CLARITY_ID);
+    document.head.appendChild(cl);
+  }
+
   var gaReady = !!GA4_ID;
   var pixelReady = !!PIXEL_ID && pixelAllowed;
 

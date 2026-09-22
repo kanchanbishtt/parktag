@@ -676,7 +676,10 @@ export async function buildApp() {
           // correctly, the IDs are right, and every dashboard stays empty. The
           // policy has to be widened in step with the code it protects.
           "https://www.googletagmanager.com",
-          "https://connect.facebook.net"
+          "https://connect.facebook.net",
+          // Microsoft Clarity, storefront pages only (see assets/analytics.js).
+          "https://www.clarity.ms",
+          "https://*.clarity.ms"
         ],
         // The owner/admin pages wire controls with inline onclick handlers.
         // Helmet defaults script-src-attr to 'none', which blocks ALL inline
@@ -700,7 +703,9 @@ export async function buildApp() {
           "https://www.google.co.in",
           "https://*.doubleclick.net",
           "https://*.googletagmanager.com",
-          "https://www.facebook.com"
+          "https://www.facebook.com",
+          "https://*.clarity.ms",
+          "https://c.bing.com"
         ],
         // Where the trackers actually POST. Blocking these is subtler than
         // blocking the loaders: the scripts run, ptTrack() reports success, and
@@ -719,7 +724,10 @@ export async function buildApp() {
           "https://stats.g.doubleclick.net",
           "https://*.googletagmanager.com",
           "https://www.facebook.com",
-          "https://connect.facebook.net"
+          "https://connect.facebook.net",
+          // Microsoft Clarity, storefront pages only (see assets/analytics.js).
+          "https://www.clarity.ms",
+          "https://*.clarity.ms"
         ],
         frameSrc: ["https://accounts.google.com", "https://*.razorpay.com", "https://www.google.com"],
         objectSrc: ["'none'"],

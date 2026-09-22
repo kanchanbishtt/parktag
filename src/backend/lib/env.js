@@ -180,6 +180,7 @@ export function getEnv() {
     // polluting the production GA4 property and Pixel with test traffic. Unset
     // → /pt-analytics.js ships a no-op and ptTrack() does nothing.
     ga4MeasurementId: process.env.GA4_MEASUREMENT_ID || "",
+    clarityProjectId: process.env.CLARITY_PROJECT_ID || "",
     slackSigningSecret: process.env.SLACK_SIGNING_SECRET || "",
     slackTeamId: process.env.SLACK_TEAM_ID || "",
     slackChannelId: process.env.SLACK_CHANNEL_ID || "",

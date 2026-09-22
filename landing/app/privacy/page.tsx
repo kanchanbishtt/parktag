@@ -99,6 +99,9 @@ export default function PrivacyPage() {
               We send some conversion events to Meta from our servers rather than from your browser. Where those events identify a person, the identifier is a customer&rsquo;s own phone number or email address, sent only as an irreversible hash. Scanning someone else&rsquo;s vehicle never produces one of these events.
             </p>
             <p className="mt-3">
+              On our shop and checkout pages we use Microsoft Clarity to see how visitors use them (clicks, scrolling and page layout), so we can improve them. Clarity masks what you type, and the delivery address and verification steps are masked entirely. It is not used on the owner dashboard or on tag scan pages. Microsoft&rsquo;s privacy statement applies to that data.
+            </p>
+            <p className="mt-3">
               You can opt out of Meta advertising in your Meta account&rsquo;s ad settings, and of Google Analytics using Google&rsquo;s opt-out browser add-on.
             </p>
           </Section>

@@ -81,6 +81,17 @@ export function referrerHost(raw, selfHosts = []) {
 }
 
 // A path we are willing to store: our own route, no query string, no fragment.
+// Vulnerability scanners walk every site on the internet asking for leaked
+// secrets (/.env, /.git/config, /phpinfo, /wp-admin ...). Every one 404s here,
+// but the 404 page still beacons, so they filled the traffic report. Not
+// visitors: never recorded, and filtered out of the report for older rows.
+export const PROBE_PATH_RE =
+  /(^|\/)\.(git|env|aws|svn|hg|ssh|docker|vscode|idea|ds_store)|\.(php|asp|aspx|jsp|cgi|bak|sql|ini|log|ya?ml|env|old|swp)$|phpinfo|_profiler|wp-(admin|login|content|includes)|xmlrpc|cgi-bin|\/vendor\/|actuator|server-status|config\.json$/i;
+
+export function isProbePath(path) {
+  return PROBE_PATH_RE.test(String(path || ""));
+}
+
 export function cleanPath(raw) {
   if (!isNonEmptyString(raw)) return "/";
   let value = raw.trim();
@@ -148,7 +159,7 @@ export function registerAnalyticsRoutes(app, env) {
 
       // Answer 204 for bots too. The landing proxy already filters them;
       // reporting a rejection would only invite a retry.
-      if (isBotUserAgent(userAgent)) {
+      if (isBotUserAgent(userAgent) || isProbePath(cleanPath(body.path))) {
         reply.code(204);
         return null;
       }
@@ -215,7 +226,7 @@ export function recordAppPageVisit(app, env, request, path) {
   // Crawlers first, and cheaply. Meta fetches every ad destination for its link
   // preview, so counting them would inflate exactly the number the ads are
   // judged on.
-  if (isBotUserAgent(userAgent)) return;
+  if (isBotUserAgent(userAgent) || isProbePath(cleanPath(path))) return;
 
   void (async () => {
     try {

@@ -11,7 +11,8 @@
 // call site) is what lets the test assert the two files agree.
 export const ANALYTICS_PLACEHOLDERS = {
   __GA4_MEASUREMENT_ID__: "ga4MeasurementId",
-  __META_PIXEL_ID__: "metaPixelId"
+  __META_PIXEL_ID__: "metaPixelId",
+  __CLARITY_PROJECT_ID__: "clarityProjectId"
 };
 
 // A missing ID becomes "" rather than being left as the literal placeholder.

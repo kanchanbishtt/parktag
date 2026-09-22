@@ -260,6 +260,8 @@
     injectStyles();
     var ov = document.createElement("div");
     ov.id = "pt-addr-ov";
+    // Name, mobile, address and the COD code: never in a session replay.
+    ov.setAttribute("data-clarity-mask", "True");
 
     var rows = FIELDS.map(function (f) {
       var half = f.key === "city" || f.key === "state" || f.key === "pincode";

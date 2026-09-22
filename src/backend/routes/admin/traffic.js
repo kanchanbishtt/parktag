@@ -1,7 +1,7 @@
 import { requireSession } from "../../lib/auth/auth.js";
 import { getCollections } from "../../lib/db/repositories.js";
 import { reconcile } from "../../lib/core/reconciliation.js";
-import { istDayKey } from "../system/analytics.js";
+import { istDayKey, PROBE_PATH_RE } from "../system/analytics.js";
 
 // Read side of landing-page traffic geography.
 //
@@ -141,7 +141,7 @@ export function registerAdminTrafficRoutes(app, env) {
         // Landing views only. The app records into the same collection (see
         // recordAppPageVisit), and letting those into this summary would move
         // every historical marketing number the day the app started counting.
-        { day: { $gte: from, $lte: to }, site: { $ne: "app" } },
+        { day: { $gte: from, $lte: to }, site: { $ne: "app" }, path: { $not: PROBE_PATH_RE } },
         {
           // Only what the summary groups on. Keeps a busy month's worth of
           // documents small in memory.

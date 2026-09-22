@@ -289,6 +289,27 @@
    feature was announcing itself as something gone wrong, halfway down a page
    whose job is to sell a sticker. It uses the same navy tint a selected plan
    card gets, so it reads as one more thing the tag does. */
+/* Real proof: our own video and photos, two across at every width so the row
+   reads as a gallery rather than a scroll of full-width images. */
+.gt-proof-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.gt-proof-media {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+  border-radius: 14px;
+  background: var(--gt-ground);
+}
+.gt-proof-c { margin: 6px 0 0; font-size: .78rem; line-height: 1.45; color: var(--gt-ink-2); }
+.gt-proof-c strong { color: var(--gt-ink); }
+
 .gt-sos {
   margin-top: 18px;
   background: var(--gt-navy-tint);

@@ -991,3 +991,12 @@ async function load() {
 }
 
 load();
+
+// The proof clip loops; for anyone who asked for less motion it waits for a tap.
+if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+  for (const video of document.querySelectorAll(".gt-proof video")) {
+    video.removeAttribute("autoplay");
+    video.pause();
+    video.controls = true;
+  }
+}

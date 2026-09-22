@@ -72,8 +72,9 @@
   // typed input by default, and the address sheet is masked outright
   // (data-clarity-mask in owner/address-step.js). Independent of GA4/Pixel.
   var CLARITY_ID = "__CLARITY_PROJECT_ID__";
-  var claritySite = /^(www\.)?parktag\.me$/.test(location.hostname) ||
-    /^\/(get|shop|direct)\/?$/.test(location.pathname);
+  var here = window.location || {};
+  var claritySite = /^(www\.)?parktag\.me$/.test(here.hostname || "") ||
+    /^\/(get|shop|direct)\/?$/.test(here.pathname || "");
   if (CLARITY_ID && claritySite) {
     window.clarity = window.clarity || function () { (window.clarity.q = window.clarity.q || []).push(arguments); };
     var cl = document.createElement("script");

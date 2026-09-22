@@ -849,6 +849,14 @@ export async function buildApp() {
           assetVersion
         })
       );
+      // Public images, stylesheets and fonts may be loaded by other origins.
+      // Microsoft Clarity replays pages from clarity.microsoft.com, and with
+      // the helmet default (same-origin) every photo, the logo and the demo
+      // video came back broken in the replay. Nothing under these paths is
+      // private; pages and scripts keep same-origin.
+      if (/^\/(images|styles|fonts)\//.test(pathname)) {
+        reply.header("Cross-Origin-Resource-Policy", "cross-origin");
+      }
     }
   });
 

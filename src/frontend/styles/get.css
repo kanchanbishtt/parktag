@@ -310,6 +310,18 @@
 .gt-proof-c { margin: 6px 0 0; font-size: .78rem; line-height: 1.45; color: var(--gt-ink-2); }
 .gt-proof-c strong { color: var(--gt-ink); }
 
+/* Shown only to a visitor who arrived on a friend's referral link. */
+.gt-ref {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--gt-ok-bg);
+  color: var(--gt-ok-ink);
+  font-size: .84rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
 .gt-sos {
   margin-top: 18px;
   background: var(--gt-navy-tint);

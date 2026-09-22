@@ -965,6 +965,13 @@ async function load() {
     ? { surchargePaise: payload.codSurchargePaise, productIds: payload.codProductIds }
     : null;
   renderChips(payload.products);
+  // A friend's link: the discount is applied by the server at payment, so say
+  // so here, or the page quotes a price the buyer will not actually pay.
+  const refNote = byId("gtRef");
+  if (refNote && referralCode() && Number(payload.referralDiscountPaise) > 0) {
+    refNote.textContent = `🎁 Friend's link applied: an extra ${rupees(payload.referralDiscountPaise)} off when you pay online, taken off at payment.`;
+    refNote.hidden = false;
+  }
   renderPacks(payload.products);
   renderBar(payload.products);
   renderAddOn(payload.addOns);

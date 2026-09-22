@@ -668,7 +668,9 @@ export function registerShopRoutes(app, env) {
       // so the storefronts offer it exactly where create-order accepts it.
       return {
         ok: true, products, launchOffer, addOns,
-        codSurchargePaise: COD_SURCHARGE_PAISE, codProductIds: GUEST_COD_PRODUCT_IDS
+        codSurchargePaise: COD_SURCHARGE_PAISE, codProductIds: GUEST_COD_PRODUCT_IDS,
+        // So a friend's-link visitor is told the discount by the server that grants it.
+        referralDiscountPaise: REFERRAL_DISCOUNT_PAISE
       };
     }
   );

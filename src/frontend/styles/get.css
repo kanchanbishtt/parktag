@@ -455,6 +455,7 @@
   object-fit: cover;
   border-radius: 13px;
   background: var(--gt-ground);
+  cursor: pointer;
 }
 
 .gt-addon-bd { min-width: 0; }

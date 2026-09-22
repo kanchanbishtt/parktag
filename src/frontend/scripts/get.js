@@ -264,6 +264,14 @@ function renderAddOn(addOns) {
       ptTrack("add_on_selected", { item_id: addOn.id, value: addOn.amountPaise / 100, currency: "INR" });
     }
   });
+  // The product image sits outside the <label>, for the CSS grid layout, so it
+  // doesn't toggle the checkbox natively. Buyers tap the photo expecting it to.
+  byId("gtAddonImage")?.addEventListener("click", () => {
+    const check = byId("gtAddonCheck");
+    if (!check) return;
+    check.checked = !check.checked;
+    check.dispatchEvent(new Event("change"));
+  });
 }
 
 // Duo Pack only. The box stays ticked if the buyer then orders another pack,
@@ -476,9 +484,32 @@ function say(message) {
   note.textContent = message;
 }
 
+// Loaded on demand rather than eagerly in the page's <script> tags: most ad
+// traffic bounces before ever reaching checkout, and Instagram's in-app
+// browser can tear the WebView down mid-init, which was surfacing as a
+// spurious "Error invoking postMessage: Java object is gone" console error
+// for visitors who never bought anything.
+let _rzpLoad = null;
+function loadRazorpay() {
+  if (typeof Razorpay === "function") return Promise.resolve(true);
+  if (_rzpLoad) return _rzpLoad;
+  _rzpLoad = new Promise((resolve) => {
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.onload = () => resolve(typeof Razorpay === "function");
+    script.onerror = () => { _rzpLoad = null; resolve(false); };
+    document.head.appendChild(script);
+  });
+  return _rzpLoad;
+}
+
 async function buy(sku) {
   if (_busy) return;
   _sku = sku;
+  // Fired here, not awaited: clicking "buy" is a real intent signal (unlike a
+  // page view), so it is worth prefetching in parallel with the address step
+  // below rather than paying for the round trip at the moment of payment.
+  loadRazorpay();
   // Read once, up front, so the value submitted below can never drift from
   // whatever the stepper happens to show by the time the request lands.
   const quantity = _qty.get(sku) || 1;
@@ -621,7 +652,7 @@ async function buy(sku) {
     return;
   }
 
-  if (typeof Razorpay !== "function") {
+  if (!(await loadRazorpay())) {
     stopOrderPacing();
     orderSteps.fail("");
     orderSteps.destroy();

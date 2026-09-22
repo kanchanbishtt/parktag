@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { captureMetaCheckoutContext } from "../../lib/integrations/meta-checkout-context.js";
+import { readAttribution } from "../../lib/core/attribution.js";
 import {
   createRazorpayOrder,
   verifyRazorpaySignature,
@@ -537,6 +538,7 @@ async function placeGuestCodLocked(env, collections, request, reply, order, codT
     ...order,
     orderNumber: await generateOrderNumber(collections),
     metaCheckoutContext: captureMetaCheckoutContext(request),
+    attribution: readAttribution(request),
     createdAt: new Date().toISOString()
   };
   await collections.shopOrders.insertOne(placed);
@@ -998,6 +1000,7 @@ export function registerShopRoutes(app, env) {
         const orderNumber = await generateOrderNumber(collections);
         await collections.shopOrders.insertOne({
       metaCheckoutContext: captureMetaCheckoutContext(request),
+      attribution: readAttribution(request),
           orderId: order.id,
           orderNumber,
           paymentMethod: "online",
@@ -1441,6 +1444,7 @@ export function registerShopRoutes(app, env) {
       {
         await collections.shopOrders.insertOne({
       metaCheckoutContext: captureMetaCheckoutContext(request),
+      attribution: readAttribution(request),
           orderId: order.id,
           orderNumber,
           paymentMethod: "online",
@@ -1745,6 +1749,7 @@ export function registerShopRoutes(app, env) {
     const flashOfferExpiresAt = new Date(Date.now() + FLASH_WINDOW_MS).toISOString();
     await collections.shopOrders.insertOne({
       metaCheckoutContext: captureMetaCheckoutContext(request),
+      attribution: readAttribution(request),
       orderNumber,
       paymentMethod: "cod",
       ownerId,

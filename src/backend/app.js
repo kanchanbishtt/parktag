@@ -1,5 +1,6 @@
 import Fastify from "fastify";
 import fastifyCookie from "@fastify/cookie";
+import { rememberAttribution } from "./lib/core/attribution.js";
 import fastifyHelmet from "@fastify/helmet";
 import fastifyMultipart from "@fastify/multipart";
 import fastifyRateLimit from "@fastify/rate-limit";
@@ -553,6 +554,11 @@ export async function buildApp() {
   }
 
   const allowedOrigins = new Set([toOrigin(env.appBaseUrl)].filter(Boolean));
+
+  // Remember which tagged link a visitor landed from, for the order record.
+  app.addHook("onRequest", async (request, reply) => {
+    rememberAttribution(request, reply);
+  });
 
   app.addHook("onRequest", async (request, reply) => {
     if (!CSRF_PROTECTED_METHODS.has(request.method)) return;

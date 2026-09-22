@@ -336,6 +336,55 @@ export default function Home() {
 
         <WhatIsParkTag />
 
+        {/* ── SOUND FAMILIAR ── */}
+        {/* Real WhatsApp messages from society and office groups (names,
+            numbers, faces and plates blurred in the images). Every crop is
+            4:5, so the row stays even whatever the original screenshot was. */}
+        <section data-nav-dark className="bg-[#03162D] py-20 sm:py-28 overflow-hidden">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6">
+            <AnimateIn>
+              <h2 className="text-3xl sm:text-5xl font-extrabold text-white tracking-tight">Sound familiar?</h2>
+              <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-white/65">
+                Real messages from real WhatsApp groups this month. Names, numbers and plates hidden.
+              </p>
+            </AnimateIn>
+            <ul
+              tabIndex={0}
+              aria-label="Real parking complaints from WhatsApp groups"
+              className="mt-10 -mx-4 flex gap-4 overflow-x-auto snap-x snap-mandatory scroll-px-4 px-4 pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:mx-0 lg:grid lg:grid-cols-5 lg:gap-5 lg:overflow-visible lg:px-0 lg:pb-8 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#FF2700] rounded-2xl"
+            >
+              {[
+                  ["chat-blocked-two-days", "Whose car is this? It has been parked in my parking space for the past two days.", "Residents’ group · 12:18 PM", "WhatsApp message with a photo of a black SUV parked in someone else's basement parking spot"],
+                  ["chat-blocking-my-cab", "Can anyone please help me connect with the owner of this car? It’s blocking my cab.", "Office group · 11:03 AM", "WhatsApp message with a photo of a car blocking a cab on a busy street"],
+                  ["chat-again-in-my-parking", "Again this vehicle is parked in my parking today.", "Residents’ group · 10:52 PM", "WhatsApp message with a photo of a white SUV parked in the sender's spot again"],
+                  ["chat-remove-from-my-parking", "Vehicle owner, remove it from my parking.", "Residents’ group · 9:34 PM", "WhatsApp message with a photo of the same white SUV, under a complaint ticket nobody expects to be resolved"],
+                  ["chat-scooty-in-my-slot", "This scooty owner keep parking in the back side of my car.", "Residents’ group · 7:25 PM", "WhatsApp messages with a photo of a scooter parked in someone's car slot"],
+                ].map(([file, quote, meta, alt], index) => (
+                <li
+                  key={file}
+                  className={`w-[68vw] max-w-[250px] flex-shrink-0 snap-start lg:w-auto lg:max-w-none ${index % 2 ? "lg:translate-y-8" : ""}`}
+                >
+                  <img
+                    src={`/proof/chats/${file}.webp`}
+                    width={720}
+                    height={900}
+                    alt={alt}
+                    loading="lazy"
+                    className="block w-full h-auto aspect-[4/5] object-cover rounded-2xl ring-1 ring-white/10 shadow-[0_18px_40px_-18px_rgba(0,0,0,0.6)]"
+                  />
+                  <blockquote className="mt-4 text-[14px] font-bold leading-snug text-white [text-wrap:pretty]">“{quote}”</blockquote>
+                  <p className="mt-1.5 text-xs text-white/50">{meta}</p>
+                </li>
+              ))}
+            </ul>
+            <AnimateIn>
+              <p className="mt-10 max-w-2xl text-lg sm:text-xl font-semibold leading-snug text-white [text-wrap:balance]">
+                Every one of these ends in waiting and asking around. With a ParkTag on the windscreen, one scan reaches the owner in seconds, and nobody&rsquo;s number is shared.
+              </p>
+            </AnimateIn>
+          </div>
+        </section>
+
         {/* ── BEFORE / AFTER ── */}
         <section className="bg-gray-50 py-20 sm:py-28">
           <div className="max-w-5xl mx-auto px-4 sm:px-6">

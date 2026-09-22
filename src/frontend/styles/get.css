@@ -322,6 +322,53 @@
   line-height: 1.4;
 }
 
+/* "Sound familiar?": real complaint screenshots. One swipeable row that
+   bleeds to the screen edge so the next card peeks in, which is the only
+   affordance it needs. Every image is the same 4:5 crop, so heights match. */
+.gt-heard-s { margin: -4px 0 12px; font-size: .8rem; line-height: 1.5; color: var(--gt-ink-3); }
+.gt-heard-row {
+  list-style: none;
+  display: flex;
+  gap: 12px;
+  margin: 0 calc(var(--gt-gutter) * -1);
+  padding: 4px var(--gt-gutter) 14px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: var(--gt-gutter);
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+.gt-heard-row::-webkit-scrollbar { display: none; }
+.gt-heard-row:focus-visible { outline: 2px solid var(--gt-red); outline-offset: -2px; border-radius: 16px; }
+.gt-heard-card { flex: 0 0 min(66%, 236px); scroll-snap-align: start; }
+.gt-heard-shot {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+  border-radius: 16px;
+  border: 1px solid var(--gt-line);
+  background: var(--gt-ground);
+  box-shadow: 0 10px 24px -12px rgba(3, 22, 45, .28);
+}
+.gt-heard-q {
+  margin: 10px 2px 0;
+  font-size: .82rem;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--gt-ink);
+  text-wrap: pretty;
+}
+.gt-heard-m { margin: 4px 2px 0; font-size: .72rem; color: var(--gt-ink-3); }
+.gt-heard-end {
+  margin: 2px 0 0;
+  font-size: .86rem;
+  line-height: 1.55;
+  color: var(--gt-ink-2);
+  text-wrap: pretty;
+}
+
 .gt-sos {
   margin-top: 18px;
   background: var(--gt-navy-tint);

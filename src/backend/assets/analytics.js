@@ -15,6 +15,17 @@
 
   // Replaced server-side. Unset in an environment → empty string → this whole
   // file no-ops. That is the intended state for dev and staging.
+  // Production hostnames only. A `next dev` on localhost loads this same
+  // bundle from the deployed app, so every developer page view was landing in
+  // the live GA4 property: 17 sessions in one week arrived with the source
+  // "localhost:3000", and they sit in the same reports the ad spend is judged
+  // by. Preview and tunnel hosts are out for the same reason.
+  var host = (window.location && window.location.hostname) || "";
+  if (!/^(www\.)?parktag\.me$/.test(host) && !/\.parktag\.me$/.test(host)) {
+    window.ptTrack = function () {};
+    return;
+  }
+
   var GA4_ID = "__GA4_MEASUREMENT_ID__";
   var PIXEL_ID = "__META_PIXEL_ID__";
 

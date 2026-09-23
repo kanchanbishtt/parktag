@@ -56,6 +56,10 @@
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 Export QRs
               </button>
+              <button id="export-qr-only-button" class="pt-admin-btn" style="display:flex;align-items:center;gap:6px" title="Bare QR codes (no sticker artwork), A4 sheets, same QR size as on the sticker">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="14" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="3" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                QR only
+              </button>
               <button id="clear-all-button" class="pt-admin-btn" style="background:#FEF2F2;color:#DC2626;border:1.5px solid #FECACA">Clear all unprinted</button>
               <button id="load-print-queue-button" class="pt-admin-btn pt-admin-btn-ghost">Refresh</button>
             </div>
@@ -165,6 +169,23 @@
              the QR's own right edge so it reads as part of that block. Black
              ink: most fade-resistant, and discreet on the red. */
           #qr-export-grid .pt-figma-serial { position: absolute; right: 6.22%; top: 3%; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 7px; font-size: 1.3cqw; letter-spacing: 0.06em; color: #000; white-space: nowrap; }
+          /* QR-only export: bare codes on A4 portrait, 5 x 6 = 30 per page. The
+             QR is 30.9mm square, the same size it prints on the sticker
+             (30.64% of the 100.77mm artwork), so it scans the same. The serial
+             sits under each code for tracing; the dotted cell is the cut guide.
+             Its own classes, so none of the A6 sticker rules below touch it. */
+          #qr-export-grid .pt-qr-a4 {
+            width: 210mm; height: 297mm; box-sizing: border-box; padding: 13.5mm 10mm;
+            margin: 0 auto 22px; background: #fff;
+            border: 1px solid #E5E7EB; box-shadow: 0 2px 12px rgba(0,0,0,.08);
+            display: grid; grid-template-columns: repeat(5, 38mm); grid-auto-rows: 45mm; align-content: start;
+          }
+          #qr-export-grid .pt-qr-cell {
+            box-sizing: border-box; border: 0.2mm dotted #C4C4C4;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+          }
+          #qr-export-grid .pt-qr-cell img { width: 30.9mm; height: 30.9mm; display: block; }
+          #qr-export-grid .pt-qr-serial { margin-top: 1.5mm; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 6.5pt; letter-spacing: 0.06em; color: #000; white-space: nowrap; }
           #qr-export-grid .pt-sticker { display: flex; width: 100%; border-radius: 18px; overflow: hidden; border: 2px solid #03162D; }
           #qr-export-grid .pt-left { flex: 0 0 60%; background: #fff; padding: 22px; display: flex; flex-direction: column; justify-content: space-between; }
           #qr-export-grid .pt-logo { height: 26px; width: auto; display: block; }
@@ -225,6 +246,15 @@
             }
             #qr-export-grid .pt-page { width: auto !important; }
             #qr-export-grid .pt-sheet:last-child { break-after: auto; page-break-after: auto; }
+            /* QR-only sheets. The A4 page size itself is injected by the QR-only
+               export (a later @page rule wins), because @page cannot be scoped to
+               a class and the A6 rule above must stay the default. */
+            #qr-export-grid .pt-qr-a4 {
+              margin: 0 !important; border: none !important; box-shadow: none !important;
+              break-after: page; page-break-after: always;
+            }
+            #qr-export-grid .pt-qr-a4:last-child { break-after: auto; page-break-after: auto; }
+            #qr-export-grid .pt-qr-cell { break-inside: avoid; page-break-inside: avoid; }
             #qr-export-grid .pt-page { break-inside: avoid; page-break-inside: avoid; }
           }
         </style>

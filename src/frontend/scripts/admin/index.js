@@ -493,11 +493,52 @@ async function pqFetchExportChunk(ids, onWait) {
   }
 }
 
-async function exportQrsForPrint() {
+// QR-only export: bare codes, no sticker artwork, on A4 portrait. 5 x 6 per
+// page; the grid and QR size live in print-queue.html (.pt-qr-a4).
+const QR_ONLY_PER_PAGE = 30;
+const QR_ONLY_PAGE_STYLE_ID = "pq-qr-only-page";
+
+function qrOnlyCellHtml(tag) {
+  return `
+    <div class="pt-qr-cell">
+      <img src="${esc(tag.qrDataUrl)}" alt="QR ${esc(tag.serial || "")}"/>
+      <div class="pt-qr-serial">${esc(tag.serial || "")}</div>
+    </div>`;
+}
+
+// @page cannot be scoped to a class, so the A4 size is a rule added after the
+// sticker's A6 one (the later rule wins) and removed again for a sticker export.
+// Appended to <body>, not <head>: the A6 rule lives in a <style> inside the
+// page body, and a <head> rule would come before it and lose.
+function setQrOnlyPageSize(on) {
+  const existing = document.getElementById(QR_ONLY_PAGE_STYLE_ID);
+  if (!on) { if (existing) existing.remove(); return; }
+  if (existing) return;
+  const style = document.createElement("style");
+  style.id = QR_ONLY_PAGE_STYLE_ID;
+  style.textContent = "@media print { @page { margin: 0; size: 210mm 297mm; } }";
+  document.body.appendChild(style);
+}
+
+function exportQrsForPrint() {
+  return runPrintExport({ qrOnly: false });
+}
+
+function exportQrOnlyForPrint() {
+  return runPrintExport({ qrOnly: true });
+}
+
+async function runPrintExport({ qrOnly }) {
   const overlay = byId("qr-export-overlay");
   const grid = byId("qr-export-grid");
   const countLabel = byId("export-count-label");
   if (!overlay || !grid) return;
+
+  // Set before anything renders, so a QR-only run never prints on A6 paper and
+  // a sticker run after it never prints on A4.
+  setQrOnlyPageSize(qrOnly);
+  // An A4 sheet (210mm) is wider than the sticker preview's 760px column.
+  grid.style.maxWidth = qrOnly ? "none" : "760px";
 
   // Require an explicit selection — never default to exporting the whole sheet.
   //
@@ -557,6 +598,19 @@ async function exportQrsForPrint() {
     if (!tags.length) {
       if (countLabel) countLabel.textContent = "0 tags to print";
       grid.innerHTML = `<p style="color:#6B7280">No unclaimed tags to export.</p>`;
+      return;
+    }
+
+    if (qrOnly) {
+      const pages = Math.ceil(tags.length / QR_ONLY_PER_PAGE);
+      if (countLabel) {
+        countLabel.textContent = `${tags.length} QR code${tags.length !== 1 ? "s" : ""} · ${pages} A4 page${pages !== 1 ? "s" : ""} · print at 100% / actual size`;
+      }
+      let pagesHtml = "";
+      for (let i = 0; i < tags.length; i += QR_ONLY_PER_PAGE) {
+        pagesHtml += `<div class="pt-qr-a4">${tags.slice(i, i + QR_ONLY_PER_PAGE).map(qrOnlyCellHtml).join("")}</div>`;
+      }
+      grid.innerHTML = pagesHtml;
       return;
     }
 
@@ -1070,14 +1124,16 @@ const _pqRowCap = new Map();
 let _pqHighlightId = null;
 
 function _pqUpdateExportLabel() {
-  const btn = byId("export-qr-button");
-  if (!btn) return;
   const n = _pqSelected.size;
-  // Keep the icon; only swap the trailing text node.
-  const label = n > 0 ? `Export QRs (${n})` : "Export QRs";
-  const textNode = [...btn.childNodes].reverse().find((node) => node.nodeType === 3 && node.textContent.trim());
-  if (textNode) textNode.textContent = ` ${label}`;
-  else btn.append(document.createTextNode(` ${label}`));
+  for (const [id, text] of [["export-qr-button", "Export QRs"], ["export-qr-only-button", "QR only"]]) {
+    const btn = byId(id);
+    if (!btn) continue;
+    // Keep the icon; only swap the trailing text node.
+    const label = n > 0 ? `${text} (${n})` : text;
+    const textNode = [...btn.childNodes].reverse().find((node) => node.nodeType === 3 && node.textContent.trim());
+    if (textNode) textNode.textContent = ` ${label}`;
+    else btn.append(document.createTextNode(` ${label}`));
+  }
 }
 
 function togglePqSelect(id, checked) {
@@ -1352,6 +1408,10 @@ function bindEvents() {
     byId("export-qr-button").addEventListener("click", exportQrsForPrint);
   }
 
+  if (hasEl("export-qr-only-button")) {
+    byId("export-qr-only-button").addEventListener("click", exportQrOnlyForPrint);
+  }
+
   if (hasEl("pq-batch-filter")) {
     byId("pq-batch-filter").addEventListener("change", (event) => {
       _pqBatchFilter = event.target.value || "";
@@ -1397,6 +1457,7 @@ function bindEvents() {
     byId("close-export-button").addEventListener("click", () => {
       const overlay = byId("qr-export-overlay");
       if (overlay) overlay.style.display = "none";
+      setQrOnlyPageSize(false);
     });
   }
 

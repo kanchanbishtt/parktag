@@ -982,7 +982,12 @@
   background: var(--gt-ground);
   border: 1px dashed var(--gt-line);
   color: var(--gt-ink-3);
-  white-space: nowrap;
+  /* Two lines on a narrow card: the label went from "Sold out" to an invitation
+     to ask for stock, and nowrap pushed that out of the card on a phone. */
+  white-space: normal;
+  text-align: center;
+  line-height: 1.2;
+  text-decoration: none;
   cursor: default;
 }
 

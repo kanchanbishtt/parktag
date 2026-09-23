@@ -47,6 +47,7 @@ const PACKS = [
 // The pack the hero and the sticky bar quote. Named rather than "the cheapest"
 // or "the first": which pack leads is a merchandising decision, and deriving it
 // from price would silently change the headline the day a price moves.
+const SUPPORT_WHATSAPP = "918791638854";
 const HERO_PACK = "pt-car-2";
 
 let _products = {};
@@ -208,10 +209,24 @@ function renderPacks(products) {
     // is inert in both paths at once: the delegated click handler matches on
     // data-sku and never sees it, and with scripting off there is no link into
     // a checkout that cannot be fulfilled.
-    const cta = document.createElement(pack.soldOut ? "span" : "a");
+    const cta = document.createElement("a");
     if (pack.soldOut) {
+      // Still no data-sku, so neither the delegated click handler nor a
+      // scripting-off click can reach a checkout we cannot fulfil. It is a
+      // link now because Clarity recorded people clicking the old inert
+      // "Sold out" label: a dead click that told us nothing. This turns that
+      // same tap into a message we can answer, and into demand we can count.
       cta.className = "gt-pack-cta gt-pack-cta-out";
-      cta.textContent = "Sold out";
+      cta.textContent = "Tell me when it's back";
+      cta.href = `https://wa.me/${SUPPORT_WHATSAPP}?text=${encodeURIComponent(
+        `Hi! Please let me know when the ${priced.name} is back in stock.`
+      )}`;
+      cta.target = "_blank";
+      cta.rel = "noopener";
+      cta.setAttribute("aria-label", `Ask when ${priced.name} is back in stock`);
+      cta.addEventListener("click", () => {
+        window.ptTrack?.("waitlist_click", { item_id: pack.id, item_name: priced.name });
+      });
     } else {
       cta.className = "gt-btn gt-pack-cta";
       cta.href = `#packs`;

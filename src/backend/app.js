@@ -735,10 +735,13 @@ export async function buildApp() {
           "https://www.clarity.ms",
           "https://*.clarity.ms"
         ],
-        frameSrc: ["https://accounts.google.com", "https://*.razorpay.com", "https://www.google.com"],
+        // www.facebook.com: the Pixel falls back to a hidden iframe + form post when
+        // its image beacon is unavailable. Without it every /get view logs two CSP
+        // violations and that fallback silently loses the event.
+        frameSrc: ["https://accounts.google.com", "https://*.razorpay.com", "https://www.google.com", "https://www.facebook.com"],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
-        formAction: ["'self'"],
+        formAction: ["'self'", "https://www.facebook.com"],
         // 'self' alone renders a blank frame in VS Code's Simple Browser: the
         // page is embedded in a cross-origin webview iframe (vscode-webview://
         // on desktop, *.vscode-cdn.net on vscode.dev). Dev-only — production

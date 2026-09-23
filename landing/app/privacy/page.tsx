@@ -13,7 +13,7 @@ export default function PrivacyPage() {
       <SiteHeader defaultDark={false} />
       <div className="min-h-screen bg-white pt-16">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-12 sm:py-16">
-        <p className="text-xs text-[#495B7B] mb-3">Last updated: 21 August 2026</p>
+        <p className="text-xs text-[#495B7B] mb-3">Last updated: 22 September 2026</p>
         <h1 className="text-3xl sm:text-4xl font-extrabold text-[#03162D] mb-2 tracking-tight">Privacy Policy</h1>
         <p className="text-[#495B7B] mb-10">
           ParkTag (&ldquo;we&rdquo;, &ldquo;us&rdquo;, &ldquo;our&rdquo;) respects your privacy. This Privacy Policy explains how we collect, use, share and protect your information when you use our website parktag.me, our web app, and our QR-enabled physical tags (collectively, the &ldquo;Services&rdquo;).
@@ -61,13 +61,34 @@ export default function PrivacyPage() {
             </p>
           </Section>
 
-          <Section title="5. Security">
+          <Section title="5. Data Safety">
+            <p>
+              Protecting personal information is an important part of how we operate ParkTag. We use reasonable technical and organisational safeguards designed to protect the information handled through our Services.
+            </p>
+            <p>
+              Data transmitted through ParkTag is protected using encrypted connections. For storage and infrastructure, we rely on established technology providers, including Amazon and Google, whose services include security measures such as encryption of stored data.
+            </p>
+            <p>
+              Passwords are stored in hashed form rather than as readable passwords. Payment information, including full card numbers, CVV and banking credentials, is handled securely by Razorpay and is not stored by ParkTag.
+            </p>
+            <p>
+              Access to personal information is limited to authorised personnel and service providers who need it to operate, maintain or support the Services.
+            </p>
+            <p>
+              We regularly review the safeguards used in connection with ParkTag and take appropriate action where security risks are identified. If a security incident affecting personal information occurs, we will investigate it and take appropriate steps, including notifications where required by applicable law.
+            </p>
+            <p>
+              While no digital service can guarantee absolute security, we aim to use practical and appropriate safeguards to protect the information entrusted to us.
+            </p>
+          </Section>
+
+          <Section title="6. Security">
             <p>
               We encrypt your data in transit with TLS, both between your browser and ParkTag and between ParkTag and our database. The database is hosted on MongoDB Atlas, where the underlying storage is encrypted at rest with AES-256. Passwords are never stored in a readable form &mdash; they are hashed with bcrypt and cannot be recovered, even by us. We do not store full card numbers, CVV or banking credentials at all; those stay with Razorpay. Access to production data is restricted, and we review the Services for security issues on an ongoing basis. No method of transmission or storage is completely secure, but we continue to strengthen our safeguards.
             </p>
           </Section>
 
-          <Section title="6. Your Rights">
+          <Section title="7. Your Rights">
             <p>Depending on your jurisdiction (India DPDP Act, GDPR, etc.) you have the right to:</p>
             <ul>
               <li>Access, correct or delete your personal data</li>
@@ -82,13 +103,13 @@ export default function PrivacyPage() {
             </p>
           </Section>
 
-          <Section title="7. Children's Privacy">
+          <Section title="8. Children's Privacy">
             <p>
               ParkTag is not directed at children under 18. We do not knowingly collect data from minors. If you believe a minor has provided us data, please contact us and we will delete it.
             </p>
           </Section>
 
-          <Section title="8. Cookies and advertising">
+          <Section title="9. Cookies and advertising">
             <p>
               We use essential cookies for authentication, and analytics cookies (Google Analytics) to understand how our website and app are used. You can manage cookies via your browser settings.
             </p>
@@ -106,14 +127,14 @@ export default function PrivacyPage() {
             </p>
           </Section>
 
-          <Section title="9. Changes to This Policy">
+          <Section title="10. Changes to This Policy">
             <p>
               We may update this Privacy Policy from time to time. The &ldquo;Last updated&rdquo; date at the top will reflect the latest revision. Material changes will be notified via email or in-app.
             </p>
           </Section>
 
-          <Section title="10. Contact">
-            <p>Grievance Officer: <span className="text-[#03162D] font-medium">[Name]</span></p>
+          <Section title="11. Contact">
+            <p>Grievance Officer: <span className="text-[#03162D] font-medium">Girish Sharma</span></p>
             <p>Email: <a href="mailto:privacy@parktag.me" className="text-[#FF2700] hover:underline">privacy@parktag.me</a></p>
             <p>Address: 32/11, Wave One, Sector 18, Noida, UP 201301</p>
           </Section>

@@ -11,6 +11,7 @@
 // Display-only. The lead pack comes first: which one leads is a merchandising
 // decision, so it is written down rather than derived from price.
 import { referralCode, clearReferralCode } from "./referral-link.js";
+import { getCaptchaToken } from "./recaptcha.js";
 
 const PACKS = [
   {
@@ -371,6 +372,9 @@ async function buy(sku, product) {
   const cod = _cod && _cod.productIds.includes(sku) ? _cod : null;
   const picked = await window.ptCollectAddress({
     guest: true,
+    // The COD phone check in the sheet sends a code, and the server wants a
+    // bot score for it. Only called on the COD path.
+    captchaToken: () => getCaptchaToken("guest_checkout"),
     orderSummary: product
       ? {
           name: addOn ? `${product.name} + ${addOn.name}` : product.name,
@@ -420,6 +424,9 @@ async function buy(sku, product) {
 
   let order;
   try {
+    // COD only: the server refuses an unscored COD order. Online checkout here
+    // stays as it was, with no token.
+    const recaptchaToken = paymentMethod === "cod" ? await getCaptchaToken("guest_checkout") : undefined;
     const res = await fetch("/api/shop/guest/create-order", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -430,6 +437,7 @@ async function buy(sku, product) {
         address,
         ref: referralCode(),
         promo: _launchOffer && _launchOffer.productId === sku ? _launchOffer.code : undefined,
+        recaptchaToken,
         addOnId: addOn?.id,
         paymentMethod,
         // Proof the delivery mobile passed its code; Cash on Delivery only.

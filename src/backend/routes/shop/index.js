@@ -57,8 +57,17 @@ export const COD_SURCHARGE_PAISE = 3000;
 // on the catalog price (e.g. catalog ₹499 → COD ₹529 → online ₹499).
 export const FLASH_DISCOUNT_PAISE = COD_SURCHARGE_PAISE;
 
-// Guest COD is the Duo Pack only; every other pack stays online-only.
-const GUEST_COD_PRODUCT_IDS = ["pt-car-2"];
+// Guest COD is the car packs (Solo and Duo) only; every other pack stays online-only.
+const GUEST_COD_PRODUCT_IDS = ["pt-car-1", "pt-car-2"];
+
+// Most packs one COD order may carry, guest or signed-in. Online stays
+// unbounded (a real bulk buyer pays up front); COD is where a single verified
+// phone could otherwise book a parcel worth lakhs that nobody pays for, and the
+// courier booking is one 50 g parcel whatever the count.
+const COD_MAX_QUANTITY = 5;
+
+// Guest COD with no reCAPTCHA token (production only; see verifyRecaptcha).
+const COD_UNSCORED_ERROR = "Cash on Delivery needs a quick security check that could not run in this browser. Please pay online, or turn off any ad blocker and refresh.";
 
 // Guest COD is held to ONE open COD order per phone, plus a per-IP ceiling for
 // someone typing a fresh number each time, and the delivery phone must prove
@@ -671,6 +680,7 @@ export function registerShopRoutes(app, env) {
       return {
         ok: true, products, launchOffer, addOns,
         codSurchargePaise: COD_SURCHARGE_PAISE, codProductIds: GUEST_COD_PRODUCT_IDS,
+        codMaxQuantity: COD_MAX_QUANTITY,
         // So a friend's-link visitor is told the discount by the server that grants it.
         referralDiscountPaise: REFERRAL_DISCOUNT_PAISE
       };
@@ -730,7 +740,10 @@ export function registerShopRoutes(app, env) {
       }
       const cod = paymentMethod === "cod";
       if (cod && !GUEST_COD_PRODUCT_IDS.includes(productId)) {
-        reply.code(400); return { ok: false, error: "Cash on Delivery is only available on the Duo Pack." };
+        reply.code(400); return { ok: false, error: "Cash on Delivery is only available on the Car Tag packs." };
+      }
+      if (cod && quantity > COD_MAX_QUANTITY) {
+        reply.code(400); return { ok: false, error: `Cash on Delivery is limited to ${COD_MAX_QUANTITY} packs per order. Please pay online for more.` };
       }
       if (cod && (typeof codToken !== "string" || !codToken)) {
         reply.code(401);
@@ -764,6 +777,13 @@ export function registerShopRoutes(app, env) {
         // here — a low score, a token Google rejects, a token minted for a
         // different action — is a positive signal and is refused outright.
         const unscored = captcha.reason === "missing-token";
+
+        // COD is the exception: every COD order books a billed courier parcel,
+        // so an unscored one is refused (online is still open to them).
+        if (unscored && cod) {
+          reply.code(400);
+          return { ok: false, code: "COD_CAPTCHA_REQUIRED", error: COD_UNSCORED_ERROR };
+        }
 
         if (!unscored) {
           request.log.warn(
@@ -1095,15 +1115,17 @@ export function registerShopRoutes(app, env) {
       if (pincode !== undefined && (typeof pincode !== "string" || !/^[1-9]\d{5}$/.test(pincode))) {
         reply.code(400); return { ok: false, error: "Enter a valid 6-digit PIN code." };
       }
-      // Same bot check and the same allowance for an absent token as guest
-      // create-order; the per-IP send cap below is what bounds the unscored.
+      // Same bot check as guest create-order, minus its allowance for an absent
+      // token: a COD code leads to a billed courier parcel, so COD needs a score.
       const captcha = await verifyRecaptcha(env, recaptchaToken, {
         remoteIp: request.ip,
         expectedAction: "guest_checkout"
       });
-      if (!captcha.ok && captcha.reason !== "missing-token") {
+      if (!captcha.ok) {
         reply.code(400);
-        return { ok: false, error: "We couldn't verify this request. Please refresh the page and try again." };
+        return captcha.reason === "missing-token"
+          ? { ok: false, code: "COD_CAPTCHA_REQUIRED", error: COD_UNSCORED_ERROR }
+          : { ok: false, error: "We couldn't verify this request. Please refresh the page and try again." };
       }
       const collections = await getCollections(env);
       if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
@@ -1668,6 +1690,10 @@ export function registerShopRoutes(app, env) {
     const addressDoc = await collections.addresses.findOne({ ownerId });
     const shipping = addressDoc ? shapeAddress(addressDoc) : null;
     if (!shipping) { reply.code(400); return { error: "Please add a delivery address before ordering." }; }
+
+    if (quantity > COD_MAX_QUANTITY) {
+      reply.code(400); return { error: `Cash on Delivery is limited to ${COD_MAX_QUANTITY} packs per order. Please pay online for more.` };
+    }
 
     // Per-account ceiling (see MAX_COD_ORDERS_PER_WINDOW). Checked before the
     // OTP step so someone at their limit is told so immediately rather than

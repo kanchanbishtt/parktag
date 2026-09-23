@@ -68,8 +68,8 @@ describe("the public price list", () => {
     const body = (await get()).json();
 
     assert.equal(body.codSurchargePaise, 3000);
-    // Guest COD is the Duo Pack only; Solo stays online-only.
-    assert.deepEqual(body.codProductIds, ["pt-car-2"]);
+    // Guest COD is the car packs (Solo and Duo) only.
+    assert.deepEqual(body.codProductIds, ["pt-car-1", "pt-car-2"]);
   });
 
   // "Public" is a promise about the response shape. If this endpoint ever
@@ -84,6 +84,6 @@ describe("the public price list", () => {
 
     // And it must not start setting one either.
     assert.equal(res.headers["set-cookie"], undefined);
-    assert.deepEqual(Object.keys(res.json()).sort(), ["addOns", "codProductIds", "codSurchargePaise", "launchOffer", "ok", "products", "referralDiscountPaise"]);
+    assert.deepEqual(Object.keys(res.json()).sort(), ["addOns", "codMaxQuantity", "codProductIds", "codSurchargePaise", "launchOffer", "ok", "products", "referralDiscountPaise"]);
   });
 });

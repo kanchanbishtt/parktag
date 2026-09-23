@@ -58,10 +58,10 @@ const FAQS = [
   },
   {
     q: "How long does delivery take?",
-    // COD is quoted only for the Duo Pack because that is the only pack the
-    // guest checkout offers it on, and "where available" because a PIN code
+    // COD is quoted only for the car packs because those are the only packs
+    // the guest checkout offers it on, and "where available" because a PIN code
     // Delhivery cannot collect cash at is refused at checkout.
-    a: "Delivery is free on every order, anywhere in India. We ship within 1–2 business days and delivery takes 2–4 business days, with a tracking number once dispatched. Cash on delivery is available on the Duo Pack at ₹529 (₹499 MRP + ₹30 COD fee) where Delhivery accepts cash. The ₹399 launch price and other codes apply to online payment only.",
+    a: "Delivery is free on every order, anywhere in India. We ship within 1–2 business days and delivery takes 2–4 business days, with a tracking number once dispatched. Cash on delivery is available on the Car Tag packs for a ₹30 COD fee on MRP (₹329 for one tag, ₹529 for two) where Delhivery accepts cash. The ₹399 launch price and other codes apply to online payment only.",
   },
 ];
 

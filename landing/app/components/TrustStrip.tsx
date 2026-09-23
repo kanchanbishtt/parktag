@@ -16,7 +16,7 @@ import { faTruckFast, faShieldHalved, faCalendarCheck, faArrowRotateLeft } from 
 // "Made in India", which the reference strip carries, is deliberately absent.
 // It is a manufacturing claim and nothing in this repo establishes it, so it
 // would be the one line here that a buyer could not verify.
-// Cash on delivery (Duo Pack only, +₹30) is left to the pricing card and FAQ,
+// Cash on delivery (car packs only, +₹30) is left to the pricing card and FAQ,
 // where the pack restriction can be said alongside it.
 const ITEMS: [IconDefinition, string, string][] = [
   [faTruckFast, "Free delivery", "Anywhere in India"],

@@ -54,8 +54,8 @@ let _products = {};
 let _launchOffer = null;
 let _addOn = null;
 let _checkedOutAddOn = null;
-// { surchargePaise, productIds } off the catalogue: which packs take Cash on
-// Delivery and what it adds. Null means online only.
+// { surchargePaise, productIds, maxQuantity } off the catalogue: which packs take Cash on
+// Delivery, what it adds and the most packs it covers. Null means online only.
 let _cod = null;
 
 const byId = (id) => document.getElementById(id);
@@ -74,8 +74,10 @@ function offerFor(sku) {
   return _launchOffer && _launchOffer.productId === sku ? _launchOffer : null;
 }
 
-function codFor(sku) {
-  return _cod && _cod.productIds.includes(sku) ? _cod : null;
+function codFor(sku, quantity = 1) {
+  if (!_cod || !_cod.productIds.includes(sku)) return null;
+  // Above the cap the sheet offers online only; the server refuses it anyway.
+  return _cod.maxQuantity && quantity > _cod.maxQuantity ? null : _cod;
 }
 
 function pricedTotalPaise(sku, priced, qty, addOn = null) {
@@ -541,7 +543,7 @@ async function buy(sku) {
   // backing out here is an ordinary thing to do, not an error. It is also
   // where the buyer picks online or Cash on Delivery, for a pack that takes it.
   const offer = offerFor(sku);
-  const cod = codFor(sku);
+  const cod = codFor(sku, quantity);
   const picked = await window.ptCollectAddress({
     guest: true,
     // The COD phone check in the sheet sends a code, so it is bot-scored too.
@@ -1008,7 +1010,11 @@ async function load() {
   _products = payload.products;
   _launchOffer = payload.launchOffer || null;
   _cod = typeof payload.codSurchargePaise === "number" && Array.isArray(payload.codProductIds)
-    ? { surchargePaise: payload.codSurchargePaise, productIds: payload.codProductIds }
+    ? {
+        surchargePaise: payload.codSurchargePaise,
+        productIds: payload.codProductIds,
+        maxQuantity: Number.isInteger(payload.codMaxQuantity) ? payload.codMaxQuantity : null
+      }
     : null;
   renderChips(payload.products);
   // A friend's link: the discount is applied by the server at payment, so say

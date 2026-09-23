@@ -65,8 +65,8 @@ const HERO_PACK = "pt-car-2";
 
 let _products = {};
 let _launchOffer = null;
-// { surchargePaise, productIds } off the catalogue: which packs take Cash on
-// Delivery and what it adds. Null means online only.
+// { surchargePaise, productIds, maxQuantity } off the catalogue: which packs take Cash on
+// Delivery, what it adds and the most packs it covers. Null means online only.
 let _cod = null;
 // Whether the last order was placed as Cash on Delivery. Measurement and copy.
 let _paidCod = false;
@@ -708,7 +708,9 @@ async function buy(sku) {
   // backing out here is an ordinary thing to do, not an error. It is also
   // where the buyer picks online or Cash on Delivery, for a pack that takes it.
   // Never on a handover: there is no courier to collect the cash.
-  const cod = !handover && _cod && _cod.productIds.includes(sku) ? _cod : null;
+  // Above the COD cap the sheet offers online only; the server refuses it anyway.
+  const cod = !handover && _cod && _cod.productIds.includes(sku) &&
+    !(_cod.maxQuantity && quantity > _cod.maxQuantity) ? _cod : null;
   const picked = handover
     ? await collectHandoverContact()
     : await window.ptCollectAddress({
@@ -1177,7 +1179,11 @@ async function load() {
   _products = payload.products;
   _launchOffer = payload.launchOffer || null;
   _cod = typeof payload.codSurchargePaise === "number" && Array.isArray(payload.codProductIds)
-    ? { surchargePaise: payload.codSurchargePaise, productIds: payload.codProductIds }
+    ? {
+        surchargePaise: payload.codSurchargePaise,
+        productIds: payload.codProductIds,
+        maxQuantity: Number.isInteger(payload.codMaxQuantity) ? payload.codMaxQuantity : null
+      }
     : null;
   // A campaign link (?promo=CODE&sku=...) pre-fills its code; the server still
   // decides whether it applies, exactly as if the buyer had typed it.

@@ -112,6 +112,16 @@ function placeCod(payload) {
   });
 }
 
+describe("signed-in COD pack cap", () => {
+  test("more than 5 packs on COD is refused before the code is checked", async () => {
+    await plantCode(PHONE, OTP_PURPOSE_COD_VERIFY);
+    const response = await placeCod({ productId: "pt-car-1", otp: CODE, quantity: 6 });
+    assert.equal(response.statusCode, 400, response.body);
+    assert.match(response.json().error, /limited to 5 packs/);
+    assert.equal(await collections.shopOrders.countDocuments({ ownerId }), 0);
+  });
+});
+
 describe("HIGH #1 — a COD code and a sign-in code are not interchangeable", () => {
   test("a sign-in code does not authorise a COD order", async () => {
     await plantCode(PHONE, OTP_PURPOSE_AUTH);

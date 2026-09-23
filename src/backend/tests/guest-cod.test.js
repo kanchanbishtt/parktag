@@ -1,6 +1,6 @@
 // Cash on Delivery on guest checkout (/shop, /get, /direct).
 //
-// The business rule: COD is the Duo Pack (pt-car-2) only, for a flat ₹30 on top
+// The business rule: COD is the car packs (pt-car-1, pt-car-2) only, for a flat ₹30 on top
 // of MRP. No code applies to COD, not even the auto-applied LAUNCH100: ₹529
 // COD, ₹578 with the plate). No Razorpay: the order is written as "cod" at
 // once, and the breakdown says what the courier will collect.
@@ -145,11 +145,38 @@ describe("guest Cash on Delivery", () => {
     assert.equal(res.json().amount, 49900 + 3000);
   });
 
-  for (const productId of ["pt-car-1", "pt-bike-1", "pt-combo"]) {
+  test("Solo Pack takes COD too: ₹299 + ₹30 = ₹329", async () => {
+    const res = await cod({ productId: "pt-car-1" });
+    assert.equal(res.statusCode, 200, res.body);
+    assert.equal(res.json().paymentMethod, "cod");
+    assert.equal(res.json().amount, 29900 + 3000);
+  });
+
+  test("COD takes up to 5 packs", async () => {
+    const res = await cod({ productId: "pt-car-1", quantity: 5 });
+    assert.equal(res.statusCode, 200, res.body);
+    assert.equal(res.json().amount, 29900 * 5 + 3000);
+  });
+
+  test("COD refuses more than 5 packs, before any order is written", async () => {
+    const res = await cod({ quantity: 6 });
+    assert.equal(res.statusCode, 400, res.body);
+    assert.match(res.json().error, /limited to 5 packs/);
+    assert.equal(await collections.shopOrders.countDocuments({}), 0);
+  });
+
+  test("the COD pack cap does not touch online checkout", async () => {
+    // Razorpay is unconfigured, so reaching its guard proves the cap let it by.
+    const res = await createOrder({ productId: "pt-car-2", address: ADDRESS, quantity: 6 });
+    assert.equal(res.statusCode, 500, res.body);
+    assert.equal(res.json().error, "Razorpay not configured.");
+  });
+
+  for (const productId of ["pt-bike-1", "pt-combo"]) {
     test(`${productId} is online-only`, async () => {
       const res = await cod({ productId });
       assert.equal(res.statusCode, 400, res.body);
-      assert.match(res.json().error, /only available on the Duo Pack/);
+      assert.match(res.json().error, /only available on the Car Tag packs/);
       assert.equal(await collections.shopOrders.countDocuments({}), 0);
     });
   }
@@ -271,6 +298,7 @@ describe("guest Cash on Delivery", () => {
   test("the public catalogue offers COD exactly where create-order takes it", async () => {
     const res = await app.inject({ method: "GET", url: "/api/shop/public-catalogue", remoteAddress: uniqueAddress() });
     assert.equal(res.json().codSurchargePaise, 3000);
-    assert.deepEqual(res.json().codProductIds, ["pt-car-2"]);
+    assert.deepEqual(res.json().codProductIds, ["pt-car-1", "pt-car-2"]);
+    assert.equal(res.json().codMaxQuantity, 5);
   });
 });

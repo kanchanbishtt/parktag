@@ -27,8 +27,12 @@ describe("guest COD phone check wiring", () => {
   for (const file of ["shop.js", "get.js", "direct.js"]) {
     test(`${file} forwards codToken to create-order`, async () => {
       const src = await read(file);
-      assert.match(src, /const \{ paymentMethod = "online", codToken, \.\.\.address \} = picked;/);
-      assert.match(src, /paymentMethod,\s*\/\/[^\n]*\n\s*codToken\s*\}\)/);
+      // Other checkout-only fields may sit between codToken and the rest; what
+      // matters is that codToken is pulled OUT of the address, never posted inside it.
+      assert.match(src, /const \{ paymentMethod = "online", codToken,[^}]*\.\.\.address \} = picked;/);
+      // codToken stays the last field of the body; other checkout flags may
+      // sit between it and paymentMethod.
+      assert.match(src, /paymentMethod,[\s\S]{0,240}?codToken\s*\}\)/);
     });
   }
 });

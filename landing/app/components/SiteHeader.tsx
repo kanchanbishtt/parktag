@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 import { BuyOnAmazonButton } from "./BuyOnAmazonButton";
 
@@ -46,6 +47,12 @@ const DROPDOWNS = {
 type DropdownKey = keyof typeof DROPDOWNS;
 
 export function SiteHeader({ defaultDark = true }: { defaultDark?: boolean }) {
+  // A bare "#faq" only resolves on the page that HAS that section. On /privacy
+  // and /about those three links did nothing at all, which Clarity recorded as
+  // 24 dead clicks and 5 rage clicks across five visits. Off the home page the
+  // same links carry it: "/#faq" loads home, then jumps.
+  const pathname = usePathname();
+  const home = pathname === "/" ? "" : "/";
   const [isDark, setIsDark] = useState(defaultDark);
   const [mounted, setMounted] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -246,7 +253,7 @@ export function SiteHeader({ defaultDark = true }: { defaultDark?: boolean }) {
                       ) : (
                         <a
                           key={item.label}
-                          href={item.href}
+                          href={item.href.startsWith("#") ? `${home}${item.href}` : item.href}
                           onClick={closeAll}
                           className="flex flex-col px-4 py-2.5 hover:bg-gray-50 transition-colors group"
                         >
@@ -264,8 +271,8 @@ export function SiteHeader({ defaultDark = true }: { defaultDark?: boolean }) {
                 "what is it" and "what does it cost", which is most of what a
                 first-time visitor came to find out. */}
             {[
-              { label: "How It Works", href: "#how-it-works" },
-              { label: "Pricing", href: "#pricing" },
+              { label: "How It Works", href: `${home}#how-it-works` },
+              { label: "Pricing", href: `${home}#pricing` },
             ].map(({ label, href }) => (
               <a
                 key={label}
@@ -379,11 +386,11 @@ export function SiteHeader({ defaultDark = true }: { defaultDark?: boolean }) {
             <Link href="/contact" onClick={closeAll} className="py-2.5 text-[#03162D] font-medium text-sm hover:text-[#FF2700] transition-colors">Fleet · 5+ vehicles</Link>
 
             <div className="text-[10px] font-bold text-[#495B7B]/40 tracking-widest uppercase mt-4 mb-2">Learn</div>
-            <a href="#how-it-works" onClick={closeAll} className="py-2.5 text-[#03162D] font-medium text-sm hover:text-[#FF2700] transition-colors">How It Works</a>
-            <a href="#pricing" onClick={closeAll} className="py-2.5 text-[#03162D] font-medium text-sm hover:text-[#FF2700] transition-colors">Pricing</a>
+            <a href={`${home}#how-it-works`} onClick={closeAll} className="py-2.5 text-[#03162D] font-medium text-sm hover:text-[#FF2700] transition-colors">How It Works</a>
+            <a href={`${home}#pricing`} onClick={closeAll} className="py-2.5 text-[#03162D] font-medium text-sm hover:text-[#FF2700] transition-colors">Pricing</a>
 
             <div className="text-[10px] font-bold text-[#495B7B]/40 tracking-widest uppercase mt-4 mb-2">Support</div>
-            <a href="#faq" onClick={closeAll} className="py-2.5 text-[#03162D] font-medium text-sm hover:text-[#FF2700] transition-colors">FAQ</a>
+            <a href={`${home}#faq`} onClick={closeAll} className="py-2.5 text-[#03162D] font-medium text-sm hover:text-[#FF2700] transition-colors">FAQ</a>
             <Link href="/contact" onClick={closeAll} className="py-2.5 text-[#03162D] font-medium text-sm hover:text-[#FF2700] transition-colors">Contact</Link>
             <Link href="/about" onClick={closeAll} className="py-2.5 text-[#03162D] font-medium text-sm hover:text-[#FF2700] transition-colors">About Us</Link>
 

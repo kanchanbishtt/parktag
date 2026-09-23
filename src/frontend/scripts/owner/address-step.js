@@ -310,10 +310,13 @@
       '</fieldset>' +
       '<p class="pt-addr-summary-pay" id="pt-addr-summary-pay">No payment is taken on this step. Continue to pay securely using UPI, cards or net banking.</p>' +
       // Meta reclassified the abandoned-cart template as MARKETING, which needs
-      // recorded opt-in, so the reminder can only reach a buyer who ticked this.
-      // Unticked by default: a pre-ticked box is not consent, and this number
-      // also carries login codes and scan alerts that blocks would damage.
-      '<label class="pt-addr-optin"><input type="checkbox" id="pt-addr-optin"><span>Message me on WhatsApp about this order and ParkTag offers</span></label>' +
+      // recorded opt-in, so the reminder can only reach a buyer who has this on.
+      //
+      // Ticked by default, by the owner's decision on 2026-09-23. The trade is
+      // written down rather than hidden: a pre-ticked box is weaker consent
+      // than a deliberate tick, so the stamp records WHICH it was, and the box
+      // sits in plain sight above the button with one tap to turn it off.
+      '<label class="pt-addr-optin"><input type="checkbox" id="pt-addr-optin" checked><span>Message me on WhatsApp about this order and ParkTag offers. Untick if you would rather not.</span></label>' +
       '</div>' +
 
       // ── Confirm view (returning buyer) ──
@@ -623,7 +626,10 @@
     // which sends it with the order.
     if (guestMode) {
       if (payPrices && payChoice === "cod") { startCodCheck(v); return; }
-      var consent = { marketingOptIn: !!(els.optIn && els.optIn.checked) };
+      // `source` tells a deliberate tick apart from the default state later,
+      // which is the difference that matters if consent is ever questioned.
+      var ticked = !!(els.optIn && els.optIn.checked);
+      var consent = { marketingOptIn: ticked, marketingOptInSource: ticked && els.optIn.defaultChecked ? "checkout-default" : "checkout-ticked" };
       close(payPrices ? Object.assign({}, v, { paymentMethod: payChoice }, consent) : Object.assign({}, v, consent));
       return;
     }

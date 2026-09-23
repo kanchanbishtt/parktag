@@ -727,10 +727,17 @@ export function registerShopRoutes(app, env) {
         // stamps the TIME consent was given, which is what a marketing send
         // has to be able to point at later.
         marketingOptIn: rawMarketingOptIn,
+        marketingOptInSource: rawMarketingOptInSource,
         // Cash on Delivery only: proof the delivery phone passed its OTP.
         codToken
       } = request.body || {};
       const marketingOptInAt = rawMarketingOptIn === true ? new Date().toISOString() : null;
+      // Which kind of yes it was. "checkout-default" is the pre-ticked box left
+      // alone, "checkout-ticked" is a box the buyer turned on themselves. Only
+      // ever one of the two we know about, never free text from a browser.
+      const marketingOptInSource = marketingOptInAt
+        ? (rawMarketingOptInSource === "checkout-ticked" ? "checkout-ticked" : "checkout-default")
+        : null;
 
       // Checked before anything else costs a network round trip (reCAPTCHA,
       // the DB) — a malformed quantity is refused for free.
@@ -931,6 +938,7 @@ export function registerShopRoutes(app, env) {
           status: "cod",
           shippingAddress: shipping,
           marketingOptInAt,
+          marketingOptInSource,
           internal: isInternalPhone(env, shipping.phone),
           replaceTagId: null,
           referredBy: null,
@@ -1046,6 +1054,7 @@ export function registerShopRoutes(app, env) {
           status: "created",
           shippingAddress: shipping,
           marketingOptInAt,
+          marketingOptInSource,
           // Ours, not a customer's. Five COD tests to our own Noida address
           // once reported Rs 2,144 of revenue that never existed, and the daily
           // digest would have gone on reporting it. Marked, never blocked:

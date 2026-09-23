@@ -5,6 +5,8 @@ const statusSel = document.getElementById("status");
 const categorySel = document.getElementById("category");
 const claimSel = document.getElementById("claim");
 const inclDel = document.getElementById("includeDeleted");
+const batchSel = document.getElementById("batch");
+const batchCsv = document.getElementById("batchCsv");
 
 function esc(s) {
   return String(s == null ? "" : s).replace(/[&<>"]/g, (c) =>
@@ -44,6 +46,11 @@ async function load() {
   // "claimed" is the server default, so it is left off for the same reason.
   if (claimSel.value && claimSel.value !== "claimed") params.set("claim", claimSel.value);
   if (inclDel.checked) params.set("includeDeleted", "1");
+  if (batchSel.value) params.set("batch", batchSel.value);
+
+  // The CSV covers the whole batch (not just the 300 rows shown here).
+  batchCsv.hidden = !batchSel.value;
+  if (batchSel.value) batchCsv.href = `/api/admin/tag-batches/${encodeURIComponent(batchSel.value)}/export.csv`;
 
   rows.innerHTML = `<tr><td colspan="9" class="empty">Loading…</td></tr>`;
   let data;
@@ -169,4 +176,29 @@ statusSel.addEventListener("change", load);
 categorySel.addEventListener("change", load);
 claimSel.addEventListener("change", load);
 inclDel.addEventListener("change", load);
-load();
+batchSel.addEventListener("change", load);
+
+// Batch options, then the first load. A link from the Issuance page arrives as
+// ?batch=<key>&claim=all, so those preselect before anything is fetched.
+async function init() {
+  const url = new URLSearchParams(location.search);
+  const wantedBatch = url.get("batch") || "";
+  const wantedClaim = url.get("claim") || "";
+  if ([...claimSel.options].some((o) => o.value === wantedClaim)) claimSel.value = wantedClaim;
+
+  try {
+    const res = await fetch("/api/admin/tag-batches");
+    if (res.status === 401 || res.status === 403) { location.href = "/admin"; return; }
+    const data = await res.json();
+    for (const b of (res.ok && data.batches) || []) {
+      const opt = document.createElement("option");
+      opt.value = b.key;
+      opt.textContent = `Batch ${b.key}${b.labels.length ? ` · ${b.labels.join(", ")}` : ""} (${b.activated}/${b.total} activated)`;
+      batchSel.append(opt);
+    }
+  } catch { /* the filter stays at "All batches"; the list still loads */ }
+
+  if ([...batchSel.options].some((o) => o.value === wantedBatch)) batchSel.value = wantedBatch;
+  load();
+}
+init();

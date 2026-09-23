@@ -3,11 +3,22 @@ const activatedRows = document.getElementById("activatedRows");
 const unactivatedRows = document.getElementById("unactivatedRows");
 const activatedCount = document.getElementById("activatedCount");
 const unactivatedCount = document.getElementById("unactivatedCount");
+const etagRows = document.getElementById("etagRows");
+const etagCount = document.getElementById("etagCount");
+const etagBatch = document.getElementById("etagBatch");
+
+// ?batch=<key> (from the Issuance page's Batches card) narrows the E-Tag list
+// to one batch. Only the digits a batch key can be are sent on.
+const BATCH = (() => {
+  const b = new URLSearchParams(location.search).get("batch") || "";
+  return /^\d{2,9}$/.test(b) ? b : "";
+})();
 
 const REMINDER_MSG =
   "Hi! Your ParkTag premium sticker is ready to activate. Scan it or open your ParkTag dashboard to activate and start receiving masked calls. Reply here if you need help.";
 
 let DATA = { activated: [], unactivated: [] };
+let ETAGS = { activated: [], total: 0, loaded: false };
 
 function esc(s) {
   return String(s == null ? "" : s).replace(/[&<>"]/g, (c) =>
@@ -56,6 +67,27 @@ function renderActivated(q) {
     </tr>`).join("");
 }
 
+function renderEtags(q) {
+  if (!ETAGS.loaded) return; // stays "Loading…" until its own request lands
+  const list = ETAGS.activated.filter((r) => matches(r, q));
+  const capped = ETAGS.total > ETAGS.activated.length ? ` (latest ${ETAGS.activated.length} of ${ETAGS.total})` : "";
+  etagCount.textContent = `${list.length} activated${capped}`;
+  if (!list.length) {
+    etagRows.innerHTML = `<tr><td colspan="7" class="empty">No activated E-Tag stickers${q ? " match your search" : " yet"}.</td></tr>`;
+    return;
+  }
+  etagRows.innerHTML = list.map((t) => `
+    <tr>
+      <td data-label="E-Tag ID"><b>${esc(t.etagId)}</b></td>
+      <td data-label="Sticker serial">${t.serial ? `<b>${esc(t.serial)}</b>` : `<span class="muted">-</span>`}${t.batchLabel ? `<br><span class="muted">${esc(t.batchLabel)}</span>` : ""}</td>
+      <td data-label="Vehicle"><span class="plate">${esc(t.plateNumber || "-")}</span>${t.vehicleLabel ? `<br><span class="muted">${esc(t.vehicleLabel)}</span>` : ""}</td>
+      <td data-label="Owner">${esc(t.ownerName || "-")}${t.ownerEmail ? `<br><span class="muted">${esc(t.ownerEmail)}</span>` : ""}</td>
+      <td data-label="Mobile">${telCell(t.ownerMobile)}</td>
+      <td data-label="Activated On">${fmtDate(t.activatedAt)}</td>
+      <td data-label="Free contact">${t.freeContactUsed ? "used" : "unused"}</td>
+    </tr>`).join("");
+}
+
 function renderUnactivated(q) {
   const list = DATA.unactivated.filter((r) => matches(r, q));
   unactivatedCount.textContent = `${list.length} to remind`;
@@ -88,7 +120,27 @@ function renderUnactivated(q) {
 function renderAll() {
   const q = qInput.value.trim().toLowerCase();
   renderActivated(q);
+  renderEtags(q);
   renderUnactivated(q);
+}
+
+// Its own request, so a failure here never blanks the two lists above.
+async function loadEtags() {
+  if (BATCH) {
+    etagBatch.hidden = false;
+    etagBatch.innerHTML = `Batch ${esc(BATCH)} · <a href="/admin/activations" style="color:inherit">show all</a>`;
+  }
+  try {
+    const res = await fetch(`/api/admin/etag-activations${BATCH ? `?batch=${encodeURIComponent(BATCH)}` : ""}`);
+    if (res.status === 401 || res.status === 403) { location.href = "/admin"; return; }
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed");
+    ETAGS = { activated: data.activated || [], total: data.total || 0, loaded: true };
+    renderEtags(qInput.value.trim().toLowerCase());
+  } catch {
+    etagRows.innerHTML = `<tr><td colspan="7" class="err">Could not load E-Tag activations.</td></tr>`;
+    etagCount.textContent = ", ";
+  }
 }
 
 async function load() {
@@ -109,3 +161,4 @@ async function load() {
 
 qInput.addEventListener("input", renderAll);
 load();
+loadEtags();

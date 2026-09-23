@@ -1085,6 +1085,7 @@ async function issueTag() {
 
     renderIssuedTag(data);
     await loadAdminOverview();
+    await loadBatchSummary();
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Failed to issue tag batch";
@@ -1297,12 +1298,58 @@ async function deleteAdmin(id) {
 }
 window.deleteAdmin = deleteAdmin;
 
+// The Batches card on the Issuance page: one row per issued batch. The key is
+// the batch digits printed in the serial (PT-<key>-…), which is also what the
+// E-Tags filter, the activations filter and the CSV route accept.
+async function loadBatchSummary() {
+  const target = byId("batch-summary");
+  if (!target) return;
+  let data;
+  try {
+    data = await fetchJson("/api/admin/tag-batches");
+  } catch (error) {
+    target.innerHTML = `<p class="pt-admin-empty">Could not load batches: ${esc(error instanceof Error ? error.message : "error")}</p>`;
+    return;
+  }
+  const batches = data.batches || [];
+  if (!batches.length) {
+    target.innerHTML = `<p class="pt-admin-empty">No batches issued yet.</p>`;
+    return;
+  }
+  const date = (iso) => (iso ? esc(new Date(iso).toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" })) : `<span class="muted">-</span>`);
+  const rows = batches.map((b) => {
+    const key = encodeURIComponent(b.key);
+    const pct = b.total ? Math.round((b.activated / b.total) * 100) : 0;
+    const type = b.premium && b.etag ? `${b.etag} E-Tag · ${b.premium} Premium` : b.premium ? "Premium" : "E-Tag";
+    return `<tr>
+      <td><b>${esc(b.key)}</b></td>
+      <td>${esc(b.labels.join(", ") || "-")}</td>
+      <td>${esc(type)}</td>
+      <td>${b.total}</td>
+      <td><b>${b.activated}</b> <span class="muted">(${pct}%)</span></td>
+      <td>${b.unclaimed}</td>
+      <td>${b.printed}</td>
+      <td>${date(b.lastActivatedAt)}</td>
+      <td><div class="bs-actions">
+        <a href="/admin/etags?batch=${key}&claim=all">View tags</a>
+        <a href="/admin/activations?batch=${key}">Activations</a>
+        <a href="/api/admin/tag-batches/${key}/export.csv" download>CSV</a>
+      </div></td>
+    </tr>`;
+  }).join("");
+  target.innerHTML = `<table>
+    <thead><tr><th>Batch</th><th>Label</th><th>Type</th><th>Issued</th><th>Activated</th><th>Unclaimed</th><th>Printed</th><th>Last activation</th><th></th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
 async function refreshCurrentPage() {
   try {
     const page = currentAdminPage();
 
     if (page === "overview" || page === "issuance") {
       await loadAdminOverview();
+      if (page === "issuance") await loadBatchSummary();
     } else if (page === "print-queue") {
       await loadPrintQueue();
     } else if (page === "owners") {

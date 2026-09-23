@@ -121,6 +121,24 @@
       </div>
     </div>
 
+    <!-- Issued E-Tag stickers (premium off, e.g. campaign stock). The premium
+         list above filters on premium, so these never appear in it. -->
+    <div class="section">
+      <div class="section-head">
+        <h2>Activated E-Tag Stickers</h2>
+        <span class="count ok" id="etagCount">…</span>
+        <span id="etagBatch" hidden class="count warn"></span>
+      </div>
+      <p class="section-sub">Issued stickers with premium off (for example campaign stock) that somebody has activated.</p>
+      <div class="card">
+        <table>
+          <thead>
+            <tr><th>E-Tag ID</th><th>Sticker serial</th><th>Vehicle</th><th>Owner</th><th>Mobile</th><th>Activated On</th><th>Free contact</th></tr>
+          </thead>
+          <tbody id="etagRows"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
     <div class="section">
       <div class="section-head">
         <h2>Sold · Awaiting Activation</h2>

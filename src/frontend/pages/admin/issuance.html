@@ -112,6 +112,25 @@
           <div id="issue-output"><p class="pt-admin-empty">No batch generated yet.</p></div>
         </div>
 
+        <!-- Every issued batch and how much of it is in use. View opens the
+             batch on the E-Tags page; CSV downloads it (mobiles masked, no QR
+             keys). -->
+        <div class="pt-admin-card">
+          <h2 class="pt-admin-card-title" style="margin-bottom:4px">Batches</h2>
+          <p class="pt-admin-card-sub" style="margin:0 0 14px">Issued, activated and printed, per batch. Field-demo stock is not included.</p>
+          <div id="batch-summary" style="overflow-x:auto"><p class="pt-admin-empty">Loading…</p></div>
+          <style>
+            #batch-summary table { width: 100%; border-collapse: collapse; font-size: .84rem; min-width: 640px; }
+            #batch-summary th, #batch-summary td { text-align: left; padding: 10px 10px; border-bottom: 1px solid #F1F2F4; white-space: nowrap; vertical-align: middle; }
+            #batch-summary th { font-size: .7rem; text-transform: uppercase; letter-spacing: .04em; color: #9CA3AF; background: #FAFBFC; }
+            #batch-summary tr:last-child td { border-bottom: none; }
+            #batch-summary .muted { color: #6B7280; }
+            #batch-summary .bs-actions { display: flex; gap: 6px; }
+            #batch-summary .bs-actions a { text-decoration: none; border: 1.5px solid #E5E7EB; background: #fff; border-radius: 8px; padding: 5px 10px; font-size: .75rem; font-weight: 700; color: #374151; }
+            #batch-summary .bs-actions a:hover { border-color: #FF2700; color: #FF2700; }
+          </style>
+        </div>
+
         <p id="admin-auth-status" class="pt-admin-status" data-tone="info"></p>
       </main>
     </div>

@@ -14,6 +14,13 @@ import {
   stickerSerialFor
 } from "../../lib/core/tag-issuance.js";
 import { NOT_MARKETING_STOCK, NOT_DEMO_OWNER } from "../../lib/core/marketing-stock.js";
+import {
+  parseBatchKey,
+  rawBatchValuesFor,
+  issuedStockFilter,
+  summariseBatches,
+  batchCsv
+} from "../../lib/core/tag-batches.js";
 import { orderBreakdown, breakdownText } from "../../lib/core/order-breakdown.js";
 
 // Order the print queue the way the sheets should come off the printer: newest
@@ -147,6 +154,17 @@ export function registerAdminRoutes(app, env) {
       filter.mountType = "exterior_surface";
     }
 
+    // One issued batch, by the key printed in its serials (PT-<key>-…). An
+    // invalid key is refused rather than ignored, so a typo never silently
+    // shows every tag as if it were the batch.
+    const rawBatch = request.query.batch;
+    let batchKey = null;
+    if (rawBatch !== undefined && rawBatch !== "") {
+      batchKey = parseBatchKey(typeof rawBatch === "string" ? rawBatch : "");
+      if (!batchKey) { reply.code(400); return { ok: false, error: "Invalid batch." }; }
+      filter.batchNumber = { $in: await rawBatchValuesFor(collections, batchKey) };
+    }
+
     if (q) {
       // Escape the user's text before it becomes a regex — otherwise a search
       // for something like "a(" throws, and a crafted pattern could be made
@@ -210,7 +228,8 @@ export function registerAdminRoutes(app, env) {
     const total = await collections.tags.countDocuments(filter);
     const tags = await collections.tags
       .find(filter)
-      .sort({ createdAt: -1 })
+      // A batch reads in serial order, the order it was printed in.
+      .sort(batchKey ? { serialNumber: 1, _id: 1 } : { createdAt: -1 })
       .limit(300)
       .toArray();
 
@@ -542,6 +561,97 @@ export function registerAdminRoutes(app, env) {
       activated,
       unactivated
     };
+  });
+
+  // ── Issued batches: trace a run from print to activation ────────────
+  // One row per batch: issued, activated, unclaimed, printed.
+  app.get("/api/admin/tag-batches", async (request, reply) => {
+    const blocked = await requireSession(app, "admin")(request, reply);
+    if (blocked) return blocked;
+
+    const collections = await getCollections(env);
+    return { ok: true, batches: await summariseBatches(collections) };
+  });
+
+  // Every tag in one batch as CSV. Owner mobiles are masked and the QR token is
+  // left out (see batchCsv); full details stay behind the admin login.
+  app.get("/api/admin/tag-batches/:key/export.csv", async (request, reply) => {
+    const blocked = await requireSession(app, "admin")(request, reply);
+    if (blocked) return blocked;
+
+    const key = parseBatchKey(request.params.key);
+    if (!key) { reply.code(400); return { ok: false, error: "Invalid batch." }; }
+
+    const collections = await getCollections(env);
+    const { found, csv } = await batchCsv(collections, key);
+    if (!found) { reply.code(404); return { ok: false, error: "No tags in this batch." }; }
+
+    reply
+      .header("content-type", "text/csv; charset=utf-8")
+      .header("content-disposition", `attachment; filename="parktag-batch-${key}.csv"`)
+      .header("cache-control", "no-store");
+    // The BOM makes Excel read the file as UTF-8 (names with ₹, Hindi, etc.).
+    return `﻿${csv}`;
+  });
+
+  // Issued E-Tag stickers somebody has activated, newest first. The premium
+  // list in /api/admin/activations does not cover these: it filters on
+  // `premium: true`, and campaign stock is issued with premium off.
+  app.get("/api/admin/etag-activations", async (request, reply) => {
+    const blocked = await requireSession(app, "admin")(request, reply);
+    if (blocked) return blocked;
+
+    const collections = await getCollections(env);
+    const filter = { ...issuedStockFilter(), premium: { $ne: true }, ownerId: { $ne: null } };
+
+    const rawBatch = request.query.batch;
+    if (rawBatch !== undefined && rawBatch !== "") {
+      const key = parseBatchKey(typeof rawBatch === "string" ? rawBatch : "");
+      if (!key) { reply.code(400); return { ok: false, error: "Invalid batch." }; }
+      filter.batchNumber = { $in: await rawBatchValuesFor(collections, key) };
+    }
+
+    const LIMIT = 1000;
+    const total = await collections.tags.countDocuments(filter);
+    const tags = await collections.tags
+      .find(filter, {
+        projection: {
+          batchNumber: 1, batchLabel: 1, serialNumber: 1, plateNumber: 1, vehicleLabel: 1,
+          vehicleType: 1, status: 1, ownerId: 1, activatedAt: 1, createdAt: 1, freeContactUsed: 1
+        }
+      })
+      .sort({ activatedAt: -1, _id: -1 })
+      .limit(LIMIT)
+      .toArray();
+
+    const ownerIds = tags.map((t) => t.ownerId).filter(Boolean);
+    const owners = ownerIds.length
+      ? await collections.owners
+          .find({ _id: { $in: ownerIds } }, { projection: { displayName: 1, email: 1, mobile: 1, phone: 1 } })
+          .toArray()
+      : [];
+    const ownerMap = new Map(owners.map((o) => [String(o._id), o]));
+
+    const activated = tags.map((t) => {
+      const o = ownerMap.get(String(t.ownerId)) || {};
+      return {
+        id: String(t._id),
+        etagId: etagIdFor(t._id),
+        serial: stickerSerialFor(t),
+        batch: batchKeyFor(t.batchNumber),
+        batchLabel: t.batchLabel || null,
+        plateNumber: t.plateNumber || null,
+        vehicleLabel: t.vehicleLabel || t.vehicleType || null,
+        status: t.status,
+        freeContactUsed: Boolean(t.freeContactUsed),
+        ownerName: o.displayName || null,
+        ownerEmail: o.email || null,
+        ownerMobile: o.mobile || o.phone || null,
+        activatedAt: t.activatedAt || null
+      };
+    });
+
+    return { ok: true, total, limit: LIMIT, activated };
   });
 
   app.get("/api/admin/overview", async (request, reply) => {

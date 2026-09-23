@@ -160,12 +160,18 @@
         <option value="active">Active</option>
         <option value="inactive">Inactive</option>
       </select>
+      <!-- Issued batch, by the key in its serials (PT-<key>-…). Options come
+           from /api/admin/tag-batches. -->
+      <select id="batch" aria-label="Batch">
+        <option value="">All batches</option>
+      </select>
       <label class="check" for="includeDeleted">
         <input id="includeDeleted" type="checkbox"/> Show deleted
       </label>
     </div>
 
-    <p class="summary" id="summary">Loading…</p>
+    <p class="summary"><span id="summary">Loading…</span>
+      <a id="batchCsv" href="#" download hidden style="margin-left:10px;font-weight:700;color:#FF2700;text-decoration:none">Download batch CSV</a></p>
 
     <div class="card">
       <table>

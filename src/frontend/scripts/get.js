@@ -561,7 +561,7 @@ async function buy(sku) {
       : null
   });
   if (!picked) return;
-  const { paymentMethod = "online", codToken, ...address } = picked;
+  const { paymentMethod = "online", codToken, marketingOptIn = false, ...address } = picked;
   const payCod = paymentMethod === "cod";
 
   if (window.ptTrack && product) {
@@ -619,6 +619,8 @@ async function buy(sku) {
         promo: offer?.code,
         addOnId: addOn?.id,
         paymentMethod,
+        // Ticked at checkout. The server records WHEN, never a bare boolean.
+        marketingOptIn,
         // Proof the delivery mobile passed its code; Cash on Delivery only.
         codToken
       })

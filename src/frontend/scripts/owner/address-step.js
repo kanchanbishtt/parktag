@@ -185,6 +185,8 @@
       ".pt-addr-payopt input{accent-color:var(--navy);margin:0;}",
       ".pt-addr-payopt small{display:block;margin-top:2px;font-size:.72rem;font-weight:600;color:var(--muted);}",
       ".pt-addr-payopt:has(input:checked){border-color:var(--navy);background:#F1F5FA;}",
+      ".pt-addr-optin{display:flex;align-items:flex-start;gap:9px;margin-top:11px;font-size:.76rem;font-weight:600;color:var(--muted);cursor:pointer;line-height:1.35;}",
+      ".pt-addr-optin input{accent-color:var(--navy);margin:2px 0 0;flex:0 0 auto;}",
 
       // Confirm card
       "#pt-addr-card{position:relative;display:flex;gap:13px;border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:18px;background:var(--card);}",
@@ -307,6 +309,11 @@
       '<label class="pt-addr-payopt"><input type="radio" name="pt-addr-pay" value="cod"><span id="pt-addr-pay-cod"></span></label>' +
       '</fieldset>' +
       '<p class="pt-addr-summary-pay" id="pt-addr-summary-pay">No payment is taken on this step. Continue to pay securely using UPI, cards or net banking.</p>' +
+      // Meta reclassified the abandoned-cart template as MARKETING, which needs
+      // recorded opt-in, so the reminder can only reach a buyer who ticked this.
+      // Unticked by default: a pre-ticked box is not consent, and this number
+      // also carries login codes and scan alerts that blocks would damage.
+      '<label class="pt-addr-optin"><input type="checkbox" id="pt-addr-optin"><span>Message me on WhatsApp about this order and ParkTag offers</span></label>' +
       '</div>' +
 
       // ── Confirm view (returning buyer) ──
@@ -358,6 +365,7 @@
       summaryName: ov.querySelector("#pt-addr-summary-name"),
       summaryPrice: ov.querySelector("#pt-addr-summary-price"),
       summaryPay: ov.querySelector("#pt-addr-summary-pay"),
+      optIn: ov.querySelector("#pt-addr-optin"),
       payChoice: ov.querySelector("#pt-addr-paychoice"),
       payOnline: ov.querySelector("#pt-addr-pay-online"),
       payCod: ov.querySelector("#pt-addr-pay-cod"),
@@ -615,7 +623,8 @@
     // which sends it with the order.
     if (guestMode) {
       if (payPrices && payChoice === "cod") { startCodCheck(v); return; }
-      close(payPrices ? Object.assign({}, v, { paymentMethod: payChoice }) : v);
+      var consent = { marketingOptIn: !!(els.optIn && els.optIn.checked) };
+      close(payPrices ? Object.assign({}, v, { paymentMethod: payChoice }, consent) : Object.assign({}, v, consent));
       return;
     }
 

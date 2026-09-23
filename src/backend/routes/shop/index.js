@@ -723,9 +723,14 @@ export function registerShopRoutes(app, env) {
         quantity: rawQuantity,
         addOnId: rawAddOnId,
         paymentMethod: rawPaymentMethod,
+        // A tick at checkout, not an amount and not a promise: the server
+        // stamps the TIME consent was given, which is what a marketing send
+        // has to be able to point at later.
+        marketingOptIn: rawMarketingOptIn,
         // Cash on Delivery only: proof the delivery phone passed its OTP.
         codToken
       } = request.body || {};
+      const marketingOptInAt = rawMarketingOptIn === true ? new Date().toISOString() : null;
 
       // Checked before anything else costs a network round trip (reCAPTCHA,
       // the DB) — a malformed quantity is refused for free.
@@ -925,6 +930,7 @@ export function registerShopRoutes(app, env) {
           currency: "INR",
           status: "cod",
           shippingAddress: shipping,
+          marketingOptInAt,
           internal: isInternalPhone(env, shipping.phone),
           replaceTagId: null,
           referredBy: null,
@@ -1039,6 +1045,7 @@ export function registerShopRoutes(app, env) {
           currency: order.currency,
           status: "created",
           shippingAddress: shipping,
+          marketingOptInAt,
           // Ours, not a customer's. Five COD tests to our own Noida address
           // once reported Rs 2,144 of revenue that never existed, and the daily
           // digest would have gone on reporting it. Marked, never blocked:

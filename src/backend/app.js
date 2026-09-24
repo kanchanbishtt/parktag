@@ -1,5 +1,6 @@
 import Fastify from "fastify";
 import fastifyCookie from "@fastify/cookie";
+import fastifyCompress from "@fastify/compress";
 import { rememberAttribution } from "./lib/core/attribution.js";
 import fastifyHelmet from "@fastify/helmet";
 import fastifyMultipart from "@fastify/multipart";
@@ -653,6 +654,21 @@ export async function buildApp() {
     return typeof payload === "string"
       ? payload.replaceAll(ASSET_VERSION_TOKEN, assetVersion)
       : payload;
+  });
+
+  // Response compression, negotiated per request from Accept-Encoding: zstd
+  // when the client advertises it (Node 22.15+ only; skipped otherwise), then
+  // brotli, then gzip, and an uncompressed body for anything else. A client
+  // that never asked for an encoding is never sent one, so older browsers and
+  // mobile HTTP clients keep working unchanged.
+  //
+  // Registered after the onSend hook above so pages are stamped with the asset
+  // version before they are compressed, and before fastifyStatic as the plugin
+  // requires. Request decompression stays off: no client sends encoded bodies,
+  // and the webhook routes verify signatures against the raw bytes.
+  await app.register(fastifyCompress, {
+    encodings: ["zstd", "br", "gzip"],
+    globalDecompression: false
   });
 
   const isProduction = env.runtimeMode === "production";

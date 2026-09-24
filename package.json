@@ -25,6 +25,7 @@
     "retry:shipment": "node --env-file=.env src/backend/scripts/retry-shipment.mjs"
   },
   "dependencies": {
+    "@fastify/compress": "^9.2.0",
     "@fastify/cookie": "^11.0.2",
     "@fastify/helmet": "^13.0.2",
     "@fastify/multipart": "^10.1.0",

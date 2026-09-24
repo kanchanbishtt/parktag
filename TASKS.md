@@ -949,3 +949,9 @@ Covers UX and security improvements made after M13 call flow was confirmed worki
 - [x] Negotiate response compression from Accept-Encoding with `@fastify/compress`: zstd, then brotli, then gzip, plain body when the client asks for none. Request decompression left off so webhook signatures still see raw bytes.
 - [x] Verify negotiation, round-trip decoding, `Vary: Accept-Encoding` and asset stamping before compression (7 tests in `response-compression.test.js` pass). Measured `styles.css` 161 KB to 40-44 KB and `/get` 28 KB to 7.5-7.8 KB.
 - [ ] Decide whether to raise zstd/brotli levels (see `wiki/response-compression.md`) after measuring egress and CPU on production.
+
+## Error monitoring, 2026-09-24
+
+- [x] Report server errors to Sentry (`@sentry/node` v10): 5xx from the Fastify error handler, unhandled rejections and uncaught exceptions from `server.js`, flushed on shutdown. Off unless `SENTRY_DSN` is set.
+- [x] Keep reports privacy-safe: no request, user, IP or breadcrumbs; phone numbers, OTPs and emails masked; route pattern tags only. User-facing `clientError`s and 4xx are not reported. Verified with 6 unit tests and an end-to-end run against a local fake Sentry endpoint.
+- [ ] Create the Sentry project, set `SENTRY_DSN` on Railway, and confirm the first real event arrives scrubbed.

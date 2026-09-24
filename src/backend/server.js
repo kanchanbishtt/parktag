@@ -5,9 +5,12 @@ import { getCollections, ensureCoreIndexes } from "./lib/db/repositories.js";
 import { verifyRazorpayCredentials } from "./lib/integrations/payments.js";
 import { startScheduler } from "./lib/core/scheduler.js";
 import { ensureCommerceDefaults } from "./lib/core/commerce-defaults.js";
+import { initSentry, captureServerError, flushSentry } from "./lib/integrations/sentry.js";
 
 const env = getEnv();
+const sentryEnabled = initSentry(env);
 const app = await buildApp();
+if (sentryEnabled) app.log.info("[sentry] error monitoring enabled");
 
 // Ordering matters, and it was backwards: Mongo was closed BEFORE the HTTP
 // server, so every request still in flight when the platform sent SIGTERM lost
@@ -49,6 +52,12 @@ async function shutdown(signal) {
     app.log.error({ err: error }, "[shutdown] closing the Mongo connection failed");
   }
 
+  try {
+    await flushSentry();          // 3. let queued error reports leave
+  } catch (error) {
+    app.log.error({ err: error }, "[shutdown] flushing Sentry failed");
+  }
+
   process.exit(0);
 }
 
@@ -67,6 +76,7 @@ process.on("SIGTERM", () => {
 // serving: a rejected promise in one request must not evict every other user.
 process.on("unhandledRejection", (reason, promise) => {
   app.log.error({ err: reason, promise: String(promise) }, "[process] unhandled promise rejection — service kept alive");
+  captureServerError(reason, { context: "unhandledRejection" });
 });
 
 // An uncaught exception, by contrast, leaves the process in an unknown state,
@@ -74,6 +84,7 @@ process.on("unhandledRejection", (reason, promise) => {
 // carry on with possibly-corrupt state.
 process.on("uncaughtException", (error) => {
   app.log.fatal({ err: error }, "[process] uncaught exception — shutting down");
+  captureServerError(error, { context: "uncaughtException" });
   shutdown("uncaughtException");
 });
 

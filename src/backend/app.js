@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 import QRCode from "qrcode";
 
 import { getEnv } from "./lib/env.js";
+import { captureServerError, shouldReport } from "./lib/integrations/sentry.js";
 import { renderAnalyticsBundle } from "./lib/analytics.js";
 import { BoundedTtlMap } from "./lib/bounded-map.js";
 import { clientError, clientErrorMessage } from "./lib/errors.js";
@@ -844,6 +845,10 @@ export async function buildApp() {
       "Something went wrong. Please try again.",
       request.log
     );
+
+    if (shouldReport(statusCode, error)) {
+      captureServerError(error, { request, statusCode });
+    }
 
     reply.code(statusCode).send({ ok: false, error: message });
   });

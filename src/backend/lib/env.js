@@ -181,6 +181,8 @@ export function getEnv() {
     // → /pt-analytics.js ships a no-op and ptTrack() does nothing.
     ga4MeasurementId: process.env.GA4_MEASUREMENT_ID || "",
     clarityProjectId: process.env.CLARITY_PROJECT_ID || "",
+    // Error monitoring (lib/integrations/sentry.js). Unset → nothing is sent.
+    sentryDsn: process.env.SENTRY_DSN || "",
     slackSigningSecret: process.env.SLACK_SIGNING_SECRET || "",
     slackTeamId: process.env.SLACK_TEAM_ID || "",
     slackChannelId: process.env.SLACK_CHANNEL_ID || "",

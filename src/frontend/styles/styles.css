@@ -246,7 +246,7 @@ body {
 
 .eyebrow {
   margin: 0 0 10px;
-  color: var(--accent);
+  color: var(--accent-dark);
   font-size: 0.9rem;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -455,7 +455,7 @@ h1 {
 .action {
   border: 0;
   border-radius: 999px;
-  background: var(--accent);
+  background: var(--accent-dark);
   color: #FFFFFF;
   cursor: pointer;
   padding: 11px 16px;
@@ -464,7 +464,7 @@ h1 {
 }
 
 .action:hover {
-  background: var(--accent-dark);
+  background: #C81F00;
 }
 
 .action.subtle {
@@ -753,7 +753,7 @@ pre {
 }
 
 .request-status[data-tone="success"] {
-  color: var(--success);
+  color: var(--accent-dark);
 }
 
 .request-status[data-tone="error"] {
@@ -770,7 +770,7 @@ pre {
 
 .request-confirmation h3 {
   margin: 0 0 6px;
-  color: var(--success);
+  color: var(--accent-dark);
   font-size: 1rem;
 }
 
@@ -1120,7 +1120,7 @@ pre {
    it collapses into an unreadable blob. */
 .pt-pq-badge {
   flex: 0 0 auto;
-  background: var(--accent);
+  background: var(--accent-dark);
   color: #fff;
   font-size: 0.6rem;
   font-weight: 800;
@@ -1376,7 +1376,7 @@ pre {
 
 .call-popup-card h3 {
   margin: 0;
-  color: var(--success);
+  color: var(--accent-dark);
   font-size: 1.05rem;
 }
 
@@ -1557,6 +1557,9 @@ pre {
 :root {
   --pt-amber: #FF2700;
   --pt-amber-dark: #D92200;
+  /* White text needs the dark red (5.0:1); the bright brand red is 3.8:1.
+     This is one step darker again, for hover on those. */
+  --pt-amber-deep: #C81F00;
   --pt-amber-bg: #FFEDEA;
   --pt-green: #25D366;
   --pt-green-dark: #128C7E;
@@ -1717,7 +1720,7 @@ pre {
   margin-bottom: 16px;
 }
 
-.pt-icon-lock { background: #FFE3DD; color: #FF2700; }
+.pt-icon-lock { background: #FFE3DD; color: #D92200; }
 .pt-icon-tag { background: var(--pt-amber-bg); color: var(--pt-amber-dark); }
 .pt-icon-error { background: #FEE2E2; color: #DC2626; }
 
@@ -1999,13 +2002,13 @@ pre {
 .pt-vtype-btn:hover {
   border-color: var(--pt-amber);
   background: var(--pt-amber-bg);
-  color: var(--pt-amber-dark);
+  color: var(--pt-amber-deep);
 }
 
 .pt-vtype-btn[aria-checked="true"] {
   border-color: var(--pt-amber);
   background: var(--pt-amber-bg);
-  color: var(--pt-amber-dark);
+  color: var(--pt-amber-deep);
   box-shadow: 0 2px 8px rgba(255,39,0,0.12);
 }
 
@@ -2065,24 +2068,24 @@ a:focus { outline: none; }
 a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
 
 .pt-btn-primary {
-  background: var(--pt-amber);
+  background: var(--pt-amber-dark);
   color: #fff;
   box-shadow: 0 4px 16px rgba(255, 39, 0, 0.35);
 }
 
 .pt-btn-primary:hover:not(:disabled) {
-  background: var(--pt-amber-dark);
+  background: var(--pt-amber-deep);
   box-shadow: 0 6px 20px rgba(255, 39, 0, 0.45);
 }
 
 .pt-btn-whatsapp {
-  background: linear-gradient(135deg, #25D366 0%, #1DA851 60%, #128C7E 100%);
+  background: linear-gradient(135deg, #1A8540 0%, #157A45 60%, #0F7A6E 100%);
   color: #fff;
   box-shadow: 0 6px 24px rgba(37,211,102,0.38), 0 2px 8px rgba(0,0,0,0.10);
 }
 
 .pt-btn-whatsapp:hover:not(:disabled) {
-  background: linear-gradient(135deg, #20C05A 0%, #189645 60%, #0F7A6E 100%);
+  background: linear-gradient(135deg, #177A38 0%, #126B3C 60%, #0C6A5F 100%);
   box-shadow: 0 8px 28px rgba(37,211,102,0.50), 0 2px 8px rgba(0,0,0,0.13);
   transform: translateY(-1px);
 }
@@ -2322,11 +2325,12 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
 .pt-chip-selected {
   border-color: var(--pt-amber);
   background: var(--pt-amber-bg);
-  color: var(--pt-amber-dark);
+  color: var(--pt-amber-deep);
 }
 
 .pt-chip-alert {
-  color: #D92200;
+  /* One step darker than the other reds: on this pale fill #D92200 is 4.4:1. */
+  color: #C81F00;
   /* Its text and hover already sit in the brand-red family; the border was the
      last rose value on the page. */
   border-color: #FFB6A8;
@@ -2335,7 +2339,7 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
 
 .pt-chip-alert:hover {
   background: #FFD8D0;
-  border-color: #FF2700;
+  border-color: #D92200;
   color: #B31C00;
 }
 
@@ -2806,7 +2810,7 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
 /* Wraps rather than truncates: this line is the privacy promise, and losing it
    on the phones people actually scan with would defeat the point. */
 .pt-tile-sub {
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 500;
   line-height: 1.35;
   color: var(--pt-sub);
@@ -2896,7 +2900,8 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
   .pt-tile-icon svg,
   .pt-tile-icon .pt-tile-glyph { width: 21px; height: 21px; }
   .pt-tile-title { font-size: 0.92rem; }
-  .pt-tile-sub { font-size: 0.68rem; }
+  /* 11.5px, not lower: this is the line that says the contact is private. */
+  .pt-tile-sub { font-size: 0.72rem; }
 }
 
 /* ── Emergency / SOS ──
@@ -2940,7 +2945,7 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
   gap: 8px;
   /* Brand red — the same --pt-amber token every other primary action uses,
      rather than a separate rose. */
-  background: var(--pt-amber);
+  background: var(--pt-amber-dark);
   color: #fff;
   padding: 12px 20px;
   border-radius: 14px;
@@ -2961,7 +2966,7 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
      would let the gradient through and stop it reading as an outlined
      control. */
   background: var(--pt-white);
-  color: var(--pt-amber);
+  color: var(--pt-amber-dark);
   border: 1.7px solid #FFB6A8;
   border-radius: 999px;
   box-shadow: 0 1px 3px rgba(255, 39, 0, 0.10);
@@ -2974,7 +2979,7 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
    last won — and this one did, painting the outlined button solid red while
    its label stayed red, which left the word invisible on hover. */
 .pt-btn-sos:hover:not(:disabled):not(.pt-btn-sos-outline) {
-  background: var(--pt-amber-dark);
+  background: var(--pt-amber-deep);
   box-shadow: 0 6px 18px rgba(255, 39, 0, 0.42);
 }
 
@@ -2985,7 +2990,7 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
   .pt-btn-sos-outline:hover:not(:disabled) {
     background: var(--pt-amber-bg);
     border-color: var(--pt-amber);
-    color: var(--pt-amber-dark);
+    color: var(--pt-amber-deep);
     box-shadow: 0 4px 14px rgba(255, 39, 0, 0.18);
   }
 }
@@ -3181,7 +3186,7 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
   padding: 4px 0 4px 16px;
   font-size: clamp(1.15rem, 4.8vw, 1.3rem);
   font-weight: 800;
-  color: var(--pt-amber);
+  color: var(--pt-amber-dark);
   text-decoration: none;
   white-space: nowrap;
 }
@@ -3451,7 +3456,7 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
 }
 
 .pt-status[data-tone="info"] { color: var(--pt-sub); }
-.pt-status[data-tone="success"] { color: #FF2700; }
+.pt-status[data-tone="success"] { color: #D92200; }
 .pt-status[data-tone="error"] { color: #DC2626; }
 
 /* Standalone status (inside pt-card) */
@@ -4069,7 +4074,7 @@ html:has(body.pt-hub-body) {
   gap: 5px;
   font-size: 0.75rem;
   font-weight: 700;
-  color: #FF2700;
+  color: #D92200;
   background: #FFF2EF;
   padding: 4px 10px;
   border-radius: 20px;
@@ -4248,7 +4253,7 @@ html:has(body.pt-hub-body) {
 
 .pt-activate-eyebrow {
   margin: 0;
-  color: #FF2700;
+  color: #D92200;
   font-size: 0.82rem;
   font-weight: 800;
   letter-spacing: 0.1em;
@@ -4440,7 +4445,7 @@ html:has(body.pt-hub-body) {
 }
 
 .pt-login-link a {
-  color: #FF2700;
+  color: #D92200;
   font-weight: 800;
   text-decoration: none;
 }
@@ -4845,7 +4850,7 @@ html:has(body.pt-hub-body) {
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  color: #FF2700;
+  color: #D92200;
   margin: 0 0 4px;
 }
 
@@ -5014,7 +5019,7 @@ html:has(body.pt-hub-body) {
 }
 
 .pt-admin-input:focus {
-  border-color: #FF2700;
+  border-color: #D92200;
   background: #fff;
 }
 
@@ -5032,7 +5037,7 @@ html:has(body.pt-hub-body) {
   padding: 8px 0;
 }
 
-.pt-admin-status[data-tone="success"] { color: #FF2700; }
+.pt-admin-status[data-tone="success"] { color: #D92200; }
 .pt-admin-status[data-tone="error"] { color: #DC2626; }
 .pt-admin-status[data-tone="info"] { color: #6B7280; }
 
@@ -5051,8 +5056,8 @@ html:has(body.pt-hub-body) {
   border-radius: 20px;
 }
 
-.pt-admin-badge-green { background: #FFF2EF; color: #FF2700; }
-.pt-admin-badge-amber { background: #FFE3DD; color: #FF2700; }
+.pt-admin-badge-green { background: #FFF2EF; color: #D92200; }
+.pt-admin-badge-amber { background: #FFE3DD; color: #D92200; }
 .pt-admin-badge-red { background: #FEE2E2; color: #DC2626; }
 .pt-admin-badge-gray { background: #F3F4F6; color: #374151; }
 
@@ -5163,14 +5168,14 @@ html:has(body.pt-hub-body) {
   border-radius: 999px;
   font-size: 1.02rem;
   font-weight: 800;
-  background: var(--pt-amber);
+  background: var(--pt-amber-dark);
   color: #fff;
   box-shadow: 0 6px 20px rgba(255, 39, 0, 0.28);
   margin-top: 4px;
 }
 
 .pt-btn-step:hover:not(:disabled) {
-  background: var(--pt-amber-dark);
+  background: var(--pt-amber-deep);
   box-shadow: 0 8px 26px rgba(255, 39, 0, 0.36);
 }
 
@@ -6212,7 +6217,7 @@ body.pt-modal-open {
   text-decoration: none;
   transition: background .15s ease;
 }
-.pt-nav-whatsapp:hover { background: #1D9445; }
+.pt-nav-whatsapp:hover { background: #177A38; }
 
 /* Footer */
 .pt-nav-foot {
@@ -6901,7 +6906,7 @@ body.pt-nav-open { overflow: hidden; }
   margin-top: 4px;
   padding: 17px 20px;
   border-radius: 14px;
-  background: #25D366;
+  background: #1A8540;
   font-size: 16.5px;
   font-weight: 800;
   color: #fff;

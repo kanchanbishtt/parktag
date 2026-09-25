@@ -89,6 +89,9 @@ export const DEMO_TAG_FIELDS = [
   "vehicleType",
   "emergencyContact",
   "freeContactUsed",
+  // The counter behind freeContactUsed. Left behind, the next customer would
+  // start with the demo's calls already spent.
+  "freeContactsSpent",
   // The complimentary window opens at activation, so a demo sticker that has
   // been activated once must forget when — otherwise the customer who ends up
   // buying it inherits however much of the window the demo already spent.

@@ -984,7 +984,8 @@ function vehicleCard(tag, idx) {
   const params    = new URLSearchParams({ number: plate, type, label, id: tag.id || "", token: tag.token || "" }).toString();
   const svg       = iconFor(tag);
   const isActive  = tag.status !== "inactive";
-  const pill      = tag.premium ? "★ Premium" : (!tag.freeContactUsed ? "1 Free Call" : "Call Used");
+  const freeLeft  = Number.isInteger(tag.freeContactsLeft) ? tag.freeContactsLeft : 1;
+  const pill      = tag.premium ? "★ Premium" : (!tag.freeContactUsed ? `${freeLeft} Free Call${freeLeft === 1 ? "" : "s"}` : "Call Used");
   const pillClass = tag.premium ? "vp-premium" : (!tag.freeContactUsed ? "vp-free" : "vp-used");
   const detailUrl = `/owner-vehicle-detail?${params}`;
   // Card action row (both active and inactive cards). Three states (M18):

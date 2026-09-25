@@ -35,6 +35,65 @@ export const CALL_TIER_TRIAL = "premium-trial";
 export const CALL_TIER_SUBSCRIBED = "premium-subscription";
 export const CALL_TIER_LAPSED = "premium-lapsed";
 
+// How many free masked contacts an E-Tag gets before it locks.
+//
+// One, unless the tag was stamped otherwise. Door hanger stock is stamped with
+// DOORHANGER_FREE_CONTACTS by scripts/print-doorhangers.js, because the hanger
+// promises the owner they can try it with a friend and still have a real
+// contact left. `freeContactUsed` stays the one flag every reader branches on:
+// it now means "the allowance is spent", and the spend itself is counted in
+// `freeContactsSpent` by spendFreeContactPipeline below.
+export const DEFAULT_FREE_CONTACTS = 1;
+export const DOORHANGER_FREE_CONTACTS = 2;
+const MAX_FREE_CONTACTS = 10;
+
+// The allowance stamped on a tag. Anything that is not a sane small integer
+// reads as the default, never as more: a junk field must not mint free calls.
+export function freeContactAllowance(tag) {
+  const n = tag?.freeContactAllowance;
+  return Number.isInteger(n) && n >= 1 && n <= MAX_FREE_CONTACTS ? n : DEFAULT_FREE_CONTACTS;
+}
+
+// Free contacts an E-Tag has left, for owner-facing copy. 0 once spent.
+export function freeContactsLeft(tag) {
+  if (!tag || tag.freeContactUsed) return 0;
+  const spent = Number.isInteger(tag.freeContactsSpent) ? tag.freeContactsSpent : 0;
+  return Math.max(0, freeContactAllowance(tag) - spent);
+}
+
+// Update pipeline that spends one free contact on an E-Tag, atomically: the
+// counter goes up and freeContactUsed flips in the same write once the count
+// reaches the allowance, so there is no read-then-write window between them.
+// The allowance is re-validated with the same bounds as freeContactAllowance(),
+// for the same reason: junk reads as the default.
+export function spendFreeContactPipeline(atIso, extraSet = {}) {
+  const allowance = {
+    $cond: [
+      {
+        $and: [
+          { $isNumber: "$freeContactAllowance" },
+          { $eq: ["$freeContactAllowance", { $trunc: ["$freeContactAllowance", 0] }] },
+          { $gte: ["$freeContactAllowance", 1] },
+          { $lte: ["$freeContactAllowance", MAX_FREE_CONTACTS] }
+        ]
+      },
+      "$freeContactAllowance",
+      DEFAULT_FREE_CONTACTS
+    ]
+  };
+  const exhausted = { $gte: ["$freeContactsSpent", allowance] };
+  return [
+    { $set: { freeContactsSpent: { $add: [{ $ifNull: ["$freeContactsSpent", 0] }, 1] } } },
+    {
+      $set: {
+        ...extraSet,
+        freeContactUsed: exhausted,
+        freeContactUsedAt: { $cond: [exhausted, atIso, null] }
+      }
+    }
+  ];
+}
+
 // Is a paid call subscription running on this tag right now?
 //
 // Mirrors hasActiveDocumentSubscription exactly, including the two edge cases

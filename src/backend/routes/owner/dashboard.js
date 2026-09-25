@@ -11,7 +11,7 @@ import {
 } from "../../lib/auth/otp.js";
 import { getCollections, ensurePendingCallsIndexes, getVaultBucket } from "../../lib/db/repositories.js";
 import { purgeVaultDocuments, deleteUsage } from "../../lib/core/vault.js";
-import { callEntitlement } from "../../lib/core/call-access.js";
+import { callEntitlement, freeContactAllowance, freeContactsLeft } from "../../lib/core/call-access.js";
 import {
   findLiveCallbackPasses,
   CALLBACK_PASS_MAX_AGE_MS,
@@ -255,6 +255,10 @@ export function registerOwnerRoutes(app, env) {
           premium: tag.premium || false,
           purchaseStatus: tag.purchaseStatus || "none",
           freeContactUsed: tag.freeContactUsed || false,
+          // How many free contacts this E-Tag has, and how many are left. One
+          // for most E-Tags, two for door hanger stock; the copy says which.
+          freeContactAllowance: freeContactAllowance(tag),
+          freeContactsLeft: tag.premium ? 0 : freeContactsLeft(tag),
           // Whether masked calling is running on this tag, and why. The page
           // needs the reason as well as the answer: "not available" and "ends
           // in 5 days" are the same boolean and completely different messages.

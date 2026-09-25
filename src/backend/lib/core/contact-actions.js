@@ -5,6 +5,7 @@ import { sendOwnerAlertEmail } from "../integrations/email.js";
 import { getCollections } from "../db/repositories.js";
 import { captureScannerLocation } from "./scan-location.js";
 import { carMapUrl, resolveCarLocation } from "./car-location.js";
+import { spendFreeContactPipeline } from "./call-access.js";
 
 // The WhatsApp message is built ENTIRELY server-side (spec §6) — the scanner can
 // never author it. The optional reason is constrained to this fixed whitelist,
@@ -256,14 +257,14 @@ export async function createContactAction(env, input) {
 
   // Consume the free contact (non-premium tags) and record usage stats.
   const contactedAt = new Date().toISOString();
-  const tagUpdate = {
-    $set: { lastContactAt: contactedAt },
-    $inc: { contactAttempts: 1 }
-  };
-  if (!tag.premium) {
-    tagUpdate.$set.freeContactUsed = true;
-    tagUpdate.$set.freeContactUsedAt = contactedAt;
-  }
+  // E-Tags spend one of their free contacts; the flag only flips once the
+  // tag's allowance is used up (spendFreeContactPipeline).
+  const tagUpdate = tag.premium
+    ? { $set: { lastContactAt: contactedAt }, $inc: { contactAttempts: 1 } }
+    : spendFreeContactPipeline(contactedAt, {
+        lastContactAt: contactedAt,
+        contactAttempts: { $add: [{ $ifNull: ["$contactAttempts", 0] }, 1] }
+      });
   await collections.tags.updateOne({ _id: tag._id }, tagUpdate);
 
   return {

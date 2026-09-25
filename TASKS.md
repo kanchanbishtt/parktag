@@ -13,6 +13,13 @@ Rules:
 
 ## Milestones
 
+### Car door hanger campaign
+- [x] Let an E-Tag carry more than one free contact (`freeContactAllowance`, counted in `freeContactsSpent`; `freeContactUsed` still means locked).
+- [x] Spend free contacts atomically in both register-call and contact-requests, and reset the counter when demo stock is deactivated.
+- [x] Show the remaining free contacts in the owner dashboard and vehicle detail copy.
+- [x] Add the 4.5x11 door hanger print template and `scripts/print-doorhangers.js` (one real unclaimed tag per hanger, 2 free contacts).
+- [ ] Issue a car/windscreen batch for the first hanger run, stamp it with `--apply` and send the PDF to the printer.
+
 ### Paid acquisition conversion repair
 - [x] Verify the production app serves configured GA4 and Meta Pixel tracking.
 - [x] Verify production has Meta Conversions API and Razorpay webhook secrets configured.

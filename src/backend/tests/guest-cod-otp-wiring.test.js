@@ -20,8 +20,9 @@ describe("guest COD phone check wiring", () => {
     assert.match(sheet, /\/api\/shop\/guest\/cod-otp\/send/);
     assert.match(sheet, /\/api\/shop\/guest\/cod-otp\/verify/);
     assert.match(sheet, /paymentMethod: "cod", codToken: data\.codToken/);
-    // The only other guest resolve is the online one.
-    assert.match(sheet, /if \(payPrices && payChoice === "cod"\) \{ startCodCheck\(v\); return; \}/);
+    // The only other guest resolve is the online one. A plausibility check on
+    // the address may run first; the phone check still gates resolving COD.
+    assert.match(sheet, /if \(payPrices && payChoice === "cod"\) \{\s*if \(await addressLooksWrong\(v\)\) return;\s*startCodCheck\(v\);\s*return;\s*\}/);
   });
 
   for (const file of ["shop.js", "get.js", "direct.js"]) {

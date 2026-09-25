@@ -2,7 +2,7 @@ import { isInternalTag, isInternalPhone } from "../../lib/core/internal-orders.j
 import { ObjectId } from "mongodb";
 
 import { createContactAction, isSupportedContactReason } from "../../lib/core/contact-actions.js";
-import { callEntitlement, callBlockedCode, callBlockedMessage } from "../../lib/core/call-access.js";
+import { callEntitlement, callBlockedCode, callBlockedMessage, spendFreeContactPipeline } from "../../lib/core/call-access.js";
 import { captureScannerLocation } from "../../lib/core/scan-location.js";
 import { toE164 } from "../../lib/core/phone.js";
 import { createPasswordHash, createSecureToken, safeEqual, hashIp, minutesFromNow, getClientIp, maskPlateNumber, getPlateLastFour, isNonEmptyString } from "../../lib/auth/security.js";
@@ -1518,9 +1518,14 @@ export function registerPublicRoutes(app, env) {
         .catch((err) => request.log.warn({ err }, "[car-location] call row not updated"));
     }
 
+    // An E-Tag spends one free contact and locks once its allowance is gone
+    // (door hanger stock has two). Premium tags keep the old stamp: masking
+    // there is decided by the trial and subscription, not this flag.
     await collections.tags.updateOne(
       { _id: tag._id },
-      { $set: { freeContactUsed: true, freeContactUsedAt: now.toISOString(), updatedAt: now.toISOString() } }
+      tag.premium
+        ? { $set: { freeContactUsed: true, freeContactUsedAt: now.toISOString(), updatedAt: now.toISOString() } }
+        : spendFreeContactPipeline(now.toISOString(), { updatedAt: now.toISOString() })
     );
 
     await supersedePendingCalls(collections, callerPhone, token, now);

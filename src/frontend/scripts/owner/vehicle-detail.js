@@ -26,6 +26,7 @@ let realQrDataUrl = "";
 let realScanUrl   = "";
 let isPremium     = false;
 let isFreeUsed    = false;
+let freeLeft      = 1;
 
 // ── Skeleton → reveal after 500ms ────────────────────────────
 const skeleton  = document.getElementById("skeleton");
@@ -48,6 +49,7 @@ setTimeout(async () => {
         realScanUrl   = tag.scanUrl   || "";
         isPremium     = Boolean(tag.premium);
         isFreeUsed    = Boolean(tag.freeContactUsed);
+        freeLeft      = Number.isInteger(tag.freeContactsLeft) ? tag.freeContactsLeft : 1;
         loadedCallAccess = tag.callAccess || null;
         // Stamp the unique E-Tag ID + activation status onto the print sticker (spec §9).
         const idEl = document.getElementById("print-etag-id");
@@ -387,7 +389,8 @@ function updatePremiumUI() {
     if (buyBtn) { buyBtn.style.display = ""; buyBtn.disabled = !realId; }
   } else {
     // Free trial still live → informational only, no purchase yet.
-    if (copy) copy.textContent = "This E-Tag includes 1 free contact. After it's used, buy a premium tag to keep Call & WhatsApp active.";
+    const left = freeLeft === 1 ? "1 free contact" : `${freeLeft} free contacts`;
+    if (copy) copy.textContent = `This E-Tag has ${left} left. After that, buy a premium tag to keep Call & WhatsApp active.`;
     if (buyBtn) buyBtn.style.display = "none";
   }
   applyEtagDownloadMode();

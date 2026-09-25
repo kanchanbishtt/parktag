@@ -4,7 +4,8 @@
 // so a buyer sees the same status through either door, and a lookup on one
 // warms the cache for the other.
 
-import { trackShipment } from "../integrations/delhivery.js";
+import { trackShipment, isDelhiveryConfigured } from "../integrations/delhivery.js";
+import { isDisposableRun } from "./external-guard.js";
 
 // How long a persisted snapshot stays fresh before we call Delhivery again.
 // Every dashboard open would otherwise hit Delhivery once per order (up to 20
@@ -45,4 +46,59 @@ export async function getOrderTracking(collections, env, order) {
 
   // Delhivery gave us nothing usable — prefer the last good cache over a null.
   return cache || fresh;
+}
+
+// Resolves to null if `promise` has not settled within `ms`. trackShipment has
+// no timeout of its own, and a caller holding an admin page open must not wait
+// on a hung courier API. The lookup itself carries on and still caches.
+function withTimeout(promise, ms) {
+  let timer;
+  const timeout = new Promise((resolve) => {
+    timer = setTimeout(() => resolve(null), ms);
+    timer.unref?.();
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+// Re-read the courier status of shipped, not-yet-delivered orders whose cached
+// status is older than TRACKING_TTL_MS, so "delivered" is known without waiting
+// for the buyer to open tracking. Read-only on Delhivery's side: it books and
+// charges nothing. Bounded by `limit`, a few at a time, stalest first.
+//
+// Returns { configured, checked, changed }: `changed` counts orders whose
+// courier status is different from what was stored.
+export async function refreshStaleTracking(
+  collections,
+  env,
+  orders,
+  { limit = 20, concurrency = 4, timeoutMs = 8000, now = Date.now() } = {}
+) {
+  // A test run never reaches the courier, even for a read.
+  if (!isDelhiveryConfigured(env) || isDisposableRun(env)) {
+    return { configured: false, checked: 0, changed: 0 };
+  }
+
+  const fetchedAt = (order) => {
+    const t = new Date(order.trackingCache?.fetchedAt || 0).getTime();
+    return Number.isFinite(t) ? t : 0;
+  };
+  const due = orders
+    .filter((order) => order.waybill && !order.deliveredAt && now - fetchedAt(order) >= TRACKING_TTL_MS)
+    .sort((a, b) => fetchedAt(a) - fetchedAt(b))
+    .slice(0, Math.max(0, limit));
+
+  let changed = 0;
+  for (let i = 0; i < due.length; i += concurrency) {
+    const batch = due.slice(i, i + concurrency);
+    const results = await Promise.all(
+      batch.map(async (order) => {
+        const before = order.trackingCache?.status || null;
+        const snapshot = await withTimeout(getOrderTracking(collections, env, order), timeoutMs);
+        return Boolean(snapshot && snapshot.status && snapshot.status !== before);
+      })
+    );
+    changed += results.filter(Boolean).length;
+  }
+
+  return { configured: true, checked: due.length, changed };
 }

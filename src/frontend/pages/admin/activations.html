@@ -7,153 +7,164 @@
   <link rel="icon" href="/favicon.ico" sizes="32x32" />
   <link rel="icon" href="/images/icon.png" type="image/png" />
   <link rel="apple-touch-icon" href="/images/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
+    /* One job per screen: a list of people to remind, or a list of what was
+       activated. One accent colour, one strong button per row, and grey for
+       everything that is context rather than the thing to act on. */
     * { box-sizing: border-box; }
     html { -webkit-text-size-adjust: 100%; }
-    /* This page does not link /styles/styles.css, so it carries its own copy of
-       the inherited overflow guard: order ids, emails and tokens have no space
-       to break at and would otherwise push a card past the viewport. */
-    body { margin: 0; font-family: "Segoe UI", Tahoma, sans-serif; background: #F1F1F0; color: #03162D; overflow-x: hidden; overflow-wrap: break-word; }
-    .wrap { max-width: 1180px; margin: 0 auto; padding: clamp(14px, 3vw, 24px) clamp(12px, 3vw, 20px) 60px; }
-    .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+    body { margin: 0; font-family: Inter, "Segoe UI", system-ui, sans-serif; background: #F6F7F9; color: #111827; font-size: 15px; line-height: 1.45; overflow-x: hidden; overflow-wrap: anywhere; }
+    .page { max-width: 1040px; margin: 0 auto; padding: 24px 20px 64px; }
+
+    .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
     .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
-    /* The logo asset, matching the tags page. It is a PNG with a solid white
-       background, so on this page's grey ground it renders as a white box —
-       `multiply` drops the white and leaves the ink. width/height are on the
-       tag too, so the header does not reflow when the image lands. */
-    .brand-logo { width: auto; height: 42px; aspect-ratio: 735 / 280; flex: 0 0 auto;
-                  display: block; mix-blend-mode: multiply; }
-    .brand-sep { color: #9CA3AF; font-weight: 700; font-size: 1.2rem; }
-    .title { font-size: clamp(1.2rem, 4.5vw, 1.5rem); font-weight: 900; margin: 0; min-width: 0; }
-    .title span { color: #FF2700; }
-    a.back { text-decoration: none; color: #6B7280; font-weight: 700; font-size: .85rem; border: 1.5px solid #E5E7EB; padding: 8px 14px; border-radius: 10px; background: #fff; white-space: nowrap; }
+    /* PNG with a white background; multiply drops the white on the grey page. */
+    .brand-logo { height: 34px; width: auto; aspect-ratio: 735 / 280; display: block; mix-blend-mode: multiply; }
+    .title { font-size: 1.35rem; font-weight: 800; margin: 0; letter-spacing: -0.01em; white-space: nowrap; overflow-wrap: normal; }
+    a.back { text-decoration: none; color: #4B5563; font-weight: 600; font-size: .88rem; padding: 8px 12px; border-radius: 10px; white-space: nowrap; }
+    a.back:hover { background: #ECEEF1; }
 
-    /* Search sticks to the top so it stays reachable while scrolling long lists. */
-    .bar { display: flex; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; position: sticky; top: 0; z-index: 5; background: #F1F1F0; padding: 8px 0; }
-    .bar input { height: 44px; width: 100%; border: 1.5px solid #E5E7EB; border-radius: 10px; padding: 0 12px; font-size: 16px; font-family: inherit; outline: none; }
-    .bar input:focus { border-color: #FF2700; }
+    /* Tabs: which list you are looking at. */
+    .tabs { display: flex; gap: 4px; border-bottom: 1px solid #E5E7EB; margin-bottom: 18px; }
+    .tab { appearance: none; border: 0; background: none; font: inherit; font-weight: 600; color: #6B7280; padding: 10px 14px; margin-bottom: -1px; border-bottom: 2px solid transparent; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
+    .tab:hover { color: #111827; }
+    .tab[aria-selected="true"] { color: #111827; border-bottom-color: #FF2700; }
+    .tab .n { font-size: .78rem; font-weight: 700; background: #ECEEF1; color: #374151; padding: 1px 8px; border-radius: 999px; }
+    .tab[aria-selected="true"] .n { background: #FFE3DD; color: #B31C00; }
 
-    .section { margin-bottom: 28px; }
-    .section-head { display: flex; align-items: baseline; gap: 10px; margin: 0 0 6px; flex-wrap: wrap; }
-    .section-head h2 { font-size: clamp(1rem, 3.5vw, 1.1rem); font-weight: 900; margin: 0; }
-    .count { font-size: .74rem; font-weight: 800; padding: 3px 10px; border-radius: 20px; white-space: nowrap; }
-    .count.ok { background: #DCFCE7; color: #166534; }
-    .count.warn { background: #FEF3C7; color: #92400E; }
-    .section-sub { font-size: .82rem; color: #6B7280; margin: 0 0 12px; }
+    .hint { color: #6B7280; font-size: .88rem; margin: 0 0 14px; }
+    .sync { color: #2563EB; font-size: .8rem; font-weight: 600; margin: -8px 0 12px; }
 
-    .card { background: #fff; border: 1px solid #E5E7EB; border-radius: 14px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
-    table { width: 100%; border-collapse: collapse; font-size: .84rem; min-width: 700px; }
-    th, td { text-align: left; padding: 11px 12px; border-bottom: 1px solid #F1F2F4; white-space: nowrap; vertical-align: middle; }
-    th { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; color: #9CA3AF; background: #FAFBFC; }
-    tr:last-child td { border-bottom: none; }
-    .plate { font-weight: 800; letter-spacing: .04em; }
-    .muted { color: #6B7280; }
-    .pill { display: inline-block; font-size: .68rem; font-weight: 800; padding: 2px 9px; border-radius: 20px; }
-    .pill.active { background: #FFE3DD; color: #B31C00; }
-    .pill.inactive { background: #FEE2E2; color: #B91C1C; }
-    .pill.premium { background: #FEF3C7; color: #92400E; }
-    .pill.cod { background: #E0E7FF; color: #3730A3; }
-    .pill.prepaid { background: #DCFCE7; color: #166534; }
-    a.tel { text-decoration: none; color: #03162D; font-weight: 700; }
-    a.tel:hover { color: #FF2700; }
-    .remind { display: inline-flex; gap: 6px; flex-wrap: wrap; }
-    .remind a { text-decoration: none; border: 1.5px solid #E5E7EB; background: #fff; border-radius: 8px; padding: 6px 12px; font-size: .75rem; font-weight: 700; color: #374151; }
-    .remind a.wa { color: #128C7E; border-color: #A7E5D8; }
-    .remind a:hover { background: #F1F1F0; }
-    .empty, .err { text-align: center; padding: 34px 16px; color: #6B7280; white-space: normal; }
+    /* Filters, search and sort on one line; wraps on narrow screens. */
+    .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
+    /* Chips get their own line; search and sort share the next. */
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; flex: 1 1 100%; }
+    .chip { appearance: none; font: inherit; font-size: .85rem; font-weight: 600; border: 1px solid #E5E7EB; background: #fff; color: #374151; padding: 6px 12px; border-radius: 999px; cursor: pointer; }
+    .chip:hover { border-color: #C9CDD3; }
+    .chip[aria-pressed="true"] { background: #111827; border-color: #111827; color: #fff; }
+    .chip .n { opacity: .7; margin-left: 4px; }
+    .search { flex: 1 1 220px; min-width: 0; height: 38px; border: 1px solid #E5E7EB; border-radius: 10px; padding: 0 12px; font: inherit; font-size: .9rem; background: #fff; }
+    .select { height: 38px; border: 1px solid #E5E7EB; border-radius: 10px; padding: 0 10px; font: inherit; font-size: .88rem; background: #fff; color: #111827; }
+    .search:focus, .select:focus, .chip:focus-visible, .tab:focus-visible { outline: 2px solid #FF2700; outline-offset: 1px; }
+    .batch { font-size: .82rem; font-weight: 600; color: #92400E; background: #FEF3C7; padding: 5px 10px; border-radius: 999px; }
+    .batch a { color: inherit; }
 
-    /* ── Tablet / narrow: stack each row into a labelled card so the table never
-       forces a sideways scroll. Kicks in exactly where the widest table (700px)
-       would otherwise overflow. ── */
-    @media (max-width: 760px) {
-      .card { background: transparent; border: none; overflow: visible; border-radius: 0; }
-      table, tbody, tr, td { display: block; width: 100%; }
-      thead { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
-      table { min-width: 0; }
-      tr { background: #fff; border: 1px solid #E5E7EB; border-radius: 14px; margin-bottom: 12px; padding: 6px 14px 10px; box-shadow: 0 1px 2px rgba(3,22,45,.04); }
-      td { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding: 9px 0; border-bottom: 1px solid #F4F5F6; white-space: normal; text-align: right; word-break: break-word; }
-      td::before { content: attr(data-label); flex: 0 0 40%; text-align: left; font-size: .68rem; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: #9CA3AF; }
-      td .muted { display: block; font-weight: 500; margin-top: 2px; }
-      /* First cell becomes the card's title row — bigger, no label. */
-      tr td:first-child { text-align: left; font-size: 1.02rem; padding: 4px 0 10px; border-bottom: 1.5px solid #EEF0F2; margin-bottom: 2px; }
-      tr td:first-child::before { display: none; }
-      tr td:last-child { border-bottom: none; padding-bottom: 2px; }
-      .remind { justify-content: flex-end; }
-      .remind a { padding: 9px 14px; }
-    }
-    /* ── Small phones: labels sit above values for breathing room. ── */
-    @media (max-width: 420px) {
-      td { flex-direction: column; align-items: stretch; gap: 3px; text-align: left; }
-      td::before { flex-basis: auto; }
-      .remind { justify-content: flex-start; }
+    /* A list of rows, not a table: four blocks that never need sideways scroll. */
+    .list { background: #fff; border: 1px solid #E5E7EB; border-radius: 14px; overflow: hidden; }
+    .row { display: grid; gap: 16px; align-items: center; padding: 16px 18px; border-top: 1px solid #F0F1F3; }
+    .row:first-child { border-top: 0; }
+    /* Fixed last column, so a longer reminder note never shifts the others. */
+    .queue .row { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.2fr) minmax(0, 1fr) 250px; }
+    .recent .row { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, .7fr); }
+    .main { font-weight: 700; color: #111827; }
+    .mid { font-weight: 600; color: #374151; }
+    .sub { font-size: .84rem; color: #6B7280; margin-top: 2px; }
+    .sub a { color: inherit; text-decoration: none; }
+    .sub a:hover { color: #111827; text-decoration: underline; }
+    .tag { display: inline-block; font-size: .72rem; font-weight: 700; padding: 1px 7px; border-radius: 6px; background: #ECEEF1; color: #374151; margin-left: 6px; vertical-align: 1px; }
+    .tag.cod { background: #E0E7FF; color: #3730A3; }
+    .tag.premium { background: #FEF3C7; color: #92400E; }
+    .tag.warn { background: #FEE2E2; color: #B91C1C; }
+
+    /* Where the parcel is: a coloured dot and plain words. */
+    .status { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: .9rem; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; background: #9CA3AF; }
+    .dot.ready { background: #16A34A; }
+    .dot.transit { background: #2563EB; }
+    .dot.problem { background: #DC2626; }
+
+    .actions { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+    .btns { display: flex; gap: 6px; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; height: 34px; padding: 0 14px; border-radius: 9px; font-size: .86rem; font-weight: 700; text-decoration: none; white-space: nowrap; }
+    .btn.wa { background: #16A34A; color: #fff; }
+    .btn.wa:hover { background: #15803D; }
+    .btn.call { border: 1px solid #E5E7EB; color: #374151; background: #fff; }
+    .btn.call:hover { background: #F3F4F6; }
+    .reminded { font-size: .78rem; color: #6B7280; text-align: right; }
+    .reminded.none { color: #9CA3AF; }
+    .note-err { color: #B91C1C; font-weight: 600; }
+
+    /* Details: the full order, under its row, across every column. */
+    .more-btn { appearance: none; border: 0; background: none; padding: 0; margin-top: 4px; font: inherit; font-size: .8rem; font-weight: 600; color: #6B7280; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+    .more-btn:hover { color: #111827; }
+    .details { grid-column: 1 / -1; margin: 2px 0 0; padding: 12px 14px; background: #F9FAFB; border: 1px solid #F0F1F3; border-radius: 10px; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px 20px; font-size: .86rem; }
+    .details dt { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #9CA3AF; margin-bottom: 2px; }
+    .details dd { margin: 0; color: #374151; }
+    .history { margin: 0; padding-left: 16px; }
+    .history li { margin: 1px 0; }
+
+    .empty { padding: 40px 18px; text-align: center; color: #6B7280; }
+    .more { font-size: .82rem; color: #6B7280; padding: 10px 2px 0; }
+
+    [hidden] { display: none !important; }
+
+    /* Phones: each row becomes a card; buttons go full width. */
+    @media (max-width: 720px) {
+      .page { padding: 16px 14px 48px; }
+      .title { font-size: 1.15rem; }
+      .brand-logo { height: 28px; }
+      /* Tabs share the width instead of scrolling. */
+      .tab { flex: 1 1 0; justify-content: center; padding: 10px 6px; white-space: nowrap; font-size: .92rem; }
+      .back .long { display: none; }
+      /* Search takes what the sort leaves, so the row never runs off-screen. */
+      .search { flex: 1 1 0; }
+      .details { grid-template-columns: 1fr; }
+      .list { background: transparent; border: 0; border-radius: 0; overflow: visible; }
+      .row, .queue .row, .recent .row { grid-template-columns: 1fr; gap: 8px; background: #fff; border: 1px solid #E5E7EB; border-radius: 14px; margin-bottom: 10px; padding: 14px; }
+      .row:first-child { border-top: 1px solid #E5E7EB; }
+      .actions { align-items: stretch; margin-top: 4px; }
+      .btns { gap: 8px; }
+      .btn { flex: 1 1 0; height: 40px; }
+      .reminded { text-align: left; }
     }
   </style>
 </head>
 <body>
-  <div class="wrap">
+  <div class="page">
     <div class="top">
       <div class="brand">
-        <img class="brand-logo" src="/images/light-logo.png" alt="ParkTag"
-             width="735" height="280" />
-        <span class="brand-sep" aria-hidden="true">·</span>
-        <h1 class="title">Tag Activations</h1>
+        <img class="brand-logo" src="/images/light-logo.png" alt="ParkTag" width="735" height="280" />
+        <h1 class="title">Activations</h1>
       </div>
-      <a class="back" href="/admin/overview">← Back to Admin</a>
+      <a class="back" href="/admin/overview">← <span class="long">Back to </span>Admin</a>
     </div>
 
-    <div class="bar">
-      <input id="q" type="search" placeholder="Search by vehicle number, owner, mobile, order #…" autocomplete="off"/>
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" id="tab-queue" aria-controls="panel-queue" aria-selected="true">Awaiting activation <span class="n" id="queueCount">…</span></button>
+      <button class="tab" role="tab" id="tab-recent" aria-controls="panel-recent" aria-selected="false">Activated <span class="n" id="recentCount">…</span></button>
     </div>
 
-    <div class="section">
-      <div class="section-head">
-        <h2>Activated Premium Tags</h2>
-        <span class="count ok" id="activatedCount">…</span>
+    <section id="panel-queue" role="tabpanel" aria-labelledby="tab-queue">
+      <p class="hint">Buyers who paid but haven't activated their sticker. WhatsApp or Call logs the reminder, so nobody gets messaged twice.</p>
+      <p class="sync" id="syncNote" role="status" hidden>Checking courier status…</p>
+      <div class="controls">
+        <div class="chips" id="queueChips" role="group" aria-label="Show"></div>
+        <input class="search" id="queueQ" type="search" placeholder="Search buyer or order" autocomplete="off" aria-label="Search buyers"/>
+        <select class="select" id="queueSort" aria-label="Sort">
+          <option value="oldest">Oldest first</option>
+          <option value="newest">Newest first</option>
+        </select>
       </div>
-      <p class="section-sub">Owners who have activated a premium tag: who and when.</p>
-      <div class="card">
-        <table>
-          <thead>
-            <tr><th>E-Tag ID</th><th>Sticker serial</th><th>Vehicle</th><th>Owner</th><th>Mobile</th><th>Activated On</th><th>Status</th></tr>
-          </thead>
-          <tbody id="activatedRows"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody>
-        </table>
-      </div>
-    </div>
+      <div class="list queue" id="queueRows"><div class="empty">Loading…</div></div>
+    </section>
 
-    <!-- Issued E-Tag stickers (premium off, e.g. campaign stock). The premium
-         list above filters on premium, so these never appear in it. -->
-    <div class="section">
-      <div class="section-head">
-        <h2>Activated E-Tag Stickers</h2>
-        <span class="count ok" id="etagCount">…</span>
-        <span id="etagBatch" hidden class="count warn"></span>
+    <section id="panel-recent" role="tabpanel" aria-labelledby="tab-recent" hidden>
+      <p class="hint">Tags customers have activated, newest first. Search looks through every activation.</p>
+      <div class="controls">
+        <input class="search" id="recentQ" type="search" placeholder="Search plate, name or serial" autocomplete="off" aria-label="Search activations"/>
+        <select class="select" id="recentType" aria-label="Tag type">
+          <option value="all">All tags</option>
+          <option value="premium">Premium</option>
+          <option value="etag">E-Tag</option>
+        </select>
+        <span class="batch" id="batchChip" hidden></span>
       </div>
-      <p class="section-sub">Issued stickers with premium off (for example campaign stock) that somebody has activated.</p>
-      <div class="card">
-        <table>
-          <thead>
-            <tr><th>E-Tag ID</th><th>Sticker serial</th><th>Vehicle</th><th>Owner</th><th>Mobile</th><th>Activated On</th><th>Free contact</th></tr>
-          </thead>
-          <tbody id="etagRows"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="section">
-      <div class="section-head">
-        <h2>Sold · Awaiting Activation</h2>
-        <span class="count warn" id="unactivatedCount">…</span>
-      </div>
-      <p class="section-sub">Tags bought or shipped but not activated yet. Send an activation reminder.</p>
-      <div class="card">
-        <table>
-          <thead>
-            <tr><th>Order #</th><th>Product</th><th>Owner</th><th>Mobile</th><th>Payment</th><th>Placed On</th><th>Remind</th></tr>
-          </thead>
-          <tbody id="unactivatedRows"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody>
-        </table>
-      </div>
-    </div>
+      <div class="list recent" id="recentRows"><div class="empty">Loading…</div></div>
+      <p class="more" id="recentMore" hidden></p>
+    </section>
   </div>
 
   <script src="/scripts/admin/activations.js?v=__ASSET_VERSION__"></script>

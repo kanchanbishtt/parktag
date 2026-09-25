@@ -130,11 +130,18 @@ test("each card matches the page it links to", async () => {
     ]).then((responses) => responses.map((r) => r.json()));
 
   assert.equal(s.activations.awaiting, activations.counts.unactivated, "Sold, not activated");
-  assert.equal(
-    s.activations.premiumLive,
-    activations.activated.filter((t) => t.status === "active").length,
-    "Premium tags live"
-  );
+  assert.equal(s.activations.awaiting, activations.unactivated.length);
+
+  // The Activations page's list, by type, and the Tags page's stock filter.
+  const [premiumList, etagList, stock] = await Promise.all([
+    authed("/api/admin/activations/recent?type=premium"),
+    authed("/api/admin/activations/recent?type=etag"),
+    authed("/api/admin/etags?claim=unclaimed&category=premium")
+  ]).then((responses) => responses.map((r) => r.json()));
+  assert.equal(s.activations.premiumActivated, premiumList.total, "Premium tags activated");
+  assert.ok(s.activations.premiumLive <= s.activations.premiumActivated);
+  assert.equal(s.activations.etag, etagList.total, "E-Tag stickers activated, as the Activations page counts them");
+  assert.equal(s.stock.premiumUnsold, stock.total, "Unsold premium stock");
   assert.equal(s.printQueue.unprinted, printQueue.tags.length, "Unprinted tags");
   assert.equal(s.printQueue.printedAwaitingClaim, printed.tags.length, "Printed, awaiting claim");
   assert.equal(s.activations.etag, etagActivations.total, "E-Tag stickers activated");

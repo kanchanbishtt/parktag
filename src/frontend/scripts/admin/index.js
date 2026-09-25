@@ -1008,7 +1008,7 @@ function renderOverviewSummary(data) {
       cards: [
         { href: "/admin/owners", label: "Owners", value: s.owners.total, sub: `+${formatCount(s.owners.new)} in the last ${days} days` },
         { href: "/admin/etags", label: "Customer tags", value: s.tags.customer, sub: `${formatCount(s.tags.active)} active` },
-        { href: "/admin/activations", label: "Premium tags live", value: s.activations.premiumLive, sub: "Activated premium tags" },
+        { href: "/admin/activations", label: "Premium tags activated", value: s.activations.premiumActivated, sub: `${formatCount(s.activations.premiumLive)} live now` },
         { href: "/admin/activations", label: "E-Tag stickers activated", value: s.activations.etag, sub: "Issued stickers with an owner" }
       ]
     },
@@ -1017,6 +1017,7 @@ function renderOverviewSummary(data) {
       cards: [
         { href: "/admin/issuance", label: "Batches issued", value: s.batches.count, sub: `${formatCount(s.batches.issued)} tags · ${formatCount(s.batches.activated)} activated` },
         { href: "/admin/print-queue", label: "Printed, awaiting claim", value: s.printQueue.printedAwaitingClaim, sub: "Printed stickers nobody has claimed" },
+        { href: "/admin/etags?claim=unclaimed&category=premium", label: "Unsold premium stock", value: s.stock.premiumUnsold, sub: "Premium tags nobody holds yet" },
         { href: "/admin/marketing", label: "Field demo stickers", value: s.fieldDemo.units, sub: `${formatCount(s.fieldDemo.available)} available · ${formatCount(s.fieldDemo.activated)} activated · ${formatCount(s.fieldDemo.sold)} sold` }
       ]
     },

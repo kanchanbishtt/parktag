@@ -55,7 +55,9 @@ const PAID_STATES = ["paid", "cod"];
 // `quantity` scales it further: a quantity-3 order of a Pack of 2 holds six
 // stickers, not two. A legacy order with no `quantity` field floors to 1 —
 // exactly today's behaviour before the field existed.
-function capacityOf(order) {
+// Also read by the admin Activations page, to tell a multi-pack with one
+// sticker still waiting from one that is done.
+export function capacityOf(order) {
   const product = getShopProduct(order.productId);
   const perUnit = Math.max(1, Number(product && product.tags) || 1);
   const quantity = Math.max(1, Number(order.quantity) || 1);

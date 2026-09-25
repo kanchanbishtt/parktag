@@ -180,25 +180,37 @@ test("an activated demo sticker stays out of the E-Tags list", async () => {
 });
 
 test("the activations list shows real premium tags but not demo stock", async () => {
-  // Demo stickers are premium, and this page selects on `premium: true` alone,
-  // so it was the last surface still counting the shelf as inventory.
-  const realPremium = await insertTag({ premium: true, status: "active" });
-  const demo = await insertDemoSticker({ premium: true });
+  // Demo stickers are premium, and this page once selected on `premium: true`
+  // alone, so it was the last surface still counting the shelf as inventory.
+  // Both carry an owner: the list now counts only tags somebody holds.
+  const ownerId = (
+    await collections.owners.insertOne({
+      email: `separation-activation-owner-${Date.now()}@parktag.test`,
+      displayName: "Activation Owner",
+      createdAt: new Date().toISOString()
+    })
+  ).insertedId;
+  const realPremium = await insertTag({ premium: true, status: "active", ownerId });
+  const demo = await insertDemoSticker({ premium: true, status: "active", ownerId, demoOwnerId: ownerId });
 
-  const response = await authed("GET", "/api/admin/activations");
-  assert.equal(response.statusCode, 200);
+  try {
+    const response = await authed("GET", "/api/admin/activations/recent?type=premium");
+    assert.equal(response.statusCode, 200);
 
-  // This route identifies rows by serial and etagId, not by token — matching on
-  // `token` silently matches nothing and passes whatever the filter does.
-  const serials = JSON.stringify(response.json());
-  assert.ok(
-    serials.includes(stickerSerialFor(realPremium)),
-    "an ordinary premium tag must still be listed — otherwise this test proves nothing"
-  );
-  assert.ok(
-    !serials.includes(stickerSerialFor(demo)),
-    "a demo sticker is not a premium activation and must not be listed as one"
-  );
+    // This route identifies rows by serial and etagId, not by token — matching on
+    // `token` silently matches nothing and passes whatever the filter does.
+    const serials = JSON.stringify(response.json());
+    assert.ok(
+      serials.includes(stickerSerialFor(realPremium)),
+      "an ordinary premium tag must still be listed — otherwise this test proves nothing"
+    );
+    assert.ok(
+      !serials.includes(stickerSerialFor(demo)),
+      "a demo sticker is not a premium activation and must not be listed as one"
+    );
+  } finally {
+    await collections.owners.deleteOne({ _id: ownerId });
+  }
 });
 
 test("a batch delete clears ordinary stock and leaves field-demo stickers alone", async () => {

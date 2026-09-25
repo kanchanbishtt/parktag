@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import { createSession, writeSessionCookie } from "../../lib/auth/session.js";
 import { getCollections } from "../../lib/db/repositories.js";
 import { findByCanonicalEmail } from "../../lib/auth/identity.js";
+import { recordAdminEvent } from "../../lib/core/admin-audit.js";
 
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
@@ -167,6 +168,8 @@ export function registerGoogleAuthRoutes(app, env) {
       if (role === "admin") {
         const admin = await findByCanonicalEmail(collections.admins, email);
         if (!admin) {
+          // Not awaited: the log never slows or blocks a sign-in.
+          recordAdminEvent(collections, { event: "login_failed", email, reason: "no_account", request });
           reply.redirect("/admin?error=no_account");
           return;
         }
@@ -178,6 +181,7 @@ export function registerGoogleAuthRoutes(app, env) {
           displayName: admin.displayName || email
         });
         writeSessionCookie(reply, sessionId, env.runtimeMode === "production");
+        recordAdminEvent(collections, { event: "login", adminId: String(admin._id), email: admin.email, method: "google", request });
         reply.redirect("/admin/overview");
         return;
       }

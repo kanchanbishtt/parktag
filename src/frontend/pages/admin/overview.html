@@ -16,8 +16,6 @@
       a.pt-admin-stat { display: block; text-decoration: none; color: inherit; transition: border-color 0.15s, box-shadow 0.15s; }
       a.pt-admin-stat:hover, a.pt-admin-stat:focus-visible { border-color: #FF2700; box-shadow: 0 2px 8px rgba(255,39,0,0.12); }
       .ov-sub { font-size: 0.8rem; color: #6B7280; margin: 8px 0 0; }
-      .ov-links { display: flex; gap: 14px; font-size: 0.82rem; font-weight: 700; }
-      .ov-links a { color: #FF2700; text-decoration: none; }
     </style>
   </head>
   <body class="pt-admin-body">
@@ -56,20 +54,6 @@
         </div>
 
         <div id="overview-summary"><p class="pt-admin-empty">Loading summary…</p></div>
-
-        <div class="pt-admin-card">
-          <div class="pt-admin-card-header">
-            <div>
-              <h2 class="pt-admin-card-title">Latest activity</h2>
-              <p class="pt-admin-card-sub">Newest sign-ups and contact requests.</p>
-            </div>
-            <div class="ov-links">
-              <a href="/admin/owners">All owners →</a>
-              <a href="/admin/activity">All activity →</a>
-            </div>
-          </div>
-          <div id="overview-latest"><p class="pt-admin-empty">Loading…</p></div>
-        </div>
 
         <p id="admin-auth-status" class="pt-admin-status" data-tone="info"></p>
       </main>

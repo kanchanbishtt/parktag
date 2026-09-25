@@ -11,6 +11,36 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+      /* Sign-in activity: one line per event, a coloured dot for what kind. */
+      .au-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+      .au-filter { width: auto; min-width: 200px; max-width: 100%; }
+      .au-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 16px; align-items: baseline; padding: 11px 0; border-top: 1px solid #F3F4F6; }
+      .au-row:first-child { border-top: 0; }
+      .au-what { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 0.9rem; color: #111827; min-width: 0; }
+      .au-what::before { content: ""; width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; background: #9CA3AF; }
+      .au-row[data-kind="in"] .au-what::before { background: #16A34A; }
+      .au-row[data-kind="bad"] .au-what::before { background: #DC2626; }
+      .au-row[data-kind="bad"] .au-what { color: #B91C1C; }
+      .au-who { font-size: 0.82rem; color: #374151; margin: 2px 0 0 16px; overflow-wrap: anywhere; }
+      .au-meta { font-size: 0.8rem; color: #6B7280; text-align: right; white-space: nowrap; }
+      .au-meta span { display: block; }
+      .au-last { color: #6B7280; }
+      @media screen and (max-width: 640px) {
+        .au-row { grid-template-columns: 1fr; }
+        .au-meta { text-align: left; margin-left: 16px; white-space: normal; }
+        .au-meta span { display: inline; }
+        .au-meta span + span::before { content: " · "; }
+      }
+      /* Page numbers, 100 a page (same component as the other admin lists). */
+      .pager { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px; margin-top: 16px; }
+      .pager button { appearance: none; font: inherit; font-size: .86rem; font-weight: 600; min-width: 36px; height: 36px; padding: 0 10px; border: 1px solid #E5E7EB; border-radius: 9px; background: #fff; color: #374151; cursor: pointer; }
+      .pager button:hover:not([disabled]) { background: #F3F4F6; }
+      .pager button[aria-current="page"] { background: #111827; border-color: #111827; color: #fff; }
+      .pager button[disabled] { opacity: .4; cursor: default; }
+      .pager button:focus-visible { outline: 2px solid #FF2700; outline-offset: 1px; }
+      .pager .gap { color: #9CA3AF; padding: 0 2px; }
+    </style>
   </head>
   <body class="pt-admin-body">
     <div class="pt-admin-shell" data-admin-page="admins">
@@ -75,9 +105,24 @@
           <p id="admin-mgmt-status" class="pt-admin-status" data-tone="info" style="margin-top:12px"></p>
         </div>
 
+        <div class="pt-admin-card">
+          <div class="au-head">
+            <div>
+              <h2 class="pt-admin-card-title">Sign-in activity</h2>
+              <p class="pt-admin-card-sub" id="audit-count">Admin sign-ins, sign-outs and failed attempts, kept for 90 days.</p>
+            </div>
+            <select id="audit-admin" class="pt-admin-input au-filter" aria-label="Show sign-ins for">
+              <option value="">All admins</option>
+            </select>
+          </div>
+          <div id="audit-list"><p class="pt-admin-empty">Loading…</p></div>
+          <nav class="pager" id="audit-pager" aria-label="Pages" hidden></nav>
+        </div>
+
         <p id="admin-auth-status" class="pt-admin-status" data-tone="info"></p>
       </main>
     </div>
+    <script src="/scripts/admin/pager.js?v=__ASSET_VERSION__"></script>
     <script type="module" src="/scripts/admin/index.js?v=__ASSET_VERSION__"></script>
     <script src="/scripts/ux-feedback.js?v=__ASSET_VERSION__"></script>
   </body>

@@ -19,6 +19,7 @@ import {
   recordLoginFailure
 } from "../../lib/auth/login-lockout.js";
 import { getCollections } from "../../lib/db/repositories.js";
+import { recordAdminEvent } from "../../lib/core/admin-audit.js";
 
 export function registerAuthRoutes(app, env) {
   // Whoami for the current cookie. Returns only what a page needs to render
@@ -153,6 +154,8 @@ export function registerAuthRoutes(app, env) {
       const lock = await getLoginLock(collections, role, identifier);
 
       if (lock.locked) {
+        // Not awaited: the log never slows or blocks a sign-in.
+        if (role === "admin") recordAdminEvent(collections, { event: "login_locked", email: identifier, reason: "locked", request });
         reply.code(429);
         reply.header("retry-after", String(lock.retryAfterSeconds));
         return {
@@ -172,6 +175,7 @@ export function registerAuthRoutes(app, env) {
         // response is byte-identical to the pre-existing one for the same reason.
         await recordLoginFailure(collections, role, identifier);
         if (role === "owner") await recordSprayFailure(collections, clientIp, identifier);
+        if (role === "admin") recordAdminEvent(collections, { event: "login_failed", email: identifier, reason: "invalid", request });
 
         reply.code(401);
         return {
@@ -192,6 +196,7 @@ export function registerAuthRoutes(app, env) {
         signInIdentifier: user.email || identifier
       });
       writeSessionCookie(reply, sessionId, env.runtimeMode === "production", Boolean(rememberMe));
+      if (role === "admin") recordAdminEvent(collections, { event: "login", adminId: user.id, email: user.email, method: "password", request });
 
       return {
         ok: true,
@@ -216,7 +221,14 @@ export function registerAuthRoutes(app, env) {
     const sessionId = request.cookies[getSessionCookieName()];
     if (sessionId) {
       const collections = await getCollections(env);
-      if (collections) await revokeVaultAccess(collections, sessionId);
+      if (collections) {
+        await revokeVaultAccess(collections, sessionId);
+        // Read before the session is cleared: an admin signing out is logged.
+        const session = await readSession(app, request);
+        if (session?.role === "admin") {
+          recordAdminEvent(collections, { event: "logout", adminId: session.userId, email: session.email, request });
+        }
+      }
     }
 
     await clearSession(app, request, reply);

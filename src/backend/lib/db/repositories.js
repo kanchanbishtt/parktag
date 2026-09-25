@@ -19,6 +19,8 @@ export async function getCollections(env) {
     slackCommands: db.collection(withPrefix(prefix, "slack_commands")),
     tagResetHistory: db.collection(withPrefix(prefix, "tag_reset_history")),
     admins: db.collection(withPrefix(prefix, "admins")),
+    // Admin sign-in / sign-out log (lib/core/admin-audit.js).
+    adminAudit: db.collection(withPrefix(prefix, "admin_audit")),
     owners: db.collection(withPrefix(prefix, "owners")),
     tags: db.collection(withPrefix(prefix, "tags")),
     // Login sessions — persisted so admins/owners stay logged in across server
@@ -269,6 +271,11 @@ const CORE_INDEXES = [
   // Lockout records refresh updatedAt on every failure, so an active lock is
   // never near expiry; a week is just garbage collection for stale counters.
   ["loginAttempts", { updatedAt: 1 }, { expireAfterSeconds: 604800, name: "ttl" }],
+  // Admin sign-in log: kept 90 days, then dropped automatically. `at` is a real
+  // Date (the TTL monitor ignores strings). The same index serves the newest-
+  // first listing; the second serves the per-admin filter.
+  ["adminAudit", { at: 1 }, { expireAfterSeconds: 7776000, name: "ttl" }],
+  ["adminAudit", { email: 1, at: -1 }, { name: "email_recent" }],
   // Every vault read is scoped to one owner and usually one vehicle, and the
   // per-owner storage quota sums this collection on each upload.
   ["vaultDocuments", { ownerId: 1, tagId: 1, createdAt: -1 }, { name: "owner_vehicle" }],

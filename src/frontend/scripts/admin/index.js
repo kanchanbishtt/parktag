@@ -1,5 +1,18 @@
+// Failed requests are counted (and the last failing status kept) because most
+// page loaders catch their own errors and paint a message instead of throwing;
+// the Refresh button reads these to know whether its reload actually worked.
+let fetchFailures = 0;
+let lastFailedStatus = 0;
+
 async function fetchJson(url, options) {
-  const response = await fetch(url, options);
+  let response;
+  try {
+    response = await fetch(url, options);
+  } catch (error) {
+    fetchFailures += 1;
+    lastFailedStatus = 0;
+    throw error;
+  }
   const raw = await response.text();
 
   let data;
@@ -10,6 +23,8 @@ async function fetchJson(url, options) {
     // "upstream error" when the request timed out upstream). Surface something
     // readable instead of a raw "Unexpected token 'u'" JSON.parse crash.
     const snippet = raw.trim().slice(0, 120);
+    fetchFailures += 1;
+    lastFailedStatus = response.status;
     throw new Error(
       response.ok
         ? `Unexpected non-JSON response from server${snippet ? `, ${snippet}` : ""}`
@@ -18,6 +33,8 @@ async function fetchJson(url, options) {
   }
 
   if (!response.ok) {
+    fetchFailures += 1;
+    lastFailedStatus = response.status;
     throw new Error(data.error || `Request failed (${response.status})`);
   }
 
@@ -904,35 +921,9 @@ function renderOverviewSummary(data) {
     .join("");
 }
 
-function renderOverviewLatest(items) {
-  const target = byId("overview-latest");
-  if (!target) return;
-
-  if (!items?.length) {
-    target.innerHTML = `<p class="pt-admin-empty">Nothing yet.</p>`;
-    return;
-  }
-
-  target.innerHTML = items
-    .map((item) => {
-      const what = item.kind === "registration"
-        ? "Signed up"
-        : ["Contact request", item.action && `${item.action}${item.channel ? ` (${item.channel})` : ""}`, item.status]
-            .filter(Boolean)
-            .join(" · ");
-      return `
-        <div class="pt-admin-row">
-          <p class="pt-admin-row-title">${esc(item.title)}</p>
-          <p class="pt-admin-row-meta">${esc(what)} · ${esc(timeAgo(item.at))}</p>
-        </div>`;
-    })
-    .join("");
-}
-
 async function loadOverviewSummary() {
   const data = await fetchJson("/api/admin/overview/summary");
   renderOverviewSummary(data);
-  renderOverviewLatest(data.latest);
   return data;
 }
 
@@ -1340,8 +1331,8 @@ async function loadActivity() {
     }
     target.innerHTML = data.activity.map((item) => `
       <article class="queue-row">
-        <strong>${esc(item.vehicleLabel)}</strong>
-        <span>Token: ${esc(item.token)}</span>
+        <strong>${esc(item.vehicleLabel || item.serial || "Unknown tag")}</strong>
+        ${item.serial ? `<span>Sticker: <a href="/admin/etags?q=${encodeURIComponent(item.serial)}">${esc(item.serial)}</a></span>` : ""}
         <span>Phone: ${esc(item.phone)}</span>
         <span>Action: ${esc(item.action)}${item.messageChannel ? ` (${esc(item.messageChannel)})` : ""}</span>
         ${item.message ? `<span>Message: ${esc(item.message)}</span>` : ""}
@@ -1374,6 +1365,7 @@ async function loadAdmins() {
         <div>
           <p class="pt-admin-row-title">${esc(a.displayName)}</p>
           <p class="pt-admin-row-meta">${esc(a.email)} &middot; Added ${esc(new Date(a.createdAt).toLocaleString())}</p>
+          <p class="pt-admin-row-meta au-last">${a.lastSignInAt ? `Last signed in ${esc(timeAgo(a.lastSignInAt))}` : "No sign-in recorded yet"}</p>
         </div>
         ${a.email !== myEmail ? `
           <button onclick="deleteAdmin('${jsAttr(a.id)}')"
@@ -1384,8 +1376,83 @@ async function loadAdmins() {
             onmouseout="this.style.background='none'">Remove</button>
         ` : ""}
       </div>`).join("");
+    fillAuditFilter(data.admins);
   } catch (error) {
     if (target) target.innerHTML = `<p class="empty-copy">Failed to load admins.</p>`;
+  }
+}
+
+// ── Sign-in activity (Admin Management) ──
+// Newest first, 100 a page; the filter narrows it to one admin's email.
+let _auditPage = 1;
+let _auditRequest = 0;
+
+function fillAuditFilter(admins) {
+  const select = byId("audit-admin");
+  if (!select) return;
+  const chosen = select.value;
+  select.innerHTML = `<option value="">All admins</option>` + admins
+    .filter((a) => a.email)
+    .map((a) => `<option value="${esc(String(a.email).toLowerCase())}">${esc(a.displayName || a.email)}</option>`)
+    .join("");
+  if ([...select.options].some((o) => o.value === chosen)) select.value = chosen;
+}
+
+function auditEventHtml(e) {
+  const times = e.count > 1 ? ` ×${formatCount(e.count)}` : "";
+  const [kind, what] =
+    e.event === "login" ? ["in", `Signed in${e.method === "google" ? " with Google" : e.method === "password" ? " with password" : ""}`]
+      : e.event === "logout" ? ["out", "Signed out"]
+        : e.event === "login_locked" ? ["bad", `Blocked: too many failed attempts${times}`]
+          : ["bad", e.reason === "no_account"
+            ? `Failed Google sign-in: not an admin account${times}`
+            : `Failed sign-in: wrong email or password${times}`];
+  const when = e.at ? new Date(e.at) : null;
+  return `
+    <div class="au-row" data-kind="${kind}">
+      <div>
+        <p class="au-what">${esc(what)}</p>
+        <p class="au-who">${esc(e.email || "Unknown email")}</p>
+      </div>
+      <p class="au-meta">
+        <span title="${esc(when ? when.toLocaleString() : "")}">${esc(timeAgo(e.at))}</span>
+        <span>${esc([e.browser, e.ip].filter(Boolean).join(" · ") || "—")}</span>
+      </p>
+    </div>`;
+}
+
+async function loadAudit() {
+  const target = byId("audit-list");
+  const pagerEl = byId("audit-pager");
+  const countEl = byId("audit-count");
+  if (!target) return;
+  const params = new URLSearchParams();
+  const email = byId("audit-admin")?.value || "";
+  if (email) params.set("email", email);
+  if (_auditPage > 1) params.set("page", String(_auditPage));
+  const requestId = ++_auditRequest;
+  try {
+    const data = await fetchJson(`/api/admin/audit${params.toString() ? `?${params}` : ""}`);
+    if (requestId !== _auditRequest) return;
+    _auditPage = Number(data.page) || 1;
+    if (countEl) {
+      countEl.textContent = data.total
+        ? `${formatCount(data.total)} ${data.total === 1 ? "event" : "events"} in the last 90 days.`
+        : "Admin sign-ins, sign-outs and failed attempts, kept for 90 days.";
+    }
+    target.innerHTML = data.events.length
+      ? data.events.map(auditEventHtml).join("")
+      : `<p class="pt-admin-empty">${email ? "No sign-ins recorded for this admin yet." : "No sign-ins recorded yet."}</p>`;
+    if (pagerEl && window.renderPager) {
+      window.renderPager(pagerEl, data, (n) => {
+        _auditPage = n;
+        loadAudit().then(() => target.scrollIntoView({ block: "start" }));
+      });
+    }
+  } catch (error) {
+    if (requestId !== _auditRequest) return;
+    target.innerHTML = `<p class="pt-admin-empty">Failed to load sign-in activity.</p>`;
+    if (pagerEl && window.renderPager) window.renderPager(pagerEl, { page: 1, pages: 1 });
   }
 }
 
@@ -1449,7 +1516,49 @@ async function loadBatchSummary() {
   </table>`;
 }
 
-async function refreshCurrentPage() {
+// The sidebar's Refresh: reloads this page's data in place and says so, since
+// an unchanged list redrawn looks exactly like a button that did nothing.
+// Only a signed-out answer goes to the login page; any other failure stays put
+// and says it could not refresh.
+async function refreshFromButton(event) {
+  const button = event.currentTarget;
+  if (button.disabled) return;
+  clearTimeout(button._resetTimer);
+  button.disabled = true;
+  button.setAttribute("aria-busy", "true");
+  button.textContent = "Refreshing…";
+
+  const failuresBefore = fetchFailures;
+  const started = Date.now();
+  let ok = true;
+  try {
+    await refreshCurrentPage({ fromButton: true });
+  } catch {
+    ok = false;
+  }
+  if (fetchFailures > failuresBefore) {
+    if (lastFailedStatus === 401 || lastFailedStatus === 403) {
+      window.location.href = "/admin";
+      return;
+    }
+    ok = false;
+  }
+  // A beat of "Refreshing…" even when the reload is instant, so it registers.
+  await new Promise((resolve) => setTimeout(resolve, Math.max(0, 450 - (Date.now() - started))));
+
+  button.disabled = false;
+  button.removeAttribute("aria-busy");
+  button.textContent = ok
+    ? `✓ Updated ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+    : "Couldn't refresh";
+  button.dataset.result = ok ? "ok" : "error";
+  button._resetTimer = setTimeout(() => {
+    button.textContent = "Refresh";
+    delete button.dataset.result;
+  }, 3000);
+}
+
+async function refreshCurrentPage({ fromButton = false } = {}) {
   try {
     const page = currentAdminPage();
 
@@ -1468,7 +1577,7 @@ async function refreshCurrentPage() {
     } else if (page === "activity") {
       await loadActivity();
     } else if (page === "admins") {
-      await loadAdmins();
+      await Promise.all([loadAdmins(), loadAudit()]);
     }
   } catch (error) {
     setStatus(
@@ -1477,6 +1586,10 @@ async function refreshCurrentPage() {
         : "Unable to load the current admin environment.",
       "error"
     );
+
+    // A refresh the admin asked for reports its own failure (see
+    // refreshFromButton) instead of leaving the page.
+    if (fromButton) throw error;
 
     if (currentAdminPage() !== "login") {
       window.location.href = "/admin";
@@ -1551,7 +1664,7 @@ function bindEvents() {
   }
 
   if (hasEl("admin-refresh-button")) {
-    byId("admin-refresh-button").addEventListener("click", refreshCurrentPage);
+    byId("admin-refresh-button").addEventListener("click", refreshFromButton);
   }
 
   if (hasEl("owners-search")) {
@@ -1571,6 +1684,10 @@ function bindEvents() {
       const button = event.target.closest(".ow-more-btn");
       if (button) toggleOwnerTags(button);
     });
+  }
+
+  if (hasEl("audit-admin")) {
+    byId("audit-admin").addEventListener("change", () => { _auditPage = 1; loadAudit(); });
   }
 
   if (hasEl("owners-show-demo")) {

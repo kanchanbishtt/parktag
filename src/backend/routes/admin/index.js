@@ -1052,9 +1052,7 @@ export function registerAdminRoutes(app, env) {
       contacts,
       contactsNew,
       contactsFailed,
-      traffic,
-      recentRequests,
-      recentOwners
+      traffic
     ] = await Promise.all([
       collections.owners.countDocuments(NOT_DEMO_OWNER),
       collections.owners.countDocuments({ ...NOT_DEMO_OWNER, ...createdSince }),
@@ -1077,48 +1075,8 @@ export function registerAdminRoutes(app, env) {
       collections.contactRequests.countDocuments(),
       collections.contactRequests.countDocuments(createdSince),
       collections.contactRequests.countDocuments({ status: "provider_failed", ...createdSince }),
-      landingTotals(collections, WINDOW_DAYS),
-      collections.contactRequests
-        .find({}, { projection: { token: 1, action: 1, messageChannel: 1, status: 1, createdAt: 1 } })
-        .sort({ createdAt: -1 })
-        .limit(5)
-        .toArray(),
-      collections.owners
-        .find(NOT_DEMO_OWNER, { projection: { displayName: 1, mobile: 1, phone: 1, email: 1, createdAt: 1 } })
-        .sort({ createdAt: -1 })
-        .limit(5)
-        .toArray()
+      landingTotals(collections, WINDOW_DAYS)
     ]);
-
-    // Contact requests carry a token; label them the way the Activity page does.
-    const requestTokens = [...new Set(recentRequests.map((r) => r.token).filter(Boolean))];
-    const labelTags = requestTokens.length
-      ? await collections.tags
-          .find({ token: { $in: requestTokens } }, { projection: { token: 1, vehicleLabel: 1, plateNumber: 1 } })
-          .toArray()
-      : [];
-    const labelByToken = new Map(
-      labelTags.map((t) => [t.token, t.plateNumber || t.vehicleLabel || null])
-    );
-
-    const latest = [
-      ...recentOwners.map((o) => ({
-        kind: "registration",
-        title: o.displayName || o.mobile || o.phone || o.email || "Unnamed owner",
-        at: o.createdAt || null
-      })),
-      ...recentRequests.map((r) => ({
-        kind: "contact",
-        title: labelByToken.get(r.token) || "Tag scan",
-        action: r.action || null,
-        channel: r.messageChannel || null,
-        status: r.status || null,
-        at: r.createdAt || null
-      }))
-    ]
-      .sort((a, b) => new Date(b.at || 0) - new Date(a.at || 0))
-      .slice(0, 6)
-      .map((item) => ({ ...item, at: item.at ? new Date(item.at).toISOString() : null }));
 
     return {
       ok: true,
@@ -1148,8 +1106,7 @@ export function registerAdminRoutes(app, env) {
         },
         contacts: { total: contacts, new: contactsNew, failed: contactsFailed },
         traffic: { visitors: traffic.visitors, views: traffic.views }
-      },
-      latest
+      }
     };
   });
 
@@ -1608,19 +1565,25 @@ export function registerAdminRoutes(app, env) {
     const pageTokens = [...new Set(requests.map((r) => r.token).filter(Boolean))];
     const tags = pageTokens.length
       ? await collections.tags
-          .find({ token: { $in: pageTokens } }, { projection: { token: 1, vehicleLabel: 1 } })
+          .find(
+            { token: { $in: pageTokens } },
+            { projection: { token: 1, vehicleLabel: 1, plateNumber: 1, serialNumber: 1, batchNumber: 1 } }
+          )
           .toArray()
       : [];
-    const tokenToLabel = Object.fromEntries(
-      tags.map((t) => [t.token, t.vehicleLabel || t.token])
-    );
+    const tagByToken = new Map(tags.map((t) => [t.token, t]));
 
     return {
       ok: true,
-      activity: requests.map((item) => ({
+      // No `token`: it is the secret in the sticker's QR, and anyone holding it
+      // can open that tag's scan page. A tag is named by what a person reads.
+      activity: requests.map((item) => {
+        const tag = tagByToken.get(item.token);
+        return {
         id: String(item._id),
-        token: item.token,
-        vehicleLabel: tokenToLabel[item.token] || item.token,
+        plateNumber: tag?.plateNumber || null,
+        serial: tag ? stickerSerialFor(tag) || etagIdFor(tag._id) : null,
+        vehicleLabel: tag?.plateNumber || tag?.vehicleLabel || null,
         phone: item.phone,
         action: item.action,
         messageChannel: item.messageChannel || null,
@@ -1629,6 +1592,47 @@ export function registerAdminRoutes(app, env) {
         provider: item.provider || null,
         providerError: item.providerError || null,
         createdAt: item.createdAt
+        };
+      })
+    };
+  });
+
+  // Admin sign-in log, newest first, 100 a page like the other admin lists.
+  //   ?page=<n>   ?email=<admin email>
+  app.get("/api/admin/audit", async (request, reply) => {
+    const blocked = await requireSession(app, "admin")(request, reply);
+    if (blocked) return blocked;
+
+    const collections = await getCollections(env);
+    const filter = {};
+    const email = typeof request.query.email === "string" ? request.query.email.trim().toLowerCase().slice(0, 120) : "";
+    if (email) filter.email = email;
+
+    const total = await collections.adminAudit.countDocuments(filter);
+    const { page, pages, pageSize, skip } = listPage(request.query.page, total);
+    const rows = await collections.adminAudit
+      .find(filter, { projection: { adminId: 0 } })
+      .sort({ at: -1, _id: -1 })
+      .skip(skip)
+      .limit(pageSize)
+      .toArray();
+
+    return {
+      ok: true,
+      total,
+      page,
+      pages,
+      pageSize,
+      events: rows.map((r) => ({
+        id: String(r._id),
+        at: r.at instanceof Date ? r.at.toISOString() : r.at || null,
+        event: r.event,
+        email: r.email || null,
+        method: r.method || null,
+        reason: r.reason || null,
+        ip: r.ip || null,
+        browser: r.browser || null,
+        count: r.count || 1
       }))
     };
   });
@@ -1656,7 +1660,8 @@ export function registerAdminRoutes(app, env) {
         id: String(a._id),
         email: a.email,
         displayName: a.displayName,
-        createdAt: a.createdAt
+        createdAt: a.createdAt,
+        lastSignInAt: a.lastSignInAt instanceof Date ? a.lastSignInAt.toISOString() : a.lastSignInAt || null
       }))
     };
   });

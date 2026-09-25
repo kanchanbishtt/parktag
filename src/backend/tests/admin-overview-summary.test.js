@@ -185,15 +185,8 @@ test("new owners in the window are counted, demo-created accounts are not", asyn
   assert.equal((await summary()).summary.owners.new, before.new + 2);
 });
 
-test("latest activity lists newest first and leaves demo accounts out", async () => {
-  await insertOwner({ displayName: "Overview Demo Walkaway", demoCreatedOwner: true });
-  await insertOwner({ displayName: "Overview Newest Owner" });
-
-  const { latest } = await summary();
-  assert.ok(latest.length <= 6);
-  assert.equal(latest[0].title, "Overview Newest Owner");
-  assert.ok(!latest.some((item) => item.title === "Overview Demo Walkaway"));
-
-  const times = latest.map((item) => new Date(item.at).getTime());
-  assert.deepEqual(times, [...times].sort((a, b) => b - a), "newest first");
+test("the summary is numbers only: no activity list repeating other pages", async () => {
+  const body = await summary();
+  assert.equal(body.latest, undefined, "Latest activity lived on Activity Feed and Owners already");
+  assert.ok(body.summary.contacts, "contacts are still counted");
 });

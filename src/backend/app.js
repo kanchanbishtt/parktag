@@ -17,7 +17,7 @@ import { renderAnalyticsBundle } from "./lib/analytics.js";
 import { BoundedTtlMap } from "./lib/bounded-map.js";
 import { clientError, clientErrorMessage } from "./lib/errors.js";
 import { readSession } from "./lib/auth/session.js";
-import { tryObjectId } from "./lib/auth/auth.js";
+import { adminAccountExists, tryObjectId } from "./lib/auth/auth.js";
 import { createSharedRateLimitStore } from "./lib/auth/rate-limit-store.js";
 import { getCollections } from "./lib/db/repositories.js";
 import { trustProxy } from "./lib/core/proxy-trust.js";
@@ -48,7 +48,6 @@ import { registerGoogleAuthRoutes } from "./routes/auth/google.js";
 import { registerFirebasePhoneAuthRoute } from "./routes/auth/firebase.js";
 import { registerPasswordResetRoutes } from "./routes/auth/password-reset.js";
 import { registerRuntimeRoutes } from "./routes/system/runtime.js";
-import { registerReviewerSetupRoute } from "./routes/system/reviewer-setup.js";
 import { registerShopRoutes } from "./routes/shop/index.js";
 import { registerShopReviewRoutes } from "./routes/shop/reviews.js";
 // Used by /shop to check that a pack id arriving from the public storefront is
@@ -1230,10 +1229,21 @@ export async function buildApp() {
     return html;
   });
 
-  app.get("/admin", async (request, reply) => {
+  // An admin session whose admin still exists (see adminAccountExists). If the
+  // database cannot say, the page is not served: every admin page needs it for
+  // its data anyway, and the login page is the safe place to land.
+  async function isSignedInAdmin(request) {
     const session = await readSession(app, request);
+    if (!session || session.role !== "admin") return false;
+    try {
+      return await adminAccountExists(session.userId);
+    } catch {
+      return false;
+    }
+  }
 
-    if (session && session.role === "admin") {
+  app.get("/admin", async (request, reply) => {
+    if (await isSignedInAdmin(request)) {
       reply.redirect("/admin/overview");
       return;
     }
@@ -1244,9 +1254,7 @@ export async function buildApp() {
   });
 
   async function guardAdmin(request, reply, pagePath) {
-    const session = await readSession(app, request);
-
-    if (!session || session.role !== "admin") {
+    if (!(await isSignedInAdmin(request))) {
       reply.redirect("/admin");
       return;
     }
@@ -1308,8 +1316,7 @@ export async function buildApp() {
   // tag's OWN scannable QR overlaid (encodes the pinned production scan URL, so
   // printed stickers never point at localhost/whatever host generated them).
   app.get("/admin/sticker/:token([A-Za-z0-9]{6,80})", async (request, reply) => {
-    const session = await readSession(app, request);
-    if (!session || session.role !== "admin") {
+    if (!(await isSignedInAdmin(request))) {
       reply.redirect("/admin");
       return;
     }
@@ -1371,7 +1378,6 @@ export async function buildApp() {
 
   registerRuntimeRoutes(app, env);
   registerDemoRoutes(app, env);
-  registerReviewerSetupRoute(app, env);
   registerPublicRoutes(app, env);
   registerProviderRoutes(app, env);
   registerMetaWebhookRoutes(app, env);

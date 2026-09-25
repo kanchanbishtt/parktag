@@ -2,6 +2,11 @@ import { ObjectId } from "mongodb";
 
 import { requireSession } from "../../lib/auth/auth.js";
 import { isNonEmptyString } from "../../lib/auth/security.js";
+import { revokeSessionsForUser } from "../../lib/auth/session.js";
+import { recordAdminEvent } from "../../lib/core/admin-audit.js";
+
+// Shortest password a new admin account may be given (see POST /api/admin/admins).
+export const ADMIN_PASSWORD_MIN_LENGTH = 12;
 import { getCollections, getVaultBucket } from "../../lib/db/repositories.js";
 import { purgeVaultDocuments } from "../../lib/core/vault.js";
 import { findByCanonicalEmail, canonicalEmail } from "../../lib/auth/identity.js";
@@ -1022,12 +1027,22 @@ export function registerAdminRoutes(app, env) {
   // The overview page: one number per admin page, each computed with the same
   // filter that page uses, so a card and the page it links to always agree.
   // Counts only — the lists live on their own pages.
+  //
+  // ?days= picks the period for the figures that have one (new owners, contact
+  // requests, failed contacts, site visitors); the rest are counts as of now.
+  // Anything but the four offered periods falls back to 7.
+  const OVERVIEW_PERIODS = [1, 7, 30, 365];
+  // landing_visits rows expire after 180 days (the TTL index in
+  // repositories.js), so a longer period can only count that far back.
+  const TRAFFIC_KEPT_DAYS = 180;
   app.get("/api/admin/overview/summary", async (request, reply) => {
     const blocked = await requireSession(app, "admin")(request, reply);
     if (blocked) return blocked;
 
     const collections = await getCollections(env);
-    const WINDOW_DAYS = 7;
+    const requestedDays = Number(request.query?.days);
+    const WINDOW_DAYS = OVERVIEW_PERIODS.includes(requestedDays) ? requestedDays : 7;
+    const trafficDays = Math.min(WINDOW_DAYS, TRAFFIC_KEPT_DAYS);
     const windowStart = new Date(Date.now() - WINDOW_DAYS * 24 * 60 * 60 * 1000);
     // createdAt is an ISO string almost everywhere, but a Date on some older
     // rows; a string bound alone would silently skip those.
@@ -1075,12 +1090,13 @@ export function registerAdminRoutes(app, env) {
       collections.contactRequests.countDocuments(),
       collections.contactRequests.countDocuments(createdSince),
       collections.contactRequests.countDocuments({ status: "provider_failed", ...createdSince }),
-      landingTotals(collections, WINDOW_DAYS)
+      landingTotals(collections, trafficDays)
     ]);
 
     return {
       ok: true,
       windowDays: WINDOW_DAYS,
+      trafficDays,
       summary: {
         owners: { total: owners, new: ownersNew },
         tags: { customer: customerTags, active: customerTagsActive },
@@ -1630,6 +1646,7 @@ export function registerAdminRoutes(app, env) {
         email: r.email || null,
         method: r.method || null,
         reason: r.reason || null,
+        target: r.target || null,
         ip: r.ip || null,
         browser: r.browser || null,
         count: r.count || 1
@@ -1683,14 +1700,16 @@ export function registerAdminRoutes(app, env) {
       };
     }
 
-    // Admin accounts hold the most powerful role in the product, yet this route
-    // accepted any non-empty string as a password while owners have required 8+
-    // characters since the last audit. Hold admins to at least the same bar.
-    if (password.length < 8) {
+    // Admin accounts hold the most powerful role in the product, and a password
+    // is all a password sign-in asks for, so the bar is higher than the 8
+    // owners need. Existing admins are not affected until their password is set
+    // again; Sign in with Google (Google's own 2-step verification) remains the
+    // stronger way in.
+    if (password.length < ADMIN_PASSWORD_MIN_LENGTH) {
       reply.code(400);
       return {
         ok: false,
-        error: "Password must be at least 8 characters"
+        error: `Password must be at least ${ADMIN_PASSWORD_MIN_LENGTH} characters`
       };
     }
 
@@ -1717,6 +1736,14 @@ export function registerAdminRoutes(app, env) {
       displayName,
       role: "admin",
       createdAt: new Date().toISOString()
+    });
+
+    recordAdminEvent(collections, {
+      event: "admin_created",
+      adminId: request.session.userId,
+      email: request.session.email,
+      target: canonicalEmail(email),
+      request
     });
 
     return { ok: true };
@@ -1754,12 +1781,25 @@ export function registerAdminRoutes(app, env) {
       };
     }
 
-    const result = await collections.admins.deleteOne({ _id: new ObjectId(id) });
+    // Read first: the log names the account that was removed.
+    const removed = await collections.admins.findOneAndDelete({ _id: new ObjectId(id) });
 
-    if (result.deletedCount === 0) {
+    if (!removed) {
       reply.code(404);
       return { ok: false, error: "Admin not found" };
     }
+
+    // Sign the removed admin out everywhere. Deleting the row alone left every
+    // session they held working with full admin rights until it expired.
+    await revokeSessionsForUser(app, id);
+
+    recordAdminEvent(collections, {
+      event: "admin_removed",
+      adminId: request.session.userId,
+      email: request.session.email,
+      target: removed.email,
+      request
+    });
 
     return { ok: true };
   });

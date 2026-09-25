@@ -16,6 +16,41 @@
       a.pt-admin-stat { display: block; text-decoration: none; color: inherit; transition: border-color 0.15s, box-shadow 0.15s; }
       a.pt-admin-stat:hover, a.pt-admin-stat:focus-visible { border-color: #FF2700; box-shadow: 0 2px 8px rgba(255,39,0,0.12); }
       .ov-sub { font-size: 0.8rem; color: #6B7280; margin: 8px 0 0; }
+
+      /* Header: title on the left, the period on the right; stacks when narrow. */
+      .ov-header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px 24px; }
+      .ov-period-wrap { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+      .ov-period { display: inline-flex; padding: 3px; gap: 2px; background: #fff; border: 1px solid #E5E7EB; border-radius: 12px; }
+      .ov-period-btn { appearance: none; border: 0; background: none; font: inherit; font-size: 0.85rem; font-weight: 600; color: #374151; padding: 7px 14px; border-radius: 9px; cursor: pointer; white-space: nowrap; }
+      .ov-period-btn:hover { background: #F3F4F6; }
+      .ov-period-btn[aria-pressed="true"] { background: #FFE3DD; color: #B31C00; font-weight: 700; }
+      .ov-period-btn:focus-visible { outline: 2px solid #FF2700; outline-offset: 1px; }
+      .ov-period-note { font-size: 0.75rem; color: #9CA3AF; margin: 0; text-align: right; }
+
+      /* Cards: one fixed grid for every section, so columns line up down the
+         page whatever a section holds. Each label keeps two lines of room, so a
+         label that wraps does not push its number below its neighbours'. */
+      #overview-summary { container-type: inline-size; max-width: 1200px; transition: opacity 0.15s; }
+      #overview-summary[aria-busy="true"] { opacity: 0.55; }
+      #overview-summary .pt-admin-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+      #overview-summary .pt-admin-stat { display: flex; flex-direction: column; padding: 18px 20px 20px; }
+      #overview-summary .pt-admin-stat-label { line-height: 1.3; min-height: 2.6em; margin-bottom: 8px; }
+      #overview-summary .pt-admin-stat-value { font-size: 2.1rem; }
+      @container (max-width: 720px) {
+        #overview-summary .pt-admin-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+        #overview-summary .pt-admin-stat { padding: 14px 14px 16px; }
+        #overview-summary .pt-admin-stat-value { font-size: 1.75rem; }
+      }
+      @container (max-width: 340px) {
+        #overview-summary .pt-admin-stats { grid-template-columns: minmax(0, 1fr); }
+        #overview-summary .pt-admin-stat-label { min-height: 0; }
+      }
+      @media (max-width: 760px) {
+        .ov-period-wrap { align-items: stretch; width: 100%; }
+        .ov-period { display: flex; }
+        .ov-period-btn { flex: 1 1 0; padding: 8px 6px; }
+        .ov-period-note { text-align: left; }
+      }
     </style>
   </head>
   <body class="pt-admin-body">
@@ -47,10 +82,21 @@
       </aside>
 
       <main class="pt-admin-main">
-        <div class="pt-admin-page-header">
-          <p class="pt-admin-eyebrow">Overview</p>
-          <h1 class="pt-admin-page-title">Platform snapshot</h1>
-          <p class="pt-admin-page-sub">One number from each admin page. Click a card to open that page.</p>
+        <div class="pt-admin-page-header ov-header">
+          <div>
+            <p class="pt-admin-eyebrow">Overview</p>
+            <h1 class="pt-admin-page-title">Platform snapshot</h1>
+            <p class="pt-admin-page-sub">One number from each admin page. Click a card to open that page.</p>
+          </div>
+          <div class="ov-period-wrap">
+            <div id="overview-period" class="ov-period" role="group" aria-label="Period">
+              <button type="button" class="ov-period-btn" data-days="1" aria-pressed="false">1 day</button>
+              <button type="button" class="ov-period-btn" data-days="7" aria-pressed="true">7 days</button>
+              <button type="button" class="ov-period-btn" data-days="30" aria-pressed="false">1 month</button>
+              <button type="button" class="ov-period-btn" data-days="365" aria-pressed="false">1 year</button>
+            </div>
+            <p class="ov-period-note">Applies to new owners, contacts and site visitors. Other cards are current totals.</p>
+          </div>
         </div>
 
         <div id="overview-summary"><p class="pt-admin-empty">Loading summary…</p></div>

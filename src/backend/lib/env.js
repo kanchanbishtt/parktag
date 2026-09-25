@@ -222,10 +222,6 @@ export function getEnv() {
     // order whose buyer closed the tab is never fulfilled.
     razorpayWebhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET || "",
     superAdminBootstrapKey: process.env.SUPER_ADMIN_BOOTSTRAP_KEY || "",
-    reviewerSetupEmail: process.env.REVIEWER_SETUP_EMAIL || "",
-    reviewerSetupPassword: process.env.REVIEWER_SETUP_PASSWORD || "",
-    reviewerSetupMobile: process.env.REVIEWER_SETUP_MOBILE || "",
-    reviewerSetupSecret: process.env.REVIEWER_SETUP_SECRET || "",
     // Defense-in-depth for POST /api/demo/seed (see routes/system/demo.js):
     // that route already refuses to register at all when APP_ENV=production,
     // but that is a single string comparison — a deploy that forgets to set

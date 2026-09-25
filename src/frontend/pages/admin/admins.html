@@ -22,6 +22,7 @@
       .au-row[data-kind="in"] .au-what::before { background: #16A34A; }
       .au-row[data-kind="bad"] .au-what::before { background: #DC2626; }
       .au-row[data-kind="bad"] .au-what { color: #B91C1C; }
+      .au-row[data-kind="change"] .au-what::before { background: #2563EB; }
       .au-who { font-size: 0.82rem; color: #374151; margin: 2px 0 0 16px; overflow-wrap: anywhere; }
       .au-meta { font-size: 0.8rem; color: #6B7280; text-align: right; white-space: nowrap; }
       .au-meta span { display: block; }
@@ -95,7 +96,7 @@
             </label>
             <label class="pt-admin-label">
               Password
-              <input id="new-admin-password" type="password" class="pt-admin-input" placeholder="Secure password" />
+              <input id="new-admin-password" type="password" class="pt-admin-input" placeholder="At least 12 characters" minlength="12" autocomplete="new-password" />
             </label>
             <button id="add-admin-button" class="pt-admin-btn pt-admin-btn-primary" style="width:fit-content;display:flex;align-items:center;gap:8px">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
@@ -109,7 +110,7 @@
           <div class="au-head">
             <div>
               <h2 class="pt-admin-card-title">Sign-in activity</h2>
-              <p class="pt-admin-card-sub" id="audit-count">Admin sign-ins, sign-outs and failed attempts, kept for 90 days.</p>
+              <p class="pt-admin-card-sub" id="audit-count">Admin sign-ins, sign-outs, failed attempts and admins added or removed, kept for 90 days.</p>
             </div>
             <select id="audit-admin" class="pt-admin-input au-filter" aria-label="Show sign-ins for">
               <option value="">All admins</option>

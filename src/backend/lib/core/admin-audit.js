@@ -1,5 +1,7 @@
 // Admin sign-in log: who signed in or out of the admin panel, how, from where,
-// and failed attempts at the admin sign-in.
+// failed attempts at the admin sign-in, and which admin added or removed
+// another admin account (so an account slipped in and out again still leaves
+// a trace).
 //
 // Built to cost next to nothing:
 //   - callers do not await it, so a sign-in is never slowed or blocked by the
@@ -16,7 +18,7 @@ import { ObjectId } from "mongodb";
 
 export const ADMIN_AUDIT_RETENTION_SECONDS = 90 * 24 * 60 * 60;
 
-const EVENTS = new Set(["login", "logout", "login_failed", "login_locked"]);
+const EVENTS = new Set(["login", "logout", "login_failed", "login_locked", "admin_created", "admin_removed"]);
 
 // A short, human label for a user agent. Order matters: Edge and Opera also
 // say "Chrome", and Chrome also says "Safari".
@@ -43,7 +45,9 @@ export function browserLabel(userAgent) {
 const cleanEmail = (value) => String(value || "").trim().toLowerCase().slice(0, 120) || null;
 
 // Fire and forget: returns a promise that never rejects, for tests to await.
-export function recordAdminEvent(collections, { event, adminId = null, email, method = null, reason = null, request }) {
+// `target` is the admin account an admin_created / admin_removed event was
+// about; `email` is always the person the row is attributed to.
+export function recordAdminEvent(collections, { event, adminId = null, email, method = null, reason = null, target = null, request }) {
   if (!collections?.adminAudit || !EVENTS.has(event)) return Promise.resolve();
   const at = new Date();
   const ip = String(request?.ip || "").slice(0, 64) || null;
@@ -66,7 +70,10 @@ export function recordAdminEvent(collections, { event, adminId = null, email, me
     );
   } else {
     const id = adminId ? String(adminId) : null;
-    write = collections.adminAudit.insertOne({ at, event, adminId: id, email: mail, method, ip, browser });
+    write = collections.adminAudit.insertOne({
+      at, event, adminId: id, email: mail, method, ip, browser,
+      ...(target ? { target: cleanEmail(target) } : {})
+    });
     // "Last signed in" on the admin list reads this stamp, not the log.
     if (event === "login" && id && ObjectId.isValid(id) && collections.admins) {
       write = Promise.all([

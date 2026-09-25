@@ -1,6 +1,7 @@
 import { ObjectId } from "mongodb";
 
 import { getCollections } from "../db/repositories.js";
+import { getEnv } from "../env.js";
 import {
   verifyPassword,
   createPasswordHash,
@@ -175,9 +176,44 @@ export function requireSession(app, role) {
       };
     }
 
+    if (session.role === "admin") {
+      let exists;
+      try {
+        exists = await adminAccountExists(session.userId);
+      } catch {
+        reply.code(503);
+        return { ok: false, error: "Service temporarily unavailable. Please try again." };
+      }
+      if (!exists) {
+        reply.code(401);
+        return { ok: false, error: "Authentication required" };
+      }
+    }
+
     request.session = session;
     return null;
   };
+}
+
+// Does the admin this session was issued to still exist?
+//
+// A session row outlives the account it was issued for: removing an admin
+// deleted the admin document and nothing else, so a removed admin's cookie
+// kept every admin permission until it expired, seven days later. Removal now
+// revokes the sessions as well (DELETE /api/admin/admins/:id), and this check
+// is the backstop for every other way an admin row can disappear — a removal
+// on another replica still inside its 30-second session cache, or a row
+// deleted straight from the database. One _id lookup per admin request.
+//
+// Throws when the database cannot be asked, so a caller can answer "try
+// again" rather than signing an admin out over a blip.
+export async function adminAccountExists(userId) {
+  const id = tryObjectId(String(userId ?? ""));
+  if (!id) return false;
+  const collections = await getCollections(getEnv());
+  if (!collections) throw new Error("MongoDB is not configured");
+  const admin = await collections.admins.findOne({ _id: id }, { projection: { _id: 1 } });
+  return Boolean(admin);
 }
 
 export function toObjectId(id) {

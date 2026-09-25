@@ -190,3 +190,104 @@ test("the summary is numbers only: no activity list repeating other pages", asyn
   assert.equal(body.latest, undefined, "Latest activity lived on Activity Feed and Owners already");
   assert.ok(body.summary.contacts, "contacts are still counted");
 });
+
+test("?days= picks the period: 1, 7, 30 or 365, anything else is 7", async () => {
+  for (const days of [1, 7, 30, 365]) {
+    const body = (await authed(`/api/admin/overview/summary?days=${days}`)).json();
+    assert.equal(body.windowDays, days);
+    assert.equal(body.trafficDays, Math.min(days, 180), "visits are only kept 180 days");
+  }
+  for (const junk of ["", "0", "90", "-7", "abc", "7.5"]) {
+    assert.equal((await authed(`/api/admin/overview/summary?days=${junk}`)).json().windowDays, 7, `days=${junk}`);
+  }
+});
+
+test("the period decides which new owners count", async () => {
+  const count = async (days) => (await authed(`/api/admin/overview/summary?days=${days}`)).json().summary.owners;
+  const before = { 1: await count(1), 7: await count(7), 30: await count(30), 365: await count(365) };
+
+  // Twenty days old: inside a month and a year, outside a day and a week.
+  await insertOwner({ createdAt: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString() });
+
+  assert.equal((await count(1)).new, before[1].new);
+  assert.equal((await count(7)).new, before[7].new);
+  assert.equal((await count(30)).new, before[30].new + 1);
+  assert.equal((await count(365)).new, before[365].new + 1);
+  assert.equal((await count(7)).total, before[7].total + 1, "the total is not a period figure");
+});
+
+test("site visitors for a period match the Traffic page's own count", async () => {
+  for (const days of [7, 30]) {
+    const [overview, traffic] = await Promise.all([
+      authed(`/api/admin/overview/summary?days=${days}`),
+      authed(`/api/admin/traffic?days=${days}`)
+    ]).then((responses) => responses.map((r) => r.json()));
+    assert.equal(overview.summary.traffic.visitors, traffic.totals.visitors, `${days} days`);
+    assert.equal(overview.summary.traffic.views, traffic.totals.views, `${days} days`);
+  }
+});
+
+test("contact requests and failed contacts follow the period", async () => {
+  const HOUR = 60 * 60 * 1000;
+  const marker = `ovsum-period-${Date.now()}`;
+  const count = async (days) => (await authed(`/api/admin/overview/summary?days=${days}`)).json().summary.contacts;
+  const periods = [1, 7, 30, 365];
+  const before = Object.fromEntries(await Promise.all(periods.map(async (d) => [d, await count(d)])));
+
+  // 2 hours, 3 days, 20 days and 200 days old; the 2-hour and 20-day ones failed.
+  const ages = [
+    { hours: 2, failed: true },
+    { hours: 3 * 24, failed: false },
+    { hours: 20 * 24, failed: true },
+    { hours: 200 * 24, failed: false }
+  ];
+  await collections.contactRequests.insertMany(ages.map(({ hours, failed }) => ({
+    token: marker,
+    action: "call",
+    status: failed ? "provider_failed" : "completed",
+    createdAt: new Date(Date.now() - hours * HOUR).toISOString()
+  })));
+
+  try {
+    const expected = { 1: [1, 1], 7: [2, 1], 30: [3, 2], 365: [4, 2] };
+    for (const d of periods) {
+      const now = await count(d);
+      assert.equal(now.new - before[d].new, expected[d][0], `contact requests, ${d} days`);
+      assert.equal(now.failed - before[d].failed, expected[d][1], `failed contacts, ${d} days`);
+      assert.equal(now.total - before[d].total, 4, "all-time is not a period figure");
+    }
+  } finally {
+    await collections.contactRequests.deleteMany({ token: marker });
+  }
+});
+
+test("site visitors follow the period, and a year counts the 180 days kept", async () => {
+  const DAY = 24 * 60 * 60 * 1000;
+  const dayKey = (back) => new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit"
+  }).format(new Date(Date.now() - back * DAY));
+  const marker = `ovsum-visit-${Date.now()}`;
+  const count = async (days) => (await authed(`/api/admin/overview/summary?days=${days}`)).json().summary.traffic;
+  const periods = [1, 7, 30, 365];
+  const before = Object.fromEntries(await Promise.all(periods.map(async (d) => [d, await count(d)])));
+
+  // One new visitor today, 3, 20 and 200 days ago.
+  await collections.landingVisits.insertMany([0, 3, 20, 200].map((back) => ({
+    day: dayKey(back),
+    site: "landing",
+    path: "/",
+    visitorHash: `${marker}-${back}`,
+    createdAt: new Date(Date.now() - back * DAY)
+  })));
+
+  try {
+    const expected = { 1: 1, 7: 2, 30: 3, 365: 3 };
+    for (const d of periods) {
+      const now = await count(d);
+      assert.equal(now.visitors - before[d].visitors, expected[d], `visitors, ${d} days`);
+      assert.equal(now.views - before[d].views, expected[d], `page views, ${d} days`);
+    }
+  } finally {
+    await collections.landingVisits.deleteMany({ visitorHash: { $regex: `^${marker}` } });
+  }
+});

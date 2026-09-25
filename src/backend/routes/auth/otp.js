@@ -26,8 +26,9 @@ export function registerOtpAuthRoutes(app, env) {
   if (!isRecaptchaConfigured(env)) {
     const message =
       "[recaptcha] RECAPTCHA_SITE_KEY / RECAPTCHA_SECRET are not configured — " +
-      "/api/auth/send-otp has NO bot check. Scripted OTP flooding is limited only by " +
-      "the per-IP and per-destination send caps.";
+      "/api/auth/send-otp and /api/auth/admin/login have NO bot check. Scripted OTP " +
+      "flooding is limited only by the per-IP and per-destination send caps, and " +
+      "admin password guessing only by the per-IP limit and the per-account lockout.";
 
     if (env.runtimeMode === "production") {
       app.log.warn(message);

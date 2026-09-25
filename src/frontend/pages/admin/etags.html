@@ -10,6 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles/admin-shell.css?v=__ASSET_VERSION__" />
   <style>
     /* Built from one set of tokens (shared with the Activations page) and one
        breakpoint. Every row answers four questions in the same order: which
@@ -35,8 +36,6 @@
     /* PNG with a white background; multiply drops the white on the grey page. */
     .brand-logo { height: 34px; width: auto; aspect-ratio: 735 / 280; display: block; mix-blend-mode: multiply; }
     .title { font-size: 1.35rem; font-weight: 800; margin: 0; letter-spacing: -0.01em; white-space: nowrap; overflow-wrap: normal; }
-    a.back { text-decoration: none; color: var(--ink-3); font-weight: 600; font-size: .88rem; padding: 8px 12px; border-radius: var(--r); white-space: nowrap; }
-    a.back:hover { background: #ECEEF1; color: var(--ink); }
 
     /* Filters: search on its own line, then who / what / state. */
     .filters { display: grid; gap: 10px; margin-bottom: 14px; }
@@ -125,12 +124,14 @@
     /* One breakpoint, set by content: four text columns need about 170px each
        plus the button, so below 900px each row becomes a card: sticker and
        status on the first line, then vehicle and owner, then Details. Unsold
-       stock has no vehicle or owner, so its card skips those lines. */
-    @media (max-width: 900px) {
+       stock has no vehicle or owner, so its card skips those lines.
+       Measured on the content area, not the window: the admin sidebar takes
+       240px of it on anything wider than a phone. */
+    .pt-admin-main { container-type: inline-size; }
+    @container (max-width: 900px) {
       .page { padding: 16px 14px 48px; }
       .title { font-size: 1.15rem; }
       .brand-logo { height: 28px; }
-      .back .long { display: none; }
       .search { font-size: 16px; height: 44px; }
       .spacer { display: none; }
       .filter-row.selects { display: grid; grid-template-columns: 1fr 1fr; }
@@ -154,13 +155,38 @@
   </style>
 </head>
 <body>
+  <div class="pt-admin-shell">
+    <aside class="pt-admin-sidebar">
+      <div class="pt-admin-brand">
+        <img src="/images/light-logo.png" alt="ParkTag" class="pt-admin-brand-logo" />
+        <span class="pt-admin-brand-role">Admin</span>
+      </div>
+      <nav class="pt-admin-nav">
+        <span class="pt-admin-nav-section">Management</span>
+        <a class="pt-admin-nav-item" href="/admin/overview"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="14" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="3" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="14" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/></svg> Overview</a>
+        <a class="pt-admin-nav-item is-active" href="/admin/etags"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 7a2 2 0 0 1 2-2h6l8 8a2 2 0 0 1 0 2.8l-4.2 4.2a2 2 0 0 1-2.8 0L4 12V7Z" stroke="currentColor" stroke-width="2"/><circle cx="7.5" cy="9.5" r="1.5" fill="currentColor"/></svg> Tags</a>
+        <a class="pt-admin-nav-item" href="/admin/activations"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M20 6 9 17l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Activations</a>
+        <a class="pt-admin-nav-item" href="/admin/issuance"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="14" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="3" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><path d="M14 14h2v2h-2zM18 14h3M14 18v3M18 18h3v3h-3z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Batch Issuance</a>
+        <a class="pt-admin-nav-item" href="/admin/print-queue"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v8H6z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Print Queue</a>
+        <a class="pt-admin-nav-item" href="/admin/marketing"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 11v2a1 1 0 0 0 1 1h2l4 4V6L6 10H4a1 1 0 0 0-1 1Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M16 8.5a4 4 0 0 1 0 7M19 5.5a8 8 0 0 1 0 13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Field Demo</a>
+        <span class="pt-admin-nav-section">Monitoring</span>
+        <a class="pt-admin-nav-item" href="/admin/traffic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M3 12h18M12 3c2.5 2.7 2.5 15.3 0 18M12 3c-2.5 2.7-2.5 15.3 0 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Traffic</a>
+        <a class="pt-admin-nav-item" href="/admin/owners"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="2"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Owners</a>
+        <a class="pt-admin-nav-item" href="/admin/activity"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M22 12h-4l-3 9L9 3l-3 9H2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Activity Feed</a>
+        <a class="pt-admin-nav-item" href="/admin/admins"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 2L4 6v6c0 5.25 3.5 9.74 8 11 4.5-1.26 8-5.75 8-11V6l-8-4Z" stroke="currentColor" stroke-width="2"/></svg> Admin Management</a>
+      </nav>
+      <div class="pt-admin-sidebar-footer">
+        <button id="admin-refresh-button" class="pt-admin-sidebar-btn pt-admin-btn-ghost">Refresh</button>
+        <button id="admin-logout-button" class="pt-admin-sidebar-btn pt-admin-btn-danger">Sign out</button>
+      </div>
+    </aside>
+    <main class="pt-admin-main">
   <div class="page">
     <div class="top">
       <div class="brand">
         <img class="brand-logo" src="/images/light-logo.png" alt="ParkTag" width="735" height="280" />
         <h1 class="title">Tags</h1>
       </div>
-      <a class="back" href="/admin/overview">← <span class="long">Back to </span>Admin</a>
     </div>
 
     <div class="filters">
@@ -205,6 +231,8 @@
     </div>
     <nav class="pager" id="pager" aria-label="Pages" hidden></nav>
   </div>
+    </main>
+  </div>
 
   <dialog id="confirm" aria-labelledby="confirmTitle">
     <form method="dialog">
@@ -219,6 +247,7 @@
     </form>
   </dialog>
 
+  <script src="/scripts/admin/shell.js?v=__ASSET_VERSION__"></script>
   <script src="/scripts/admin/pager.js?v=__ASSET_VERSION__"></script>
   <script src="/scripts/admin/etags.js?v=__ASSET_VERSION__"></script>
 </body>

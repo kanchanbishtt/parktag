@@ -20,6 +20,7 @@ import {
 } from "../../lib/auth/login-lockout.js";
 import { getCollections } from "../../lib/db/repositories.js";
 import { recordAdminEvent } from "../../lib/core/admin-audit.js";
+import { verifyRecaptcha } from "../../lib/integrations/recaptcha.js";
 
 export function registerAuthRoutes(app, env) {
   // Whoami for the current cookie. Returns only what a page needs to render
@@ -132,6 +133,29 @@ export function registerAuthRoutes(app, env) {
       const collections = await getCollections(env);
       const clientIp = getClientIp(request);
 
+      // Bot check on the admin sign-in (reCAPTCHA v3, invisible). The per-IP
+      // limit and the per-account lockout slow a guessing run down; this stops
+      // the scripted ones outright, including a botnet spread across enough
+      // addresses to stay under the per-IP limit. A no-op wherever reCAPTCHA is
+      // not configured (local, tests), the same as the OTP send. The Google
+      // sign-in button does not come through here, so an admin whose browser
+      // blocks Google's script still has a way in.
+      if (role === "admin") {
+        const captcha = await verifyRecaptcha(env, body.recaptchaToken, {
+          remoteIp: clientIp,
+          expectedAction: "admin_login"
+        });
+        if (!captcha.ok) {
+          request.log.warn({ reason: captcha.reason, score: captcha.score }, "reCAPTCHA rejected admin sign-in");
+          recordAdminEvent(collections, { event: "login_failed", email: identifier, reason: "bot_check", request });
+          reply.code(400);
+          return {
+            ok: false,
+            error: "We couldn't confirm this sign-in. Refresh the page and try again, or use Continue with Google."
+          };
+        }
+      }
+
       // Spraying check first, and only for owners — one guess against many
       // accounts, which the per-account counter below is structurally unable to
       // see because no single account ever accumulates enough failures. It
@@ -195,7 +219,9 @@ export function registerAuthRoutes(app, env) {
         ...user,
         signInIdentifier: user.email || identifier
       });
-      writeSessionCookie(reply, sessionId, env.runtimeMode === "production", Boolean(rememberMe));
+      // "Remember me" is an owner convenience. An admin cookie always ends with
+      // the browser session, whatever the body says.
+      writeSessionCookie(reply, sessionId, env.runtimeMode === "production", role === "owner" && Boolean(rememberMe));
       if (role === "admin") recordAdminEvent(collections, { event: "login", adminId: user.id, email: user.email, method: "password", request });
 
       return {

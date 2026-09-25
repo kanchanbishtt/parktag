@@ -4661,6 +4661,13 @@ html:has(body.pt-hub-body) {
   color: #323232;
 }
 
+/* Nothing on an admin page is wider than the window, but a sideways touchpad
+   swipe still rubber-bands the whole console left and right (Chromium's
+   elastic overscroll on Windows). The admin has no sideways movement to give,
+   so the bounce is switched off. Set on <html>: the viewport takes it from the
+   root element, not from <body>. Kept in step with admin-shell.css. */
+html:has(.pt-admin-shell) { overscroll-behavior-x: none; }
+
 .pt-admin-shell {
   display: flex;
   min-height: 100vh;

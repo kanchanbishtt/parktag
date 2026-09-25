@@ -5,6 +5,14 @@ import { getCollections } from "../db/repositories.js";
 
 const SESSION_COOKIE = "wavetag_session";
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+// Admin sessions are held to a working day. A week-long admin session is a
+// week-long window for a cookie left on a shared or stolen machine, and the
+// admin console is used in sittings, not kept open for days.
+const ADMIN_SESSION_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
+
+export function sessionTtlMs(role) {
+  return role === "admin" ? ADMIN_SESSION_TTL_MS : SESSION_TTL_MS;
+}
 // How long a cached session may be served before readSession re-checks it
 // against Mongo. This bounds how long a REVOKED session can keep working from
 // an instance's in-memory cache — e.g. after a password reset (which deletes
@@ -36,8 +44,13 @@ async function ensureSessionIndex(coll) {
   }
 }
 
+// Live until its own expiry, and never past its role's lifetime counted from
+// when it was created. The second bound is what ends admin sessions issued
+// before the 12-hour limit existed: those rows still carry a 7-day expiresAt.
 function isLive(session, now) {
-  return session && session.expiresAt && new Date(session.expiresAt).getTime() > now;
+  if (!session || !session.expiresAt || new Date(session.expiresAt).getTime() <= now) return false;
+  const created = session.createdAt ? new Date(session.createdAt).getTime() : NaN;
+  return Number.isNaN(created) || created + sessionTtlMs(session.role) > now;
 }
 
 export function getSessionCookieName() {
@@ -47,7 +60,7 @@ export function getSessionCookieName() {
 export async function createSession(app, user) {
   const sessionId = crypto.randomBytes(24).toString("hex");
   const now = new Date();
-  const expiresAt = new Date(now.getTime() + SESSION_TTL_MS);
+  const expiresAt = new Date(now.getTime() + sessionTtlMs(user.role));
   const session = {
     id: sessionId,
     userId: user.id,

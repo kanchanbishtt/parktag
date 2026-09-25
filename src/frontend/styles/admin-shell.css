@@ -1,0 +1,208 @@
+/* The admin sidebar, for the admin pages that carry their own stylesheet
+   instead of /styles/styles.css (Tags, Activations, Field Demo, Traffic, Promo
+   Codes, Reviews). Loading styles.css there would restyle the whole page
+   through its global rules, so the sidebar's rules are copied here from its
+   "ADMIN DASHBOARD" section. Keep the two in step.
+
+   Each of those pages sets its own font, size and line-height on <body>; the
+   sidebar pins its own so it looks the same on every admin page. */
+
+/* No sideways rubber-band on a touchpad swipe; see the same rule in
+   styles.css. */
+html:has(.pt-admin-shell) { overscroll-behavior-x: none; }
+
+.pt-admin-shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+/* Sidebar */
+.pt-admin-sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  background: #fff;
+  border-right: 1px solid #E5E7EB;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  box-sizing: border-box;
+  font-family: 'Inter', 'Roboto', "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  font-size: 16px;
+  line-height: normal;
+  color: #323232;
+  overflow-wrap: normal;
+  scrollbar-width: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.pt-admin-sidebar::-webkit-scrollbar { display: none; }
+
+.pt-admin-sidebar *,
+.pt-admin-menu-btn { box-sizing: border-box; }
+
+.pt-admin-sidebar a,
+.pt-admin-sidebar button,
+.pt-admin-menu-btn { touch-action: manipulation; }
+
+.pt-admin-brand {
+  padding: 20px 20px 16px;
+  border-bottom: 1px solid #E5E7EB;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pt-admin-brand-logo {
+  height: 42px;
+  width: auto;
+  display: block;
+}
+
+.pt-admin-brand-role {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #DC2626;
+  background: #FEE2E2;
+  padding: 2px 8px;
+  border-radius: 20px;
+}
+
+.pt-admin-nav {
+  padding: 12px 12px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pt-admin-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #374151;
+  text-decoration: none;
+  transition: background 0.12s, color 0.12s;
+}
+
+.pt-admin-nav-item:hover { background: #F3F4F6; }
+.pt-admin-nav-item.is-active {
+  background: #FFE3DD;
+  color: #B31C00;
+  font-weight: 700;
+}
+
+.pt-admin-nav-section {
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #9CA3AF;
+  padding: 12px 12px 4px;
+}
+
+.pt-admin-sidebar-footer {
+  padding: 12px;
+  border-top: 1px solid #E5E7EB;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pt-admin-sidebar-btn {
+  width: 100%;
+  padding: 9px 14px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+  font-family: inherit;
+  transition: background 0.12s;
+}
+
+.pt-admin-sidebar-btn:disabled { cursor: progress; opacity: 0.75; }
+
+.pt-admin-btn-ghost {
+  background: #F3F4F6;
+  color: #374151;
+}
+
+.pt-admin-btn-ghost:hover { background: #E5E7EB; }
+
+.pt-admin-btn-danger {
+  background: #FEE2E2;
+  color: #DC2626;
+}
+
+.pt-admin-btn-danger:hover { background: #FECACA; }
+
+/* Main content. No padding: each page's own wrapper (.page / .wrap) already
+   carries its margins and max-width. */
+.pt-admin-main {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Menu button and backdrop for the phone drawer; added by
+   scripts/admin/shell.js and hidden everywhere except phone width. */
+.pt-admin-menu-btn,
+.pt-admin-backdrop { display: none; }
+
+/* Phone width: the sidebar slides in from the left on the Menu button, the
+   same drawer the other admin pages use. */
+@media screen and (max-width: 760px) {
+  .pt-admin-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 1001;
+    width: min(280px, 85vw);
+    height: 100vh;
+    height: 100dvh;
+    transform: translateX(-100%);
+    visibility: hidden;
+    transition: transform 0.2s ease, visibility 0s linear 0.2s;
+    box-shadow: 0 0 24px rgba(0, 0, 0, 0.18);
+  }
+  .pt-admin-shell.is-menu-open .pt-admin-sidebar {
+    transform: none;
+    visibility: visible;
+    transition: transform 0.2s ease;
+  }
+  .pt-admin-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: rgba(17, 24, 39, 0.4);
+  }
+  .pt-admin-shell.is-menu-open .pt-admin-backdrop { display: block; }
+  .pt-admin-menu-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin: 14px 14px 0;
+    padding: 8px 14px;
+    border: 1px solid #E5E7EB;
+    border-radius: 10px;
+    background: #fff;
+    color: #323232;
+    font-family: 'Inter', 'Roboto', "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 0.88rem;
+    font-weight: 700;
+    line-height: normal;
+    cursor: pointer;
+  }
+}
+
+@media screen and (max-width: 760px) and (prefers-reduced-motion: reduce) {
+  .pt-admin-sidebar,
+  .pt-admin-shell.is-menu-open .pt-admin-sidebar { transition: none; }
+}

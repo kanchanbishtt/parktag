@@ -1,3 +1,5 @@
+import { getCaptchaToken } from "../recaptcha.js";
+
 // Failed requests are counted (and the last failing status kept) because most
 // page loaders catch their own errors and paint a message instead of throwing;
 // the Refresh button reads these to know whether its reload actually worked.
@@ -123,7 +125,7 @@ function setIssueMessage(message) {
   }
 
   target.innerHTML = `
-    <p class="empty-copy">${message}</p>
+    <p class="empty-copy">${esc(message)}</p>
   `;
 }
 
@@ -140,8 +142,8 @@ function etagPrintPageHtml(tag) {
       <div class="pt-cut">
         <div class="pt-figma-sticker">
           <img class="pt-figma-bg" src="/images/org-parktag-sticker.svg" alt="ParkTag sticker"/>
-          <img class="pt-figma-qr" src="${tag.qrDataUrl}" alt="QR ${tag.token}"/>
-          <div class="pt-figma-serial">${tag.serial || ""}</div>
+          <img class="pt-figma-qr" src="${esc(tag.qrDataUrl)}" alt="QR ${esc(tag.token)}"/>
+          <div class="pt-figma-serial">${esc(tag.serial || "")}</div>
         </div>
       </div>
     </div>
@@ -165,7 +167,7 @@ function renderIssuedTag(data) {
   const batchBits = [data.batchNumber, data.batchLabel].filter(Boolean).join(" · ");
   target.innerHTML = `
     <div style="border:1px solid #BBF7D0;border-radius:12px;padding:20px;background:#F0FDF4">
-      <strong style="font-size:1rem;color:#03162D">✓ ${count} QR tag${count !== 1 ? "s" : ""} generated${batchBits ? `, ${batchBits}` : ""}.</strong>
+      <strong style="font-size:1rem;color:#03162D">✓ ${esc(formatCount(count))} QR tag${count !== 1 ? "s" : ""} generated${batchBits ? `, ${esc(batchBits)}` : ""}.</strong>
       <p style="color:#4B5563;margin:8px 0 14px;font-size:0.9rem">They're queued for printing. Open the Print Queue to select the tags you want and export them as print-ready sheets (in batches).</p>
       <button class="action" onclick="goToPrintQueue()">Go to Print Queue →</button>
     </div>`;
@@ -180,7 +182,7 @@ function setQueueMessage(message) {
   }
 
   target.innerHTML = `
-    <p class="empty-copy">${message}</p>
+    <p class="empty-copy">${esc(message)}</p>
   `;
 }
 
@@ -305,7 +307,7 @@ function pqRunHtml(group, run, index) {
   return `
     <div class="pt-pq-run${open ? " is-open" : ""}${newest ? " is-newest" : ""}">
       <div class="pt-pq-run-head">
-        <input type="checkbox" class="pq-select-all pt-pq-run-check" data-ids="${esc(idsCsv)}" ${allSelected ? "checked" : ""} onchange="togglePqSelectBatch('${esc(idsCsv)}', this.checked)" title="Select this generation for export" />
+        <input type="checkbox" class="pq-select-all pt-pq-run-check" data-ids="${esc(idsCsv)}" ${allSelected ? "checked" : ""} onchange="togglePqSelectBatch('${jsAttr(idsCsv)}', this.checked)" title="Select this generation for export" />
         <button type="button" class="pt-pq-run-toggle" aria-expanded="${open ? "true" : "false"}" onclick="togglePqRun('${jsAttr(runKey)}')">
           <span class="pt-pq-caret" data-open="${open ? "1" : "0"}" aria-hidden="true">
             <svg width="9" height="12" viewBox="0 0 8 12" fill="none"><path d="M1.5 1L6.5 6l-5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -322,7 +324,7 @@ function pqRunHtml(group, run, index) {
       </div>
       ${visibleTags.map(tag => `
         <article class="queue-row" ${_pqHighlightId === tag.id ? 'data-pq-hit="1"' : ""}>
-          <input type="checkbox" class="pq-select pt-pq-run-check" data-id="${esc(tag.id)}" ${_pqSelected.has(tag.id) ? "checked" : ""} onchange="togglePqSelect('${esc(tag.id)}', this.checked)" />
+          <input type="checkbox" class="pq-select pt-pq-run-check" data-id="${esc(tag.id)}" ${_pqSelected.has(tag.id) ? "checked" : ""} onchange="togglePqSelect('${jsAttr(tag.id)}', this.checked)" />
           <strong><span class="pt-pq-serial">${tag.serial ? esc(tag.serial) : ", "}</span><span class="pt-pq-tier" data-tier="${tag.premium ? "premium" : "free"}">${tag.premium ? "PREMIUM" : "FREE"}</span><span class="pt-pq-token" title="${esc(tag.token)}">${esc(tag.token)}</span></strong>
           <span class="pt-pq-status">${esc(pqOddStatus(tag))}</span>
           <a href="${esc(tag.claimUrl)}" target="_blank" rel="noreferrer" title="${esc(tag.claimUrl)}">${esc(tag.claimUrl)}</a>
@@ -524,7 +526,7 @@ async function runPrintExport({ qrOnly }) {
     }
     grid.innerHTML = sheetsHtml;
   } catch (err) {
-    grid.innerHTML = `<p style="color:#DC2626">Failed to load: ${err.message}</p>`;
+    grid.innerHTML = `<p style="color:#DC2626">Failed to load: ${esc(err.message)}</p>`;
   }
 }
 
@@ -761,7 +763,7 @@ function pqJumpToSerial() {
 
   pqSetLookupNote(
     hits.length > 1
-      ? `${esc(hit.serial)}, ${hits.length} matches across batches, showing the first.`
+      ? `${hit.serial}, ${hits.length} matches across batches, showing the first.`
       : `Found ${hit.serial}.`
   );
 
@@ -872,25 +874,45 @@ function overviewCard({ href, label, value, sub }) {
     </a>`;
 }
 
+// The overview's period: the four the summary route accepts. Kept in the URL
+// (?days=) so a reload or the sidebar's Refresh stays on the chosen period.
+const OVERVIEW_PERIODS = {
+  1: { phrase: "past day", short: "1d" },
+  7: { phrase: "past 7 days", short: "7d" },
+  30: { phrase: "past month", short: "1 mo" },
+  365: { phrase: "past year", short: "1 yr" }
+};
+let _overviewDays = (() => {
+  const wanted = Number(new URLSearchParams(location.search).get("days"));
+  return OVERVIEW_PERIODS[wanted] ? wanted : 7;
+})();
+let _overviewRequest = 0;
+
 function renderOverviewSummary(data) {
   const target = byId("overview-summary");
   if (!target) return;
 
   const s = data.summary;
-  const days = data.windowDays;
+  const period = OVERVIEW_PERIODS[data.windowDays] || { phrase: `past ${data.windowDays} days`, short: `${data.windowDays}d` };
+  // Visits are counted in whole days and only kept for 180 of them, so the
+  // visitors card names its own window when that differs from the period.
+  const trafficDays = data.trafficDays || data.windowDays;
+  const trafficWindow = trafficDays === 1
+    ? "today"
+    : trafficDays < data.windowDays ? `last ${trafficDays} days, all that is kept` : period.phrase;
   const sections = [
     {
       title: "Needs attention",
       cards: [
         { href: "/admin/activations", label: "Sold, not activated", value: s.activations.awaiting, sub: "Paid or COD orders with no live tag yet" },
         { href: "/admin/print-queue", label: "Unprinted tags", value: s.printQueue.unprinted, sub: "Waiting in the print queue" },
-        { href: "/admin/activity", label: `Failed contacts (${days}d)`, value: s.contacts.failed, sub: "Calls or messages the provider could not deliver" }
+        { href: "/admin/activity", label: `Failed contacts (${period.short})`, value: s.contacts.failed, sub: "Calls or messages the provider could not deliver" }
       ]
     },
     {
       title: "Customers",
       cards: [
-        { href: "/admin/owners", label: "Owners", value: s.owners.total, sub: `+${formatCount(s.owners.new)} in the last ${days} days` },
+        { href: "/admin/owners", label: "Owners", value: s.owners.total, sub: `+${formatCount(s.owners.new)} in the ${period.phrase}` },
         { href: "/admin/etags", label: "Customer tags", value: s.tags.customer, sub: `${formatCount(s.tags.active)} active` },
         { href: "/admin/activations", label: "Premium tags activated", value: s.activations.premiumActivated, sub: `${formatCount(s.activations.premiumLive)} live now` },
         { href: "/admin/activations", label: "E-Tag stickers activated", value: s.activations.etag, sub: "Issued stickers with an owner" }
@@ -906,10 +928,10 @@ function renderOverviewSummary(data) {
       ]
     },
     {
-      title: `Usage · last ${days} days`,
+      title: `Usage · ${period.phrase}`,
       cards: [
         { href: "/admin/activity", label: "Contact requests", value: s.contacts.new, sub: `${formatCount(s.contacts.total)} all-time` },
-        { href: "/admin/traffic", label: "Site visitors", value: s.traffic.visitors, sub: `${formatCount(s.traffic.views)} page views` }
+        { href: "/admin/traffic", label: "Site visitors", value: s.traffic.visitors, sub: `${formatCount(s.traffic.views)} page views · ${trafficWindow}` }
       ]
     }
   ];
@@ -922,9 +944,45 @@ function renderOverviewSummary(data) {
 }
 
 async function loadOverviewSummary() {
-  const data = await fetchJson("/api/admin/overview/summary");
-  renderOverviewSummary(data);
-  return data;
+  // Numbered so a slow answer for a period the admin has already moved off
+  // cannot overwrite the one they picked after it.
+  const request = ++_overviewRequest;
+  const target = byId("overview-summary");
+  target?.setAttribute("aria-busy", "true");
+  try {
+    const data = await fetchJson(`/api/admin/overview/summary?days=${_overviewDays}`);
+    if (request === _overviewRequest) renderOverviewSummary(data);
+    return data;
+  } finally {
+    if (request === _overviewRequest) target?.removeAttribute("aria-busy");
+  }
+}
+
+function syncOverviewPeriodButtons() {
+  for (const button of document.querySelectorAll("#overview-period [data-days]")) {
+    button.setAttribute("aria-pressed", String(Number(button.dataset.days) === _overviewDays));
+  }
+}
+
+async function selectOverviewPeriod(days) {
+  if (!OVERVIEW_PERIODS[days] || days === _overviewDays) return;
+  _overviewDays = days;
+  syncOverviewPeriodButtons();
+  const url = new URL(location.href);
+  url.searchParams.set("days", String(days));
+  history.replaceState(null, "", url);
+  try {
+    await loadOverviewSummary();
+    if (days === _overviewDays) setStatus("", "info");
+  } catch (error) {
+    if (days !== _overviewDays) return; // superseded by a later pick
+    // Only a signed-out answer leaves the page, as on first load.
+    if (lastFailedStatus === 401 || lastFailedStatus === 403) {
+      window.location.href = "/admin";
+      return;
+    }
+    setStatus(error instanceof Error ? error.message : "Could not load the overview for that period.", "error");
+  }
 }
 
 async function seedAdminDemo() {
@@ -964,6 +1022,8 @@ async function loginAdmin() {
     // Admin sign-in has its own endpoint. The shared /api/auth/login used to
     // take the role from this body, which made the public owner sign-in surface
     // an admin one too; the role is now fixed by the route it is posted to.
+    // The reCAPTCHA token is "" wherever reCAPTCHA is not configured.
+    const recaptchaToken = await getCaptchaToken("admin_login");
     await fetchJson("/api/auth/admin/login", {
       method: "POST",
       headers: {
@@ -971,7 +1031,8 @@ async function loginAdmin() {
       },
       body: JSON.stringify({
         email,
-        password
+        password,
+        recaptchaToken
       })
     });
 
@@ -1404,9 +1465,13 @@ function auditEventHtml(e) {
     e.event === "login" ? ["in", `Signed in${e.method === "google" ? " with Google" : e.method === "password" ? " with password" : ""}`]
       : e.event === "logout" ? ["out", "Signed out"]
         : e.event === "login_locked" ? ["bad", `Blocked: too many failed attempts${times}`]
-          : ["bad", e.reason === "no_account"
-            ? `Failed Google sign-in: not an admin account${times}`
-            : `Failed sign-in: wrong email or password${times}`];
+          : e.event === "admin_created" ? ["change", `Added admin ${e.target || ""}`.trim()]
+            : e.event === "admin_removed" ? ["change", `Removed admin ${e.target || ""}`.trim()]
+              : ["bad", e.reason === "no_account"
+                ? `Failed Google sign-in: not an admin account${times}`
+                : e.reason === "bot_check"
+                  ? `Failed sign-in: bot check did not pass${times}`
+                  : `Failed sign-in: wrong email or password${times}`];
   const when = e.at ? new Date(e.at) : null;
   return `
     <div class="au-row" data-kind="${kind}">
@@ -1438,7 +1503,7 @@ async function loadAudit() {
     if (countEl) {
       countEl.textContent = data.total
         ? `${formatCount(data.total)} ${data.total === 1 ? "event" : "events"} in the last 90 days.`
-        : "Admin sign-ins, sign-outs and failed attempts, kept for 90 days.";
+        : "Admin sign-ins, sign-outs, failed attempts and admins added or removed, kept for 90 days.";
     }
     target.innerHTML = data.events.length
       ? data.events.map(auditEventHtml).join("")
@@ -1665,6 +1730,14 @@ function bindEvents() {
 
   if (hasEl("admin-refresh-button")) {
     byId("admin-refresh-button").addEventListener("click", refreshFromButton);
+  }
+
+  if (hasEl("overview-period")) {
+    syncOverviewPeriodButtons();
+    byId("overview-period").addEventListener("click", (event) => {
+      const button = event.target.closest("[data-days]");
+      if (button) selectOverviewPeriod(Number(button.dataset.days));
+    });
   }
 
   if (hasEl("owners-search")) {

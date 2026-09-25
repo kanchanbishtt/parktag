@@ -486,6 +486,7 @@ function setContactAvailability(available) {
   // contacted records no location, so promising one would be a lie, and warning
   // about a sharing that is not happening is its own kind of wrong.
   setHidden("scanner-location-notice", !available);
+  setHidden("share-car-location", !available);
 
   // Two reasons to be blocked, two panels, and never both at once. An unknown
   // or missing code falls back to the sticker CTA — the behaviour this page has
@@ -756,6 +757,34 @@ function setSummaryForTag(tag) {
   }
 }
 
+// ── "Share where the car is" ─────────────────────────────────────────
+// Asked only when tapped. The fix is sent with the next Message or Call, and the
+// server turns it into a landmark name for the owner; nothing is sent if the
+// scanner declines or never taps.
+let sharedCarLocation = null;
+
+function wireShareCarLocation() {
+  const btn = byId("share-car-location");
+  const label = byId("share-car-location-label");
+  if (!btn || !label || !navigator.geolocation) { if (btn) btn.hidden = true; return; }
+  btn.addEventListener("click", () => {
+    if (sharedCarLocation) return;
+    label.textContent = "📍 Finding the car's location…";
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        sharedCarLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: Math.round(pos.coords.accuracy || 0) };
+        btn.setAttribute("aria-pressed", "true");
+        label.textContent = "✓ Location added. The owner sees the nearest landmark.";
+        window.clarity?.("event", "car_location_shared");
+      },
+      () => {
+        label.textContent = "Location not shared. You can still message or call.";
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+    );
+  });
+}
+
 async function createRequest(payload) {
   // Not retried, for the same reason as register-call: this sends the owner a
   // WhatsApp alert and spends an E-Tag's one free contact before its answer
@@ -765,7 +794,7 @@ async function createRequest(payload) {
     method: "POST",
     headers: { "content-type": "application/json" },
     // Attach the verification grant so the server authorises the contact.
-    body: JSON.stringify({ ...payload, grant: contactGrant }),
+    body: JSON.stringify({ ...payload, grant: contactGrant, carLocation: sharedCarLocation || undefined }),
     onSlow: () =>
       setRequestStatus("request-status", "Still sending… signal is weak here.", "info")
   });
@@ -1326,7 +1355,7 @@ async function handleFinalCallAction() {
     const { ok, status, data } = await requestJson(`/api/tags/${token}/register-call`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ phone, grant: contactGrant }),
+      body: JSON.stringify({ phone, grant: contactGrant, carLocation: sharedCarLocation || undefined }),
       onSlow: () => callSteps.slow("Still setting up your line, the signal is weak here")
     });
 
@@ -2207,6 +2236,7 @@ byId("call-owner-button")?.addEventListener("click", () => requireVerification("
 // opens in place of the tiles rather than sitting on the card permanently, so
 // the card can show its three actions without a scroll.
 byId("send-whatsapp-button")?.addEventListener("click", openReasonStep);
+wireShareCarLocation();
 
 // The reason step repeats both actions so the choice can still be changed
 // without a Back control. Message needs a reason; the call ignores it, exactly

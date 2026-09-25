@@ -515,6 +515,14 @@
              "Area" and "from your internet connection" are the honest words: it
              is a city-level estimate off the IP, not the phone's GPS, and
              saying "location" would imply a precision this does not have. -->
+        <!-- Opt-in, and only on tap: the browser asks for the phone's location
+             when this is pressed and never before. The scanner is standing at
+             the car, so this is the CAR's position; the owner is shown the
+             nearest landmark (see lib/core/car-location.js), never coordinates. -->
+        <button class="pt-share-loc" id="share-car-location" type="button" aria-pressed="false">
+          <span id="share-car-location-label">📍 Share where the car is <small>(helps the owner find it)</small></span>
+        </button>
+
         <p class="pt-contact-privacy" id="scanner-location-notice">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="10" r="2.6" stroke="currentColor" stroke-width="2"/></svg>
           <span>Your approximate area, from your internet connection, is shared with the vehicle owner. Your number stays private.</span>

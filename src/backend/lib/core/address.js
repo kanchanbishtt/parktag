@@ -77,3 +77,9 @@ export function addressToNotes(address) {
     ship_pincode: address.pincode
   };
 }
+
+// One line, as a postal clerk would read it: what the address check sends Ola.
+export function addressLine(address) {
+  return [address.line1, address.line2, address.landmark, address.city, address.state, address.pincode]
+    .filter(Boolean).join(", ");
+}

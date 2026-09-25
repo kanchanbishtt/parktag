@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { addressValidates, autocomplete } from "../../lib/integrations/ola-maps.js";
 import { captureMetaCheckoutContext } from "../../lib/integrations/meta-checkout-context.js";
 import { readAttribution } from "../../lib/core/attribution.js";
 import {
@@ -11,7 +12,7 @@ import {
 import { getCollections } from "../../lib/db/repositories.js";
 import { requireSession, toObjectId, tryObjectId } from "../../lib/auth/auth.js";
 import { generateOrderNumber } from "../../lib/core/order-number.js";
-import { addressToNotes, validateAddress, validateHandoverContact } from "../../lib/core/address.js";
+import { addressLine, addressToNotes, validateAddress, validateHandoverContact } from "../../lib/core/address.js";
 import { createPremiumTagForVehicle } from "../../lib/core/tag-issuance.js";
 import { reassignVaultDocuments } from "../../lib/core/vault.js";
 import { isDelhiveryConfigured, updateShipmentToPrepaid, trackingUrl, checkPincodeServiceability } from "../../lib/integrations/delhivery.js";
@@ -520,7 +521,13 @@ async function placeGuestCodLocked(env, collections, request, reply, order, codT
   // courier, after the buyer has been told the order is placed. Only an
   // explicit "no" refuses; an unknown answer fails open, like the rest of
   // checkout.
-  const serviceability = await checkPincodeServiceability(env, shipping.pincode);
+  // Asked alongside, never refusing: the sheet already warned a buyer whose
+  // address did not match and let them place it anyway. Stored so refused
+  // parcels can be compared against it later.
+  const [serviceability, addressValidated] = await Promise.all([
+    checkPincodeServiceability(env, shipping.pincode),
+    addressValidates(addressLine(shipping), { log: request.log })
+  ]);
   if (serviceability.cod === false) {
     reply.code(400);
     return { ok: false, error: "Cash on Delivery is not available at this PIN code. Please pay online." };
@@ -546,6 +553,7 @@ async function placeGuestCodLocked(env, collections, request, reply, order, codT
   const placed = {
     ...order,
     orderNumber: await generateOrderNumber(collections),
+    addressValidated,
     metaCheckoutContext: captureMetaCheckoutContext(request),
     attribution: readAttribution(request),
     createdAt: new Date().toISOString()
@@ -626,47 +634,41 @@ export function registerShopRoutes(app, env) {
   // disclosed for the same reason the pack sheet discloses it — a buyer must
   // not agree to one figure and be asked for a higher one at the door. What is
   // deliberately NOT here is anything about a session, an owner or a tag.
-  // Street suggestions for the delivery sheet, from Ola Maps. Proxied rather
-  // than called from the page so the key stays server-side; the key is
-  // domain-locked on Ola's side, which it checks through the Origin header
-  // (Node's fetch drops Referer, so that alone gets a 403). Always
-  // answers 200 with a (possibly empty) list: a suggestion is a convenience,
-  // and the buyer can always type the address by hand.
+  // Street suggestions for the delivery sheet, from Ola Maps (see
+  // lib/integrations/ola-maps.js). Proxied so the key stays server-side.
+  // Always 200 with a (possibly empty) list: the buyer can always type.
   app.get(
     "/api/shop/address-suggest",
     { config: { rateLimit: { max: 40, timeWindow: "1 minute" } } },
     async (request) => {
-      const key = process.env.OLA_MAPS_API_KEY || "";
       const q = String(request.query?.q || "").trim().slice(0, 100);
       const pin = /^[1-9][0-9]{5}$/.test(String(request.query?.pin || "")) ? request.query.pin : "";
-      if (!key || q.length < 3) return { ok: true, suggestions: [] };
-      try {
-        const url = new URL("https://api.olamaps.io/places/v1/autocomplete");
-        // The PIN in the query text biases results to the buyer's area.
-        url.searchParams.set("input", pin ? `${q} ${pin}` : q);
-        url.searchParams.set("api_key", key);
-        const res = await fetch(url, {
-          headers: { Origin: "https://app.parktag.me", "X-Request-Id": crypto.randomUUID() },
-          signal: AbortSignal.timeout(3000)
-        });
-        if (!res.ok) {
-          request.log.warn({ status: res.status }, "[address-suggest] Ola Maps refused");
-          return { ok: true, suggestions: [] };
-        }
-        const data = await res.json();
-        const suggestions = (data.predictions || []).map((p) => ({
-          main: p.structured_formatting?.main_text || p.description || "",
-          secondary: p.structured_formatting?.secondary_text || "",
-          pincode: (String(p.description || "").match(/\b[1-9][0-9]{5}\b/) || [""])[0]
-        })).filter((x) => x.main)
-          // Ola treats the PIN as a hint only; results in the buyer's PIN go first.
-          .sort((a, b) => (b.pincode === pin) - (a.pincode === pin))
-          .slice(0, 5);
-        return { ok: true, suggestions };
-      } catch (err) {
-        request.log.warn({ err }, "[address-suggest] lookup failed");
-        return { ok: true, suggestions: [] };
-      }
+      if (q.length < 3) return { ok: true, suggestions: [] };
+      // The PIN in the query text biases results to the buyer's area.
+      const predictions = await autocomplete(pin ? `${q} ${pin}` : q, { log: request.log });
+      const suggestions = predictions.map((p) => ({
+        main: p.structured_formatting?.main_text || p.description || "",
+        secondary: p.structured_formatting?.secondary_text || "",
+        pincode: (String(p.description || "").match(/\b[1-9][0-9]{5}\b/) || [""])[0]
+      })).filter((x) => x.main)
+        // Ola treats the PIN as a hint only; results in the buyer's PIN go first.
+        .sort((a, b) => (b.pincode === pin) - (a.pincode === pin))
+        .slice(0, 5);
+      return { ok: true, suggestions };
+    }
+  );
+
+  // Does this delivery address hang together (street, city, PIN)? Asked by the
+  // sheet before a COD order, so a mismatched PIN can be fixed before a parcel
+  // goes out that nobody can receive. Advisory: the buyer may place it anyway.
+  // { validated: true | false | null }, null meaning Ola could not be asked.
+  app.post(
+    "/api/shop/address-check",
+    { config: { rateLimit: { max: 20, timeWindow: "1 minute" } } },
+    async (request) => {
+      const checked = validateAddress(request.body?.address || {});
+      if (!checked.ok) return { ok: true, validated: null };
+      return { ok: true, validated: await addressValidates(addressLine(checked.address), { log: request.log }) };
     }
   );
 

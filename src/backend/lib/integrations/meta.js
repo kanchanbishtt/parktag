@@ -177,7 +177,29 @@ export async function sendMetaWhatsappCartReminder(env, { to, name, product, url
 // required and contact-actions.js must pass it.
 export const OWNER_ALERT_TEMPLATE = "parktag_owner_notification_v2";
 
-export async function sendMetaWhatsappAlert(env, { to, ownerName, reason, tagId = null }) {
+// v2 plus an IMAGE header: a map of where the car is, sent only when the
+// scanner shared a location. Submitted for review 25 Sep 2026. Until Meta
+// approves it the send fails and falls back to the plain alert below, so it
+// switches itself on with no deploy.
+export const OWNER_ALERT_MAP_TEMPLATE = "parktag_owner_notification_map_v1";
+
+export async function sendMetaWhatsappAlert(env, { to, ownerName, reason, tagId = null, mapUrl = null }) {
+  if (mapUrl) {
+    try {
+      return await sendTemplate(env, {
+        to,
+        template: OWNER_ALERT_MAP_TEMPLATE,
+        components: [
+          { type: "header", parameters: [{ type: "image", image: { link: mapUrl } }] },
+          ...bodyComponent(ownerName, reason)
+        ],
+        publicMessage: "Unable to send the WhatsApp message right now."
+      });
+    } catch (err) {
+      console.warn("[WaveTag] map alert template not sent, using the plain alert:", err?.providerDetail || err?.message);
+    }
+  }
+
   const usesButton = OWNER_ALERT_TEMPLATE.endsWith("_v3");
 
   // Refused rather than sent without it. A v3 send with no tagId fails at Meta

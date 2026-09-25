@@ -4,6 +4,7 @@ import { sendMetaWhatsappAlert, isMetaWhatsappConfigured } from "../integrations
 import { sendOwnerAlertEmail } from "../integrations/email.js";
 import { getCollections } from "../db/repositories.js";
 import { captureScannerLocation } from "./scan-location.js";
+import { carMapUrl, resolveCarLocation } from "./car-location.js";
 
 // The WhatsApp message is built ENTIRELY server-side (spec §6) — the scanner can
 // never author it. The optional reason is constrained to this fixed whitelist,
@@ -81,6 +82,13 @@ export async function createContactAction(env, input) {
   const ownerMessage =
     input.action === "message" ? buildOwnerWhatsappMessage(input.reason) : null;
 
+  // Resolved before the alert goes out, because the alert carries it. Only a
+  // message reaches this path, and /api/contact-requests has already refused
+  // a tag that is not entitled, so a shared location is always showable here.
+  const carLocation = input.action === "message"
+    ? await resolveCarLocation(input.carLocation, { log: input.log || null })
+    : null;
+
   const requestId = new ObjectId();
   const contactRequest = {
     _id: requestId,
@@ -101,6 +109,7 @@ export async function createContactAction(env, input) {
     // entitled and the address resolves. Always present so a row that never
     // gets one is shaped like a row written before this feature existed.
     scannerLocation: null,
+    carLocation,
     userAgent: input.userAgent || null,
     createdAt: new Date().toISOString()
   };
@@ -134,7 +143,10 @@ export async function createContactAction(env, input) {
       // genuinely deserves an error at the scanner.
       const mobile = owner.phone || owner.mobile;
       const ownerName = owner.displayName || "there";
-      const reasonText = reasonLabel(input.reason) || "an issue has been reported";
+      const baseReason = reasonLabel(input.reason) || "an issue has been reported";
+      // Rides inside the approved {{2}} variable, so no new template is needed
+      // for the words; the map image needs one (see meta.js).
+      const reasonText = carLocation?.place ? `${baseReason}, near ${carLocation.place}` : baseReason;
       const attempts = [];
 
       if (mobile && isMetaWhatsappConfigured(env)) {
@@ -143,7 +155,7 @@ export async function createContactAction(env, input) {
           // the dynamic suffix of /v/:tagId. Passed now rather than when v3
           // clears review, so the switch in meta.js really is one line. The v2
           // template in use today ignores it.
-          sendMetaWhatsappAlert(env, { to: mobile, ownerName, reason: reasonText, tagId: String(tag._id) })
+          sendMetaWhatsappAlert(env, { to: mobile, ownerName, reason: reasonText, tagId: String(tag._id), mapUrl: carMapUrl(env, carLocation) })
             .then((result) => { provider = result; return true; })
             .catch((err) => {
               console.error("[WaveTag] owner alert WhatsApp failed:", err?.message, err?.providerDetail);

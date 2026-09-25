@@ -42,3 +42,20 @@ describe("address suggestions", () => {
     assert.deepEqual((await get("Sector 18")).json(), { ok: true, suggestions: [] });
   });
 });
+
+describe("COD address check", () => {
+  const address = { fullName: "QA", phone: "9812300001", line1: "Wave Mall", city: "Noida", state: "Uttar Pradesh", pincode: "560001" };
+  const check = () => app.inject({ method: "POST", url: "/api/shop/address-check", payload: { address }, remoteAddress: uniqueAddress() });
+
+  test("no key: unknown, never a refusal", async () => {
+    assert.deepEqual((await check()).json(), { ok: true, validated: null });
+  });
+
+  test("passes Ola's verdict through", async () => {
+    process.env.OLA_MAPS_API_KEY = "k";
+    let asked;
+    globalThis.fetch = async (url) => { asked = String(url); return { ok: true, json: async () => ({ result: { validated: false } }) }; };
+    assert.deepEqual((await check()).json(), { ok: true, validated: false });
+    assert.equal(new URL(asked).searchParams.get("address"), "Wave Mall, Noida, Uttar Pradesh, 560001");
+  });
+});

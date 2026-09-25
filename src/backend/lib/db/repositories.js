@@ -239,6 +239,8 @@ const CORE_INDEXES = [
   ["contactRequests", { token: 1, createdAt: -1 }, { name: "token_recent" }],
   ["contactRequests", { ownerId: 1, createdAt: -1 }, { name: "owner_recent" }],
   ["contactRequests", { providerRequestId: 1 }, { name: "provider_request" }],
+  // Backs the public /m/:token.png map lookup; only rows with a shared location.
+  ["contactRequests", { "carLocation.mapToken": 1 }, { name: "car_map_token", partialFilterExpression: { "carLocation.mapToken": { $type: "string" } } }],
   // Backs the per-tag SOS daily ceiling in routes/public/index.js.
   ["contactRequests", { token: 1, action: 1, createdAt: -1 }, { name: "token_action_recent" }],
   ["shopOrders", { ownerId: 1, status: 1 }, { name: "owner_status" }],

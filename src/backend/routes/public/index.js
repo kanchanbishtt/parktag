@@ -28,6 +28,8 @@ import {
   mountMismatchMessage
 } from "../../lib/core/tag-issuance.js";
 import { verifyRecaptchaV2 } from "../../lib/integrations/recaptcha.js";
+import { resolveCarLocation } from "../../lib/core/car-location.js";
+import { staticMapPng } from "../../lib/integrations/ola-maps.js";
 import { clientErrorMessage } from "../../lib/errors.js";
 import { findByCanonicalEmail } from "../../lib/auth/identity.js";
 import { recordDemoActivation } from "../../lib/core/marketing-stock.js";
@@ -321,6 +323,26 @@ async function clearLapsedLock(collections, id, doc, now) {
 }
 
 export function registerPublicRoutes(app, env) {
+  // The map in the owner's WhatsApp alert: a static Ola Maps image of the
+  // rounded point the scanner shared. Public because WhatsApp fetches it with
+  // no session; the path is a random token, so it names no tag and cannot be
+  // walked. Drawn per request through our server so the Ola key never leaves it.
+  app.get(
+    "/m/:file",
+    { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } },
+    async (request, reply) => {
+      const token = String(request.params.file || "").replace(/\.png$/, "");
+      const collections = await getCollections(env);
+      const row = /^[A-Za-z0-9_-]{16}$/.test(token) && collections
+        ? await collections.contactRequests.findOne({ "carLocation.mapToken": token }, { projection: { carLocation: 1 } })
+        : null;
+      const png = row ? await staticMapPng(row.carLocation.lat, row.carLocation.lng, { log: request.log }) : null;
+      if (!png) { reply.code(404); return { ok: false, error: "Not found" }; }
+      reply.header("Cache-Control", "public, max-age=86400").type("image/png");
+      return png;
+    }
+  );
+
   app.get("/api/tags/:token", async (request, reply) => {
     const collections = await getCollections(env);
 
@@ -1320,6 +1342,9 @@ export function registerPublicRoutes(app, env) {
         action: "message",
         messageChannel: messageChannel || "whatsapp",
         reason: reason || null,
+        // Opt-in position of the car from the scan page; checked and rounded
+        // in lib/core/car-location.js, absent unless the scanner tapped Share.
+        carLocation: request.body?.carLocation || null,
         ipAddress: getClientIp(request),
         userAgent: request.headers["user-agent"] || null,
         // Only so the background location capture can warn when it is handed
@@ -1480,6 +1505,13 @@ export function registerPublicRoutes(app, env) {
     // the provider takes about 1.5s. The owner reads the row later, so the
     // location can land after the reply. Entitlement is checked inside.
     captureScannerLocation(env, collections, requestId, tag, callerIp, request.log);
+    // The shared car position too, if the scanner tapped Share; the call has no
+    // alert to wait for it, so it lands on the row for the owner's activity log.
+    if (request.body?.carLocation) {
+      resolveCarLocation(request.body.carLocation, { log: request.log })
+        .then((carLocation) => carLocation && collections.contactRequests.updateOne({ _id: requestId }, { $set: { carLocation } }))
+        .catch((err) => request.log.warn({ err }, "[car-location] call row not updated"));
+    }
 
     await collections.tags.updateOne(
       { _id: tag._id },

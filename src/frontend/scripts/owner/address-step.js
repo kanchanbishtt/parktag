@@ -731,6 +731,37 @@
     reveal(els.form);
   }
 
+  // COD only: a parcel to an address the courier cannot find comes back, and
+  // ParkTag pays both ways. Ola checks street, city and PIN agree; on a
+  // mismatch the buyer is warned once and may still place it ("Place anyway"
+  // is the same button pressed again with the address unchanged). A lookup
+  // that fails or times out never stops the order.
+  var codAddrAccepted = null;
+  async function addressLooksWrong(v) {
+    var key = JSON.stringify(v);
+    if (codAddrAccepted === key) return false;
+    els.save.disabled = true;
+    els.save.textContent = "Checking address…";
+    var validated = null;
+    try {
+      var res = await fetch("/api/shop/address-check", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ address: v })
+      });
+      var data = res.ok ? await res.json() : null;
+      validated = data ? data.validated : null;
+    } catch (e) { /* unknown: carry on */ }
+    els.save.disabled = false;
+    els.save.innerHTML = IC.lock + saveLabel();
+    codAddrAccepted = key;
+    if (validated !== false) return false;
+    showErr("We couldn't match this address to PIN " + v.pincode + ". Please check the PIN and street, or tap the button again to place the order anyway.");
+    els.save.textContent = "Place anyway, pay on delivery";
+    if (typeof window.clarity === "function") window.clarity("event", "cod_address_mismatch");
+    return true;
+  }
+
   async function onSave() {
     clearErr();
     var v = readForm();
@@ -740,7 +771,11 @@
     // No account to save it to: hand the address straight back to the caller,
     // which sends it with the order.
     if (guestMode) {
-      if (payPrices && payChoice === "cod") { startCodCheck(v); return; }
+      if (payPrices && payChoice === "cod") {
+        if (await addressLooksWrong(v)) return;
+        startCodCheck(v);
+        return;
+      }
       // `source` tells a deliberate tick apart from the default state later,
       // which is the difference that matters if consent is ever questioned.
       var ticked = !!(els.optIn && els.optIn.checked);

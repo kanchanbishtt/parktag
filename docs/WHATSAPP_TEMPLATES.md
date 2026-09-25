@@ -331,3 +331,17 @@ in the account:
 7. Add it to the list in `src/backend/scripts/verify-whatsapp-templates.js`, which
    is the only thing that catches a rejected or mis-shaped template before a
    customer does. Run `npm run verify:whatsapp`.
+
+---
+
+## Owner alert with a map: `parktag_owner_notification_map_v1`
+
+Submitted 25 Sep 2026 (Meta id 1814668546543159, UTILITY). It's v2 with an IMAGE header. It's sent only when the scanner tapped "Share where the car is", and the header is `/m/<token>.png`, a static Ola Maps image of the rounded point (lib/core/car-location.js).
+
+> [map image]
+> Hello {{1}}, someone scanned the ParkTag on your vehicle and reported: {{2}}.
+>
+> The map shows roughly where your vehicle is. Please check it when you can.
+> *Powered by ParkTag*
+
+{{2}} already carries the place ("…, near Wave Mall, Sector 18, Noida"), so the plain v2 alert names the place too. `sendMetaWhatsappAlert` tries this template first. Until it is approved, the send fails and falls back to v2 on its own, so approval needs no deploy.

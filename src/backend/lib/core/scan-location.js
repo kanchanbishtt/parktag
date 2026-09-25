@@ -13,6 +13,11 @@
 // be the only ones logged. An IP answers it for everyone, at a precision that
 // cannot follow anybody to a front door.
 //
+// Since 25 Sep 2026 there is ONE opt-in exception, lib/core/car-location.js:
+// a "Share where the car is" button on the scan page. The browser asks only
+// when it is tapped, the fix is the car's position rather than a stranger's
+// home, and it is kept as a landmark name plus a point rounded to ~110 m.
+//
 // WHAT REACHES THE OWNER
 // The derived country / region / city only. The raw IP is already stored on the
 // contact row for abuse handling and stays server-side — handing one user

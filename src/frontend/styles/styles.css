@@ -2375,6 +2375,15 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
    the text edges line up with the tiles above. Quiet by design: it must be
    readable and honest, not a warning that frightens someone out of reporting a
    car with its lights left on. */
+.pt-share-loc {
+  display: block; width: 100%; margin: 10px 0 4px; padding: 11px 14px;
+  border: 1px dashed #b7c3d4; border-radius: 12px; background: transparent;
+  font: inherit; font-size: .88rem; font-weight: 600; color: #03162d; cursor: pointer; text-align: center;
+}
+.pt-share-loc small { font-weight: 500; color: #6b7280; }
+.pt-share-loc[aria-pressed="true"] { border-style: solid; border-color: #25a55f; color: #1b7a45; background: #eefaf3; }
+.pt-share-loc[hidden] { display: none; }
+
 .pt-contact-privacy {
   display: flex;
   align-items: flex-start;

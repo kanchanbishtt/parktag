@@ -303,7 +303,11 @@ export function registerOwnerRoutes(app, env) {
         // abuse handling; giving one user another user's network address is a
         // different act from naming the city, and only the second was asked for.
         scannerLocation: item.scannerLocation || null,
-        scannerLocationLabel: formatScannerLocation(item.scannerLocation),
+        // A position the scanner chose to share beats the IP's city: it is where
+        // the car is, named by the nearest landmark.
+        scannerLocationLabel: item.carLocation?.place
+          ? `Near ${item.carLocation.place}`
+          : formatScannerLocation(item.scannerLocation),
         provider: item.provider || null,
         providerRequestId: item.providerRequestId || null,
         providerWebhookStatus: item.providerWebhookStatus || null,

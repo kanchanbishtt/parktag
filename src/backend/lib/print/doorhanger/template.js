@@ -1,5 +1,8 @@
 // Door hanger print template: 4.5in x 11in, hung on a parked car's door handle.
 //
+// Used by scripts/print-doorhangers.js and the admin Print Queue's "Door
+// hanger PDF" button (routes/admin/doorhangers.js).
+//
 // The design lives in Figma ("ParkTag Door Hanger", Edit Tree Projects). Each
 // side is exported at 300 dpi into art/front.png and art/back.png, with the
 // sample QR and serial on the front card left blank. This file only places the
@@ -88,10 +91,21 @@ function back(art) {
   return `<section class="page"><img class="art" src="${art}" alt="">${dieline()}</section>`;
 }
 
+// The artwork files, for a server route that serves them by URL.
+export const DOORHANGER_ART = {
+  front: path.join(HERE, "art/front.png"),
+  back: path.join(HERE, "art/back.png")
+};
+
 // hangers: [{ serial, scanUrl }]. Returns the full HTML document.
-export async function renderDoorhangers(hangers, { sample = false, dieline: showDieline = false } = {}) {
-  const frontArt = dataUri("art/front.png", "image/png");
-  const backPage = back(dataUri("art/back.png", "image/png"));
+//
+// artBase: when set (e.g. "/admin/doorhanger-art"), pages reference the two
+// artwork PNGs by URL instead of inlining them. A 1000-hanger run inlined would
+// repeat ~0.7 MB of base64 per front page; by URL the browser fetches each file
+// once. Without it the file is self-contained, which is what the CLI wants.
+export async function renderDoorhangers(hangers, { sample = false, dieline: showDieline = false, artBase = null } = {}) {
+  const frontArt = artBase ? `${artBase}/front.png` : dataUri("art/front.png", "image/png");
+  const backPage = back(artBase ? `${artBase}/back.png` : dataUri("art/back.png", "image/png"));
   const pages = [];
   for (const h of hangers) {
     const qr = await qrSvg(h.scanUrl);

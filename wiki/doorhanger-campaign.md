@@ -22,7 +22,7 @@ the card and call them, and still have a real contact left.
 
 The design is made in Figma ("ParkTag Door Hanger", Edit Tree Projects) and
 used as-is: both sides are exported at 300 dpi (1425 x 3375 px, bleed included)
-into `scripts/doorhanger/art/front.png` and `back.png`, with the card's sample
+into `lib/print/doorhanger/art/front.png` and `back.png`, with the card's sample
 QR and serial hidden. The print script only overlays each hanger's unique QR
 and serial (`SLOTS` in `template.js`). To change the design, edit Figma,
 re-export both sides the same way, and replace the PNGs. The card QR is
@@ -42,7 +42,19 @@ Checks before every re-export:
 - **Price** on the back must match the live offer (currently Duo Pack ₹399,
   MRP ₹499).
 
-## Print run
+## Print run (admin panel)
+
+1. Admin → Batch Issuance: issue a batch with the car / windscreen mount type.
+2. Admin → Print Queue: tick the batch's generation run (or individual tags).
+3. Click **Door hanger PDF** (tick **Dieline** for the vendor's cutting proof).
+   Confirm the prompt: the tags get 2 free contacts.
+4. A new window opens with the sheet. Print, Save as PDF, margins None. Fronts
+   and backs alternate, 4.75 x 11.25in pages (bleed included).
+5. After the printer has them, use **Mark printed** as for stickers.
+
+Only unclaimed, unprinted, non-demo tags are printed; bike stock is refused.
+
+## Print run (command line)
 
 1. Admin → Issuance: issue a batch with the car / windscreen mount type.
 2. `node --env-file=.env src/backend/scripts/print-doorhangers.js --batch <n> --out batch-<n>.html --apply`

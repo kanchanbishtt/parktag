@@ -18,7 +18,8 @@ Rules:
 - [x] Spend free contacts atomically in both register-call and contact-requests, and reset the counter when demo stock is deactivated.
 - [x] Show the remaining free contacts in the owner dashboard and vehicle detail copy.
 - [x] Add the 4.5x11 door hanger print template and `scripts/print-doorhangers.js` (one real unclaimed tag per hanger, 2 free contacts).
-- [ ] Issue a car/windscreen batch for the first hanger run, stamp it with `--apply` and send the PDF to the printer.
+- [x] Add a "Door hanger PDF" button to Admin → Print Queue (renders the Figma design with each ticked tag's QR and stamps 2 free contacts).
+- [ ] Print Batch 003 (Door-lock campaign 2026, 1000 car tags) on hangers from the Print Queue and send the PDF to the printer.
 
 ### Paid acquisition conversion repair
 - [x] Verify the production app serves configured GA4 and Meta Pixel tracking.

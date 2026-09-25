@@ -428,6 +428,54 @@ function exportQrOnlyForPrint() {
   return runPrintExport({ qrOnly: true });
 }
 
+// Door hangers: the server renders the whole print sheet (Figma artwork plus
+// each tag's QR) and gives the tags the hanger's free contacts, so this only
+// sends the selection and puts the returned page in a new window to print.
+async function exportDoorhangersForPrint() {
+  const visible = new Set(_pqVisibleIds);
+  const ids = [
+    ..._pqVisibleIds.filter((id) => _pqSelected.has(id)),
+    ...[..._pqSelected].filter((id) => !visible.has(id))
+  ];
+  if (ids.length === 0) {
+    setStatus("Select the tag(s) you want on door hangers first.", "info");
+    return;
+  }
+  const dieline = Boolean(byId("doorhanger-dieline")?.checked);
+  if (!window.confirm(
+    `Make ${ids.length} door hanger${ids.length === 1 ? "" : "s"}${dieline ? " (with dieline)" : ""}?\n\n` +
+    "Each tag gets 2 free contacts, because the hanger promises \"First 2 contacts free\"."
+  )) return;
+
+  // Opened now, inside the click, so pop-up blockers allow it; filled below.
+  const win = window.open("", "_blank");
+  if (!win) {
+    setStatus("Allow pop-ups for this site to open the door hanger print sheet.", "error");
+    return;
+  }
+  win.document.write('<p style="font:15px system-ui,sans-serif;padding:32px;color:#03162D">Preparing door hangers…</p>');
+  setStatus(`Preparing ${ids.length} door hanger${ids.length === 1 ? "" : "s"}…`, "info");
+
+  try {
+    const response = await fetch("/api/admin/print-queue/doorhangers", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ids, dieline })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.ok) throw new Error(data.error || `Request failed (${response.status})`);
+
+    win.document.open();
+    win.document.write(data.html);
+    win.document.close();
+    const skipped = data.skipped ? ` ${data.skipped} selected tag(s) were skipped (claimed, printed or demo stock).` : "";
+    setStatus(`${data.count} door hangers ready in the new window: Print, then Save as PDF with margins set to None.${skipped}`, "success");
+  } catch (error) {
+    win.close();
+    setStatus(error instanceof Error ? error.message : "Could not prepare the door hangers.", "error");
+  }
+}
+
 async function runPrintExport({ qrOnly }) {
   const overlay = byId("qr-export-overlay");
   const grid = byId("qr-export-grid");
@@ -1155,7 +1203,7 @@ let _pqHighlightId = null;
 
 function _pqUpdateExportLabel() {
   const n = _pqSelected.size;
-  for (const [id, text] of [["export-qr-button", "Export QRs"], ["export-qr-only-button", "QR only"]]) {
+  for (const [id, text] of [["export-qr-button", "Export QRs"], ["export-qr-only-button", "QR only"], ["export-doorhanger-button", "Door hanger PDF"]]) {
     const btn = byId(id);
     if (!btn) continue;
     // Keep the icon; only swap the trailing text node.
@@ -1781,6 +1829,10 @@ function bindEvents() {
 
   if (hasEl("export-qr-only-button")) {
     byId("export-qr-only-button").addEventListener("click", exportQrOnlyForPrint);
+  }
+
+  if (hasEl("export-doorhanger-button")) {
+    byId("export-doorhanger-button").addEventListener("click", exportDoorhangersForPrint);
   }
 
   if (hasEl("pq-batch-filter")) {

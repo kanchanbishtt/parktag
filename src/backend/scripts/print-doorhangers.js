@@ -24,7 +24,7 @@ import { getEnv } from "../lib/env.js";
 import { getCollections } from "../lib/db/repositories.js";
 import { stickerSerialFor, batchKeyFor } from "../lib/core/tag-issuance.js";
 import { DOORHANGER_FREE_CONTACTS } from "../lib/core/call-access.js";
-import { renderDoorhangers } from "./doorhanger/template.js";
+import { renderDoorhangers } from "../lib/print/doorhanger/template.js";
 
 const DEFAULT_SCAN_BASE = "https://app.parktag.me";
 

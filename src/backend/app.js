@@ -26,6 +26,7 @@ import { registerSlackCommandRoutes } from "./routes/webhooks/slack.js";
 import { registerAdminRoutes } from "./routes/admin/index.js";
 import { registerAdminTrafficRoutes } from "./routes/admin/traffic.js";
 import { registerAdminMarketingRoutes } from "./routes/admin/marketing.js";
+import { registerAdminDoorhangerRoutes } from "./routes/admin/doorhangers.js";
 import { registerAdminPromoCodeRoutes } from "./routes/admin/promo-codes.js";
 import { registerAdminReviewRoutes } from "./routes/admin/reviews.js";
 import { registerAuthRoutes } from "./routes/auth/credentials.js";
@@ -1399,6 +1400,7 @@ export async function buildApp() {
   registerAdminRoutes(app, env);
   registerAdminTrafficRoutes(app, env);
   registerAdminMarketingRoutes(app, env);
+  registerAdminDoorhangerRoutes(app, env);
   registerAdminPromoCodeRoutes(app, env);
   registerAdminReviewRoutes(app, env);
   registerAnalyticsRoutes(app, env);

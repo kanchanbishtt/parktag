@@ -179,12 +179,15 @@ inclDel.addEventListener("change", load);
 batchSel.addEventListener("change", load);
 
 // Batch options, then the first load. A link from the Issuance page arrives as
-// ?batch=<key>&claim=all, so those preselect before anything is fetched.
+// ?batch=<key>&claim=all, and one from the Owners page as ?q=<serial>, so
+// those preselect before anything is fetched.
 async function init() {
   const url = new URLSearchParams(location.search);
   const wantedBatch = url.get("batch") || "";
   const wantedClaim = url.get("claim") || "";
   if ([...claimSel.options].some((o) => o.value === wantedClaim)) claimSel.value = wantedClaim;
+  const wantedQuery = (url.get("q") || "").trim();
+  if (wantedQuery) qInput.value = wantedQuery;
 
   try {
     const res = await fetch("/api/admin/tag-batches");

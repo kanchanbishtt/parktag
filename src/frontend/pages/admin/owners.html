@@ -11,6 +11,35 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+      .ow-toolbar { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+      .ow-toolbar .pt-admin-input { flex: 1 1 280px; max-width: 420px; }
+      .ow-toggle { display: inline-flex; gap: 6px; align-items: center; font-size: 0.85rem; color: #374151; cursor: pointer; }
+      .ow-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+      .ow-table th { text-align: left; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #6B7280; padding: 8px 12px; border-bottom: 1px solid #E5E7EB; }
+      .ow-table td { padding: 12px; border-bottom: 1px solid #F3F4F6; vertical-align: top; color: #323232; }
+      .ow-table tr:last-child td { border-bottom: none; }
+      .ow-name { font-weight: 700; margin: 0; }
+      .ow-muted { color: #9CA3AF; }
+      .ow-small { font-size: 0.8rem; color: #6B7280; margin: 2px 0 0; overflow-wrap: anywhere; }
+      .ow-badge { display: inline-block; font-size: 0.68rem; font-weight: 700; padding: 2px 7px; border-radius: 20px; margin-left: 6px; vertical-align: 1px; background: #F3F4F6; color: #374151; }
+      .ow-badge[data-tone="demo"] { background: #FEF3C7; color: #92400E; }
+      .ow-badge[data-tone="premium"] { background: #FFE4DE; color: #C2410C; }
+      .ow-badge[data-tone="ok"] { background: #DCFCE7; color: #166534; }
+      .ow-badge[data-tone="warn"] { background: #FEE2E2; color: #B91C1C; }
+      .ow-tags { display: grid; gap: 8px; }
+      .ow-tag { display: block; text-decoration: none; color: inherit; border: 1px solid #E5E7EB; border-radius: 10px; padding: 8px 10px; }
+      .ow-tag:hover, .ow-tag:focus-visible { border-color: #FF2700; }
+      .ow-tag-plate { font-weight: 700; }
+      .ow-num { font-weight: 700; }
+      @media screen and (max-width: 760px) {
+        .ow-table thead { display: none; }
+        .ow-table, .ow-table tbody, .ow-table tr, .ow-table td { display: block; width: 100%; box-sizing: border-box; }
+        .ow-table tr { border: 1px solid #E5E7EB; border-radius: 12px; margin-bottom: 12px; padding: 4px 0; }
+        .ow-table td { border: none; padding: 6px 14px; }
+        .ow-table td[data-label]::before { content: attr(data-label); display: block; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #9CA3AF; margin-bottom: 2px; }
+      }
+    </style>
   </head>
   <body class="pt-admin-body">
     <div class="pt-admin-shell" data-admin-page="owners">
@@ -22,9 +51,13 @@
         <nav class="pt-admin-nav">
           <span class="pt-admin-nav-section">Management</span>
           <a class="pt-admin-nav-item" href="/admin/overview"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="14" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="3" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="14" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/></svg> Overview</a>
+          <a class="pt-admin-nav-item" href="/admin/etags"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 7a2 2 0 0 1 2-2h6l8 8a2 2 0 0 1 0 2.8l-4.2 4.2a2 2 0 0 1-2.8 0L4 12V7Z" stroke="currentColor" stroke-width="2"/><circle cx="7.5" cy="9.5" r="1.5" fill="currentColor"/></svg> Tags</a>
+          <a class="pt-admin-nav-item" href="/admin/activations"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M20 6 9 17l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Activations</a>
           <a class="pt-admin-nav-item" href="/admin/issuance"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="14" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="3" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><path d="M14 14h2v2h-2zM18 14h3M14 18v3M18 18h3v3h-3z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Batch Issuance</a>
           <a class="pt-admin-nav-item" href="/admin/print-queue"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v8H6z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Print Queue</a>
+          <a class="pt-admin-nav-item" href="/admin/marketing"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 11v2a1 1 0 0 0 1 1h2l4 4V6L6 10H4a1 1 0 0 0-1 1Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M16 8.5a4 4 0 0 1 0 7M19 5.5a8 8 0 0 1 0 13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Field Demo</a>
           <span class="pt-admin-nav-section">Monitoring</span>
+          <a class="pt-admin-nav-item" href="/admin/traffic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M3 12h18M12 3c2.5 2.7 2.5 15.3 0 18M12 3c-2.5 2.7-2.5 15.3 0 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Traffic</a>
           <a class="pt-admin-nav-item is-active" href="/admin/owners"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="2"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Owners</a>
           <a class="pt-admin-nav-item" href="/admin/activity"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M22 12h-4l-3 9L9 3l-3 9H2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Activity Feed</a>
           <a class="pt-admin-nav-item" href="/admin/admins"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 2L4 6v6c0 5.25 3.5 9.74 8 11 4.5-1.26 8-5.75 8-11V6l-8-4Z" stroke="currentColor" stroke-width="2"/></svg> Admin Management</a>
@@ -39,17 +72,21 @@
         <div class="pt-admin-page-header">
           <p class="pt-admin-eyebrow">Monitoring</p>
           <h1 class="pt-admin-page-title">Owner accounts</h1>
-          <p class="pt-admin-page-sub">Review owners, tag counts, active tags, and activity.</p>
+          <p class="pt-admin-page-sub">Find a customer and see their tags, membership and orders.</p>
         </div>
 
         <div class="pt-admin-card">
           <div class="pt-admin-card-header">
             <div>
               <h2 class="pt-admin-card-title">All owners</h2>
-              <p class="pt-admin-card-sub">Every registered owner on the platform.</p>
+              <p class="pt-admin-card-sub" id="owners-count">Loading…</p>
             </div>
           </div>
-          <div id="owner-monitor-list"><p class="pt-admin-empty">No owner data loaded yet.</p></div>
+          <div class="ow-toolbar">
+            <input id="owners-search" class="pt-admin-input" type="search" placeholder="Search name, phone, email, plate or sticker link" autocomplete="off" />
+            <label class="ow-toggle"><input id="owners-show-demo" type="checkbox" /> Show demo accounts</label>
+          </div>
+          <div id="owner-monitor-list"><p class="pt-admin-empty">Loading owners…</p></div>
         </div>
 
         <p id="admin-auth-status" class="pt-admin-status" data-tone="info"></p>

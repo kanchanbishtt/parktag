@@ -26,6 +26,25 @@ function dayKeyDaysAgo(back) {
   return istDayKey(d);
 }
 
+// Landing views only. The app records into the same collection (see
+// recordAppPageVisit), and letting those into this summary would move every
+// historical marketing number the day the app started counting.
+function landingViewFilter(from, to) {
+  return { day: { $gte: from, $lte: to }, site: { $ne: "app" }, path: { $not: PROBE_PATH_RE } };
+}
+
+// The headline totals of GET /api/admin/traffic?days=N, for the admin overview.
+// Same window and filter as the page, so the two numbers always agree.
+export async function landingTotals(collections, days) {
+  const from = dayKeyDaysAgo(days - 1);
+  const to = dayKeyDaysAgo(0);
+  const rows = await collections.landingVisits
+    .find(landingViewFilter(from, to), { projection: { _id: 0, visitorHash: 1 } })
+    .toArray();
+  const visitors = new Set(rows.map((row) => row.visitorHash).filter(Boolean));
+  return { days, views: rows.length, visitors: visitors.size };
+}
+
 // One pass over the window, grouped several ways. Small enough to do in code:
 // at the volume a marketing page produces, a single find() over an indexed day
 // range is cheaper than several aggregation pipelines, and it keeps the
@@ -138,10 +157,7 @@ export function registerAdminTrafficRoutes(app, env) {
 
     const rows = await collections.landingVisits
       .find(
-        // Landing views only. The app records into the same collection (see
-        // recordAppPageVisit), and letting those into this summary would move
-        // every historical marketing number the day the app started counting.
-        { day: { $gte: from, $lte: to }, site: { $ne: "app" }, path: { $not: PROBE_PATH_RE } },
+        landingViewFilter(from, to),
         {
           // Only what the summary groups on. Keeps a busy month's worth of
           // documents small in memory.

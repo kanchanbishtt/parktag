@@ -4698,6 +4698,64 @@ html:has(body.pt-hub-body) {
   overflow-y: auto;
 }
 
+/* Menu button and backdrop for the phone drawer; added by scripts/admin/index.js
+   and hidden everywhere except phone width. */
+.pt-admin-menu-btn,
+.pt-admin-backdrop { display: none; }
+
+/* Phone width: the 240px sidebar would take half the screen, so it slides in
+   from the left on the Menu button and is closed again on every page. Screen
+   only: an A4 print is narrower than this, and the print queue's sheets must
+   not pick it up. */
+@media screen and (max-width: 760px) {
+  .pt-admin-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 1001;
+    width: min(280px, 85vw);
+    height: 100vh;
+    height: 100dvh;
+    transform: translateX(-100%);
+    visibility: hidden;
+    transition: transform 0.2s ease, visibility 0s linear 0.2s;
+    box-shadow: 0 0 24px rgba(0, 0, 0, 0.18);
+  }
+  .pt-admin-shell.is-menu-open .pt-admin-sidebar {
+    transform: none;
+    visibility: visible;
+    transition: transform 0.2s ease;
+  }
+  .pt-admin-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: rgba(17, 24, 39, 0.4);
+  }
+  .pt-admin-shell.is-menu-open .pt-admin-backdrop { display: block; }
+  .pt-admin-menu-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 16px;
+    padding: 8px 14px;
+    border: 1px solid #E5E7EB;
+    border-radius: 10px;
+    background: #fff;
+    color: #323232;
+    font: inherit;
+    font-size: 0.88rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .pt-admin-main { padding: 16px 16px 40px; }
+}
+
+@media screen and (max-width: 760px) and (prefers-reduced-motion: reduce) {
+  .pt-admin-sidebar,
+  .pt-admin-shell.is-menu-open .pt-admin-sidebar { transition: none; }
+}
+
 .pt-admin-page-header {
   margin-bottom: 24px;
 }

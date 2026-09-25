@@ -958,6 +958,116 @@ async function loadAdminOverview() {
   return data;
 }
 
+// ── Overview: one number per admin page, each card linking to that page ──
+function formatCount(value) {
+  return Number(value || 0).toLocaleString("en-IN");
+}
+
+function timeAgo(iso) {
+  if (!iso) return "";
+  const seconds = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
+  if (seconds < 60) return "just now";
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  // Clamped at both ends so the boundaries never read "0 yrs" or "12 mo".
+  if (days < 365) return `${Math.min(11, Math.max(1, Math.round(days / 30.44)))} mo ago`;
+  const years = Math.max(1, Math.round(days / 365.25));
+  return `${years} yr${years === 1 ? "" : "s"} ago`;
+}
+
+function overviewCard({ href, label, value, sub }) {
+  return `
+    <a class="pt-admin-stat" href="${esc(href)}">
+      <p class="pt-admin-stat-label">${esc(label)}</p>
+      <p class="pt-admin-stat-value">${esc(formatCount(value))}</p>
+      ${sub ? `<p class="ov-sub">${esc(sub)}</p>` : ""}
+    </a>`;
+}
+
+function renderOverviewSummary(data) {
+  const target = byId("overview-summary");
+  if (!target) return;
+
+  const s = data.summary;
+  const days = data.windowDays;
+  const sections = [
+    {
+      title: "Needs attention",
+      cards: [
+        { href: "/admin/activations", label: "Sold, not activated", value: s.activations.awaiting, sub: "Paid or COD orders with no live tag yet" },
+        { href: "/admin/print-queue", label: "Unprinted tags", value: s.printQueue.unprinted, sub: "Waiting in the print queue" },
+        { href: "/admin/activity", label: `Failed contacts (${days}d)`, value: s.contacts.failed, sub: "Calls or messages the provider could not deliver" }
+      ]
+    },
+    {
+      title: "Customers",
+      cards: [
+        { href: "/admin/owners", label: "Owners", value: s.owners.total, sub: `+${formatCount(s.owners.new)} in the last ${days} days` },
+        { href: "/admin/etags", label: "Customer tags", value: s.tags.customer, sub: `${formatCount(s.tags.active)} active` },
+        { href: "/admin/activations", label: "Premium tags live", value: s.activations.premiumLive, sub: "Activated premium tags" },
+        { href: "/admin/activations", label: "E-Tag stickers activated", value: s.activations.etag, sub: "Issued stickers with an owner" }
+      ]
+    },
+    {
+      title: "Stock",
+      cards: [
+        { href: "/admin/issuance", label: "Batches issued", value: s.batches.count, sub: `${formatCount(s.batches.issued)} tags · ${formatCount(s.batches.activated)} activated` },
+        { href: "/admin/print-queue", label: "Printed, awaiting claim", value: s.printQueue.printedAwaitingClaim, sub: "Printed stickers nobody has claimed" },
+        { href: "/admin/marketing", label: "Field demo stickers", value: s.fieldDemo.units, sub: `${formatCount(s.fieldDemo.available)} available · ${formatCount(s.fieldDemo.activated)} activated · ${formatCount(s.fieldDemo.sold)} sold` }
+      ]
+    },
+    {
+      title: `Usage · last ${days} days`,
+      cards: [
+        { href: "/admin/activity", label: "Contact requests", value: s.contacts.new, sub: `${formatCount(s.contacts.total)} all-time` },
+        { href: "/admin/traffic", label: "Site visitors", value: s.traffic.visitors, sub: `${formatCount(s.traffic.views)} page views` }
+      ]
+    }
+  ];
+
+  target.innerHTML = sections
+    .map((section) => `
+      <p class="ov-section-title">${esc(section.title)}</p>
+      <div class="pt-admin-stats">${section.cards.map(overviewCard).join("")}</div>`)
+    .join("");
+}
+
+function renderOverviewLatest(items) {
+  const target = byId("overview-latest");
+  if (!target) return;
+
+  if (!items?.length) {
+    target.innerHTML = `<p class="pt-admin-empty">Nothing yet.</p>`;
+    return;
+  }
+
+  target.innerHTML = items
+    .map((item) => {
+      const what = item.kind === "registration"
+        ? "Signed up"
+        : ["Contact request", item.action && `${item.action}${item.channel ? ` (${item.channel})` : ""}`, item.status]
+            .filter(Boolean)
+            .join(" · ");
+      return `
+        <div class="pt-admin-row">
+          <p class="pt-admin-row-title">${esc(item.title)}</p>
+          <p class="pt-admin-row-meta">${esc(what)} · ${esc(timeAgo(item.at))}</p>
+        </div>`;
+    })
+    .join("");
+}
+
+async function loadOverviewSummary() {
+  const data = await fetchJson("/api/admin/overview/summary");
+  renderOverviewSummary(data);
+  renderOverviewLatest(data.latest);
+  return data;
+}
+
 async function seedAdminDemo() {
   try {
     const data = await fetchJson("/api/demo/seed", {
@@ -1194,32 +1304,87 @@ function switchPqTab(printed) {
 }
 window.switchPqTab = switchPqTab;
 
+// What a premium tag's cover looks like today, in a few words.
+function membershipBadge(membership) {
+  if (!membership) return "";
+  const left = `${formatCount(membership.daysLeft)}d left`;
+  if (membership.state === "trial") return `<span class="ow-badge" data-tone="ok">Free year · ${left}</span>`;
+  if (membership.state === "subscribed") return `<span class="ow-badge" data-tone="ok">Member · ${left}</span>`;
+  if (membership.state === "open") return `<span class="ow-badge" data-tone="ok">Member · no end date</span>`;
+  if (membership.state === "lapsed") return `<span class="ow-badge" data-tone="warn">Membership lapsed</span>`;
+  return "";
+}
+
+function ownerTagHtml(tag) {
+  const title = tag.plateNumber || tag.vehicleLabel || "No plate yet";
+  return `
+    <a class="ow-tag" href="/admin/etags?q=${encodeURIComponent(tag.serial)}" title="Open in Tags">
+      <span class="ow-tag-plate">${esc(title)}</span>
+      <span class="ow-badge"${tag.premium ? ` data-tone="premium"` : ""}>${tag.premium ? "Premium" : "E-Tag"}</span>
+      ${tag.status !== "active" ? `<span class="ow-badge" data-tone="warn">${esc(tag.status || "inactive")}</span>` : ""}
+      ${tag.demoSticker ? `<span class="ow-badge" data-tone="demo">Demo sticker</span>` : ""}
+      ${membershipBadge(tag.membership)}
+      <p class="ow-small">${esc(tag.serial)}${tag.plateNumber && tag.vehicleLabel ? ` · ${esc(tag.vehicleLabel)}` : ""}</p>
+    </a>`;
+}
+
+function ownerRowHtml(owner) {
+  const name = owner.displayName
+    ? `<p class="ow-name">${esc(owner.displayName)}${owner.demo ? `<span class="ow-badge" data-tone="demo">Demo</span>` : ""}</p>`
+    : `<p class="ow-name ow-muted">Unnamed owner${owner.demo ? `<span class="ow-badge" data-tone="demo">Demo</span>` : ""}</p>`;
+  const contact = [owner.mobile, owner.email].filter(Boolean);
+  const tags = owner.tagList || [];
+  const joined = owner.createdAt ? new Date(owner.createdAt) : null;
+  return `
+    <tr>
+      <td data-label="Owner">${name}</td>
+      <td data-label="Contact">${contact.length ? contact.map((c) => `<p class="ow-small">${esc(c)}</p>`).join("") : `<span class="ow-muted">—</span>`}</td>
+      <td data-label="Tags">${tags.length ? `<div class="ow-tags">${tags.map(ownerTagHtml).join("")}</div>` : `<span class="ow-muted">No tags</span>`}</td>
+      <td data-label="Orders"><span class="ow-num">${esc(formatCount(owner.orders))}</span></td>
+      <td data-label="Joined">${joined && !Number.isNaN(joined.getTime())
+        ? `${esc(joined.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }))}<p class="ow-small">${esc(timeAgo(owner.createdAt))}</p>`
+        : `<span class="ow-muted">—</span>`}</td>
+    </tr>`;
+}
+
+// Each keystroke starts a request; only the newest one may paint, so a slow
+// earlier search can never overwrite the results of a later one.
+let _ownersRequest = 0;
+
 async function loadOwners() {
   const target = byId("owner-monitor-list");
+  const countEl = byId("owners-count");
+  const q = byId("owners-search")?.value.trim() || "";
+  const params = new URLSearchParams();
+  if (q) params.set("q", q);
+  if (byId("owners-show-demo")?.checked) params.set("demo", "include");
+  const requestId = ++_ownersRequest;
+
   try {
-    const data = await fetchJson("/api/admin/owners");
-    if (!target) return;
+    const data = await fetchJson(`/api/admin/owners${params.toString() ? `?${params}` : ""}`);
+    if (requestId !== _ownersRequest || !target) return;
+
+    if (countEl) {
+      const shown = data.truncated ? `Showing the newest ${formatCount(data.returned)} of ${formatCount(data.total)}` : `${formatCount(data.total)}`;
+      // A pasted sticker link carries the tag's token; don't echo it back.
+      const echo = q.length > 40 ? "your search" : `“${q}”`;
+      countEl.textContent = `${shown} ${data.total === 1 ? "owner" : "owners"}${q ? ` matching ${echo}` : ""}.`;
+    }
+
     if (!data.owners.length) {
-      target.innerHTML = `<p class="empty-copy">No owners registered yet.</p>`;
+      target.innerHTML = `<p class="pt-admin-empty">${q ? "No owners match that search." : "No owners registered yet."}</p>`;
       return;
     }
-    target.innerHTML = data.owners.map((owner) => `
-      <article class="monitor-card">
-        <div>
-          <strong>${esc(owner.displayName)}</strong>
-          <p>${esc(owner.email)}</p>
-          <p>${esc(owner.phone || "")}</p>
-        </div>
-        <div class="monitor-meta">
-          <span>Credits: ${esc(owner.credits)}</span>
-          <span>Tags: ${esc(owner.tags)}</span>
-          <span>Active: ${esc(owner.activeTags)}</span>
-          ${owner.tagTokens?.map(t => `<span>Token: ${esc(t)}</span>`).join("") || ""}
-          <span>Joined: ${esc(new Date(owner.createdAt).toLocaleString())}</span>
-        </div>
-      </article>`).join("");
+
+    target.innerHTML = `
+      <table class="ow-table">
+        <thead><tr><th>Owner</th><th>Contact</th><th>Tags</th><th>Orders</th><th>Joined</th></tr></thead>
+        <tbody>${data.owners.map(ownerRowHtml).join("")}</tbody>
+      </table>`;
   } catch (error) {
-    if (target) target.innerHTML = `<p class="empty-copy">Failed to load owners.</p>`;
+    if (requestId !== _ownersRequest) return;
+    if (countEl) countEl.textContent = "";
+    if (target) target.innerHTML = `<p class="pt-admin-empty">Failed to load owners.</p>`;
   }
 }
 
@@ -1347,9 +1512,11 @@ async function refreshCurrentPage() {
   try {
     const page = currentAdminPage();
 
-    if (page === "overview" || page === "issuance") {
+    if (page === "overview") {
+      await loadOverviewSummary();
+    } else if (page === "issuance") {
       await loadAdminOverview();
-      if (page === "issuance") await loadBatchSummary();
+      await loadBatchSummary();
     } else if (page === "print-queue") {
       await loadPrintQueue();
     } else if (page === "owners") {
@@ -1443,6 +1610,18 @@ function bindEvents() {
     byId("admin-refresh-button").addEventListener("click", refreshCurrentPage);
   }
 
+  if (hasEl("owners-search")) {
+    let timer = null;
+    byId("owners-search").addEventListener("input", () => {
+      clearTimeout(timer);
+      timer = setTimeout(loadOwners, 300);
+    });
+  }
+
+  if (hasEl("owners-show-demo")) {
+    byId("owners-show-demo").addEventListener("change", loadOwners);
+  }
+
   if (hasEl("issue-tag-button")) {
     byId("issue-tag-button").addEventListener("click", issueTag);
   }
@@ -1521,6 +1700,50 @@ function bindEvents() {
   }
 }
 
+// Phone-width menu. The sidebar stays the navigation; below 760px the CSS
+// parks it off-screen and this adds the button that slides it in. Every page
+// starts with it closed, including one restored by the back button.
+function setupAdminMenu() {
+  const shell = document.querySelector(".pt-admin-shell");
+  const sidebar = shell?.querySelector(".pt-admin-sidebar");
+  const main = shell?.querySelector(".pt-admin-main");
+  if (!shell || !sidebar || !main) return;
+
+  if (!sidebar.id) sidebar.id = "pt-admin-sidebar";
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "pt-admin-menu-btn";
+  button.setAttribute("aria-controls", sidebar.id);
+  button.setAttribute("aria-expanded", "false");
+  button.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Menu`;
+  main.prepend(button);
+
+  const backdrop = document.createElement("div");
+  backdrop.className = "pt-admin-backdrop";
+  shell.append(backdrop);
+
+  const setOpen = (open) => {
+    shell.classList.toggle("is-menu-open", open);
+    button.setAttribute("aria-expanded", String(open));
+    if (open) sidebar.querySelector(".pt-admin-nav-item.is-active, .pt-admin-nav-item")?.focus();
+  };
+
+  button.addEventListener("click", () => setOpen(!shell.classList.contains("is-menu-open")));
+  backdrop.addEventListener("click", () => setOpen(false));
+  sidebar.addEventListener("click", (event) => {
+    if (event.target.closest("a")) setOpen(false);
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && shell.classList.contains("is-menu-open")) {
+      setOpen(false);
+      button.focus();
+    }
+  });
+  window.addEventListener("pageshow", () => setOpen(false));
+}
+
+setupAdminMenu();
 bindEvents();
 
 // Show Google auth errors redirected back from the server

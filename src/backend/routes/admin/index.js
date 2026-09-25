@@ -13,7 +13,7 @@ import {
   batchKeyFor,
   stickerSerialFor
 } from "../../lib/core/tag-issuance.js";
-import { NOT_MARKETING_STOCK, NOT_DEMO_OWNER } from "../../lib/core/marketing-stock.js";
+import { NOT_MARKETING_STOCK, NOT_DEMO_OWNER, demoState } from "../../lib/core/marketing-stock.js";
 import {
   parseBatchKey,
   rawBatchValuesFor,
@@ -22,6 +22,8 @@ import {
   batchCsv
 } from "../../lib/core/tag-batches.js";
 import { orderBreakdown, breakdownText } from "../../lib/core/order-breakdown.js";
+import { landingTotals } from "./traffic.js";
+import { membershipCountdown } from "../../lib/core/membership-fulfilment.js";
 
 // Order the print queue the way the sheets should come off the printer: newest
 // batch first, and inside a batch ascending by the serial printed on the sticker.
@@ -88,6 +90,135 @@ function orderForPrinting(tags) {
 // client chunking larger than the server accepts would get a 400 on every
 // request of a long print run.
 const EXPORT_MAX_PER_REQUEST = 250;
+
+// Both lists behind the Activations page, shared with the overview summary so
+// the number on the overview is the same one the page shows.
+async function buildActivations(collections) {
+  // ACTIVATED = live premium tags. `premium: true` is the single source of
+  // truth for "this is an activated premium tag" — it is only ever stamped by
+  // real premium activation (the paid upgrade that mints the tag). We surface
+  // ALL premium tags and label each by whether it is live (status active) or
+  // sitting inactive, so the list is accurate to the tag data, not inferred.
+  // Demo stock is premium too, so without this exclusion the shelf shows up
+  // here as ordinary premium inventory: sitting "inactive" at rest, and
+  // mid-demo appearing as a live activation belonging to a customer who may
+  // well have walked away without buying anything.
+  const premiumTags = await collections.tags
+    .find({ premium: true, deletedAt: { $in: [null, undefined] }, ...NOT_MARKETING_STOCK })
+    .sort({ premiumSince: -1, createdAt: -1 })
+    .toArray();
+
+  // UNACTIVATED = genuinely SOLD orders (paid = prepaid completed, or cod = real
+  // COD order — never "created", an abandoned checkout) whose buyer has NOT yet
+  // ended up with a live premium tag.
+  const orders = await collections.shopOrders
+    .find({ status: { $in: ["paid", "cod"] }, deletedAt: { $in: [null, undefined] } })
+    .sort({ createdAt: -1 })
+    .toArray();
+
+  // Only the owners actually referenced by the rows above, rather than the
+  // whole collection. Both lists are joined by Map lookup, so this was linear
+  // rather than quadratic — but it still pulled every owner document (and
+  // every field on it, including credentials) across the wire on each load,
+  // growing with the customer base for no benefit.
+  const referencedOwnerIds = [
+    ...new Set(
+      [...premiumTags, ...orders]
+        .map((row) => (row.ownerId ? String(row.ownerId) : null))
+        .filter(Boolean)
+    )
+  ]
+    .map((id) => { try { return new ObjectId(id); } catch { return null; } })
+    .filter(Boolean);
+
+  const owners = referencedOwnerIds.length
+    ? await collections.owners
+        .find(
+          { _id: { $in: referencedOwnerIds } },
+          { projection: { displayName: 1, email: 1, mobile: 1, phone: 1 } }
+        )
+        .toArray()
+    : [];
+  const ownerMap = Object.fromEntries(owners.map((o) => [String(o._id), o]));
+
+  const activated = premiumTags.map((t) => {
+    const o = ownerMap[String(t.ownerId)] || {};
+    return {
+      id: String(t._id),
+      etagId: etagIdFor(t._id),
+      // This list is where the serialled stock actually lives: it filters on
+      // `premium` alone, with no ownerId condition, so it also covers printed
+      // stickers nobody has activated yet. The E-Tags list cannot — it
+      // requires an owner, and today every serialled tag is still unclaimed.
+      serial: stickerSerialFor(t),
+      plateNumber: t.plateNumber || null,
+      vehicleLabel: t.vehicleLabel || t.vehicleType || null,
+      status: t.status,
+      ownerName: o.displayName || null,
+      ownerEmail: o.email || null,
+      ownerMobile: o.mobile || o.phone || null,
+      // Same source chain premiumTrialEndsAt() uses, deliberately. This
+      // column is where you go to check when somebody's free window
+      // opened, so it must not answer with the print run while the
+      // entitlement is counting from activation.
+      activatedAt: t.premiumSince || t.activatedAt || t.createdAt || null
+    };
+  });
+
+  // Owners who already hold at least one LIVE premium tag have demonstrably
+  // activated — so a sold order from them is fulfilled and must NOT appear as a
+  // reminder. This is the accurate cross-check, because in the real data most
+  // orders are physical-tag packs that carry no mintedTagId/replaceTagId link
+  // to the tag they eventually activate; the owner→premium-tag relationship is
+  // the reliable signal that activation happened.
+  const ownersWithActivePremium = new Set(
+    premiumTags
+      .filter((t) => t.status === "active" && t.ownerId)
+      .map((t) => String(t.ownerId))
+  );
+
+  // `orders` is fetched above, before the owner lookup, so that the owner
+  // query can be scoped to the ids these rows actually reference. An order
+  // counts as activated when it minted a premium tag (mintedTagId), its
+  // replace-target free tag was upgraded away, OR the owner now holds a live
+  // premium tag.
+  const unactivated = [];
+  for (const ord of orders) {
+    const ownerKey = ord.ownerId ? String(ord.ownerId) : null;
+    let isActivated = Boolean(ord.mintedTagId) ||
+      (ownerKey ? ownersWithActivePremium.has(ownerKey) : false);
+    if (!isActivated && ord.replaceTagId) {
+      let rtId = null;
+      try { rtId = new ObjectId(String(ord.replaceTagId)); } catch { rtId = null; }
+      const rt = rtId ? await collections.tags.findOne({ _id: rtId }) : null;
+      // The free tag is gone or now premium ⇒ this order was fulfilled.
+      if (!rt || rt.deletedAt || rt.premium) isActivated = true;
+    }
+    if (isActivated) continue;
+
+    const o = ownerMap[ownerKey] || {};
+    const ship = ord.shippingAddress || {};
+    const mobile = ship.phone || o.mobile || o.phone || null;
+    // Skip pure junk rows (no owner AND no contact number = un-actionable).
+    if (!ownerKey && !mobile) continue;
+    unactivated.push({
+      id: String(ord._id),
+      orderNumber: ord.orderNumber || ord.orderId || null,
+      productName: ord.productName || null,
+      // What the buyer was charged, line by line, off the stored order.
+      priceBreakdown: breakdownText(orderBreakdown(ord)) || null,
+      paymentMethod: ord.paymentMethod || (ord.status === "cod" ? "cod" : "prepaid"),
+      orderStatus: ord.status || null,
+      waybill: ord.waybill || null,
+      ownerName: o.displayName || ship.name || null,
+      ownerEmail: o.email || null,
+      ownerMobile: mobile,
+      placedAt: ord.createdAt || null
+    });
+  }
+
+  return { activated, unactivated };
+}
 
 export function registerAdminRoutes(app, env) {
   // ── E-Tag management (spec §10) ───────────────────────────────────
@@ -431,129 +562,7 @@ export function registerAdminRoutes(app, env) {
     if (blocked) return blocked;
 
     const collections = await getCollections(env);
-
-    // ACTIVATED = live premium tags. `premium: true` is the single source of
-    // truth for "this is an activated premium tag" — it is only ever stamped by
-    // real premium activation (the paid upgrade that mints the tag). We surface
-    // ALL premium tags and label each by whether it is live (status active) or
-    // sitting inactive, so the list is accurate to the tag data, not inferred.
-    // Demo stock is premium too, so without this exclusion the shelf shows up
-    // here as ordinary premium inventory: sitting "inactive" at rest, and
-    // mid-demo appearing as a live activation belonging to a customer who may
-    // well have walked away without buying anything.
-    const premiumTags = await collections.tags
-      .find({ premium: true, deletedAt: { $in: [null, undefined] }, ...NOT_MARKETING_STOCK })
-      .sort({ premiumSince: -1, createdAt: -1 })
-      .toArray();
-
-    // UNACTIVATED = genuinely SOLD orders (paid = prepaid completed, or cod = real
-    // COD order — never "created", an abandoned checkout) whose buyer has NOT yet
-    // ended up with a live premium tag.
-    const orders = await collections.shopOrders
-      .find({ status: { $in: ["paid", "cod"] }, deletedAt: { $in: [null, undefined] } })
-      .sort({ createdAt: -1 })
-      .toArray();
-
-    // Only the owners actually referenced by the rows above, rather than the
-    // whole collection. Both lists are joined by Map lookup, so this was linear
-    // rather than quadratic — but it still pulled every owner document (and
-    // every field on it, including credentials) across the wire on each load,
-    // growing with the customer base for no benefit.
-    const referencedOwnerIds = [
-      ...new Set(
-        [...premiumTags, ...orders]
-          .map((row) => (row.ownerId ? String(row.ownerId) : null))
-          .filter(Boolean)
-      )
-    ]
-      .map((id) => { try { return new ObjectId(id); } catch { return null; } })
-      .filter(Boolean);
-
-    const owners = referencedOwnerIds.length
-      ? await collections.owners
-          .find(
-            { _id: { $in: referencedOwnerIds } },
-            { projection: { displayName: 1, email: 1, mobile: 1, phone: 1 } }
-          )
-          .toArray()
-      : [];
-    const ownerMap = Object.fromEntries(owners.map((o) => [String(o._id), o]));
-
-    const activated = premiumTags.map((t) => {
-      const o = ownerMap[String(t.ownerId)] || {};
-      return {
-        id: String(t._id),
-        etagId: etagIdFor(t._id),
-        // This list is where the serialled stock actually lives: it filters on
-        // `premium` alone, with no ownerId condition, so it also covers printed
-        // stickers nobody has activated yet. The E-Tags list cannot — it
-        // requires an owner, and today every serialled tag is still unclaimed.
-        serial: stickerSerialFor(t),
-        plateNumber: t.plateNumber || null,
-        vehicleLabel: t.vehicleLabel || t.vehicleType || null,
-        status: t.status,
-        ownerName: o.displayName || null,
-        ownerEmail: o.email || null,
-        ownerMobile: o.mobile || o.phone || null,
-        // Same source chain premiumTrialEndsAt() uses, deliberately. This
-        // column is where you go to check when somebody's free window
-        // opened, so it must not answer with the print run while the
-        // entitlement is counting from activation.
-        activatedAt: t.premiumSince || t.activatedAt || t.createdAt || null
-      };
-    });
-
-    // Owners who already hold at least one LIVE premium tag have demonstrably
-    // activated — so a sold order from them is fulfilled and must NOT appear as a
-    // reminder. This is the accurate cross-check, because in the real data most
-    // orders are physical-tag packs that carry no mintedTagId/replaceTagId link
-    // to the tag they eventually activate; the owner→premium-tag relationship is
-    // the reliable signal that activation happened.
-    const ownersWithActivePremium = new Set(
-      premiumTags
-        .filter((t) => t.status === "active" && t.ownerId)
-        .map((t) => String(t.ownerId))
-    );
-
-    // `orders` is fetched above, before the owner lookup, so that the owner
-    // query can be scoped to the ids these rows actually reference. An order
-    // counts as activated when it minted a premium tag (mintedTagId), its
-    // replace-target free tag was upgraded away, OR the owner now holds a live
-    // premium tag.
-    const unactivated = [];
-    for (const ord of orders) {
-      const ownerKey = ord.ownerId ? String(ord.ownerId) : null;
-      let isActivated = Boolean(ord.mintedTagId) ||
-        (ownerKey ? ownersWithActivePremium.has(ownerKey) : false);
-      if (!isActivated && ord.replaceTagId) {
-        let rtId = null;
-        try { rtId = new ObjectId(String(ord.replaceTagId)); } catch { rtId = null; }
-        const rt = rtId ? await collections.tags.findOne({ _id: rtId }) : null;
-        // The free tag is gone or now premium ⇒ this order was fulfilled.
-        if (!rt || rt.deletedAt || rt.premium) isActivated = true;
-      }
-      if (isActivated) continue;
-
-      const o = ownerMap[ownerKey] || {};
-      const ship = ord.shippingAddress || {};
-      const mobile = ship.phone || o.mobile || o.phone || null;
-      // Skip pure junk rows (no owner AND no contact number = un-actionable).
-      if (!ownerKey && !mobile) continue;
-      unactivated.push({
-        id: String(ord._id),
-        orderNumber: ord.orderNumber || ord.orderId || null,
-        productName: ord.productName || null,
-        // What the buyer was charged, line by line, off the stored order.
-        priceBreakdown: breakdownText(orderBreakdown(ord)) || null,
-        paymentMethod: ord.paymentMethod || (ord.status === "cod" ? "cod" : "prepaid"),
-        orderStatus: ord.status || null,
-        waybill: ord.waybill || null,
-        ownerName: o.displayName || ship.name || null,
-        ownerEmail: o.email || null,
-        ownerMobile: mobile,
-        placedAt: ord.createdAt || null
-      });
-    }
+    const { activated, unactivated } = await buildActivations(collections);
 
     return {
       ok: true,
@@ -765,6 +774,137 @@ export function registerAdminRoutes(app, env) {
         printStatus: tag.printStatus || "pending_print",
         createdAt: tag.createdAt
       }))
+    };
+  });
+
+  // The overview page: one number per admin page, each computed with the same
+  // filter that page uses, so a card and the page it links to always agree.
+  // Counts only — the lists live on their own pages.
+  app.get("/api/admin/overview/summary", async (request, reply) => {
+    const blocked = await requireSession(app, "admin")(request, reply);
+    if (blocked) return blocked;
+
+    const collections = await getCollections(env);
+    const WINDOW_DAYS = 7;
+    const windowStart = new Date(Date.now() - WINDOW_DAYS * 24 * 60 * 60 * 1000);
+    // createdAt is an ISO string almost everywhere, but a Date on some older
+    // rows; a string bound alone would silently skip those.
+    const createdSince = {
+      $or: [{ createdAt: { $gte: windowStart.toISOString() } }, { createdAt: { $gte: windowStart } }]
+    };
+    const notDeleted = { deletedAt: { $in: [null, undefined] } };
+    // Same filter as the Tags page's default (claimed) view.
+    const customerTagFilter = { ownerId: { $ne: null }, ...notDeleted, ...NOT_MARKETING_STOCK };
+
+    const [
+      owners,
+      ownersNew,
+      customerTags,
+      customerTagsActive,
+      activations,
+      etagActivated,
+      batches,
+      unprinted,
+      printedAwaitingClaim,
+      demoStock,
+      contacts,
+      contactsNew,
+      contactsFailed,
+      traffic,
+      recentRequests,
+      recentOwners
+    ] = await Promise.all([
+      collections.owners.countDocuments(NOT_DEMO_OWNER),
+      collections.owners.countDocuments({ ...NOT_DEMO_OWNER, ...createdSince }),
+      collections.tags.countDocuments(customerTagFilter),
+      collections.tags.countDocuments({ ...customerTagFilter, status: "active" }),
+      buildActivations(collections),
+      // GET /api/admin/etag-activations
+      collections.tags.countDocuments({ ...issuedStockFilter(), premium: { $ne: true }, ownerId: { $ne: null } }),
+      summariseBatches(collections),
+      // GET /api/admin/print-queue, default and ?printed=1
+      collections.tags.countDocuments({ status: "unclaimed", printStatus: { $ne: "printed" }, ...NOT_MARKETING_STOCK }),
+      collections.tags.countDocuments({ status: "unclaimed", printStatus: "printed", ...NOT_MARKETING_STOCK }),
+      // GET /api/admin/marketing
+      collections.tags
+        .find(
+          { marketingStock: true, ...notDeleted },
+          { projection: { marketingStock: 1, soldAt: 1, demoOwnerId: 1 } }
+        )
+        .toArray(),
+      collections.contactRequests.countDocuments(),
+      collections.contactRequests.countDocuments(createdSince),
+      collections.contactRequests.countDocuments({ status: "provider_failed", ...createdSince }),
+      landingTotals(collections, WINDOW_DAYS),
+      collections.contactRequests
+        .find({}, { projection: { token: 1, action: 1, messageChannel: 1, status: 1, createdAt: 1 } })
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .toArray(),
+      collections.owners
+        .find(NOT_DEMO_OWNER, { projection: { displayName: 1, mobile: 1, phone: 1, email: 1, createdAt: 1 } })
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .toArray()
+    ]);
+
+    // Contact requests carry a token; label them the way the Activity page does.
+    const requestTokens = [...new Set(recentRequests.map((r) => r.token).filter(Boolean))];
+    const labelTags = requestTokens.length
+      ? await collections.tags
+          .find({ token: { $in: requestTokens } }, { projection: { token: 1, vehicleLabel: 1, plateNumber: 1 } })
+          .toArray()
+      : [];
+    const labelByToken = new Map(
+      labelTags.map((t) => [t.token, t.plateNumber || t.vehicleLabel || null])
+    );
+
+    const latest = [
+      ...recentOwners.map((o) => ({
+        kind: "registration",
+        title: o.displayName || o.mobile || o.phone || o.email || "Unnamed owner",
+        at: o.createdAt || null
+      })),
+      ...recentRequests.map((r) => ({
+        kind: "contact",
+        title: labelByToken.get(r.token) || "Tag scan",
+        action: r.action || null,
+        channel: r.messageChannel || null,
+        status: r.status || null,
+        at: r.createdAt || null
+      }))
+    ]
+      .sort((a, b) => new Date(b.at || 0) - new Date(a.at || 0))
+      .slice(0, 6)
+      .map((item) => ({ ...item, at: item.at ? new Date(item.at).toISOString() : null }));
+
+    return {
+      ok: true,
+      windowDays: WINDOW_DAYS,
+      summary: {
+        owners: { total: owners, new: ownersNew },
+        tags: { customer: customerTags, active: customerTagsActive },
+        activations: {
+          premiumLive: activations.activated.filter((t) => t.status === "active").length,
+          etag: etagActivated,
+          awaiting: activations.unactivated.length
+        },
+        batches: {
+          count: batches.length,
+          issued: batches.reduce((sum, b) => sum + b.total, 0),
+          activated: batches.reduce((sum, b) => sum + b.activated, 0)
+        },
+        printQueue: { unprinted, printedAwaitingClaim },
+        fieldDemo: {
+          units: demoStock.length,
+          available: demoStock.filter((t) => demoState(t) === "available").length,
+          activated: demoStock.filter((t) => demoState(t) === "activated").length,
+          sold: demoStock.filter((t) => demoState(t) === "sold").length
+        },
+        contacts: { total: contacts, new: contactsNew, failed: contactsFailed },
+        traffic: { visitors: traffic.visitors, views: traffic.views }
+      },
+      latest
     };
   });
 
@@ -1065,9 +1205,48 @@ export function registerAdminRoutes(app, env) {
     // Now: one page of owners, only THEIR tags (projected to the four fields
     // used below), and a Map for grouping — O(owners + tags).
     const OWNER_PAGE = 500;
-    const totalOwners = await collections.owners.countDocuments();
+
+    // Accounts a field demo created stay out unless asked for, the same way the
+    // overview counts owners; the flag is cleared on sale, so a buyer shows.
+    const ownerFilter = request.query.demo === "include" ? {} : { ...NOT_DEMO_OWNER };
+
+    // Search by name, email, phone, the plate on one of their tags, or a tag's
+    // token / sticker link. Escaped before it becomes a regex, as on the Tags
+    // page. Long enough for a full link (host + /tag/ + a 64-char token).
+    const q = String(request.query.q || "").trim().slice(0, 200);
+    if (q) {
+      const rx = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+      const or = [{ displayName: rx }, { email: rx }, { mobile: rx }, { phone: rx }];
+      // The token is never shown on this page, but a customer may send their
+      // sticker link, so it can be pasted here. Exact match only: the token is
+      // the tag's secret, and a partial match would let a few characters
+      // narrow one down.
+      const token = (/\/tag\/([A-Za-z0-9]{12,64})(?:[/?#]|$)/.exec(q) || /^([A-Za-z0-9]{12,64})$/.exec(q))?.[1];
+      if (token) {
+        const tokenTag = await collections.tags.findOne(
+          { token, ownerId: { $ne: null } },
+          { projection: { ownerId: 1 } }
+        );
+        if (tokenTag) or.push({ _id: tokenTag.ownerId });
+      }
+      // Plates are stored without spaces; people type them with.
+      const plate = q.replace(/\s+/g, "");
+      if (plate) {
+        const plateRx = new RegExp(plate.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+        const plateOwnerIds = (
+          await collections.tags
+            .find({ plateNumber: plateRx, ownerId: { $ne: null } }, { projection: { ownerId: 1 } })
+            .limit(500)
+            .toArray()
+        ).map((t) => t.ownerId);
+        if (plateOwnerIds.length) or.push({ _id: { $in: plateOwnerIds } });
+      }
+      ownerFilter.$or = or;
+    }
+
+    const totalOwners = await collections.owners.countDocuments(ownerFilter);
     const owners = await collections.owners
-      .find({})
+      .find(ownerFilter)
       .sort({ createdAt: -1 })
       .limit(OWNER_PAGE)
       .toArray();
@@ -1077,10 +1256,38 @@ export function registerAdminRoutes(app, env) {
       ? await collections.tags
           .find(
             { ownerId: { $in: ownerObjectIds }, deletedAt: { $in: [null, undefined] } },
-            { projection: { ownerId: 1, status: 1, token: 1, deletedAt: 1 } }
+            {
+              projection: {
+                ownerId: 1, status: 1, deletedAt: 1,
+                // What identifies the tag to a person, and what its membership
+                // countdown reads.
+                plateNumber: 1, vehicleLabel: 1, vehicleType: 1, serialNumber: 1, batchNumber: 1,
+                premium: 1, premiumSince: 1, activatedAt: 1, createdAt: 1, marketingStock: 1,
+                subscription: 1, callSubscription: 1, documentSubscription: 1
+              }
+            }
           )
           .toArray()
       : [];
+
+    // Real orders only (paid, or a placed COD), as on the Activations page.
+    // ownerId is an ObjectId on most orders and a string on some older ones.
+    const orderCounts = new Map();
+    if (ownerObjectIds.length) {
+      const grouped = await collections.shopOrders
+        .aggregate([
+          {
+            $match: {
+              ownerId: { $in: [...ownerObjectIds, ...ownerObjectIds.map(String)] },
+              status: { $in: ["paid", "cod"] },
+              deletedAt: { $in: [null, undefined] }
+            }
+          },
+          { $group: { _id: { $toString: "$ownerId" }, n: { $sum: 1 } } }
+        ])
+        .toArray();
+      for (const g of grouped) orderCounts.set(g._id, g.n);
+    }
 
     // Group once, then look up per owner, instead of re-scanning every tag for
     // every owner.
@@ -1117,8 +1324,25 @@ export function registerAdminRoutes(app, env) {
           credits: owner.credits || 0,
           tags: ownerTags.length,
           activeTags: ownerTags.filter((t) => t.status === "active").length,
-          tagTokens: ownerTags.map((t) => t.token),
-          createdAt: owner.createdAt
+          createdAt: owner.createdAt,
+          mobile: owner.mobile || owner.phone || null,
+          demo: Boolean(owner.demoCreatedOwner),
+          orders: orderCounts.get(String(owner._id)) || 0,
+          // How a person identifies each tag. The token is the QR's secret and
+          // is not meant to be read off a screen.
+          tagList: ownerTags.map((t) => {
+            const membership = membershipCountdown(t);
+            return {
+              id: String(t._id),
+              serial: stickerSerialFor(t) || etagIdFor(t._id),
+              plateNumber: t.plateNumber || null,
+              vehicleLabel: t.vehicleLabel || t.vehicleType || null,
+              premium: Boolean(t.premium),
+              status: t.status,
+              demoSticker: Boolean(t.marketingStock),
+              membership: membership ? { state: membership.state, daysLeft: membership.daysLeft } : null
+            };
+          })
         };
       })
     };

@@ -11,6 +11,14 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+      .ov-section-title { font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: #6B7280; margin: 0 0 10px; }
+      a.pt-admin-stat { display: block; text-decoration: none; color: inherit; transition: border-color 0.15s, box-shadow 0.15s; }
+      a.pt-admin-stat:hover, a.pt-admin-stat:focus-visible { border-color: #FF2700; box-shadow: 0 2px 8px rgba(255,39,0,0.12); }
+      .ov-sub { font-size: 0.8rem; color: #6B7280; margin: 8px 0 0; }
+      .ov-links { display: flex; gap: 14px; font-size: 0.82rem; font-weight: 700; }
+      .ov-links a { color: #FF2700; text-decoration: none; }
+    </style>
   </head>
   <body class="pt-admin-body">
     <div class="pt-admin-shell" data-admin-page="overview">
@@ -44,28 +52,23 @@
         <div class="pt-admin-page-header">
           <p class="pt-admin-eyebrow">Overview</p>
           <h1 class="pt-admin-page-title">Platform snapshot</h1>
-          <p class="pt-admin-page-sub">Owners, tags, requests, and print queue at a glance.</p>
+          <p class="pt-admin-page-sub">One number from each admin page. Click a card to open that page.</p>
         </div>
 
-        <div class="pt-admin-stats" id="admin-counts"></div>
+        <div id="overview-summary"><p class="pt-admin-empty">Loading summary…</p></div>
 
         <div class="pt-admin-card">
           <div class="pt-admin-card-header">
             <div>
-              <h2 class="pt-admin-card-title">Recent Registrations</h2>
-              <p class="pt-admin-card-sub">Newest owners and their tags.</p>
+              <h2 class="pt-admin-card-title">Latest activity</h2>
+              <p class="pt-admin-card-sub">Newest sign-ups and contact requests.</p>
+            </div>
+            <div class="ov-links">
+              <a href="/admin/owners">All owners →</a>
+              <a href="/admin/activity">All activity →</a>
             </div>
           </div>
-          <div id="registration-feed"><p class="pt-admin-empty">No recent registrations yet.</p></div>
-        </div>
-
-        <div class="pt-admin-card">
-          <div class="pt-admin-card-header">
-            <div>
-              <h2 class="pt-admin-card-title">Recent Contact Requests</h2>
-            </div>
-          </div>
-          <div id="admin-requests-list"><p class="pt-admin-empty">No recent requests yet.</p></div>
+          <div id="overview-latest"><p class="pt-admin-empty">Loading…</p></div>
         </div>
 
         <p id="admin-auth-status" class="pt-admin-status" data-tone="info"></p>

@@ -672,9 +672,14 @@ export function registerShopRoutes(app, env) {
     }
   );
 
+  // Every price on /get and /shop waits for this, so it is kept to ONE round
+  // trip to Mongo. It had three, one after another: its own rate limit (a
+  // per-route limit is counted in Mongo, see rate-limit-store.js), the launch
+  // promo, then the store settings — about 0.8s of a 1.1s answer in production.
+  // It is a public read that changes nothing, so the app-wide in-memory limit
+  // covers it, and the two lookups run side by side.
   app.get(
     "/api/shop/public-catalogue",
-    { config: { rateLimit: { max: 60, timeWindow: "1 minute" } } },
     async () => {
       const products = {};
       for (const [id, product] of Object.entries(SHOP_PRODUCTS)) {
@@ -689,10 +694,13 @@ export function registerShopRoutes(app, env) {
         const collections = await getCollections(env);
         if (collections) {
           const product = getShopProduct(PUBLIC_LAUNCH_PRODUCT_ID);
-          const promo = await resolvePromo(collections, PUBLIC_LAUNCH_PROMO_CODE, {
-            productId: PUBLIC_LAUNCH_PRODUCT_ID,
-            quantity: 1
-          });
+          const [promo, settings] = await Promise.all([
+            resolvePromo(collections, PUBLIC_LAUNCH_PROMO_CODE, {
+              productId: PUBLIC_LAUNCH_PRODUCT_ID,
+              quantity: 1
+            }),
+            collections.storeSettings.findOne({ _id: "public-shop" })
+          ]);
           if (product && promo.ok && promo.discountPaise > 0) {
             const mrpPaise = Math.round(product.amount * 100);
             launchOffer = {
@@ -704,7 +712,6 @@ export function registerShopRoutes(app, env) {
             };
           }
 
-          const settings = await collections.storeSettings.findOne({ _id: "public-shop" });
           const plate = settings?.dashboardPlate;
           if (plate?.enabled === true && Number(plate.pricePaise) >= 100) {
             addOns = [{

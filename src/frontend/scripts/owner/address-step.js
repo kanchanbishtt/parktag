@@ -62,6 +62,13 @@
   var resendTimer = null;
   var RESEND_SECONDS = 30; // above the server's 20s double-submit window
 
+  // The sheet is an overlay on the page, not a page of its own, so the phone's
+  // back button used to leave the storefront altogether — and in an in-app
+  // browser (Instagram, the Google app) that meant a blank tab. Opening the
+  // sheet now adds one history entry; back pops it and dismisses the sheet,
+  // and every other way of closing it takes the entry away again.
+  var historyEntry = false;
+
   // Inline icons (no network dependency — works offline / on flaky mobile data).
   var IC = {
     pin: '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 21s7-5.686 7-11a7 7 0 1 0-14 0c0 5.314 7 11 7 11Z" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="10" r="2.6" stroke="currentColor" stroke-width="1.7"/></svg>',
@@ -465,6 +472,14 @@
     ov.addEventListener("click", function (e) { if (e.target === ov) close(false); });
     document.addEventListener("keydown", function (e) {
       if (e.key === "Escape" && ov.classList.contains("pt-open")) close(false);
+    });
+    // Back (button, gesture or swipe) while the sheet is up is a dismissal.
+    // The flag is cleared first so the history.back() in close() below is
+    // never mistaken for a second press.
+    window.addEventListener("popstate", function () {
+      if (!historyEntry) return;
+      historyEntry = false;
+      if (resolver) close(false);
     });
   }
 
@@ -926,6 +941,12 @@
   function close(saved) {
     clearInterval(resendTimer);
     dismiss();
+    // Closed by Deliver, Cancel, the backdrop or Escape: take the sheet's
+    // history entry with it, or the next back press would be a dud.
+    if (historyEntry) {
+      historyEntry = false;
+      try { window.history.back(); } catch (_) { /* nothing to undo */ }
+    }
     var r = resolver;
     resolver = null;
     if (r) r(saved === true ? true : (saved || false));
@@ -1021,6 +1042,12 @@
       clearTimeout(closeTimer);
       els.ov.classList.remove("pt-closing");
       els.ov.classList.add("pt-open");
+      if (!historyEntry) {
+        try {
+          window.history.pushState({ ptAddressSheet: true }, "");
+          historyEntry = true;
+        } catch (_) { /* no history to speak of: back leaves the page, as before */ }
+      }
       // A guest has no saved address and no profile, so both lookups would be
       // two guaranteed 401s and a slower sheet. Straight to the blank form.
       if (guestMode) {

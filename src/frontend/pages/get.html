@@ -10,6 +10,15 @@
     <link rel="icon" href="/images/icon.png" type="image/png" />
     <link rel="apple-touch-icon" href="/images/apple-touch-icon.png" />
 
+    <!-- Every price on this page waits for the catalogue. Asked for here, it
+         loads alongside the stylesheets instead of after get.js and its imports
+         have downloaded and run; get.js's fetch() then picks up this response. -->
+    <link rel="preload" href="/api/shop/public-catalogue" as="fetch" crossorigin="anonymous" />
+    <!-- get.js's own imports, fetched with it rather than after it. -->
+    <link rel="modulepreload" href="/scripts/recaptcha.js" />
+    <link rel="modulepreload" href="/scripts/confetti.js" />
+    <link rel="modulepreload" href="/scripts/referral-link.js" />
+
     <link rel="stylesheet" href="/styles/get.css?v=__ASSET_VERSION__" />
     <link rel="stylesheet" href="/styles/pt-steps.css?v=__ASSET_VERSION__" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -84,7 +93,7 @@
           <ul class="gt-gal-track" id="gtGal" tabindex="0" aria-label="ParkTag product images">
             <li class="gt-gal-slide">
               <img
-                src="/images/final-landing-sticker.png"
+                src="/images/final-landing-sticker.webp"
                 width="1000" height="600"
                 fetchpriority="high" decoding="async"
                 alt="The ParkTag tag: scan the code to contact the vehicle owner, with call and WhatsApp buttons"
@@ -95,7 +104,7 @@
               <img
                 src="/images/shop-gal-windscreen.webp"
                 width="747" height="1000"
-                loading="lazy" decoding="async"
+                loading="lazy" decoding="async" fetchpriority="low"
                 alt="A ParkTag tag fixed inside a car windscreen, seen from outside the glass"
               />
               <p class="gt-gal-c">Sticks inside the windscreen. Scannable from outside.</p>
@@ -104,7 +113,7 @@
               <img
                 src="/images/shop-gal-in-hand.webp"
                 width="1000" height="965"
-                loading="lazy" decoding="async"
+                loading="lazy" decoding="async" fetchpriority="low"
                 alt="A ParkTag tag held in one hand in front of a car dashboard, showing its size"
               />
               <p class="gt-gal-c">Card sized. Keep it on the dashboard or the glovebox.</p>
@@ -113,7 +122,7 @@
               <img
                 src="/images/shop-gal-desk.webp"
                 width="1000" height="961"
-                loading="lazy" decoding="async"
+                loading="lazy" decoding="async" fetchpriority="low"
                 alt="A ParkTag tag on a desk beside a car key, showing the printed front and the QR back"
               />
               <p class="gt-gal-c">Laminated and weatherproof, printed front and back.</p>
@@ -175,27 +184,27 @@
         <p class="gt-heard-s">Real messages from real WhatsApp groups this month. Names, numbers and plates hidden.</p>
         <ul class="gt-heard-row" tabindex="0" aria-label="Real parking complaints from WhatsApp groups, swipe for more">
           <li class="gt-heard-card">
-            <img class="gt-heard-shot" src="/images/proof/chats/chat-blocked-two-days.webp" width="720" height="900" alt="WhatsApp message with a photo of a black SUV parked in someone else's basement parking spot" loading="lazy" decoding="async" />
+            <img class="gt-heard-shot" src="/images/proof/chats/chat-blocked-two-days.webp" width="720" height="900" alt="WhatsApp message with a photo of a black SUV parked in someone else's basement parking spot" loading="lazy" decoding="async" fetchpriority="low" />
             <blockquote class="gt-heard-q">“Whose car is this? It has been parked in my parking space for the past two days.”</blockquote>
             <p class="gt-heard-m">Residents’ group · 12:18 PM</p>
           </li>
           <li class="gt-heard-card">
-            <img class="gt-heard-shot" src="/images/proof/chats/chat-blocking-my-cab.webp" width="720" height="900" alt="WhatsApp message with a photo of a car blocking a cab on a busy street" loading="lazy" decoding="async" />
+            <img class="gt-heard-shot" src="/images/proof/chats/chat-blocking-my-cab.webp" width="720" height="900" alt="WhatsApp message with a photo of a car blocking a cab on a busy street" loading="lazy" decoding="async" fetchpriority="low" />
             <blockquote class="gt-heard-q">“Can anyone please help me connect with the owner of this car? It’s blocking my cab.”</blockquote>
             <p class="gt-heard-m">Office group · 11:03 AM</p>
           </li>
           <li class="gt-heard-card">
-            <img class="gt-heard-shot" src="/images/proof/chats/chat-again-in-my-parking.webp" width="720" height="900" alt="WhatsApp message with a photo of a white SUV parked in the sender's spot again" loading="lazy" decoding="async" />
+            <img class="gt-heard-shot" src="/images/proof/chats/chat-again-in-my-parking.webp" width="720" height="900" alt="WhatsApp message with a photo of a white SUV parked in the sender's spot again" loading="lazy" decoding="async" fetchpriority="low" />
             <blockquote class="gt-heard-q">“Again this vehicle is parked in my parking today.”</blockquote>
             <p class="gt-heard-m">Residents’ group · 10:52 PM</p>
           </li>
           <li class="gt-heard-card">
-            <img class="gt-heard-shot" src="/images/proof/chats/chat-remove-from-my-parking.webp" width="720" height="900" alt="WhatsApp message with a photo of the same white SUV, under a complaint ticket nobody expects to be resolved" loading="lazy" decoding="async" />
+            <img class="gt-heard-shot" src="/images/proof/chats/chat-remove-from-my-parking.webp" width="720" height="900" alt="WhatsApp message with a photo of the same white SUV, under a complaint ticket nobody expects to be resolved" loading="lazy" decoding="async" fetchpriority="low" />
             <blockquote class="gt-heard-q">“Vehicle owner, remove it from my parking.”</blockquote>
             <p class="gt-heard-m">Residents’ group · 9:34 PM</p>
           </li>
           <li class="gt-heard-card">
-            <img class="gt-heard-shot" src="/images/proof/chats/chat-scooty-in-my-slot.webp" width="720" height="900" alt="WhatsApp messages with a photo of a scooter parked in someone's car slot" loading="lazy" decoding="async" />
+            <img class="gt-heard-shot" src="/images/proof/chats/chat-scooty-in-my-slot.webp" width="720" height="900" alt="WhatsApp messages with a photo of a scooter parked in someone's car slot" loading="lazy" decoding="async" fetchpriority="low" />
             <blockquote class="gt-heard-q">“This scooty owner keep parking in the back side of my car.”</blockquote>
             <p class="gt-heard-m">Residents’ group · 7:25 PM</p>
           </li>
@@ -210,20 +219,23 @@
         <h2 class="gt-h2" id="gtProofTitle">Real tags, real cars</h2>
         <ul class="gt-proof-grid">
           <li class="gt-proof-item">
-            <video class="gt-proof-media" src="/images/proof/sticking-demo.mp4" poster="/images/proof/sticking-demo-poster.jpg"
-                   autoplay muted loop playsinline preload="metadata" aria-label="Sticking a ParkTag inside a car windscreen"></video>
+            <!-- No autoplay attribute: it makes the browser fetch all 1.8 MB at
+                 page load, well below the fold. get.js starts it when it nears
+                 the screen (see wireProofVideo); until then it is the poster. -->
+            <video class="gt-proof-media" id="gtProofVideo" src="/images/proof/sticking-demo.mp4" poster="/images/proof/sticking-demo-poster.jpg"
+                   muted loop playsinline preload="none" aria-label="Sticking a ParkTag inside a car windscreen"></video>
             <p class="gt-proof-c"><strong>Under a minute.</strong> Peel and press inside the windscreen.</p>
           </li>
           <li class="gt-proof-item">
-            <img class="gt-proof-media" src="/images/proof/tag-on-windscreen.webp" alt="ParkTag stuck inside a car windscreen" loading="lazy" decoding="async" />
+            <img class="gt-proof-media" src="/images/proof/tag-on-windscreen.webp" alt="ParkTag stuck inside a car windscreen" loading="lazy" decoding="async" fetchpriority="low" />
             <p class="gt-proof-c"><strong>Scans through the glass.</strong> Readable from outside.</p>
           </li>
           <li class="gt-proof-item">
-            <img class="gt-proof-media" src="/images/proof/tag-in-rain-v2.webp" alt="ParkTag on a rear windscreen covered in raindrops" loading="lazy" decoding="async" />
+            <img class="gt-proof-media" src="/images/proof/tag-in-rain-v2.webp" alt="ParkTag on a rear windscreen covered in raindrops" loading="lazy" decoding="async" fetchpriority="low" />
             <p class="gt-proof-c"><strong>Rain on the glass.</strong> The print stays dry inside.</p>
           </li>
           <li class="gt-proof-item">
-            <img class="gt-proof-media" src="/images/proof/customer-handover.webp" alt="A ParkTag being handed to customer Shivam beside his car" loading="lazy" decoding="async" />
+            <img class="gt-proof-media" src="/images/proof/customer-handover.webp" alt="A ParkTag being handed to customer Shivam beside his car" loading="lazy" decoding="async" fetchpriority="low" />
             <p class="gt-proof-c"><strong>Shivam, Ajnara Homes.</strong> One of our first customers.</p>
           </li>
         </ul>
@@ -344,9 +356,9 @@
 
       <!-- ── Optional dashboard plate ─────────────────────────────────── -->
       <section class="gt-addon" id="gtAddon" hidden aria-labelledby="gtAddonTitle">
-        <img id="gtAddonImage" alt="Actual clear dashboard plate with a ParkTag held in hand" />
+        <img id="gtAddonImage" loading="lazy" decoding="async" fetchpriority="low" alt="Actual clear dashboard plate with a ParkTag held in hand" />
         <div class="gt-addon-bd">
-          <span class="gt-addon-k">Optional add-on · Duo Pack only</span>
+          <span class="gt-addon-k">Optional · Duo Pack only</span>
           <h2 id="gtAddonTitle">Prefer not to stick it on the glass?</h2>
           <p id="gtAddonDescription"></p>
           <label class="gt-addon-choice">
@@ -365,7 +377,7 @@
            prices as soon as the catalogue arrives. -->
       <ul class="gt-packs" id="gtPacks">
         <li class="gt-pack" data-sku="pt-car-1">
-          <img src="/images/shop-car.webp" alt="" loading="lazy" decoding="async" />
+          <img src="/images/shop-car.webp" alt="" loading="lazy" decoding="async" fetchpriority="low" />
           <div class="gt-pack-bd">
             <span class="gt-pack-n">ParkTag Car Tag (Pack of 1)</span>
             <span class="gt-pack-d">One tag for the windscreen of one car.</span>
@@ -374,7 +386,7 @@
           <a class="gt-btn gt-pack-cta" href="#packs" data-sku="pt-car-1">Order</a>
         </li>
         <li class="gt-pack" data-sku="pt-car-2">
-          <img src="/images/shop-car-2.svg" alt="" loading="lazy" decoding="async" />
+          <img src="/images/shop-car-2.svg" alt="" loading="lazy" decoding="async" fetchpriority="low" />
           <div class="gt-pack-bd">
             <span class="gt-pack-n">ParkTag Car Tag (Pack of 2)</span>
             <span class="gt-pack-d">Best value. Tag two cars, or the front and back of one.</span>

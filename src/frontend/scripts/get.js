@@ -904,6 +904,30 @@ function wireGallery() {
   });
 }
 
+// The sticking demo in "Real tags, real cars". It used to carry `autoplay`,
+// which makes a browser download the whole 1.8 MB file at page load, competing
+// with the prices and the hero image for the first seconds of a phone's
+// connection. Now it loads and plays as it nears the screen and pauses once
+// scrolled away. Without IntersectionObserver it simply plays, as before.
+function wireProofVideo() {
+  const video = byId("gtProofVideo");
+  if (!video) return;
+  // Muted and inline, so play() is allowed without a gesture; a browser that
+  // refuses anyway (data saver) leaves the poster, which is fine.
+  const play = () => video.play().catch(() => {});
+
+  if (!("IntersectionObserver" in window)) {
+    play();
+    return;
+  }
+  const io = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      if (entry.isIntersecting) play(); else video.pause();
+    }
+  }, { rootMargin: "200px 0px" });
+  io.observe(video);
+}
+
 // `products` is the catalogue already on screen, passed in only so the
 // begin_checkout event can carry a value. A missing entry costs the value on
 // one event and nothing else -- it must never stop the click reaching buy().
@@ -1001,10 +1025,14 @@ async function load() {
   // working because the price list is down.
   syncHeroLinks();
   wireGallery();
+  wireProofVideo();
 
   let payload;
   try {
-    const res = await fetch("/api/shop/public-catalogue", { headers: { accept: "application/json" } });
+    // No custom headers: this has to match the <link rel="preload"> in
+    // get.html exactly, or the browser ignores the preloaded response and asks
+    // again. The endpoint only ever answers JSON.
+    const res = await fetch("/api/shop/public-catalogue");
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     payload = await res.json();
   } catch {

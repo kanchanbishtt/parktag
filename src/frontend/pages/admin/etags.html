@@ -7,194 +7,219 @@
   <link rel="icon" href="/favicon.ico" sizes="32x32" />
   <link rel="icon" href="/images/icon.png" type="image/png" />
   <link rel="apple-touch-icon" href="/images/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
+    /* Built from one set of tokens (shared with the Activations page) and one
+       breakpoint. Every row answers four questions in the same order: which
+       sticker, whose vehicle, who owns it, is it working. Everything else is
+       one click away under Details, where the actions live too. */
+    :root {
+      --bg: #F6F7F9; --surface: #fff; --subtle: #F9FAFB;
+      --line: #E5E7EB; --line-soft: #F0F1F3;
+      --ink: #111827; --ink-2: #374151; --ink-3: #6B7280; --ink-4: #9CA3AF;
+      --accent: #FF2700;
+      --ok: #16A34A; --warn: #D97706; --bad: #DC2626; --bad-ink: #B91C1C;
+      --r-sm: 9px; --r: 10px; --r-lg: 14px;
+    }
     * { box-sizing: border-box; }
-    /* This page does not link /styles/styles.css, so it carries its own copy of
-       the inherited overflow guard: E-Tag tokens, emails and ids have no space
-       to break at and would otherwise push a card past the viewport. */
-    body { margin: 0; font-family: "Segoe UI", Tahoma, sans-serif; background: #F1F1F0; color: #03162D; overflow-wrap: break-word; }
-    .wrap { max-width: 1180px; margin: 0 auto; padding: 22px 18px 60px; }
-    .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
+    html { -webkit-text-size-adjust: 100%; }
+    body { margin: 0; font-family: Inter, "Segoe UI", system-ui, sans-serif; background: var(--bg); color: var(--ink); font-size: 15px; line-height: 1.45; overflow-x: hidden; overflow-wrap: anywhere; }
+    .page { max-width: 1120px; margin: 0 auto; padding: 24px 20px 64px; }
+    [hidden] { display: none !important; }
+
+    /* Header: identical to the Activations page. */
+    .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
     .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
-    /* The real logo asset rather than a typed wordmark. width/height are on the
-       tag as well, so the header does not reflow when the image lands. */
-    /* The asset is a PNG with a solid white background, so on this page's grey
-       ground it renders as a white box. `multiply` drops the white out and
-       leaves the ink, which is the same trick the scan page header uses in
-       reverse (`lighten`) for the dark logo on its dark bar. */
-    .brand-logo { width: auto; height: 42px; aspect-ratio: 735 / 280; flex: 0 0 auto;
-                  display: block; mix-blend-mode: multiply; }
-    .title { font-size: 1.5rem; font-weight: 900; margin: 0; min-width: 0; }
-    /* The dot separates the logo from the page name the way the wordmark used
-       to, without needing a character in the markup. */
-    .brand-sep { color: #9CA3AF; font-weight: 700; font-size: 1.2rem; }
-    a.back { text-decoration: none; color: #6B7280; font-weight: 700; font-size: .85rem; border: 1.5px solid #E5E7EB; padding: 8px 14px; border-radius: 10px; background: #fff; }
-    .bar { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
-    .bar input, .bar select { height: 42px; border: 1.5px solid #E5E7EB; border-radius: 10px; padding: 0 12px; font-size: .9rem; font-family: inherit; outline: none; }
-    .bar input { flex: 1 1 260px; min-width: 0; }
-    .bar select { flex: 0 0 auto; }
-    /* Sized to its content and given the same 42px box as the controls beside
-       it, so it reads as one of the filters instead of a stray line of text.
-       It used to be an inline-styled label with no sizing at all, which took a
-       whole flex row to itself the moment the bar wrapped. */
-    .check { display: inline-flex; align-items: center; gap: 8px; flex: 0 0 auto;
-             height: 42px; padding: 0 14px; border: 1.5px solid #E5E7EB; border-radius: 10px;
-             background: #fff; font-size: .82rem; font-weight: 700; color: #6B7280;
-             white-space: nowrap; cursor: pointer; user-select: none; }
-    .check:hover { border-color: #D1D5DB; color: #374151; }
-    .check input { width: 16px; height: 16px; margin: 0; accent-color: #FF2700; cursor: pointer; }
-    .bar input:focus, .bar select:focus { border-color: #FF2700; }
-    .summary { font-size: .82rem; color: #6B7280; margin: 0 0 10px; }
-    .card { background: #fff; border: 1px solid #E5E7EB; border-radius: 14px; overflow: auto; }
-    table { width: 100%; border-collapse: collapse; font-size: .84rem; min-width: 860px; }
-    th, td { text-align: left; padding: 10px; border-bottom: 1px solid #F1F2F4; white-space: nowrap; }
-    /* Two short lines instead of one long one, so the column stops driving the
-       table wider than the card that holds it. */
-    .stamp .muted { display: block; font-size: .76rem; }
-    th { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; color: #9CA3AF; background: #FAFBFC; }
-    tr:last-child td { border-bottom: none; }
-    .plate { font-weight: 800; letter-spacing: .04em; }
-    .muted { color: #6B7280; }
-    .pill { display: inline-block; font-size: .68rem; font-weight: 800; padding: 2px 9px; border-radius: 20px; }
-    .pill.active { background: #FFE3DD; color: #B31C00; }
-    .pill.inactive { background: #FEE2E2; color: #B91C1C; }
-    .pill.premium { background: #FEF3C7; color: #92400E; }
-    .pill.free { background: #FFE3DD; color: #3730A3; }
-    .pill.del { background: #F3F4F6; color: #6B7280; }
-    .act { display: inline-flex; gap: 6px; }
-    .act button { border: 1.5px solid #E5E7EB; background: #fff; border-radius: 8px; padding: 5px 10px; font-size: .75rem; font-weight: 700; cursor: pointer; font-family: inherit; color: #374151; }
-    .act button:hover { background: #F1F1F0; }
-    .act button.danger { color: #B91C1C; border-color: #FCA5A5; }
-    .act button.go { color: #FF2700; border-color: #FFB6A8; }
-    .empty, .err { text-align: center; padding: 40px 16px; color: #6B7280; }
-    /* logs modal */
-    .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; align-items: center; justify-content: center; padding: 16px; z-index: 50; }
-    .overlay.open { display: flex; }
-    .modal { background: #fff; border-radius: 16px; max-width: 720px; width: 100%; max-height: 85vh; overflow: auto; padding: 20px; }
-    .modal h2 { margin: 0 0 4px; font-size: 1.1rem; }
-    .modal .sub { color: #6B7280; font-size: .82rem; margin: 0 0 14px; }
-    .log { border: 1px solid #EEF0F2; border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; font-size: .8rem; }
-    .log b { font-weight: 800; }
-    .closex { float: right; border: none; background: #F3F4F6; border-radius: 8px; width: 30px; height: 30px; cursor: pointer; font-size: 1rem; }
+    /* PNG with a white background; multiply drops the white on the grey page. */
+    .brand-logo { height: 34px; width: auto; aspect-ratio: 735 / 280; display: block; mix-blend-mode: multiply; }
+    .title { font-size: 1.35rem; font-weight: 800; margin: 0; letter-spacing: -0.01em; white-space: nowrap; overflow-wrap: normal; }
+    a.back { text-decoration: none; color: var(--ink-3); font-weight: 600; font-size: .88rem; padding: 8px 12px; border-radius: var(--r); white-space: nowrap; }
+    a.back:hover { background: #ECEEF1; color: var(--ink); }
 
-    /* ── Narrow screens: stack each row into a labelled card ──
-       This table is the widest in the admin (min-width: 860px), so on a phone
-       it was a single sideways-scrolling strip. Same treatment activations.html
-       already uses; the breakpoint sits just above that 860px min-width so the
-       swap happens exactly where the table would start to overflow. The
-       `data-label` on each cell is emitted by scripts/admin/etags.js. ── */
+    /* Filters: search on its own line, then who / what / state. */
+    .filters { display: grid; gap: 10px; margin-bottom: 14px; }
+    .search { width: 100%; height: 42px; border: 1px solid var(--line); border-radius: var(--r); padding: 0 14px; font: inherit; font-size: .92rem; background: var(--surface); }
+    .filter-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip { appearance: none; font: inherit; font-size: .85rem; font-weight: 600; border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); height: 34px; padding: 0 12px; border-radius: 999px; cursor: pointer; white-space: nowrap; }
+    .chip:hover { border-color: #C9CDD3; }
+    .chip[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: #fff; }
+    .spacer { flex: 1 1 auto; }
+    .select { height: 34px; border: 1px solid var(--line); border-radius: var(--r); padding: 0 8px; font: inherit; font-size: .85rem; background: var(--surface); color: var(--ink); max-width: 100%; }
+    .select.batch { max-width: 240px; }
+    .search:focus, .select:focus, .chip:focus-visible, .btn:focus-visible, .more-btn:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+    .summary { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; color: var(--ink-3); font-size: .86rem; margin: 0 0 10px; }
+    .summary a { color: var(--ink-2); font-weight: 600; }
+
+    /* The list: rows on a grid, never a table, so nothing scrolls sideways. */
+    .list { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); overflow: hidden; }
+    .row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.15fr) minmax(0, 1fr) 96px; gap: 16px; align-items: center; padding: 14px 18px; border-top: 1px solid var(--line-soft); }
+    .row.is-deleted > :not(.details) { opacity: .6; }
+    .head { border-top: 0; padding-top: 10px; padding-bottom: 10px; background: var(--subtle); font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-4); }
+    .main { font-weight: 700; color: var(--ink); }
+    .plate { letter-spacing: .03em; }
+    .sub { font-size: .84rem; color: var(--ink-3); margin-top: 2px; }
+    .sub a { color: inherit; text-decoration: none; }
+    .sub a:hover { color: var(--ink); text-decoration: underline; }
+    .none { color: var(--ink-4); font-weight: 500; }
+    .tag { display: inline-block; font-size: .72rem; font-weight: 700; padding: 1px 7px; border-radius: 6px; background: #ECEEF1; color: var(--ink-2); margin-left: 6px; vertical-align: 1px; white-space: nowrap; }
+    .tag.premium { background: #FEF3C7; color: #92400E; }
+
+    /* One status per tag: a dot and a word. */
+    .status { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: .9rem; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; background: var(--ink-4); }
+    .dot.active { background: var(--ok); }
+    .dot.off { background: var(--warn); }
+    .dot.deleted { background: var(--bad); }
+
+    .end { display: flex; justify-content: flex-end; }
+    .more-btn { appearance: none; font: inherit; font-size: .85rem; font-weight: 600; color: var(--ink-2); background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-sm); height: 34px; padding: 0 12px; cursor: pointer; white-space: nowrap; }
+    .more-btn:hover { background: #F3F4F6; }
+    .more-btn[aria-expanded="true"] { background: var(--ink); border-color: var(--ink); color: #fff; }
+
+    /* Details: under its row, across every column. */
+    .details { grid-column: 1 / -1; background: var(--subtle); border: 1px solid var(--line-soft); border-radius: var(--r); padding: 14px 16px; display: grid; gap: 14px; }
+    .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px 20px; margin: 0; font-size: .86rem; }
+    .facts dt, .section-title { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-4); margin: 0 0 2px; }
+    .facts dd { margin: 0; color: var(--ink-2); }
+    .logs { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; font-size: .84rem; }
+    .logs li { background: var(--surface); border: 1px solid var(--line-soft); border-radius: var(--r-sm); padding: 8px 10px; color: var(--ink-2); }
+    .logs .when { color: var(--ink-3); }
+    .link-btn { appearance: none; border: 0; background: none; padding: 0; font: inherit; font-size: .84rem; font-weight: 600; color: var(--ink-2); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding-top: 12px; border-top: 1px solid var(--line); }
+    .btn { appearance: none; font: inherit; display: inline-flex; align-items: center; justify-content: center; height: 36px; padding: 0 14px; border-radius: var(--r-sm); font-size: .86rem; font-weight: 700; text-decoration: none; white-space: nowrap; cursor: pointer; border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); }
+    .btn:hover { background: #F3F4F6; }
+    .btn.danger { color: var(--bad-ink); border-color: #FCA5A5; }
+    .btn.danger:hover { background: #FEF2F2; }
+    .btn.danger-solid { background: var(--bad); border-color: var(--bad); color: #fff; }
+    .btn.danger-solid:hover { background: var(--bad-ink); }
+    .btn.primary { background: var(--ink); border-color: var(--ink); color: #fff; }
+    .btn.primary:hover { background: #000; }
+    .btn[disabled] { opacity: .55; cursor: default; }
+    .note { font-size: .84rem; color: var(--ink-3); }
+    .note.err { color: var(--bad-ink); font-weight: 600; }
+
+    /* Page numbers, 100 tags a page (same markup as Activations → Activated). */
+    .pager { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px; margin-top: 16px; }
+    .pager button { appearance: none; font: inherit; font-size: .86rem; font-weight: 600; min-width: 36px; height: 36px; padding: 0 10px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--surface); color: var(--ink-2); cursor: pointer; }
+    .pager button:hover:not([disabled]) { background: #F3F4F6; }
+    .pager button[aria-current="page"] { background: var(--ink); border-color: var(--ink); color: #fff; }
+    .pager button[disabled] { opacity: .4; cursor: default; }
+    .pager button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+    .pager .gap { color: var(--ink-4); padding: 0 2px; }
+
+    .empty { padding: 44px 18px; text-align: center; color: var(--ink-3); }
+    .empty .btn { margin-top: 12px; }
+
+    /* Confirmation for anything that changes what a scan does. */
+    dialog { border: 0; border-radius: var(--r-lg); padding: 0; width: min(440px, calc(100vw - 32px)); color: var(--ink); box-shadow: 0 20px 50px rgba(17, 24, 39, .25); }
+    dialog::backdrop { background: rgba(17, 24, 39, .45); }
+    .dialog-body { padding: 20px 20px 16px; }
+    .dialog-body h2 { margin: 0 0 8px; font-size: 1.05rem; }
+    .dialog-body p { margin: 0; color: var(--ink-2); font-size: .92rem; }
+    .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 20px 18px; }
+
+    /* One breakpoint, set by content: four text columns need about 170px each
+       plus the button, so below 900px each row becomes a card: sticker and
+       status on the first line, then vehicle and owner, then Details. Unsold
+       stock has no vehicle or owner, so its card skips those lines. */
     @media (max-width: 900px) {
-      .wrap { padding: 16px 14px 60px; }
-      .title { font-size: 1.28rem; }
-      /* >=16px keeps iOS from zooming the page on focus; 44px is the touch
-         target. The bar still fits on ONE row here — it only wraps further
-         down, at 700px, where the four controls genuinely stop fitting. */
-      .bar input, .bar select, .check { height: 44px; font-size: 16px; }
-
-      .card { background: transparent; border: none; overflow: visible; border-radius: 0; }
-      table, tbody, tr, td { display: block; width: 100%; }
-      table { min-width: 0; }
-      thead { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
-      tr { background: #fff; border: 1px solid #E5E7EB; border-radius: 14px; margin-bottom: 12px; padding: 6px 14px 10px; box-shadow: 0 1px 2px rgba(3,22,45,.04); }
-      td { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding: 9px 0; border-bottom: 1px solid #F4F5F6; white-space: normal; text-align: right; }
-      td::before { content: attr(data-label); flex: 0 0 38%; text-align: left; font-size: .68rem; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: #9CA3AF; }
-      td .muted { display: block; font-weight: 500; margin-top: 2px; }
-      /* First cell is the card title — the E-Tag ID is a long unbroken token,
-         so it gets the full width and is allowed to wrap. */
-      tr td:first-child { text-align: left; font-size: .98rem; padding: 4px 0 10px; border-bottom: 1.5px solid #EEF0F2; margin-bottom: 2px; overflow-wrap: anywhere; }
-      tr td:first-child::before { display: none; }
-      tr td:last-child { border-bottom: none; padding-bottom: 2px; }
-      .act { justify-content: flex-end; flex-wrap: wrap; }
-      .act button { padding: 8px 13px; }
-      .empty, .err { text-align: center; }
-
-      /* Modal gets the screen edges back. */
-      .overlay { padding: 10px; }
-      .modal { padding: 16px; max-height: 90vh; }
-    }
-    /* ── The filter bar stops fitting on one row here. Search takes the full
-       width, the two dropdowns share the next, and the checkbox gets its own
-       full-width row so it stays a comfortable tap target. ── */
-    @media (max-width: 700px) {
-      .bar input { flex: 1 1 100%; }
-      .bar select { flex: 1 1 calc(50% - 5px); min-width: 0; }
-      .check { flex: 1 1 100%; justify-content: center; }
-    }
-    /* ── Small phones: labels sit above values for breathing room. ── */
-    @media (max-width: 420px) {
-      td { flex-direction: column; align-items: stretch; gap: 3px; text-align: left; }
-      td::before { flex-basis: auto; }
-      .act { justify-content: flex-start; }
+      .page { padding: 16px 14px 48px; }
+      .title { font-size: 1.15rem; }
+      .brand-logo { height: 28px; }
+      .back .long { display: none; }
+      .search { font-size: 16px; height: 44px; }
+      .spacer { display: none; }
+      .filter-row.selects { display: grid; grid-template-columns: 1fr 1fr; }
+      .select, .select.batch { max-width: none; width: 100%; height: 40px; font-size: 16px; }
+      .select.batch { grid-column: 1 / -1; }
+      .list { background: transparent; border: 0; border-radius: 0; overflow: visible; }
+      .head { display: none; }
+      .row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "sticker status" "vehicle vehicle" "owner owner" "end end" "details details"; gap: 8px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); margin-bottom: 10px; padding: 14px; }
+      .c-sticker { grid-area: sticker; }
+      .c-status { grid-area: status; text-align: right; }
+      .c-status .status { justify-content: flex-end; }
+      .c-vehicle { grid-area: vehicle; }
+      .c-owner { grid-area: owner; }
+      .end { grid-area: end; }
+      .details { grid-area: details; }
+      .is-stock .c-vehicle, .is-stock .c-owner { display: none; }
+      .more-btn { width: 100%; height: 40px; }
+      .facts { grid-template-columns: 1fr 1fr; }
+      .actions .btn { flex: 1 1 0; height: 40px; }
     }
   </style>
 </head>
 <body>
-  <div class="wrap">
+  <div class="page">
     <div class="top">
       <div class="brand">
-        <img class="brand-logo" src="/images/light-logo.png" alt="ParkTag"
-             width="735" height="280" />
-        <span class="brand-sep" aria-hidden="true">·</span>
+        <img class="brand-logo" src="/images/light-logo.png" alt="ParkTag" width="735" height="280" />
         <h1 class="title">Tags</h1>
       </div>
-      <a class="back" href="/admin/overview">← Back to Admin</a>
+      <a class="back" href="/admin/overview">← <span class="long">Back to </span>Admin</a>
     </div>
 
-    <div class="bar">
-      <input id="q" type="search" placeholder="Search by vehicle number, E-Tag ID, sticker serial, owner email/mobile…" autocomplete="off"/>
-      <!-- Broadest axis first: which population, then which kind, then which
-           state. Claim state decides whether you are looking at stock or at
-           tags in the field, which is the coarsest cut of the three. -->
-      <select id="claim" aria-label="Claim state">
-        <option value="claimed">Claimed by an owner</option>
-        <option value="unclaimed">Unclaimed stock</option>
-        <option value="all">Claimed + unclaimed</option>
-      </select>
-      <select id="category" aria-label="Tag category">
-        <option value="all">All tags</option>
-        <option value="premium">Premium tags</option>
-        <option value="etag">E-Tags</option>
-      </select>
-      <select id="status" aria-label="Tag status">
-        <option value="">All statuses</option>
-        <option value="active">Active</option>
-        <option value="inactive">Inactive</option>
-      </select>
-      <!-- Issued batch, by the key in its serials (PT-<key>-…). Options come
-           from /api/admin/tag-batches. -->
-      <select id="batch" aria-label="Batch">
-        <option value="">All batches</option>
-      </select>
-      <label class="check" for="includeDeleted">
-        <input id="includeDeleted" type="checkbox"/> Show deleted
-      </label>
+    <div class="filters">
+      <input class="search" id="q" type="search" placeholder="Search plate, name, phone or serial" autocomplete="off" aria-label="Search tags"/>
+      <div class="filter-row">
+        <div class="chips" id="claimChips" role="group" aria-label="Show">
+          <button class="chip" type="button" data-claim="claimed" aria-pressed="true">Customer tags</button>
+          <button class="chip" type="button" data-claim="unclaimed" aria-pressed="false">Unsold stock</button>
+          <button class="chip" type="button" data-claim="all" aria-pressed="false">All</button>
+        </div>
+        <span class="spacer"></span>
+      </div>
+      <div class="filter-row selects">
+        <select class="select" id="category" aria-label="Tag type">
+          <option value="all">All types</option>
+          <option value="premium">Premium</option>
+          <option value="etag">E-Tag</option>
+        </select>
+        <!-- "deleted" is not a stored status: it adds deleted tags to the list. -->
+        <select class="select" id="status" aria-label="Status">
+          <option value="">Any status</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+          <option value="deleted">Include deleted</option>
+        </select>
+        <!-- Issued batch, by the key in its serials (PT-<key>-…). Options come
+             from /api/admin/tag-batches. -->
+        <select class="select batch" id="batch" aria-label="Batch">
+          <option value="">All batches</option>
+        </select>
+      </div>
     </div>
 
-    <p class="summary"><span id="summary">Loading…</span>
-      <a id="batchCsv" href="#" download hidden style="margin-left:10px;font-weight:700;color:#FF2700;text-decoration:none">Download batch CSV</a></p>
+    <p class="summary"><span id="summary" role="status">Loading…</span>
+      <a id="batchCsv" href="#" download hidden>Download batch CSV</a></p>
 
-    <div class="card">
-      <table>
-        <thead>
-          <tr>
-            <th>E-Tag ID</th><th>Sticker serial</th><th>Vehicle</th><th>Owner</th><th>Status</th>
-            <th>Plan</th><th>Contacts</th><th>Created</th><th>Actions</th>
-          </tr>
-        </thead>
-        <tbody id="rows"><tr><td colspan="9" class="empty">Loading…</td></tr></tbody>
-      </table>
+    <div class="list" id="list">
+      <div class="row head" aria-hidden="true">
+        <span>Sticker</span><span>Vehicle</span><span>Owner</span><span>Status</span><span></span>
+      </div>
+      <div id="rows"><div class="empty">Loading…</div></div>
     </div>
+    <nav class="pager" id="pager" aria-label="Pages" hidden></nav>
   </div>
 
-  <div class="overlay" id="overlay">
-    <div class="modal">
-      <button class="closex" id="closeModal">×</button>
-      <h2 id="mTitle">Logs</h2>
-      <p class="sub" id="mSub"></p>
-      <div id="mLogs"></div>
-    </div>
-  </div>
+  <dialog id="confirm" aria-labelledby="confirmTitle">
+    <form method="dialog">
+      <div class="dialog-body">
+        <h2 id="confirmTitle"></h2>
+        <p id="confirmText"></p>
+      </div>
+      <div class="dialog-actions">
+        <button class="btn" value="cancel" autofocus>Cancel</button>
+        <button class="btn" value="ok" id="confirmOk"></button>
+      </div>
+    </form>
+  </dialog>
 
+  <script src="/scripts/admin/pager.js?v=__ASSET_VERSION__"></script>
   <script src="/scripts/admin/etags.js?v=__ASSET_VERSION__"></script>
 </body>
 </html>

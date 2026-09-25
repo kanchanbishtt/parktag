@@ -181,3 +181,36 @@ test("each owner carries readable tags, membership and real order count", async 
   assert.ok(tag.membership.daysLeft > 300);
   assert.ok(!("token" in tag), "the QR secret is not part of a tag row");
 });
+
+test("owners come 100 a page, each on exactly one page, and search reaches every page", async () => {
+  const docs = [];
+  for (let i = 0; i < 105; i++) {
+    docs.push({
+      displayName: `Paged ${MARK} ${String(i).padStart(3, "0")}`,
+      email: `${MARK}-paged-${i}@parktag.test`,
+      role: "owner",
+      testMarker: MARK,
+      createdAt: new Date(Date.UTC(2026, 0, 1, 0, i)).toISOString()
+    });
+  }
+  await collections.owners.insertMany(docs);
+  const q = `?q=${encodeURIComponent(`${MARK}-paged-`)}`;
+
+  const one = await owners(q);
+  assert.equal(one.total, 105);
+  assert.equal(one.pages, 2);
+  assert.equal(one.pageSize, 100);
+  assert.equal(one.owners.length, 100);
+  const two = await owners(`${q}&page=2`);
+  assert.equal(two.owners.length, 5);
+  const ids = [...one.owners, ...two.owners].map((o) => o.id);
+  assert.equal(new Set(ids).size, 105, "no owner on two pages, none missing");
+  assert.equal((await owners(`${q}&page=40`)).page, 2, "past the end → last page");
+  assert.equal((await owners(`${q}&page=abc`)).page, 1, "nonsense → page 1");
+
+  // The oldest is on page 2 of that list; searching its email finds it.
+  const oldest = two.owners[4];
+  assert.ok(oldest.displayName.endsWith("000"));
+  const found = await owners(`?q=${encodeURIComponent(oldest.email)}`);
+  assert.deepEqual(found.owners.map((o) => o.id), [oldest.id]);
+});

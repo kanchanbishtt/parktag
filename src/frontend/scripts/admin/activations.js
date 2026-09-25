@@ -321,10 +321,14 @@ function recentRowHtml(t) {
 
 // Only the newest request may paint, so a slow earlier search never
 // overwrites a later one.
+// 100 a page, numbered; search runs on the server across every activation.
 let recentRequest = 0;
 let recentTotalShown = false;
+let recentPage = 1;
+const recentPager = document.getElementById("recentPager");
 async function loadRecent() {
   const params = new URLSearchParams();
+  if (recentPage > 1) params.set("page", String(recentPage));
   if (recentType.value !== "all") params.set("type", recentType.value);
   const q = recentQ.value.trim();
   if (q) params.set("q", q);
@@ -343,8 +347,14 @@ async function loadRecent() {
       recentTotalShown = true;
     }
     const list = data.activations || [];
-    recentMore.hidden = !(data.total > list.length);
-    recentMore.textContent = `Showing the latest ${fmtCount(list.length)} of ${fmtCount(data.total)}. Search to find older ones.`;
+    recentPage = Number(data.page) || 1; // the server clamps a page past the end
+    const from = (recentPage - 1) * (Number(data.pageSize) || 100) + 1;
+    recentMore.hidden = !(Number(data.pages) > 1);
+    recentMore.textContent = `Showing ${fmtCount(from)}–${fmtCount(from + list.length - 1)} of ${fmtCount(data.total)}`;
+    renderPager(recentPager, data, (n) => {
+      recentPage = n;
+      loadRecent().then(() => recentRows.scrollIntoView({ block: "start" }));
+    });
     const filtered = q || recentType.value !== "all" || BATCH;
     recentRows.innerHTML = list.length
       ? list.map(recentRowHtml).join("")
@@ -352,6 +362,8 @@ async function loadRecent() {
   } catch {
     if (id !== recentRequest) return;
     recentRows.innerHTML = `<div class="empty">Could not load activations.</div>`;
+    recentMore.hidden = true;
+    renderPager(recentPager, { page: 1, pages: 1 });
     if (!recentTotalShown) recentCount.textContent = "—";
   }
 }
@@ -366,9 +378,9 @@ queueSort.addEventListener("change", renderQueue);
 let recentTimer = null;
 recentQ.addEventListener("input", () => {
   clearTimeout(recentTimer);
-  recentTimer = setTimeout(loadRecent, 300);
+  recentTimer = setTimeout(() => { recentPage = 1; loadRecent(); }, 300);
 });
-recentType.addEventListener("change", loadRecent);
+recentType.addEventListener("change", () => { recentPage = 1; loadRecent(); });
 
 showTab(BATCH || location.hash === "#recent" ? "recent" : "queue");
 loadQueue();

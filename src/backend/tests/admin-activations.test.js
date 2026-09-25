@@ -281,7 +281,7 @@ test("recent activations: one list, filtered by type, searched on the server", a
     const response = await authed("GET", `/api/admin/activations/recent${query}`);
     assert.equal(response.statusCode, 200);
     const body = response.json();
-    assert.ok(body.activations.length <= body.limit);
+    assert.ok(body.activations.length <= body.pageSize);
     assert.ok(!JSON.stringify(body).includes(MARK + "t"), "no token in the response");
     return body.activations.map((a) => a.serial);
   };

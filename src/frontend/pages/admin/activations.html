@@ -97,7 +97,15 @@
     .history li { margin: 1px 0; }
 
     .empty { padding: 40px 18px; text-align: center; color: #6B7280; }
-    .more { font-size: .82rem; color: #6B7280; padding: 10px 2px 0; }
+    .more { font-size: .84rem; color: #6B7280; margin: 0 0 10px; }
+    /* Page numbers, 100 a page (same markup as the Tags page). */
+    .pager { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px; margin-top: 16px; }
+    .pager button { appearance: none; font: inherit; font-size: .86rem; font-weight: 600; min-width: 36px; height: 36px; padding: 0 10px; border: 1px solid #E5E7EB; border-radius: 9px; background: #fff; color: #374151; cursor: pointer; }
+    .pager button:hover:not([disabled]) { background: #F3F4F6; }
+    .pager button[aria-current="page"] { background: #111827; border-color: #111827; color: #fff; }
+    .pager button[disabled] { opacity: .4; cursor: default; }
+    .pager button:focus-visible { outline: 2px solid #FF2700; outline-offset: 1px; }
+    .pager .gap { color: #9CA3AF; padding: 0 2px; }
 
     [hidden] { display: none !important; }
 
@@ -162,11 +170,13 @@
         </select>
         <span class="batch" id="batchChip" hidden></span>
       </div>
-      <div class="list recent" id="recentRows"><div class="empty">Loading…</div></div>
       <p class="more" id="recentMore" hidden></p>
+      <div class="list recent" id="recentRows"><div class="empty">Loading…</div></div>
+      <nav class="pager" id="recentPager" aria-label="Pages" hidden></nav>
     </section>
   </div>
 
+  <script src="/scripts/admin/pager.js?v=__ASSET_VERSION__"></script>
   <script src="/scripts/admin/activations.js?v=__ASSET_VERSION__"></script>
 </body>
 </html>

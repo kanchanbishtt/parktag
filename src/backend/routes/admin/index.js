@@ -93,6 +93,21 @@ function orderForPrinting(tags) {
 // request of a long print run.
 const EXPORT_MAX_PER_REQUEST = 250;
 
+// Admin lists (Tags, Activations > Activated, Owners) come in numbered pages
+// of this size. Working lists that need the whole set at once, such as the
+// print queue, are not paged.
+const ADMIN_PAGE_SIZE = 100;
+
+// ?page=<n>, 1-based. Anything unparseable is page 1, and a page past the end
+// is the last page, so a list that shrank under an admin (a tag deleted on the
+// last page) still shows rows instead of an empty page.
+function listPage(rawPage, total) {
+  const pages = Math.max(1, Math.ceil(total / ADMIN_PAGE_SIZE));
+  const wanted = Number.parseInt(typeof rawPage === "string" ? rawPage : "1", 10);
+  const page = Math.min(pages, Number.isFinite(wanted) && wanted >= 1 ? wanted : 1);
+  return { page, pages, pageSize: ADMIN_PAGE_SIZE, skip: (page - 1) * ADMIN_PAGE_SIZE };
+}
+
 // ── Activations: shared by the Activations page and the overview summary ──
 //
 // Premium tags that an OWNER holds. `premium: true` alone also matches unsold
@@ -336,12 +351,14 @@ export function registerAdminRoutes(app, env) {
       // indexed lookup rather than a per-document join.
       const matchingOwnerIds = (
         await collections.owners
-          .find({ $or: [{ email: rx }, { mobile: rx }, { phone: rx }] }, { projection: { _id: 1 } })
+          .find({ $or: [{ displayName: rx }, { email: rx }, { mobile: rx }, { phone: rx }] }, { projection: { _id: 1 } })
           .limit(500)
           .toArray()
       ).map((o) => o._id);
 
-      filter.$or = [{ plateNumber: rx }, { token: rx }];
+      // Plates are stored without spaces, so "DL 14 SM" has to match "DL14SM".
+      const plateRx = new RegExp(safe.replace(/\s+/g, ""), "i");
+      filter.$or = [{ plateNumber: plateRx }, { vehicleLabel: rx }, { token: rx }];
       if (matchingOwnerIds.length) filter.$or.push({ ownerId: { $in: matchingOwnerIds } });
 
       // E-Tag IDs are derived (PT- + the last 8 hex of the ObjectId), so they
@@ -387,11 +404,14 @@ export function registerAdminRoutes(app, env) {
     }
 
     const total = await collections.tags.countDocuments(filter);
+    const { page, pages, pageSize, skip } = listPage(request.query.page, total);
     const tags = await collections.tags
       .find(filter)
-      // A batch reads in serial order, the order it was printed in.
-      .sort(batchKey ? { serialNumber: 1, _id: 1 } : { createdAt: -1 })
-      .limit(300)
+      // A batch reads in serial order, the order it was printed in. _id breaks
+      // ties so a tag never shows on two pages or on none.
+      .sort(batchKey ? { serialNumber: 1, _id: 1 } : { createdAt: -1, _id: -1 })
+      .skip(skip)
+      .limit(pageSize)
       .toArray();
 
     const ownerIds = [...new Set(tags.map((t) => String(t.ownerId)))]
@@ -423,7 +443,8 @@ export function registerAdminRoutes(app, env) {
         // none. stickerSerialFor is used unchanged — it is the same call the
         // print sheet and the owner dashboard make.
         serial: stickerSerialFor(t),
-        token: t.token,
+        // No `token`: it is the secret in the sticker's QR, and anyone holding
+        // it can open that tag's scan page. Search still matches it server-side.
         plateNumber: t.plateNumber || null,
         vehicleType: t.vehicleType || null,
         vehicleLabel: t.vehicleLabel || null,
@@ -444,14 +465,16 @@ export function registerAdminRoutes(app, env) {
         ownerEmail: owner.email || null,
         ownerMobile: owner.mobile || owner.phone || null,
         contactCount: countsByToken[t.token] || 0,
-        createdAt: t.createdAt
+        createdAt: t.createdAt,
+        // Same rule as the Activations list: a premium tag counts from when it
+        // became premium.
+        activatedAt: (t.premium ? t.premiumSince || t.activatedAt : t.activatedAt) || null
       };
     });
 
-    // `total` is the count of everything matching the filter; `etags` is the
-    // first page of it. The response cap was always 300 — it is just applied in
-    // the query now instead of after loading the whole collection.
-    return { ok: true, total, etags: list, limit: 300 };
+    // `total` is the count of everything matching the filter; `etags` is one
+    // page of it.
+    return { ok: true, total, etags: list, page, pages, pageSize };
   });
 
   // E-Tag detail with full contact / call / WhatsApp logs.
@@ -479,9 +502,10 @@ export function registerAdminRoutes(app, env) {
         id: String(tag._id),
         etagId: etagIdFor(tag._id),
         serial: stickerSerialFor(tag),
-        token: tag.token,
         plateNumber: tag.plateNumber || null,
         vehicleType: tag.vehicleType || null,
+        vehicleLabel: tag.vehicleLabel || null,
+        mountType: tag.mountType || "windscreen_interior",
         status: tag.status,
         premium: Boolean(tag.premium),
         purchaseStatus: tag.purchaseStatus || "none",
@@ -533,15 +557,23 @@ export function registerAdminRoutes(app, env) {
     // Unreachable while this page listed claimed tags only; the claim filter
     // puts unclaimed stock on screen, so the guard belongs here rather than in
     // the UI alone.
-    const existing = await collections.tags.findOne({ _id: tagId }, { projection: { ownerId: 1 } });
+    const existing = await collections.tags.findOne({ _id: tagId }, { projection: { ownerId: 1, deletedAt: 1 } });
     if (!existing) { reply.code(404); return { ok: false, error: "E-Tag not found" }; }
     if (existing.ownerId == null) {
       reply.code(409);
       return { ok: false, error: "This tag has no owner yet, so it has no active/inactive state." };
     }
+    // A deleted tag stays off. Scans only check `status`, while the owner's
+    // dashboard hides anything with `deletedAt`, so switching one back on made
+    // it reach the owner through a tag they could no longer see or turn off.
+    // (The page's old Restore button did exactly that.)
+    if (existing.deletedAt) {
+      reply.code(409);
+      return { ok: false, error: "This tag was deleted, so its status can't be changed." };
+    }
 
     const result = await collections.tags.findOneAndUpdate(
-      { _id: tagId },
+      { _id: tagId, deletedAt: { $in: [null, undefined] } },
       { $set: { status, updatedAt: new Date().toISOString() } },
       { returnDocument: "after" }
     );
@@ -630,13 +662,12 @@ export function registerAdminRoutes(app, env) {
 
   // Newest activations, premium and E-Tag in one list, searched on the server
   // so the page never loads every tag to filter a handful.
-  //   ?type=all|premium|etag   ?q=<text>   ?batch=<key>
+  //   ?type=all|premium|etag   ?q=<text>   ?batch=<key>   ?page=<n>
   app.get("/api/admin/activations/recent", async (request, reply) => {
     const blocked = await requireSession(app, "admin")(request, reply);
     if (blocked) return blocked;
 
     const collections = await getCollections(env);
-    const LIMIT = 100;
     const type = String(request.query.type || "all");
     const base = type === "premium"
       ? ownedPremiumFilter()
@@ -687,35 +718,36 @@ export function registerAdminRoutes(app, env) {
     }
 
     const filter = and.length === 1 ? and[0] : { $and: and };
-    const [total, tags] = await Promise.all([
-      collections.tags.countDocuments(filter),
-      collections.tags
-        .aggregate([
-          { $match: filter },
-          // When the tag went live: for premium the same chain the free year
-          // counts from; an E-Tag only ever has activatedAt.
-          {
-            $addFields: {
-              activatedOn: {
-                $cond: [
-                  { $eq: ["$premium", true] },
-                  { $ifNull: ["$premiumSince", { $ifNull: ["$activatedAt", "$createdAt"] }] },
-                  "$activatedAt"
-                ]
-              }
-            }
-          },
-          { $sort: { activatedOn: -1, _id: -1 } },
-          { $limit: LIMIT },
-          {
-            $project: {
-              batchNumber: 1, batchLabel: 1, serialNumber: 1, plateNumber: 1, vehicleLabel: 1, vehicleType: 1,
-              status: 1, ownerId: 1, premium: 1, freeContactUsed: 1, activatedOn: 1
+    // Counted first: the page number is clamped to the last page.
+    const total = await collections.tags.countDocuments(filter);
+    const { page, pages, pageSize, skip } = listPage(request.query.page, total);
+    const tags = await collections.tags
+      .aggregate([
+        { $match: filter },
+        // When the tag went live: for premium the same chain the free year
+        // counts from; an E-Tag only ever has activatedAt.
+        {
+          $addFields: {
+            activatedOn: {
+              $cond: [
+                { $eq: ["$premium", true] },
+                { $ifNull: ["$premiumSince", { $ifNull: ["$activatedAt", "$createdAt"] }] },
+                "$activatedAt"
+              ]
             }
           }
-        ])
-        .toArray()
-    ]);
+        },
+        { $sort: { activatedOn: -1, _id: -1 } },
+        { $skip: skip },
+        { $limit: pageSize },
+        {
+          $project: {
+            batchNumber: 1, batchLabel: 1, serialNumber: 1, plateNumber: 1, vehicleLabel: 1, vehicleType: 1,
+            status: 1, ownerId: 1, premium: 1, freeContactUsed: 1, activatedOn: 1
+          }
+        }
+      ])
+      .toArray();
 
     const ownerIds = [...new Set(tags.map((t) => String(t.ownerId)))]
       .map((id) => { try { return new ObjectId(id); } catch { return null; } })
@@ -730,7 +762,9 @@ export function registerAdminRoutes(app, env) {
     return {
       ok: true,
       total,
-      limit: LIMIT,
+      page,
+      pages,
+      pageSize,
       activations: tags.map((t) => {
         const o = ownerMap.get(String(t.ownerId)) || {};
         return {
@@ -1413,9 +1447,8 @@ export function registerAdminRoutes(app, env) {
     // shape: 3k×3k ≈ 81 ms, 10k×20k ≈ 1.5 s, 20k×50k ≈ 5.9 s of total service
     // stall, and the tags collection grows with every sticker manufactured.
     //
-    // Now: one page of owners, only THEIR tags (projected to the four fields
-    // used below), and a Map for grouping — O(owners + tags).
-    const OWNER_PAGE = 500;
+    // Now: one page of owners (100, numbered like the other admin lists), only
+    // THEIR tags, and a Map for grouping — O(owners + tags).
 
     // Accounts a field demo created stay out unless asked for, the same way the
     // overview counts owners; the flag is cleared on sale, so a buyer shows.
@@ -1456,10 +1489,13 @@ export function registerAdminRoutes(app, env) {
     }
 
     const totalOwners = await collections.owners.countDocuments(ownerFilter);
+    const { page, pages, pageSize, skip } = listPage(request.query.page, totalOwners);
     const owners = await collections.owners
       .find(ownerFilter)
-      .sort({ createdAt: -1 })
-      .limit(OWNER_PAGE)
+      // _id breaks ties so an owner never shows on two pages or on none.
+      .sort({ createdAt: -1, _id: -1 })
+      .skip(skip)
+      .limit(pageSize)
       .toArray();
 
     const ownerObjectIds = owners.map((o) => o._id);
@@ -1511,18 +1547,12 @@ export function registerAdminRoutes(app, env) {
       else tagsByOwner.set(key, [tag]);
     }
 
-    // Never truncate silently — an admin looking at a short list must be able
-    // to tell "that's everyone" from "that's the first page".
-    if (totalOwners > owners.length) {
-      request.log.warn(
-        { totalOwners, returned: owners.length },
-        "[admin] owners list truncated to one page"
-      );
-    }
-
     return {
       ok: true,
       total: totalOwners,
+      page,
+      pages,
+      pageSize,
       returned: owners.length,
       truncated: totalOwners > owners.length,
       owners: owners.map((owner) => {

@@ -98,125 +98,6 @@ function setReadyState(message, tone = "info") {
   copy.dataset.tone = tone;
 }
 
-function renderCounts(counts) {
-  const target = byId("admin-counts");
-
-  if (!target) {
-    return;
-  }
-
-  target.innerHTML = `
-    <article class="stat-card"><span class="stat-label">Owners</span><strong>${counts.owners}</strong></article>
-    <article class="stat-card"><span class="stat-label">Tags</span><strong>${counts.tags}</strong></article>
-    <article class="stat-card"><span class="stat-label">Requests</span><strong>${counts.requests}</strong></article>
-    <article class="stat-card"><span class="stat-label">Pending Print</span><strong>${counts.pendingPrint}</strong></article>
-  `;
-
-  if (counts.owners === 0 && counts.tags === 0) {
-    setReadyState(
-      "No seeded admin data is visible in the current environment. Run demo seed first.",
-      "error"
-    );
-  } else {
-    setReadyState(
-      "Current environment is ready for issuance, queue review, and owner monitoring.",
-      "success"
-    );
-  }
-}
-
-function renderOwners(owners) {
-  const target = byId("owner-monitor-list");
-
-  if (!target) {
-    return;
-  }
-
-  if (!owners.length) {
-    target.innerHTML = `<p class="empty-copy">No owners available yet.</p>`;
-    return;
-  }
-
-  target.innerHTML = owners
-    .map(
-      (owner) => `
-        <article class="monitor-card">
-          <div>
-            <strong>${esc(owner.displayName)}</strong>
-            <p>${esc(owner.email)}</p>
-          </div>
-          <div class="monitor-meta">
-            <span>Credits: ${esc(owner.credits)}</span>
-            <span>Tags: ${esc(owner.tags)}</span>
-            <span>Active: ${esc(owner.activeTags)}</span>
-            ${owner.latestTagToken ? `<span>Latest tag: ${esc(owner.latestTagToken)}</span>` : ""}
-          </div>
-        </article>
-      `
-    )
-    .join("");
-}
-
-function renderRegistrations(registrations) {
-  const target = byId("registration-feed");
-
-  if (!target) {
-    return;
-  }
-
-  if (!registrations?.length) {
-    target.innerHTML = `<p class="empty-copy">No recent owner registrations yet.</p>`;
-    return;
-  }
-
-  target.innerHTML = registrations
-    .map(
-      (item) => `
-        <article class="queue-row">
-          <strong>${esc(item.displayName)}</strong>
-          <span>${esc(item.email)}</span>
-          <span>Tags: ${esc(item.tags)}</span>
-          <span>Active: ${esc(item.activeTags)}</span>
-          ${item.latestTagToken ? `<span>Latest tag: ${esc(item.latestTagToken)}</span>` : ""}
-          <span>Created: ${esc(new Date(item.createdAt).toLocaleString())}</span>
-        </article>
-      `
-    )
-    .join("");
-}
-
-function renderRequests(requests) {
-  const target = byId("request-feed");
-
-  if (!target) {
-    return;
-  }
-
-  if (!requests.length) {
-    target.innerHTML = `<p class="empty-copy">No recent activity loaded yet.</p>`;
-    return;
-  }
-
-  target.innerHTML = requests
-    .map(
-      (item) => `
-        <article class="queue-row">
-          <strong>${esc(item.token)}</strong>
-          <span>Phone: ${esc(item.phone)}</span>
-          <span>Action: ${esc(item.action)}${item.messageChannel ? ` (${esc(item.messageChannel)})` : ""}</span>
-          <span>Status: ${esc(item.status)}</span>
-          ${item.provider ? `<span>Provider: ${esc(item.provider)}</span>` : ""}
-          ${item.providerWebhookStatus ? `<span>Provider status: ${esc(item.providerWebhookStatus)}</span>` : ""}
-          ${item.providerStatusCode ? `<span>Provider code: ${esc(item.providerStatusCode)}</span>` : ""}
-          ${item.providerError ? `<span>Provider error: ${esc(item.providerError)}</span>` : ""}
-          ${item.providerErrorDetail ? `<span>Provider detail: ${esc(item.providerErrorDetail)}</span>` : ""}
-          <span>Created: ${esc(new Date(item.createdAt).toLocaleString())}</span>
-        </article>
-      `
-    )
-    .join("");
-}
-
 function setIssueMessage(message) {
   const target = byId("issue-output");
 
@@ -944,20 +825,6 @@ async function clearAllUnprinted() {
   }
 }
 
-async function loadAdminOverview() {
-  const data = await fetchJson("/api/admin/overview");
-  renderCounts(data.counts);
-  renderOwners(data.owners || []);
-  renderRequests(data.recentRequests || []);
-  renderRegistrations(data.recentRegistrations || []);
-
-  if (data.pendingPrintTags?.length === 0) {
-    setQueueMessage("No unprinted tags yet. Issue a batch to populate the queue.");
-  }
-
-  return data;
-}
-
 // ── Overview: one number per admin page, each card linking to that page ──
 function formatCount(value) {
   return Number(value || 0).toLocaleString("en-IN");
@@ -1195,7 +1062,6 @@ async function issueTag() {
     });
 
     renderIssuedTag(data);
-    await loadAdminOverview();
     await loadBatchSummary();
   } catch (error) {
     const message =
@@ -1306,27 +1172,83 @@ function switchPqTab(printed) {
 window.switchPqTab = switchPqTab;
 
 // What a premium tag's cover looks like today, in a few words.
-function membershipBadge(membership) {
-  if (!membership) return "";
+function membershipNote(membership) {
+  if (!membership) return null;
   const left = `${formatCount(membership.daysLeft)}d left`;
-  if (membership.state === "trial") return `<span class="ow-badge" data-tone="ok">Free year · ${left}</span>`;
-  if (membership.state === "subscribed") return `<span class="ow-badge" data-tone="ok">Member · ${left}</span>`;
-  if (membership.state === "open") return `<span class="ow-badge" data-tone="ok">Member · no end date</span>`;
-  if (membership.state === "lapsed") return `<span class="ow-badge" data-tone="warn">Membership lapsed</span>`;
-  return "";
+  if (membership.state === "trial") return { tone: "ok", text: `Free year · ${left}` };
+  if (membership.state === "subscribed") return { tone: "ok", text: `Member · ${left}` };
+  if (membership.state === "open") return { tone: "ok", text: "Member · no end date" };
+  if (membership.state === "lapsed") return { tone: "warn", text: "Membership lapsed" };
+  return null;
 }
 
+// A tag card: the plate, one grey line (type · serial · vehicle), then a short
+// coloured line for anything worth noticing. Text rather than pills, so the
+// card never wraps into a stack of badges.
 function ownerTagHtml(tag) {
   const title = tag.plateNumber || tag.vehicleLabel || "No plate yet";
+  // Each piece stays whole and carries its own "·", so a narrow card wraps
+  // before a separator, never inside a serial or with a "·" left dangling.
+  const type = `<span class="ow-type${tag.premium ? " is-premium" : ""}">${tag.premium ? "Premium" : "E-Tag"}</span>`;
+  const meta = [tag.serial, tag.plateNumber && tag.vehicleLabel ? tag.vehicleLabel : ""]
+    .filter(Boolean)
+    .map((part) => ` <span class="ow-nw">· ${esc(part)}</span>`)
+    .join("");
+  const notes = [];
+  if (tag.status !== "active") notes.push({ tone: "warn", text: "Inactive" });
+  if (tag.demoSticker) notes.push({ tone: "demo", text: "Demo sticker" });
+  const membership = membershipNote(tag.membership);
+  if (membership) notes.push(membership);
   return `
     <a class="ow-tag" href="/admin/etags?q=${encodeURIComponent(tag.serial)}" title="Open in Tags">
       <span class="ow-tag-plate">${esc(title)}</span>
-      <span class="ow-badge"${tag.premium ? ` data-tone="premium"` : ""}>${tag.premium ? "Premium" : "E-Tag"}</span>
-      ${tag.status !== "active" ? `<span class="ow-badge" data-tone="warn">${esc(tag.status || "inactive")}</span>` : ""}
-      ${tag.demoSticker ? `<span class="ow-badge" data-tone="demo">Demo sticker</span>` : ""}
-      ${membershipBadge(tag.membership)}
-      <p class="ow-small">${esc(tag.serial)}${tag.plateNumber && tag.vehicleLabel ? ` · ${esc(tag.vehicleLabel)}` : ""}</p>
+      <span class="ow-tag-meta"><span class="ow-nw">${type}</span>${meta}</span>
+      ${notes.map((n) => `<span class="ow-tag-note" data-tone="${n.tone}">${esc(n.text)}</span>`).join("")}
     </a>`;
+}
+
+// One tag on show; the rest open from a small arrow in that card's corner,
+// whose words ("Show 3 more tags") appear only on hover or keyboard focus. The
+// one on show is the one most likely to matter: live before switched off,
+// Premium before E-Tag.
+function ownerTagsHtml(tags, ownerId) {
+  if (!tags.length) return `<span class="ow-muted">No tags</span>`;
+  const rank = (t) => (t.status === "active" ? 0 : 2) + (t.premium ? 0 : 1);
+  const sorted = tags.map((t, i) => ({ t, i })).sort((a, b) => rank(a.t) - rank(b.t) || a.i - b.i).map((x) => x.t);
+  const [first, ...rest] = sorted;
+  if (!rest.length) return `<div class="ow-tags">${ownerTagHtml(first)}</div>`;
+  const listId = `ow-more-${ownerId}`;
+  const label = ownerMoreLabel(false, rest.length);
+  return `<div class="ow-tags">
+      <div class="ow-tag-first">
+        ${ownerTagHtml(first)}
+        <button type="button" class="ow-more-btn" aria-expanded="false" aria-controls="${esc(listId)}" data-count="${rest.length}" aria-label="${esc(label)}" data-tip="${esc(label)}"></button>
+      </div>
+      <div class="ow-tags" id="${esc(listId)}" hidden>${rest.map(ownerTagHtml).join("")}</div>
+    </div>`;
+}
+
+function ownerMoreLabel(open, count) {
+  const tags = `${formatCount(count)} more ${count === 1 ? "tag" : "tags"}`;
+  return open ? `Hide ${tags}` : `Show ${tags}`;
+}
+
+function toggleOwnerTags(button) {
+  const list = document.getElementById(button.getAttribute("aria-controls"));
+  if (!list) return;
+  const open = button.getAttribute("aria-expanded") !== "true";
+  list.hidden = !open;
+  button.setAttribute("aria-expanded", String(open));
+  const label = ownerMoreLabel(open, Number(button.dataset.count) || 0);
+  button.setAttribute("aria-label", label);
+  button.dataset.tip = label;
+}
+
+// An email may break after its "@" when the column is narrow, rather than
+// wherever the last letter happens to fall.
+function ownerContactHtml(value) {
+  const at = value.indexOf("@");
+  return at > 0 ? `${esc(value.slice(0, at + 1))}<wbr>${esc(value.slice(at + 1))}` : esc(value);
 }
 
 function ownerRowHtml(owner) {
@@ -1339,11 +1261,11 @@ function ownerRowHtml(owner) {
   return `
     <tr>
       <td data-label="Owner">${name}</td>
-      <td data-label="Contact">${contact.length ? contact.map((c) => `<p class="ow-small">${esc(c)}</p>`).join("") : `<span class="ow-muted">—</span>`}</td>
-      <td data-label="Tags">${tags.length ? `<div class="ow-tags">${tags.map(ownerTagHtml).join("")}</div>` : `<span class="ow-muted">No tags</span>`}</td>
+      <td data-label="Contact">${contact.length ? contact.map((c) => `<p class="ow-small${c === owner.mobile ? " ow-nw" : ""}">${ownerContactHtml(c)}</p>`).join("") : `<span class="ow-muted">—</span>`}</td>
+      <td data-label="Tags">${ownerTagsHtml(tags, owner.id)}</td>
       <td data-label="Orders"><span class="ow-num">${esc(formatCount(owner.orders))}</span></td>
       <td data-label="Joined">${joined && !Number.isNaN(joined.getTime())
-        ? `${esc(joined.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }))}<p class="ow-small">${esc(timeAgo(owner.createdAt))}</p>`
+        ? `<span class="ow-nw">${esc(joined.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }))}</span><p class="ow-small ow-nw">${esc(timeAgo(owner.createdAt))}</p>`
         : `<span class="ow-muted">—</span>`}</td>
     </tr>`;
 }
@@ -1351,22 +1273,38 @@ function ownerRowHtml(owner) {
 // Each keystroke starts a request; only the newest one may paint, so a slow
 // earlier search can never overwrite the results of a later one.
 let _ownersRequest = 0;
+// 100 owners a page, numbered; the search runs on the server over every owner.
+let _ownersPage = 1;
 
 async function loadOwners() {
   const target = byId("owner-monitor-list");
   const countEl = byId("owners-count");
+  const pagerEl = byId("owners-pager");
   const q = byId("owners-search")?.value.trim() || "";
   const params = new URLSearchParams();
   if (q) params.set("q", q);
   if (byId("owners-show-demo")?.checked) params.set("demo", "include");
+  if (_ownersPage > 1) params.set("page", String(_ownersPage));
   const requestId = ++_ownersRequest;
 
   try {
     const data = await fetchJson(`/api/admin/owners${params.toString() ? `?${params}` : ""}`);
     if (requestId !== _ownersRequest || !target) return;
 
+    // The server clamps a page past the end to the last one; follow it.
+    _ownersPage = Number(data.page) || 1;
+    if (pagerEl && window.renderPager) {
+      window.renderPager(pagerEl, data, (n) => {
+        _ownersPage = n;
+        loadOwners().then(() => target.scrollIntoView({ block: "start" }));
+      });
+    }
+
     if (countEl) {
-      const shown = data.truncated ? `Showing the newest ${formatCount(data.returned)} of ${formatCount(data.total)}` : `${formatCount(data.total)}`;
+      const from = (_ownersPage - 1) * (Number(data.pageSize) || 100) + 1;
+      const shown = Number(data.pages) > 1
+        ? `Showing ${formatCount(from)}–${formatCount(from + data.owners.length - 1)} of ${formatCount(data.total)}`
+        : `${formatCount(data.total)}`;
       // A pasted sticker link carries the tag's token; don't echo it back.
       const echo = q.length > 40 ? "your search" : `“${q}”`;
       countEl.textContent = `${shown} ${data.total === 1 ? "owner" : "owners"}${q ? ` matching ${echo}` : ""}.`;
@@ -1386,6 +1324,8 @@ async function loadOwners() {
     if (requestId !== _ownersRequest) return;
     if (countEl) countEl.textContent = "";
     if (target) target.innerHTML = `<p class="pt-admin-empty">Failed to load owners.</p>`;
+    const pagerEl = byId("owners-pager");
+    if (pagerEl && window.renderPager) window.renderPager(pagerEl, { page: 1, pages: 1 });
   }
 }
 
@@ -1516,7 +1456,10 @@ async function refreshCurrentPage() {
     if (page === "overview") {
       await loadOverviewSummary();
     } else if (page === "issuance") {
-      await loadAdminOverview();
+      // A small signed-in check, so an expired session still lands on the login
+      // page. This used to be /api/admin/overview: 500 owners, their tags and
+      // 500 unprinted tags on every visit, none of which this page displays.
+      await fetchJson("/api/admin/me");
       await loadBatchSummary();
     } else if (page === "print-queue") {
       await loadPrintQueue();
@@ -1612,15 +1555,26 @@ function bindEvents() {
   }
 
   if (hasEl("owners-search")) {
+    // The Tags page links here as ?q=<email or phone>.
+    const wanted = (new URLSearchParams(location.search).get("q") || "").trim().slice(0, 100);
+    if (wanted) byId("owners-search").value = wanted;
     let timer = null;
     byId("owners-search").addEventListener("input", () => {
       clearTimeout(timer);
-      timer = setTimeout(loadOwners, 300);
+      timer = setTimeout(() => { _ownersPage = 1; loadOwners(); }, 300);
+    });
+  }
+
+  if (hasEl("owner-monitor-list")) {
+    // The list is redrawn on every search, so the arrow is handled here, once.
+    byId("owner-monitor-list").addEventListener("click", (event) => {
+      const button = event.target.closest(".ow-more-btn");
+      if (button) toggleOwnerTags(button);
     });
   }
 
   if (hasEl("owners-show-demo")) {
-    byId("owners-show-demo").addEventListener("change", loadOwners);
+    byId("owners-show-demo").addEventListener("change", () => { _ownersPage = 1; loadOwners(); });
   }
 
   if (hasEl("issue-tag-button")) {

@@ -165,13 +165,14 @@ test("an activated demo sticker stays out of the E-Tags list", async () => {
     const response = await authed("GET", "/api/admin/etags?claim=all");
     assert.equal(response.statusCode, 200);
 
-    const listed = (response.json().etags || []).map((t) => t.token);
+    // Listed by id: the response no longer carries the QR token.
+    const listed = (response.json().etags || []).map((t) => t.id);
     assert.ok(
-      listed.includes(realTag.token),
+      listed.includes(String(realTag._id)),
       "an ordinary claimed tag must still be listed — otherwise this test proves nothing"
     );
     assert.ok(
-      !listed.includes(activatedDemo.token),
+      !listed.includes(String(activatedDemo._id)),
       "a demo sticker someone activated is not a customer tag and must not be listed as one"
     );
   } finally {

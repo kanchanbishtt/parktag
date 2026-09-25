@@ -18,6 +18,30 @@ the card and call them, and still have a real contact left.
 - `freeContactUsed` still means "locked" and is the only flag gates read, so
   nothing downstream changed.
 
+## Design source
+
+The design is made in Figma ("ParkTag Door Hanger", Edit Tree Projects) and
+used as-is: both sides are exported at 300 dpi (1425 x 3375 px, bleed included)
+into `scripts/doorhanger/art/front.png` and `back.png`, with the card's sample
+QR and serial hidden. The print script only overlays each hanger's unique QR
+and serial (`SLOTS` in `template.js`). To change the design, edit Figma,
+re-export both sides the same way, and replace the PNGs. The card QR is
+generated in pure black to match the Figma sample.
+
+Checks before every re-export:
+
+- **Tear line.** The perforation sits 7.8in from the top of the trim on both
+  sides. Below it is the dashboard card (front: the tag QR; back: the sticker
+  upsell, facing the driver). Nothing may cross that line.
+- **No stray QR codes.** Besides the hanger's own tag, the only scannable code
+  allowed on the front is the marketing demo link inside the sticker photo
+  (`qr.azency.in/parktag`). An earlier photo carried a competitor's live tag QR
+  (app.ngf132.com); scan any new photo before using it.
+- **Demo QR on the back** (`qr.azency.in/parktag`) is a dynamic code owned by
+  the marketing team; its destination is changed there, not here.
+- **Price** on the back must match the live offer (currently Duo Pack ₹399,
+  MRP ₹499).
+
 ## Print run
 
 1. Admin → Issuance: issue a batch with the car / windscreen mount type.

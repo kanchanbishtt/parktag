@@ -382,7 +382,7 @@ async function buy(sku, product) {
           mrpPaise: _launchOffer && _launchOffer.productId === sku ? _launchOffer.mrpPaise : null,
           offerLabel: _launchOffer && _launchOffer.productId === sku ? `${_launchOffer.code} auto-applied` : null,
           cod: cod
-            ? { amountPaise: product.amountPaise + (addOn?.amountPaise || 0) + cod.surchargePaise, feePaise: cod.surchargePaise }
+            ? { amountPaise: offerPrice + (addOn?.amountPaise || 0) + cod.surchargePaise, feePaise: cod.surchargePaise }
             : null
         }
       : null

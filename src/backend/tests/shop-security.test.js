@@ -391,6 +391,6 @@ describe("HIGH #2 — only a real catalog id is a product", () => {
     const orders = await collections.shopOrders.find({ ownerId }).toArray();
     assert.equal(orders.length, 1, "only the real product should have produced an order");
     assert.ok(Number.isFinite(orders[0].amount), `order amount is not a number: ${orders[0].amount}`);
-    assert.equal(orders[0].amount, 299 * 100 + 3000, "COD price is catalog + the ₹30 surcharge");
+    assert.equal(orders[0].amount, 299 * 100 + 4900, "COD price is catalog + the ₹49 surcharge");
   });
 });

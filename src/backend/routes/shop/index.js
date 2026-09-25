@@ -45,16 +45,16 @@ import {
 import { isInternalPhone } from "../../lib/core/internal-orders.js";
 import { clientErrorMessage } from "../../lib/errors.js";
 
-// COD carries a flat +₹30 handling fee on top of the price, once per order.
+// COD carries a flat +₹49 handling fee on top of the price, once per order.
 // Paying online removes it, so the online price always equals the catalog
 // (or launch-offer) price. Its own figure, set by the business, not derived
 // from anything else.
-export const COD_SURCHARGE_PAISE = 3000;
+export const COD_SURCHARGE_PAISE = 4900;
 
 // Flash-offer discount for converting a signed-in COD order to prepaid
 // (paise). Kept server-side so the saving can't be inflated by a tampered
 // client. Follows the COD fee, so the flash-prepaid amount lands back exactly
-// on the catalog price (e.g. catalog ₹499 → COD ₹529 → online ₹499).
+// on the catalog price (e.g. catalog ₹499 → COD ₹548 → online ₹499).
 export const FLASH_DISCOUNT_PAISE = COD_SURCHARGE_PAISE;
 
 // Guest COD is the car packs (Solo and Duo) only; every other pack stays online-only.
@@ -866,9 +866,10 @@ export function registerShopRoutes(app, env) {
       //
       // Only /direct sends this. A checkout that sends no code takes exactly
       // the path it always did.
-      // No code of any kind on Cash on Delivery, including the auto-applied
-      // launch offer: owner's rule, COD is always MRP plus the COD fee.
-      const promo = cod ? { ok: false } : await resolvePromo(collections, rawPromo, {
+      // Codes apply on Cash on Delivery too (owner's rule since 25 Sep 2026:
+      // COD is the online price plus the COD fee, so ₹399 + ₹49 on the Duo
+      // Pack). Referral discounts still stay online-only, see referrals.js.
+      const promo = await resolvePromo(collections, rawPromo, {
         deliveryPhone: (rawAddress || {}).phone,
         // Without this a code tied to one pack comes off any of them, and
         // omitting the product would be the way around the restriction.

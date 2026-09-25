@@ -735,6 +735,8 @@ export async function buildApp() {
         // the events die at the network boundary.
         connectSrc: [
           "'self'",
+          // India Post PIN lookup: the delivery sheet fills City and State from it.
+          "https://api.postalpincode.in",
           "https://identitytoolkit.googleapis.com",
           "https://www.google.com",
           "https://www.google.co.in",

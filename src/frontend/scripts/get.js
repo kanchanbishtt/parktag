@@ -235,6 +235,9 @@ function renderPacks(products) {
       cta.textContent = "Order";
       cta.dataset.sku = pack.id;
       cta.setAttribute("aria-label", `Order ${priced.name}`);
+      // The whole card buys, not only its button: Clarity recorded dead taps
+      // on the price and the photo. See the Order listener below.
+      li.dataset.sku = pack.id;
     }
 
     li.append(img, bd, cta);
@@ -555,7 +558,7 @@ async function buy(sku) {
           mrpPaise: offer ? (product.amountPaise * quantity) + (addOn?.amountPaise || 0) : null,
           offerLabel: offer ? `${offer.code} auto-applied` : null,
           cod: cod
-            ? { amountPaise: (product.amountPaise * quantity) + (addOn?.amountPaise || 0) + cod.surchargePaise, feePaise: cod.surchargePaise }
+            ? { amountPaise: pricedTotalPaise(sku, product, quantity, addOn) + cod.surchargePaise, feePaise: cod.surchargePaise }
             : null
         }
       : null
@@ -947,7 +950,11 @@ function wireCheckout(products) {
   // data-sku is the thing that actually means "this control buys a pack", and
   // it is also what a sold-out control deliberately lacks.
   document.addEventListener("click", (event) => {
-    const link = event.target.closest && event.target.closest("a[data-sku]");
+    if (!event.target.closest) return;
+    // A tap anywhere on an in-stock card counts as its Order button, except on
+    // the card's own controls (the − / + stepper), which do their own thing.
+    const link = event.target.closest("a[data-sku]") ||
+      (!event.target.closest("button, a, input, label") && event.target.closest(".gt-pack[data-sku]"));
     if (!link) return;
 
     event.preventDefault();

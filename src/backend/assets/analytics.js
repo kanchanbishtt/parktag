@@ -174,7 +174,10 @@
     // An owner passing on their referral link from the dashboard card. GA4's
     // own recommended event; GA4-only, because a share is not a conversion
     // Meta should be bidding towards.
-    share:          { ga: "share",          pixel: null }
+    share:          { ga: "share",          pixel: null },
+    // A delivery-form field filled in, to see where half-filled forms stop.
+    // GA4-only: a field is not a conversion Meta should bid towards.
+    checkout_field: { ga: "checkout_field", pixel: null }
   };
 
   // Allow-list, not a deny-list. A deny-list means every future call site is one
@@ -192,7 +195,9 @@
     promotion_id: 1, promotion_name: 1,
     // GA4's share parameter: what kind of thing was shared ("referral"), never
     // the link or its code.
-    content_type: 1
+    content_type: 1,
+    // checkout_field's field KEY ("pincode", "line1"), never its value.
+    field_name: 1
   };
 
   function sanitize(input) {

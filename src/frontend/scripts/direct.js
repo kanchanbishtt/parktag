@@ -724,7 +724,7 @@ async function buy(sku) {
               mrpPaise: promoState?.ok ? (product.amountPaise * quantity) + (addOn?.amountPaise || 0) : null,
               offerLabel: promoState?.ok ? `${promoState.code || codeValue()} applied` : null,
               cod: cod
-                ? { amountPaise: (product.amountPaise * quantity) + (addOn?.amountPaise || 0) + cod.surchargePaise, feePaise: cod.surchargePaise }
+                ? { amountPaise: payablePaise + (addOn?.amountPaise || 0) + cod.surchargePaise, feePaise: cod.surchargePaise }
                 : null
             }
           : null

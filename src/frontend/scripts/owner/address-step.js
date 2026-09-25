@@ -51,6 +51,7 @@
   // summary offers "Pay online" vs "Cash on delivery" and a guest resolves
   // with { ...address, paymentMethod }. Online is the default on every open.
   var payChoice = "online";
+  var trackedFields = {}; // checkout_field sent this open, by field key
   var payPrices = null; // { online, cod, mrp } for this open, or null: no COD offered
 
   // Guest COD phone check. The server will not place a COD order until the
@@ -86,12 +87,13 @@
   var FIELDS = [
     { key: "fullName", label: "Full name", type: "text", ph: "Recipient name", auto: "name" },
     { key: "phone", label: "Mobile number", type: "tel", ph: "10-digit mobile", auto: "tel", maxlength: 10, inputmode: "numeric" },
+    // PIN before the street: it fills City and State (see lookupPin), so most
+    // buyers type five fields, not eight. Landmark lives in the area line.
+    { key: "pincode", label: "PIN code", type: "text", ph: "6-digit PIN", maxlength: 6, inputmode: "numeric", auto: "postal-code" },
     { key: "line1", label: "House / Flat, Street", type: "text", ph: "e.g. 12B, MG Road", auto: "address-line1" },
-    { key: "line2", label: "Area / Locality (optional)", type: "text", ph: "Colony, sector", auto: "address-line2", optional: true },
-    { key: "landmark", label: "Landmark (optional)", type: "text", ph: "Near…", optional: true },
+    { key: "line2", label: "Area, Landmark (optional)", type: "text", ph: "Sector, colony, near…", auto: "address-line2", optional: true },
     { key: "city", label: "City", type: "text", ph: "City", auto: "address-level2" },
-    { key: "state", label: "State", type: "select", ph: "Select state", auto: "address-level1", options: STATES },
-    { key: "pincode", label: "PIN code", type: "text", ph: "6-digit PIN", maxlength: 6, inputmode: "numeric" }
+    { key: "state", label: "State", type: "select", ph: "Select state", auto: "address-level1", options: STATES }
   ];
 
   function injectStyles() {
@@ -266,7 +268,7 @@
     ov.setAttribute("data-clarity-mask", "True");
 
     var rows = FIELDS.map(function (f) {
-      var half = f.key === "city" || f.key === "state" || f.key === "pincode";
+      var half = f.key === "city" || f.key === "state";
       var attrs =
         'type="' + f.type + '" id="pt-addr-' + f.key + '" placeholder="' + f.ph + '"' +
         (f.maxlength ? ' maxlength="' + f.maxlength + '"' : "") +
@@ -399,6 +401,21 @@
         this.value = this.value.replace(/[^0-9]/g, "");
       });
     });
+    els.inputs.pincode.addEventListener("input", function () {
+      if (/^[1-9][0-9]{5}$/.test(this.value)) lookupPin(this.value);
+    });
+
+    // Which field a buyer got to, once per field per open: Clarity showed
+    // people leaving a half-filled form, and this says where. The field's
+    // NAME only, never what was typed.
+    FIELDS.forEach(function (f) {
+      els.inputs[f.key].addEventListener("change", function () {
+        if (!this.value || trackedFields[f.key]) return;
+        trackedFields[f.key] = true;
+        if (window.ptTrack) window.ptTrack("checkout_field", { field_name: f.key, method: guestMode ? "guest" : "owner" });
+        if (typeof window.clarity === "function") window.clarity("event", "checkout_field_" + f.key);
+      });
+    });
 
     // Confirm view: proceed with the already-saved address (no re-save needed).
     els.deliver.addEventListener("click", function () { close(true); });
@@ -460,7 +477,7 @@
       // Fee on its own line, so a phone never wraps the price mid-bracket.
       els.payCod.textContent = "Cash on delivery · " + inr(codPaise);
       var codNote = document.createElement("small");
-      codNote.textContent = "Includes " + inr(Number(cod.feePaise)) + " COD fee · offers apply to online payment only";
+      codNote.textContent = "Includes " + inr(Number(cod.feePaise)) + " COD fee";
       els.payCod.appendChild(codNote);
     }
     payPrices = codOn ? { online: amountPaise, cod: codPaise, mrp: Number(summary.mrpPaise) } : null;
@@ -543,6 +560,25 @@
     return payChoice === "cod" ? "Place order, pay on delivery" : "Continue to pay";
   }
 
+  // Best effort: fills City and State from India Post's public PIN lookup, and
+  // only into boxes the buyer left empty. A slow or failed lookup changes
+  // nothing, and the buyer types them as before.
+  function lookupPin(pin) {
+    var ctrl = typeof AbortController === "function" ? new AbortController() : null;
+    var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, 4000) : null;
+    fetch("https://api.postalpincode.in/pincode/" + pin, ctrl ? { signal: ctrl.signal } : {})
+      .then(function (res) { return res.ok ? res.json() : null; })
+      .then(function (data) {
+        var office = data && data[0] && data[0].Status === "Success" && data[0].PostOffice && data[0].PostOffice[0];
+        if (!office || els.inputs.pincode.value !== pin) return;
+        if (!els.inputs.city.value && office.District) els.inputs.city.value = office.District;
+        var state = STATES.filter(function (st) { return st.toLowerCase() === String(office.State || "").toLowerCase(); })[0];
+        if (!els.inputs.state.value && state) els.inputs.state.value = state;
+      })
+      .catch(function () { /* typed by hand instead */ })
+      .then(function () { if (timer) clearTimeout(timer); });
+  }
+
   function validate(v) {
     if (!v.fullName || v.fullName.length < 2) return "Please enter the recipient's full name.";
     if (!/^[6-9][0-9]{9}$/.test(v.phone)) return "Enter a valid 10-digit mobile number.";
@@ -585,9 +621,14 @@
   // Show the editable form, optionally prefilled with an existing address.
   function showForm(prefill) {
     clearErr();
+    trackedFields = {};
     FIELDS.forEach(function (f) {
       els.inputs[f.key].value = prefill && prefill[f.key] != null ? prefill[f.key] : "";
     });
+    // A saved address from before the landmark box was folded in keeps it.
+    if (prefill && prefill.landmark) {
+      els.inputs.line2.value = [els.inputs.line2.value, prefill.landmark].filter(Boolean).join(", ");
+    }
     // First-time buyers have no address to prefill from, but many do have a
     // name on their profile by now. Filling it saves them retyping what we
     // already know, and it stays editable — plenty of people ship to someone

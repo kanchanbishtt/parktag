@@ -1,8 +1,8 @@
 // Cash on Delivery on guest checkout (/shop, /get, /direct).
 //
-// The business rule: COD is the car packs (pt-car-1, pt-car-2) only, for a flat ₹30 on top
-// of MRP. No code applies to COD, not even the auto-applied LAUNCH100: ₹529
-// COD, ₹578 with the plate). No Razorpay: the order is written as "cod" at
+// The business rule: COD is the car packs (pt-car-1, pt-car-2) only, for a flat ₹49 on top
+// of the online price. Codes apply to COD too, including the auto-applied LAUNCH100: ₹448
+// COD on the Duo Pack, ₹497 with the plate. No Razorpay: the order is written as "cod" at
 // once, and the breakdown says what the courier will collect.
 //
 // What stands between a script and a stream of fake courier bookings is an OTP
@@ -106,56 +106,56 @@ beforeEach(async () => {
 });
 
 describe("guest Cash on Delivery", () => {
-  test("Duo Pack at MRP with no launch offer: ₹499 + ₹30 = ₹529, written as a COD order", async () => {
+  test("Duo Pack with the launch offer: ₹499 − ₹100 + ₹49 = ₹448, written as a COD order", async () => {
     const res = await cod({ promo: "LAUNCH100" });
     assert.equal(res.statusCode, 200, res.body);
     const body = res.json();
     assert.equal(body.paymentMethod, "cod");
-    assert.equal(body.amount, 52900);
+    assert.equal(body.amount, 44800);
 
     const order = await collections.shopOrders.findOne({ orderNumber: body.orderNumber });
     assert.equal(order.status, "cod");
     assert.equal(order.paymentMethod, "cod");
     assert.equal(order.guest, true);
     assert.equal(order.ownerId, null);
-    assert.equal(order.amount, 52900);
-    assert.equal(order.promoCode, null, "no code on COD");
-    assert.equal(order.codSurchargePaise, 3000);
+    assert.equal(order.amount, 44800);
+    assert.equal(order.promoCode, "LAUNCH100", "the launch offer applies on COD");
+    assert.equal(order.codSurchargePaise, 4900);
     assert.equal(order.orderId, undefined, "a COD order has no Razorpay order");
 
     assert.deepEqual(
       body.breakdown.map(({ label, text }) => [label, text]),
       [
-        ["MRP", "₹499"], ["Delivery", "Free"],
-        ["Cash on delivery fee", "+₹30"], ["Total to pay on delivery", "₹529"]
+        ["MRP", "₹499"], ["Discount (LAUNCH100)", "-₹100"], ["Delivery", "Free"],
+        ["Cash on delivery fee", "+₹49"], ["Total to pay on delivery", "₹448"]
       ]
     );
   });
 
-  test("with the Clear Dashboard Plate: ₹499 + ₹49 + ₹30 = ₹578", async () => {
+  test("with the Clear Dashboard Plate: ₹499 − ₹100 + ₹49 + ₹49 = ₹497", async () => {
     const res = await cod({ promo: "LAUNCH100", addOnId: "dashboard-plate" });
     assert.equal(res.statusCode, 200, res.body);
-    assert.equal(res.json().amount, 57800);
+    assert.equal(res.json().amount, 49700);
     assert.ok(res.json().breakdown.some((row) => row.label === "Clear Dashboard Plate" && row.text === "₹49"));
   });
 
-  test("without a code: catalogue price + ₹30", async () => {
+  test("without a code: catalogue price + ₹49", async () => {
     const res = await cod();
     assert.equal(res.statusCode, 200, res.body);
-    assert.equal(res.json().amount, 49900 + 3000);
+    assert.equal(res.json().amount, 49900 + 4900);
   });
 
-  test("Solo Pack takes COD too: ₹299 + ₹30 = ₹329", async () => {
+  test("Solo Pack takes COD too: ₹299 + ₹49 = ₹348", async () => {
     const res = await cod({ productId: "pt-car-1" });
     assert.equal(res.statusCode, 200, res.body);
     assert.equal(res.json().paymentMethod, "cod");
-    assert.equal(res.json().amount, 29900 + 3000);
+    assert.equal(res.json().amount, 29900 + 4900);
   });
 
   test("COD takes up to 5 packs", async () => {
     const res = await cod({ productId: "pt-car-1", quantity: 5 });
     assert.equal(res.statusCode, 200, res.body);
-    assert.equal(res.json().amount, 29900 * 5 + 3000);
+    assert.equal(res.json().amount, 29900 * 5 + 4900);
   });
 
   test("COD refuses more than 5 packs, before any order is written", async () => {
@@ -297,7 +297,7 @@ describe("guest Cash on Delivery", () => {
 
   test("the public catalogue offers COD exactly where create-order takes it", async () => {
     const res = await app.inject({ method: "GET", url: "/api/shop/public-catalogue", remoteAddress: uniqueAddress() });
-    assert.equal(res.json().codSurchargePaise, 3000);
+    assert.equal(res.json().codSurchargePaise, 4900);
     assert.deepEqual(res.json().codProductIds, ["pt-car-1", "pt-car-2"]);
     assert.equal(res.json().codMaxQuantity, 5);
   });

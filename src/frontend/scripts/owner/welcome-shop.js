@@ -585,7 +585,7 @@ function packFootNote(empty, total, codSurcharge, codTotal) {
 // ── Order confirmation + COD flash offer ──────────────────────
 let _confState = null;   // { orderNumber, amountPaise }
 let _flashTimer = null;
-const FLASH_DISCOUNT_PAISE = 3000; // ₹30, the COD fee (display fallback only; backend enforces it)
+const FLASH_DISCOUNT_PAISE = 4900; // ₹49, the COD fee (display fallback only; backend enforces it)
 
 function rupees(paise) { return "₹" + Math.round(paise / 100); }
 

@@ -67,7 +67,7 @@ describe("the public price list", () => {
   test("the COD surcharge is disclosed, not hidden", async () => {
     const body = (await get()).json();
 
-    assert.equal(body.codSurchargePaise, 3000);
+    assert.equal(body.codSurchargePaise, 4900);
     // Guest COD is the car packs (Solo and Duo) only.
     assert.deepEqual(body.codProductIds, ["pt-car-1", "pt-car-2"]);
   });

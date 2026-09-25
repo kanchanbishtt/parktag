@@ -626,6 +626,46 @@ export function registerShopRoutes(app, env) {
   // disclosed for the same reason the pack sheet discloses it — a buyer must
   // not agree to one figure and be asked for a higher one at the door. What is
   // deliberately NOT here is anything about a session, an owner or a tag.
+  // Street suggestions for the delivery sheet, from Ola Maps. Proxied rather
+  // than called from the page so the key stays server-side; the key is
+  // domain-locked on Ola's side, which it checks through the Referer. Always
+  // answers 200 with a (possibly empty) list: a suggestion is a convenience,
+  // and the buyer can always type the address by hand.
+  app.get(
+    "/api/shop/address-suggest",
+    { config: { rateLimit: { max: 40, timeWindow: "1 minute" } } },
+    async (request) => {
+      const key = process.env.OLA_MAPS_API_KEY || "";
+      const q = String(request.query?.q || "").trim().slice(0, 100);
+      const pin = /^[1-9][0-9]{5}$/.test(String(request.query?.pin || "")) ? request.query.pin : "";
+      if (!key || q.length < 3) return { ok: true, suggestions: [] };
+      try {
+        const url = new URL("https://api.olamaps.io/places/v1/autocomplete");
+        // The PIN in the query text biases results to the buyer's area.
+        url.searchParams.set("input", pin ? `${q} ${pin}` : q);
+        url.searchParams.set("api_key", key);
+        const res = await fetch(url, {
+          headers: { Referer: "https://app.parktag.me/", "X-Request-Id": crypto.randomUUID() },
+          signal: AbortSignal.timeout(3000)
+        });
+        if (!res.ok) {
+          request.log.warn({ status: res.status }, "[address-suggest] Ola Maps refused");
+          return { ok: true, suggestions: [] };
+        }
+        const data = await res.json();
+        const suggestions = (data.predictions || []).slice(0, 5).map((p) => ({
+          main: p.structured_formatting?.main_text || p.description || "",
+          secondary: p.structured_formatting?.secondary_text || "",
+          pincode: (String(p.description || "").match(/\b[1-9][0-9]{5}\b/) || [""])[0]
+        })).filter((x) => x.main);
+        return { ok: true, suggestions };
+      } catch (err) {
+        request.log.warn({ err }, "[address-suggest] lookup failed");
+        return { ok: true, suggestions: [] };
+      }
+    }
+  );
+
   app.get(
     "/api/shop/public-catalogue",
     { config: { rateLimit: { max: 60, timeWindow: "1 minute" } } },

@@ -218,6 +218,10 @@
       ".pt-addr-f select{-webkit-appearance:none;appearance:none;padding-right:38px;font-family:inherit;line-height:1.3;background:#fff url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2341506A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\") no-repeat right 12px center/18px;}",
       ".pt-addr-f select:invalid{color:#a8adb8;}",
       ".pt-addr-f select option{color:var(--ink);}",
+      "#pt-addr-sugg{margin-top:6px;border:1px solid var(--line);border-radius:12px;background:#fff;overflow:hidden;box-shadow:0 6px 18px rgba(3,22,45,.08);}",
+      "#pt-addr-sugg button{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);background:none;padding:10px 13px;font:inherit;font-size:.82rem;color:#111827;cursor:pointer;}",
+      "#pt-addr-sugg button:last-child{border-bottom:0;}",
+      "#pt-addr-sugg small{display:block;color:var(--muted);font-size:.72rem;margin-top:2px;}",
       "#pt-addr-err,#pt-addr-otp-err{display:none;background:#fdecec;color:#c0271b;font-size:.8rem;font-weight:600;padding:10px 13px;border-radius:11px;margin-bottom:13px;}",
       "#pt-addr-err.pt-show,#pt-addr-otp-err.pt-show{display:block;}",
       // The COD code: one wide field, digits spaced so a misread is visible.
@@ -405,6 +409,28 @@
       if (/^[1-9][0-9]{5}$/.test(this.value)) lookupPin(this.value);
     });
 
+    // Street suggestions under House / Flat, Street, as other checkouts do.
+    els.sugg = document.createElement("div");
+    els.sugg.id = "pt-addr-sugg";
+    els.sugg.setAttribute("role", "listbox");
+    els.sugg.classList.add("pt-hide");
+    els.inputs.line1.parentNode.appendChild(els.sugg);
+    els.inputs.line1.setAttribute("autocomplete", "off"); // our list, not the browser's, over this box
+    els.inputs.line1.addEventListener("input", function () {
+      clearTimeout(suggTimer);
+      var q = this.value.trim();
+      if (q.length < 3) { hideSugg(); return; }
+      suggTimer = setTimeout(function () { fetchSugg(q); }, 300);
+    });
+    els.inputs.line1.addEventListener("blur", function () { setTimeout(hideSugg, 150); });
+    // pointerdown, not click: it lands before the input's blur hides the list.
+    els.sugg.addEventListener("pointerdown", function (e) {
+      var btn = e.target.closest("button");
+      if (!btn) return;
+      e.preventDefault();
+      pickSugg(suggList[Number(btn.dataset.i)]);
+    });
+
     // Which field a buyer got to, once per field per open: Clarity showed
     // people leaving a half-filled form, and this says where. The field's
     // NAME only, never what was typed.
@@ -558,6 +584,54 @@
   function saveLabel() {
     if (!guestMode) return "Save &amp; continue to pay";
     return payChoice === "cod" ? "Place order, pay on delivery" : "Continue to pay";
+  }
+
+  var suggTimer = null, suggSeq = 0, suggList = [];
+
+  function hideSugg() {
+    if (els && els.sugg) els.sugg.classList.add("pt-hide");
+  }
+
+  function fetchSugg(q) {
+    var seq = ++suggSeq;
+    var pin = els.inputs.pincode.value;
+    fetch("/api/shop/address-suggest?q=" + encodeURIComponent(q) + (pin ? "&pin=" + pin : ""))
+      .then(function (res) { return res.ok ? res.json() : null; })
+      .then(function (data) {
+        if (seq !== suggSeq) return; // an older answer arriving late
+        suggList = (data && data.suggestions) || [];
+        els.sugg.replaceChildren();
+        suggList.forEach(function (sg, i) {
+          var b = document.createElement("button");
+          b.type = "button";
+          b.dataset.i = String(i);
+          b.textContent = sg.main;
+          var small = document.createElement("small");
+          small.textContent = sg.secondary;
+          b.appendChild(small);
+          els.sugg.appendChild(b);
+        });
+        els.sugg.classList.toggle("pt-hide", !suggList.length || document.activeElement !== els.inputs.line1);
+      })
+      .catch(hideSugg);
+  }
+
+  // Street into line 1; the locality part of the rest into the area line, less
+  // what City, State and PIN already hold.
+  function pickSugg(sg) {
+    if (!sg) return;
+    els.inputs.line1.value = sg.main;
+    var drop = [els.inputs.city.value, els.inputs.state.value, "India"].map(function (x) { return String(x).toLowerCase(); });
+    var area = String(sg.secondary || "").split(",").map(function (x) { return x.trim(); }).filter(function (x) {
+      return x && !/[0-9]{6}/.test(x) && drop.indexOf(x.toLowerCase()) < 0 && STATES.indexOf(x) < 0;
+    }).slice(0, 3).join(", ");
+    if (!els.inputs.line2.value && area) els.inputs.line2.value = area;
+    if (!els.inputs.pincode.value && sg.pincode) {
+      els.inputs.pincode.value = sg.pincode;
+      lookupPin(sg.pincode);
+    }
+    hideSugg();
+    if (typeof window.clarity === "function") window.clarity("event", "address_suggestion_used");
   }
 
   // Best effort: fills City and State from India Post's public PIN lookup, and

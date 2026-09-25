@@ -765,20 +765,35 @@ let sharedCarLocation = null;
 
 function wireShareCarLocation() {
   const btn = byId("share-car-location");
-  const label = byId("share-car-location-label");
-  if (!btn || !label || !navigator.geolocation) { if (btn) btn.hidden = true; return; }
+  const title = byId("share-car-location-label");
+  const sub = byId("share-car-location-sub");
+  if (!btn || !title || !sub || !navigator.geolocation) { if (btn) btn.hidden = true; return; }
+
+  const show = (state, titleText, subText) => {
+    btn.dataset.state = state;
+    btn.setAttribute("aria-pressed", state === "on" ? "true" : "false");
+    title.textContent = titleText;
+    sub.textContent = subText;
+  };
+
   btn.addEventListener("click", () => {
-    if (sharedCarLocation) return;
-    label.textContent = "📍 Finding the car's location…";
+    if (btn.dataset.state === "busy") return;
+    // A second tap takes it back: sharing stays the scanner's choice until sent.
+    if (sharedCarLocation) {
+      sharedCarLocation = null;
+      show("off", "Share where the car is", "Helps the owner find it faster");
+      return;
+    }
+    show("busy", "Finding the car…", "Allow location when your phone asks");
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         sharedCarLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: Math.round(pos.coords.accuracy || 0) };
-        btn.setAttribute("aria-pressed", "true");
-        label.textContent = "✓ Location added. The owner sees the nearest landmark.";
+        show("on", "Car location added", "The owner sees the nearest landmark");
         window.clarity?.("event", "car_location_shared");
       },
-      () => {
-        label.textContent = "Location not shared. You can still message or call.";
+      (err) => {
+        show("off", "Share where the car is",
+          err && err.code === 1 ? "Location is off. You can still message or call." : "Couldn't get a fix. Tap to try again.");
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
     );

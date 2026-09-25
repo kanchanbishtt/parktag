@@ -507,43 +507,43 @@
           </button>
         </div>
 
-        <!-- Told before the choice is made, not after, because afterwards is too
-             late to decline. Shown on exactly the tags that record it: this is
-             toggled with the contact tiles above, and both follow the same
-             server-side entitlement that decides whether a location is captured
-             at all — so this can never claim a sharing that is not happening.
-             "Area" and "from your internet connection" are the honest words: it
-             is a city-level estimate off the IP, not the phone's GPS, and
-             saying "location" would imply a precision this does not have. -->
-        <!-- Opt-in, and only on tap: the browser asks for the phone's location
-             when this is pressed and never before. The scanner is standing at
-             the car, so this is the CAR's position; the owner is shown the
-             nearest landmark (see lib/core/car-location.js), never coordinates. -->
-        <button class="pt-share-loc" id="share-car-location" type="button" aria-pressed="false">
-          <span id="share-car-location-label">📍 Share where the car is <small>(helps the owner find it)</small></span>
-        </button>
+        <!-- The optional extra and the fine print, as one group under the two
+             contact tiles. The share control is a toggle row, not a third tile:
+             it adds to whichever route is picked rather than competing with
+             them. The browser asks for the phone's location only when it is
+             tapped. The scanner stands at the car, so this is the CAR's
+             position; the owner is shown the nearest landmark
+             (lib/core/car-location.js), never coordinates.
 
-        <p class="pt-contact-privacy" id="scanner-location-notice">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="10" r="2.6" stroke="currentColor" stroke-width="2"/></svg>
-          <span>Your approximate area, from your internet connection, is shared with the vehicle owner. Your number stays private.</span>
-        </p>
+             The two notes are said before a route is picked, because
+             afterwards is too late to decline. The location note follows the
+             same server-side entitlement as the IP capture it describes (it is
+             toggled with the tiles in app.js), and the cookie is set only on a
+             successful contact (ptScannerEngaged in assets/analytics.js), with
+             the tag reference stripped from the address first. -->
+        <div class="pt-contact-extras">
+          <button class="pt-share-loc" id="share-car-location" type="button" aria-pressed="false" aria-describedby="share-car-location-sub">
+            <span class="pt-share-loc-icon" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 21.5s-7-6.1-7-11.8a7 7 0 0 1 14 0c0 5.7-7 11.8-7 11.8Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="9.7" r="2.6" stroke="currentColor" stroke-width="2"/></svg>
+            </span>
+            <span class="pt-share-loc-text">
+              <span class="pt-share-loc-title" id="share-car-location-label">Share where the car is</span>
+              <span class="pt-share-loc-sub" id="share-car-location-sub">Helps the owner find it faster</span>
+            </span>
+            <span class="pt-share-loc-switch" aria-hidden="true"></span>
+          </button>
 
-        <!-- Same rule as the notice above: said before the button is pressed,
-             because afterwards is too late to decline. This is the only place
-             the advertising cookie is mentioned and it is the only place it can
-             honestly be mentioned — nothing is loaded when this page opens, and
-             nothing is loaded if the visitor reads this and leaves. It happens
-             on a successful contact and not before (ptScannerEngaged in
-             assets/analytics.js), and the tag reference is stripped out of the
-             address before anything is sent.
-
-             Not a blocking banner, deliberately. Someone is standing next to a
-             car they cannot move; putting a consent dialog between them and the
-             owner would be a worse thing to do to them than the cookie is. -->
-        <p class="pt-contact-privacy" id="scanner-ads-notice">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M12 8v.01M11 12h1v4h1" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          <span>This page sets an advertising cookie so we can show you ParkTag ads later. The tag reference is removed from the web address first, and no details of this vehicle are shared. See our <a href="https://parktag.me/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</span>
-        </p>
+          <div class="pt-contact-notes">
+            <p class="pt-contact-privacy" id="scanner-location-notice">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="2.5" stroke="currentColor" stroke-width="2"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              <span>Your number stays private. The owner sees your approximate area, from your internet connection.</span>
+            </p>
+            <p class="pt-contact-privacy" id="scanner-ads-notice">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M12 8v.01M11 12h1v4h1" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span>Contacting the owner sets an advertising cookie. No details of this vehicle are shared. <a href="https://parktag.me/privacy" target="_blank" rel="noopener">Privacy Policy</a></span>
+            </p>
+          </div>
+        </div>
 
         <!-- Emergency / SOS — only rendered when the owner has set a next-of-kin
              number (tag.emergencyAvailable). Deliberately separated from the two

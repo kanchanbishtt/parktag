@@ -2369,31 +2369,102 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
   padding: 8px 22px 28px;
 }
 
-/* The area-sharing notice under the contact tiles.
-   Pulled up into the tiles' 28px bottom padding so it reads as a footnote to
-   that choice rather than as a new block, and matched to their 22px gutters so
-   the text edges line up with the tiles above. Quiet by design: it must be
-   readable and honest, not a warning that frightens someone out of reporting a
-   car with its lights left on. */
-.pt-share-loc {
-  display: block; width: 100%; margin: 10px 0 4px; padding: 11px 14px;
-  border: 1px dashed #b7c3d4; border-radius: 12px; background: transparent;
-  font: inherit; font-size: .88rem; font-weight: 600; color: #03162d; cursor: pointer; text-align: center;
+/* Under the contact tiles: the optional "share where the car is" toggle and
+   the two fine-print notes, as one group on the tiles' 22px gutters. It
+   tucks into the tiles' 28px bottom padding (the -12px leaves a 16px step),
+   so it reads as part of that choice rather than a new section. Inside, the
+   toggle is separated from the notes by 14px and the notes sit 6px apart:
+   one clear control, then the small print. */
+.pt-contact-extras {
+  display: grid;
+  gap: 14px;
+  margin-top: -12px;
+  padding: 0 22px 22px;
 }
-.pt-share-loc small { font-weight: 500; color: #6b7280; }
-.pt-share-loc[aria-pressed="true"] { border-style: solid; border-color: #25a55f; color: #1b7a45; background: #eefaf3; }
+
+.pt-contact-notes {
+  display: grid;
+  gap: 6px;
+}
+
+/* A settings-style toggle row, the same 14px radius and hairline as the tiles
+   use at rest, so it reads as an option on the choice above, not a third
+   route. Min 56px tall: comfortably over the 44px touch floor. */
+.pt-share-loc {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 56px;
+  padding: 10px 14px;
+  border: 1px solid var(--pt-border);
+  border-radius: 14px;
+  background: #F7F9FC;
+  color: var(--pt-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 180ms ease, border-color 180ms ease;
+}
+.pt-share-loc:hover { border-color: #C9D3E1; }
+.pt-share-loc:focus-visible { outline: 2px solid var(--pt-ink); outline-offset: 2px; }
 .pt-share-loc[hidden] { display: none; }
+
+.pt-share-loc-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: #E8EEF7;
+  color: var(--pt-ink);
+}
+
+.pt-share-loc-text { display: grid; gap: 1px; min-width: 0; }
+.pt-share-loc-title { font-size: 0.9rem; font-weight: 700; line-height: 1.25; }
+.pt-share-loc-sub { font-size: 0.78rem; font-weight: 500; line-height: 1.35; color: var(--pt-sub); }
+
+/* The switch is drawn, not a checkbox: the whole row is the control. */
+.pt-share-loc-switch {
+  position: relative;
+  width: 38px;
+  height: 22px;
+  border-radius: 999px;
+  background: #CBD5E1;
+  transition: background 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.pt-share-loc-switch::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(3, 22, 45, 0.25);
+  transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.pt-share-loc[aria-pressed="true"] { background: #EEFAF3; border-color: #A7DDBE; }
+.pt-share-loc[aria-pressed="true"] .pt-share-loc-icon { background: #D5F2E1; color: var(--pt-green-dark); }
+.pt-share-loc[aria-pressed="true"] .pt-share-loc-switch { background: var(--pt-green-dark); }
+.pt-share-loc[aria-pressed="true"] .pt-share-loc-switch::after { transform: translateX(16px); }
+.pt-share-loc[data-state="busy"] { cursor: progress; }
+.pt-share-loc[data-state="busy"] .pt-share-loc-switch { background: #94A3B8; }
 
 .pt-contact-privacy {
   display: flex;
   align-items: flex-start;
-  gap: 6px;
-  margin: -20px 0 0;
-  padding: 0 22px 22px;
-  font-size: 0.68rem;
-  line-height: 1.5;
-  color: #8A94A6;
+  gap: 7px;
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: #6B778C;
 }
+.pt-contact-privacy a { color: inherit; text-underline-offset: 2px; }
 
 .pt-contact-privacy svg {
   flex-shrink: 0;
@@ -2447,8 +2518,8 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
    width, so the label steps down rather than being allowed to clip. */
 @media (max-width: 400px) {
   .pt-contact-actions { gap: 9px; padding-left: 16px; padding-right: 16px; }
-  /* Follow the tiles in to 16px so the notice stays flush with them. */
-  .pt-contact-privacy { padding-left: 16px; padding-right: 16px; }
+  /* Follow the tiles in to 16px so the group stays flush with them. */
+  .pt-contact-extras { padding-left: 16px; padding-right: 16px; }
   .pt-contact-actions .pt-btn { min-height: 64px; padding: 10px 6px; }
   .pt-btn-line { font-size: 0.86rem; gap: 5px; }
   .pt-btn-line svg { width: 15px; height: 15px; }

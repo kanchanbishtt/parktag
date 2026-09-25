@@ -11,7 +11,7 @@ const SUPPORT_EMAIL = "support@parktag.me";
 // E.164 for tel: — no spaces, so the dialer parses it on every handset.
 const SUPPORT_PHONE_E164 = "+918791638854";
 
-const OFFICE_ADDRESS = "32/11, Wave One, Sector 18, Noida, UP 201301";
+const OFFICE_ADDRESS = "30B/11, Wave One, Sector 18, Noida, UP 201301";
 // Google's documented Maps URL format. It resolves in a browser and hands off
 // to the native Maps app on Android/iOS. Built with encodeURIComponent rather
 // than a hand-escaped string so the comma and slash in the address can't break
@@ -97,7 +97,7 @@ export default function ContactPage() {
               </div>
               <div>
                 <p className="text-sm font-semibold text-[#03162D] mb-0.5">In-Person Consultation</p>
-                <p className="text-sm text-[#495B7B] group-hover:text-[#FF2700] transition-colors">32/11, Wave One, Sector 18</p>
+                <p className="text-sm text-[#495B7B] group-hover:text-[#FF2700] transition-colors">30B/11, Wave One, Sector 18</p>
                 <p className="text-sm text-[#495B7B] group-hover:text-[#FF2700] transition-colors">Noida, UP 201301</p>
               </div>
             </a>

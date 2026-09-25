@@ -55,7 +55,7 @@ export default function AboutPage() {
               </div>
               <div className="flex items-start gap-3">
                 <span className="text-[#495B7B] w-16 flex-shrink-0">Address</span>
-                <span className="text-[#03162D]">32/11, Wave One, Sector 18, Noida, UP 201301</span>
+                <span className="text-[#03162D]">30B/11, Wave One, Sector 18, Noida, UP 201301</span>
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-[#495B7B] w-16 flex-shrink-0">Phone</span>

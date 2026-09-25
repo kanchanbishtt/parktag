@@ -14,10 +14,10 @@ export default function TermsPage() {
       <SiteHeader defaultDark={false} />
       <div className="min-h-screen bg-white pt-16">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-12 sm:py-16">
-        <p className="text-xs text-[#495B7B] mb-3">Last updated: 23 June 2026</p>
+        <p className="text-xs text-[#495B7B] mb-3">Last updated: 25 September 2026</p>
         <h1 className="text-3xl sm:text-4xl font-extrabold text-[#03162D] mb-2 tracking-tight">Terms &amp; Conditions</h1>
         <p className="text-[#495B7B] mb-10">
-          These Terms &amp; Conditions (&ldquo;Terms&rdquo;) govern your use of parktag.me, the ParkTag web and mobile applications, and any physical ParkTag products (collectively, the &ldquo;Services&rdquo;) operated by <span className="text-[#03162D] font-medium">[Legal Entity Name]</span> (&ldquo;ParkTag&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;). By using the Services you agree to these Terms.
+          These Terms &amp; Conditions (&ldquo;Terms&rdquo;) govern your use of parktag.me, the ParkTag web and mobile applications, and any physical ParkTag products (collectively, the &ldquo;Services&rdquo;) operated by <span className="text-[#03162D] font-medium">EditTree Enterprises</span> (&ldquo;ParkTag&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;). By using the Services you agree to these Terms.
         </p>
 
         <div className="space-y-10">
@@ -104,7 +104,7 @@ export default function TermsPage() {
           <Section title="17. Contact">
             <p>For any questions about these Terms:</p>
             <p>Email: <a href="mailto:legal@parktag.me" className="text-[#FF2700] hover:underline">legal@parktag.me</a></p>
-            <p>Address: 32/11, Wave One, Sector 18, Noida, UP 201301</p>
+            <p>Address: 30B/11, Wave One, Sector 18, Noida, UP 201301</p>
           </Section>
 
         </div>

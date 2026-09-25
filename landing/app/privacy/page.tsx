@@ -13,7 +13,7 @@ export default function PrivacyPage() {
       <SiteHeader defaultDark={false} />
       <div className="min-h-screen bg-white pt-16">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-12 sm:py-16">
-        <p className="text-xs text-[#495B7B] mb-3">Last updated: 22 September 2026</p>
+        <p className="text-xs text-[#495B7B] mb-3">Last updated: 25 September 2026</p>
         <h1 className="text-3xl sm:text-4xl font-extrabold text-[#03162D] mb-2 tracking-tight">Privacy Policy</h1>
         <p className="text-[#495B7B] mb-10">
           ParkTag (&ldquo;we&rdquo;, &ldquo;us&rdquo;, &ldquo;our&rdquo;) respects your privacy. This Privacy Policy explains how we collect, use, share and protect your information when you use our website parktag.me, our web app, and our QR-enabled physical tags (collectively, the &ldquo;Services&rdquo;).
@@ -136,7 +136,7 @@ export default function PrivacyPage() {
           <Section title="11. Contact">
             <p>Grievance Officer: <span className="text-[#03162D] font-medium">Girish Sharma</span></p>
             <p>Email: <a href="mailto:privacy@parktag.me" className="text-[#FF2700] hover:underline">privacy@parktag.me</a></p>
-            <p>Address: 32/11, Wave One, Sector 18, Noida, UP 201301</p>
+            <p>Address: 30B/11, Wave One, Sector 18, Noida, UP 201301</p>
           </Section>
 
         </div>

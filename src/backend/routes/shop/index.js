@@ -654,11 +654,14 @@ export function registerShopRoutes(app, env) {
           return { ok: true, suggestions: [] };
         }
         const data = await res.json();
-        const suggestions = (data.predictions || []).slice(0, 5).map((p) => ({
+        const suggestions = (data.predictions || []).map((p) => ({
           main: p.structured_formatting?.main_text || p.description || "",
           secondary: p.structured_formatting?.secondary_text || "",
           pincode: (String(p.description || "").match(/\b[1-9][0-9]{5}\b/) || [""])[0]
-        })).filter((x) => x.main);
+        })).filter((x) => x.main)
+          // Ola treats the PIN as a hint only; results in the buyer's PIN go first.
+          .sort((a, b) => (b.pincode === pin) - (a.pincode === pin))
+          .slice(0, 5);
         return { ok: true, suggestions };
       } catch (err) {
         request.log.warn({ err }, "[address-suggest] lookup failed");

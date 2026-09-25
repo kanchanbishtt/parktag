@@ -42,26 +42,51 @@ export async function autocomplete(input, opts) {
   return res ? (await res.json()).predictions || [] : [];
 }
 
-// "Wave Mall, Sector 18, Noida" for a point, or null. The nearest named place
-// plus its locality, not the full postal address: the owner needs a landmark
-// to walk to, and the scanner's position should read as a place, not a door.
-export async function placeName(lat, lng, opts) {
+// Named places a stranger can walk to. Ola's nearest result is usually just the
+// closest business ("Xacco Global Hospitalities", a firm on the 19th floor), so
+// a result is only used as the landmark when it is one of these kinds.
+const LANDMARK_TYPES = new Set([
+  "shopping_mall", "subway_station", "transit_station", "train_station", "bus_station",
+  "light_rail_station", "hospital", "park", "place_of_worship", "hindu_temple", "church",
+  "mosque", "gurudwara", "stadium", "university", "airport", "tourist_attraction", "museum"
+]);
+
+// What to tell the owner about a point, or null:
+//   place  "Wave Mall, Sector 18, Noida"   (the alert text)
+//   pin    "Wave Mall"                     (the label on the map image)
+// Built from the address components (block, sector, city), with a landmark in
+// front only when one of the results is a genuine landmark within 150 m.
+export async function describePlace(lat, lng, opts) {
   const res = await olaFetch("/places/v1/reverse-geocode", { latlng: `${lat},${lng}` }, opts);
   if (!res) return null;
-  const top = ((await res.json()).results || [])[0];
-  if (!top) return null;
-  const parts = String(top.formatted_address || "").split(",").map((s) => s.trim()).filter(Boolean);
-  // Drop the state, PIN and country off the end; keep name, sub-locality, city.
-  // "Wave Mall, Pocket J, Sector 18, Noida, Uttar Pradesh 201301" → "Wave Mall, Sector 18, Noida".
-  const f = parts.filter((p) => !/\d{6}/.test(p) && p !== "India");
-  const picked = f.length > 3 ? [f[0], f[f.length - 2], f[f.length - 1]] : f;
-  return picked.length ? picked.join(", ").slice(0, 120) : null;
+  const results = (await res.json()).results || [];
+  if (!results.length) return null;
+
+  const part = (type) => {
+    for (const r of results) {
+      const c = (r.address_components || []).find((x) => (x.types || []).includes(type));
+      if (c?.long_name) return c.long_name;
+    }
+    return "";
+  };
+  const block = part("neighborhood");
+  const sector = part("sublocality");
+  const city = part("locality") || part("administrative_area_level_3");
+  const landmark = results.find((r) =>
+    r.name && (r.types || []).some((t) => LANDMARK_TYPES.has(t)) && !(Number(r.distance_meters) > 150)
+  )?.name || "";
+
+  const unique = (xs) => xs.filter((x, i) => x && xs.indexOf(x) === i);
+  const place = unique(landmark ? [landmark, sector || block, city] : [block, sector, city]).join(", ");
+  const pin = landmark || unique([block, sector]).join(", ") || city;
+  return place ? { place: place.slice(0, 120), pin: (pin || place).slice(0, 40) } : null;
 }
 
-// A 600x300 PNG with a pin, or null.
+// A 1200x600 PNG (600x300 at 2x, so it stays sharp on a phone), pin at the
+// centre, or null.
 export async function staticMapPng(lat, lng, opts) {
   const res = await olaFetch(
-    `/tiles/v1/styles/default-light-standard/static/${lng},${lat},16/600x300.png`,
+    `/tiles/v1/styles/default-light-standard/static/${lng},${lat},16/600x300@2x.png`,
     { marker: `${lng},${lat}|red|scale:0.9` },
     { timeoutMs: 5000, ...opts }
   );

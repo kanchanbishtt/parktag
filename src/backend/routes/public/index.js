@@ -30,6 +30,7 @@ import {
 import { verifyRecaptchaV2 } from "../../lib/integrations/recaptcha.js";
 import { resolveCarLocation } from "../../lib/core/car-location.js";
 import { staticMapPng } from "../../lib/integrations/ola-maps.js";
+import { composeCarMap } from "../../lib/integrations/car-map.js";
 import { clientErrorMessage } from "../../lib/errors.js";
 import { findByCanonicalEmail } from "../../lib/auth/identity.js";
 import { recordDemoActivation } from "../../lib/core/marketing-stock.js";
@@ -336,8 +337,12 @@ export function registerPublicRoutes(app, env) {
       const row = /^[A-Za-z0-9_-]{16}$/.test(token) && collections
         ? await collections.contactRequests.findOne({ "carLocation.mapToken": token }, { projection: { carLocation: 1 } })
         : null;
-      const png = row ? await staticMapPng(row.carLocation.lat, row.carLocation.lng, { log: request.log }) : null;
-      if (!png) { reply.code(404); return { ok: false, error: "Not found" }; }
+      const map = row ? await staticMapPng(row.carLocation.lat, row.carLocation.lng, { log: request.log }) : null;
+      if (!map) { reply.code(404); return { ok: false, error: "Not found" }; }
+      // Rows from before `pin` existed fall back to the first part of the place.
+      const label = row.carLocation.pin || String(row.carLocation.place || "").split(",")[0];
+      let png = map;
+      try { png = composeCarMap(map, label); } catch (err) { request.log.warn({ err }, "[car-map] label not drawn"); }
       reply.header("Cache-Control", "public, max-age=86400").type("image/png");
       return png;
     }

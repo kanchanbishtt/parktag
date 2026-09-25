@@ -33,7 +33,7 @@ describe("address suggestions", () => {
     const res = await get("Wave");
     assert.deepEqual(res.json().suggestions, [{ main: "Wave Mall", secondary: "Pocket J, Sector 18, Noida, Uttar Pradesh 201301", pincode: "201301" }]);
     assert.equal(new URL(called.url).searchParams.get("input"), "Wave 201301");
-    assert.equal(called.init.headers.Referer, "https://app.parktag.me/");
+    assert.equal(called.init.headers.Origin, "https://app.parktag.me");
   });
 
   test("a failed lookup still answers with an empty list", async () => {

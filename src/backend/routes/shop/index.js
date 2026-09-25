@@ -628,7 +628,8 @@ export function registerShopRoutes(app, env) {
   // deliberately NOT here is anything about a session, an owner or a tag.
   // Street suggestions for the delivery sheet, from Ola Maps. Proxied rather
   // than called from the page so the key stays server-side; the key is
-  // domain-locked on Ola's side, which it checks through the Referer. Always
+  // domain-locked on Ola's side, which it checks through the Origin header
+  // (Node's fetch drops Referer, so that alone gets a 403). Always
   // answers 200 with a (possibly empty) list: a suggestion is a convenience,
   // and the buyer can always type the address by hand.
   app.get(
@@ -645,7 +646,7 @@ export function registerShopRoutes(app, env) {
         url.searchParams.set("input", pin ? `${q} ${pin}` : q);
         url.searchParams.set("api_key", key);
         const res = await fetch(url, {
-          headers: { Referer: "https://app.parktag.me/", "X-Request-Id": crypto.randomUUID() },
+          headers: { Origin: "https://app.parktag.me", "X-Request-Id": crypto.randomUUID() },
           signal: AbortSignal.timeout(3000)
         });
         if (!res.ok) {

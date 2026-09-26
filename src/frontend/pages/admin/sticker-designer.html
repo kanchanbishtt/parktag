@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>ParkTag Admin | Sticker Designer</title>
+  <link rel="icon" href="/favicon.ico" sizes="32x32" />
+  <link rel="icon" href="/images/icon.png" type="image/png" />
+  <link rel="apple-touch-icon" href="/images/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles/admin-shell.css?v=__ASSET_VERSION__" />
+  <link rel="stylesheet" href="/styles/sticker-designer.css?v=__ASSET_VERSION__" />
+</head>
+<body>
+  <div class="pt-admin-shell">
+    <aside class="pt-admin-sidebar">
+      <div class="pt-admin-brand">
+        <img src="/images/light-logo.png" alt="ParkTag" class="pt-admin-brand-logo" />
+        <span class="pt-admin-brand-role">Admin</span>
+      </div>
+      <nav class="pt-admin-nav">
+        <span class="pt-admin-nav-section">Management</span>
+        <a class="pt-admin-nav-item" href="/admin/overview"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="14" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="3" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="14" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/></svg> Overview</a>
+        <a class="pt-admin-nav-item" href="/admin/etags"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 7a2 2 0 0 1 2-2h6l8 8a2 2 0 0 1 0 2.8l-4.2 4.2a2 2 0 0 1-2.8 0L4 12V7Z" stroke="currentColor" stroke-width="2"/><circle cx="7.5" cy="9.5" r="1.5" fill="currentColor"/></svg> Tags</a>
+        <a class="pt-admin-nav-item" href="/admin/activations"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M20 6 9 17l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Activations</a>
+        <a class="pt-admin-nav-item" href="/admin/issuance"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="14" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="3" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><path d="M14 14h2v2h-2zM18 14h3M14 18v3M18 18h3v3h-3z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Batch Issuance</a>
+        <a class="pt-admin-nav-item" href="/admin/print-queue"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v8H6z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Print Queue</a>
+        <a class="pt-admin-nav-item is-active" href="/admin/sticker-designer"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 20h9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg> Sticker Designer</a>
+        <a class="pt-admin-nav-item" href="/admin/marketing"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 11v2a1 1 0 0 0 1 1h2l4 4V6L6 10H4a1 1 0 0 0-1 1Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M16 8.5a4 4 0 0 1 0 7M19 5.5a8 8 0 0 1 0 13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Field Demo</a>
+        <span class="pt-admin-nav-section">Monitoring</span>
+        <a class="pt-admin-nav-item" href="/admin/traffic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M3 12h18M12 3c2.5 2.7 2.5 15.3 0 18M12 3c-2.5 2.7-2.5 15.3 0 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Traffic</a>
+        <a class="pt-admin-nav-item" href="/admin/owners"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="2"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Owners</a>
+        <a class="pt-admin-nav-item" href="/admin/activity"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M22 12h-4l-3 9L9 3l-3 9H2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Activity Feed</a>
+        <a class="pt-admin-nav-item" href="/admin/admins"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 2L4 6v6c0 5.25 3.5 9.74 8 11 4.5-1.26 8-5.75 8-11V6l-8-4Z" stroke="currentColor" stroke-width="2"/></svg> Admin Management</a>
+      </nav>
+      <div class="pt-admin-sidebar-footer">
+        <button id="admin-refresh-button" class="pt-admin-sidebar-btn pt-admin-btn-ghost">Refresh</button>
+        <button id="admin-logout-button" class="pt-admin-sidebar-btn pt-admin-btn-danger">Sign out</button>
+      </div>
+    </aside>
+    <main class="pt-admin-main">
+  <div class="page">
+    <header class="top">
+      <div>
+        <h1 class="title">Sticker Designer</h1>
+        <p class="sub">Design the QR sticker in layers. Every sticker prints this artwork with its own QR code and serial in the places you set. Nothing changes on printed stickers until you publish.</p>
+      </div>
+    </header>
+
+    <section class="card" id="designs-card" aria-labelledby="designs-title">
+      <div class="card-head">
+        <div>
+          <h2 class="card-title" id="designs-title">Designs</h2>
+          <p class="live-line" id="live-line">Loading…</p>
+        </div>
+        <div class="actions">
+          <button class="btn btn-primary" type="button" data-new="live">New from live design</button>
+          <button class="btn" type="button" data-new="original">New from original artwork</button>
+          <button class="btn" type="button" data-new="original-layers" title="The original Figma artwork broken into its shapes and text, each one a layer you can edit">Original, as editable layers</button>
+          <button class="btn" type="button" data-new="blank">Blank</button>
+        </div>
+      </div>
+      <div id="designs-list" class="designs"><p class="muted">Loading designs…</p></div>
+      <p class="muted small" id="unpublish-line" hidden>
+        <button class="linklike" type="button" id="unpublish-button">Go back to the original artwork</button> (stops printing the live design; it stays in the list).
+      </p>
+    </section>
+
+    <section class="card editor" id="editor" hidden aria-label="Design editor">
+      <div class="editor-bar">
+        <input class="name-input" id="design-name" type="text" maxlength="80" aria-label="Design name" />
+        <span class="state-chip" id="design-state"></span>
+        <span class="spacer"></span>
+        <button class="btn icon" type="button" id="undo-button" title="Undo (Ctrl+Z)" aria-label="Undo"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 14 4 9l5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+        <button class="btn icon" type="button" id="redo-button" title="Redo (Ctrl+Shift+Z)" aria-label="Redo"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="m15 14 5-5-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+        <button class="btn" type="button" id="preview-button">Preview print</button>
+        <button class="btn" type="button" id="save-copy-button">Save as copy</button>
+        <button class="btn" type="button" id="save-button">Save</button>
+        <button class="btn btn-primary" type="button" id="publish-button">Publish</button>
+        <button class="btn" type="button" id="close-button">Close</button>
+      </div>
+      <p class="editor-status" id="editor-status" role="status" aria-live="polite"></p>
+
+      <div class="editor-grid">
+        <aside class="panel tools" aria-label="Add">
+          <h3 class="panel-title">Add</h3>
+          <button class="tool" type="button" data-add="text"><span class="tool-ico">T</span> Text</button>
+          <button class="tool" type="button" data-add="rect"><span class="tool-ico">&#9632;</span> Rectangle</button>
+          <button class="tool" type="button" data-add="circle"><span class="tool-ico">&#9679;</span> Circle</button>
+          <button class="tool" type="button" data-add="line"><span class="tool-ico">&#9135;</span> Line</button>
+          <label class="tool file-tool"><span class="tool-ico">&#8682;</span> Image or SVG
+            <input type="file" id="image-input" accept="image/png,image/jpeg,image/webp,image/svg+xml,.svg" />
+          </label>
+          <label class="check"><input type="checkbox" id="svg-layers" /> Split SVGs into layers</label>
+
+          <h3 class="panel-title">Sticker</h3>
+          <label class="field">Background
+            <input type="color" id="bg-color" value="#ffffff" />
+          </label>
+          <p class="muted small">105 &times; 63 mm. Artwork should cover the whole box; nothing prints outside it.</p>
+          <p class="muted small">Text uses fonts every computer has, because the printer's machine renders it.</p>
+        </aside>
+
+        <div class="stage-wrap">
+          <div class="stage" id="stage"><canvas id="sticker-canvas" width="1000" height="600"></canvas></div>
+          <p class="muted small stage-note">Drag to move, corners to resize. Double-click text to type. The red QR and the serial are placeholders: each printed sticker gets its own.</p>
+        </div>
+
+        <aside class="panel side" aria-label="Layers and properties">
+          <h3 class="panel-title">Layers <span class="muted small">(top first)</span></h3>
+          <ol class="layers" id="layers"></ol>
+          <h3 class="panel-title">Properties</h3>
+          <div id="props" class="props"><p class="muted small">Select a layer to edit it.</p></div>
+        </aside>
+      </div>
+    </section>
+
+    <div class="modal" id="preview-modal" hidden role="dialog" aria-modal="true" aria-labelledby="preview-title">
+      <div class="modal-box">
+        <div class="card-head">
+          <h2 class="card-title" id="preview-title">As it will print</h2>
+          <button class="btn" type="button" id="preview-close">Close</button>
+        </div>
+        <p class="muted small">Rendered the way the Print Queue export renders it, with a sample QR and serial. Check the text looks right: this is the font the print machine will use.</p>
+        <div class="preview-sticker" id="preview-sticker"></div>
+      </div>
+    </div>
+
+    <p id="page-status" class="page-status" role="status" aria-live="polite"></p>
+  </div>
+    </main>
+  </div>
+  <script src="/scripts/admin/shell.js?v=__ASSET_VERSION__"></script>
+  <script src="/vendor/fabric/fabric-6.9.1.min.js?v=__ASSET_VERSION__"></script>
+  <script src="/scripts/admin/sticker-designer.js?v=__ASSET_VERSION__"></script>
+</body>
+</html>

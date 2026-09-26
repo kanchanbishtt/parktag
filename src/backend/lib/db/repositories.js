@@ -80,6 +80,8 @@ export async function getCollections(env) {
     // Public shop controls that change without a deploy. One document holds
     // the dashboard-plate price and whether stock is available.
     storeSettings: db.collection(withPrefix(prefix, "store_settings")),
+    // Sticker artwork made in /admin/sticker-designer (lib/core/sticker-design.js).
+    stickerDesigns: db.collection(withPrefix(prefix, "sticker_designs")),
     // Buyers' replies to the post-delivery review request: text and a photo,
     // held for an admin to approve before anything is public. One row per
     // order; see lib/core/reviews.js.
@@ -286,6 +288,11 @@ const CORE_INDEXES = [
   // Every Traffic-page query filters on a day range and then groups, so this
   // is the one index that matters for the admin summary.
   ["landingVisits", { day: 1 }, { name: "day" }],
+  // At most one published sticker design: that one is what prints. Enforced
+  // here as well as in the publish route, so two publishes racing each other
+  // cannot leave two live designs with the print run picking either.
+  ["stickerDesigns", { status: 1 }, { unique: true, partialFilterExpression: { status: "published" }, name: "one_published" }],
+  ["stickerDesigns", { updatedAt: -1 }, { name: "recent" }],
   // Retention, not housekeeping: analytics rows are only useful as a recent
   // trend, and holding them forever would turn a rolling traffic count into a
   // long-term behavioural record. 180 days, dropped automatically.

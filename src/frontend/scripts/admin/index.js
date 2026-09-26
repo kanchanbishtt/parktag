@@ -129,21 +129,21 @@ function setIssueMessage(message) {
   `;
 }
 
-// Batch export print layout — sticker only: dashed cut + two-panel sticker
-// (white panel + red QR panel), no instruction / free-contact text. Class-based
-// markup that relies on the `#qr-export-grid .pt-*` styles in print-queue.html.
-// One tag per `.pt-page` (page-break-after: always) so the export prints one
-// per page.
-function etagPrintPageHtml(tag) {
-  // Sticker only — no instructions text. Just the Figma artwork with the tag's QR.
+// Batch export print layout — sticker only: the published sticker design
+// (/admin/sticker-designer) or the original artwork, with the tag's QR and
+// serial overlaid where that design puts them. Class-based markup that relies
+// on the `#qr-export-grid .pt-*` styles in print-queue.html; the overlay
+// positions come from the server as inline styles. One tag per `.pt-page`
+// (page-break-after: always) so the export prints one per page.
+function etagPrintPageHtml(tag, spec) {
   return `
   <div class="pt-page">
     <div class="pt-wrap">
       <div class="pt-cut">
         <div class="pt-figma-sticker">
-          <img class="pt-figma-bg" src="/images/org-parktag-sticker.svg" alt="ParkTag sticker"/>
-          <img class="pt-figma-qr" src="${esc(tag.qrDataUrl)}" alt="QR ${esc(tag.token)}"/>
-          <div class="pt-figma-serial">${esc(tag.serial || "")}</div>
+          <img class="pt-figma-bg" src="${esc(spec.artworkUrl)}" alt="ParkTag sticker"/>
+          <img class="pt-figma-qr" style="${esc(spec.styles.qr)}" src="${esc(tag.qrDataUrl)}" alt="QR ${esc(tag.token)}"/>
+          <div class="pt-figma-serial" style="${esc(spec.styles.serial)}">${esc(tag.serial || "")}</div>
         </div>
       </div>
     </div>
@@ -573,10 +573,17 @@ async function runPrintExport({ qrOnly }) {
 
     // One sticker per portrait page. Each .pt-sheet is a page, so the on-screen
     // preview matches the print exactly.
+    //
+    // Fetched per export, not cached: publishing a new design in another tab
+    // must change the next run, not the one after a reload.
+    const spec = await fetchJson("/api/admin/sticker-designs/current");
+    if (countLabel && spec.designId) {
+      countLabel.textContent += ` · design: ${spec.name}`;
+    }
     const perSheet = 1;
     let sheetsHtml = "";
     for (let i = 0; i < tags.length; i += perSheet) {
-      const cells = tags.slice(i, i + perSheet).map(etagPrintPageHtml).join("");
+      const cells = tags.slice(i, i + perSheet).map((tag) => etagPrintPageHtml(tag, spec)).join("");
       sheetsHtml += `<div class="pt-sheet">${cells}</div>`;
     }
     grid.innerHTML = sheetsHtml;

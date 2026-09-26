@@ -22,11 +22,13 @@ import { createSharedRateLimitStore } from "./lib/auth/rate-limit-store.js";
 import { getCollections } from "./lib/db/repositories.js";
 import { trustProxy } from "./lib/core/proxy-trust.js";
 import { stickerSerialFor } from "./lib/core/tag-issuance.js";
+import { getPublishedStickerDesign, overlayStyles, printSpecFor } from "./lib/core/sticker-design.js";
 import { registerSlackCommandRoutes } from "./routes/webhooks/slack.js";
 import { registerAdminRoutes } from "./routes/admin/index.js";
 import { registerAdminTrafficRoutes } from "./routes/admin/traffic.js";
 import { registerAdminMarketingRoutes } from "./routes/admin/marketing.js";
 import { registerAdminDoorhangerRoutes } from "./routes/admin/doorhangers.js";
+import { registerAdminStickerDesignRoutes } from "./routes/admin/sticker-designs.js";
 import { registerAdminPromoCodeRoutes } from "./routes/admin/promo-codes.js";
 import { registerAdminReviewRoutes } from "./routes/admin/reviews.js";
 import { registerAuthRoutes } from "./routes/auth/credentials.js";
@@ -80,6 +82,7 @@ const adminPrintQueuePage = path.join(pagesRoot, "admin/print-queue.html");
 const adminOwnersPage = path.join(pagesRoot, "admin/owners.html");
 const adminActivityPage = path.join(pagesRoot, "admin/activity.html");
 const adminAdminsPage = path.join(pagesRoot, "admin/admins.html");
+const adminStickerDesignerPage = path.join(pagesRoot, "admin/sticker-designer.html");
 const stickerPrintPage = path.join(pagesRoot, "admin/sticker-print.html");
 const registerOwnerPage = path.join(pagesRoot, "owner/register.html");
 const ownerLoginPage = path.join(pagesRoot, "owner/login.html");
@@ -1313,6 +1316,10 @@ export async function buildApp() {
     return guardAdmin(request, reply, adminAdminsPage);
   });
 
+  app.get("/admin/sticker-designer", async (request, reply) => {
+    return guardAdmin(request, reply, adminStickerDesignerPage);
+  });
+
   // Printable premium sticker for a given tag: the fixed SVG artwork with the
   // tag's OWN scannable QR overlaid (encodes the pinned production scan URL, so
   // printed stickers never point at localhost/whatever host generated them).
@@ -1351,11 +1358,20 @@ export async function buildApp() {
     const tag = await collections.tags.findOne({ token });
     const serial = tag ? stickerSerialFor(tag) : "";
 
+    // The published design from /admin/sticker-designer, or the original
+    // artwork when none is. The URL and styles are built from an ObjectId,
+    // an encoded timestamp and validated numbers, so they need no escaping.
+    const spec = printSpecFor(await getPublishedStickerDesign(collections));
+    const styles = overlayStyles(spec.layout);
+
     const html = await fs.readFile(stickerPrintPage, "utf8");
     reply.type("text/html");
     return html
       .replaceAll("__SCAN_URL__", scanUrl)
       .replaceAll("__SERIAL__", serial)
+      .replaceAll("__ARTWORK_URL__", spec.artworkUrl)
+      .replaceAll("__QR_STYLE__", styles.qr)
+      .replaceAll("__SERIAL_STYLE__", styles.serial)
       .replace("<!--QR-->", qrSvg);
   });
 
@@ -1401,6 +1417,7 @@ export async function buildApp() {
   registerAdminTrafficRoutes(app, env);
   registerAdminMarketingRoutes(app, env);
   registerAdminDoorhangerRoutes(app, env);
+  registerAdminStickerDesignRoutes(app, env);
   registerAdminPromoCodeRoutes(app, env);
   registerAdminReviewRoutes(app, env);
   registerAnalyticsRoutes(app, env);

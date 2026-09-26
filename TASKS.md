@@ -13,6 +13,13 @@ Rules:
 
 ## Milestones
 
+### Admin sticker designer
+- [x] Add `/admin/sticker-designer`: a Fabric.js layer editor (text, shapes, lines, image and SVG upload, layers with show/hide, lock, reorder, rename, delete, undo/redo, preview) with the QR and serial as fixed per-tag placeholders.
+- [x] Store designs (`sticker_designs`), validate layout and artwork server-side, allow one live design (unique index), and serve artwork admin-only under a sandbox CSP.
+- [x] Print the live design from Print Queue → Export QRs and `/admin/sticker/:token`; fall back to the original artwork when none is live.
+- [x] Verify in a browser: create, edit, save, publish, preview, single-sticker page and Print Queue export; 7 backend tests pass.
+- [ ] Decide whether the owner pages' sticker picture (`welcome.html`, `vehicle-detail.html`) should follow the live design.
+
 ### Car door hanger campaign
 - [x] Let an E-Tag carry more than one free contact (`freeContactAllowance`, counted in `freeContactsSpent`; `freeContactUsed` still means locked).
 - [x] Spend free contacts atomically in both register-call and contact-requests, and reset the counter when demo stock is deactivated.

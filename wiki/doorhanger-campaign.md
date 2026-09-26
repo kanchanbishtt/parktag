@@ -21,12 +21,15 @@ the card and call them, and still have a real contact left.
 ## Design source
 
 The design is made in Figma ("ParkTag Door Hanger", Edit Tree Projects) and
-used as-is: both sides are exported at 300 dpi (1425 x 3375 px, bleed included)
-into `lib/print/doorhanger/art/front.png` and `back.png`, with the card's sample
-QR and serial hidden. The print script only overlays each hanger's unique QR
-and serial (`SLOTS` in `template.js`). To change the design, edit Figma,
-re-export both sides the same way, and replace the PNGs. The card QR is
-generated in pure black to match the Figma sample.
+used as-is: both frames are exported as **vector PDFs** into
+`lib/print/doorhanger/art/front.pdf` and `back.pdf`, with the card's sample QR
+and serial set to opacity 0 (not hidden: hiding collapses the auto-layout QR
+box). Text and shapes stay vector, so nothing pixelates; only photos are
+images. `template.js` embeds each side once and draws each hanger's QR as
+vector squares plus its serial (`SLOTS`), so 1000 hangers is about 9 MB. To
+change the design, edit Figma, re-export both frames as PDF the same way
+(Figma's export, or the REST images endpoint with `format=pdf`), and replace
+the two files.
 
 Checks before every re-export:
 
@@ -48,8 +51,8 @@ Checks before every re-export:
 2. Admin → Print Queue: tick the batch's generation run (or individual tags).
 3. Click **Door hanger PDF** (tick **Dieline** for the vendor's cutting proof).
    Confirm the prompt: the tags get 2 free contacts.
-4. A new window opens with the sheet. Print, Save as PDF, margins None. Fronts
-   and backs alternate, 4.75 x 11.25in pages (bleed included).
+4. The print-ready PDF downloads. Send it to the printer as is: 4.75 x 11.25in
+   pages (bleed included), front and back alternating.
 5. After the printer has them, use **Mark printed** as for stickers.
 
 Only unclaimed, unprinted, non-demo tags are printed; bike stock is refused.
@@ -57,8 +60,8 @@ Only unclaimed, unprinted, non-demo tags are printed; bike stock is refused.
 ## Print run (command line)
 
 1. Admin → Issuance: issue a batch with the car / windscreen mount type.
-2. `node --env-file=.env src/backend/scripts/print-doorhangers.js --batch <n> --out batch-<n>.html --apply`
-3. Open the HTML in Chrome, Save as PDF. The page size includes 0.125in bleed; fronts and backs alternate.
+2. `node --env-file=.env src/backend/scripts/print-doorhangers.js --batch <n> --out batch-<n>.pdf --apply`
+3. The output is the print-ready PDF (0.125in bleed, fronts and backs alternating).
 4. For the vendor proof, add `--dieline` (magenta trim, 1.5in hole and slit).
 
 `--sample N` makes a watermarked proof with fake tokens and no database. Never print it.

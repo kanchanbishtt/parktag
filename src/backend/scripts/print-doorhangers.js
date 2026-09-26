@@ -1,8 +1,8 @@
 // Build the print file for car door hangers, one real unclaimed tag per hanger.
 //
-//   node src/backend/scripts/print-doorhangers.js --sample 2 --out proof.html
-//   node --env-file=.env src/backend/scripts/print-doorhangers.js --batch 07 --out batch-07.html
-//   node --env-file=.env src/backend/scripts/print-doorhangers.js --batch 07 --out batch-07.html --apply
+//   node src/backend/scripts/print-doorhangers.js --sample 2 --out proof.pdf
+//   node --env-file=.env src/backend/scripts/print-doorhangers.js --batch 07 --out batch-07.pdf
+//   node --env-file=.env src/backend/scripts/print-doorhangers.js --batch 07 --out batch-07.pdf --apply
 //
 // Issue the batch first (Admin → Issuance, car / windscreen mount), then run
 // this with its batch number. Without --apply it only writes the print file
@@ -16,15 +16,15 @@
 //
 // --dieline overlays the trim, hole and slit in magenta for the vendor proof.
 //
-// Open the output in Chrome and Save as PDF (page size is set in the file:
-// 4.75in x 11.25in, i.e. 4.5x11 plus 0.125in bleed). Front and back alternate.
+// The output is a print-ready PDF: 4.75in x 11.25in pages (4.5x11 plus 0.125in
+// bleed), vector artwork from Figma, front and back alternating.
 import crypto from "node:crypto";
 import fs from "node:fs";
 import { getEnv } from "../lib/env.js";
 import { getCollections } from "../lib/db/repositories.js";
 import { stickerSerialFor, batchKeyFor } from "../lib/core/tag-issuance.js";
 import { DOORHANGER_FREE_CONTACTS } from "../lib/core/call-access.js";
-import { renderDoorhangers } from "../lib/print/doorhanger/template.js";
+import { renderDoorhangersPdf } from "../lib/print/doorhanger/template.js";
 
 const DEFAULT_SCAN_BASE = "https://app.parktag.me";
 
@@ -86,7 +86,7 @@ async function batchHangers(batchKey, base, apply) {
 async function main() {
   const sample = argValue("--sample");
   const batch = argValue("--batch");
-  const out = argValue("--out") || "doorhangers.html";
+  const out = argValue("--out") || "doorhangers.pdf";
   const apply = process.argv.includes("--apply");
   const base = (getEnv().scanBaseUrl || DEFAULT_SCAN_BASE).replace(/\/+$/, "");
 
@@ -99,8 +99,8 @@ async function main() {
     ? await sampleHangers(Math.max(1, Number(sample) || 1), base)
     : await batchHangers(batchKeyFor(batch), base, apply);
 
-  const html = await renderDoorhangers(hangers, { sample: Boolean(sample), dieline: process.argv.includes("--dieline") });
-  fs.writeFileSync(out, html);
+  const pdf = await renderDoorhangersPdf(hangers, { sample: Boolean(sample), dieline: process.argv.includes("--dieline") });
+  fs.writeFileSync(out, pdf);
   console.log(`Wrote ${hangers.length} hanger(s), ${hangers.length * 2} pages, to ${out}`);
   process.exit(0);
 }

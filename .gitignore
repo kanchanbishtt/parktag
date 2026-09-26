@@ -14,3 +14,6 @@ owner-dashboard*.png
 admin_*.png
 .dev-sessions.json
 
+
+# Door hanger artwork: vector PDFs exported from Figma, required at runtime.
+!src/backend/lib/print/doorhanger/art/*.pdf

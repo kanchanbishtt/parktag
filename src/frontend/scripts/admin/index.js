@@ -428,9 +428,9 @@ function exportQrOnlyForPrint() {
   return runPrintExport({ qrOnly: true });
 }
 
-// Door hangers: the server renders the whole print sheet (Figma artwork plus
-// each tag's QR) and gives the tags the hanger's free contacts, so this only
-// sends the selection and puts the returned page in a new window to print.
+// Door hangers: the server builds the print-ready PDF (vector Figma artwork
+// plus each tag's QR) and gives the tags the hanger's free contacts, so this
+// only sends the selection and saves the file it gets back.
 async function exportDoorhangersForPrint() {
   const visible = new Set(_pqVisibleIds);
   const ids = [
@@ -447,14 +447,9 @@ async function exportDoorhangersForPrint() {
     "Each tag gets 2 free contacts, because the hanger promises \"First 2 contacts free\"."
   )) return;
 
-  // Opened now, inside the click, so pop-up blockers allow it; filled below.
-  const win = window.open("", "_blank");
-  if (!win) {
-    setStatus("Allow pop-ups for this site to open the door hanger print sheet.", "error");
-    return;
-  }
-  win.document.write('<p style="font:15px system-ui,sans-serif;padding:32px;color:#03162D">Preparing door hangers…</p>');
-  setStatus(`Preparing ${ids.length} door hanger${ids.length === 1 ? "" : "s"}…`, "info");
+  const button = byId("export-doorhanger-button");
+  if (button) button.disabled = true;
+  setStatus(`Building the door hanger PDF for ${ids.length} tag${ids.length === 1 ? "" : "s"}…`, "info");
 
   try {
     const response = await fetch("/api/admin/print-queue/doorhangers", {
@@ -462,17 +457,29 @@ async function exportDoorhangersForPrint() {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ ids, dieline })
     });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok || !data.ok) throw new Error(data.error || `Request failed (${response.status})`);
+    if (!response.ok || !(response.headers.get("content-type") || "").includes("application/pdf")) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.error || `Request failed (${response.status})`);
+    }
+    const blob = await response.blob();
+    const name = (response.headers.get("content-disposition") || "").match(/filename="([^"]+)"/)?.[1] || "parktag-doorhangers.pdf";
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = name;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
 
-    win.document.open();
-    win.document.write(data.html);
-    win.document.close();
-    const skipped = data.skipped ? ` ${data.skipped} selected tag(s) were skipped (claimed, printed or demo stock).` : "";
-    setStatus(`${data.count} door hangers ready in the new window: Print, then Save as PDF with margins set to None.${skipped}`, "success");
+    const count = Number(response.headers.get("x-doorhanger-count")) || 0;
+    const skipped = Number(response.headers.get("x-doorhanger-skipped")) || 0;
+    const extra = skipped ? ` ${skipped} selected tag(s) were skipped (claimed, printed or demo stock).` : "";
+    setStatus(`Downloaded ${name}: ${count} door hangers, ready to send to the printer.${extra}`, "success");
   } catch (error) {
-    win.close();
-    setStatus(error instanceof Error ? error.message : "Could not prepare the door hangers.", "error");
+    setStatus(error instanceof Error ? error.message : "Could not build the door hanger PDF.", "error");
+  } finally {
+    if (button) button.disabled = false;
   }
 }
 

@@ -1,9 +1,9 @@
 // Print Queue → "Door hanger PDF".
 //
-// The endpoint turns ticked queue tags into the hanger print sheet and gives
+// The endpoint turns ticked queue tags into the hanger print PDF and gives
 // them the hanger's two free contacts. What must hold:
 //
-//   1. Admin only, for the sheet and for the artwork it references.
+//   1. Admin only.
 //   2. Only unclaimed, unprinted, non-demo tags go on a hanger; anything else in
 //      the selection is skipped, never printed.
 //   3. Bike (exterior) stock is refused outright: hangers are for car cards.
@@ -14,6 +14,7 @@ import assert from "node:assert/strict";
 import { startTestApp, stopTestApp, uniqueAddress, purgeLoginCollections, TEST_ORIGIN } from "./helpers.js";
 import { createPasswordHash } from "../lib/auth/security.js";
 import { DOORHANGER_FREE_CONTACTS } from "../lib/core/call-access.js";
+import { PDFDocument } from "pdf-lib";
 
 const ADMIN_EMAIL = "doorhanger-admin@parktag.test";
 const PASSWORD = "test-password-123";
@@ -81,16 +82,12 @@ after(async () => {
 });
 
 describe("door hanger print sheet", () => {
-  test("needs an admin session, for the sheet and for its artwork", async () => {
+  test("needs an admin session", async () => {
     const tag = await insertTag();
     const res = await post({ ids: [String(tag._id)] }, null);
     assert.equal(res.statusCode, 401);
-
-    const art = await app.inject({ method: "GET", url: "/admin/doorhanger-art/front.png", remoteAddress: uniqueAddress() });
-    assert.notEqual(art.statusCode, 200);
-    const artAdmin = await app.inject({ method: "GET", url: "/admin/doorhanger-art/front.png", remoteAddress: uniqueAddress(), headers: { cookie: adminCookie } });
-    assert.equal(artAdmin.statusCode, 200);
-    assert.equal(artAdmin.headers["content-type"], "image/png");
+    const after = await collections.tags.findOne({ _id: tag._id });
+    assert.equal(after.freeContactAllowance, undefined);
   });
 
   test("prints unclaimed tags, skips the rest, and stamps two free contacts", async () => {
@@ -101,16 +98,17 @@ describe("door hanger print sheet", () => {
 
     const res = await post({ ids: [a, b, claimed, printed].map((t) => String(t._id)) });
     assert.equal(res.statusCode, 200);
-    const body = res.json();
-    assert.equal(body.ok, true);
-    assert.equal(body.count, 2);
-    assert.equal(body.skipped, 2);
+    assert.equal(res.headers["content-type"], "application/pdf");
+    assert.match(res.headers["content-disposition"], /attachment; filename="parktag-doorhangers-PT-0*93-\d+_to_PT-0*93-\d+\.pdf"/);
+    assert.equal(res.headers["x-doorhanger-count"], "2");
+    assert.equal(res.headers["x-doorhanger-skipped"], "2");
 
-    // Two hangers, two pages each, artwork by URL rather than inlined.
-    assert.equal((body.html.match(/<section class="page">/g) || []).length, 4);
-    assert.match(body.html, /src="\/admin\/doorhanger-art\/front\.png"/);
-    assert.doesNotMatch(body.html, /data:image\/png;base64/);
-    assert.match(body.html, new RegExp(`PT-0*93-${a.serialNumber}<`));
+    // Two hangers, two pages each, 4.75 x 11.25 in.
+    const pdf = await PDFDocument.load(res.rawPayload);
+    assert.equal(pdf.getPageCount(), 4);
+    const { width, height } = pdf.getPage(0).getSize();
+    assert.equal(Math.round(width), 342);
+    assert.equal(Math.round(height), 810);
 
     for (const t of [a, b]) {
       const after = await collections.tags.findOne({ _id: t._id });

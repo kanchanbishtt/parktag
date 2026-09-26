@@ -1,12 +1,11 @@
 // Print Queue → "Door hanger PDF".
 //
 // The same job as scripts/print-doorhangers.js, from the admin page instead of
-// a terminal: the operator ticks tags in the queue, and this returns the print
-// sheet (Figma artwork + each tag's QR and serial) for the browser to save as
-// a PDF. It also gives those tags the door hanger's free-contact allowance,
+// a terminal: the operator ticks tags in the queue, and this returns the
+// print-ready PDF (vector Figma artwork + each tag's QR and serial) as a
+// download. It also gives those tags the door hanger's free-contact allowance,
 // because the hanger promises "First 2 contacts free" and a tag printed on one
 // without the stamp would break that promise on the first scan.
-import fs from "node:fs";
 import { ObjectId } from "mongodb";
 
 import { requireSession } from "../../lib/auth/auth.js";
@@ -14,25 +13,13 @@ import { DOORHANGER_FREE_CONTACTS } from "../../lib/core/call-access.js";
 import { NOT_MARKETING_STOCK } from "../../lib/core/marketing-stock.js";
 import { buildTagScanUrl, stickerSerialFor } from "../../lib/core/tag-issuance.js";
 import { getCollections } from "../../lib/db/repositories.js";
-import { DOORHANGER_ART, renderDoorhangers } from "../../lib/print/doorhanger/template.js";
+import { renderDoorhangersPdf } from "../../lib/print/doorhanger/template.js";
 
 // One print run per request. Far above a real hanger run (the first is 1000)
-// while keeping the page the browser has to lay out bounded: every hanger is
-// two pages.
+// while keeping one PDF bounded: every hanger is two pages.
 export const DOORHANGER_MAX_PER_REQUEST = 2000;
-const ART_BASE = "/admin/doorhanger-art";
 
 export function registerAdminDoorhangerRoutes(app, env) {
-  // The two artwork files the print sheet references. Admin-only like the rest
-  // of the print path; served by URL so a 1000-hanger sheet stays a few MB.
-  app.get(`${ART_BASE}/:side(front|back).png`, async (request, reply) => {
-    const blocked = await requireSession(app, "admin")(request, reply);
-    if (blocked) return blocked;
-    reply.header("cache-control", "private, max-age=3600");
-    reply.type("image/png");
-    return reply.send(fs.createReadStream(DOORHANGER_ART[request.params.side]));
-  });
-
   app.post("/api/admin/print-queue/doorhangers", { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } }, async (request, reply) => {
     const blocked = await requireSession(app, "admin")(request, reply);
     if (blocked) return blocked;
@@ -80,23 +67,26 @@ export function registerAdminDoorhangerRoutes(app, env) {
       { $set: { freeContactAllowance: DOORHANGER_FREE_CONTACTS, updatedAt: new Date().toISOString() } }
     );
 
-    const html = await renderDoorhangers(
+    const dieline = request.body?.dieline === true;
+    const pdf = await renderDoorhangersPdf(
       tags.map((t) => ({ serial: stickerSerialFor(t), scanUrl: buildTagScanUrl(request, t.token) })),
-      { dieline: request.body?.dieline === true, artBase: ART_BASE }
+      { dieline }
     );
 
     request.log.info(
-      { event: "doorhangers_exported", adminId: request.session.userId, count: tags.length, first: stickerSerialFor(tags[0]), last: stickerSerialFor(tags[tags.length - 1]) },
-      "[doorhangers] print sheet exported"
+      { event: "doorhangers_exported", adminId: request.session.userId, count: tags.length, dieline },
+      "[doorhangers] print PDF exported"
     );
 
-    return {
-      ok: true,
-      count: tags.length,
-      skipped: ids.length - tags.length,
-      stamped: stamp.modifiedCount,
-      freeContacts: DOORHANGER_FREE_CONTACTS,
-      html
-    };
+    const first = stickerSerialFor(tags[0]), last = stickerSerialFor(tags[tags.length - 1]);
+    const name = `parktag-doorhangers-${first}_to_${last}${dieline ? "-dieline" : ""}.pdf`.replace(/[^A-Za-z0-9_.-]/g, "");
+    reply
+      .header("content-type", "application/pdf")
+      .header("content-disposition", `attachment; filename="${name}"`)
+      .header("cache-control", "no-store")
+      .header("x-doorhanger-count", String(tags.length))
+      .header("x-doorhanger-skipped", String(ids.length - tags.length))
+      .header("x-doorhanger-stamped", String(stamp.modifiedCount));
+    return reply.send(Buffer.from(pdf));
   });
 }

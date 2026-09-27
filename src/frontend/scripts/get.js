@@ -975,20 +975,25 @@ function wireCheckout(products) {
   // it is also what a sold-out control deliberately lacks.
   document.addEventListener("click", (event) => {
     if (!event.target.closest) return;
-    // A tap anywhere on an in-stock card counts as its Order button, except on
-    // the card's own controls (the − / + stepper), which do their own thing.
-    const link = event.target.closest("a[data-sku]") ||
+    // A tap anywhere on an in-stock card opens checkout like its Order button,
+    // except on the card's own controls (the − / + stepper), which do their own
+    // thing. Only the button counts as begin_checkout: Clarity showed most card
+    // taps are people looking, and counting them inflated checkouts past real
+    // intent. A card tap is select_item, GA4-only, so Meta never bids on it.
+    const button = event.target.closest("a[data-sku]");
+    const link = button ||
       (!event.target.closest("button, a, input, label") && event.target.closest(".gt-pack[data-sku]"));
     if (!link) return;
 
     event.preventDefault();
     const sku = link.dataset.sku || HERO_PACK;
+    const fromButton = Boolean(button);
 
     if (window.ptTrack) {
       const priced = products && products[sku];
       const quantity = _qty.get(sku) || 1;
       const addOn = selectedAddOn(sku);
-      ptTrack("begin_checkout", {
+      ptTrack(fromButton ? "begin_checkout" : "select_item", {
         method: "guest",
         items: [
           { item_id: sku, quantity },

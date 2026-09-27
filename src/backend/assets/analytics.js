@@ -177,7 +177,10 @@
     share:          { ga: "share",          pixel: null },
     // A delivery-form field filled in, to see where half-filled forms stop.
     // GA4-only: a field is not a conversion Meta should bid towards.
-    checkout_field: { ga: "checkout_field", pixel: null }
+    checkout_field: { ga: "checkout_field", pixel: null },
+    // A tap on a pack card rather than its Order button on /get. It still opens
+    // checkout, but it is browsing, not intent, so GA4-only.
+    select_item:    { ga: "select_item",    pixel: null }
   };
 
   // Allow-list, not a deny-list. A deny-list means every future call site is one

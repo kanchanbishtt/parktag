@@ -115,7 +115,9 @@ describe("funnel events", () => {
     test(`${path.basename(file)} fires each checkout step exactly once`, async () => {
       const source = await read(file);
       for (const name of ["view_item", "begin_checkout", "add_shipping_info", "add_payment_info", "add_on_selected", "purchase"]) {
-        const calls = source.match(new RegExp(`ptTrack\\("${name}"`, "g")) || [];
+        // Also counts `ptTrack(cond ? "name" : "other"`: /get sends begin_checkout
+        // only for the Order button and select_item for a card tap (83d8340).
+        const calls = source.match(new RegExp(`ptTrack\\((?:[\\w.]+ \\? )?"${name}"`, "g")) || [];
         assert.equal(calls.length, 1, `${name} should have one call site in ${file}, found ${calls.length}`);
       }
       assert.match(source, /renderBreakdown\(done\.breakdown\)/, "the confirmation must render the server's breakdown");

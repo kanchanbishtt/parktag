@@ -49,7 +49,7 @@ describe("CSP permits the analytics the app ships", () => {
   }
 
   test("ordinary pages allow both loaders", async () => {
-    const csp = await cspFor("/hub");
+    const csp = await cspFor("/track-order");
 
     assert.match(csp["script-src"], /https:\/\/www\.googletagmanager\.com/, "gtag.js must be loadable");
     assert.match(csp["script-src"], /https:\/\/connect\.facebook\.net/, "fbevents.js must be loadable");
@@ -58,14 +58,14 @@ describe("CSP permits the analytics the app ships", () => {
   test("connect-src allows both trackers to report", async () => {
     // Subtler than the loaders: allow the script but block the POST and the
     // scripts run happily while every event is dropped.
-    const csp = await cspFor("/hub");
+    const csp = await cspFor("/track-order");
 
     assert.match(csp["connect-src"], /google-analytics\.com/);
     assert.match(csp["connect-src"], /facebook\.com/);
   });
 
   test("img-src allows beacon-style hits", async () => {
-    const csp = await cspFor("/hub");
+    const csp = await cspFor("/track-order");
 
     assert.match(csp["img-src"], /google-analytics\.com/);
     assert.match(csp["img-src"], /facebook\.com/);
@@ -119,7 +119,7 @@ describe("CSP permits the analytics the app ships", () => {
   test("it is still a real policy, not a wildcard", async () => {
     // Widening for analytics must not become widening for everything. If a
     // later fix reaches for `*`, this is the thing that objects.
-    const csp = await cspFor("/hub");
+    const csp = await cspFor("/track-order");
 
     assert.equal(csp["default-src"], "'self'");
     assert.equal(csp["object-src"], "'none'");

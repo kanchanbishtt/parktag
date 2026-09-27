@@ -166,16 +166,16 @@ test("images are not part of the stamp", async () => {
 
 async function pageVersion() {
   // Read the stamp the running app is actually using, off a page it renders.
-  const page = await app.inject({ method: "GET", url: "/hub" });
+  const page = await app.inject({ method: "GET", url: "/track-order" });
   const found = page.body.match(/\/styles\/styles\.css\?v=([a-f0-9]+)/);
-  assert.ok(found, "the hub page must carry a stamped stylesheet URL");
+  assert.ok(found, "the track-order page must carry a stamped stylesheet URL");
   return found[1];
 }
 
 test("no page ships an unsubstituted token", async () => {
   // A literal reaching the browser is not fatal -- it just never gets cached --
   // but it means a page was added without the substitution reaching it.
-  for (const url of ["/hub", "/track-order", "/report-tag", "/owner-login", "/verify", "/direct"]) {
+  for (const url of ["/track-order", "/report-tag", "/owner-login", "/verify", "/direct"]) {
     const response = await app.inject({ method: "GET", url });
     assert.equal(response.statusCode, 200, `${url} should render`);
     assert.ok(
@@ -218,7 +218,7 @@ test("an unchanged asset answers a conditional request with an empty 304", async
 test("pages themselves stay uncacheable", async () => {
   // The page holds the stamps. If the page can be cached, it goes on handing
   // out the previous deploy's URLs -- and those are cached for a year.
-  for (const url of ["/hub", "/track-order", "/report-tag"]) {
+  for (const url of ["/track-order", "/report-tag"]) {
     const response = await app.inject({ method: "GET", url });
     assert.match(response.headers["cache-control"] || "", /no-cache|no-store/,
       `${url} must not be cacheable`);
@@ -247,7 +247,7 @@ test("rewriting the page did not corrupt its length", async () => {
   // The stamp is substituted in onSend, which shortens the body. Fastify
   // recomputes content-length after the hook; this asserts it actually did,
   // because a stale length truncates the page in the browser.
-  for (const url of ["/hub", "/owner-login", "/report-tag"]) {
+  for (const url of ["/track-order", "/owner-login", "/report-tag"]) {
     const response = await app.inject({ method: "GET", url });
     const declared = Number(response.headers["content-length"]);
     assert.equal(declared, Buffer.byteLength(response.body),

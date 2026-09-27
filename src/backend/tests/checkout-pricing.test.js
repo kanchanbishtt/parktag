@@ -123,7 +123,9 @@ describe("the quoted price is the price that gets charged", () => {
   // the price, one of which nobody updated. These assertions fail the moment
   // they part company again.
 
-  for (const productId of ["pt-car-1", "pt-car-2", "pt-car-4", "pt-bike-1", "pt-car-2-bike"]) {
+  // Only packs that are for sale: a sold-out one is refused before any price
+  // is quoted, which the test after this loop pins down.
+  for (const productId of ["pt-car-1", "pt-car-2", "pt-car-4", "pt-car-2-bike"]) {
     test(`COD on ${productId} collects exactly what the sheet quotes`, async () => {
       const pricing = (await getPricing()).json();
       const quoted = pricing.products[productId].amountPaise + pricing.codSurchargePaise;
@@ -143,6 +145,17 @@ describe("the quoted price is the price that gets charged", () => {
       assert.equal(order.amount, quoted, "the courier would collect an amount nobody agreed to");
     });
   }
+
+  test("a sold-out pack cannot be ordered, whatever the page says", async () => {
+    // The catalogue reports it, and the order route refuses it: the two must
+    // agree, or a stale page sells a pack nobody can ship.
+    const pricing = (await getPricing()).json();
+    assert.equal(pricing.products["pt-bike-1"].soldOut, true, "the catalogue no longer marks pt-bike-1 sold out");
+
+    const placed = await placeCod("pt-bike-1");
+    assert.equal(placed.statusCode, 409, placed.body);
+    assert.match(placed.json().error, /sold out/i);
+  });
 
   test("the surcharge is a real one, not zero", async () => {
     // If it were zero the assertions above would hold trivially while the sheet

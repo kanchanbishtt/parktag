@@ -122,8 +122,12 @@ function renderPacks(products) {
     // guessed price. Silence beats an offer that cannot be honoured.
     if (!priced) continue;
 
+    // The server's word wins. Its flag is what create-order refuses on, so a
+    // pack it reports sold out is shown that way whatever this list says.
+    const soldOut = Boolean(pack.soldOut || priced.soldOut);
+
     const li = document.createElement("li");
-    li.className = pack.soldOut ? "gt-pack gt-pack-out" : "gt-pack";
+    li.className = soldOut ? "gt-pack gt-pack-out" : "gt-pack";
 
     const img = document.createElement("img");
     img.src = pack.image;
@@ -172,7 +176,7 @@ function renderPacks(products) {
     // on `a[data-sku]` via closest(), and a plain button outside that anchor's
     // subtree can never satisfy it. Tapping − or + must never also fire a
     // checkout.
-    if (!pack.soldOut) {
+    if (!soldOut) {
       const qty = _qty.get(pack.id) || 1;
 
       const stepper = document.createElement("div");
@@ -212,7 +216,7 @@ function renderPacks(products) {
     // data-sku and never sees it, and with scripting off there is no link into
     // a checkout that cannot be fulfilled.
     const cta = document.createElement("a");
-    if (pack.soldOut) {
+    if (soldOut) {
       // Still no data-sku, so neither the delegated click handler nor a
       // scripting-off click can reach a checkout we cannot fulfil. It is a
       // link now because Clarity recorded people clicking the old inert
@@ -280,6 +284,7 @@ function renderAddOn(addOns) {
   // Ticking the box, not the order that follows: this is how many people want
   // the plate at all, including the ones who never pay.
   byId("gtAddonCheck")?.addEventListener("change", (event) => {
+    cartSave({ addOn: event.target.checked });
     if (event.target.checked && window.ptTrack) {
       ptTrack("add_on_selected", { item_id: addOn.id, value: addOn.amountPaise / 100, currency: "INR" });
     }
@@ -349,6 +354,84 @@ let _paidCod = false;
 // an element. Floored at 1 wherever it is written: this is "how many of this
 // pack", not a cart with a remove button, so there is no zero.
 const _qty = new Map();
+// The most packs one order may hold, from the catalogue. The fallback only
+// matters if the catalogue ever omits it; the server enforces its own anyway.
+let _maxQty = 20;
+
+// ── Surviving a refresh ────────────────────────────────────────────────────
+//
+// A reload used to throw away everything the buyer had done: the pack counts,
+// the add-on tick, the open checkout and every line of the address typed into
+// it. All of that is kept here and put back on load.
+//
+// sessionStorage, not localStorage: this is one visit's cart and the address is
+// personal, so it survives a reload of the tab and is gone when the tab closes.
+// Cleared outright once an order is paid or placed, so a finished purchase is
+// never reopened by the next refresh.
+const CART_KEY = "pt_get_cart";
+const DRAFT_FIELDS = ["fullName", "phone", "line1", "line2", "landmark", "city", "state", "pincode"];
+let _draftWired = false;
+
+function cartRead() {
+  try {
+    const cart = JSON.parse(sessionStorage.getItem(CART_KEY) || "{}");
+    return cart && typeof cart === "object" && !Array.isArray(cart) ? cart : {};
+  } catch {
+    return {}; // private mode, storage disabled, corrupt value, never fatal
+  }
+}
+
+function cartSave(patch) {
+  try { sessionStorage.setItem(CART_KEY, JSON.stringify({ ...cartRead(), ...patch })); } catch { /* ignore */ }
+}
+
+function cartClear() {
+  try { sessionStorage.removeItem(CART_KEY); } catch { /* ignore */ }
+}
+
+// Refills the shared address sheet from the saved draft, and from then on keeps
+// the draft in step with what is typed. Reads the sheet's own element ids rather
+// than changing address-step.js, which the signed-in flows share.
+function draftRestore() {
+  const ov = byId("pt-addr-ov");
+  if (!ov) return;
+  const cart = cartRead();
+  const address = cart.address && typeof cart.address === "object" ? cart.address : {};
+  for (const key of DRAFT_FIELDS) {
+    const input = byId(`pt-addr-${key}`);
+    if (input && typeof address[key] === "string" && address[key]) input.value = address[key];
+  }
+  // Only ever restored as OFF. A buyer who unticked the WhatsApp box must not
+  // find it ticked again because they refreshed.
+  if (cart.optIn === false) {
+    const box = byId("pt-addr-optin");
+    if (box) box.checked = false;
+  }
+  // Cash on Delivery, only when this open actually offers it. The change event
+  // is what makes the sheet re-price the total and relabel its button.
+  if (cart.pay === "cod") {
+    const choice = byId("pt-addr-paychoice");
+    const radio = choice && !choice.classList.contains("pt-hide") && choice.querySelector("input[value='cod']");
+    if (radio) {
+      radio.checked = true;
+      radio.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+  }
+
+  if (_draftWired) return;
+  _draftWired = true;
+  const keep = () => {
+    const draft = {};
+    for (const key of DRAFT_FIELDS) {
+      const input = byId(`pt-addr-${key}`);
+      if (input && input.value) draft[key] = input.value;
+    }
+    const pay = ov.querySelector("input[name='pt-addr-pay']:checked");
+    cartSave({ address: draft, optIn: !!byId("pt-addr-optin")?.checked, pay: pay ? pay.value : "online" });
+  };
+  ov.addEventListener("input", keep);
+  ov.addEventListener("change", keep);
+}
 
 // ── Remembering an order the buyer may never see confirmed ─────────────────
 //
@@ -523,6 +606,24 @@ function loadRazorpay() {
   return _rzpLoad;
 }
 
+// Opens a connection to a host we are about to need. Added at the moment of
+// intent rather than written into the HTML: a page-load preconnect is spent on
+// every visitor, and the browser drops an idle one after about ten seconds,
+// long before most people reach payment.
+function preconnect(origin) {
+  try {
+    const link = document.createElement("link");
+    link.rel = "preconnect";
+    link.href = origin;
+    document.head.appendChild(link);
+  } catch { /* a hint, never fatal */ }
+}
+
+// Google accepts a reCAPTCHA token for two minutes. One minted when the sheet
+// opened is used only while comfortably inside that; past it, a fresh one is
+// cheap because the script is loaded by then.
+const CAPTCHA_FRESH_MS = 90 * 1000;
+
 async function buy(sku) {
   if (_busy) return;
   _sku = sku;
@@ -530,6 +631,11 @@ async function buy(sku) {
   // page view), so it is worth prefetching in parallel with the address step
   // below rather than paying for the round trip at the moment of payment.
   loadRazorpay();
+  preconnect("https://checkout.razorpay.com");
+  // The bot check, for the same reason. It used to start only at "Continue to
+  // pay": fetch the site key, download Google's script, then run it, all while
+  // the buyer watched. Now that happens while they type the address.
+  const earlyCaptcha = { at: Date.now(), token: getCaptchaToken("guest_checkout") };
   // Read once, up front, so the value submitted below can never drift from
   // whatever the stepper happens to show by the time the request lands.
   const quantity = _qty.get(sku) || 1;
@@ -547,7 +653,9 @@ async function buy(sku) {
   // where the buyer picks online or Cash on Delivery, for a pack that takes it.
   const offer = offerFor(sku);
   const cod = codFor(sku, quantity);
-  const picked = await window.ptCollectAddress({
+  // Marked open before the sheet shows, so a reload from here brings it back.
+  cartSave({ checkout: sku });
+  const collecting = window.ptCollectAddress({
     guest: true,
     // The COD phone check in the sheet sends a code, so it is bot-scored too.
     captchaToken: () => getCaptchaToken("guest_checkout"),
@@ -563,7 +671,14 @@ async function buy(sku) {
         }
       : null
   });
-  if (!picked) return;
+  // In guest mode the sheet builds and blanks its form synchronously, so the
+  // saved draft goes in straight after, before anything is awaited.
+  draftRestore();
+  const picked = await collecting;
+  if (!picked) {
+    cartSave({ checkout: null }); // backed out on purpose: do not reopen it
+    return;
+  }
   const { paymentMethod = "online", codToken, marketingOptIn = false, marketingOptInSource, ...address } = picked;
   const payCod = paymentMethod === "cod";
 
@@ -605,7 +720,12 @@ async function buy(sku) {
     // reCAPTCHA is unconfigured or the script cannot load, which the server
     // treats as "feature off" rather than "fail" — a checkout must not become
     // unreachable because Google is having a bad day.
-    const recaptchaToken = await getCaptchaToken("guest_checkout");
+    //
+    // Razorpay's payment window loads from api.razorpay.com the moment this
+    // order comes back, so that connection is opened now, in parallel.
+    preconnect("https://api.razorpay.com");
+    const early = Date.now() - earlyCaptcha.at < CAPTCHA_FRESH_MS ? await earlyCaptcha.token : "";
+    const recaptchaToken = early || (await getCaptchaToken("guest_checkout"));
 
     const res = await fetch("/api/shop/guest/create-order", {
       method: "POST",
@@ -649,6 +769,7 @@ async function buy(sku) {
     orderSteps.destroy();
     _busy = false; // the flow is over; let the buyer try again
     closeSheet();
+    cartSave({ checkout: null });
     say((err && err.message) || "Could not start the payment. Please try again.");
     return;
   }
@@ -681,6 +802,7 @@ async function buy(sku) {
     orderSteps.destroy();
     _busy = false; // the flow is over; let the buyer try again
     closeSheet();
+    cartSave({ checkout: null });
     say("The payment window could not load. Check your connection and try again.");
     return;
   }
@@ -695,10 +817,22 @@ async function buy(sku) {
     image: "/images/parktag-checkout-logo.png",
     prefill: order.prefill || {},
     theme: { color: "#03162D" },
+    // UPI first. On a phone it hands straight to the buyer's UPI app instead
+    // of a method list; cards, net banking and wallets stay listed below it.
+    config: {
+      display: {
+        blocks: { upi: { name: "Pay using UPI", instruments: [{ method: "upi" }] } },
+        sequence: ["block.upi"],
+        preferences: { show_default_blocks: true }
+      }
+    },
     // Dismissing is not a failure. The order stays "created" and is handed
     // back on the next attempt rather than minting a second one.
-    modal: { ondismiss: () => { _busy = false; } },
+    modal: { ondismiss: () => { _busy = false; cartSave({ checkout: null }); } },
     handler: async (response) => {
+      // Paid. Forget the cart now rather than after verify: a reload in between
+      // must not reopen a checkout for an order that is already paid.
+      cartClear();
       try {
         const res = await fetch("/api/shop/guest/verify-payment", {
           method: "POST",
@@ -754,6 +888,7 @@ function showDone(done) {
   { const w = byId("gtWorking"); if (w) w.hidden = true; }
   { const d = byId("gtDone"); if (d) d.hidden = false; }
   _busy = false;
+  cartClear(); // the order exists; nothing left to bring back
   byId("gtDoneSub").textContent = done.paymentMethod === "cod"
     ? `Order ${done.orderNumber} is placed. Pay ${rupees(done.amount)} in cash when it arrives. We have sent the details to your mobile.`
     : done.pending
@@ -951,10 +1086,12 @@ function wireCheckout(products) {
     if (!sku || !priced) return;
 
     const current = _qty.get(sku) || 1;
-    // Floored at 1, never a max: there is no "remove from cart" step here, and
-    // an upper bound was a deliberate product decision NOT to add.
-    const next = btn.dataset.qtyDir === "inc" ? current + 1 : Math.max(1, current - 1);
+    // Floored at 1: there is no "remove from cart" step here. Capped at the
+    // server's ceiling, which every order route refuses above, so the stepper
+    // cannot offer a count the checkout will then turn down.
+    const next = btn.dataset.qtyDir === "inc" ? Math.min(_maxQty, current + 1) : Math.max(1, current - 1);
     _qty.set(sku, next);
+    cartSave({ qty: Object.fromEntries(_qty) });
 
     const card = btn.closest(".gt-pack");
     if (!card) return;
@@ -1052,6 +1189,7 @@ async function load() {
 
   _products = payload.products;
   _launchOffer = payload.launchOffer || null;
+  if (Number.isInteger(payload.maxQuantity) && payload.maxQuantity >= 1) _maxQty = payload.maxQuantity;
   _cod = typeof payload.codSurchargePaise === "number" && Array.isArray(payload.codProductIds)
     ? {
         surchargePaise: payload.codSurchargePaise,
@@ -1067,10 +1205,28 @@ async function load() {
     refNote.textContent = `🎁 Friend's link applied: an extra ${rupees(payload.referralDiscountPaise)} off when you pay online, taken off at payment.`;
     refNote.hidden = false;
   }
+  // What this tab had chosen before a reload. Counts only for packs still in
+  // the catalogue, and only whole numbers of at least one.
+  const saved = cartRead();
+  const savedQty = saved.qty && typeof saved.qty === "object" ? saved.qty : {};
+  for (const [sku, n] of Object.entries(savedQty)) {
+    if (_products[sku] && Number.isInteger(n) && n >= 1) _qty.set(sku, Math.min(_maxQty, n));
+  }
   renderPacks(payload.products);
   renderBar(payload.products);
   renderAddOn(payload.addOns);
+  // Set directly, not through a change event: that would re-fire the
+  // add_on_selected event for a tick the buyer made before the reload.
+  if (_addOn && typeof saved.addOn === "boolean") {
+    const box = byId("gtAddonCheck");
+    if (box) box.checked = saved.addOn;
+  }
   wireCheckout(payload.products);
+
+  // Reloaded mid-checkout: reopen it on the same pack. buy() refills the
+  // address from the draft. A pack that has since sold out is not reopened.
+  const resume = PACKS.find((pack) => pack.id === saved.checkout);
+  if (resume && !resume.soldOut && _products[resume.id] && !_products[resume.id].soldOut) buy(resume.id);
 
   // After the page is usable, never in front of it. A returning buyer's order
   // matters, but not more than the shop rendering.

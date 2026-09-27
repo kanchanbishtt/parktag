@@ -63,7 +63,8 @@ describe("sold-out packs on /get", () => {
   test("a sold-out card is never given a data-sku", () => {
     assert.match(
       source,
-      /if \(pack\.soldOut\) \{[\s\S]*?\} else \{[\s\S]*?cta\.dataset\.sku = pack\.id;[\s\S]*?\}/,
+      // `soldOut` is the page's flag OR the catalogue's: the server decides.
+      /if \(soldOut\) \{[\s\S]*?\} else \{[\s\S]*?cta\.dataset\.sku = pack\.id;[\s\S]*?\}/,
       "cta.dataset.sku is set outside the branch that excludes sold-out packs"
     );
     assert.equal(

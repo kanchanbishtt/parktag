@@ -53,11 +53,19 @@ describe("dashboard plate is Duo Pack only", () => {
     assert.equal(res.json().error, "Razorpay not configured.");
   });
 
-  for (const productId of ["pt-car-1", "pt-bike-1", "pt-combo"]) {
-    test(`plate with ${productId} is rejected`, async () => {
+  test("plate with pt-car-1 is rejected", async () => {
+    const res = await createOrder({ productId: "pt-car-1", address: ADDRESS, addOnId: "dashboard-plate" });
+    assert.equal(res.statusCode, 400, res.body);
+    assert.match(res.json().error, /only available with the Duo Pack/);
+  });
+
+  // These two are sold out, and that refusal comes first: there is no point
+  // explaining which pack the plate goes with for a pack that cannot be bought.
+  for (const productId of ["pt-bike-1", "pt-combo"]) {
+    test(`plate with ${productId} is rejected as sold out`, async () => {
       const res = await createOrder({ productId, address: ADDRESS, addOnId: "dashboard-plate" });
-      assert.equal(res.statusCode, 400, res.body);
-      assert.match(res.json().error, /only available with the Duo Pack/);
+      assert.equal(res.statusCode, 409, res.body);
+      assert.match(res.json().error, /sold out/i);
     });
   }
 });

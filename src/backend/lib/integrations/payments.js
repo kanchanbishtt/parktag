@@ -18,9 +18,15 @@ export const SHOP_PRODUCTS = {
   "pt-car-1": { name: "ParkTag Car Tag (Pack of 1)", amount: 299, tags: 1 },
   "pt-car-2": { name: "ParkTag Car Tag (Pack of 2)", amount: 499, tags: 2 },
   // Two bike tags (front and back of one two-wheeler), same size as pt-car-2.
-  "pt-bike-1": { name: "ParkTag Bike Tag (Pack of 2)", amount: 499, tags: 2 },
+  //
+  // soldOut is decided HERE, not on the storefronts. Each page used to carry
+  // its own list of packs it would not sell, and the server sold them anyway:
+  // an edited page, or a stale one, could pay for a pack nobody can ship. Now
+  // every order route refuses a sold-out pack and the catalogue reports the
+  // flag, so the pages follow the server. Remove the flag when stock lands.
+  "pt-bike-1": { name: "ParkTag Bike Tag (Pack of 2)", amount: 499, tags: 2, soldOut: true },
   // One car tag and one bike tag.
-  "pt-combo": { name: "ParkTag Combo Tag (Pack of 2)", amount: 499, tags: 2 },
+  "pt-combo": { name: "ParkTag Combo Tag (Pack of 2)", amount: 499, tags: 2, soldOut: true },
   // "2 Cars" tier for the pack step: 4 car tags (both cars, front & back).
   "pt-car-4": { name: "ParkTag Car Tag (2 Cars · Pack of 4)", amount: 899, tags: 4 },
   // Combined SKUs for the "Choose your pack" step: a car pack + the optional
@@ -52,6 +58,12 @@ export function getShopProduct(productId) {
   if (!Object.prototype.hasOwnProperty.call(SHOP_PRODUCTS, productId)) return null;
   return { id: productId, ...SHOP_PRODUCTS[productId] };
 }
+
+// The most packs one order may hold. Refused at every order route: without a
+// ceiling a request for a million packs went all the way to Razorpay, which
+// refused the amount and the buyer saw a bare "failed". A genuine bulk order
+// above this is a conversation, not a checkout.
+export const MAX_ORDER_QUANTITY = 20;
 
 export function isRazorpayConfigured(env) {
   return Boolean(env.razorpayKeyId && env.razorpayKeySecret);

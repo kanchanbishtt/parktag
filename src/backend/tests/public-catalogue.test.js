@@ -84,6 +84,6 @@ describe("the public price list", () => {
 
     // And it must not start setting one either.
     assert.equal(res.headers["set-cookie"], undefined);
-    assert.deepEqual(Object.keys(res.json()).sort(), ["addOns", "codMaxQuantity", "codProductIds", "codSurchargePaise", "launchOffer", "ok", "products", "referralDiscountPaise"]);
+    assert.deepEqual(Object.keys(res.json()).sort(), ["addOns", "codMaxQuantity", "codProductIds", "codSurchargePaise", "launchOffer", "maxQuantity", "ok", "products", "referralDiscountPaise"]);
   });
 });

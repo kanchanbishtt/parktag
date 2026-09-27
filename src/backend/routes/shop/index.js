@@ -7,6 +7,7 @@ import {
   verifyRazorpaySignature,
   isRazorpayConfigured,
   getShopProduct,
+  MAX_ORDER_QUANTITY,
   SHOP_PRODUCTS
 } from "../../lib/integrations/payments.js";
 import { getCollections } from "../../lib/db/repositories.js";
@@ -190,6 +191,9 @@ function shapeVariant(variant) {
 function parseQuantity(raw) {
   if (raw === undefined) return { ok: true, quantity: 1 };
   if (typeof raw !== "number" || !Number.isInteger(raw) || raw < 1) return { ok: false };
+  if (raw > MAX_ORDER_QUANTITY) {
+    return { ok: false, error: `Orders are limited to ${MAX_ORDER_QUANTITY} packs. For more, message us on WhatsApp.` };
+  }
   return { ok: true, quantity: raw };
 }
 
@@ -684,6 +688,9 @@ export function registerShopRoutes(app, env) {
       const products = {};
       for (const [id, product] of Object.entries(SHOP_PRODUCTS)) {
         products[id] = { name: product.name, amountPaise: Math.round(product.amount * 100) };
+        // Only ever true, never a false to reason about: the pages treat an
+        // absent flag as "for sale", the same as they did before it existed.
+        if (product.soldOut) products[id].soldOut = true;
       }
 
       // Prices must remain available even if Mongo has a short outage. The
@@ -734,6 +741,9 @@ export function registerShopRoutes(app, env) {
         ok: true, products, launchOffer, addOns,
         codSurchargePaise: COD_SURCHARGE_PAISE, codProductIds: GUEST_COD_PRODUCT_IDS,
         codMaxQuantity: COD_MAX_QUANTITY,
+        // The ceiling every order route enforces, so the steppers stop there
+        // instead of letting a buyer pick a count the checkout then refuses.
+        maxQuantity: MAX_ORDER_QUANTITY,
         // So a friend's-link visitor is told the discount by the server that grants it.
         referralDiscountPaise: REFERRAL_DISCOUNT_PAISE
       };
@@ -795,7 +805,7 @@ export function registerShopRoutes(app, env) {
       // Checked before anything else costs a network round trip (reCAPTCHA,
       // the DB) — a malformed quantity is refused for free.
       const quantityCheck = parseQuantity(rawQuantity);
-      if (!quantityCheck.ok) { reply.code(400); return { ok: false, error: "Invalid quantity." }; }
+      if (!quantityCheck.ok) { reply.code(400); return { ok: false, error: quantityCheck.error || "Invalid quantity." }; }
       const quantity = quantityCheck.quantity;
 
       // Absent means online, which is every checkout from before COD existed.
@@ -832,6 +842,31 @@ export function registerShopRoutes(app, env) {
       //
       // No-ops when the keys are unset, and outside production a missing token
       // passes — see verifyRecaptcha. Production rejects.
+      //
+      // The read-only lookups the order needs are started first, so they run
+      // while Google answers instead of after it. None of them writes, so a
+      // request the check refuses has cost a few reads and nothing more, and
+      // their results are only used once the check has passed.
+      const lookups = (async () => {
+        const collections = await getCollections(env);
+        if (!collections) return { collections };
+        const wantsPlate = rawAddOnId === "dashboard-plate" && DASHBOARD_PLATE_PRODUCT_IDS.includes(productId);
+        const [settings, promo] = await Promise.all([
+          wantsPlate ? collections.storeSettings.findOne({ _id: "public-shop" }) : null,
+          resolvePromo(collections, rawPromo, {
+            deliveryPhone: (rawAddress || {}).phone,
+            // Without this a code tied to one pack comes off any of them, and
+            // omitting the product would be the way around the restriction.
+            productId,
+            quantity
+          })
+        ]);
+        return { collections, settings, promo };
+      })();
+      // Every early return below leaves this unawaited; a failure there must
+      // not surface as an unhandled rejection. It still throws where awaited.
+      lookups.catch(() => {});
+
       const captcha = await verifyRecaptcha(env, recaptchaToken, {
         remoteIp: request.ip,
         expectedAction: "guest_checkout"
@@ -883,10 +918,12 @@ export function registerShopRoutes(app, env) {
 
       const product = getShopProduct(productId);
       if (!product) { reply.code(400); return { ok: false, error: "Unknown product." }; }
+      // Decided by the catalogue, not the page: see SHOP_PRODUCTS.
+      if (product.soldOut) { reply.code(409); return { ok: false, error: "This pack is sold out right now. We will let you know when it is back." }; }
 
       const variant = shapeVariant(rawVariant);
 
-      const collections = await getCollections(env);
+      const { collections, settings, promo } = await lookups;
       if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
 
       let addOn = null;
@@ -899,7 +936,6 @@ export function registerShopRoutes(app, env) {
           reply.code(400);
           return { ok: false, error: "The Clear Dashboard Plate is only available with the Duo Pack." };
         }
-        const settings = await collections.storeSettings.findOne({ _id: "public-shop" });
         const plate = settings?.dashboardPlate;
         if (plate?.enabled !== true || Number(plate.pricePaise) < 100) {
           reply.code(409);
@@ -922,13 +958,7 @@ export function registerShopRoutes(app, env) {
       // Codes apply on Cash on Delivery too (owner's rule since 25 Sep 2026:
       // COD is the online price plus the COD fee, so ₹399 + ₹49 on the Duo
       // Pack). Referral discounts still stay online-only, see referrals.js.
-      const promo = await resolvePromo(collections, rawPromo, {
-        deliveryPhone: (rawAddress || {}).phone,
-        // Without this a code tied to one pack comes off any of them, and
-        // omitting the product would be the way around the restriction.
-        productId,
-        quantity
-      });
+      // The promo itself was resolved in `lookups`, alongside the bot check.
       const handover = promo.ok && promo.fulfilment === FULFILMENT_HANDOVER;
       // A handover has no parcel, so no courier to collect cash.
       if (cod && handover) {
@@ -1385,6 +1415,8 @@ export function registerShopRoutes(app, env) {
     const products = {};
     for (const [id, product] of Object.entries(SHOP_PRODUCTS)) {
       products[id] = { name: product.name, amountPaise: Math.round(product.amount * 100) };
+      // Same flag the public catalogue carries, for the same reason.
+      if (product.soldOut) products[id].soldOut = true;
     }
 
     return {
@@ -1414,11 +1446,12 @@ export function registerShopRoutes(app, env) {
     if (!productId) { reply.code(400); return { error: "productId required." }; }
 
     const quantityCheck = parseQuantity(rawQuantity);
-    if (!quantityCheck.ok) { reply.code(400); return { error: "Invalid quantity." }; }
+    if (!quantityCheck.ok) { reply.code(400); return { error: quantityCheck.error || "Invalid quantity." }; }
     const quantity = quantityCheck.quantity;
 
     const product = getShopProduct(productId);
     if (!product) { reply.code(400); return { error: "Unknown product." }; }
+    if (product.soldOut) { reply.code(409); return { error: "This pack is sold out right now. We will let you know when it is back." }; }
 
     // The checkout has always sent this and the server has always dropped it.
     const variant = shapeVariant((request.body || {}).variant);
@@ -1748,11 +1781,12 @@ export function registerShopRoutes(app, env) {
     const variant = shapeVariant((request.body || {}).variant);
 
     const quantityCheck = parseQuantity(rawQuantity);
-    if (!quantityCheck.ok) { reply.code(400); return { error: "Invalid quantity." }; }
+    if (!quantityCheck.ok) { reply.code(400); return { error: quantityCheck.error || "Invalid quantity." }; }
     const quantity = quantityCheck.quantity;
 
     const product = getShopProduct(productId);
     if (!product) { reply.code(400); return { error: "Unknown product." }; }
+    if (product.soldOut) { reply.code(409); return { error: "This pack is sold out right now. We will let you know when it is back." }; }
 
     const collections = await getCollections(env);
     if (!collections) { reply.code(500); return { error: "Database not configured." }; }

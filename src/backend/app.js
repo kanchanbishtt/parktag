@@ -86,7 +86,6 @@ const adminStickerDesignerPage = path.join(pagesRoot, "admin/sticker-designer.ht
 const stickerPrintPage = path.join(pagesRoot, "admin/sticker-print.html");
 const registerOwnerPage = path.join(pagesRoot, "owner/register.html");
 const ownerLoginPage = path.join(pagesRoot, "owner/login.html");
-const hubPage = path.join(pagesRoot, "hub.html");
 const shopPage = path.join(pagesRoot, "shop.html");
 const getPage = path.join(pagesRoot, "get.html");
 const directPage = path.join(pagesRoot, "direct.html");
@@ -222,6 +221,13 @@ const STRICT_SCRIPT_PAGES = new Set([
 // and stripping it would take the layout with it.
 const NO_INLINE_SCRIPT_PAGES = new Set(["/owner-welcome"]);
 
+// The public storefront: no inline <script> and no inline handlers, so it can
+// lose 'unsafe-inline' from script-src outright. It cannot take the checkout
+// list above, because unlike /owner-welcome it also loads reCAPTCHA and
+// Clarity, so this keeps the app-wide origins and drops only the keyword.
+// style-src is left alone: address-step.js injects its own <style> element.
+const NO_INLINE_KEYWORD_PAGES = new Set(["/get"]);
+
 // Script origins the checkout page actually loads. Not the app-wide list: it
 // needs Razorpay's checkout.js, and nothing else third-party — no Google
 // sign-in, no reCAPTCHA.
@@ -311,6 +317,21 @@ function tightenScriptSrcOnly(policy) {
     .filter(Boolean)
     .map((directive) =>
       directive.startsWith("script-src ") ? `script-src ${CHECKOUT_SCRIPT_SOURCES}` : directive
+    )
+    .join(";");
+}
+
+// The app-wide script-src minus 'unsafe-inline' — every origin it allows stays
+// allowed, only inline script stops running. See NO_INLINE_KEYWORD_PAGES.
+function dropInlineScriptKeyword(policy) {
+  return String(policy)
+    .split(";")
+    .map((directive) => directive.trim())
+    .filter(Boolean)
+    .map((directive) =>
+      directive.startsWith("script-src ")
+        ? directive.split(/\s+/).filter((token) => token !== "'unsafe-inline'").join(" ")
+        : directive
     )
     .join(";");
 }
@@ -637,6 +658,11 @@ export async function buildApp() {
       if (policy) {
         reply.header("content-security-policy", tightenScriptSrcOnly(policy));
       }
+    } else if (NO_INLINE_KEYWORD_PAGES.has(pathname)) {
+      const policy = reply.getHeader("content-security-policy");
+      if (policy) {
+        reply.header("content-security-policy", dropInlineScriptKeyword(policy));
+      }
     }
 
     const isHtml = String(reply.getHeader("content-type") || "").startsWith("text/html");
@@ -897,12 +923,6 @@ export async function buildApp() {
 
   app.get("/", async (request, reply) => {
     reply.redirect("/owner");
-  });
-
-  app.get("/hub", async (_request, reply) => {
-    const html = await fs.readFile(hubPage, "utf8");
-    reply.type("text/html");
-    return html;
   });
 
   // Front-end analytics, with the GA4 / Pixel IDs injected from env so each

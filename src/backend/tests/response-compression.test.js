@@ -66,7 +66,7 @@ test("compressed responses tell caches they vary by Accept-Encoding", async () =
 });
 
 test("pages are stamped with the asset version before being compressed", async () => {
-  const r = await get("/hub", "br");
+  const r = await get("/track-order", "br");
   assert.equal(r.headers["content-encoding"], "br");
   const html = zlib.brotliDecompressSync(r.rawPayload).toString();
   assert.doesNotMatch(html, /__ASSET_VERSION__/);

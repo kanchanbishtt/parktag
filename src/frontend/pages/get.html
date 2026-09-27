@@ -24,6 +24,13 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <!-- Checkout's hosts, looked up ahead of time. DNS only: it is cached for
+         minutes, where a full preconnect here would be closed long before a
+         visitor reaches payment. get.js preconnects at the moment of intent. -->
+    <link rel="dns-prefetch" href="https://checkout.razorpay.com">
+    <link rel="dns-prefetch" href="https://api.razorpay.com">
+    <link rel="dns-prefetch" href="https://www.google.com">
+    <link rel="dns-prefetch" href="https://www.gstatic.com">
 
     <!-- The funnel starts here now. Without this the drop between "saw the
          marketing site" and "reached a price" stays unmeasurable, which is the

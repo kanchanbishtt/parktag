@@ -109,8 +109,8 @@ describe("placing a guest order", () => {
     ["no name", { fullName: "" }, /full name/i],
     ["a phone that is not an Indian mobile", { phone: "1234567890" }, /10-digit mobile/i],
     ["no street", { line1: "" }, /house|street/i],
-    ["a PIN starting with zero", { pincode: "048001" }, /6-digit PIN/i],
-    ["a short PIN", { pincode: "2480" }, /6-digit PIN/i],
+    ["a PIN starting with zero", { pincode: "048001" }, /6-digit pincode/i],
+    ["a short PIN", { pincode: "2480" }, /6-digit pincode/i],
     ["no city", { city: "" }, /city/i],
     ["no state", { state: "" }, /state/i]
   ]) {

@@ -96,7 +96,9 @@
     { key: "phone", label: "Mobile number", type: "tel", ph: "10-digit mobile", auto: "tel", maxlength: 10, inputmode: "numeric" },
     // PIN before the street: it fills City and State (see lookupPin), so most
     // buyers type five fields, not eight. Landmark lives in the area line.
-    { key: "pincode", label: "PIN code", type: "text", ph: "6-digit PIN", maxlength: 6, inputmode: "numeric", auto: "postal-code" },
+    // Not "PIN": next to a payment step that reads as a card or UPI PIN, and one
+    // buyer typed exactly that (PT-260927-00037).
+    { key: "pincode", label: "Pincode (postal code)", type: "text", ph: "e.g. 110052", maxlength: 6, inputmode: "numeric", auto: "postal-code" },
     { key: "line1", label: "House / Flat, Street", type: "text", ph: "e.g. 12B, MG Road", auto: "address-line1" },
     { key: "line2", label: "Area, Landmark (optional)", type: "text", ph: "Sector, colony, near…", auto: "address-line2", optional: true },
     { key: "city", label: "City", type: "text", ph: "City", auto: "address-level2" },
@@ -649,6 +651,10 @@
     if (typeof window.clarity === "function") window.clarity("event", "address_suggestion_used");
   }
 
+  // India Post's state for the last pincode looked up, so validate() can catch
+  // a pincode from another state before the buyer pays.
+  var pinState = null;
+
   // Best effort: fills City and State from India Post's public PIN lookup, and
   // only into boxes the buyer left empty. A slow or failed lookup changes
   // nothing, and the buyer types them as before.
@@ -662,6 +668,7 @@
         if (!office || els.inputs.pincode.value !== pin) return;
         if (!els.inputs.city.value && office.District) els.inputs.city.value = office.District;
         var state = STATES.filter(function (st) { return st.toLowerCase() === String(office.State || "").toLowerCase(); })[0];
+        if (state) pinState = { pin: pin, state: state };
         if (!els.inputs.state.value && state) els.inputs.state.value = state;
       })
       .catch(function () { /* typed by hand instead */ })
@@ -674,7 +681,10 @@
     if (!v.line1 || v.line1.length < 4) return "Enter your house / flat and street.";
     if (!v.city || v.city.length < 2) return "Please enter your city.";
     if (!v.state || v.state.length < 2) return "Please enter your state.";
-    if (!/^[1-9][0-9]{5}$/.test(v.pincode)) return "Enter a valid 6-digit PIN code.";
+    if (!/^[1-9][0-9]{5}$/.test(v.pincode)) return "Enter a valid 6-digit pincode (your area's postal code).";
+    if (pinState && pinState.pin === v.pincode && pinState.state !== v.state) {
+      return "That pincode is in " + pinState.state + ", not " + v.state + ". Please check your area's postal code.";
+    }
     return null;
   }
 

@@ -970,3 +970,12 @@ Covers UX and security improvements made after M13 call flow was confirmed worki
 - [x] Report server errors to Sentry (`@sentry/node` v10): 5xx from the Fastify error handler, unhandled rejections and uncaught exceptions from `server.js`, flushed on shutdown. Off unless `SENTRY_DSN` is set.
 - [x] Keep reports privacy-safe: no request, user, IP or breadcrumbs; phone numbers, OTPs and emails masked; route pattern tags only. User-facing `clientError`s and 4xx are not reported. Verified with 6 unit tests and an end-to-end run against a local fake Sentry endpoint.
 - [ ] Create the Sentry project, set `SENTRY_DSN` on Railway, and confirm the first real event arrives scrubbed.
+
+## Checkout pincode guard, 2026-09-27
+
+- [x] Rename the checkout field from "PIN code / 6-digit PIN" to "Pincode (postal code) / e.g. 110052": a buyer read it as a card PIN, typed a Kerala code on a New Delhi address, paid, and the Delhivery booking failed (PT-260927-00037).
+- [x] Refuse a pincode from another state, in the form (India Post's state for the pincode) and in the shared `validateAddress` (two-digit postal-circle table, generous at borders, unknown prefixes not judged). The typed number is never echoed back. `address-check` answers `validated: false` for such a pair without asking Ola.
+- [x] Ask Delhivery for serviceability on guest pay-online orders before payment (COD already did); only an explicit "not serviceable" refuses.
+- [x] Verify: 6 unit tests in `pincode-state.test.js` pass; the rule refuses none of the 29 real prod order addresses or 4 saved addresses.
+- [ ] Run the Mongo-backed suites in CI (`guest-checkout`, `address-suggest` updated for the new wording and fixture), merge, deploy, and place one test checkout with a mismatched pincode.
+- [ ] Decide whether to WhatsApp the buyer automatically when a paid order's booking still fails.

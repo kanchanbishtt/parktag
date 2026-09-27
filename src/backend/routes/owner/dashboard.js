@@ -626,7 +626,7 @@ export function registerOwnerRoutes(app, env) {
     const { serviceable } = await checkPincodeServiceability(env, result.address.pincode);
     if (serviceable === false) {
       reply.code(400);
-      return { ok: false, error: `Sorry, we can't currently deliver to PIN code ${result.address.pincode}.` };
+      return { ok: false, error: "Sorry, we can't currently deliver to that pincode. Please check it is your area's postal code." };
     }
 
     const ownerId = toObjectId(request.session.userId);

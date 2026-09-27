@@ -13,7 +13,7 @@ import {
 import { getCollections } from "../../lib/db/repositories.js";
 import { requireSession, toObjectId, tryObjectId } from "../../lib/auth/auth.js";
 import { generateOrderNumber } from "../../lib/core/order-number.js";
-import { addressLine, addressToNotes, validateAddress, validateHandoverContact } from "../../lib/core/address.js";
+import { addressLine, addressToNotes, pincodeStateMismatch, validateAddress, validateHandoverContact } from "../../lib/core/address.js";
 import { createPremiumTagForVehicle } from "../../lib/core/tag-issuance.js";
 import { reassignVaultDocuments } from "../../lib/core/vault.js";
 import { isDelhiveryConfigured, updateShipmentToPrepaid, trackingUrl, checkPincodeServiceability } from "../../lib/integrations/delhivery.js";
@@ -534,7 +534,7 @@ async function placeGuestCodLocked(env, collections, request, reply, order, codT
   ]);
   if (serviceability.cod === false) {
     reply.code(400);
-    return { ok: false, error: "Cash on Delivery is not available at this PIN code. Please pay online." };
+    return { ok: false, error: "Cash on Delivery is not available at this pincode. Please pay online." };
   }
 
   // Fake COD parcels are the cost this guards: the delivery phone must have
@@ -670,7 +670,11 @@ export function registerShopRoutes(app, env) {
     "/api/shop/address-check",
     { config: { rateLimit: { max: 20, timeWindow: "1 minute" } } },
     async (request) => {
-      const checked = validateAddress(request.body?.address || {});
+      const raw = request.body?.address || {};
+      // A pincode from another state is a definite "does not hang together",
+      // no need to ask Ola.
+      if (pincodeStateMismatch(String(raw.pincode || "").trim(), raw.state)) return { ok: true, validated: false };
+      const checked = validateAddress(raw);
       if (!checked.ok) return { ok: true, validated: null };
       return { ok: true, validated: await addressValidates(addressLine(checked.address), { log: request.log }) };
     }
@@ -976,6 +980,15 @@ export function registerShopRoutes(app, env) {
       if (!checked.ok) { reply.code(400); return { ok: false, error: checked.error }; }
       const shipping = checked.address;
 
+      // COD already asked Delhivery (placeGuestCod); a paid order did not, so
+      // an unservable pincode surfaced only after the money was taken and the
+      // booking failed (PT-260927-00037). Same rule as COD: only an explicit
+      // "no" refuses, an unknown answer fails open.
+      if (!handover && !cod && (await checkPincodeServiceability(env, shipping.pincode)).serviceable === false) {
+        reply.code(400);
+        return { ok: false, error: "We can't deliver to that pincode. Please check it is your area's postal code." };
+      }
+
       // Reuse an identical unpaid guest order rather than minting a second one.
       // The signed-in route does this keyed on the owner; here the address IS
       // the identity, so an exact match on it plus the product, the variant and
@@ -1213,7 +1226,7 @@ export function registerShopRoutes(app, env) {
         reply.code(400); return { ok: false, error: "Enter a valid 10-digit mobile number." };
       }
       if (pincode !== undefined && (typeof pincode !== "string" || !/^[1-9]\d{5}$/.test(pincode))) {
-        reply.code(400); return { ok: false, error: "Enter a valid 6-digit PIN code." };
+        reply.code(400); return { ok: false, error: "Enter a valid 6-digit pincode (your area's postal code)." };
       }
       // Same bot check as guest create-order, minus its allowance for an absent
       // token: a COD code leads to a billed courier parcel, so COD needs a score.
@@ -1248,7 +1261,7 @@ export function registerShopRoutes(app, env) {
       }
       if (pincode && (await checkPincodeServiceability(env, pincode)).cod === false) {
         reply.code(400);
-        return { ok: false, error: "Cash on Delivery is not available at this PIN code. Please pay online." };
+        return { ok: false, error: "Cash on Delivery is not available at this pincode. Please pay online." };
       }
       try {
         await sendOtp(env, phone, { purpose: OTP_PURPOSE_COD_VERIFY });

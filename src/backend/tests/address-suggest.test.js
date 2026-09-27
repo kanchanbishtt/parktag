@@ -44,8 +44,16 @@ describe("address suggestions", () => {
 });
 
 describe("COD address check", () => {
-  const address = { fullName: "QA", phone: "9812300001", line1: "Wave Mall", city: "Noida", state: "Uttar Pradesh", pincode: "560001" };
-  const check = () => app.inject({ method: "POST", url: "/api/shop/address-check", payload: { address }, remoteAddress: uniqueAddress() });
+  const address = { fullName: "QA", phone: "9812300001", line1: "Wave Mall", city: "Noida", state: "Uttar Pradesh", pincode: "201301" };
+  const check = (a = address) => app.inject({ method: "POST", url: "/api/shop/address-check", payload: { address: a }, remoteAddress: uniqueAddress() });
+
+  test("a pincode from another state is refused without asking Ola", async () => {
+    process.env.OLA_MAPS_API_KEY = "k";
+    let asked = false;
+    globalThis.fetch = async () => { asked = true; return { ok: true, json: async () => ({ result: { validated: true } }) }; };
+    assert.deepEqual((await check({ ...address, pincode: "560001" })).json(), { ok: true, validated: false });
+    assert.equal(asked, false);
+  });
 
   test("no key: unknown, never a refusal", async () => {
     assert.deepEqual((await check()).json(), { ok: true, validated: null });
@@ -56,6 +64,6 @@ describe("COD address check", () => {
     let asked;
     globalThis.fetch = async (url) => { asked = String(url); return { ok: true, json: async () => ({ result: { validated: false } }) }; };
     assert.deepEqual((await check()).json(), { ok: true, validated: false });
-    assert.equal(new URL(asked).searchParams.get("address"), "Wave Mall, Noida, Uttar Pradesh, 560001");
+    assert.equal(new URL(asked).searchParams.get("address"), "Wave Mall, Noida, Uttar Pradesh, 201301");
   });
 });

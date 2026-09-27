@@ -9,6 +9,68 @@ function clean(value, max) {
   return String(value ?? "").trim().slice(0, max);
 }
 
+// India Post's first two digits name a postal circle, which is a state or a
+// small group of them. PT-260927-00037 is why this exists: a New Delhi buyer
+// read "6-digit PIN" as a card PIN, typed a Kerala code, paid, and the parcel
+// could not be booked. A prefix that spans a border lists every state it
+// covers, so a real address is never refused; an unknown prefix or a state
+// this table does not name is not checked at all.
+// ponytail: two-digit prefixes only; a three-digit table is the upgrade if a
+// border district ever slips through.
+const PIN_PREFIX_STATES = {
+  11: ["delhi"],
+  12: ["haryana"],
+  13: ["haryana", "punjab", "chandigarh", "himachal pradesh"],
+  14: ["punjab", "haryana"],
+  15: ["punjab"],
+  16: ["punjab", "chandigarh", "haryana"],
+  17: ["himachal pradesh"],
+  18: ["jammu and kashmir"],
+  19: ["jammu and kashmir", "ladakh"],
+  20: ["uttar pradesh"], 21: ["uttar pradesh"], 22: ["uttar pradesh"], 23: ["uttar pradesh"],
+  24: ["uttar pradesh", "uttarakhand"],
+  25: ["uttar pradesh"],
+  26: ["uttar pradesh", "uttarakhand"],
+  27: ["uttar pradesh"], 28: ["uttar pradesh"],
+  30: ["rajasthan"], 31: ["rajasthan"], 32: ["rajasthan"], 33: ["rajasthan"], 34: ["rajasthan"],
+  36: ["gujarat"], 37: ["gujarat"], 38: ["gujarat"],
+  39: ["gujarat", "dadra and nagar haveli and daman and diu"],
+  40: ["maharashtra", "goa"],
+  41: ["maharashtra"], 42: ["maharashtra"], 43: ["maharashtra"], 44: ["maharashtra"],
+  45: ["madhya pradesh"], 46: ["madhya pradesh"], 47: ["madhya pradesh"], 48: ["madhya pradesh"],
+  49: ["chhattisgarh"],
+  50: ["telangana", "andhra pradesh"],
+  51: ["andhra pradesh", "telangana"], 52: ["andhra pradesh", "telangana"], 53: ["andhra pradesh", "telangana"],
+  56: ["karnataka"], 57: ["karnataka"], 58: ["karnataka"], 59: ["karnataka"],
+  60: ["tamil nadu", "puducherry"], 61: ["tamil nadu", "puducherry"], 62: ["tamil nadu"],
+  63: ["tamil nadu"], 64: ["tamil nadu"], 65: ["tamil nadu"], 66: ["tamil nadu"],
+  67: ["kerala", "puducherry"], 68: ["kerala", "lakshadweep"], 69: ["kerala"],
+  70: ["west bengal"], 71: ["west bengal"], 72: ["west bengal"],
+  73: ["west bengal", "sikkim"],
+  74: ["west bengal", "andaman and nicobar islands"],
+  75: ["odisha"], 76: ["odisha"], 77: ["odisha"],
+  78: ["assam", "meghalaya", "arunachal pradesh", "nagaland"],
+  79: ["arunachal pradesh", "assam", "manipur", "meghalaya", "mizoram", "nagaland", "tripura"],
+  80: ["bihar", "jharkhand"], 81: ["bihar", "jharkhand"], 82: ["bihar", "jharkhand"],
+  83: ["jharkhand", "bihar"], 84: ["bihar"], 85: ["bihar", "jharkhand"]
+};
+const KNOWN_STATES = new Set(Object.values(PIN_PREFIX_STATES).flat());
+const STATE_LABEL = {};
+for (const s of KNOWN_STATES) STATE_LABEL[s] = s.replace(/\b\w/g, (c) => c.toUpperCase());
+
+function normaliseState(state) {
+  return String(state || "").toLowerCase().replace(/&/g, "and").replace(/^nct of /, "").replace(/\s+/g, " ").trim();
+}
+
+// The state(s) a pincode belongs to when it plainly contradicts the chosen
+// state, else null (a match, or not enough to judge).
+export function pincodeStateMismatch(pincode, state) {
+  const chosen = normaliseState(state);
+  const expected = PIN_PREFIX_STATES[String(pincode).slice(0, 2)];
+  if (!expected || !KNOWN_STATES.has(chosen) || expected.includes(chosen)) return null;
+  return expected.map((s) => STATE_LABEL[s]);
+}
+
 // Validate a raw address payload from the client. Returns
 // { ok: true, address } with a normalised, snapshot-ready object, or
 // { ok: false, error } with a human-readable reason for a 400.
@@ -28,7 +90,12 @@ export function validateAddress(raw) {
   if (line1.length < 4) return { ok: false, error: "Enter your house / flat and street." };
   if (city.length < 2) return { ok: false, error: "Please enter your city." };
   if (state.length < 2) return { ok: false, error: "Please enter your state." };
-  if (!PIN_RE.test(pincode)) return { ok: false, error: "Enter a valid 6-digit PIN code." };
+  if (!PIN_RE.test(pincode)) return { ok: false, error: "Enter a valid 6-digit pincode (your area's postal code)." };
+  const belongsTo = pincodeStateMismatch(pincode, state);
+  if (belongsTo) {
+    // The typed number is not echoed back: it may be a card PIN, not a pincode.
+    return { ok: false, error: `That pincode is in ${belongsTo.join(" or ")}, not ${state}. Please check your area's postal code.` };
+  }
 
   return {
     ok: true,

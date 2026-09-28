@@ -12,9 +12,7 @@
 
     <link rel="stylesheet" href="/styles/shop.css?v=__ASSET_VERSION__" />
     <link rel="stylesheet" href="/styles/pt-steps.css?v=__ASSET_VERSION__" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="preload" as="font" type="font/woff2" href="/fonts/inter-latin-var.woff2" crossorigin>
 
     <!-- The funnel starts here. Surface "app", so GA4 and the Pixel both report:
          this is a shop, not a credential page. -->
@@ -28,7 +26,7 @@
          in and a way to find an order, and nothing that assumes an account. -->
     <header class="sh-header">
       <a class="sh-logo" href="/shop" aria-label="ParkTag">
-        <img src="/images/dark-logo.png" alt="ParkTag" />
+        <img width="336" height="126" src="/images/dark-logo-336.webp" alt="ParkTag" />
       </a>
       <nav class="sh-header-nav" aria-label="Account">
         <a class="sh-header-link" href="/track-order">Track order</a>
@@ -152,7 +150,7 @@
     <footer class="sh-footer">
       <div class="sh-footer-in">
         <div class="sh-footer-brand">
-          <img src="/images/dark-logo.png" alt="ParkTag" />
+          <img width="336" height="126" src="/images/dark-logo-336.webp" alt="ParkTag" />
           <p>Be reachable. Stay private.</p>
           <a class="sh-footer-mail" href="mailto:support@parktag.me">support@parktag.me</a>
         </div>
@@ -207,8 +205,7 @@
       </div>
     </section>
 
-    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
-    <script src="/scripts/owner/address-step.js?v=__ASSET_VERSION__"></script>
+    <script src="/scripts/checkout-loader.js?v=__ASSET_VERSION__" data-address-step="/scripts/owner/address-step.js?v=__ASSET_VERSION__" defer></script>
     <script type="module" src="/scripts/shop.js?v=__ASSET_VERSION__"></script>
   </body>
 </html>

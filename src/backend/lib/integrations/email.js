@@ -97,8 +97,15 @@ function button(href, label, colour = BRAND.navy) {
     </div>`;
 }
 
+// One pooled transport per SMTP configuration. A transport per email meant TCP,
+// TLS and SMTP AUTH on every send; the pool keeps connections open and reuses
+// them. Explicit timeouts, because nodemailer's defaults are minutes long and a
+// mail server that stops answering would otherwise hold the request that is
+// awaiting it. Keyed on the settings, so a changed config gets a new transport.
+const transports = new Map();
+
 function createTransport(env) {
-  return nodemailer.createTransport({
+  const config = {
     host: env.emailSmtpHost,
     port: env.emailSmtpPort || 587,
     secure: env.emailSmtpPort === 465,
@@ -106,7 +113,21 @@ function createTransport(env) {
       user: env.emailSmtpUser,
       pass: env.emailSmtpPass
     }
-  });
+  };
+  const cacheKey = JSON.stringify(config);
+  let transport = transports.get(cacheKey);
+  if (!transport) {
+    transport = nodemailer.createTransport({
+      ...config,
+      pool: true,
+      maxConnections: 3,
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 20000
+    });
+    transports.set(cacheKey, transport);
+  }
+  return transport;
 }
 
 // Wording per code purpose. A code that authorises permanent deletion must not

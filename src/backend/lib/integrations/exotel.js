@@ -1,4 +1,5 @@
 import { toE164 } from "../core/phone.js";
+import { fetchWithTimeout } from "../core/fetch-timeout.js";
 
 function normalizeBaseUrl(input) {
   const value = String(input || "").trim();
@@ -129,7 +130,7 @@ function buildProviderFailure(responseStatus, data) {
 }
 
 async function postForm(url, auth, payload, publicMessage) {
-  const response = await fetch(url, {
+  const response = await fetchWithTimeout(url, {
     method: "POST",
     headers: {
       Authorization: `Basic ${auth}`,
@@ -160,7 +161,7 @@ async function postForm(url, auth, payload, publicMessage) {
 }
 
 async function postJson(url, auth, payload, publicMessage) {
-  const response = await fetch(url, {
+  const response = await fetchWithTimeout(url, {
     method: "POST",
     headers: {
       Authorization: `Basic ${auth}`,

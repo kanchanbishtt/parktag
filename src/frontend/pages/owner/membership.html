@@ -8,6 +8,7 @@
   <link rel="icon" href="/images/icon.png" type="image/png" />
   <link rel="apple-touch-icon" href="/images/apple-touch-icon.png" />
   <link rel="stylesheet" href="/styles/styles.css?v=__ASSET_VERSION__"/>
+  <link rel="preload" as="font" type="font/woff2" href="/fonts/inter-latin-var.woff2" crossorigin>
   <link rel="stylesheet" href="/styles/owner-membership.css?v=__ASSET_VERSION__"/>
     <script src="/pt-analytics.js" data-surface="billing" defer></script>
 </head>
@@ -23,7 +24,7 @@
   </a>
   <div class="mb-logo">
     <a href="https://parktag.me" aria-label="ParkTag home" style="display:inline-flex;align-items:center;text-decoration:none">
-      <img src="/images/light-logo.png" alt="ParkTag" style="height:42px;width:auto;">
+      <img width="336" height="126" src="/images/light-logo-336.webp" alt="ParkTag" style="height:42px;width:auto;">
     </a>
   </div>
   <span></span>
@@ -139,9 +140,9 @@
 
 <!-- Razorpay's checkout sheet. Loaded from checkout.razorpay.com, which this
      page's CSP allows and the other strict pages deliberately do not — see
-     PAYMENT_STRICT_PAGES in app.js. Not deferred: membership.js only calls
-     new Razorpay() from a click, long after this has parsed. -->
-<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+     PAYMENT_STRICT_PAGES in app.js. checkout-loader.js fetches it once the
+     page is idle; membership.js awaits ptLoadRazorpay() before new Razorpay(). -->
+<script src="/scripts/checkout-loader.js?v=__ASSET_VERSION__" data-warm-razorpay defer></script>
 <script src="/scripts/owner/smart-back.js?v=__ASSET_VERSION__"></script>
 <script src="/scripts/owner/session-guard.js?v=__ASSET_VERSION__" defer></script>
 <script type="module" src="/scripts/owner/membership.js?v=__ASSET_VERSION__"></script>

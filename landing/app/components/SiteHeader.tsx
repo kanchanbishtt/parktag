@@ -54,12 +54,12 @@ export function SiteHeader({ defaultDark = true }: { defaultDark?: boolean }) {
   const pathname = usePathname();
   const home = pathname === "/" ? "" : "/";
   const [isDark, setIsDark] = useState(defaultDark);
-  const [mounted, setMounted] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<DropdownKey | null>(null);
   const headerRef = useRef<HTMLElement>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevDarkRef = useRef(defaultDark);
+  const wantDarkRef = useRef(defaultDark);
   const slidingRef = useRef(false);
 
   const openDropdown = (key: DropdownKey) => {
@@ -73,7 +73,7 @@ export function SiteHeader({ defaultDark = true }: { defaultDark?: boolean }) {
     if (closeTimer.current) clearTimeout(closeTimer.current);
   };
 
-  // Set correct logo before first paint to avoid flash
+  // Set the correct theme before first paint to avoid a flash
   useLayoutEffect(() => {
     const NAV_H = 64;
     const firstDark = document.querySelector<HTMLElement>("[data-nav-dark]");
@@ -82,7 +82,7 @@ export function SiteHeader({ defaultDark = true }: { defaultDark?: boolean }) {
       : defaultDark;
     setIsDark(shouldBeDark);
     prevDarkRef.current = shouldBeDark;
-    setMounted(true);
+    wantDarkRef.current = shouldBeDark;
   }, []);
 
   useEffect(() => {
@@ -123,26 +123,31 @@ export function SiteHeader({ defaultDark = true }: { defaultDark?: boolean }) {
             el.style.transform = "";
             el.style.opacity = "";
             slidingRef.current = false;
+            // The section may have crossed the line again mid-slide.
+            if (wantDarkRef.current !== prevDarkRef.current) doSlide(wantDarkRef.current);
           }, 420);
         }));
       }, 220);
     }
 
-    function check() {
-      // Only the FIRST data-nav-dark section (hero) controls the theme.
-      // Subsequent dark sections (How it Works, CTA) are ignored.
-      const firstDark = document.querySelector<HTMLElement>("[data-nav-dark]");
-      const shouldBeDark = firstDark
-        ? firstDark.getBoundingClientRect().bottom > NAV_H
-        : defaultDark;
-      if (shouldBeDark !== prevDarkRef.current && !slidingRef.current) {
-        doSlide(shouldBeDark);
-      }
-    }
-
-    window.addEventListener("scroll", check, { passive: true });
-    return () => window.removeEventListener("scroll", check);
-  }, [defaultDark]);
+    // Only the FIRST data-nav-dark section (hero) controls the theme.
+    // Subsequent dark sections (How it Works, CTA) are ignored. The header is
+    // dark while any of that section is still below the header line, which is
+    // an intersection with the viewport minus the top NAV_H pixels.
+    const firstDark = document.querySelector<HTMLElement>("[data-nav-dark]");
+    if (!firstDark) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        wantDarkRef.current = entries[entries.length - 1].isIntersecting;
+        if (wantDarkRef.current !== prevDarkRef.current && !slidingRef.current) {
+          doSlide(wantDarkRef.current);
+        }
+      },
+      { rootMargin: `-${NAV_H}px 0px 0px 0px` },
+    );
+    observer.observe(firstDark);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     document.body.style.overflow = menuOpen ? "hidden" : "";
@@ -162,14 +167,6 @@ export function SiteHeader({ defaultDark = true }: { defaultDark?: boolean }) {
 
   const closeAll = () => { setMenuOpen(false); setActiveDropdown(null); };
 
-  const navigateSmoothly = (href: string) => (e: React.MouseEvent) => {
-    e.preventDefault();
-    closeAll();
-    document.body.style.transition = "opacity 150ms ease";
-    document.body.style.opacity = "0";
-    setTimeout(() => { window.location.href = href; }, 160);
-  };
-
   const textColor = isDark ? "rgba(255,255,255,0.65)" : "#495B7B";
   const textHover = isDark ? "#ffffff" : "#03162D";
 
@@ -188,14 +185,22 @@ export function SiteHeader({ defaultDark = true }: { defaultDark?: boolean }) {
 
           {/* Logo */}
           <Link href="/" className="flex-shrink-0" onClick={closeAll}>
+            {/* Both variants are always in the markup and CSS picks one, so the
+                logo is in the server HTML and there is no swap-on-mount flash.
+                224x84 is twice the displayed size. */}
             <img
-              src={isDark ? "/dark-logo.png" : "/light-logo.png"}
+              src="/logo-dark.webp"
               alt="ParkTag"
-              style={{
-                height: "42px", width: "auto", display: "block",
-                opacity: mounted ? 1 : 0,
-                transition: mounted ? "opacity 120ms ease" : "none",
-              }}
+              width={224}
+              height={84}
+              className={`h-[42px] w-auto ${isDark ? "block" : "hidden"}`}
+            />
+            <img
+              src="/logo-light.webp"
+              alt="ParkTag"
+              width={224}
+              height={84}
+              className={`h-[42px] w-auto ${isDark ? "hidden" : "block"}`}
             />
           </Link>
 
@@ -289,7 +294,6 @@ export function SiteHeader({ defaultDark = true }: { defaultDark?: boolean }) {
             {/* Login as nav link */}
             <a
               href={`${APP_URL}/owner-login`}
-              onClick={navigateSmoothly(`${APP_URL}/owner-login`)}
               className="px-3 py-2 text-sm rounded-lg transition-colors duration-200"
               style={{ color: textColor }}
               onMouseEnter={(e) => (e.currentTarget.style.color = "#FF2700")}
@@ -340,7 +344,7 @@ export function SiteHeader({ defaultDark = true }: { defaultDark?: boolean }) {
             {!menuOpen && (
               <a
                 href={`${APP_URL}/owner-login`}
-                onClick={navigateSmoothly(`${APP_URL}/owner-login`)}
+                onClick={closeAll}
                 className="bg-[#FF2700] hover:bg-[var(--red-hover)] text-white text-sm font-bold px-4 py-2 rounded-lg transition-colors"
               >
                 Login
@@ -395,7 +399,7 @@ export function SiteHeader({ defaultDark = true }: { defaultDark?: boolean }) {
             <Link href="/about" onClick={closeAll} className="py-2.5 text-[#03162D] font-medium text-sm hover:text-[#FF2700] transition-colors">About Us</Link>
 
             <div className="mt-5 flex flex-col gap-3">
-              <a href={`${APP_URL}/owner-login`} onClick={navigateSmoothly(`${APP_URL}/owner-login`)} className="text-center py-3 rounded-xl border-2 border-[#FF2700] text-[#FF2700] font-bold text-sm hover:bg-[#FF2700] hover:text-white transition-colors">Login</a>
+              <a href={`${APP_URL}/owner-login`} onClick={closeAll} className="text-center py-3 rounded-xl border-2 border-[#FF2700] text-[#FF2700] font-bold text-sm hover:bg-[#FF2700] hover:text-white transition-colors">Login</a>
               <a href={`${APP_URL}/shop`} onClick={closeAll} className="text-center py-3 rounded-xl bg-[#FF2700] text-white font-bold text-sm hover:bg-[var(--red-hover)] transition-colors">Get ParkTag</a>
               {/* Alternative buy paths, ranked below Order Now on purpose: the
                   shop is ours and is the only route where we see the purchase. */}

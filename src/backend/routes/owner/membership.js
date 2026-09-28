@@ -87,7 +87,8 @@ async function checkoutPrefill(collections, ownerId) {
 export function registerMembershipRoutes(app, env) {
   app.get(
     "/api/owner/membership",
-    { config: { rateLimit: { max: 60, timeWindow: "1 minute" } } },
+    // `local`: a read-only status check, counted per replica rather than in Mongo.
+    { config: { rateLimit: { max: 60, timeWindow: "1 minute", local: true } } },
     async (request, reply) => {
       const blocked = await requireSession(app, "owner")(request, reply);
       if (blocked) return blocked;

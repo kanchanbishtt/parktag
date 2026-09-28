@@ -38,22 +38,6 @@ html {
   scroll-behavior: smooth;
 }
 
-@keyframes marquee {
-  from { transform: translateX(0); }
-  to { transform: translateX(-50%); }
-}
-
-@keyframes shimmer {
-  0%   { background-position: -200% 0; }
-  100% { background-position:  200% 0; }
-}
-
-.skeleton-shimmer {
-  background: linear-gradient(90deg, #f3f4f6 25%, #e8e9ec 50%, #f3f4f6 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.4s ease-in-out infinite;
-}
-
 body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -82,13 +66,23 @@ body {
 details summary::-webkit-details-marker { display: none; }
 details summary { list-style: none; }
 
-/* FAQ chevron rotation */
-details[open] .faq-chevron {
-  transform: rotate(45deg);
-}
-.faq-chevron {
-  transition: transform 0.2s ease;
-  display: inline-block;
+/* FAQ open/close (<FaqAccordion>). Animating to height:auto needs
+   interpolate-size and ::details-content; where either is missing the panel
+   just toggles. */
+@supports selector(::details-content) {
+  @media (prefers-reduced-motion: no-preference) {
+    .pt-faq {
+      interpolate-size: allow-keywords;
+    }
+    .pt-faq::details-content {
+      height: 0;
+      overflow: hidden;
+      transition: height 320ms cubic-bezier(0.4, 0, 0.2, 1), content-visibility 320ms allow-discrete;
+    }
+    .pt-faq[open]::details-content {
+      height: auto;
+    }
+  }
 }
 
 /* Entry for the How It Works steps. A keyframe rather than a state flag flipped
@@ -98,4 +92,55 @@ details[open] .faq-chevron {
 @keyframes pt-step-in {
   from { opacity: 0; transform: translateY(16px); }
   to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Scroll reveal for <AnimateIn>. Progressive enhancement only: without
+   scroll-timeline support, or with reduced motion, nothing here applies and the
+   content is just visible, so there is no opacity:0 in the server HTML and no
+   layout shift. `backwards` fill hides a block only until it enters, then the
+   animation ends and leaves no lingering transform behind. */
+@keyframes pt-reveal-bottom {
+  from { opacity: 0; transform: translateY(28px); }
+}
+@keyframes pt-reveal-left {
+  from { opacity: 0; transform: translateX(-24px); }
+}
+@keyframes pt-reveal-right {
+  from { opacity: 0; transform: translateX(24px); }
+}
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .pt-reveal {
+      animation-duration: 1ms; /* ignored by scroll timelines, but must be non-zero for Firefox */
+      animation-timing-function: ease-out;
+      animation-fill-mode: backwards;
+      animation-timeline: view();
+      animation-range: entry var(--pt-d, 0%) entry calc(35% + var(--pt-d, 0%));
+    }
+    .pt-reveal-bottom { animation-name: pt-reveal-bottom; }
+    .pt-reveal-left { animation-name: pt-reveal-left; }
+    .pt-reveal-right { animation-name: pt-reveal-right; }
+  }
+}
+
+/* Hero word rotator (<VehicleRotator>). All words are stacked in one grid cell,
+   so the box is as wide as the longest word and nothing beside it shifts. Each
+   word is visible for one sixth of a 14.4s cycle; the inline animation-delay
+   staggers them. */
+@keyframes pt-rotate {
+  0%, 13%   { opacity: 1; transform: translateY(0); }
+  16.67%    { opacity: 0; transform: translateY(-10px); }
+  96%       { opacity: 0; transform: translateY(8px); }
+  100%      { opacity: 1; transform: translateY(0); }
+}
+.pt-rotator {
+  display: inline-grid;
+}
+.pt-rotator > span {
+  grid-area: 1 / 1;
+  animation: pt-rotate 14.4s ease infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pt-rotator > span { animation: none; }
+  .pt-rotator > span:not(:first-child) { display: none; }
 }

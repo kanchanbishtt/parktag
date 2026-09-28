@@ -21,31 +21,41 @@ if (documentsLink) {
   }
 }
 
-// Real QR data url — populated from API when a real tag id is present
-let realQrDataUrl = "";
+// Real QR url (a cacheable SVG endpoint), populated from the API when a real tag id is present
+let realQrUrl = "";
 let realScanUrl   = "";
 let isPremium     = false;
 let isFreeUsed    = false;
 let freeLeft      = 1;
 
-// ── Skeleton → reveal after 500ms ────────────────────────────
+// The dashboard is read ONCE and the promise shared by everything below (the
+// tag details, the owner name, the SOS prefill). qr=0 leaves the inline QR
+// images out; the QR is loaded from the tag's own cacheable qrUrl instead.
+// Resolves to null on any failure, so callers only handle "no data".
+const dashboardPromise = fetch("/api/owner/dashboard?qr=0")
+  .then(r => (r.ok ? r.json() : null))
+  .catch(() => null);
+
+// ── Skeleton → reveal once the dashboard has answered ────────
 const skeleton  = document.getElementById("skeleton");
 const content   = document.getElementById("vd-content");
 
-setTimeout(async () => {
+(async () => {
   // The tag this page is showing, once the dashboard has been read. Stays null
   // for a local (unsaved) vehicle, for a tag the API does not return, and for a
   // failed fetch — all of which mean "no entitlement to report".
   let loadedCallAccess = null;
 
-  // If this is a real tag, fetch its QR from the dashboard API
+  // Always yields at least once, so the rest of the module has finished
+  // evaluating (initToggles and friends) before the reveal runs.
+  const data = realId ? await dashboardPromise : await Promise.resolve(null);
+
+  // If this is a real tag, take its QR and details from the dashboard API
   if (realId) {
     try {
-      const res  = await fetch("/api/owner/dashboard");
-      const data = res.ok ? await res.json() : null;
       const tag  = data?.tags?.find(t => t.id === realId);
       if (tag) {
-        realQrDataUrl = tag.qrDataUrl || "";
+        realQrUrl = tag.qrUrl || "";
         realScanUrl   = tag.scanUrl   || "";
         isPremium     = Boolean(tag.premium);
         isFreeUsed    = Boolean(tag.freeContactUsed);
@@ -67,15 +77,13 @@ setTimeout(async () => {
   applyMaskingGate(loadedCallAccess);
   updatePremiumUI();
 
-  skeleton.style.transition = "opacity .25s ease";
-  skeleton.style.opacity = "0";
-  setTimeout(() => {
-    skeleton.style.display = "none";
-    populateContent();
-    content.classList.add("visible");
-    autoOpenSection();
-  }, 250);
-}, 500);
+  skeleton.style.display = "none";
+  populateContent();
+  content.classList.add("visible");
+  autoOpenSection();
+  // After the gate above, which decides which switches are locked.
+  initToggles();
+})();
 
 // ── Populate fields ───────────────────────────────────────────
 function populateContent() {
@@ -92,8 +100,7 @@ function populateContent() {
   document.getElementById("info-tagid").textContent = displayTagId;
 
   // Owner name from session
-  fetch("/api/owner/dashboard")
-    .then(r => r.ok ? r.json() : null)
+  dashboardPromise
     .then(data => {
       if (data?.owner) {
         const name = data.owner.displayName || data.owner.email || "-";
@@ -108,8 +115,8 @@ function populateContent() {
 
   // Inject real QR into print template if available
   const printQr = document.getElementById("print-qr-img");
-  if (printQr && realQrDataUrl) {
-    printQr.src = realQrDataUrl;
+  if (printQr && realQrUrl) {
+    printQr.src = realQrUrl;
   }
 
   // Hide demo banner if this is a real tag
@@ -182,10 +189,9 @@ function saveToggles(state) {
 // a premium tag on a subscription. `masking` is the server's answer and the
 // same field the scanner gate reads; the page does not re-derive the window.
 //
-// The switch ships locked in the markup and is only opened here, so the order
-// this lands in relative to initToggles (which runs on a timer, while this
-// waits on the dashboard fetch) cannot leave an unentitled owner with a
-// working control.
+// The switch ships locked in the markup and is only opened here, and
+// initToggles runs after this in the same reveal step, so the order they land
+// in cannot leave an unentitled owner with a working control.
 function applyMaskingGate(callAccess) {
   const cb = document.getElementById("toggle-masking");
   if (!cb) return;
@@ -233,8 +239,6 @@ function initToggles() {
     });
   });
 }
-
-setTimeout(initToggles, 600);
 
 // ── SOS save ─────────────────────────────────────────────────
 // This number used to live only in localStorage, which meant it existed on
@@ -301,14 +305,13 @@ document.getElementById("sos-test-btn")?.addEventListener("click", () => {
   );
 });
 
-setTimeout(async () => {
+(async () => {
   const inp = document.getElementById("sos-number");
   if (!inp) return;
 
   if (realId) {
     try {
-      const res = await fetch("/api/owner/dashboard");
-      const data = res.ok ? await res.json() : null;
+      const data = await dashboardPromise;
       const tag = data?.tags?.find(t => t.id === realId);
       if (tag?.emergencyContact) { inp.value = tag.emergencyContact; return; }
     } catch {}
@@ -318,7 +321,7 @@ setTimeout(async () => {
   // browser happened to remember put a number into a field the owner had never
   // saved for the vehicle, so one with no SOS at all looked as though it had
   // one. Empty is the honest starting state; the owner nominates someone.
-}, 600);
+})();
 
 // ── Remove Vehicle ────────────────────────────────────────────
 document.getElementById("remove-vehicle-btn")?.addEventListener("click", async () => {
@@ -354,7 +357,7 @@ document.getElementById("remove-vehicle-btn")?.addEventListener("click", async (
 document.getElementById("download-etag-btn")?.addEventListener("click", () => {
   const el = document.getElementById("print-vehicle-num");
   if (el) el.textContent = plate;
-  setTimeout(() => window.print(), 80);
+  (window.ptLoadPrintImages?.() ?? Promise.resolve()).then(() => window.print());
 });
 
 // ── Premium / buy-premium-tag (M18) ───────────────────────────
@@ -425,11 +428,11 @@ function applyEtagDownloadMode() {
 
   // Put the real tag QR on both sticker variants (the generated one was left on a
   // placeholder before).
-  if (realQrDataUrl) {
+  if (realQrUrl) {
     const figmaQr = document.getElementById("print-figma-qr-img");
     const genQr   = document.getElementById("print-qr-img");
-    if (figmaQr) figmaQr.src = realQrDataUrl;
-    if (genQr)   genQr.src   = realQrDataUrl;
+    if (figmaQr) figmaQr.src = realQrUrl;
+    if (genQr)   genQr.src   = realQrUrl;
   }
 }
 

@@ -46,7 +46,8 @@ export function registerLoginPinRoutes(app, env) {
   // Whether a PIN exists, and when it was set. Never the PIN, never the hash.
   app.get(
     "/api/owner/login-pin",
-    { config: { rateLimit: { max: 60, timeWindow: "1 minute" } } },
+    // `local`: a read-only status check, counted per replica rather than in Mongo.
+    { config: { rateLimit: { max: 60, timeWindow: "1 minute", local: true } } },
     async (request, reply) => {
       const ctx = await ownerContext(request, reply);
       if (ctx.blocked) return ctx.blocked;

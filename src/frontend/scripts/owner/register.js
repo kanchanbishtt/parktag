@@ -10,7 +10,7 @@ const VEHICLE_LABELS = {
 // unlike the old line icons these do not inherit the row's text colour.
 const VEHICLE_ICON_SRC = {
   car: "/images/car-tag.svg",
-  bike: "/images/bike-tag.svg",
+  bike: "/images/bike-tag-144.webp",
   scooter: "/images/vtype-scooter.png",
   auto_rickshaw: "/images/vtype-auto.png",
   truck: "/images/vtype-truck.png",
@@ -59,7 +59,7 @@ async function loadOwnerMobile() {
   if (!inp) return;
 
   try {
-    const res = await fetch("/api/owner/dashboard");
+    const res = await fetch("/api/owner/dashboard?qr=0");
     if (!res.ok) return;
     const data = await res.json();
     const mobile = data?.owner?.mobile || "";
@@ -233,6 +233,8 @@ async function downloadEtag() {
   if (etagReady) {
     try { await etagReady; } catch (_) {}
   }
+  // The print sheet's fallback QR is fetched only now (see lazy-print-images.js).
+  await window.ptLoadPrintImages?.();
   hideEtagPopup();
   const savingPromise = saveVehicles();
 

@@ -1,7 +1,21 @@
 import crypto from "node:crypto";
-import bcrypt from "bcryptjs";
+import bcryptjs from "bcryptjs";
 
 const BCRYPT_ROUNDS = 12;
+
+// Native bcrypt does its work on the libuv threadpool, so a cost-12 hash or
+// compare (~250ms) no longer starves every other request on the replica the
+// way pure-JS bcryptjs does. Both produce and verify the same `$2b$` hashes, so
+// nothing stored has to change. bcryptjs stays as a fallback for a platform
+// without the prebuilt binary: slower on the event loop, but still correct.
+let bcrypt = bcryptjs;
+export let HASHING_BACKEND = "js";
+try {
+  bcrypt = (await import("bcrypt")).default;
+  HASHING_BACKEND = "native";
+} catch (error) {
+  console.warn(`[auth] native bcrypt unavailable, falling back to bcryptjs: ${error.message}`);
+}
 
 // SHA-256 hashes are 64-char hex — detect legacy hashes for migration
 function isSha256Hash(hash) {

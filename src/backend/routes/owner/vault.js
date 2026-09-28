@@ -236,17 +236,28 @@ export function registerVaultRoutes(app, env) {
     if (ctx.blocked) return ctx.blocked;
     const { collections, ownerId } = ctx;
 
-    const tag = await ownedTag(collections, ownerId, (request.query || {}).tagId);
+    const tagOid = tryObjectId((request.query || {}).tagId);
+    if (!tagOid) { reply.code(404); return { ok: false, error: "Vehicle not found." }; }
+
+    // The three reads are independent, so they run together. The document read
+    // is scoped by ownerId as well as the tag, so running it before the
+    // ownership check resolves cannot return anyone else's files; a vehicle that
+    // is not theirs is still a 404 below and the rows are discarded.
+    //
+    // The byte total stays an aggregate over the documents rather than the
+    // vault_usage counter: that counter is a cap that can drift high (see
+    // ensureUsageRow), and this figure is what the owner is shown.
+    const [tag, docs, totals] = await Promise.all([
+      ownedTag(collections, ownerId, tagOid),
+      collections.vaultDocuments
+        .find({ ownerId, tagId: String(tagOid) })
+        .sort({ createdAt: -1 })
+        .toArray(),
+      collections.vaultDocuments
+        .aggregate([{ $match: { ownerId } }, { $group: { _id: null, bytes: { $sum: "$size" } } }])
+        .toArray()
+    ]);
     if (!tag) { reply.code(404); return { ok: false, error: "Vehicle not found." }; }
-
-    const docs = await collections.vaultDocuments
-      .find({ ownerId, tagId: String(tag._id) })
-      .sort({ createdAt: -1 })
-      .toArray();
-
-    const totals = await collections.vaultDocuments
-      .aggregate([{ $match: { ownerId } }, { $group: { _id: null, bytes: { $sum: "$size" } } }])
-      .toArray();
 
     // Sent with the list so the page draws the allowance it will actually be
     // held to. Deriving it client-side from the dashboard's `premium` flag

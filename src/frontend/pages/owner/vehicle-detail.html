@@ -8,382 +8,8 @@
   <link rel="icon" href="/images/icon.png" type="image/png" />
   <link rel="apple-touch-icon" href="/images/apple-touch-icon.png" />
   <link rel="stylesheet" href="/styles/styles.css?v=__ASSET_VERSION__"/>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    :root {
-      --amber: #FF2700;
-      --amber-dark: #D92200;
-      --ink: #323232;
-      --ink-2: #374151;
-      --ink-3: #6B7280;
-      --ink-4: #9CA3AF;
-      --surface: #F1F1F0;
-      --card: #ffffff;
-      --border: #E5E7EB;
-      --radius-card: 20px;
-      --radius-btn: 14px;
-      --radius-icon: 14px;
-      font-size: 16px;
-    }
-
-    html { -webkit-text-size-adjust: 100%; }
-
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-      background: var(--surface);
-      color: var(--ink);
-      min-height: 100dvh;
-      -webkit-font-smoothing: antialiased;
-    }
-
-    /* ── Header ─────────────────────────────────────────── */
-    .vd-header {
-      position: sticky; top: 0; z-index: 50;
-      display: grid; grid-template-columns: 56px 1fr 56px;
-      align-items: center;
-      padding: 0 16px;
-      height: max(60px, calc(52px + env(safe-area-inset-top)));
-      padding-top: env(safe-area-inset-top);
-      background: rgba(255,255,255,0.92);
-      border-bottom: 1px solid rgba(0,0,0,.06);
-      backdrop-filter: saturate(180%) blur(20px);
-      -webkit-backdrop-filter: saturate(180%) blur(20px);
-    }
-
-    /* Back button — pill with subtle tint, no visible border */
-    .vd-back {
-      width: 38px; height: 38px; border-radius: 50%;
-      border: none; background: var(--surface);
-      display: flex; align-items: center; justify-content: center;
-      text-decoration: none; color: var(--ink-2);
-      transition: background .18s, transform .12s;
-      -webkit-tap-highlight-color: transparent;
-    }
-    @media (hover: hover) { .vd-back:hover { background: #EAEBEE; } }
-    .vd-back:active { transform: scale(.88); background: #DDDEE2; }
-
-    /* Centered logo */
-    .vd-logo {
-      display: flex; align-items: center; justify-content: center; gap: 9px;
-    }
-    .vd-logo-box {
-      width: 34px; height: 34px;
-      border-radius: 10px;
-      background: transparent;
-      display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.12);
-    }
-    .vd-logo-text {
-      font-size: 1.15rem; font-weight: 800;
-      color: var(--ink); letter-spacing: -.04em;
-    }
-
-    /* Right icon buttons — borderless, just icon on tinted circle */
-    .vd-header-right { display: flex; gap: 4px; justify-content: flex-end; }
-    .vd-icon-btn {
-      width: 38px; height: 38px; border-radius: 50%;
-      border: none; background: transparent;
-      display: flex; align-items: center; justify-content: center;
-      cursor: pointer; color: var(--ink-3);
-      transition: background .18s, color .18s;
-      -webkit-tap-highlight-color: transparent;
-    }
-    @media (hover: hover) { .vd-icon-btn:hover { background: var(--surface); color: var(--ink-2); } }
-    .vd-icon-btn:active { background: #EAEBEE; }
-
-    /* ── Scroll container ────────────────────────────────── */
-    .vd-scroll {
-      overflow-y: auto;
-      height: calc(100dvh - 60px - env(safe-area-inset-top));
-      overscroll-behavior: contain;
-    }
-
-    /* ── Content wrapper ─────────────────────────────────── */
-    .vd-body {
-      width: 100%;
-      max-width: 600px;
-      margin: 0 auto;
-      padding: 16px 16px calc(32px + env(safe-area-inset-bottom));
-    }
-
-    @media (min-width: 640px) {
-      .vd-body { padding: 24px 24px 48px; }
-      .vd-header { padding-left: 24px; padding-right: 24px; }
-    }
-    @media (min-width: 900px) {
-      .vd-body { padding: 32px 32px 64px; }
-      .vd-header { padding-left: 32px; padding-right: 32px; }
-    }
-
-    /* ── Skeleton ────────────────────────────────────────── */
-    @keyframes shimmer {
-      0%   { background-position: -600px 0; }
-      100% { background-position: 600px 0; }
-    }
-    .sk-line {
-      border-radius: 8px;
-      background: linear-gradient(90deg, #E9EAEC 25%, #F1F1F0 50%, #E9EAEC 75%);
-      background-size: 1200px 100%;
-      animation: shimmer 1.5s infinite linear;
-    }
-    .sk-block {
-      background: var(--card); border-radius: var(--radius-card);
-      padding: 20px; margin-bottom: 12px;
-    }
-
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-    #skeleton { animation: fadeIn .15s ease; }
-    #vd-content { display: none; }
-    #vd-content.visible { display: block; animation: fadeIn .3s ease; }
-
-    /* ── Top card ────────────────────────────────────────── */
-    .vd-top-card {
-      background: var(--card); border-radius: var(--radius-card);
-      padding: 20px; margin-bottom: 12px;
-      box-shadow: 0 1px 3px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.04);
-    }
-    /* The plate itself is drawn by .pt-plate-display in styles.css — the very
-       element the contact page hands a scanner, so the IND band, the tricolour
-       strip, the border and the type metrics stay identical across the two
-       pages by construction rather than by being copied and kept in sync.
-
-       Only the surrounding spacing belongs here. Nothing in this rule may touch
-       the plate's own font, padding, border or colours: an override here is
-       exactly how the two would drift apart. */
-    .vd-plate-row { margin-bottom: 10px; }
-    .vd-tagid {
-      font-size: 0.78rem; color: var(--ink-4);
-      font-family: "SF Mono", "Fira Code", monospace; letter-spacing: .04em;
-      /* The real tag id is a 64-char hex token with no spaces, so it has no
-         break opportunity of its own and pushes the card past the viewport.
-         `anywhere` also lets the flex/grid parent shrink to fit (unlike
-         `break-word`, which leaves min-content at the full token width). */
-      overflow-wrap: anywhere;
-      line-height: 1.45;
-    }
-
-    /* ── Demo banner ─────────────────────────────────────── */
-    .vd-demo-banner {
-      background: #FFFBEB; border: 1px solid #FDE68A;
-      border-radius: 14px; padding: 12px 16px;
-      display: flex; align-items: center; gap: 10px;
-      font-size: 0.875rem; font-weight: 600; color: #B31C00;
-      margin-bottom: 12px;
-    }
-    .vd-demo-banner svg { flex-shrink: 0; }
-
-    /* ── Tabs ────────────────────────────────────────────── */
-    .vd-tabs {
-      display: flex; gap: 4px;
-      background: var(--card); border-radius: 16px;
-      padding: 5px; margin-bottom: 14px;
-      box-shadow: 0 1px 3px rgba(0,0,0,.06);
-    }
-    .vd-tab {
-      flex: 1; height: 42px; border: none; border-radius: 12px;
-      font-size: 0.875rem; font-weight: 700; cursor: pointer;
-      font-family: inherit; letter-spacing: .01em;
-      transition: background .18s, color .18s, box-shadow .18s;
-      background: transparent; color: var(--ink-4);
-      -webkit-tap-highlight-color: transparent;
-    }
-    .vd-tab.active {
-      background: var(--amber); color: #fff;
-      box-shadow: 0 2px 8px rgba(255, 39, 0, .35);
-    }
-
-    /* ── Tab panels ──────────────────────────────────────── */
-    .vd-panel { display: none; }
-    .vd-panel.active { display: block; animation: fadeIn .2s ease; }
-
-    /* ── Menu card ───────────────────────────────────────── */
-    .vd-menu-item {
-      background: var(--card); border-radius: var(--radius-card);
-      margin-bottom: 10px; overflow: hidden;
-      box-shadow: 0 1px 3px rgba(0,0,0,.05), 0 2px 8px rgba(0,0,0,.03);
-      transition: box-shadow .15s;
-    }
-    .vd-menu-item.open {
-      box-shadow: 0 2px 8px rgba(0,0,0,.08), 0 4px 20px rgba(0,0,0,.05);
-    }
-
-    .vd-menu-row {
-      display: flex; align-items: center; gap: 14px;
-      padding: 16px 18px; cursor: pointer; user-select: none;
-      min-height: 72px;
-      -webkit-tap-highlight-color: transparent;
-      transition: background .12s;
-    }
-    @media (hover: hover) { .vd-menu-row:hover { background: #FAFAFA; } }
-    .vd-menu-row:active { background: var(--surface); }
-
-    .vd-menu-icon {
-      width: 44px; height: 44px; border-radius: var(--radius-icon);
-      display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0;
-    }
-    .vd-menu-label {
-      flex: 1; font-size: 0.95rem; font-weight: 600; color: var(--ink-2);
-      letter-spacing: -.01em;
-    }
-    .vd-menu-arrow { color: var(--ink-4); transition: transform .25s cubic-bezier(.4,0,.2,1); display: flex; }
-    .vd-menu-item.open .vd-menu-arrow { transform: rotate(90deg); }
-
-    /* ── Sub-panel (accordion) ───────────────────────────── */
-    .vd-sub-panel {
-      max-height: 0; overflow: hidden;
-      transition: max-height .35s cubic-bezier(.4,0,.2,1);
-      border-top: 1px solid transparent;
-    }
-    .vd-menu-item.open .vd-sub-panel {
-      max-height: 500px;
-      border-top-color: var(--border);
-    }
-    .vd-sub-inner { padding: 16px 18px 18px; }
-
-    /* ── Info rows ───────────────────────────────────────── */
-    .vd-info-row {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 10px 0; border-bottom: 1px solid var(--border);
-    }
-    .vd-info-row:last-child { border-bottom: none; }
-    .vd-info-key { font-size: 0.8rem; color: var(--ink-4); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
-    .vd-info-val { font-size: 0.875rem; color: var(--ink); font-weight: 700; text-align: right; max-width: 58%; word-break: break-all; }
-
-    /* ── Toggle row ──────────────────────────────────────── */
-    .vd-toggle-row {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 12px 0;
-    }
-    .vd-toggle-row + .vd-toggle-row { border-top: 1px solid var(--border); }
-    .vd-toggle-label { font-size: 0.9rem; font-weight: 600; color: var(--ink-2); }
-    .vd-toggle-sub   { font-size: 0.75rem; color: var(--ink-4); margin-top: 3px; line-height: 1.4; }
-
-    /* iOS-style switch */
-    .vd-switch { position: relative; width: 50px; height: 28px; flex-shrink: 0; }
-    .vd-switch input { opacity: 0; width: 0; height: 0; position: absolute; }
-    .vd-switch-track {
-      position: absolute; inset: 0; border-radius: 28px; cursor: pointer;
-      background: #D1D5DB; transition: background .22s;
-    }
-    .vd-switch-track::after {
-      content: ""; position: absolute; left: 3px; top: 3px;
-      width: 22px; height: 22px; border-radius: 50%; background: #fff;
-      transition: transform .22s cubic-bezier(.4,0,.2,1);
-      box-shadow: 0 2px 4px rgba(0,0,0,.2);
-    }
-    .vd-switch input:checked + .vd-switch-track { background: var(--amber); }
-    .vd-switch input:checked + .vd-switch-track::after { transform: translateX(22px); }
-
-    /* A switch the owner has not paid for. Visible so the feature can still be
-       discovered, but plainly not operable. The cursor sits on the track since
-       the input itself is 0x0 and never takes the pointer. */
-    .vd-switch input:disabled + .vd-switch-track { cursor: not-allowed; background: #E5E7EB; }
-    .vd-toggle-locked .vd-toggle-label,
-    .vd-toggle-locked .vd-toggle-sub { color: var(--ink-4); }
-    .vd-toggle-locked .vd-switch { opacity: .55; }
-
-    /* ── Sub-panel helper elements ───────────────────────── */
-    .vd-sub-note { font-size: 0.825rem; color: var(--ink-3); line-height: 1.6; margin-bottom: 14px; }
-
-    .vd-action-link {
-      display: flex; align-items: center; justify-content: center; gap: 8px;
-      height: 48px; border-radius: var(--radius-btn);
-      background: #EFF6FF; color: #2563EB;
-      font-weight: 700; font-size: 0.9rem; text-decoration: none;
-      transition: background .15s; -webkit-tap-highlight-color: transparent;
-    }
-    .vd-action-link:active { background: #DBEAFE; }
-
-    .vd-field {
-      width: 100%; height: 48px; border: 1.5px solid var(--border);
-      border-radius: var(--radius-btn); padding: 0 16px;
-      font-size: 0.925rem; font-family: inherit; color: var(--ink);
-      background: var(--surface); outline: none; margin-bottom: 10px;
-      transition: border-color .15s, background .15s;
-    }
-    .vd-field:focus { border-color: var(--amber); background: #fff; }
-
-    .vd-btn-primary {
-      width: 100%; height: 48px; border-radius: var(--radius-btn); border: none;
-      background: var(--amber); color: var(--ink);
-      font-size: 0.925rem; font-weight: 700; font-family: inherit; cursor: pointer;
-      display: flex; align-items: center; justify-content: center; gap: 8px;
-      transition: background .15s, transform .1s;
-      -webkit-tap-highlight-color: transparent;
-    }
-    .vd-btn-primary:active { background: var(--amber-dark); transform: scale(.98); }
-
-    .vd-btn-danger {
-      width: 100%; height: 46px; border-radius: var(--radius-btn); border: none;
-      background: #FEE2E2; color: #DC2626;
-      font-size: 0.9rem; font-weight: 700; font-family: inherit; cursor: pointer;
-      display: flex; align-items: center; justify-content: center; gap: 8px;
-      margin-top: 8px; transition: background .15s;
-    }
-    .vd-btn-danger:active { background: #FECACA; }
-
-    .vd-btn-outline {
-      width: 100%; height: 46px; border-radius: var(--radius-btn);
-      border: 1.5px solid var(--amber); background: #fff; color: var(--ink);
-      font-size: 0.9rem; font-weight: 700; font-family: inherit; cursor: pointer;
-      transition: background .15s;
-    }
-    .vd-btn-outline:active { background: #FFFBF0; }
-
-    .vd-dl-note { font-size: 0.75rem; color: var(--ink-4); text-align: center; margin-top: 8px; line-height: 1.5; }
-
-    /* ── Print template ──────────────────────────────────── */
-    #etag-print { display: none; }
-    @media print {
-      body > *:not(#etag-print) { display: none !important; }
-      #etag-print { display: block !important; }
-      #etag-print, #etag-print * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-      @page { margin: 1.2cm; size: A4; }
-    }
-    .pt-wrap { font-family: 'Inter','Segoe UI',Arial,sans-serif; color: #03162D; }
-    .pt-instr { font-size: 11px; line-height: 1.8; margin-bottom: 18px; color: #323232; }
-    .pt-instr .pt-instr-h { display: block; font-size: 12.5px; font-weight: 800; margin: 3px 0 2px; color: #03162D; }
-    .pt-instr ol { margin: 5px 0 0; padding-left: 18px; }
-    .pt-freebox { margin-top: 10px; padding: 9px 12px; background: #FFF1EF; border: 1px solid #FFD8D0; border-radius: 9px; font-size: 10px; color: #03162D; line-height: 1.55; }
-    .pt-freebox b { color: #B31C00; }
-
-    .pt-cut { border: 1.5px dashed #b6bcc6; border-radius: 16px; padding: 14px; display: block; page-break-inside: avoid; }
-    /* Official premium sticker (real Figma artwork; the 1000x600 canvas is the
-       full-bleed card, so no crop is needed). Hidden by default; shown ONLY for
-       premium tags via #etag-print.is-premium, which then hides the generated
-       .pt-sticker. */
-    .pt-figma-sticker { position: relative; container-type: inline-size; width: 100%; aspect-ratio: 1000 / 600; overflow: hidden; display: none; }
-    .pt-figma-bg { position: absolute; top: 0; left: 0; width: 100%; height: auto; display: block; }
-    .pt-figma-qr { position: absolute; left: 63.14%; top: 11.83%; width: 30.64%; aspect-ratio: 1; display: block; }
-    /* Serial in the empty red band above the QR card, right edge aligned to the
-       QR's own right edge so it reads as part of that block. Black ink: most
-       fade-resistant, and discreet on the red. */
-    .pt-figma-serial { position: absolute; right: 6.22%; top: 3%; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 7px; font-size: 1.3cqw; letter-spacing: 0.06em; color: #000; white-space: nowrap; }
-    #etag-print.is-premium .pt-sticker { display: none; }
-    #etag-print.is-premium .pt-figma-sticker { display: block; }
-    .pt-sticker { display: flex; width: 100%; border-radius: 18px; overflow: hidden; border: 2px solid #03162D; }
-    .pt-left { flex: 0 0 60%; background: #fff; padding: 22px; display: flex; flex-direction: column; justify-content: space-between; }
-    .pt-logo { height: 26px; width: auto; display: block; }
-    .pt-tagline { font-size: 7px; font-weight: 800; letter-spacing: .2em; color: #6B7280; margin-top: 5px; }
-    .pt-head { font-size: 29px; font-weight: 900; color: #03162D; line-height: 1.12; margin: 16px 0 0; letter-spacing: -0.01em; }
-    .pt-head u { text-decoration: underline; text-decoration-thickness: 2.5px; text-underline-offset: 2px; }
-    .pt-scaninfo { font-size: 7px; font-weight: 700; letter-spacing: .05em; color: #6B7280; margin-top: 14px; line-height: 1.6; text-transform: uppercase; }
-    .pt-etagline { font-size: 7px; color: #9CA3AF; margin-top: 6px; letter-spacing: .02em; }
-
-    .pt-right { flex: 0 0 40%; background: #FF2700; padding: 18px 14px; display: flex; flex-direction: column; align-items: center; justify-content: space-between; }
-    .pt-qr-box { background: #fff; border-radius: 12px; padding: 10px; }
-    .pt-qr { width: 150px; height: 150px; display: block; }
-    .pt-rt-brand { font-size: 8.5px; font-weight: 800; color: #fff; margin-top: 11px; text-align: center; }
-    .pt-rt-brand span { font-weight: 600; opacity: .9; }
-    .pt-icons { display: flex; gap: 13px; margin-top: 11px; }
-    .pt-rt-note { font-size: 7.5px; font-weight: 700; color: #fff; text-align: center; margin-top: 8px; line-height: 1.5; }
-  </style>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles/owner-vehicle-detail.css?v=__ASSET_VERSION__"/>
+    <link rel="preload" as="font" type="font/woff2" href="/fonts/inter-latin-var.woff2" crossorigin>
   </head>
 <body>
 
@@ -397,7 +23,7 @@
     </svg>
   </a>
   <div class="vd-logo">
-    <a href="https://parktag.me" aria-label="ParkTag home" style="display:inline-flex;align-items:center;text-decoration:none"><img src="/images/light-logo.png" alt="ParkTag" style="height:42px;width:auto;"></a>
+    <a href="https://parktag.me" aria-label="ParkTag home" style="display:inline-flex;align-items:center;text-decoration:none"><img width="336" height="126" src="/images/light-logo-336.webp" alt="ParkTag" style="height:42px;width:auto;"></a>
   </div>
   <!-- Left empty rather than deleted: the header's third track is declared by
        grid-template-columns, so the logo stays centred either way, and keeping
@@ -735,7 +361,7 @@
         <!-- Left: white panel -->
         <div class="pt-left">
           <div>
-            <img class="pt-logo" src="/images/light-logo.png" alt="ParkTag"/>
+            <img class="pt-logo" data-src="/images/light-logo.png" alt="ParkTag"/>
             <div class="pt-tagline">SCAN TO CONNECT</div>
           </div>
           <p class="pt-head">Scan the code<br>to <u>contact the<br>vehicle owner.</u></p>
@@ -748,7 +374,7 @@
         <div class="pt-right">
           <div class="pt-qr-box">
             <img class="pt-qr" id="print-qr-img"
-              src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=https://parktag.me"
+              data-src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=https://parktag.me"
               alt="QR Code"/>
           </div>
           <div class="pt-rt-brand">Park<span>Tag</span>.me &nbsp;·&nbsp; <span>vehicle tag</span></div>
@@ -763,9 +389,9 @@
       </div>
       <!-- Official premium sticker (real Figma artwork); shown only for premium tags -->
       <div class="pt-figma-sticker">
-        <img class="pt-figma-bg" src="/images/org-parktag-sticker.svg" alt="ParkTag sticker"/>
+        <img class="pt-figma-bg" data-src="/images/org-parktag-sticker.svg" alt="ParkTag sticker"/>
         <img class="pt-figma-qr" id="print-figma-qr-img"
-          src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=https://parktag.me"
+          data-src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=https://parktag.me"
           alt="QR Code"/>
         <div class="pt-figma-serial" id="print-figma-serial"></div>
       </div>
@@ -773,9 +399,8 @@
   </div>
 </div>
 
-<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
-<script src="/scripts/owner/address-step.js?v=__ASSET_VERSION__"></script>
 <script src="/scripts/owner/smart-back.js?v=__ASSET_VERSION__"></script>
+<script src="/scripts/lazy-print-images.js?v=__ASSET_VERSION__" defer></script>
 <script src="/scripts/owner/session-guard.js?v=__ASSET_VERSION__" defer></script>
 <script type="module" src="/scripts/owner/vehicle-detail.js?v=__ASSET_VERSION__"></script>
 </body>

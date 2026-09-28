@@ -83,16 +83,45 @@
   // typed input by default, and the address sheet is masked outright
   // (data-clarity-mask in owner/address-step.js). Independent of GA4/Pixel.
   var CLARITY_ID = "__CLARITY_PROJECT_ID__";
+
+  // The three vendor scripts are injected once the page has loaded and gone
+  // idle, not at DOMContentLoaded, where they competed with the hero image and
+  // the catalogue fetch (worst in Instagram's in-app browser). Only the script
+  // tags wait: each command queue (dataLayer, fbq.queue, clarity.q) is set up
+  // straight away, so nothing ptTrack() sends in the meantime is lost, and the
+  // vendor library replays it when it arrives. The hard cap keeps a page whose
+  // load event never comes from going unmeasured.
+  var vendorLoaders = [];
+  var vendorsStarted = false;
+  function startVendors() {
+    if (vendorsStarted) return;
+    vendorsStarted = true;
+    vendorLoaders.forEach(function (load) {
+      try { load(); } catch (_) { /* analytics must never break the page */ }
+    });
+  }
+  function scheduleVendors() {
+    function whenIdle() {
+      if (window.requestIdleCallback) window.requestIdleCallback(startVendors, { timeout: 2500 });
+      else setTimeout(startVendors, 2500);
+    }
+    if (document.readyState === "complete") whenIdle();
+    else window.addEventListener("load", whenIdle);
+    setTimeout(startVendors, 8000);
+  }
   var here = window.location || {};
   var claritySite = /^(www\.)?parktag\.me$/.test(here.hostname || "") ||
     /^\/(get|shop|direct)\/?$/.test(here.pathname || "");
   if (CLARITY_ID && claritySite) {
     window.clarity = window.clarity || function () { (window.clarity.q = window.clarity.q || []).push(arguments); };
-    var cl = document.createElement("script");
-    cl.async = true;
-    cl.src = "https://www.clarity.ms/tag/" + encodeURIComponent(CLARITY_ID);
-    document.head.appendChild(cl);
+    vendorLoaders.push(function () {
+      var cl = document.createElement("script");
+      cl.async = true;
+      cl.src = "https://www.clarity.ms/tag/" + encodeURIComponent(CLARITY_ID);
+      document.head.appendChild(cl);
+    });
   }
+  scheduleVendors();
 
   var gaReady = !!GA4_ID;
   var pixelReady = !!PIXEL_ID && pixelAllowed;
@@ -253,18 +282,23 @@
     // so we do not follow them around afterwards.
     window.gtag("config", GA4_ID, { send_page_view: true, allow_ad_personalization_signals: pixelAllowed });
 
-    var ga = document.createElement("script");
-    ga.async = true;
-    ga.src = "https://www.googletagmanager.com/gtag/js?id=" + encodeURIComponent(GA4_ID);
-    document.head.appendChild(ga);
+    vendorLoaders.push(function () {
+      var ga = document.createElement("script");
+      ga.async = true;
+      ga.src = "https://www.googletagmanager.com/gtag/js?id=" + encodeURIComponent(GA4_ID);
+      document.head.appendChild(ga);
+    });
   }
 
   if (pixelReady) {
+    // The stock snippet, except that the last step (inserting fbevents.js) is
+    // handed to the vendor scheduler instead of running here.
     /* eslint-disable */
     !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
     n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
-    n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
-    t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}
+    n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];
+    vendorLoaders.push(function(){t=b.createElement(e);t.async=!0;
+    t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)})}
     (window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
     /* eslint-enable */
     window.fbq("init", PIXEL_ID);

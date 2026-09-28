@@ -111,7 +111,7 @@ const activation = { plate: "", name: "", phone: "", type: "" };
 // files are next touched.
 const VEHICLE_ICON_SRC = {
   car: "/images/car-tag.svg",
-  bike: "/images/bike-tag.svg",
+  bike: "/images/bike-tag-144.webp",
   scooter: "/images/vtype-scooter.png",
   auto_rickshaw: "/images/vtype-auto.png",
   truck: "/images/vtype-truck.png",

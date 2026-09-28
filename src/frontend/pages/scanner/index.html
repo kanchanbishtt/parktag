@@ -9,9 +9,7 @@
     <link rel="apple-touch-icon" href="/images/apple-touch-icon.png" />
     <link rel="stylesheet" href="/styles/styles.css?v=__ASSET_VERSION__" />
     <link rel="stylesheet" href="/styles/pt-steps.css?v=__ASSET_VERSION__" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="preload" as="font" type="font/woff2" href="/fonts/inter-latin-var.woff2" crossorigin>
     <style>
       /* Smooth, premium reveal transitions (spec §13) */
       @keyframes pt-pop { from { opacity: 0; transform: translateY(10px) scale(.985); } to { opacity: 1; transform: none; } }
@@ -35,7 +33,7 @@
 
     <header class="pt-header">
       <div class="pt-logo">
-        <a href="https://parktag.me" aria-label="ParkTag home" style="display:inline-flex;align-items:center;text-decoration:none"><img src="/images/dark-logo.png" alt="ParkTag" style="height:42px;width:auto;mix-blend-mode:lighten;"></a>
+        <a href="https://parktag.me" aria-label="ParkTag home" style="display:inline-flex;align-items:center;text-decoration:none"><img width="336" height="126" src="/images/dark-logo-336.webp" alt="ParkTag" style="height:42px;width:auto;mix-blend-mode:lighten;"></a>
       </div>
       <div class="pt-header-right">
         <!-- Shown only for a tag that still needs registering. Starts hidden and
@@ -71,7 +69,13 @@
       <article class="pt-card pt-verify-card" id="scanner-verification-shell" data-pt-owns-progress>
         <!-- Decorative: the heading and label below say the same thing in words,
              so a screen reader gains nothing from describing the picture again. -->
+        <!-- Inside a modal that only opens after a tap, so it is fetched at low
+             priority: it must be ready by then, but must not compete with what
+             the page paints on load. -->
         <img class="pt-verify-media" src="/images/verify-vehicle.webp"
+             srcset="/images/verify-vehicle-600.webp 600w, /images/verify-vehicle-800.webp 800w, /images/verify-vehicle.webp 1134w"
+             sizes="(min-width: 480px) 440px, calc(100vw - 32px)"
+             fetchpriority="low" decoding="async"
              width="1134" height="496" alt="" />
 
         <h1 class="pt-verify-title" id="plate-verify-title">Please verify the plate number of the vehicle.</h1>
@@ -805,7 +809,7 @@
 
       <div class="pt-nav-head">
         <a class="pt-nav-logo-link" href="https://parktag.me" aria-label="ParkTag home">
-          <img class="pt-nav-logo" src="/images/light-logo.png" alt="ParkTag" />
+          <img width="336" height="126" class="pt-nav-logo" src="/images/light-logo-336.webp" alt="ParkTag" />
         </a>
         <button type="button" class="pt-nav-close" id="pt-nav-close" aria-label="Close menu">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -892,7 +896,7 @@
             <span class="pt-nav-item-ic">
               <!-- The shop's bike-tag artwork (PACK_BIKE_ICON in pages/owner/welcome.html).
                    Lazy, so a scan that never opens the menu does not pay for it. -->
-              <img src="/images/bike-tag.svg" alt="" width="30" height="30" loading="lazy" decoding="async" style="display:block;object-fit:contain" aria-hidden="true">
+              <img src="/images/bike-tag-144.webp" alt="" width="30" height="30" loading="lazy" decoding="async" style="display:block;object-fit:contain" aria-hidden="true">
             </span>
             <span class="pt-nav-item-tx">
               <span class="pt-nav-item-t">Bike ParkTag</span>

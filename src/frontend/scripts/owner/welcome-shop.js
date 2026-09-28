@@ -30,7 +30,7 @@ const PRODUCTS = [
     // the car card alone was 3.2MB. Rendered at 2x the display box (1800x1350)
     // they stay sharp on a retina phone at ~80KB. The vector thumbnails below
     // stay SVG, where they are already small and resolution-independent.
-    image: "/images/shop-car.webp",
+    image: "/images/shop-car-900.webp",
     imageDesktop: "/images/shop-car-desktop.webp",
   },
   {
@@ -42,8 +42,8 @@ const PRODUCTS = [
     orig: 799,
     discount: 38,
     variants: ["Car", "Auto"],
-    image: "/images/shop-car-2.svg",
-    imageDesktop: "/images/shop-car-2-desktop.svg",
+    image: "/images/shop-car-2-900.webp",
+    imageDesktop: "/images/shop-car-2-desktop.webp",
   },
   // Combo before Bike, so the two photographic thumbnails sit on opposite
   // corners of the two-column grid rather than stacked down one side. Order in
@@ -59,8 +59,8 @@ const PRODUCTS = [
     orig: 899,
     discount: 44,
     variants: ["Car", "Bike", "Scooter"],
-    image: "/images/shop-combo.svg",
-    imageDesktop: "/images/shop-combo-desktop.svg",
+    image: "/images/shop-combo-900.webp",
+    imageDesktop: "/images/shop-combo-desktop.webp",
   },
   {
     id: "pt-bike-1",
@@ -71,7 +71,7 @@ const PRODUCTS = [
     orig: 799,
     discount: 38,
     variants: ["Bike", "Scooter", "Helmet"],
-    image: "/images/shop-bike.webp",
+    image: "/images/shop-bike-900.webp",
     imageDesktop: "/images/shop-bike-desktop.webp",
   },
 ];
@@ -335,6 +335,7 @@ async function startPayment(productId, variant, label, btn) {
     if (btn) { btn.disabled = false; btn.classList.remove("pt-btn-loading"); }
 
     // 3. Open Razorpay checkout
+    if (!(await window.ptLoadRazorpay())) throw new Error("The payment window could not load.");
     const rzp = new Razorpay({
       key: keyId,
       amount: orderData.amount,
@@ -459,7 +460,7 @@ const PACK_NAMES = {
 };
 // Solid car/bike artwork (inline SVG — scalable, theme-coloured, no extra request).
 const PACK_CAR_ICON = `<svg width="27" height="27" viewBox="0 0 512 512" aria-hidden="true"><path fill="#03162D" d="M256 92c-71.6 0-110 6.4-125.9 20.6-13.8 12.3-24.6 42.4-37.9 96.4-6.3 3.7-12.4 9.2-18.6 17C58.7 244.8 46.5 271.6 46.5 300.4v112.2c0 15.9 12.9 28.8 28.8 28.8h41c15.9 0 28.8-12.9 28.8-28.8v-25.2c41.9 3.9 90.3 5.6 111.9 5.6s70-1.7 111.9-5.6v25.2c0 15.9 12.9 28.8 28.8 28.8h41c15.9 0 28.8-12.9 28.8-28.8V300.4c0-28.8-12.2-55.6-27.1-74.4-6.2-7.8-12.3-13.3-18.6-17-13.3-54-24.1-84.1-37.9-96.4C366 98.4 327.6 92 256 92z"/><path fill="#fff" d="M256 130c-53.7 0-84.4 4.3-94.7 14.2-8.4 8-16.6 31.4-25.2 65.6-2 8 2.6 13.9 12.4 13 31.1-2.9 68.2-4.1 107.5-4.1s76.4 1.2 107.5 4.1c9.8.9 14.4-5 12.4-13-8.6-34.2-16.8-57.6-25.2-65.6C340.4 134.3 309.7 130 256 130z"/><circle fill="#fff" cx="148" cy="332" r="35"/><circle fill="#fff" cx="364" cy="332" r="35"/><rect fill="#fff" x="196" y="315" width="120" height="46" rx="23"/></svg>`;
-const PACK_BIKE_ICON = `<img src="/images/bike-tag.svg" alt="Bike" width="30" height="30" style="display:block;object-fit:contain" aria-hidden="true">`;
+const PACK_BIKE_ICON = `<img src="/images/bike-tag-144.webp" alt="Bike" width="30" height="30" style="display:block;object-fit:contain" aria-hidden="true">`;
 const PACK_TAG_ICON = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L2 12V2h10l8.6 8.6a2 2 0 0 1 0 2.8z" stroke="#03162D" stroke-width="1.8" stroke-linejoin="round"/><circle cx="7" cy="7" r="1.4" fill="#03162D"/></svg>`;
 // Car pack tiers rendered in order. `badge` is optional.
 const PACK_TIERS = [
@@ -891,6 +892,7 @@ async function codPrepay() {
       return;
     }
 
+    if (!(await window.ptLoadRazorpay())) throw new Error("The payment window could not load.");
     const rzp = new Razorpay({
       key: data.keyId,
       amount: data.amount,

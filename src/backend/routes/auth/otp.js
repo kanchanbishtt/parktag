@@ -40,6 +40,7 @@ export function registerOtpAuthRoutes(app, env) {
   // Public: lets the browser fetch the reCAPTCHA site key (safe to expose). Empty
   // when unconfigured, in which case the frontend loads no reCAPTCHA at all.
   app.get("/api/auth/recaptcha/config", async (_request, reply) => {
+    reply.header("Cache-Control", "public, max-age=3600");
     reply.send({ siteKey: env.recaptchaSiteKey || "" });
   });
 

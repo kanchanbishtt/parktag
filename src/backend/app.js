@@ -7,7 +7,6 @@ import fastifyMultipart from "@fastify/multipart";
 import fastifyRateLimit from "@fastify/rate-limit";
 import fastifyStatic from "@fastify/static";
 import path from "node:path";
-import fs from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import QRCode from "qrcode";
 
@@ -41,6 +40,9 @@ import { registerMembershipRoutes } from "./routes/owner/membership.js";
 import { registerCallbackPassRoutes } from "./routes/owner/callback-pass.js";
 import { MAX_FILE_BYTES } from "./lib/core/vault.js";
 import { cacheControlFor, resolveAssetVersion } from "./lib/core/asset-version.js";
+import { isQuietUrl, isPublicStaticPath, pathnameOf } from "./lib/core/request-policy.js";
+import { createRenderedFileStore, matchesEtag } from "./lib/core/static-pages.js";
+import { stampScriptImports } from "./lib/core/import-stamp.js";
 import { registerProviderRoutes } from "./routes/webhooks/exotel.js";
 import { registerMetaWebhookRoutes } from "./routes/webhooks/meta.js";
 import { registerRazorpayWebhookRoutes } from "./routes/webhooks/razorpay.js";
@@ -371,9 +373,27 @@ function setScannerNoCache(reply) {
   reply.header("Expires", "0");
 }
 
+// Every request used to be logged twice (incoming and completed), including the
+// 30 to 50 asset fetches behind one page view and the health check a monitor
+// calls every few seconds. Those are left out; anything that errored or came
+// back 4xx/5xx is still logged, as is every API request.
+const { LogController } = Fastify;
+export class AccessLogController extends LogController {
+  incomingRequest(request, reply, metadata) {
+    if (isQuietUrl(request.url)) return;
+    super.incomingRequest(request, reply, metadata);
+  }
+
+  requestCompleted(error, request, reply, metadata) {
+    if (!error && reply.statusCode < 400 && isQuietUrl(request.url)) return;
+    super.requestCompleted(error, request, reply, metadata);
+  }
+}
+
 export async function buildApp() {
   const env = getEnv();
   const app = Fastify({
+    logController: new AccessLogController(),
     logger: {
       // Redact sensitive query-string values (webhook secret, caller phone,
       // verify/reset tokens, OAuth code) from the URL in every request log.
@@ -639,6 +659,20 @@ export async function buildApp() {
   app.addHook("onSend", async (request, reply, payload) => {
     const pathname = request.url.split("?")[0];
 
+    // Nothing under /api/ may be kept by a browser history, proxy or CDN unless
+    // its route says so: they carry session-scoped data. A route that sets its
+    // own Cache-Control (a public catalogue, a download) keeps it. The webhook
+    // endpoints answer providers, not browsers, and are left exactly as they
+    // were.
+    if (
+      pathname.startsWith("/api/") &&
+      !pathname.startsWith("/api/provider/") &&
+      !pathname.startsWith("/api/exotel/") &&
+      !reply.getHeader("cache-control")
+    ) {
+      reply.header("Cache-Control", "no-store");
+    }
+
     if (isNoStorePage(pathname)) {
       setNoStore(reply);
     }
@@ -681,7 +715,7 @@ export async function buildApp() {
     // the bottom of each route. Pages read straight off disk by the static
     // handler arrive here as a stream and keep the literal token, which is
     // harmless: an unmatched stamp is refused immutability and revalidated.
-    return typeof payload === "string"
+    return typeof payload === "string" && payload.includes(ASSET_VERSION_TOKEN)
       ? payload.replaceAll(ASSET_VERSION_TOKEN, assetVersion)
       : payload;
   });
@@ -740,8 +774,9 @@ export async function buildApp() {
         // controls work. (scriptSrc's 'unsafe-inline' does NOT cover event
         // handler attributes — script-src-attr is a separate directive.)
         scriptSrcAttr: ["'unsafe-inline'"],
-        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-        fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
+        // Fonts are self-hosted (/fonts); nothing loads from Google Fonts.
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        fontSrc: ["'self'", "data:"],
         // Both trackers still deliver some hits as image beacons, which
         // img-src governs rather than connect-src.
         imgSrc: [
@@ -824,6 +859,10 @@ export async function buildApp() {
   await app.register(fastifyRateLimit, {
     max: 200,
     timeWindow: "1 minute",
+    // Assets and the health check are not what the limit is for. A first load
+    // of one page fetches 30 to 50 of them, and on a carrier NAT many phones
+    // share one address, so counting them locks real visitors out.
+    allowList: (request) => isQuietUrl(request.url),
     // Counters live in MongoDB so they hold ACROSS REPLICAS. The default store
     // counts in process memory, and this service runs several replicas on
     // Railway, so every declared limit was really `max × replicaCount`:
@@ -887,6 +926,9 @@ export async function buildApp() {
   await app.register(fastifyStatic, {
     root: frontendRoot,
     prefix: "/",
+    // The raw page shells under pages/ are reachable only through their named
+    // routes (which set the per-page CSP and cache headers and stamp assets).
+    allowedPath: isPublicStaticPath,
     // Both were off, which is why nothing was ever reused: with no validator
     // there is nothing for a browser to revalidate against, so every stylesheet,
     // script and image came back in full on every visit. With them on, an
@@ -921,6 +963,98 @@ export async function buildApp() {
     }
   });
 
+  // ── Versioned ES modules ──────────────────────────────────────────────────
+  //
+  // A script requested with the current ?v= is served with the imports inside
+  // it stamped with the same version (see lib/core/import-stamp.js), so the
+  // whole module graph is immutable rather than only its entry point. A request
+  // with no version, or a stale one, is not touched here and falls through to
+  // the static handler exactly as before.
+  //
+  // In production the rewritten file is read once and kept with its ETag. In
+  // dev it is re-read per request so an edit shows on reload.
+  const scriptsRoot = path.join(frontendRoot, "scripts");
+  const loadStampedScript = createRenderedFileStore({
+    memoize: isProduction,
+    transform: (source) => stampScriptImports(source, assetVersion)
+  });
+
+  async function stampedScriptFor(url) {
+    const query = url.indexOf("?");
+    if (query === -1) return null;
+    const version = new URLSearchParams(url.slice(query + 1)).get("v");
+    if (!version || version !== assetVersion) return null;
+
+    let pathname;
+    try {
+      pathname = decodeURIComponent(pathnameOf(url));
+    } catch {
+      return null;
+    }
+    if (!pathname.startsWith("/scripts/") || !pathname.endsWith(".js")) return null;
+
+    const file = path.resolve(frontendRoot, `.${pathname}`);
+    if (!file.startsWith(scriptsRoot + path.sep)) return null;
+
+    try {
+      return await loadStampedScript(file);
+    } catch {
+      // Missing or unreadable: let the static handler answer (a 404).
+      return null;
+    }
+  }
+
+  // After helmet (registered above), so its security headers are already on the
+  // reply this sends.
+  app.addHook("onRequest", async (request, reply) => {
+    if (request.method !== "GET" || !request.url.startsWith("/scripts/")) return;
+
+    const script = await stampedScriptFor(request.url);
+    if (!script) return;
+
+    reply.header("Content-Type", "text/javascript; charset=UTF-8");
+    reply.header("Cache-Control", cacheControlFor({
+      pathname: pathnameOf(request.url),
+      requestedVersion: assetVersion,
+      assetVersion
+    }));
+    reply.header("ETag", script.etag);
+    if (matchesEtag(request.headers["if-none-match"], script.etag)) {
+      return reply.code(304).send();
+    }
+    return reply.send(script.body);
+  });
+
+  // ── HTML pages ────────────────────────────────────────────────────────────
+  //
+  // Each page is read from disk and stamped with the asset version once, on
+  // first use, and served from memory after that; the same for every visitor,
+  // so nothing about a page depends on who asks. In dev the file is re-read per
+  // request so edits show live.
+  //
+  // Public shells (/get, /shop, /direct, /verify, ...) are sent with a weak
+  // ETag and answer If-None-Match with a 304, so a returning visitor downloads
+  // nothing. Pages that are no-store (signed-in views, the admin console, the
+  // scanner) send no validator: their whole point is that a browser keeps
+  // nothing, and a 304 is a kept copy.
+  const loadPage = createRenderedFileStore({
+    memoize: isProduction,
+    transform: (html) => html.replaceAll(ASSET_VERSION_TOKEN, assetVersion)
+  });
+
+  async function servePage(request, reply, file, { validators = true } = {}) {
+    const page = await loadPage(file);
+    reply.type("text/html");
+
+    if (validators && !isNoStorePage(pathnameOf(request.url))) {
+      reply.header("ETag", page.etag);
+      if (matchesEtag(request.headers["if-none-match"], page.etag)) {
+        return reply.code(304).send();
+      }
+    }
+    return page.body;
+  }
+
   app.get("/", async (request, reply) => {
     reply.redirect("/owner");
   });
@@ -940,43 +1074,49 @@ export async function buildApp() {
   // was the state for the landing site's whole life: the script tag was in the
   // page, GA4 and the Pixel never loaded, and no landing session was recorded.
   // This one file is public by design, so it opts out of the default.
-  app.get("/pt-analytics.js", async (_request, reply) => {
-    const js = await fs.readFile(analyticsAsset, "utf8");
-    reply.type("application/javascript");
-    reply.header("Cache-Control", "public, max-age=300");
-    reply.header("Cross-Origin-Resource-Policy", "cross-origin");
-    return renderAnalyticsBundle(js, env);
+  //
+  // The rendered bundle is built once per process on first request and served
+  // from memory with an ETag (in dev it is re-read each time so edits show).
+  // Five minutes fresh, then a day of stale-while-revalidate, so a returning
+  // visitor is never held up waiting on it.
+  const loadAnalytics = createRenderedFileStore({
+    memoize: isProduction,
+    transform: (js) => renderAnalyticsBundle(js, env)
   });
 
-  app.get("/verify", async (_request, reply) => {
-    const html = await fs.readFile(verifyPage, "utf8");
-    reply.type("text/html");
-    return html;
+  app.get("/pt-analytics.js", async (request, reply) => {
+    const bundle = await loadAnalytics(analyticsAsset);
+    reply.type("application/javascript");
+    reply.header("Cache-Control", "public, max-age=300, stale-while-revalidate=86400");
+    reply.header("Cross-Origin-Resource-Policy", "cross-origin");
+    reply.header("ETag", bundle.etag);
+    if (matchesEtag(request.headers["if-none-match"], bundle.etag)) {
+      return reply.code(304).send();
+    }
+    return bundle.body;
+  });
+
+  app.get("/verify", async (request, reply) => {
+    return servePage(request, reply, verifyPage);
   });
 
   // Public order lookup. Deliberately outside every auth check: a buyer who
   // picked a tag up in a shop, or checked out before creating an account, still
   // needs to be able to follow the parcel. The endpoint behind it is what
   // proves who is asking (order number + last 4 of the delivery phone).
-  app.get("/track-order", async (_request, reply) => {
-    const html = await fs.readFile(trackOrderPage, "utf8");
-    reply.type("text/html");
-    return html;
+  app.get("/track-order", async (request, reply) => {
+    return servePage(request, reply, trackOrderPage);
   });
 
   // Public tag report. Like /track-order, deliberately unauthenticated — the
   // person best placed to tell us a tag is stale is the stranger standing at
   // the vehicle, and they will never have an account.
-  app.get("/report-tag", async (_request, reply) => {
-    const html = await fs.readFile(reportTagPage, "utf8");
-    reply.type("text/html");
-    return html;
+  app.get("/report-tag", async (request, reply) => {
+    return servePage(request, reply, reportTagPage);
   });
 
-  app.get("/owner-login", async (_request, reply) => {
-    const html = await fs.readFile(ownerLoginPage, "utf8");
-    reply.type("text/html");
-    return html;
+  app.get("/owner-login", async (request, reply) => {
+    return servePage(request, reply, ownerLoginPage);
   });
 
   // ParkTag's own number as a downloadable contact card.
@@ -1128,9 +1268,7 @@ export async function buildApp() {
 
     // The page reads ?sku itself to highlight the chosen card; the value is
     // never echoed from here.
-    const html = await fs.readFile(shopPage, "utf8");
-    reply.type("text/html");
-    return html;
+    return servePage(request, reply, shopPage);
   });
 
   // The storefront's previous address. Redirected rather than removed so any
@@ -1154,9 +1292,7 @@ export async function buildApp() {
     // whether anyone actually opened it is the only way to tell.
     recordAppPageVisit(app, env, request, "/get");
 
-    const html = await fs.readFile(getPage, "utf8");
-    reply.type("text/html");
-    return html;
+    return servePage(request, reply, getPage);
   });
 
   // The direct-sale checkout. Handed to somebody who has already been quoted a
@@ -1167,21 +1303,15 @@ export async function buildApp() {
   app.get("/direct", async (request, reply) => {
     recordAppPageVisit(app, env, request, "/direct");
 
-    const html = await fs.readFile(directPage, "utf8");
-    reply.type("text/html");
-    return html;
+    return servePage(request, reply, directPage);
   });
 
-  app.get("/register-owner", async (_request, reply) => {
-    const html = await fs.readFile(registerOwnerPage, "utf8");
-    reply.type("text/html");
-    return html;
+  app.get("/register-owner", async (request, reply) => {
+    return servePage(request, reply, registerOwnerPage);
   });
 
-  app.get("/owner-verify", async (_request, reply) => {
-    const html = await fs.readFile(ownerVerifyPage, "utf8");
-    reply.type("text/html");
-    return html;
+  app.get("/owner-verify", async (request, reply) => {
+    return servePage(request, reply, ownerVerifyPage);
   });
 
   app.get("/owner-welcome", async (request, reply) => {
@@ -1189,15 +1319,11 @@ export async function buildApp() {
     if (!session || session.role !== "owner") {
       return reply.redirect("/owner-login");
     }
-    const html = await fs.readFile(ownerWelcomePage, "utf8");
-    reply.type("text/html");
-    return html;
+    return servePage(request, reply, ownerWelcomePage);
   });
 
-  app.get("/owner-vehicle-detail", async (_request, reply) => {
-    const html = await fs.readFile(ownerVehicleDetailPage, "utf8");
-    reply.type("text/html");
-    return html;
+  app.get("/owner-vehicle-detail", async (request, reply) => {
+    return servePage(request, reply, ownerVehicleDetailPage);
   });
 
   // The document vault. Session-gated like the dashboard rather than served
@@ -1209,9 +1335,7 @@ export async function buildApp() {
     if (!session || session.role !== "owner") {
       return reply.redirect("/owner-login");
     }
-    const html = await fs.readFile(ownerDocumentsPage, "utf8");
-    reply.type("text/html");
-    return html;
+    return servePage(request, reply, ownerDocumentsPage);
   });
 
   // The Login PIN screen. Session-gated: it manages a credential, so it must
@@ -1223,9 +1347,7 @@ export async function buildApp() {
     if (!session || session.role !== "owner") {
       return reply.redirect("/owner-login");
     }
-    const html = await fs.readFile(ownerLoginPinPage, "utf8");
-    reply.type("text/html");
-    return html;
+    return servePage(request, reply, ownerLoginPinPage);
   });
 
   // The membership screen. Session-gated like the rest of the owner area —
@@ -1236,21 +1358,15 @@ export async function buildApp() {
     if (!session || session.role !== "owner") {
       return reply.redirect("/owner-login");
     }
-    const html = await fs.readFile(ownerMembershipPage, "utf8");
-    reply.type("text/html");
-    return html;
+    return servePage(request, reply, ownerMembershipPage);
   });
 
-  app.get("/forgot-password", async (_request, reply) => {
-    const html = await fs.readFile(forgotPasswordPage, "utf8");
-    reply.type("text/html");
-    return html;
+  app.get("/forgot-password", async (request, reply) => {
+    return servePage(request, reply, forgotPasswordPage);
   });
 
-  app.get("/reset-password", async (_request, reply) => {
-    const html = await fs.readFile(resetPasswordPage, "utf8");
-    reply.type("text/html");
-    return html;
+  app.get("/reset-password", async (request, reply) => {
+    return servePage(request, reply, resetPasswordPage);
   });
 
   // An admin session whose admin still exists (see adminAccountExists). If the
@@ -1272,9 +1388,7 @@ export async function buildApp() {
       return;
     }
 
-    const html = await fs.readFile(adminPage, "utf8");
-    reply.type("text/html");
-    return html;
+    return servePage(request, reply, adminPage);
   });
 
   async function guardAdmin(request, reply, pagePath) {
@@ -1283,9 +1397,7 @@ export async function buildApp() {
       return;
     }
 
-    const html = await fs.readFile(pagePath, "utf8");
-    reply.type("text/html");
-    return html;
+    return servePage(request, reply, pagePath);
   }
 
   app.get("/admin/overview", async (request, reply) => {
@@ -1384,7 +1496,7 @@ export async function buildApp() {
     const spec = printSpecFor(await getPublishedStickerDesign(collections));
     const styles = overlayStyles(spec.layout);
 
-    const html = await fs.readFile(stickerPrintPage, "utf8");
+    const html = (await loadPage(stickerPrintPage)).body;
     reply.type("text/html");
     return html
       .replaceAll("__SCAN_URL__", scanUrl)
@@ -1398,19 +1510,17 @@ export async function buildApp() {
   // Public scan landing page. Accepts both the new 256-bit hex tokens (64 chars)
   // and legacy 12-char tokens for backward compatibility. /tag is the spec URL;
   // /vehicle is kept as a working alias so already-printed stickers still resolve.
-  async function serveScannerPage(reply) {
-    const html = await fs.readFile(scannerPage, "utf8");
+  async function serveScannerPage(request, reply) {
     setScannerNoCache(reply);
-    reply.type("text/html");
-    return html;
+    return servePage(request, reply, scannerPage, { validators: false });
   }
 
-  app.get("/tag/:token([A-Za-z0-9]{12,64})", async (_request, reply) => {
-    return serveScannerPage(reply);
+  app.get("/tag/:token([A-Za-z0-9]{12,64})", async (request, reply) => {
+    return serveScannerPage(request, reply);
   });
 
-  app.get("/vehicle/:token([A-Za-z0-9]{12,64})", async (_request, reply) => {
-    return serveScannerPage(reply);
+  app.get("/vehicle/:token([A-Za-z0-9]{12,64})", async (request, reply) => {
+    return serveScannerPage(request, reply);
   });
 
   registerRuntimeRoutes(app, env);

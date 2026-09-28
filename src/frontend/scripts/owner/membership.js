@@ -324,10 +324,11 @@ async function startCheckout() {
     return;
   }
 
-  // checkout.js is loaded by the page. If it is not there — an extension blocked
-  // it, or a CSP that does not allow the origin — say so, rather than throwing a
-  // ReferenceError inside a handler nobody sees and leaving the button dead.
-  if (typeof window.Razorpay !== "function") {
+  // checkout.js is loaded on demand by checkout-loader.js. If it did not arrive
+  // (an extension blocked it, or a CSP that does not allow the origin), say so,
+  // rather than throwing a ReferenceError inside a handler nobody sees and
+  // leaving the button dead.
+  if (!(await window.ptLoadRazorpay())) {
     setBusy(false);
     showNote("The payment window could not load. Please disable any blockers and try again.");
     return;

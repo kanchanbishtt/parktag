@@ -95,7 +95,7 @@ export async function resolveAssetVersion(frontendRoot, log) {
 }
 
 const ONE_YEAR = 31536000;
-const ONE_DAY = 86400;
+const THIRTY_DAYS = 2592000;
 
 // What a static file may be cached for.
 //
@@ -110,13 +110,15 @@ export function cacheControlFor({ pathname, requestedVersion, assetVersion }) {
     return `public, max-age=${ONE_YEAR}, immutable`;
   }
 
-  // Artwork is the heavy, stable half of the tree and is not versioned, so it
-  // gets a bounded window rather than a year. The convention the repo already
-  // follows is to give changed artwork a new filename (shop-car.webp,
-  // verify-vehicle.webp), which sidesteps this entirely; a file replaced in
-  // place is the only case that waits, and it waits a day, not a release cycle.
-  if (pathname.startsWith("/images/")) {
-    return `public, max-age=${ONE_DAY}`;
+  // Artwork and fonts are the heavy, stable half of the tree and are not
+  // versioned, so they get a bounded window rather than a year. The convention
+  // the repo already follows is to give changed artwork a new filename
+  // (shop-car.webp, verify-vehicle.webp, inter-latin-var.woff2), which sidesteps
+  // staleness entirely; a file replaced in place is the only case that waits,
+  // and it waits thirty days, not forever. Not `immutable`: that is reserved for
+  // URLs whose bytes are guaranteed never to change under the same name.
+  if (pathname.startsWith("/images/") || pathname.startsWith("/fonts/")) {
+    return `public, max-age=${THIRTY_DAYS}`;
   }
 
   // Everything else keeps its name across deploys, so it must be asked about

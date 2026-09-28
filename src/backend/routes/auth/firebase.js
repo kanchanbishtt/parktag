@@ -4,6 +4,7 @@ import { createSession, writeSessionCookie } from "../../lib/auth/session.js";
 import { isNonEmptyString } from "../../lib/auth/security.js";
 import { chargeExternalOtpSend, normalizeIdentifier, resolveOwnerByVerifiedMobile, isDuplicateMobileError } from "../../lib/auth/otp.js";
 import { clientErrorMessage } from "../../lib/errors.js";
+import { fetchWithTimeout } from "../../lib/core/fetch-timeout.js";
 
 const FIREBASE_API_BASE = "https://identitytoolkit.googleapis.com/v1/accounts";
 
@@ -26,7 +27,7 @@ function normalizeE164(raw) {
 }
 
 async function firebasePost(path, apiKey, body) {
-  const res = await fetch(`${FIREBASE_API_BASE}:${path}?key=${apiKey}`, {
+  const res = await fetchWithTimeout(`${FIREBASE_API_BASE}:${path}?key=${apiKey}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body)
@@ -100,7 +101,7 @@ export function registerFirebasePhoneAuthRoute(app, env) {
     if (!apiKey) { reply.code(500); return { ok: false, error: "Firebase not configured." }; }
 
     try {
-      const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`, {
+      const res = await fetchWithTimeout(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ idToken })
@@ -144,7 +145,7 @@ export function registerFirebasePhoneAuthRoute(app, env) {
     const apiKey = env.firebaseApiKey;
     if (!apiKey) { reply.code(500); return { error: "Firebase not configured." }; }
     try {
-      const res = await fetch(`https://identitytoolkit.googleapis.com/v1/recaptchaParams?key=${apiKey}`);
+      const res = await fetchWithTimeout(`https://identitytoolkit.googleapis.com/v1/recaptchaParams?key=${apiKey}`);
       const data = await res.json();
       return { siteKey: data.recaptchaSiteKey };
     } catch (err) {

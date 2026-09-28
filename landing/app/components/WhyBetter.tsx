@@ -46,7 +46,7 @@ export function WhyBetter() {
               Hidden below lg, where it would take width the table needs. */}
           <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-[46%] xl:w-[48%] lg:block">
             <Image
-              src="/pack-card-in-hand.png"
+              src="/pack-card-in-hand.webp"
               alt=""
               aria-hidden="true"
               fill

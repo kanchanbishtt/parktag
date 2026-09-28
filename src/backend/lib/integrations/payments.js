@@ -69,9 +69,21 @@ export function isRazorpayConfigured(env) {
   return Boolean(env.razorpayKeyId && env.razorpayKeySecret);
 }
 
+// One SDK instance per credential pair. The client holds a keep-alive
+// connection pool, so building a fresh one per call meant a new TLS handshake
+// to Razorpay on every order. Keyed on the pair, so rotating the keys (or a
+// test pointing at other ones) gets a new client rather than a stale one.
+const razorpayClients = new Map();
+
 export function getRazorpay(env) {
   if (!isRazorpayConfigured(env)) return null;
-  return new Razorpay({ key_id: env.razorpayKeyId, key_secret: env.razorpayKeySecret });
+  const cacheKey = `${env.razorpayKeyId}:${env.razorpayKeySecret}`;
+  let client = razorpayClients.get(cacheKey);
+  if (!client) {
+    client = new Razorpay({ key_id: env.razorpayKeyId, key_secret: env.razorpayKeySecret });
+    razorpayClients.set(cacheKey, client);
+  }
+  return client;
 }
 
 // Turn the HTTP status of a credential probe into what should be logged.

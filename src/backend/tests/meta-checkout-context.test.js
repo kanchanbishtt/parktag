@@ -10,6 +10,8 @@ const source = fs.readFileSync(new URL('../assets/analytics.js', import.meta.url
 function visit(hostname, search, jar, surface = 'app', configured = true) {
   const writes = [];
   const document = {
+    // Vendor tags start once the page is idle, so present a loaded page.
+    readyState: 'complete',
     currentScript: { getAttribute: () => surface },
     get cookie() { return Object.entries(jar).map(([k,v]) => `${k}=${encodeURIComponent(v)}`).join('; '); },
     set cookie(value) {
@@ -20,7 +22,7 @@ function visit(hostname, search, jar, surface = 'app', configured = true) {
   };
   const code = renderAnalyticsBundle(source, configured ? { metaPixelId: 'test' } : {})
     .split('  // ---------------------------------------------------------------- event map')[0] + '})();';
-  vm.runInNewContext(code, { document, window: { location: { hostname, search, protocol: 'https:' } }, URLSearchParams });
+  vm.runInNewContext(code, { document, window: { location: { hostname, search, protocol: 'https:' }, requestIdleCallback: (cb) => cb() }, URLSearchParams, setTimeout: () => 0 });
   return writes;
 }
 

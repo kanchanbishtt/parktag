@@ -1,5 +1,3 @@
-"use client";
-
 import { ScanTagButton } from "./ScanTagButton";
 import { WhatsAppBubble } from "./WhatsAppBubble";
 

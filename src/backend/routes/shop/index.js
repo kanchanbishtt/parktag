@@ -19,6 +19,7 @@ import { reassignVaultDocuments } from "../../lib/core/vault.js";
 import { isDelhiveryConfigured, updateShipmentToPrepaid, trackingUrl, checkPincodeServiceability } from "../../lib/integrations/delhivery.js";
 import { bookShipmentAndPickup } from "../../lib/core/shipping.js";
 import { getOrderTracking } from "../../lib/core/order-tracking.js";
+import { createLoaderCache } from "../../lib/core/loader-cache.js";
 import { orderBreakdown, breakdownText } from "../../lib/core/order-breakdown.js";
 import { createSecureToken, safeEqual } from "../../lib/auth/security.js";
 import { fulfilPaidOrder, sendOrderConfirmation, sendPurchaseConversion } from "../../lib/core/order-fulfilment.js";
@@ -616,6 +617,8 @@ export function registerShopRoutes(app, env) {
   // Expose key ID to frontend (safe — public key)
   app.get("/api/shop/razorpay-key", async (_request, reply) => {
     if (!isRazorpayConfigured(env)) { reply.code(500); return { error: "Razorpay not configured." }; }
+    // The publishable key id, identical for every visitor; an hour is plenty.
+    reply.header("Cache-Control", "public, max-age=3600");
     return { keyId: env.razorpayKeyId };
   });
 
@@ -641,6 +644,20 @@ export function registerShopRoutes(app, env) {
   // Street suggestions for the delivery sheet, from Ola Maps (see
   // lib/integrations/ola-maps.js). Proxied so the key stays server-side.
   // Always 200 with a (possibly empty) list: the buyer can always type.
+  //
+  // Answers are kept a day, keyed on the normalised query and PIN: the same
+  // street typed by different buyers is the common case, and every call is a
+  // billable Ola request. Only a non-empty answer is stored, so a refusal or a
+  // timeout (which autocomplete reports as an empty list) is asked again next
+  // time. Off outside production.
+  const addressSuggestCache = createLoaderCache({
+    ttlMs: 24 * 60 * 60 * 1000,
+    cap: 5000,
+    name: "address-suggest",
+    enabled: env.runtimeMode === "production",
+    cacheable: (predictions) => predictions.length > 0
+  });
+
   app.get(
     "/api/shop/address-suggest",
     { config: { rateLimit: { max: 40, timeWindow: "1 minute" } } },
@@ -649,7 +666,8 @@ export function registerShopRoutes(app, env) {
       const pin = /^[1-9][0-9]{5}$/.test(String(request.query?.pin || "")) ? request.query.pin : "";
       if (q.length < 3) return { ok: true, suggestions: [] };
       // The PIN in the query text biases results to the buyer's area.
-      const predictions = await autocomplete(pin ? `${q} ${pin}` : q, { log: request.log });
+      const cacheKey = `${q.toLowerCase().replace(/\s+/g, " ")}|${pin}`;
+      const predictions = await addressSuggestCache(cacheKey, () => autocomplete(pin ? `${q} ${pin}` : q, { log: request.log }));
       const suggestions = predictions.map((p) => ({
         main: p.structured_formatting?.main_text || p.description || "",
         secondary: p.structured_formatting?.secondary_text || "",
@@ -686,62 +704,79 @@ export function registerShopRoutes(app, env) {
   // promo, then the store settings — about 0.8s of a 1.1s answer in production.
   // It is a public read that changes nothing, so the app-wide in-memory limit
   // covers it, and the two lookups run side by side.
-  app.get(
-    "/api/shop/public-catalogue",
-    async () => {
-      const products = {};
-      for (const [id, product] of Object.entries(SHOP_PRODUCTS)) {
-        products[id] = { name: product.name, amountPaise: Math.round(product.amount * 100) };
-        // Only ever true, never a false to reason about: the pages treat an
-        // absent flag as "for sale", the same as they did before it existed.
-        if (product.soldOut) products[id].soldOut = true;
-      }
+  //
+  // The same for every visitor: nothing here reads a session, an owner or a
+  // tag, so the answer is kept for 30 seconds and shared between requests, and
+  // browsers may hold it that long too. A degraded answer (Mongo unreachable, so
+  // the offer and add-on fail closed) is never stored. In-process cache is off
+  // outside production, so an edit to a promo or the store settings shows at
+  // once in dev and in tests.
+  const publicCatalogueCache = createLoaderCache({
+    ttlMs: 30 * 1000,
+    cap: 1,
+    name: "public-catalogue",
+    enabled: env.runtimeMode === "production",
+    cacheable: (result) => result.complete
+  });
 
-      // Prices must remain available even if Mongo has a short outage. The
-      // dynamic offer and add-on fail closed in that case.
-      let launchOffer = null;
-      let addOns = [];
-      try {
-        const collections = await getCollections(env);
-        if (collections) {
-          const product = getShopProduct(PUBLIC_LAUNCH_PRODUCT_ID);
-          const [promo, settings] = await Promise.all([
-            resolvePromo(collections, PUBLIC_LAUNCH_PROMO_CODE, {
-              productId: PUBLIC_LAUNCH_PRODUCT_ID,
-              quantity: 1
-            }),
-            collections.storeSettings.findOne({ _id: "public-shop" })
-          ]);
-          if (product && promo.ok && promo.discountPaise > 0) {
-            const mrpPaise = Math.round(product.amount * 100);
-            launchOffer = {
-              code: promo.code,
-              productId: PUBLIC_LAUNCH_PRODUCT_ID,
-              mrpPaise,
-              discountPaise: promo.discountPaise,
-              offerPaise: Math.max(0, mrpPaise - promo.discountPaise)
-            };
-          }
+  async function buildPublicCatalogue() {
+    const products = {};
+    for (const [id, product] of Object.entries(SHOP_PRODUCTS)) {
+      products[id] = { name: product.name, amountPaise: Math.round(product.amount * 100) };
+      // Only ever true, never a false to reason about: the pages treat an
+      // absent flag as "for sale", the same as they did before it existed.
+      if (product.soldOut) products[id].soldOut = true;
+    }
 
-          const plate = settings?.dashboardPlate;
-          if (plate?.enabled === true && Number(plate.pricePaise) >= 100) {
-            addOns = [{
-              id: "dashboard-plate",
-              name: "Clear Dashboard Plate",
-              description: "10 × 6 cm · 2 mm clear crystal acrylic. Stick your ParkTag on the plate, then place it on your dashboard.",
-              amountPaise: Math.round(Number(plate.pricePaise)),
-              image: "/images/acrylic-dashboard-plate-real.jpg",
-              productIds: DASHBOARD_PLATE_PRODUCT_IDS
-            }];
-          }
+    // Prices must remain available even if Mongo has a short outage. The
+    // dynamic offer and add-on fail closed in that case.
+    let launchOffer = null;
+    let addOns = [];
+    let complete = true;
+    try {
+      const collections = await getCollections(env);
+      if (collections) {
+        const product = getShopProduct(PUBLIC_LAUNCH_PRODUCT_ID);
+        const [promo, settings] = await Promise.all([
+          resolvePromo(collections, PUBLIC_LAUNCH_PROMO_CODE, {
+            productId: PUBLIC_LAUNCH_PRODUCT_ID,
+            quantity: 1
+          }),
+          collections.storeSettings.findOne({ _id: "public-shop" })
+        ]);
+        if (product && promo.ok && promo.discountPaise > 0) {
+          const mrpPaise = Math.round(product.amount * 100);
+          launchOffer = {
+            code: promo.code,
+            productId: PUBLIC_LAUNCH_PRODUCT_ID,
+            mrpPaise,
+            discountPaise: promo.discountPaise,
+            offerPaise: Math.max(0, mrpPaise - promo.discountPaise)
+          };
         }
-      } catch (err) {
-        app.log.warn({ err }, "Could not load dynamic public-shop settings");
-      }
 
-      // codProductIds: which packs guest checkout takes Cash on Delivery for,
-      // so the storefronts offer it exactly where create-order accepts it.
-      return {
+        const plate = settings?.dashboardPlate;
+        if (plate?.enabled === true && Number(plate.pricePaise) >= 100) {
+          addOns = [{
+            id: "dashboard-plate",
+            name: "Clear Dashboard Plate",
+            description: "10 × 6 cm · 2 mm clear crystal acrylic. Stick your ParkTag on the plate, then place it on your dashboard.",
+            amountPaise: Math.round(Number(plate.pricePaise)),
+            image: "/images/acrylic-dashboard-plate-real.jpg",
+            productIds: DASHBOARD_PLATE_PRODUCT_IDS
+          }];
+        }
+      }
+    } catch (err) {
+      app.log.warn({ err }, "Could not load dynamic public-shop settings");
+      complete = false;
+    }
+
+    // codProductIds: which packs guest checkout takes Cash on Delivery for,
+    // so the storefronts offer it exactly where create-order accepts it.
+    return {
+      complete,
+      body: {
         ok: true, products, launchOffer, addOns,
         codSurchargePaise: COD_SURCHARGE_PAISE, codProductIds: GUEST_COD_PRODUCT_IDS,
         codMaxQuantity: COD_MAX_QUANTITY,
@@ -750,7 +785,15 @@ export function registerShopRoutes(app, env) {
         maxQuantity: MAX_ORDER_QUANTITY,
         // So a friend's-link visitor is told the discount by the server that grants it.
         referralDiscountPaise: REFERRAL_DISCOUNT_PAISE
-      };
+      }
+    };
+  }
+
+  app.get(
+    "/api/shop/public-catalogue",
+    async (_request, reply) => {
+      reply.header("Cache-Control", "public, max-age=30");
+      return (await publicCatalogueCache("public", buildPublicCatalogue)).body;
     }
   );
 

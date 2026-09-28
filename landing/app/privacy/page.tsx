@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { SiteHeader } from "../components/SiteHeader";
-import { PageLoader } from "../components/PageLoader";
 
 export const metadata: Metadata = {
   title: "Privacy Policy | ParkTag",
@@ -9,7 +8,7 @@ export const metadata: Metadata = {
 
 export default function PrivacyPage() {
   return (
-    <PageLoader>
+    <>
       <SiteHeader defaultDark={false} />
       <div className="min-h-screen bg-white pt-16">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-12 sm:py-16">
@@ -142,7 +141,7 @@ export default function PrivacyPage() {
         </div>
       </div>
       </div>
-    </PageLoader>
+    </>
   );
 }
 

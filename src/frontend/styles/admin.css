@@ -1,0 +1,1576 @@
+/* Rules only the admin console uses (stat and monitor cards, the print queue,
+ * admin login and menus), split out of styles.css so owner, scanner and shop
+ * pages no longer download them. Load it AFTER styles.css: it was cut from
+ * that file, and the cascade only matches the original with this order. */
+
+.stat-card {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fff;
+  padding: 14px;
+}
+
+.stat-card strong {
+  display: block;
+  font-size: 1.35rem;
+  margin-top: 6px;
+}
+
+.stat-label {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.monitor-card,
+.queue-row,
+.qr-card {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fff;
+  padding: 14px;
+}
+
+.monitor-card strong,
+.queue-row strong,
+.qr-card strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+/* Tokens are long unbroken 64-char strings and claim URLs are long too; let
+   them wrap inside the card so they never overflow the row on narrow / mobile
+   screens. */
+.queue-row strong,
+.queue-row a,
+.queue-row span {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.monitor-card p,
+.queue-row span,
+.qr-card span,
+.qr-card a {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.monitor-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 8px;
+  color: var(--muted);
+}
+
+/* ── Print queue lookup bar ───────────────────────────────────────────
+   Batch filter + serial jump, sitting above the queue. Wraps rather than
+   scrolls, so it stays usable on a narrow admin window. */
+.pt-pq-lookup {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  padding: 12px;
+  margin-bottom: 16px;
+  background: #F9FAFB;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.pt-pq-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.pt-pq-field > span {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.pt-pq-field select,
+.pt-pq-field input {
+  font: inherit;
+  font-size: 0.88rem;
+  padding: 8px 10px;
+  border: 1.5px solid var(--line);
+  border-radius: 9px;
+  background: #fff;
+  color: #03162D;
+  min-width: 0;
+}
+
+.pt-pq-field select { max-width: 340px; }
+.pt-pq-field input { width: 190px; }
+
+.pt-pq-note {
+  font-size: 0.82rem;
+  color: var(--muted);
+  align-self: center;
+}
+
+.pt-pq-note[data-tone="warn"] { color: #B31C00; font-weight: 700; }
+
+/* ── Print queue: batches ─────────────────────────────────────────────
+   A batch is a heading, not a card — the generations inside it are the
+   things you act on, so the batch line stays typographic and quiet. */
+.pt-pq-batch { margin-bottom: 28px; }
+
+.pt-pq-batch-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.pt-pq-batch-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 900;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+
+.pt-pq-batch-meta {
+  margin: 2px 0 0;
+  font-size: 0.84rem;
+  color: var(--muted);
+}
+
+/* Two spellings of one batch. Stated once, plainly, on its own line — inline
+   it ran into the title and read as noise. */
+.pt-pq-variant {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 7px;
+  padding: 4px 10px;
+  background: #FFF1EF;
+  border: 1px solid #FFD8D0;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: #B31C00;
+}
+
+.pt-pq-batch-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* Destructive, so it must be reachable — but it is not what you came here to
+   do. Quiet until hover; the primary red is reserved for Export QRs. */
+.pt-pq-danger {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+
+.pt-pq-danger:hover {
+  color: var(--error);
+  border-color: #FECACA;
+  background: #FEF2F2;
+}
+
+/* ── Print queue: one generation ──────────────────────────────────────
+   The header is the row you scan, so it holds a fixed shape: select, caret,
+   a two-line label, then actions pinned right. */
+.pt-pq-run {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 10px;
+  background: var(--panel);
+}
+
+.pt-pq-run + .pt-pq-run { margin-top: 0; }
+
+.pt-pq-run-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 13px;
+  background: #F8FAFC;
+  flex-wrap: wrap;
+}
+
+.pt-pq-run.is-open .pt-pq-run-head { border-bottom: 1px solid var(--line); }
+.pt-pq-run.is-newest .pt-pq-run-head { background: #FFF4F1; }
+
+.pt-pq-run-check { width: 16px; height: 16px; cursor: pointer; flex: 0 0 auto; }
+
+/* The whole label is the expand target — a 12px caret is a poor click area. */
+.pt-pq-run-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1 1 240px;
+  min-width: 0;
+  padding: 2px 0;
+  background: none;
+  border: 0;
+  font: inherit;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.pt-pq-caret {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  color: var(--muted);
+  transition: transform 0.15s ease;
+}
+
+.pt-pq-caret[data-open="1"] { transform: rotate(90deg); }
+
+.pt-pq-run-label { min-width: 0; }
+
+.pt-pq-run-title {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+/* Flex with a column gap rather than a "·" between the parts: at narrow widths
+   the range drops to its own line, and a literal separator was left dangling at
+   the end of the line above it. */
+.pt-pq-run-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 9px;
+  margin-top: 1px;
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+/* A serial range is one token to a reader; breaking it across lines as
+   "PT-01-" / "001034" made the header unreadable at narrow widths. */
+.pt-pq-range { white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* Which sticker the run prints. Two mount types get two colours because this is
+   the line the printer acts on, and reading it wrong wastes the whole run. */
+.pt-pq-mount {
+  white-space: nowrap;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  padding: 2px 7px;
+  border-radius: 20px;
+  border: 1px solid transparent;
+}
+.pt-pq-mount[data-mount="windscreen_interior"] {
+  background: #EAF2FF; color: #14448F; border-color: #C4DAFB;
+}
+.pt-pq-mount[data-mount="exterior_surface"] {
+  background: #FFF1E6; color: #9A4A05; border-color: #FBD9BC;
+}
+
+.pt-pq-run-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+
+/* nowrap + no shrink, or a flex parent squeezes the label inside the pill and
+   it collapses into an unreadable blob. */
+.pt-pq-badge {
+  flex: 0 0 auto;
+  background: var(--accent-dark);
+  color: #fff;
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  padding: 3px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.pt-pq-badge-sm { font-size: 0.55rem; padding: 2px 7px; letter-spacing: 0.04em; }
+
+/* Per-row tier chip. Solid red down a column of 600 rows turned the tier — which
+   is usually the same for every tag in a generation — into the loudest thing on
+   the page. Outlined keeps it readable and gives NEWEST its emphasis back. */
+.pt-pq-tier {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 2px 7px;
+  font-size: 0.55rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  background: #FFF1EF;
+  color: #B31C00;
+  border: 1px solid #FFD8D0;
+}
+
+.pt-pq-tier[data-tier="free"] {
+  background: #F1F5F9;
+  color: var(--muted);
+  border-color: var(--line);
+}
+
+/* Secondary: it acts on one generation, while Export QRs acts on the whole
+   selection. Solid red on every generation made the page look like a warning. */
+.pt-pq-act {
+  border: 1.5px solid var(--line);
+  background: var(--panel);
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 7px 13px;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.pt-pq-act:hover { border-color: var(--ink); background: #F8FAFC; }
+
+.pt-pq-more {
+  padding: 10px 13px;
+  background: #F8FAFC;
+  border-top: 1px solid var(--line);
+  font-size: 0.82rem;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* ── Print queue: tag rows ────────────────────────────────────────────
+   Compact by design. The generic .queue-row card stacks token, status, a full
+   claim URL and a button into five lines each — at 600 rows that is a mile of
+   scrolling for data you rarely read. Here the serial leads, and the token and
+   URL are truncated to one line with the full value on hover. */
+/* The serial column gets a real minimum: under minmax(0, …) the grid is free to
+   shrink it below its content, which stacked "PT-01-001016" one character per
+   line. Only the token and the URL may shrink, and they ellipsize. */
+#print-queue-output .queue-row {
+  display: grid;
+  grid-template-columns: auto minmax(210px, 1.2fr) auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 13px;
+  border: 0;
+  border-top: 1px solid #F1F5F9;
+  border-radius: 0;
+  background: var(--panel);
+}
+
+#print-queue-output .queue-row:first-of-type { border-top: 0; }
+#print-queue-output .queue-row:hover { background: #F8FAFC; }
+
+#print-queue-output .queue-row strong {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  min-width: 0;
+  font-size: 0.84rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+#print-queue-output .queue-row .pt-pq-serial { white-space: nowrap; flex: 0 0 auto; }
+
+#print-queue-output .queue-row .pt-pq-token {
+  font-weight: 400;
+  font-size: 0.76rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+#print-queue-output .queue-row a {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.78rem;
+  min-width: 0;
+}
+
+#print-queue-output .queue-row span { font-size: 0.78rem; }
+#print-queue-output .queue-row .pt-pq-status { white-space: nowrap; }
+
+/* Below this the five columns cannot hold their content without every cell
+   becoming an ellipsis, so the row folds to two lines: identity above, claim
+   URL below, action pinned right across both. Every child is placed explicitly
+   — left to flow, the action wrapped onto a third line and each row grew to
+   three lines tall. */
+@media (max-width: 900px) {
+  #print-queue-output .queue-row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    row-gap: 2px;
+    padding: 9px 13px;
+  }
+  #print-queue-output .queue-row > input { grid-column: 1; grid-row: 1 / span 2; }
+  #print-queue-output .queue-row > strong { grid-column: 2; grid-row: 1; }
+  #print-queue-output .queue-row > a { grid-column: 2; grid-row: 2; }
+  #print-queue-output .queue-row > .pt-pq-status { grid-column: 2; grid-row: 3; }
+  #print-queue-output .queue-row > :last-child {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+    align-self: center;
+  }
+  /* An empty status cell would otherwise reserve a third row of blank space. */
+  #print-queue-output .queue-row > .pt-pq-status:empty { display: none; }
+}
+
+/* Flash the row a serial jump landed on, so it is findable inside a long
+   generation without hunting for the highlight. */
+#print-queue-output .queue-row[data-pq-hit="1"] {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  background: #FFF4F1;
+}
+
+.empty-copy {
+  color: var(--muted);
+}
+
+.status-badge {
+  display: inline-block;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 20px;
+  background: var(--surface, #f4ede6);
+  color: var(--muted);
+}
+
+.status-badge[data-tone="success"] { background: #d4edda; color: #2d6a4f; }
+.status-badge[data-tone="info"] { background: #d0e8ff; color: #1a5276; }
+.status-badge[data-tone="error"] { background: #fde8e8; color: #922b21; }
+
+.pt-logo-sep {
+  width: 1px;
+  height: 36px;
+  background: rgba(255,255,255,0.22);
+  flex-shrink: 0;
+}
+
+.pt-logo-brand {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pt-logo-name {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #FFFFFF;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  font-family: 'Inter', 'Roboto', "Segoe UI", sans-serif;
+}
+
+.pt-logo-tag {
+  font-size: 0.52rem;
+  font-weight: 600;
+  color: rgba(255,255,255,0.58);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  line-height: 1;
+  font-family: 'Inter', 'Roboto', "Segoe UI", sans-serif;
+}
+
+.pt-icon-lock { background: #FFE3DD; color: #D92200; }
+
+/* ── Registration hero banner ── */
+.pt-reg-hero {
+  background: linear-gradient(145deg, #010D1A 0%, #03162D 40%, #0e1f3d 70%, #1a1035 100%);
+  padding: 32px 24px 24px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  border-radius: 20px 20px 0 0;
+}
+.pt-reg-hero::before {
+  content: '';
+  position: absolute;
+  top: -40px; right: -40px;
+  width: 180px; height: 180px;
+  background: radial-gradient(circle, rgba(255,39,0,0.22) 0%, transparent 68%);
+  border-radius: 50%;
+  pointer-events: none;
+}
+.pt-reg-hero::after {
+  content: '';
+  position: absolute;
+  bottom: -20px; left: -20px;
+  width: 120px; height: 120px;
+  background: radial-gradient(circle, rgba(255,39,0,0.10) 0%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+}
+.pt-reg-hero-icon {
+  width: 58px; height: 58px;
+  background: rgba(255,39,0,0.14);
+  border: 1.5px solid rgba(255,80,0,0.32);
+  border-radius: 18px;
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 16px;
+  color: #FF6B4A;
+  box-shadow: 0 4px 20px rgba(255,39,0,0.18);
+  position: relative;
+}
+.pt-reg-hero-title {
+  font-size: 1.45rem;
+  font-weight: 900;
+  color: #fff;
+  margin: 0 0 8px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+.pt-reg-hero-sub {
+  font-size: 0.86rem;
+  color: rgba(255,255,255,0.55);
+  line-height: 1.6;
+  margin: 0 auto 18px;
+  max-width: 360px;
+}
+.pt-reg-hero-pills {
+  display: flex;
+  justify-content: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+.pt-reg-hero-pills span {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 4px 11px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.07);
+  color: rgba(255,255,255,0.65);
+  border: 1px solid rgba(255,255,255,0.13);
+  letter-spacing: 0.01em;
+}
+
+/* Plate preview (verification screen) */
+.pt-plate-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 20px;
+  background: #F3F4F6;
+  border-radius: 12px;
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  color: var(--pt-ink);
+  margin-bottom: 20px;
+  border: 2px dashed var(--pt-border);
+  font-family: "Courier New", monospace;
+}
+
+.pt-btn-call {
+  background: linear-gradient(135deg, #03162D 0%, #0A2040 60%, #162F60 100%);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.09);
+  box-shadow: 0 6px 24px rgba(0,25,53,0.32), 0 2px 8px rgba(0,0,0,0.10);
+}
+
+.pt-btn-call:hover:not(:disabled) {
+  background: linear-gradient(135deg, #061A35 0%, #0E2A50 60%, #1C3A70 100%);
+  box-shadow: 0 8px 28px rgba(0,25,53,0.42), 0 2px 8px rgba(0,0,0,0.13);
+  transform: translateY(-1px);
+}
+
+.pt-btn-sub {
+  font-size: 0.75rem;
+  font-weight: 400;
+  opacity: 0.85;
+  margin-top: 1px;
+}
+
+/* The sub-label WRAPS rather than being hidden: "Call the owner privately" is
+   the line that explains the privacy guarantee, so losing it on the phones
+   most people scan with would defeat the point. Two lines is fine. */
+.pt-contact-actions .pt-btn-sub {
+  font-size: 0.68rem;
+  font-weight: 500;
+  line-height: 1.3;
+  opacity: 0.82;
+  margin-top: 0;
+  white-space: normal;
+  overflow-wrap: normal;
+}
+
+/* At 320px "Private Call" plus its icon is within a few px of the available
+   width, so the label steps down rather than being allowed to clip. */
+@media (max-width: 400px) {
+  .pt-contact-actions .pt-btn-sub { font-size: 0.63rem; }
+}
+
+/* Cancel is tinted so that on a white card it cannot be mistaken for a white
+   row that lost its radio. */
+/* Optional callback number on the reason step.
+   Sits between the reason rows and Cancel, sharing the rows' right edge (see
+   the margin note below) so the three read as one column rather than the field
+   hanging off the side. */
+/* Given a surface of its own rather than sitting under a hairline.
+   As a bare rule-plus-input it read as trailing small print and got skipped;
+   a tinted panel makes it part of the task without turning it into a demand.
+   The right margin drops to match the left so the panel is symmetrical — the
+   old 22px was compensating for a divider that no longer runs edge to edge. */
+.pt-reason-callback {
+  margin: 14px 0 4px;
+  padding: 12px 14px;
+  background: #F8FAFC;
+  border: 1px solid #E8EDF5;
+  border-radius: 10px;
+}
+
+.pt-reason-cb-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #374151;
+  margin-bottom: 8px;
+}
+
+/* "optional" as a quiet chip rather than parenthesised text: it has to be
+   readable at a glance, because the whole point is that skipping is fine. */
+.pt-reason-cb-opt {
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6B7280;
+  background: #F3F4F6;
+  border: 1px solid #E5E7EB;
+  border-radius: 20px;
+  padding: 2px 7px;
+}
+
+.pt-reason-cb-input {
+  width: 100%;
+}
+
+.pt-reason-cb-note {
+  margin: 7px 0 0;
+  font-size: 0.72rem;
+  line-height: 1.45;
+  color: #6B7280;
+}
+
+/* Turns red only when what was typed cannot be dialled. */
+.pt-reason-cb-note[data-tone="error"] {
+  color: #B91C1C;
+  font-weight: 600;
+}
+
+/* The one-time prompt shown when Notify is tapped with the field empty.
+   Amber, not red: nothing has gone wrong and the scanner has done nothing
+   incorrect — this is a question, and sending anonymously is a valid answer.
+   Red here would read as an error and is exactly the pressure this must not
+   apply to somebody doing a stranger a favour. */
+.pt-reason-cb-nudge {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: #92400E;
+  background: #FFFBEB;
+  border: 1px solid #FDE68A;
+  border-radius: 8px;
+}
+
+.pt-reason-cb-nudge-copy {
+  margin: 0 0 8px;
+}
+
+/* The way out, stated as a control. Outlined rather than filled: it is the
+   secondary path — adding a number is the one being encouraged — but it has to
+   look plainly tappable, because a scanner who wants to stay anonymous must not
+   feel trapped by a prompt. */
+.pt-reason-cb-skip {
+  display: inline-block;
+  padding: 7px 12px;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #78350F;
+  background: #FFFFFF;
+  border: 1px solid #FCD34D;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.pt-reason-cb-skip:hover {
+  background: #FFFBEB;
+}
+
+.pt-reason-cb-skip:focus-visible {
+  outline: 2px solid #B45309;
+  outline-offset: 2px;
+}
+
+.pt-sos-cancel {
+  justify-self: center;
+  background: none;
+  border: none;
+  padding: 8px 4px;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--pt-sub);
+  cursor: pointer;
+  min-height: 40px;
+}
+
+.pt-sos-cancel:hover { color: var(--pt-ink); }
+
+/* Trust / privacy notes */
+.pt-trust-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--pt-sub);
+  margin-top: 4px;
+  line-height: 1.5;
+}
+
+/* ═══════════════════════════════════════════
+   HEADER BADGE  — styles defined above near .pt-header
+   ═══════════════════════════════════════════ */
+
+/* ═══════════════════════════════════════════
+   REGISTRATION PAGE
+   ═══════════════════════════════════════════ */
+
+.pt-sticker-preview {
+  display: flex;
+  justify-content: center;
+  padding: 28px 0 20px;
+}
+
+.pt-sticker-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: #fff;
+  border-radius: 16px;
+  padding: 20px 28px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.1), 0 1px 4px rgba(0,0,0,0.06);
+  border: 1px solid var(--pt-border);
+}
+
+.pt-sticker-brand {
+  font-size: 1rem;
+  font-weight: 900;
+  color: var(--pt-ink);
+  letter-spacing: 0.01em;
+}
+
+.pt-sticker-id {
+  font-size: 0.72rem;
+  color: var(--pt-sub);
+  letter-spacing: 0.04em;
+}
+
+.pt-input-icon-wrap {
+  position: relative;
+}
+
+.pt-input-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--pt-sub);
+  pointer-events: none;
+}
+
+.pt-input-with-icon {
+  padding-left: 36px !important;
+}
+
+.pt-reg-divider {
+  border: none;
+  border-top: 1.5px solid var(--pt-border);
+  margin: 4px 0;
+}
+
+.pt-checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.88rem;
+  color: var(--pt-ink);
+  cursor: pointer;
+}
+
+.pt-checkbox {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--pt-amber);
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.pt-reg-privacy {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: var(--pt-sub);
+  text-align: center;
+  margin: 12px 0 4px;
+}
+
+/* Success screen */
+.pt-success-hero {
+  text-align: center;
+  padding: 32px 0 24px;
+}
+
+/* Premium owner activation redesign */
+.pt-activate-shell {
+  min-height: 100vh;
+  padding: 18px 14px 42px;
+  background:
+    radial-gradient(circle at top, rgba(255, 39, 0, 0.2), transparent 24%),
+    linear-gradient(180deg, #F0F4F8 0%, #E1EBF4 52%, #D4E4F4 100%);
+}
+
+.pt-header-activate {
+  width: min(460px, 100%);
+  margin: 0 auto 20px;
+}
+
+.pt-activate-main {
+  width: min(460px, 100%);
+  margin: 0 auto;
+  display: grid;
+  gap: 16px;
+}
+
+.pt-activate-main-success {
+  gap: 14px;
+}
+
+.pt-activate-hero {
+  display: grid;
+  gap: 14px;
+}
+
+.pt-activate-hero-copy {
+  display: grid;
+  gap: 10px;
+}
+
+.pt-activate-eyebrow {
+  margin: 0;
+  color: #D92200;
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.pt-reg-title-premium {
+  font-size: clamp(2.1rem, 8vw, 3.4rem);
+  line-height: 0.94;
+  letter-spacing: -0.06em;
+  text-align: left;
+}
+
+.pt-reg-sub-premium {
+  color: #495B7B;
+  font-size: 1rem;
+  line-height: 1.7;
+  max-width: 34ch;
+  text-align: left;
+}
+
+.pt-sticker-preview-premium {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.pt-sticker-card-premium {
+  min-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px;
+  border-radius: 24px;
+  background: linear-gradient(180deg, #FFFFFF, #F1F1F0);
+  border: 1px solid rgba(0, 25, 53, 0.14);
+  box-shadow: 0 18px 42px rgba(0, 25, 53, 0.12);
+}
+
+.pt-sticker-brand-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pt-sticker-meta {
+  display: grid;
+  gap: 6px;
+}
+
+.pt-sticker-meta-label {
+  color: #495B7B;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.pt-step-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.pt-step-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(0, 25, 53, 0.08);
+  color: #495B7B;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.pt-step-item.is-active {
+  background: rgba(255, 39, 0, 0.14);
+  border-color: rgba(255, 39, 0, 0.3);
+  color: #B31C00;
+}
+
+.pt-step-number {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(0, 25, 53, 0.12);
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.pt-activate-card,
+.pt-qr-result-card-premium,
+.pt-vehicle-details-card-premium,
+.pt-whats-next-card-premium {
+  padding: 22px 18px;
+  border-radius: 26px;
+  background: #FFFFFF;
+  border: 1px solid rgba(0, 25, 53, 0.12);
+  box-shadow: 0 18px 42px rgba(0, 25, 53, 0.1);
+}
+
+.pt-card-head {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.pt-form-activate {
+  display: grid;
+  gap: 20px;
+}
+
+.pt-form-section {
+  display: grid;
+  gap: 14px;
+}
+
+.pt-form-section-label {
+  margin: 0;
+  color: #B31C00;
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.pt-optional-copy {
+  color: #6B7280;
+  font-weight: 500;
+}
+
+.pt-checkbox-field-premium {
+  margin-top: 4px;
+  padding: 14px 14px 14px 12px;
+  border-radius: 18px;
+  background: rgba(255, 39, 0, 0.08);
+  border: 1px solid rgba(255, 39, 0, 0.16);
+}
+
+.pt-activate-note {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 14px 15px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(111, 104, 95, 0.12);
+  color: #495B7B;
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.pt-btn-activate-premium {
+  min-height: 54px;
+  border-radius: 18px;
+  font-size: 1rem;
+  font-weight: 800;
+  box-shadow: 0 14px 30px rgba(0, 25, 53, 0.18);
+}
+
+.pt-status-activate {
+  margin-top: 14px;
+  text-align: center;
+}
+
+.pt-login-link {
+  margin: 14px 0 0;
+  text-align: center;
+  font-size: 0.88rem;
+  color: #495B7B;
+}
+
+.pt-login-link a {
+  color: #D92200;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.pt-success-hero-premium {
+  padding: 26px 24px 10px;
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at top, rgba(255, 39, 0, 0.18), transparent 34%),
+    linear-gradient(180deg, rgba(255,255,255,0.94), rgba(255,248,239,0.98));
+  border: 1px solid rgba(0, 25, 53, 0.12);
+  box-shadow: 0 18px 42px rgba(0, 25, 53, 0.1);
+}
+
+.pt-qr-result-card-premium {
+  display: grid;
+  gap: 14px;
+  justify-items: center;
+  text-align: center;
+}
+
+.pt-qr-card-head {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+}
+
+.pt-vehicle-details-card-premium,
+.pt-whats-next-card-premium {
+  display: grid;
+  gap: 14px;
+}
+
+.pt-detail-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(111, 104, 95, 0.14);
+}
+
+.pt-detail-row:last-child {
+  border-bottom: none;
+}
+
+.pt-detail-row-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #495B7B;
+  font-weight: 600;
+}
+
+.pt-detail-row-value {
+  margin-left: auto;
+  font-weight: 700;
+  color: #03162D;
+  text-align: right;
+}
+
+.pt-detail-row-value-strong {
+  letter-spacing: 0.08em;
+}
+
+.pt-detail-row-value-mono {
+  font-size: 0.84rem;
+}
+
+.pt-success-cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-decoration: none;
+}
+
+
+
+/* ═══════════════════════════════════════════
+   ADMIN DASHBOARD — pt- design system
+   ═══════════════════════════════════════════ */
+
+.pt-admin-body {
+  background: #F8F9FA;
+  font-family: 'Inter', 'Roboto', "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  min-height: 100vh;
+  margin: 0;
+  color: #323232;
+}
+
+/* Nothing on an admin page is wider than the window, but a sideways touchpad
+   swipe still rubber-bands the whole console left and right (Chromium's
+   elastic overscroll on Windows). The admin has no sideways movement to give,
+   so the bounce is switched off. Set on <html>: the viewport takes it from the
+   root element, not from <body>. Kept in step with admin-shell.css. */
+html:has(.pt-admin-shell) { overscroll-behavior-x: none; }
+
+.pt-admin-shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+/* Sidebar */
+.pt-admin-sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  background: #fff;
+  border-right: 1px solid #E5E7EB;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.pt-admin-brand {
+  padding: 20px 20px 16px;
+  border-bottom: 1px solid #E5E7EB;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pt-admin-brand-logo {
+  height: 42px;
+  width: auto;
+  display: block;
+}
+
+.pt-admin-brand-role {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #DC2626;
+  background: #FEE2E2;
+  padding: 2px 8px;
+  border-radius: 20px;
+}
+
+.pt-admin-nav {
+  padding: 12px 12px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pt-admin-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #374151;
+  text-decoration: none;
+  transition: background 0.12s, color 0.12s;
+}
+
+.pt-admin-nav-item:hover { background: #F3F4F6; }
+.pt-admin-nav-item.is-active {
+  background: #FFE3DD;
+  color: #B31C00;
+  font-weight: 700;
+}
+
+.pt-admin-nav-section {
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #9CA3AF;
+  padding: 12px 12px 4px;
+}
+
+.pt-admin-sidebar-footer {
+  padding: 12px;
+  border-top: 1px solid #E5E7EB;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pt-admin-sidebar-btn {
+  width: 100%;
+  padding: 9px 14px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+  font-family: inherit;
+  transition: background 0.12s;
+}
+
+.pt-admin-btn-ghost {
+  background: #F3F4F6;
+  color: #374151;
+}
+
+.pt-admin-btn-ghost:hover { background: #E5E7EB; }
+/* Refresh reports what happened for a few seconds (see refreshFromButton). */
+#admin-refresh-button[aria-busy="true"] { cursor: progress; opacity: 0.75; }
+#admin-refresh-button[data-result="ok"] { color: #15803D; }
+#admin-refresh-button[data-result="error"] { color: #B91C1C; }
+
+.pt-admin-btn-danger {
+  background: #FEE2E2;
+  color: #DC2626;
+}
+
+.pt-admin-btn-danger:hover { background: #FECACA; }
+
+/* Main content */
+.pt-admin-main {
+  flex: 1;
+  min-width: 0;
+  padding: 28px 32px 48px;
+  overflow-y: auto;
+}
+
+/* Menu button and backdrop for the phone drawer; added by scripts/admin/index.js
+   and hidden everywhere except phone width. */
+.pt-admin-menu-btn,
+.pt-admin-backdrop { display: none; }
+
+/* Phone width: the 240px sidebar would take half the screen, so it slides in
+   from the left on the Menu button and is closed again on every page. Screen
+   only: an A4 print is narrower than this, and the print queue's sheets must
+   not pick it up. */
+@media screen and (max-width: 760px) {
+  .pt-admin-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 1001;
+    width: min(280px, 85vw);
+    height: 100vh;
+    height: 100dvh;
+    transform: translateX(-100%);
+    visibility: hidden;
+    transition: transform 0.2s ease, visibility 0s linear 0.2s;
+    box-shadow: 0 0 24px rgba(0, 0, 0, 0.18);
+  }
+  .pt-admin-shell.is-menu-open .pt-admin-sidebar {
+    transform: none;
+    visibility: visible;
+    transition: transform 0.2s ease;
+  }
+  .pt-admin-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: rgba(17, 24, 39, 0.4);
+  }
+  .pt-admin-shell.is-menu-open .pt-admin-backdrop { display: block; }
+  .pt-admin-menu-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 16px;
+    padding: 8px 14px;
+    border: 1px solid #E5E7EB;
+    border-radius: 10px;
+    background: #fff;
+    color: #323232;
+    font: inherit;
+    font-size: 0.88rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .pt-admin-main { padding: 16px 16px 40px; }
+}
+
+@media screen and (max-width: 760px) and (prefers-reduced-motion: reduce) {
+  .pt-admin-sidebar,
+  .pt-admin-shell.is-menu-open .pt-admin-sidebar { transition: none; }
+}
+
+.pt-admin-page-header {
+  margin-bottom: 24px;
+}
+
+.pt-admin-eyebrow {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #D92200;
+  margin: 0 0 4px;
+}
+
+.pt-admin-page-title {
+  font-size: 1.75rem;
+  font-weight: 900;
+  color: #323232;
+  margin: 0 0 6px;
+}
+
+.pt-admin-page-sub {
+  font-size: 0.9rem;
+  color: #6B7280;
+  margin: 0;
+}
+
+/* Stat cards */
+.pt-admin-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+.pt-admin-stat {
+  background: #fff;
+  border-radius: 14px;
+  border: 1px solid #E5E7EB;
+  padding: 18px 20px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.pt-admin-stat-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #6B7280;
+  margin: 0 0 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.pt-admin-stat-value {
+  font-size: 2rem;
+  font-weight: 900;
+  color: #323232;
+  margin: 0;
+  line-height: 1;
+}
+
+/* Content cards */
+.pt-admin-card {
+  background: #fff;
+  border-radius: 14px;
+  border: 1px solid #E5E7EB;
+  padding: 20px 24px;
+  margin-bottom: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.pt-admin-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.pt-admin-card-title {
+  font-size: 1rem;
+  font-weight: 800;
+  color: #323232;
+  margin: 0;
+}
+
+.pt-admin-card-sub {
+  font-size: 0.82rem;
+  color: #6B7280;
+  margin: 4px 0 0;
+}
+
+/* Queue rows */
+.pt-admin-row {
+  padding: 14px 0;
+  border-bottom: 1px solid #F3F4F6;
+  display: grid;
+  gap: 4px;
+}
+
+.pt-admin-row:last-child { border-bottom: none; }
+
+.pt-admin-row-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #323232;
+  margin: 0;
+}
+
+.pt-admin-row-meta {
+  font-size: 0.8rem;
+  color: #6B7280;
+  margin: 0;
+}
+
+/* Form fields in admin */
+.pt-admin-form {
+  display: grid;
+  gap: 14px;
+  max-width: 480px;
+}
+
+.pt-admin-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.pt-admin-btn {
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+  font-family: inherit;
+  transition: background 0.12s, transform 0.1s;
+}
+
+.pt-admin-btn:active { transform: scale(0.97); }
+
+.pt-admin-btn-primary {
+  background: #323232;
+  color: #fff;
+}
+
+.pt-admin-btn-primary:hover { background: #292524; }
+
+.pt-admin-btn-secondary {
+  background: #F3F4F6;
+  color: #374151;
+  border: 1px solid #E5E7EB;
+}
+
+.pt-admin-btn-secondary:hover { background: #E5E7EB; }
+
+.pt-admin-btn-red {
+  background: #FEE2E2;
+  color: #DC2626;
+  border: 1px solid #FECACA;
+}
+
+.pt-admin-btn-red:hover { background: #FECACA; }
+
+.pt-admin-input {
+  padding: 9px 12px;
+  border: 1.5px solid #E5E7EB;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  color: #323232;
+  background: #F1F1F0;
+  outline: none;
+  font-family: inherit;
+  width: 100%;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+
+.pt-admin-input:focus {
+  border-color: #D92200;
+  background: #fff;
+}
+
+.pt-admin-label {
+  display: grid;
+  gap: 5px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.pt-admin-status {
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 8px 0;
+}
+
+.pt-admin-status[data-tone="success"] { color: #D92200; }
+.pt-admin-status[data-tone="error"] { color: #DC2626; }
+.pt-admin-status[data-tone="info"] { color: #6B7280; }
+
+.pt-admin-empty {
+  font-size: 0.85rem;
+  color: #9CA3AF;
+  text-align: center;
+  padding: 24px 0;
+  margin: 0;
+}
+
+.pt-admin-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 20px;
+}
+
+.pt-admin-badge-green { background: #FFF2EF; color: #D92200; }
+.pt-admin-badge-amber { background: #FFE3DD; color: #D92200; }
+.pt-admin-badge-red { background: #FEE2E2; color: #DC2626; }
+.pt-admin-badge-gray { background: #F3F4F6; color: #374151; }

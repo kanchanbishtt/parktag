@@ -17,13 +17,13 @@ const PACKS = [
   {
     id: "pt-car-2",
     desc: "Two tags: two cars, or the front and back of one.",
-    image: "/images/shop-car-2.svg",
+    image: "/images/shop-car-2-900.webp",
     badge: "Best seller"
   },
   {
     id: "pt-car-1",
     desc: "One tag for the windscreen of one car.",
-    image: "/images/shop-car.webp"
+    image: "/images/shop-car-900.webp"
   },
   // Out of stock, not withdrawn. A pack we still price but cannot ship is shown
   // with its price and no way to buy it, rather than dropped: somebody who came
@@ -33,13 +33,13 @@ const PACKS = [
   {
     id: "pt-combo",
     desc: "Car and bike together, for the whole household.",
-    image: "/images/shop-combo.svg",
+    image: "/images/shop-combo-900.webp",
     soldOut: true
   },
   {
     id: "pt-bike-1",
     desc: "For a two-wheeler, front and back.",
-    image: "/images/shop-bike.webp",
+    image: "/images/shop-bike-900.webp",
     soldOut: true
   }
 ];
@@ -356,6 +356,8 @@ function say(message) {
 }
 
 async function buy(sku, product) {
+  // Fetched in parallel with the address step; only opened after the order.
+  window.ptLoadRazorpay();
   if (_busy) return;
   _sku = sku;
 
@@ -485,7 +487,7 @@ async function buy(sku, product) {
     return;
   }
 
-  if (typeof Razorpay !== "function") {
+  if (!(await window.ptLoadRazorpay())) {
     stopOrderPacing();
     orderSteps.fail("");
     orderSteps.destroy();

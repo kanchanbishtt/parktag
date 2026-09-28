@@ -4,6 +4,7 @@ import { createSession, writeSessionCookie } from "../../lib/auth/session.js";
 import { getCollections } from "../../lib/db/repositories.js";
 import { findByCanonicalEmail } from "../../lib/auth/identity.js";
 import { recordAdminEvent } from "../../lib/core/admin-audit.js";
+import { fetchWithTimeout } from "../../lib/core/fetch-timeout.js";
 
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
@@ -116,7 +117,7 @@ export function registerGoogleAuthRoutes(app, env) {
     const role = storedState.role;
 
     try {
-      const tokenRes = await fetch(GOOGLE_TOKEN_URL, {
+      const tokenRes = await fetchWithTimeout(GOOGLE_TOKEN_URL, {
         method: "POST",
         headers: { "content-type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({
@@ -135,7 +136,7 @@ export function registerGoogleAuthRoutes(app, env) {
 
       const tokens = await tokenRes.json();
 
-      const userRes = await fetch(GOOGLE_USERINFO_URL, {
+      const userRes = await fetchWithTimeout(GOOGLE_USERINFO_URL, {
         headers: { Authorization: `Bearer ${tokens.access_token}` }
       });
 
@@ -222,6 +223,7 @@ export function registerGoogleAuthRoutes(app, env) {
 
   // ── Expose public client ID to frontend ──────────────────────────
   app.get("/api/auth/google/config", async (_request, reply) => {
+    reply.header("Cache-Control", "public, max-age=3600");
     reply.send({ clientId: env.googleClientId });
   });
 
@@ -231,7 +233,7 @@ export function registerGoogleAuthRoutes(app, env) {
     if (!credential) return reply.code(400).send({ error: "missing_credential" });
 
     try {
-      const verifyRes = await fetch(
+      const verifyRes = await fetchWithTimeout(
         `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`
       );
       const info = await verifyRes.json();
@@ -287,7 +289,7 @@ export function registerGoogleAuthRoutes(app, env) {
     if (!code) return reply.code(400).send({ error: "missing_code" });
 
     try {
-      const tokenRes = await fetch(GOOGLE_TOKEN_URL, {
+      const tokenRes = await fetchWithTimeout(GOOGLE_TOKEN_URL, {
         method: "POST",
         headers: { "content-type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({
@@ -302,7 +304,7 @@ export function registerGoogleAuthRoutes(app, env) {
       if (!tokenRes.ok) return reply.code(401).send({ error: "token_exchange_failed" });
       const tokens = await tokenRes.json();
 
-      const userRes = await fetch(GOOGLE_USERINFO_URL, {
+      const userRes = await fetchWithTimeout(GOOGLE_USERINFO_URL, {
         headers: { Authorization: `Bearer ${tokens.access_token}` }
       });
       if (!userRes.ok) return reply.code(401).send({ error: "userinfo_failed" });

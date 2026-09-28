@@ -102,3 +102,47 @@ export async function refreshStaleTracking(
 
   return { configured: true, checked: due.length, changed };
 }
+
+const DELIVERED = /^delivered$/i;
+const BACKGROUND_CONCURRENCY = 3;
+// Order ids being refreshed right now, so a burst of dashboard opens does not
+// queue the same Delhivery lookup again and again.
+const refreshing = new Set();
+
+// The snapshot as stored, however old. Never calls Delhivery.
+export function cachedOrderTracking(order) {
+  return order.waybill ? order.trackingCache || null : null;
+}
+
+function needsRefresh(order, now) {
+  if (!order.waybill || order.deliveredAt) return false;
+  const cache = order.trackingCache;
+  if (cache && DELIVERED.test(cache.status || "")) return false;
+  if (!cache || !cache.fetchedAt) return true;
+  return now - new Date(cache.fetchedAt).getTime() >= TRACKING_TTL_MS;
+}
+
+// Refresh the tracking of any of these orders that is missing or stale, without
+// making the caller wait for it. The dashboard's order list used to await up to
+// 20 Delhivery lookups inline on a cold cache; it now answers from the stored
+// snapshot and calls this, so the next open is fresh. Delivered orders are
+// terminal and never refreshed. At most a few lookups run at once, and an
+// order already being refreshed is skipped. Never throws.
+export function refreshTrackingInBackground(collections, env, orders, log, now = Date.now()) {
+  const queue = orders.filter((order) => needsRefresh(order, now) && !refreshing.has(String(order._id)));
+  if (!queue.length) return;
+  for (const order of queue) refreshing.add(String(order._id));
+
+  const worker = async () => {
+    for (let order = queue.shift(); order; order = queue.shift()) {
+      try {
+        await getOrderTracking(collections, env, order);
+      } catch (err) {
+        log?.warn?.({ err }, "[tracking] background refresh failed");
+      } finally {
+        refreshing.delete(String(order._id));
+      }
+    }
+  };
+  void Promise.all(Array.from({ length: Math.min(BACKGROUND_CONCURRENCY, queue.length) }, worker));
+}

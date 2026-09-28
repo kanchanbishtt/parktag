@@ -24,7 +24,9 @@
  */
 (function () {
   "use strict";
-  if (window.ptCollectAddress) return; // guard against double-inclusion
+  // Guard against double-inclusion. checkout-loader.js parks a stub under this
+  // name (flagged .lazy) until the real file arrives, which is this one.
+  if (window.ptCollectAddress && !window.ptCollectAddress.lazy) return;
 
   var els = null; // built lazily on first open
   var resolver = null; // resolve fn of the in-flight promise
@@ -524,6 +526,7 @@
       els.payCod.appendChild(codNote);
     }
     payPrices = codOn ? { online: amountPaise, cod: codPaise, mrp: Number(summary.mrpPaise) } : null;
+    if (codOn) loadNumberFlow();
     setPayChoice("online");
 
     var oldOffer = els.summary.querySelector(".pt-addr-summary-offer");
@@ -546,10 +549,20 @@
   // script CDN. Decoration only: until (or unless) it loads, plain text shows.
   var INR_WHOLE = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 });
   var numberFlow = null;
-  import("/scripts/vendor/number-flow.js").then(function (m) {
-    m.define("number-flow", m.default);
-    numberFlow = m;
-  }).catch(function () { /* plain text it is */ });
+  var numberFlowLoad = null;
+  // Fetched the first time a summary with two prices opens, not on page load:
+  // most sheets never need it. Whatever price is already showing is upgraded
+  // in place once it lands.
+  function loadNumberFlow() {
+    if (numberFlowLoad) return;
+    numberFlowLoad = import("/scripts/vendor/number-flow.js").then(function (m) {
+      m.define("number-flow", m.default);
+      numberFlow = m;
+      if (els && payPrices) {
+        renderSummaryPrice(payChoice === "cod" ? payPrices.cod : payPrices.online, payPrices.mrp);
+      }
+    }).catch(function () { /* plain text it is */ });
+  }
 
   function renderSummaryPrice(amountPaise, mrpPaise) {
     var hasWas = Number.isFinite(mrpPaise) && mrpPaise > amountPaise;
@@ -997,7 +1010,7 @@
   // it did before, so the address flow never depends on it.
   async function fetchProfileName() {
     try {
-      var res = await fetch("/api/owner/dashboard");
+      var res = await fetch("/api/owner/dashboard?qr=0");
       if (!res.ok) return "";
       var data = await res.json();
       return (data && data.owner && data.owner.displayName) || "";

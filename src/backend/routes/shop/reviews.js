@@ -6,23 +6,38 @@
 // Not rendered anywhere yet. An admin approves rows at /admin/reviews first.
 
 import { getCollections } from "../../lib/db/repositories.js";
+import { createLoaderCache } from "../../lib/core/loader-cache.js";
 import { LIST_PROJECTION, toPublicReview, reviewObjectId, firstPhoto } from "../../lib/core/reviews.js";
 
 export function registerShopReviewRoutes(app, env) {
+  // Everyone sees the same approved reviews, and an admin approving one can wait
+  // a minute to show. Off outside production so tests and dev see live data.
+  const reviewsCache = createLoaderCache({
+    ttlMs: 60 * 1000,
+    cap: 1,
+    name: "public-reviews",
+    enabled: env.runtimeMode === "production"
+  });
+
   app.get(
     "/api/shop/reviews",
-    { config: { rateLimit: { max: 60, timeWindow: "1 minute" } } },
+    // Per-replica counting: a cheap cached read does not need the Mongo round
+    // trip a cross-replica limit costs.
+    { config: { rateLimit: { max: 60, timeWindow: "1 minute", local: true } } },
     async (_request, reply) => {
       const collections = await getCollections(env);
       if (!collections) { reply.code(503); return { ok: false, error: "Reviews are unavailable." }; }
 
-      const rows = await collections.reviews
-        .find({ approved: true }, { projection: LIST_PROJECTION })
-        .sort({ receivedAt: -1 })
-        .limit(50)
-        .toArray();
+      reply.header("Cache-Control", "public, max-age=60");
+      return reviewsCache("approved", async () => {
+        const rows = await collections.reviews
+          .find({ approved: true }, { projection: LIST_PROJECTION })
+          .sort({ receivedAt: -1 })
+          .limit(50)
+          .toArray();
 
-      return { ok: true, reviews: rows.map(toPublicReview) };
+        return { ok: true, reviews: rows.map(toPublicReview) };
+      });
     }
   );
 

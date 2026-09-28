@@ -135,8 +135,8 @@ describe("funnel events", () => {
   });
 
   test("the landing banner reports select_promotion with the offer's code", async () => {
-    const source = await read("landing/app/components/LaunchOffer.tsx");
-    assert.match(source, /ptTrack\?\.\("select_promotion", \{\s*promotion_id: offer\.code/);
+    const source = await read("landing/app/components/LaunchOfferLink.tsx");
+    assert.match(source, /ptTrack\?\.\("select_promotion", \{\s*promotion_id: code/);
   });
 
   test("every new event is mapped and its parameters survive the allow-list", async () => {

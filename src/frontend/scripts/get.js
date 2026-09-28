@@ -19,12 +19,12 @@ const PACKS = [
   {
     id: "pt-car-1",
     desc: "One tag for the windscreen of one car.",
-    image: "/images/shop-car.webp"
+    image: "/images/shop-car-thumb.webp"
   },
   {
     id: "pt-car-2",
     desc: "Best value. Tag two cars, or the front and back of one.",
-    image: "/images/shop-car-2.svg"
+    image: "/images/shop-car-2-thumb.webp"
   },
   // Out of stock, not withdrawn. A pack we still price but cannot ship is
   // shown with its price and no way to buy it, rather than dropped: a visitor
@@ -33,13 +33,13 @@ const PACKS = [
   {
     id: "pt-combo",
     desc: "Car and bike together, for the whole household.",
-    image: "/images/shop-combo.svg",
+    image: "/images/shop-combo-thumb.webp",
     soldOut: true
   },
   {
     id: "pt-bike-1",
     desc: "For a two-wheeler, front and back.",
-    image: "/images/shop-bike.webp",
+    image: "/images/shop-bike-thumb.webp",
     soldOut: true
   }
 ];
@@ -587,24 +587,11 @@ function say(message) {
   note.textContent = message;
 }
 
-// Loaded on demand rather than eagerly in the page's <script> tags: most ad
-// traffic bounces before ever reaching checkout, and Instagram's in-app
-// browser can tear the WebView down mid-init, which was surfacing as a
-// spurious "Error invoking postMessage: Java object is gone" console error
-// for visitors who never bought anything.
-let _rzpLoad = null;
-function loadRazorpay() {
-  if (typeof Razorpay === "function") return Promise.resolve(true);
-  if (_rzpLoad) return _rzpLoad;
-  _rzpLoad = new Promise((resolve) => {
-    const script = document.createElement("script");
-    script.src = "https://checkout.razorpay.com/v1/checkout.js";
-    script.onload = () => resolve(typeof Razorpay === "function");
-    script.onerror = () => { _rzpLoad = null; resolve(false); };
-    document.head.appendChild(script);
-  });
-  return _rzpLoad;
-}
+// Loaded on demand (see checkout-loader.js) rather than in the page's <script>
+// tags: most ad traffic bounces before checkout, and Instagram's in-app browser
+// can tear the WebView down mid-init, which surfaced as a spurious "Java object
+// is gone" console error for visitors who never bought anything.
+const loadRazorpay = () => window.ptLoadRazorpay();
 
 // Opens a connection to a host we are about to need. Added at the moment of
 // intent rather than written into the HTML: a page-load preconnect is spent on
@@ -956,7 +943,14 @@ function wireGallery() {
     });
   };
 
-  track.addEventListener("scroll", sync, { passive: true });
+  // At most one read per frame: scroll fires far more often than the dots can
+  // usefully change, and each read of scrollLeft forces a layout.
+  let syncQueued = false;
+  track.addEventListener("scroll", () => {
+    if (syncQueued) return;
+    syncQueued = true;
+    requestAnimationFrame(() => { syncQueued = false; sync(); });
+  }, { passive: true });
   sync();
 
   // ── Autoplay ──────────────────────────────────────────────────────────────

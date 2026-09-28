@@ -9,6 +9,8 @@
 // production is genuinely the only environment available to test against.
 
 import { refuseInTestRun } from "../core/external-guard.js";
+import { fetchWithTimeout } from "../core/fetch-timeout.js";
+import { createLoaderCache } from "../core/loader-cache.js";
 
 export function isDelhiveryConfigured(env) {
   return Boolean(env.delhiveryApiKey && env.delhiveryPickupLocation);
@@ -19,7 +21,7 @@ function authHeaders(env) {
 }
 
 async function getJson(url, headers) {
-  const response = await fetch(url, { headers });
+  const response = await fetchWithTimeout(url, { headers }, 6000);
   const text = await response.text();
   let data = null;
   try {
@@ -30,6 +32,19 @@ async function getJson(url, headers) {
   return { ok: response.ok, status: response.status, data };
 }
 
+// A pincode's serviceability changes on the scale of weeks, and this is asked on
+// every address save and every checkout, so a good answer is kept for 12 hours.
+// Only a successful lookup is stored: an outage answer (`serviceable: null`)
+// must not stick for half a day. Off outside production, so tests and local
+// runs always ask the (stubbed) courier.
+const PINCODE_TTL_MS = 12 * 60 * 60 * 1000;
+const pincodeCache = createLoaderCache({
+  ttlMs: PINCODE_TTL_MS,
+  cap: 5000,
+  name: "pincode-serviceability",
+  cacheable: (result) => result.serviceable !== null
+});
+
 // Returns { serviceable, cod, prepaid }. `serviceable` is `null` (not false)
 // on any API/network failure — callers should fail OPEN on null so a
 // Delhivery outage never blocks someone from saving an address or checking
@@ -37,6 +52,11 @@ async function getJson(url, headers) {
 export async function checkPincodeServiceability(env, pincode) {
   if (!isDelhiveryConfigured(env)) return { serviceable: null, cod: null, prepaid: null };
 
+  if (env.runtimeMode !== "production") return lookupPincode(env, pincode);
+  return pincodeCache(`${env.delhiveryBaseUrl}|${pincode}`, () => lookupPincode(env, pincode));
+}
+
+async function lookupPincode(env, pincode) {
   try {
     const url = `${env.delhiveryBaseUrl}/c/api/pin-codes/json/?filter_codes=${encodeURIComponent(pincode)}`;
     const { ok, data } = await getJson(url, authHeaders(env));
@@ -112,14 +132,14 @@ export async function createShipment(env, { orderId, address, productName, codAm
   };
 
   const body = `format=json&data=${encodeURIComponent(JSON.stringify(payload))}`;
-  const response = await fetch(`${env.delhiveryBaseUrl}/api/cmu/create.json`, {
+  const response = await fetchWithTimeout(`${env.delhiveryBaseUrl}/api/cmu/create.json`, {
     method: "POST",
     headers: {
       ...authHeaders(env),
       "content-type": "application/x-www-form-urlencoded"
     },
     body
-  });
+  }, 10000);
 
   const text = await response.text();
   let data = null;
@@ -213,7 +233,7 @@ export async function requestPickup(env, { pickupDate, expectedPackageCount = 1 
     return { requested: false, pickupId: null, forDate: pickupDate, reason: "not-configured" };
   }
 
-  const response = await fetch(`${env.delhiveryBaseUrl}/fm/request/new/`, {
+  const response = await fetchWithTimeout(`${env.delhiveryBaseUrl}/fm/request/new/`, {
     method: "POST",
     headers: { ...authHeaders(env), "content-type": "application/json" },
     body: JSON.stringify({
@@ -222,7 +242,7 @@ export async function requestPickup(env, { pickupDate, expectedPackageCount = 1 
       pickup_time: env.delhiveryPickupTime || "14:00:00",
       expected_package_count: expectedPackageCount
     })
-  });
+  }, 10000);
 
   const text = await response.text();
   let data = null;
@@ -266,11 +286,11 @@ export async function requestPickup(env, { pickupDate, expectedPackageCount = 1 
 export async function updateShipmentToPrepaid(env, waybill) {
   if (!isDelhiveryConfigured(env) || !waybill) return false;
   try {
-    const response = await fetch(`${env.delhiveryBaseUrl}/api/p/edit`, {
+    const response = await fetchWithTimeout(`${env.delhiveryBaseUrl}/api/p/edit`, {
       method: "POST",
       headers: { ...authHeaders(env), "content-type": "application/json" },
       body: JSON.stringify({ waybill, pt: "Pre-paid", cod: "0" })
-    });
+    }, 10000);
     const text = await response.text();
     let data = null;
     try { data = JSON.parse(text); } catch { data = { raw: text }; }

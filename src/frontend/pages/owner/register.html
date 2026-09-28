@@ -9,9 +9,7 @@
   <link rel="apple-touch-icon" href="/images/apple-touch-icon.png" />
   <link rel="stylesheet" href="/styles/styles.css?v=__ASSET_VERSION__"/>
     <link rel="stylesheet" href="/styles/owner-register.css?v=__ASSET_VERSION__" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="preload" as="font" type="font/woff2" href="/fonts/inter-latin-var.woff2" crossorigin>
     <script src="/pt-analytics.js" data-surface="app" defer></script>
   </head>
 <body>
@@ -28,7 +26,7 @@
       </svg>
     </a>
     <div class="av-logo">
-      <a href="https://parktag.me" aria-label="ParkTag home" style="display:inline-flex;align-items:center;text-decoration:none"><img src="/images/light-logo.png" alt="ParkTag" style="height:42px;width:auto;"></a>
+      <a href="https://parktag.me" aria-label="ParkTag home" style="display:inline-flex;align-items:center;text-decoration:none"><img width="336" height="126" src="/images/light-logo-336.webp" alt="ParkTag" style="height:42px;width:auto;"></a>
     </div>
   </div>
 
@@ -173,7 +171,7 @@
           <!-- Left: white panel -->
           <div class="pt-left">
             <div>
-              <img class="pt-logo" src="/images/light-logo.png" alt="ParkTag"/>
+              <img class="pt-logo" data-src="/images/light-logo.png" alt="ParkTag"/>
               <div class="pt-tagline">SCAN TO CONNECT</div>
             </div>
             <p class="pt-head">Scan the code<br>to <u>contact the<br>vehicle owner.</u></p>
@@ -186,7 +184,7 @@
           <div class="pt-right">
             <div class="pt-qr-box">
               <img class="pt-qr" id="print-qr-img"
-                src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=https://parktag.me"
+                data-src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=https://parktag.me"
                 alt="QR Code"/>
             </div>
             <div class="pt-rt-brand">Park<span>Tag</span>.me &nbsp;·&nbsp; <span>vehicle tag</span></div>
@@ -207,6 +205,7 @@
        script-src 'unsafe-inline'. -->
   <script src="/scripts/owner/register-skeleton.js?v=__ASSET_VERSION__" defer></script>
   <script src="/scripts/owner/smart-back.js?v=__ASSET_VERSION__"></script>
+  <script src="/scripts/lazy-print-images.js?v=__ASSET_VERSION__" defer></script>
   <script type="module" src="/scripts/owner/register.js?v=__ASSET_VERSION__"></script>
 </body>
 </html>

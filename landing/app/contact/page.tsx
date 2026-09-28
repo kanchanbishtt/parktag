@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { SiteHeader } from "../components/SiteHeader";
-import { PageLoader } from "../components/PageLoader";
 
 export const metadata: Metadata = {
   title: "Contact | ParkTag",
@@ -30,7 +29,7 @@ const CARD =
 
 export default function ContactPage() {
   return (
-    <PageLoader>
+    <>
       <SiteHeader defaultDark={false} />
       <div className="min-h-screen bg-white pt-16">
         <div className="max-w-2xl mx-auto px-4 sm:px-6 py-12 sm:py-16">
@@ -105,6 +104,6 @@ export default function ContactPage() {
           </div>
         </div>
       </div>
-    </PageLoader>
+    </>
   );
 }

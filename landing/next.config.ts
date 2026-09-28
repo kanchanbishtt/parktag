@@ -102,6 +102,14 @@ const nextConfig: NextConfig = {
   // therefore which CVE list to work through, and buys nothing in return. The
   // backend has never sent it (helmet removes it there); this site did.
   poweredByHeader: false,
+  // Only one next/image exists (the pack card in WhyBetter, at most about half
+  // the viewport wide and hidden under lg). The defaults build a nine-step
+  // srcset up to 3840w for it. The source is 916px wide, so two widths cover
+  // 1x and 2x screens and anything larger would only re-encode the same pixels.
+  images: {
+    deviceSizes: [640, 916],
+    imageSizes: [],
+  },
   async headers() {
     return [
       // How long a shared cache may hold a PAGE.
@@ -136,6 +144,28 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      // Long-lived caching for public/ assets. These URLs are NOT content-hashed,
+      // so the rule is: RENAME THE FILE WHEN IT CHANGES (the existing "-v2"
+      // convention). Overwriting one in place would leave returning visitors on
+      // the old copy for a year.
+      //
+      // Scoped to /proof and to single-segment media files at the root of
+      // public/. That cannot reach /_next (always deeper than one segment, and
+      // already immutable) or any page route (no extension). app/icon.png and
+      // apple-icon.png match too, but Next links them with a content-hash query
+      // string, so an immutable lifetime is correct for them as well.
+      ...(isDev
+        ? []
+        : [
+            {
+              source: "/proof/:path*",
+              headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
+            },
+            {
+              source: "/:file([^/]+\\.(?:webp|png|jpg|jpeg|svg|mp4))",
+              headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
+            },
+          ]),
       {
         source: "/:path*",
         headers: isDev

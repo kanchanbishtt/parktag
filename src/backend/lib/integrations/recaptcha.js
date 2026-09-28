@@ -5,7 +5,11 @@
 // { ok: true, skipped: true } so the OTP-send flow keeps working unchanged in
 // local/dev and on any deploy that hasn't set the keys.
 
+import { fetchWithTimeout } from "../core/fetch-timeout.js";
+
 const VERIFY_URL = "https://www.google.com/recaptcha/api/siteverify";
+// Verification is fail-open, so a slow Google should cost a login seconds, not minutes.
+const VERIFY_TIMEOUT_MS = 5000;
 // v3 returns a 0..1 score (1 = very likely human). 0.5 is Google's suggested
 // default cut-off; below it we treat the request as bot-like and reject.
 const MIN_SCORE = 0.5;
@@ -42,11 +46,11 @@ export async function verifyRecaptcha(env, token, { remoteIp, expectedAction } =
     });
     if (remoteIp) params.set("remoteip", remoteIp);
 
-    const res = await fetch(VERIFY_URL, {
+    const res = await fetchWithTimeout(VERIFY_URL, {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },
       body: params.toString()
-    });
+    }, VERIFY_TIMEOUT_MS);
     data = await res.json();
   } catch (err) {
     // Google's verifier is unreachable (their outage or a network blip). Fail
@@ -97,11 +101,11 @@ export async function verifyRecaptchaV2(env, token, { remoteIp } = {}) {
     });
     if (remoteIp) params.set("remoteip", remoteIp);
 
-    const res = await fetch(VERIFY_URL, {
+    const res = await fetchWithTimeout(VERIFY_URL, {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },
       body: params.toString()
-    });
+    }, VERIFY_TIMEOUT_MS);
     data = await res.json();
   } catch (err) {
     // Same reasoning as v3: Google being unreachable is their outage, not the

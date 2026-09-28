@@ -270,6 +270,28 @@ async function buildActivationQueue(collections) {
   return queue;
 }
 
+// The contact-request fields /api/admin/summary hands back.
+const RECENT_REQUEST_PROJECTION = {
+  token: 1, phone: 1, action: 1, messageChannel: 1, status: 1, provider: 1,
+  providerRequestId: 1, providerWebhookStatus: 1, providerError: 1,
+  providerErrorDetail: 1, providerStatusCode: 1, createdAt: 1
+};
+
+// What the print queue reads off each tag: the response fields plus what
+// orderForPrinting and stickerSerialFor sort and format by.
+const PRINT_QUEUE_PROJECTION = {
+  token: 1, batchNumber: 1, batchLabel: 1, printStatus: 1, premium: 1,
+  issuanceRunId: 1, issuedAt: 1, serialNumber: 1, mountType: 1,
+  runSerialStart: 1, runSerialEnd: 1, createdAt: 1
+};
+
+// Print queue: the default and the ceiling for `?limit=`. The queue is a print
+// run, so it must not quietly come back short: the default is well above the
+// largest run issued (a few thousand), and a client that hits it is told so
+// with `hasMore`.
+const PRINT_QUEUE_DEFAULT_LIMIT = 10000;
+const PRINT_QUEUE_MAX_LIMIT = 50000;
+
 export function registerAdminRoutes(app, env) {
   // ── E-Tag management (spec §10) ───────────────────────────────────
   // List / search all owner E-Tags with purchase + contact summary.
@@ -926,11 +948,14 @@ export function registerAdminRoutes(app, env) {
     const [ownerCount, tagCount, requestCount] = await Promise.all([
       collections.owners.countDocuments(NOT_DEMO_OWNER),
       collections.tags.countDocuments(NOT_MARKETING_STOCK),
-      collections.contactRequests.countDocuments()
+      collections.contactRequests.estimatedDocumentCount()
     ]);
 
+    // Projected to what the summaries below read. Never the whole document:
+    // it carries the password and PIN hashes, which have no business in this
+    // process's working set for a headline table.
     const owners = await collections.owners
-      .find(NOT_DEMO_OWNER)
+      .find(NOT_DEMO_OWNER, { projection: { displayName: 1, email: 1, credits: 1, createdAt: 1 } })
       .sort({ createdAt: -1 })
       .limit(500)
       .toArray();
@@ -944,7 +969,7 @@ export function registerAdminRoutes(app, env) {
       )
       .toArray();
     const requests = await collections.contactRequests
-      .find({})
+      .find({}, { projection: RECENT_REQUEST_PROJECTION })
       .sort({ createdAt: -1 })
       .limit(20)
       .toArray();
@@ -955,7 +980,10 @@ export function registerAdminRoutes(app, env) {
       ...NOT_MARKETING_STOCK
     });
     const pendingPrintTags = await collections.tags
-      .find({ status: "unclaimed", printStatus: { $ne: "printed" }, ...NOT_MARKETING_STOCK })
+      .find(
+        { status: "unclaimed", printStatus: { $ne: "printed" }, ...NOT_MARKETING_STOCK },
+        { projection: { token: 1, batchNumber: 1, printStatus: 1, createdAt: 1 } }
+      )
       .sort({ createdAt: -1 })
       .limit(500)
       .toArray();
@@ -1087,7 +1115,7 @@ export function registerAdminRoutes(app, env) {
           { projection: { marketingStock: 1, soldAt: 1, demoOwnerId: 1 } }
         )
         .toArray(),
-      collections.contactRequests.countDocuments(),
+      collections.contactRequests.estimatedDocumentCount(),
       collections.contactRequests.countDocuments(createdSince),
       collections.contactRequests.countDocuments({ status: "provider_failed", ...createdSince }),
       landingTotals(collections, trafficDays)
@@ -1179,24 +1207,38 @@ export function registerAdminRoutes(app, env) {
     // ?printed=1 → unclaimed tags already printed (awaiting owner claim).
     // default    → unclaimed tags still waiting to be printed (the print queue).
     const printedOnly = request.query.printed === "1";
-    const tags = orderForPrinting(
-      await collections.tags
-        .find({
+    const requestedLimit = parseInt(request.query.limit, 10);
+    const limit = Math.min(
+      Number.isFinite(requestedLimit) && requestedLimit > 0 ? requestedLimit : PRINT_QUEUE_DEFAULT_LIMIT,
+      PRINT_QUEUE_MAX_LIMIT
+    );
+    // One row past the limit, only to learn whether there is more.
+    const rows = await collections.tags
+      .find(
+        {
           status: "unclaimed",
           printStatus: printedOnly ? "printed" : { $ne: "printed" },
           // A demo sticker's resting state IS "unclaimed", so without this every
           // Deactivate hands the salesperson's sticker back to the print queue
           // as something still to be printed. It is already printed and in a bag.
           ...NOT_MARKETING_STOCK
-        })
-        .toArray()
-    );
+        },
+        { projection: PRINT_QUEUE_PROJECTION }
+      )
+      .limit(limit + 1)
+      .toArray();
+    const hasMore = rows.length > limit;
+    const tags = orderForPrinting(hasMore ? rows.slice(0, limit) : rows);
 
     return {
       ok: true,
       // Chunk size for the export endpoint, so the client never sends a batch
       // the server will reject.
       exportMaxPerRequest: EXPORT_MAX_PER_REQUEST,
+      // True when the queue holds more than `limit` tags and this is only the
+      // first part of it.
+      hasMore,
+      limit,
       tags: tags.map((tag) => ({
         id: String(tag._id),
         token: tag.token,
@@ -1463,8 +1505,12 @@ export function registerAdminRoutes(app, env) {
 
     const totalOwners = await collections.owners.countDocuments(ownerFilter);
     const { page, pages, pageSize, skip } = listPage(request.query.page, totalOwners);
+    // Projected to the fields the rows below use, so no credential hash is ever
+    // loaded for this page, let alone returned.
     const owners = await collections.owners
-      .find(ownerFilter)
+      .find(ownerFilter, {
+        projection: { displayName: 1, email: 1, phone: 1, mobile: 1, credits: 1, createdAt: 1, demoCreatedOwner: 1 }
+      })
       // _id breaks ties so an owner never shows on two pages or on none.
       .sort({ createdAt: -1, _id: -1 })
       .skip(skip)
@@ -1571,7 +1617,12 @@ export function registerAdminRoutes(app, env) {
     const collections = await getCollections(env);
 
     const requests = await collections.contactRequests
-      .find({})
+      .find({}, {
+        projection: {
+          token: 1, phone: 1, action: 1, messageChannel: 1, message: 1,
+          status: 1, provider: 1, providerError: 1, createdAt: 1
+        }
+      })
       .sort({ createdAt: -1 })
       .limit(limit)
       .toArray();
@@ -1772,7 +1823,7 @@ export function registerAdminRoutes(app, env) {
     // deleting the final one locks the console permanently and leaves no
     // in-app way back in. (The self-delete guard above doesn't cover this: two
     // admins can delete each other down to zero.)
-    const adminCount = await collections.admins.countDocuments();
+    const adminCount = await collections.admins.estimatedDocumentCount();
     if (adminCount <= 1) {
       reply.code(400);
       return {

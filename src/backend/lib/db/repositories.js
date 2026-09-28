@@ -6,6 +6,12 @@ function withPrefix(prefix, name) {
   return `${prefix}${name}`;
 }
 
+// getCollections() runs on nearly every request and used to build about 45
+// collection handles each time. The handles are stateless, so one set per Db
+// and prefix serves every caller. Keyed on the Db object, which mongo.js hands
+// out once per client, so a reconnect (a new client) starts from a clean slate.
+const collectionsByDb = new WeakMap();
+
 export async function getCollections(env) {
   const db = await getMongoDb(env);
 
@@ -15,6 +21,20 @@ export async function getCollections(env) {
 
   const prefix = env.mongoCollectionPrefix || "";
 
+  let byPrefix = collectionsByDb.get(db);
+  if (!byPrefix) {
+    byPrefix = new Map();
+    collectionsByDb.set(db, byPrefix);
+  }
+  let collections = byPrefix.get(prefix);
+  if (!collections) {
+    collections = buildCollections(db, prefix);
+    byPrefix.set(prefix, collections);
+  }
+  return collections;
+}
+
+function buildCollections(db, prefix) {
   return {
     slackCommands: db.collection(withPrefix(prefix, "slack_commands")),
     tagResetHistory: db.collection(withPrefix(prefix, "tag_reset_history")),
@@ -240,6 +260,21 @@ const CORE_INDEXES = [
   // Backs the per-referrer reward cap, which counts this referrer's rewarded
   // orders inside a rolling window on every paid referral order.
   ["shopOrders", { referredBy: 1, referralRewardedAt: -1 }, { name: "referral_rewards" }],
+  // The admin overview, activity feed and dashboards read the newest requests
+  // across every token and owner, which no compound index above leads with.
+  ["contactRequests", { createdAt: -1 }, { name: "recent" }],
+  ["owners", { createdAt: -1 }, { name: "created_recent" }],
+  // Campaigns filter shop orders by status and a createdAt window every tick;
+  // the existing owner_status index leads with ownerId and cannot serve that.
+  ["shopOrders", { status: 1, createdAt: -1 }, { name: "status_recent" }],
+  // The trial-ending campaign: live premium tags by activation window.
+  ["tags", { premium: 1, status: 1, activatedAt: 1 }, { name: "premium_trial" }],
+  // Revoking a user's sessions (logout everywhere, PIN change, deletion).
+  ["sessions", { userId: 1 }, { name: "user" }],
+  // The TTL that expires sessions. lib/auth/session.js also creates this on
+  // first use; both use the default name so the two are the same index and
+  // whichever runs second is a no-op.
+  ["sessions", { expiresAt: 1 }, { expireAfterSeconds: 0 }],
   ["contactRequests", { token: 1, createdAt: -1 }, { name: "token_recent" }],
   ["contactRequests", { ownerId: 1, createdAt: -1 }, { name: "owner_recent" }],
   ["contactRequests", { providerRequestId: 1 }, { name: "provider_request" }],

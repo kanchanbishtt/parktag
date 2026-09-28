@@ -194,10 +194,12 @@ describe("finding #6 — auth pages are not stored by caches or history", () => 
   });
 
   test("pages outside the auth surface are left alone", async () => {
-    // The hook must not quietly become a site-wide cache disable.
+    // The hook must not quietly become a site-wide cache disable. A public
+    // page is the sentinel: /api/* is no-store by default now (M14), so an API
+    // path can no longer tell the two apart.
     const response = await app.inject({
       method: "GET",
-      url: "/api/health",
+      url: "/hub",
       remoteAddress: uniqueAddress()
     });
 

@@ -1,7 +1,3 @@
-"use client";
-
-import { useEffect, useRef, useState } from "react";
-
 interface Props {
   children: React.ReactNode;
   className?: string;
@@ -9,66 +5,20 @@ interface Props {
   from?: "bottom" | "left" | "right";
 }
 
+// A CSS scroll reveal, so it is server markup with nothing to hydrate: the
+// content is in the HTML at full opacity and the animation only exists in
+// browsers that support scroll timelines (see .pt-reveal in globals.css).
+// Everywhere else, and with reduced motion or JS off, the block is simply
+// visible. Never wrap above-the-fold content in this.
+//
+// `delay` used to be a transition delay in ms. A scroll-driven animation has no
+// clock to delay, so it now nudges where in the entry range the reveal starts,
+// which keeps side-by-side cards staggered.
 export function AnimateIn({ children, className = "", delay = 0, from = "bottom" }: Props) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-
-    let observer: IntersectionObserver;
-    let fallback: ReturnType<typeof setTimeout>;
-
-    const show = () => {
-      setVisible(true);
-      observer?.disconnect();
-      clearTimeout(fallback);
-    };
-
-    // After layout is painted, check position
-    const raf = requestAnimationFrame(() => {
-      if (!el) return;
-      const rect = el.getBoundingClientRect();
-
-      // Already above viewport OR currently visible → show immediately (no waiting)
-      if (rect.bottom <= 0 || rect.top < window.innerHeight) {
-        show();
-        return;
-      }
-
-      observer = new IntersectionObserver(
-        ([entry]) => { if (entry.isIntersecting) show(); },
-        { threshold: 0.08 }
-      );
-      observer.observe(el);
-
-      // Safety net: show after 1.2s no matter what
-      fallback = setTimeout(show, 1200);
-    });
-
-    return () => {
-      cancelAnimationFrame(raf);
-      observer?.disconnect();
-      clearTimeout(fallback);
-    };
-  }, []);
-
-  const translate = {
-    bottom: "translateY(28px)",
-    left: "translateX(-24px)",
-    right: "translateX(24px)",
-  }[from];
-
   return (
     <div
-      ref={ref}
-      className={className}
-      style={{
-        opacity: visible ? 1 : 0,
-        transform: visible ? "translate(0)" : translate,
-        transition: `opacity 550ms ease ${delay}ms, transform 550ms ease ${delay}ms`,
-      }}
+      className={`pt-reveal pt-reveal-${from} ${className}`}
+      style={{ "--pt-d": `${delay / 20}%` } as React.CSSProperties}
     >
       {children}
     </div>

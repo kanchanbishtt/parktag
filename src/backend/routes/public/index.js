@@ -1813,6 +1813,7 @@ export function registerPublicRoutes(app, env) {
   // The site key is public by definition — it is embedded in the widget markup
   // Google renders. Only the secret stays server-side.
   app.get("/api/recaptcha/v2-config", async (_request, reply) => {
+    reply.header("Cache-Control", "public, max-age=3600");
     reply.send({ siteKey: env.recaptchaV2SiteKey || "" });
   });
 

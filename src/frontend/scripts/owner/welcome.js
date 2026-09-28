@@ -23,10 +23,16 @@ function goTo(idx) {
 // every line of dashboard setup that follows.
 dots.forEach(d => d.addEventListener("click", () => goTo(Number(d.dataset.idx))));
 
-function startAuto() { autoTimer = setInterval(() => goTo(cur + 1), 3000); }
-function stopAuto()  { clearInterval(autoTimer); }
-viewport.addEventListener("mouseenter", stopAuto);
-viewport.addEventListener("mouseleave", startAuto);
+function startAuto() { stopAuto(); autoTimer = setInterval(() => goTo(cur + 1), 3000); }
+function stopAuto()  { clearInterval(autoTimer); autoTimer = null; }
+let hovered = false;
+viewport.addEventListener("mouseenter", () => { hovered = true; stopAuto(); });
+viewport.addEventListener("mouseleave", () => { hovered = false; startAuto(); });
+// A hidden tab has nobody to look at the banners, so it should not keep turning them.
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) stopAuto();
+  else if (!hovered) startAuto();
+});
 
 let swipeX = 0;
 track.addEventListener("touchstart", e => { swipeX = e.touches[0].clientX; }, { passive: true });
@@ -926,7 +932,7 @@ const VEHICLE_LABELS = {
 // these no longer inherit the card's text colour.
 const VEHICLE_ICON_SRC = {
   car: "/images/car-tag.svg",
-  bike: "/images/bike-tag.svg",
+  bike: "/images/bike-tag-144.webp",
   scooter: "/images/vtype-scooter.png",
   auto_rickshaw: "/images/vtype-auto.png",
   truck: "/images/vtype-truck.png",
@@ -2143,7 +2149,7 @@ async function payForCallback(btnId) {
     if (btn) { btn.disabled = false; btn.innerHTML = label; btn.classList.remove("pt-btn-loading"); }
   };
 
-  if (typeof Razorpay === "undefined") {
+  if (!(await window.ptLoadRazorpay())) {
     _toast("Payment could not start. Check your connection and try again.", "err");
     return;
   }
@@ -2436,7 +2442,7 @@ async function syncLocalVehicles(localVehicles, userId) {
   }
   if (!synced) return;
   try {
-    const res = await fetch("/api/owner/dashboard");
+    const res = await fetch("/api/owner/dashboard?qr=0");
     if (!res.ok) return;
     const data = await res.json();
     allTags = dashboardTags(data.tags || []);
@@ -2449,7 +2455,7 @@ async function syncLocalVehicles(localVehicles, userId) {
 async function load() {
   grid.innerHTML = skeletonGrid(3);
   try {
-    const res = await fetch("/api/owner/dashboard");
+    const res = await fetch("/api/owner/dashboard?qr=0");
     if (res.status === 401 || res.status === 403) {
       window.location.href = "/owner-login";
       return;
@@ -3104,7 +3110,8 @@ function downloadETag() {
   const plate = tag.plateNumber || tag.number || "-";
   const etagId = tag.etagId ? String(tag.etagId).replace(/^PT-/, "") : ", ";
   const status = tag.status === "inactive" ? "Inactive" : "Active";
-  const qr = tag.qrDataUrl || "";
+  // Dashboard is read with qr=0, so the QR arrives as a cacheable URL.
+  const qr = tag.qrUrl || tag.qrDataUrl || "";
 
   const numEl = document.getElementById("wl-print-vehicle-num");
   const idEl  = document.getElementById("wl-print-etag-id");
@@ -3119,7 +3126,9 @@ function downloadETag() {
   if (qrEl)  qrEl.src          = qr;
   if (serEl) serEl.textContent = tag.serial || "";
 
-  setTimeout(() => window.print(), 80);
+  // The sticker artwork is not fetched until a print is asked for.
+  // Also wait for the QR itself, which loads from its own URL.
+  Promise.all([window.ptLoadPrintImages?.(), qrEl?.decode?.().catch(() => {})]).then(() => window.print());
 }
 window.downloadETag = downloadETag;
 
@@ -3131,7 +3140,7 @@ function downloadETagFor(tagId) {
   const plate  = tag.plateNumber || tag.number || "-";
   const etagId = tag.etagId ? String(tag.etagId).replace(/^PT-/, "") : ", ";
   const status = tag.status === "inactive" ? "Inactive" : "Active";
-  const qr     = tag.qrDataUrl || "";
+  const qr     = tag.qrUrl || tag.qrDataUrl || "";
 
   const numEl = document.getElementById("wl-print-vehicle-num");
   const idEl  = document.getElementById("wl-print-etag-id");
@@ -3146,7 +3155,8 @@ function downloadETagFor(tagId) {
   if (qrEl)  qrEl.src          = qr;
   if (serEl) serEl.textContent = tag.serial || "";
 
-  setTimeout(() => window.print(), 80);
+  // Also wait for the QR itself, which loads from its own URL.
+  Promise.all([window.ptLoadPrintImages?.(), qrEl?.decode?.().catch(() => {})]).then(() => window.print());
 }
 window.downloadETagFor = downloadETagFor;
 
@@ -3202,9 +3212,20 @@ async function removeVehicle() {
 }
 window.removeVehicle = removeVehicle;
 
+// The emergency numbers and vehicle lists cached on this device belong to the
+// person who just signed out; the next person on a shared phone must not find them.
+function clearOwnerLocalCache() {
+  try {
+    Object.keys(localStorage)
+      .filter((k) => k.startsWith("pt_sos_") || k.startsWith("pt_vehicles_"))
+      .forEach((k) => localStorage.removeItem(k));
+  } catch { /* storage blocked: nothing was cached */ }
+}
+
 async function signOut() {
   try { await fetch("/api/auth/logout", { method: "POST" }); } catch {}
   sessionStorage.clear();
+  clearOwnerLocalCache();
   // replace(), not href: assigning pushes a new entry and leaves the dashboard
   // sitting directly behind it, so one press of Back returned to the page the
   // person had just signed out of. Replacing swaps the dashboard's own entry
@@ -3252,6 +3273,7 @@ async function deleteAccount() {
 
     if (res.ok && data.ok) {
       sessionStorage.clear();
+      clearOwnerLocalCache();
       // replace(), not href: the account is gone, so leaving the dashboard one
       // Back press away restores a page built from a deleted account's data.
       window.location.replace("/owner-login");

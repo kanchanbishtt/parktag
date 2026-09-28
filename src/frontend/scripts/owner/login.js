@@ -52,6 +52,7 @@ let _phoneBusy = false;
 let _smsAvailable = false;
 let _smsNextSendAt = 0;
 let _smsRevealGeneration = 0;
+let _smsTick = null;
 function resetSmsFallback() {
   _smsAvailable = false;
   _smsRevealGeneration += 1;
@@ -67,7 +68,13 @@ function refreshSmsFallback() {
     btn.disabled = _phoneBusy || remaining > 0;
     btn.textContent = remaining > 0 ? `Try SMS in ${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, "0")}` : id === "sms-fallback-btn" ? "Try SMS OTP verification" : "Resend";
   }
+  // The countdown is the only thing that needs a clock: tick while it runs and
+  // the tab is visible, and stop otherwise (a refresh on return catches up).
+  const needsTick = remaining > 0 && !document.hidden;
+  if (needsTick && !_smsTick) _smsTick = setInterval(refreshSmsFallback, 1000);
+  else if (!needsTick && _smsTick) { clearInterval(_smsTick); _smsTick = null; }
 }
+document.addEventListener?.("visibilitychange", refreshSmsFallback);
 
 // HTML-escape any value before interpolating it into innerHTML. tag.plateNumber
 // / tag.vehicleLabel are owner-supplied free text with no character allowlist
@@ -197,8 +204,8 @@ function renderDashboard(data) {
   // QR card — show first tag's QR
   const qrWrap = byId("owner-qr-wrap");
   if (qrWrap) {
-    if (tags.length && tags[0].qrDataUrl) {
-      qrWrap.innerHTML = `<img src="${tags[0].qrDataUrl}" alt="Your ParkTag QR" class="pt-qr-image" />`;
+    if (tags.length && tags[0].qrUrl) {
+      qrWrap.innerHTML = `<img src="${tags[0].qrUrl}" alt="Your ParkTag QR" class="pt-qr-image" />`;
     } else {
       qrWrap.innerHTML = `<p class="pt-empty-hint">No QR available yet.</p>`;
     }
@@ -349,7 +356,7 @@ function renderDashboard(data) {
 
 async function loadOwnerDashboard() {
   try {
-    const data = await fetchJson("/api/owner/dashboard");
+    const data = await fetchJson("/api/owner/dashboard?qr=0");
     renderDashboard(data);
   } catch (error) {
     if (error.message.includes("Authentication required")) {
@@ -524,8 +531,19 @@ async function resendWhatsappOtp() {
   }
 }
 
+// The emergency numbers and vehicle lists cached on this device belong to the
+// person who just signed out; the next person on a shared phone must not find them.
+function clearOwnerLocalCache() {
+  try {
+    Object.keys(localStorage)
+      .filter((k) => k.startsWith("pt_sos_") || k.startsWith("pt_vehicles_"))
+      .forEach((k) => localStorage.removeItem(k));
+  } catch { /* storage blocked: nothing was cached */ }
+}
+
 async function logoutOwner() {
   await fetchJson("/api/auth/logout", { method: "POST" });
+  clearOwnerLocalCache();
   // replace(), not href — see signOut() in welcome.js. Assigning leaves the
   // signed-in page one Back press away.
   window.location.replace("/owner");
@@ -730,7 +748,6 @@ if (hasEl("owner-vehicle-details")) {
 
 if (hasEl("sms-fallback-btn")) {
   refreshSmsFallback();
-  setInterval(refreshSmsFallback, 1000);
   byId("sms-fallback-btn").addEventListener("click", async () => {
     if (!_smsAvailable || _phoneBusy || Date.now() < _smsNextSendAt) return;
     byId("phone-channel").value = "sms";

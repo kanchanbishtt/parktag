@@ -35,7 +35,12 @@ test("get.js's imports are preloaded with it", () => {
   const imports = [...script.matchAll(/^import .* from "\.\/([\w-]+\.js)";$/gm)].map((m) => m[1]);
   assert.ok(imports.length > 0);
   for (const name of imports) {
-    assert.ok(html.includes(`<link rel="modulepreload" href="/scripts/${name}" />`), `modulepreload for ${name}`);
+    // Stamped like the import inside get.js (see import-stamp.js), or the
+    // preload and the import are two different URLs and the file is fetched twice.
+    assert.ok(
+      html.includes(`<link rel="modulepreload" href="/scripts/${name}?v=__ASSET_VERSION__" />`),
+      `modulepreload for ${name}`
+    );
   }
 });
 

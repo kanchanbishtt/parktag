@@ -15,9 +15,7 @@
 
     <link rel="stylesheet" href="/styles/get.css?v=__ASSET_VERSION__" />
     <link rel="stylesheet" href="/styles/pt-steps.css?v=__ASSET_VERSION__" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="preload" as="font" type="font/woff2" href="/fonts/inter-latin-var.woff2" crossorigin>
 
     <!-- The funnel starts here now. Without this the drop between "saw the
          marketing site" and "reached a price" stays unmeasurable, which is the
@@ -34,7 +32,7 @@
          nothing but a locked door. -->
     <header class="gt-header">
       <a class="gt-logo" href="/direct" aria-label="ParkTag">
-        <img src="/images/dark-logo.png" alt="ParkTag" />
+        <img width="336" height="126" src="/images/dark-logo-336.webp" alt="ParkTag" />
       </a>
       <a class="gt-btn gt-signin" href="/owner-login">Sign in</a>
     </header>
@@ -379,7 +377,7 @@
          Empty and pointer-events:none until confetti.js puts a canvas in it. -->
     <div class="gt-cfti-host" id="gtCfti" aria-hidden="true"></div>
 
-    <script src="/scripts/owner/address-step.js?v=__ASSET_VERSION__"></script>
+    <script src="/scripts/checkout-loader.js?v=__ASSET_VERSION__" data-address-step="/scripts/owner/address-step.js?v=__ASSET_VERSION__" defer></script>
     <script type="module" src="/scripts/direct.js?v=__ASSET_VERSION__"></script>
 
     <!-- ── Handover contact ────────────────────────────────────────────────

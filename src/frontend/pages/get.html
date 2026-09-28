@@ -15,15 +15,13 @@
          have downloaded and run; get.js's fetch() then picks up this response. -->
     <link rel="preload" href="/api/shop/public-catalogue" as="fetch" crossorigin="anonymous" />
     <!-- get.js's own imports, fetched with it rather than after it. -->
-    <link rel="modulepreload" href="/scripts/recaptcha.js" />
-    <link rel="modulepreload" href="/scripts/confetti.js" />
-    <link rel="modulepreload" href="/scripts/referral-link.js" />
+    <link rel="modulepreload" href="/scripts/recaptcha.js?v=__ASSET_VERSION__" />
+    <link rel="modulepreload" href="/scripts/confetti.js?v=__ASSET_VERSION__" />
+    <link rel="modulepreload" href="/scripts/referral-link.js?v=__ASSET_VERSION__" />
 
+    <link rel="preload" as="font" type="font/woff2" href="/fonts/inter-latin-var.woff2" crossorigin />
     <link rel="stylesheet" href="/styles/get.css?v=__ASSET_VERSION__" />
     <link rel="stylesheet" href="/styles/pt-steps.css?v=__ASSET_VERSION__" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <!-- Checkout's hosts, looked up ahead of time. DNS only: it is cached for
          minutes, where a full preconnect here would be closed long before a
          visitor reaches payment. get.js preconnects at the moment of intent. -->
@@ -47,7 +45,7 @@
          nothing but a locked door. -->
     <header class="gt-header">
       <a class="gt-logo" href="/get" aria-label="ParkTag">
-        <img src="/images/dark-logo.png" alt="ParkTag" />
+        <img width="336" height="126" src="/images/dark-logo-336.webp" alt="ParkTag" />
       </a>
       <a class="gt-btn gt-signin" href="/owner-login">Sign in</a>
     </header>
@@ -384,7 +382,7 @@
            prices as soon as the catalogue arrives. -->
       <ul class="gt-packs" id="gtPacks">
         <li class="gt-pack" data-sku="pt-car-1">
-          <img src="/images/shop-car.webp" alt="" loading="lazy" decoding="async" fetchpriority="low" />
+          <img src="/images/shop-car-thumb.webp" alt="" loading="lazy" decoding="async" fetchpriority="low" />
           <div class="gt-pack-bd">
             <span class="gt-pack-n">ParkTag Car Tag (Pack of 1)</span>
             <span class="gt-pack-d">One tag for the windscreen of one car.</span>
@@ -393,7 +391,7 @@
           <a class="gt-btn gt-pack-cta" href="#packs" data-sku="pt-car-1">Order</a>
         </li>
         <li class="gt-pack" data-sku="pt-car-2">
-          <img src="/images/shop-car-2.svg" alt="" loading="lazy" decoding="async" fetchpriority="low" />
+          <img src="/images/shop-car-2-thumb.webp" alt="" loading="lazy" decoding="async" fetchpriority="low" />
           <div class="gt-pack-bd">
             <span class="gt-pack-n">ParkTag Car Tag (Pack of 2)</span>
             <span class="gt-pack-d">Best value. Tag two cars, or the front and back of one.</span>
@@ -471,7 +469,7 @@
          Empty and pointer-events:none until confetti.js puts a canvas in it. -->
     <div class="gt-cfti-host" id="gtCfti" aria-hidden="true"></div>
 
-    <script src="/scripts/owner/address-step.js?v=__ASSET_VERSION__"></script>
+    <script src="/scripts/checkout-loader.js?v=__ASSET_VERSION__" data-address-step="/scripts/owner/address-step.js?v=__ASSET_VERSION__" defer></script>
     <script type="module" src="/scripts/get.js?v=__ASSET_VERSION__"></script>
   </body>
 </html>

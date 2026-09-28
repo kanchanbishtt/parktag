@@ -90,14 +90,20 @@ test("a missing asset version cannot make anything immutable", () => {
   assert.doesNotMatch(control, /immutable/);
 });
 
-test("images get a bounded window, not a year", () => {
+test("images and fonts get a bounded thirty-day window, not a year", () => {
+  for (const pathname of ["/images/verify-vehicle.webp", "/fonts/inter-latin-var.woff2"]) {
+    const control = cacheControlFor({ pathname, requestedVersion: null, assetVersion: VERSION });
+    assert.equal(control, "public, max-age=2592000", pathname);
+  }
+});
+
+test("a versioned font URL is still immutable", () => {
   const control = cacheControlFor({
-    pathname: "/images/verify-vehicle.webp",
-    requestedVersion: null,
+    pathname: "/fonts/inter-latin-var.woff2",
+    requestedVersion: VERSION,
     assetVersion: VERSION
   });
-  assert.match(control, /max-age=86400/);
-  assert.doesNotMatch(control, /immutable/);
+  assert.match(control, /immutable/);
 });
 
 // ── the digest itself ───────────────────────────────────────────────────────

@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import { redactText, safeEqual } from "../auth/security.js";
 import { toE164 } from "../core/phone.js";
 import { refuseInTestRun } from "../core/external-guard.js";
+import { fetchWithTimeout } from "../core/fetch-timeout.js";
 
 // Meta signs every webhook POST with `X-Hub-Signature-256: sha256=<hex hmac>`
 // computed over the *raw* request body using the App Secret (Meta App
@@ -79,7 +80,7 @@ async function sendTemplate(env, { to, template, components, publicMessage }) {
   }
   const url = `https://graph.facebook.com/v19.0/${env.metaWhatsappPhoneNumberId}/messages`;
 
-  const response = await fetch(url, {
+  const response = await fetchWithTimeout(url, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${env.metaWhatsappAccessToken}`,
@@ -336,11 +337,11 @@ export async function fetchMetaWhatsappMedia(env, mediaId, { maxBytes = 5 * 1024
   if (!mediaId || !isMetaWhatsappConfigured(env)) return null;
   const auth = { Authorization: `Bearer ${env.metaWhatsappAccessToken}` };
   try {
-    const meta = await fetch(`https://graph.facebook.com/v19.0/${encodeURIComponent(mediaId)}`, { headers: auth });
+    const meta = await fetchWithTimeout(`https://graph.facebook.com/v19.0/${encodeURIComponent(mediaId)}`, { headers: auth });
     const info = await meta.json();
     if (!meta.ok || !info?.url || Number(info.file_size) > maxBytes) return null;
 
-    const file = await fetch(info.url, { headers: auth });
+    const file = await fetchWithTimeout(info.url, { headers: auth });
     if (!file.ok) return null;
     const data = Buffer.from(await file.arrayBuffer());
     if (data.length > maxBytes) return null;

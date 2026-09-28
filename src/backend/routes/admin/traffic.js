@@ -38,11 +38,22 @@ function landingViewFilter(from, to) {
 export async function landingTotals(collections, days) {
   const from = dayKeyDaysAgo(days - 1);
   const to = dayKeyDaysAgo(0);
-  const rows = await collections.landingVisits
-    .find(landingViewFilter(from, to), { projection: { _id: 0, visitorHash: 1 } })
-    .toArray();
-  const visitors = new Set(rows.map((row) => row.visitorHash).filter(Boolean));
-  return { days, views: rows.length, visitors: visitors.size };
+  const filter = landingViewFilter(from, to);
+  // Counted in the database: the window used to be read row by row into a Set
+  // just to learn two numbers. A row with no visitorHash is a view but not a
+  // visitor, as before.
+  const [views, visitorRows] = await Promise.all([
+    collections.landingVisits.countDocuments(filter),
+    collections.landingVisits
+      .aggregate([
+        { $match: filter },
+        { $group: { _id: "$visitorHash" } },
+        { $match: { _id: { $nin: [null, ""] } } },
+        { $count: "n" }
+      ])
+      .toArray()
+  ]);
+  return { days, views, visitors: visitorRows[0]?.n || 0 };
 }
 
 // One pass over the window, grouped several ways. Small enough to do in code:

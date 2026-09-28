@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { requireSession, toObjectId, tryObjectId } from "../../lib/auth/auth.js";
 import { createPasswordHash, verifyPassword, isNonEmptyString } from "../../lib/auth/security.js";
 import { clearSession } from "../../lib/auth/session.js";
@@ -27,14 +28,18 @@ import {
 import { formatScannerLocation } from "../../lib/core/scan-location.js";
 import { toE164 } from "../../lib/core/phone.js";
 import { clientErrorMessage } from "../../lib/errors.js";
-import { createQrDataUrl, createPrintQrDataUrl } from "../../lib/core/qr-output.js";
+import { createQrDataUrl, createQrSvg, createPrintQrDataUrl } from "../../lib/core/qr-output.js";
 import { createEtagForVehicle, buildTagScanUrl, VEHICLE_LABELS, etagIdFor, stickerSerialFor } from "../../lib/core/tag-issuance.js";
 import { validateAddress } from "../../lib/core/address.js";
 import { resolveOwnerName, firstNameOf, cleanName, isIdentifierNotAName } from "../../lib/core/owner-name.js";
 import { checkPincodeServiceability, trackingUrl } from "../../lib/integrations/delhivery.js";
 // Shared with the public order-tracking page, so both show the same status off
 // the same cache.
-import { getOrderTracking } from "../../lib/core/order-tracking.js";
+import {
+  getOrderTracking,
+  cachedOrderTracking,
+  refreshTrackingInBackground
+} from "../../lib/core/order-tracking.js";
 import {
   referralCodeFor,
   REFERRAL_DISCOUNT_PAISE,
@@ -124,6 +129,41 @@ function reauthDestination(owner) {
   return null;
 }
 
+// The only tag fields the dashboard payload reads, directly or through
+// callEntitlement, membershipCountdown, stickerSerialFor and etagIdFor
+// (subscription.js and vault.js's premiumTrialStartsAt supply the subscription
+// and trial dates). A field read by the shaping below and missing here would
+// silently come back undefined, so add it in both places.
+const DASHBOARD_TAG_PROJECTION = {
+  token: 1,
+  status: 1,
+  vehicleType: 1,
+  vehicleLabel: 1,
+  plateNumber: 1,
+  printStatus: 1,
+  stickerRequested: 1,
+  premium: 1,
+  purchaseStatus: 1,
+  freeContactUsed: 1,
+  emergencyContact: 1,
+  serialNumber: 1,
+  batchNumber: 1,
+  subscription: 1,
+  callSubscription: 1,
+  documentSubscription: 1,
+  premiumSince: 1,
+  activatedAt: 1,
+  createdAt: 1
+};
+
+// Where the browser fetches a tag's QR from. `v` is a digest of the token, so
+// the 24 hour browser cache can never serve the QR of a token that has since
+// changed, and it does not put the token itself in a URL.
+function qrUrlFor(tag) {
+  const v = crypto.createHash("sha256").update(String(tag.token)).digest("hex").slice(0, 8);
+  return `/api/owner/tags/${tag._id}/qr.svg?v=${v}`;
+}
+
 export function registerOwnerRoutes(app, env) {
   app.get("/api/owner/dashboard", async (request, reply) => {
     const blocked = await requireSession(app, "owner")(request, reply);
@@ -135,7 +175,40 @@ export function registerOwnerRoutes(app, env) {
     const collections = await getCollections(env);
     const ownerId = toObjectId(request.session.userId);
 
-    const owner = await collections.owners.findOne({ _id: ownerId });
+    // `qr=0` leaves the inline PNG data URLs out. Callers that draw the QR
+    // fetch it through each tag's `qrUrl`, which the browser caches; a caller
+    // that says nothing still gets `qrDataUrl`, as before.
+    const withQrDataUrl = request.query?.qr !== "0";
+
+    // Everything here depends only on the session's owner id, so it is read
+    // together rather than one round trip after another. The referral read is
+    // safe to run before we know the owner exists: it returns null for a
+    // missing one without writing anything.
+    const findLiveTags = () =>
+      collections.tags
+        .find({ ownerId, deletedAt: { $in: [null, undefined] } }, { projection: DASHBOARD_TAG_PROJECTION })
+        .toArray();
+    const [owner, initialTags, requests, livePasses, addressForName, referralCode] = await Promise.all([
+      collections.owners.findOne({ _id: ownerId }),
+      findLiveTags(),
+      collections.contactRequests
+        .find({ ownerId })
+        .sort({ createdAt: -1 })
+        .limit(10)
+        .toArray(),
+      // Contacts the owner has paid to call back and whose ten minutes are still
+      // running, read by the same function register-call uses to honour them.
+      findLiveCallbackPasses(collections, ownerId),
+      // Resolved server-side so the greeting, the My Info panel and the address
+      // form all agree. The browser used to guess a name out of the email itself,
+      // which is how "info@" became "Hi Info".
+      collections.addresses.findOne({ ownerId }),
+      // Minted on first read rather than at signup, so the unique index only
+      // carries rows for owners who have actually looked. Best effort: a code
+      // that cannot be minted costs a referral card, and must never cost
+      // somebody their dashboard.
+      referralCodeFor(collections, ownerId).catch(() => null)
+    ]);
 
     // A live session whose account is gone. This is reachable: deactivating a
     // field-demo sticker deletes the throwaway account the activation wizard
@@ -156,9 +229,7 @@ export function registerOwnerRoutes(app, env) {
     // Single source of truth: every vehicle is a real tag. Lazily migrate any
     // legacy owner.localVehicles[] into real E-Tags (each gets its own unique
     // secure token + QR), then clear them so they never show twice.
-    let tags = await collections.tags
-      .find({ ownerId, deletedAt: { $in: [null, undefined] } })
-      .toArray();
+    let tags = initialTags;
 
     const legacyLocals = owner.localVehicles || [];
     if (legacyLocals.length) {
@@ -174,28 +245,10 @@ export function registerOwnerRoutes(app, env) {
         } catch (_) { /* skip malformed legacy rows */ }
       }
       await collections.owners.updateOne({ _id: ownerId }, { $set: { localVehicles: [] } });
-      tags = await collections.tags
-        .find({ ownerId, deletedAt: { $in: [null, undefined] } })
-        .toArray();
+      tags = await findLiveTags();
     }
 
-    const requests = await collections.contactRequests
-      .find({ ownerId })
-      .sort({ createdAt: -1 })
-      .limit(10)
-      .toArray();
-
-    // Contacts the owner has paid to call back and whose ten minutes are still
-    // running — read by the same function register-call uses to honour them.
-    const livePasses = await findLiveCallbackPasses(collections, ownerId);
-
-    // Resolved server-side so the greeting, the My Info panel and the address
-    // form all agree. The browser used to guess a name out of the email itself,
-    // which is how "info@" became "Hi Info".
-    const addressForName = await collections.addresses.findOne({ ownerId });
-    const resolvedName = resolveOwnerName(owner, addressForName);
-
-    return {
+    const resolvedName = resolveOwnerName(owner, addressForName);    return {
       ok: true,
       owner: {
         // No `_id`. It is the ObjectId every /api/owner/* route keys off, and
@@ -232,7 +285,6 @@ export function registerOwnerRoutes(app, env) {
       },
       tags: await Promise.all(tags.map(async (tag) => {
         const scanUrl = buildTagScanUrl(request, tag.token);
-        const qrDataUrl = await createQrDataUrl(scanUrl);
         return {
           id: String(tag._id),
           // Stays, unlike owner._id above, and the difference is worth stating
@@ -279,7 +331,9 @@ export function registerOwnerRoutes(app, env) {
           // prefill on any device instead of only where it was first saved.
           emergencyContact: tag.emergencyContact || null,
           scanUrl,
-          qrDataUrl
+          // The QR as its own cacheable resource; see the route below.
+          qrUrl: qrUrlFor(tag),
+          ...(withQrDataUrl ? { qrDataUrl: await createQrDataUrl(scanUrl) } : {})
         };
       })),
       requests: requests.map((item) => ({
@@ -357,7 +411,7 @@ export function registerOwnerRoutes(app, env) {
       // applies. That is precisely how the pack sheet came to promise "No extra
       // charge for COD" while place-cod added Rs 50.
       referral: {
-        code: await referralCodeFor(collections, ownerId).catch(() => null),
+        code: referralCode,
         discountPaise: REFERRAL_DISCOUNT_PAISE,
         rewardMonths: REFERRAL_REWARD_MONTHS,
         // Prepaid only. The card must say so, or somebody shares a link and
@@ -365,6 +419,44 @@ export function registerOwnerRoutes(app, env) {
         prepaidOnly: true
       }
     };
+  });
+
+  // One tag's QR as SVG. The dashboard used to render a PNG data URL per tag on
+  // every call, about 8ms of CPU and 4KB of JSON each, for a value that is a
+  // pure function of the token. Served here it costs that once per browser per
+  // day. `private`: it is behind the owner session and must never sit in a
+  // shared cache.
+  app.get("/api/owner/tags/:tagId/qr.svg", async (request, reply) => {
+    const blocked = await requireSession(app, "owner")(request, reply);
+
+    if (blocked) {
+      return blocked;
+    }
+
+    const tagId = tryObjectId(request.params.tagId);
+    if (!tagId) { reply.code(400); return { ok: false, error: "Invalid tag id" }; }
+
+    const collections = await getCollections(env);
+    // Scoped to the session's owner, so another owner's tag id is a 404 rather
+    // than a QR for a vehicle that is not theirs.
+    const tag = await collections.tags.findOne(
+      {
+        _id: tagId,
+        ownerId: toObjectId(request.session.userId),
+        deletedAt: { $in: [null, undefined] }
+      },
+      { projection: { token: 1 } }
+    );
+
+    if (!tag) {
+      reply.code(404);
+      return { ok: false, error: "Tag not found" };
+    }
+
+    reply
+      .header("Content-Type", "image/svg+xml; charset=utf-8")
+      .header("Cache-Control", "private, max-age=86400");
+    return createQrSvg(buildTagScanUrl(request, tag.token));
   });
 
   // Send an OTP to the number the owner wants to save as their callback mobile.
@@ -658,10 +750,11 @@ export function registerOwnerRoutes(app, env) {
 
   // Shop orders for this owner — both prepaid ("paid") and Cash-on-Delivery
   // ("cod"), so a COD buyer can see and track the order they just placed.
-  // Best-effort live tracking status for any order that already has a Delhivery
-  // waybill. Tracking lookups run in parallel and never throw (see
-  // trackShipment) — a Delhivery hiccup shows "status unavailable" for that
-  // order, not a broken endpoint.
+  // Tracking status for any order that already has a Delhivery waybill, read
+  // from the snapshot stored on the order. This route never waits on Delhivery:
+  // orders whose snapshot is missing or stale are refreshed in the background
+  // (see refreshTrackingInBackground), so the status is at most one open behind
+  // instead of every open paying for up to 20 courier lookups.
   app.get("/api/owner/orders", async (request, reply) => {
     const blocked = await requireSession(app, "owner")(request, reply);
     if (blocked) return blocked;
@@ -676,8 +769,10 @@ export function registerOwnerRoutes(app, env) {
       .limit(20)
       .toArray();
 
-    const withTracking = await Promise.all(orders.map(async (order) => {
-      const tracking = await getOrderTracking(collections, env, order);
+    refreshTrackingInBackground(collections, env, orders, request.log);
+
+    const withTracking = orders.map((order) => {
+      const tracking = cachedOrderTracking(order);
       const isCod = order.status === "cod";
       return {
         id: String(order._id),
@@ -699,7 +794,7 @@ export function registerOwnerRoutes(app, env) {
         // Whether an in-app timeline is worth opening (has a waybill).
         trackable: Boolean(order.waybill)
       };
-    }));
+    });
 
     return { ok: true, orders: withTracking };
   });

@@ -21,6 +21,8 @@ function run(hostname, pathname = "/get") {
     querySelectorAll: () => [],
     getElementsByTagName: () => [{ parentNode: { insertBefore: (el) => loaded.push(String(el.src || "")) } }],
     cookie: "",
+    // Vendor tags start once the page is idle, so present a loaded page.
+    readyState: "complete",
     addEventListener: () => {}
   };
   const win = {
@@ -28,11 +30,13 @@ function run(hostname, pathname = "/get") {
     document: doc,
     navigator: { userAgent: "test" },
     addEventListener: () => {},
+    requestIdleCallback: (cb) => cb(),
     matchMedia: () => ({ matches: false })
   };
   win.window = win;
-  const fn = new Function("window", "document", "navigator", SOURCE);
-  fn(win, doc, win.navigator);
+  // The bundle also arms an 8 s fallback timer; keep it from outliving the test.
+  const fn = new Function("window", "document", "navigator", "setTimeout", SOURCE);
+  fn(win, doc, win.navigator, () => 0);
   return { loaded, ptTrack: typeof win.ptTrack };
 }
 

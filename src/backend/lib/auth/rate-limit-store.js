@@ -95,6 +95,11 @@ class SharedRateLimitStore {
   }
 
   child(params) {
+    // A route can opt out of the shared counter with `rateLimit: { local: true }`.
+    // For cheap, high-rate, read-only routes: the Mongo round trip per request
+    // costs more than the limit protects, and per-replica counting is enough.
+    if (params && params.local) return new SharedRateLimitStore(this.deps, null);
+
     const info = (params && params.routeInfo) || {};
     // Counters must be namespaced per route, otherwise every limited route
     // shares one bucket and the strictest limit silently governs them all.

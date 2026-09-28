@@ -11,7 +11,8 @@ import { WhatIsParkTag } from "./components/WhatIsParkTag";
 import { TrustStrip } from "./components/TrustStrip";
 import { HowItWorksSteps } from "./components/HowItWorksSteps";
 import { WhyBetter } from "./components/WhyBetter";
-import { DuoOfferButtonLabel, DuoOfferDetails, DuoOfferPrice, HeroOfferLabel, LaunchOfferBanner } from "./components/LaunchOffer";
+import { DuoOfferButtonLabel, DuoOfferDetails, DuoOfferPrice, HeroOfferLabel, LaunchOfferBanner, getLaunchOffer } from "./components/LaunchOffer";
+import { LazyVideo } from "./components/LazyVideo";
 
 // Buy buttons point at /shop, which is the public storefront: packs, prices
 // and a guest checkout, no login. It used to be an intent route that sent a
@@ -179,11 +180,12 @@ function BrandSticker() {
 }
 
 /* ── Page ── */
-export default function Home() {
+export default async function Home() {
+  const offer = await getLaunchOffer();
   return (
     <>
       <SiteHeader />
-      <div className="pt-16"><LaunchOfferBanner shopUrl={`${APP_URL}/shop`} /></div>
+      <div className="pt-16"><LaunchOfferBanner offer={offer} shopUrl={`${APP_URL}/shop`} /></div>
 
       <main className="flex-1">
 
@@ -197,7 +199,7 @@ export default function Home() {
           <div className="max-w-6xl mx-auto px-4 sm:px-6">
             <div className="grid md:grid-cols-2 gap-10 items-center min-h-[520px]">
 
-              <AnimateIn from="bottom" delay={0} className="py-12 md:py-16">
+              <div className="py-12 md:py-16">
                 {/* Four words for the two promises the product actually makes.
                     The line it replaces was thirteen words whose subject was
                     other people — "Make it easy for PEOPLE to notify you" — and
@@ -264,7 +266,7 @@ export default function Home() {
                     // "Brand red — the single accent. Signal, never decoration."
                     className="inline-flex items-center gap-2 bg-[#FF2700] hover:bg-[#D92200] text-white font-bold px-8 py-4 rounded-[14px] text-base transition-all shadow-[0_4px_16px_rgba(255,39,0,0.35)] hover:shadow-[0_6px_20px_rgba(255,39,0,0.45)]"
                   >
-                    <HeroOfferLabel />
+                    <HeroOfferLabel offer={offer} />
                     <span aria-hidden="true">→</span>
                   </GetStartedButton>
                   <a
@@ -285,9 +287,9 @@ export default function Home() {
                 <div className="flex flex-wrap items-center gap-x-6 gap-y-2 mt-6">
                   <BuyOnAmazonButton className="inline-flex items-center gap-1.5 text-sm text-white/60 hover:text-white underline underline-offset-4 decoration-white/25 hover:decoration-white transition-colors" />
                 </div>
-              </AnimateIn>
+              </div>
 
-              <AnimateIn from="bottom" delay={150} className="flex items-end justify-center md:justify-end mt-4 md:mt-0 md:pt-10">
+              <div className="flex items-end justify-center md:justify-end mt-4 md:mt-0 md:pt-10">
                 <div className="relative w-full max-w-lg">
                   <div className="absolute inset-0 bg-[#FF2700]/10 blur-3xl rounded-full scale-90" />
                   {/* The sticker's actual print artwork, both faces, rather
@@ -296,14 +298,15 @@ export default function Home() {
                       a CSS radius on top was clipping the artwork's corners
                       against a shape that is not the sticker's. */}
                   <img
-                    src="/sticker-artwork.png"
+                    src="/sticker-artwork.webp"
                     alt="The ParkTag sticker, showing the scan instructions and Call and WhatsApp buttons on the left and the QR code on the right"
                     width={1014}
                     height={609}
+                    fetchPriority="high"
                     className="relative w-full drop-shadow-2xl"
                   />
                 </div>
-              </AnimateIn>
+              </div>
             </div>
           </div>
 
@@ -403,8 +406,12 @@ export default function Home() {
                 <div className="rounded-2xl border border-[#FF2700]/20 bg-white overflow-hidden h-full flex flex-col">
                   <div className="relative overflow-hidden" style={{ aspectRatio: "4/3" }}>
                     <img
-                      src="/old-way.jpg"
+                      src="/old-way.webp"
                       alt="Handwritten note with phone number on car dashboard"
+                      width={1000}
+                      height={750}
+                      loading="lazy"
+                      decoding="async"
                       className="w-full h-full object-cover"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
@@ -428,8 +435,12 @@ export default function Home() {
                   {/* Product photo */}
                   <div className="relative overflow-hidden" style={{ aspectRatio: "4/3" }}>
                     <img
-                      src="/tag-scan.jpg"
+                      src="/tag-scan.webp"
                       alt="ParkTag sticker on car windshield being scanned by phone"
+                      width={1000}
+                      height={600}
+                      loading="lazy"
+                      decoding="async"
                       className="w-full h-full object-cover"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
@@ -539,10 +550,12 @@ export default function Home() {
             <AnimateIn from="left">
               <div>
                 <img
-                  src="/acrylic-dashboard-plate-real.jpg"
+                  src="/acrylic-dashboard-plate-real.webp"
                   alt="Actual clear laser-cut acrylic sheet with a ParkTag held in hand"
-                  width={1200}
-                  height={1600}
+                  width={1000}
+                  height={1233}
+                  loading="lazy"
+                  decoding="async"
                   className="w-full max-h-[520px] object-cover rounded-2xl border border-gray-200 shadow-xl"
                 />
               </div>
@@ -597,13 +610,13 @@ export default function Home() {
             </AnimateIn>
             <div className="flex gap-6 overflow-x-auto snap-x snap-mandatory pb-4 sm:grid sm:grid-cols-3 sm:overflow-visible">
               {[
-                ["app-preview-manage-tag-v2.png", "Manage your tag", "Contact page, notifications, location access and calls in one place."],
-                ["app-preview-membership-v2.png", "Always included", "WhatsApp scan notifications stay free for the life of your active ParkTag."],
-                ["app-preview-premium-features-v2.png", "Premium for 1 year", "Masked calls, callbacks, document vault and SOS, with your coverage date shown."],
+                ["app-preview-manage-tag-v2.webp", "Manage your tag", "Contact page, notifications, location access and calls in one place."],
+                ["app-preview-membership-v2.webp", "Always included", "WhatsApp scan notifications stay free for the life of your active ParkTag."],
+                ["app-preview-premium-features-v2.webp", "Premium for 1 year", "Masked calls, callbacks, document vault and SOS, with your coverage date shown."],
               ].map(([src, title, copy], index) => (
                 <AnimateIn key={src} delay={index * 70}>
                   <figure className="w-[72vw] max-w-[280px] flex-shrink-0 snap-center mx-auto sm:w-auto">
-                    <img src={`/${src}`} alt={`ParkTag app: ${title}`} loading="lazy" className="w-full h-auto drop-shadow-xl" />
+                    <img src={`/${src}`} alt={`ParkTag app: ${title}`} width={604} height={1067} loading="lazy" decoding="async" className="w-full h-auto drop-shadow-xl" />
                     <figcaption className="mt-4 text-center">
                       <div className="font-extrabold text-[#03162D]">{title}</div>
                       <p className="mt-1 text-sm leading-relaxed text-[#495B7B]">{copy}</p>
@@ -626,7 +639,7 @@ export default function Home() {
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
               <AnimateIn>
                 <figure>
-                  <video src="/proof/sticking-demo.mp4" poster="/proof/sticking-demo-poster.jpg" autoPlay muted loop playsInline preload="none" className="w-full aspect-[4/5] object-cover rounded-2xl bg-gray-100" />
+                  <LazyVideo src="/proof/sticking-demo.mp4" poster="/proof/sticking-demo-poster.jpg" className="w-full aspect-[4/5] object-cover rounded-2xl bg-gray-100" />
                   <figcaption className="mt-3 text-sm text-[#495B7B]"><strong className="text-[#03162D]">Under a minute.</strong> Peel the backing and press it inside the windscreen.</figcaption>
                 </figure>
               </AnimateIn>
@@ -746,10 +759,10 @@ export default function Home() {
 
                   <div className="text-xs font-bold tracking-widest uppercase text-white/40 mb-5">Duo Pack</div>
                   <div className="flex items-end gap-2 mb-1">
-                    <DuoOfferPrice />
+                    <DuoOfferPrice offer={offer} />
                     <span className="text-sm text-white/40 mb-1">1 year included</span>
                   </div>
-                  <div className="text-xs text-white/40 mb-8"><DuoOfferDetails /></div>
+                  <div className="text-xs text-white/40 mb-8"><DuoOfferDetails offer={offer} /></div>
 
                   <ul className="space-y-3 mb-10 flex-1">
                     {[
@@ -772,7 +785,7 @@ export default function Home() {
                   </ul>
 
                   <a href={`${APP_URL}/shop?sku=pt-car-2`} className="block text-center bg-[#FF2700] hover:bg-[var(--red-hover)] text-white font-bold py-3 rounded-xl transition-colors text-sm">
-                    <DuoOfferButtonLabel />
+                    <DuoOfferButtonLabel offer={offer} />
                   </a>
                   {/* Duo Pack only — it is the same pack of 2 the Amazon
                       listing sells. Deliberately no longer claiming the two are
@@ -875,7 +888,7 @@ export default function Home() {
           <div className="grid sm:grid-cols-4 gap-8 mb-10">
             <div className="sm:col-span-2">
               <div className="mb-3">
-                <img src="/dark-logo.png" alt="ParkTag" style={{ height: "42px", width: "auto" }} />
+                <img src="/logo-dark.webp" alt="ParkTag" width={224} height={84} loading="lazy" decoding="async" className="h-[42px] w-auto" />
               </div>
               <p className="text-white/40 text-sm leading-relaxed max-w-xs">Smart vehicle connection system built for modern India. Simple, secure, accessible.</p>
               <a

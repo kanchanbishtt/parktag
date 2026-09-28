@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Script from "next/script";
+import { preconnect } from "react-dom";
 import "./globals.css";
 
 // Font Awesome injects its own <style> at runtime, which in an SSR app lands
@@ -54,26 +55,18 @@ export const metadata: Metadata = {
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.parktag.me";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  // Open the connection to the app origin early: the analytics bundle and every
+  // buy link go there.
+  preconnect(new URL(APP_URL).origin);
   return (
     <html lang="en" className="h-full antialiased">
       <body className="min-h-full flex flex-col font-sans">
         {children}
         {/*
-          Navigation buttons fade the page out by setting document.body opacity
-          to 0 right before leaving. When the browser restores this page from the
-          back/forward cache (the Back button), that inline opacity:0 is preserved
-          — so the landing page came back fully invisible (a blank white screen).
-          `pageshow` fires on every display, including a bfcache restore, so we
-          clear the fade there to guarantee the page is visible again.
-        */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html:
-              "window.addEventListener('pageshow',function(){var b=document.body;if(b){b.style.transition='';b.style.opacity='';}});",
-          }}
-        />
-        {/*
-          Loaded async via next/script. analytics.js reads its surface from
+          Loaded async via next/script, after the window load event so it does not
+          compete with the hero for bandwidth. Nothing in this site calls
+          window.ptTrack before then: every call is a click handler behind `?.`.
+          analytics.js reads its surface from
           document.currentScript, which is null for an async script — that is
           fine here and only here, because its fallback is "app", which is what
           the marketing site is. The app's own pages load the same file with a
@@ -84,7 +77,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             reachable from /about, /contact and the policy pages too, which is
             where somebody with a question actually ends up. */}
         <FloatingActions />
-        <Script src={`${APP_URL}/pt-analytics.js`} strategy="afterInteractive" />
+        <Script src={`${APP_URL}/pt-analytics.js`} strategy="lazyOnload" />
       </body>
     </html>
   );

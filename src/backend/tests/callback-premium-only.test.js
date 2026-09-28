@@ -261,6 +261,11 @@ test("an owner is told why, not left with a blank space", async () => {
 test("the upsell nudge is styled and reachable", async () => {
   const page = await app.inject({ method: "GET", url: "/owner-welcome", headers: { cookie: `wavetag_session=${cookie}` } });
   assert.equal(page.statusCode, 200);
-  assert.match(page.body, /\.pt-act-upsell \{/, "a bare <button> would not inherit the nudge styling");
-  assert.match(page.body, /\.pt-act-upsell:focus-visible/, "and it must be keyboard-reachable");
+  // The page's styles moved out of the inline <style> into a fingerprinted sheet.
+  const href = page.body.match(/href="(\/styles\/owner-welcome\.css[^"]*)"/)?.[1];
+  assert.ok(href, "the page links its stylesheet");
+  const sheet = await app.inject({ method: "GET", url: href });
+  assert.equal(sheet.statusCode, 200);
+  assert.match(sheet.body, /\.pt-act-upsell \{/, "a bare <button> would not inherit the nudge styling");
+  assert.match(sheet.body, /\.pt-act-upsell:focus-visible/, "and it must be keyboard-reachable");
 });

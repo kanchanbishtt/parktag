@@ -554,7 +554,7 @@ els.lockBtn.addEventListener("click", async () => {
 // heading always matches what the account actually holds.
 async function showVehicleName() {
   try {
-    const res = await fetch("/api/owner/dashboard");
+    const res = await fetch("/api/owner/dashboard?qr=0");
     if (!res.ok) return;
     const data = await res.json();
     const tag = (data.tags || []).find((t) => String(t.id) === tagId);

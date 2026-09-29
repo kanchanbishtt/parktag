@@ -18,7 +18,10 @@ import { ObjectId } from "mongodb";
 
 export const ADMIN_AUDIT_RETENTION_SECONDS = 90 * 24 * 60 * 60;
 
-const EVENTS = new Set(["login", "logout", "login_failed", "login_locked", "admin_created", "admin_removed"]);
+const EVENTS = new Set([
+  "login", "logout", "login_failed", "login_locked", "admin_created", "admin_removed",
+  "api_token_created", "api_token_revoked", "api_token_write"
+]);
 
 // A short, human label for a user agent. Order matters: Edge and Opera also
 // say "Chrome", and Chrome also says "Safari".
@@ -46,7 +49,7 @@ const cleanEmail = (value) => String(value || "").trim().toLowerCase().slice(0, 
 
 // Fire and forget: returns a promise that never rejects, for tests to await.
 // `target` is the admin account an admin_created / admin_removed event was
-// about; `email` is always the person the row is attributed to.
+// about, or for the api_token_* events the token name and what it did; `email` is always the person the row is attributed to.
 export function recordAdminEvent(collections, { event, adminId = null, email, method = null, reason = null, target = null, request }) {
   if (!collections?.adminAudit || !EVENTS.has(event)) return Promise.resolve();
   const at = new Date();

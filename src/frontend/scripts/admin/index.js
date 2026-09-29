@@ -1529,11 +1529,14 @@ function auditEventHtml(e) {
         : e.event === "login_locked" ? ["bad", `Blocked: too many failed attempts${times}`]
           : e.event === "admin_created" ? ["change", `Added admin ${e.target || ""}`.trim()]
             : e.event === "admin_removed" ? ["change", `Removed admin ${e.target || ""}`.trim()]
-              : ["bad", e.reason === "no_account"
-                ? `Failed Google sign-in: not an admin account${times}`
-                : e.reason === "bot_check"
-                  ? `Failed sign-in: bot check did not pass${times}`
-                  : `Failed sign-in: wrong email or password${times}`];
+              : e.event === "api_token_created" ? ["change", `Created API token ${e.target || ""}`.trim()]
+                : e.event === "api_token_revoked" ? ["change", `Revoked API token ${e.target || ""}`.trim()]
+                  : e.event === "api_token_write" ? ["change", `API token change: ${e.target || ""}`.trim()]
+                    : ["bad", e.reason === "no_account"
+                      ? `Failed Google sign-in: not an admin account${times}`
+                      : e.reason === "bot_check"
+                        ? `Failed sign-in: bot check did not pass${times}`
+                        : `Failed sign-in: wrong email or password${times}`];
   const when = e.at ? new Date(e.at) : null;
   return `
     <div class="au-row" data-kind="${kind}">

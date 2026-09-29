@@ -30,6 +30,7 @@ import { registerAdminDoorhangerRoutes } from "./routes/admin/doorhangers.js";
 import { registerAdminStickerDesignRoutes } from "./routes/admin/sticker-designs.js";
 import { registerAdminPromoCodeRoutes } from "./routes/admin/promo-codes.js";
 import { registerAdminReviewRoutes } from "./routes/admin/reviews.js";
+import { registerAdminApiTokenRoutes } from "./routes/admin/api-tokens.js";
 import { registerAuthRoutes } from "./routes/auth/credentials.js";
 import { registerAnalyticsRoutes, recordAppPageVisit } from "./routes/system/analytics.js";
 import { registerDemoRoutes } from "./routes/system/demo.js";
@@ -1550,6 +1551,7 @@ export async function buildApp() {
   registerAdminStickerDesignRoutes(app, env);
   registerAdminPromoCodeRoutes(app, env);
   registerAdminReviewRoutes(app, env);
+  registerAdminApiTokenRoutes(app, env);
   registerAnalyticsRoutes(app, env);
 
   return app;

@@ -9,6 +9,8 @@ import {
   burnHashComparison
 } from "./security.js";
 import { readSession } from "./session.js";
+import { authenticateApiToken, isWrite } from "./api-token.js";
+import { recordAdminEvent } from "../core/admin-audit.js";
 import { findByCanonicalEmail } from "./identity.js";
 import { isMobileIdentifier, normalizeIdentifier, findOwnerByMobile } from "./otp.js";
 
@@ -158,7 +160,40 @@ export async function loginOwnerWithSecret(env, identifier, secret) {
 
 export function requireSession(app, role) {
   return async function guarded(request, reply) {
-    const session = await readSession(app, request);
+    let session = await readSession(app, request);
+    let viaToken = false;
+
+    // A signed-in cookie always wins. Failing that, an admin route accepts a scoped API token (see api-token.js):
+    // never for an owner route, and only for the routes that file lists.
+    if (!session && role === "admin") {
+      let found;
+      let collections;
+      try {
+        collections = await getCollections(getEnv());
+        found = collections ? await authenticateApiToken(collections, request) : null;
+      } catch {
+        reply.code(503);
+        return { ok: false, error: "Service temporarily unavailable. Please try again." };
+      }
+      if (found?.denied === "route") {
+        reply.code(403);
+        return { ok: false, error: "This API token cannot call that route." };
+      }
+      if (found?.session) {
+        session = found.session;
+        viaToken = true;
+        // Every change made with a token is attributed to it in the admin audit log.
+        if (isWrite(request.method)) {
+          recordAdminEvent(collections, {
+            event: "api_token_write",
+            adminId: session.userId,
+            email: session.email,
+            target: `${request.method} ${request.routeOptions?.url} via ${session.tokenName}`,
+            request
+          });
+        }
+      }
+    }
 
     if (!session) {
       reply.code(401);
@@ -176,7 +211,8 @@ export function requireSession(app, role) {
       };
     }
 
-    if (session.role === "admin") {
+    // A token was resolved against its admin row a moment ago, so the check below would only repeat it.
+    if (session.role === "admin" && !viaToken) {
       let exists;
       try {
         exists = await adminAccountExists(session.userId);

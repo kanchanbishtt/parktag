@@ -41,6 +41,9 @@ function buildCollections(db, prefix) {
     admins: db.collection(withPrefix(prefix, "admins")),
     // Admin sign-in / sign-out log (lib/core/admin-audit.js).
     adminAudit: db.collection(withPrefix(prefix, "admin_audit")),
+    // Scoped, revocable API tokens for tools that cannot sign in (lib/auth/api-token.js). Holds the SHA-256 of the
+    // token, never the token.
+    adminApiTokens: db.collection(withPrefix(prefix, "admin_api_tokens")),
     owners: db.collection(withPrefix(prefix, "owners")),
     tags: db.collection(withPrefix(prefix, "tags")),
     // Login sessions — persisted so admins/owners stay logged in across server
@@ -313,6 +316,10 @@ const CORE_INDEXES = [
   // first listing; the second serves the per-admin filter.
   ["adminAudit", { at: 1 }, { expireAfterSeconds: 7776000, name: "ttl" }],
   ["adminAudit", { email: 1, at: -1 }, { name: "email_recent" }],
+  // Every token-authenticated request finds its row by hash, and two rows sharing one would make which admin it is
+  // a coin toss.
+  ["adminApiTokens", { tokenHash: 1 }, { unique: true, name: "token_hash_unique" }],
+  ["adminApiTokens", { adminId: 1, createdAt: -1 }, { name: "admin_recent" }],
   // Every vault read is scoped to one owner and usually one vehicle, and the
   // per-owner storage quota sums this collection on each upload.
   ["vaultDocuments", { ownerId: 1, tagId: 1, createdAt: -1 }, { name: "owner_vehicle" }],

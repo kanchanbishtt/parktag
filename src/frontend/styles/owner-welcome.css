@@ -1730,6 +1730,11 @@
 }
 .pt-act-loc svg { flex-shrink: 0; color: #9CA3AF; }
 .pt-act-loc span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A shared car location links out to a map app; same row layout as the text. */
+.pt-act-loc a {
+  color: inherit; text-decoration: underline; text-underline-offset: 2px;
+  display: flex; align-items: center; gap: 4px; min-width: 0;
+}
 
 .pt-act-cta {
   flex-shrink: 0; padding: 9px 16px; border-radius: 11px; border: none;

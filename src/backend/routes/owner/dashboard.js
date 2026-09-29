@@ -26,6 +26,7 @@ import {
   shapeProfileDetails
 } from "../../lib/core/profile-details.js";
 import { formatScannerLocation } from "../../lib/core/scan-location.js";
+import { carMapLink } from "../../lib/core/car-location.js";
 import { toE164 } from "../../lib/core/phone.js";
 import { clientErrorMessage } from "../../lib/errors.js";
 import { createQrDataUrl, createQrSvg, createPrintQrDataUrl } from "../../lib/core/qr-output.js";
@@ -365,7 +366,12 @@ export function registerOwnerRoutes(app, env) {
         // the car is, named by the nearest landmark.
         scannerLocationLabel: item.carLocation?.place
           ? `Near ${item.carLocation.place}`
-          : formatScannerLocation(item.scannerLocation),
+          : carMapLink(item.carLocation)
+            ? "Car location shared"
+            : formatScannerLocation(item.scannerLocation),
+        // The shared point itself (already rounded to ~11 m when stored), so the
+        // owner can open it in a map app even when no landmark name resolved.
+        carLocationMapUrl: carMapLink(item.carLocation),
         provider: item.provider || null,
         providerRequestId: item.providerRequestId || null,
         providerWebhookStatus: item.providerWebhookStatus || null,

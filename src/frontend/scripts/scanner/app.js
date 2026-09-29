@@ -763,11 +763,24 @@ function setSummaryForTag(tag) {
 // scanner declines or never taps.
 let sharedCarLocation = null;
 
+// The first fix a phone reports is usually its network guess (hundreds of
+// metres) and GPS narrows it over the next few seconds, so the position is
+// watched and the best one kept: done at GOOD_FIX_M, or whatever is best by
+// FIX_WINDOW_MS. Each better fix is stored as it arrives, so a Message sent
+// mid-refinement still carries the best one so far.
+const GOOD_FIX_M = 25;
+const FIX_WINDOW_MS = 12000;
+
 function wireShareCarLocation() {
   const btn = byId("share-car-location");
   const title = byId("share-car-location-label");
   const sub = byId("share-car-location-sub");
-  if (!btn || !title || !sub || !navigator.geolocation) { if (btn) btn.hidden = true; return; }
+  // Browsers only grant location on https (or localhost); elsewhere the prompt
+  // never shows and every tap fails, so hide the button as if unsupported.
+  if (!btn || !title || !sub || !navigator.geolocation || window.isSecureContext === false) {
+    if (btn) btn.hidden = true;
+    return;
+  }
 
   const show = (state, titleText, subText) => {
     btn.dataset.state = state;
@@ -785,18 +798,39 @@ function wireShareCarLocation() {
       return;
     }
     show("busy", "Finding the car…", "Allow location when your phone asks");
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        sharedCarLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: Math.round(pos.coords.accuracy || 0) };
+
+    let best = null;
+    let watchId = null;
+    let timer = null;
+    const finish = (err) => {
+      if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+      clearTimeout(timer);
+      watchId = null;
+      if (best) {
         show("on", "Car location added", "The owner sees the nearest landmark");
         window.clarity?.("event", "car_location_shared");
-      },
-      (err) => {
+      } else {
         show("off", "Share where the car is",
           err && err.code === 1 ? "Location is off. You can still message or call." : "Couldn't get a fix. Tap to try again.");
+      }
+    };
+
+    watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        if (btn.dataset.state !== "busy") return;
+        const accuracy = Math.round(pos.coords.accuracy || 0);
+        if (best && accuracy >= best.accuracy) return;
+        best = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy };
+        sharedCarLocation = best;
+        if (accuracy > 0 && accuracy <= GOOD_FIX_M) finish();
+        else sub.textContent = `Accurate to ~${accuracy} m, improving…`;
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+      // Permission denied ends it; a timeout or a lost fix ends it only when
+      // nothing usable has arrived yet.
+      (err) => { if (btn.dataset.state === "busy" && (err?.code === 1 || !best)) finish(err); },
+      { enableHighAccuracy: true, timeout: FIX_WINDOW_MS, maximumAge: 0 }
     );
+    timer = setTimeout(() => { if (btn.dataset.state === "busy") finish(); }, FIX_WINDOW_MS);
   });
 }
 

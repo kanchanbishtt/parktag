@@ -2,7 +2,7 @@
 // named by the nearest landmark, and never an error when Ola is unavailable.
 import test, { afterEach, describe } from "node:test";
 import assert from "node:assert/strict";
-import { readCarLocation, resolveCarLocation, carMapUrl } from "../lib/core/car-location.js";
+import { readCarLocation, resolveCarLocation, carMapUrl, carMapLink } from "../lib/core/car-location.js";
 
 const realFetch = globalThis.fetch;
 const COMPONENTS = [
@@ -61,6 +61,17 @@ describe("car location", () => {
     process.env.OLA_MAPS_API_KEY = "k";
     globalThis.fetch = async () => { throw new Error("down"); };
     assert.equal((await resolveCarLocation({ lat: 28.5, lng: 77.3 })).place, null);
+  });
+
+  test("the owner's map link names only the stored point, and nothing for junk", () => {
+    assert.equal(
+      carMapLink({ lat: 28.5677, lng: 77.323, place: null, mapToken: "x" }),
+      "https://www.google.com/maps/search/?api=1&query=28.5677,77.323"
+    );
+    assert.equal(carMapLink({ lat: 28.567712, lng: 77.323049 }), "https://www.google.com/maps/search/?api=1&query=28.5677,77.323");
+    assert.equal(carMapLink(null), null);
+    assert.equal(carMapLink({ lat: 0, lng: 0 }), null);
+    assert.equal(carMapLink({ place: "Wave Mall" }), null);
   });
 });
 

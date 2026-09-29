@@ -43,6 +43,13 @@ export async function resolveCarLocation(raw, { log = null, timeoutMs = 2500 } =
   };
 }
 
+// A plain map-app link to the stored (already rounded) point, or null. Built
+// from the row, not the request, so it only ever names what was kept.
+export function carMapLink(carLocation) {
+  const point = readCarLocation(carLocation);
+  return point ? `https://www.google.com/maps/search/?api=1&query=${point.lat},${point.lng}` : null;
+}
+
 export function carMapUrl(env, carLocation) {
   if (!carLocation?.mapToken) return null;
   return `${String(env.appBaseUrl || "").replace(/\/+$/, "")}/m/${carLocation.mapToken}.png`;

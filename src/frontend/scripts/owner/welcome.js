@@ -1793,9 +1793,13 @@ function renderActivity(requests) {
     // The label is built server-side so this page and the admin console cannot
     // describe the same row differently. Escaped like any other third-party
     // string: it originates from a geo provider, not from us.
-    const locLine = r.scannerLocationLabel
-      ? `<p class="pt-act-loc" title="Approximate area, from the scanner's network connection">${pinSvg}<span>${esc(r.scannerLocationLabel)}</span></p>`
-      : "";
+    // A point the scanner shared links out to a map app; the IP city stays text.
+    const mapUrl = /^https:\/\/www\.google\.com\/maps\//.test(r.carLocationMapUrl || "") ? r.carLocationMapUrl : "";
+    const locLine = !r.scannerLocationLabel
+      ? ""
+      : mapUrl
+        ? `<p class="pt-act-loc" title="Where the scanner shared the car's location. Tap to open in Maps"><a href="${esc(mapUrl)}" target="_blank" rel="noopener noreferrer">${pinSvg}<span>${esc(r.scannerLocationLabel)} · Open in Maps</span></a></p>`
+        : `<p class="pt-act-loc" title="Approximate area, from the scanner's network connection">${pinSvg}<span>${esc(r.scannerLocationLabel)}</span></p>`;
 
     return `
 <div class="pt-act-card ${cardCls}">

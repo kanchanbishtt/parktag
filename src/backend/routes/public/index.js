@@ -4,6 +4,7 @@ import { ObjectId } from "mongodb";
 import { createContactAction, isSupportedContactReason } from "../../lib/core/contact-actions.js";
 import { callEntitlement, callBlockedCode, callBlockedMessage, spendFreeContactPipeline } from "../../lib/core/call-access.js";
 import { captureScannerLocation } from "../../lib/core/scan-location.js";
+import { captureEmergencyLocation } from "../../lib/core/emergency-alert.js";
 import { toE164 } from "../../lib/core/phone.js";
 import { createPasswordHash, createSecureToken, safeEqual, hashIp, minutesFromNow, getClientIp, maskPlateNumber, getPlateLastFour, isNonEmptyString } from "../../lib/auth/security.js";
 import { createSession, writeSessionCookie } from "../../lib/auth/session.js";
@@ -1786,6 +1787,19 @@ export function registerPublicRoutes(app, env) {
       createdAt: now.toISOString(),
       expiresAt: new Date(now.getTime() + 10 * 60 * 1000)
     });
+
+    // Where the car is, for the emergency contact — only once the call is fully
+    // registered, so an alert can never go out for an SOS that did not. Not
+    // awaited: the place lookup and the sends must not hold up the number.
+    // Absent or unreadable, it does nothing (see emergency-alert.js).
+    if (request.body?.carLocation) {
+      captureEmergencyLocation(env, collections, {
+        requestId,
+        tag,
+        rawCarLocation: request.body.carLocation,
+        log: request.log
+      });
+    }
 
     // ownerId is recorded deliberately: the owner chose the number this dials,
     // so if SOS is ever used to harass someone, this is the line that says who

@@ -647,12 +647,17 @@ async function handleSosCall() {
     setBtnLoading("sos-final-call-button", false);
   };
 
+  // Snapshot at send time, like the routine contacts: a fix still improving
+  // when the call is registered goes out as the best one so far. The server
+  // passes it to the emergency contact with the call (see emergency-alert.js).
+  const carLocation = sharedCarLocation || undefined;
+
   let virtualNumber = "";
   try {
     const { ok, data } = await requestJson(`/api/tags/${token}/register-emergency-call`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ phone, grant: contactGrant }),
+      body: JSON.stringify({ phone, grant: contactGrant, carLocation }),
       onSlow: () => sosSteps.slow("Still connecting, the signal is weak here")
     });
 
@@ -687,6 +692,10 @@ async function handleSosCall() {
     }
     if (!ok) throw new Error(data.error || "Could not start the emergency call.");
     virtualNumber = data.virtualNumber || "";
+    // Said only when it went with the call. Nothing is shown otherwise: there
+    // is no way to add it after the fact, so a "not shared" line would only be
+    // a reproach at a moment that does not need one.
+    setHidden("sos-location-status", !carLocation);
   } catch (error) {
     sosSteps.fail("");
     sosSteps.destroy();
@@ -763,6 +772,12 @@ function setSummaryForTag(tag) {
 // scanner declines or never taps.
 let sharedCarLocation = null;
 
+// Starts the same fix the button does, for the emergency path: someone at a
+// crash should not have to find a second control. Set by wireShareCarLocation,
+// so it stays null wherever the button is hidden (no geolocation, plain http)
+// and a caller can simply do nothing.
+let requestCarLocation = null;
+
 // The first fix a phone reports is usually its network guess (hundreds of
 // metres) and GPS narrows it over the next few seconds, so the position is
 // watched and the best one kept: done at GOOD_FIX_M, or whatever is best by
@@ -789,14 +804,8 @@ function wireShareCarLocation() {
     sub.textContent = subText;
   };
 
-  btn.addEventListener("click", () => {
-    if (btn.dataset.state === "busy") return;
-    // A second tap takes it back: sharing stays the scanner's choice until sent.
-    if (sharedCarLocation) {
-      sharedCarLocation = null;
-      show("off", "Share where the car is", "Helps the owner find it faster");
-      return;
-    }
+  const request = () => {
+    if (btn.dataset.state === "busy" || sharedCarLocation) return;
     show("busy", "Finding the car…", "Allow location when your phone asks");
 
     let best = null;
@@ -831,6 +840,18 @@ function wireShareCarLocation() {
       { enableHighAccuracy: true, timeout: FIX_WINDOW_MS, maximumAge: 0 }
     );
     timer = setTimeout(() => { if (btn.dataset.state === "busy") finish(); }, FIX_WINDOW_MS);
+  };
+  requestCarLocation = request;
+
+  btn.addEventListener("click", () => {
+    if (btn.dataset.state === "busy") return;
+    // A second tap takes it back: sharing stays the scanner's choice until sent.
+    if (sharedCarLocation) {
+      sharedCarLocation = null;
+      show("off", "Share where the car is", "Helps the owner find it faster");
+      return;
+    }
+    request();
   });
 }
 
@@ -2357,6 +2378,11 @@ byId("sos-confirm-continue")?.addEventListener("click", () => {
   // other two actions use, asking for the plate and the scanner's number
   // together, instead of the emergency-only panel it used to open.
   if (emergencyAvailable) {
+    // Ask the phone for the car's position now, while the scanner types the
+    // plate and their number, so a good fix is ready by the time the call is
+    // registered. The gate they just confirmed says this will happen. Declining
+    // changes nothing: the call goes ahead exactly as it did without it.
+    if (!sharedCarLocation) requestCarLocation?.();
     requireVerification("sos");
     return;
   }

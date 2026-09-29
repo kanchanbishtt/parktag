@@ -586,6 +586,10 @@
               this only in case of a real emergency (e.g. accident, medical need, or to
               reach the vehicle owner's family).
             </p>
+            <p class="pt-dialog-copy">
+              If this vehicle has an emergency contact, we will ask for your location
+              so they can find the car. Your phone number stays private.
+            </p>
             <label class="pt-dialog-check">
               <input type="checkbox" id="sos-confirm-check" />
               <span>I confirm this is a genuine emergency and I need to contact the owner or emergency services.</span>
@@ -655,6 +659,9 @@
             <p class="pt-dial-number" id="sos-virtual-number"></p>
           </div>
           <p class="pt-panel-sub">Connecting you to the owner's emergency contact. Your number stays private.</p>
+          <!-- Shown by handleSosCall only when the call carried the car's
+               position (see emergency-alert.js for what the contact gets). -->
+          <p class="pt-panel-sub" id="sos-location-status" hidden>Car location shared with the emergency contact.</p>
           <button id="sos-final-call-button" class="pt-btn pt-btn-sos pt-btn-full" type="button">Call Now</button>
 
           <!-- Someone standing at a crash needs to see that something is

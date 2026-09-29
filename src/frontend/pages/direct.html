@@ -293,16 +293,33 @@
 
       <!-- ── Packs ─────────────────────────────────────────────────────── -->
       <h2 class="gt-h2" id="packs">Choose a pack</h2>
-      <div class="gt-code">
-        <label class="gt-code-l" for="drCode">Your code</label>
-        <div class="gt-code-row">
-          <input class="gt-code-i" id="drCode" name="code" type="text"
-                 autocomplete="off" autocapitalize="characters" spellcheck="false"
-                 maxlength="16" placeholder="Enter your code" />
-          <button class="gt-btn gt-code-go" id="drCodeApply" type="button">Apply</button>
+      <section class="gt-code" id="drCodeCard" aria-label="Promo code">
+        <div class="gt-code-head">
+          <svg class="gt-code-ic" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9a2 2 0 0 0 0 6v3a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1v-3a2 2 0 0 1 0-6V6a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1z"/><path d="M14 5v14" stroke-dasharray="2 3"/></svg>
+          <div>
+            <p class="gt-code-t">Have a code?</p>
+            <p class="gt-code-s">Apply it and watch the price drop.</p>
+          </div>
         </div>
-        <p class="gt-code-n" id="drCodeNote" role="status" aria-live="polite"></p>
-      </div>
+        <div class="gt-code-fields">
+          <div class="gt-code-row">
+            <input class="gt-code-i" id="drCode" name="code" type="text"
+                   autocomplete="off" autocapitalize="characters" spellcheck="false"
+                   maxlength="16" placeholder="Enter your code" aria-label="Your code" />
+            <button class="gt-btn gt-code-go" id="drCodeApply" type="button">Apply</button>
+          </div>
+          <p class="gt-code-n" id="drCodeNote" role="status" aria-live="polite"></p>
+        </div>
+        <div class="gt-code-win" id="drCodeWin" role="status" aria-live="polite" hidden>
+          <span class="gt-code-win-ic" aria-hidden="true">🎉</span>
+          <div class="gt-code-win-bd">
+            <p class="gt-code-win-t" id="drCodeWinT"></p>
+            <p class="gt-code-win-s" id="drCodeWinS"></p>
+          </div>
+          <div class="gt-code-win-save"><span>You save</span><strong id="drCodeWinAmt">₹0</strong></div>
+          <button class="gt-code-rm" id="drCodeRemove" type="button">Remove</button>
+        </div>
+      </section>
 
       <ul class="gt-packs" id="gtPacks">
         <li class="gt-pack gt-sk-pack"><span class="gt-sk">&nbsp;</span></li>

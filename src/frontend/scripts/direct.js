@@ -33,7 +33,10 @@ const PACKS = [
   {
     id: "pt-car-1",
     desc: "One tag for the windscreen of one car.",
-    image: "/images/shop-car-thumb.webp"
+    image: "/images/shop-car-thumb.webp",
+    // /direct leads with the Duo Pack and the codes in circulation are written
+    // for it, so the single is not offered here. /get still sells it.
+    hide: true
   },
   {
     id: "pt-car-2",
@@ -63,6 +66,10 @@ const PACKS = [
 // from price would silently change the headline the day a price moves.
 const HERO_PACK = "pt-car-2";
 
+// The crossed-out price on this page. Display only: what is charged is decided
+// by the server (catalogue price, then any code), never by this table.
+const LIST_PRICE_PAISE = { "pt-car-2": 54900 };
+
 let _products = {};
 let _launchOffer = null;
 // { surchargePaise, productIds, maxQuantity } off the catalogue: which packs take Cash on
@@ -89,6 +96,25 @@ function offerFor(sku) {
   return _launchOffer && _launchOffer.productId === sku ? _launchOffer : null;
 }
 
+// The code the server accepted for the pack on screen. /direct sells at the
+// catalogue price and a code is the only thing that brings it down.
+function promoApplies(sku) {
+  return Boolean(promoState && promoState.ok && sku === HERO_PACK && typeof promoState.payablePaise === "number");
+}
+
+// What the hero pack reads as right now: its price, the crossed-out list price
+// and, once a code has been accepted, the code. At quantity 1 only, because a
+// flat discount over several packs has no honest per-pack figure.
+function heroDisplay(hero) {
+  const qty = _qty.get(HERO_PACK) || 1;
+  const applied = promoApplies(HERO_PACK) && qty === 1;
+  return {
+    nowPaise: applied ? promoState.payablePaise : hero.amountPaise,
+    listPaise: LIST_PRICE_PAISE[HERO_PACK] || 0,
+    code: applied ? (promoState.code || codeValue()) : null
+  };
+}
+
 function publicOfferTotalPaise(sku, priced, qty, addOn = null) {
   const offer = offerFor(sku);
   return (priced.amountPaise * qty) - (offer?.discountPaise || 0) + (addOn?.amountPaise || 0);
@@ -98,9 +124,11 @@ function applyQtyTotal(el, priced, qty, sku) {
   if (qty > 1) {
     el.hidden = false;
     const offer = offerFor(sku);
-    el.textContent = offer
-      ? `${qty} packs · ${offer.code} applied = ${rupees(publicOfferTotalPaise(sku, priced, qty))}`
-      : `${qty} × ${rupees(priced.amountPaise)} = ${rupees(priced.amountPaise * qty)}`;
+    el.textContent = promoApplies(sku)
+      ? `${qty} packs · ${promoState.code || codeValue()} applied = ${rupees(promoState.payablePaise)}`
+      : offer
+        ? `${qty} packs · ${offer.code} applied = ${rupees(publicOfferTotalPaise(sku, priced, qty))}`
+        : `${qty} × ${rupees(priced.amountPaise)} = ${rupees(priced.amountPaise * qty)}`;
   } else {
     el.hidden = true;
     el.textContent = "";
@@ -115,9 +143,10 @@ function renderChips(products) {
   // "Pack of 2 · ₹499" — the name already says which pack, so the chip does
   // not repeat the word ParkTag a third time on one screen.
   const offer = offerFor(HERO_PACK);
+  const d = heroDisplay(hero);
   chip.textContent = offer
     ? `${hero.name.replace(/^ParkTag\s*/, "")} · ${rupees(offer.offerPaise)} launch offer · MRP ${rupees(offer.mrpPaise)}`
-    : `${hero.name.replace(/^ParkTag\s*/, "")} · ${rupees(hero.amountPaise)}`;
+    : `${hero.name.replace(/^ParkTag\s*/, "")} · ${rupees(d.nowPaise)}${d.listPaise > d.nowPaise ? ` · MRP ${rupees(d.listPaise)}` : ""}`;
 }
 
 function renderPacks(products) {
@@ -129,7 +158,7 @@ function renderPacks(products) {
     const priced = products[pack.id];
     // A pack the server no longer sells is dropped rather than shown at a
     // guessed price. Silence beats an offer that cannot be honoured.
-    if (!priced) continue;
+    if (!priced || pack.hide) continue;
 
     const li = document.createElement("li");
     li.className = pack.soldOut ? "gt-pack gt-pack-out" : "gt-pack";
@@ -157,18 +186,28 @@ function renderPacks(products) {
     const now = document.createElement("span");
     now.className = "gt-pack-now";
     const offer = offerFor(pack.id);
-    now.textContent = rupees(offer ? offer.offerPaise : priced.amountPaise);
+    const hero = pack.id === HERO_PACK ? heroDisplay(priced) : null;
+    now.textContent = rupees(offer ? offer.offerPaise : hero ? hero.nowPaise : priced.amountPaise);
+    now.dataset.paise = String(offer ? offer.offerPaise : hero ? hero.nowPaise : priced.amountPaise);
     price.append(now);
 
     // The struck-through price is shown only when it is genuinely higher than
     // what is being charged. A "was" that is not above the "now" is not a
     // saving, and printing one anyway is the kind of thing that turns a
     // discount into a misleading price claim.
-    if (offer && offer.mrpPaise > offer.offerPaise) {
+    const shown = offer ? offer.offerPaise : hero ? hero.nowPaise : priced.amountPaise;
+    const listPaise = offer ? offer.mrpPaise : LIST_PRICE_PAISE[pack.id] || 0;
+    if (listPaise > shown) {
       const was = document.createElement("span");
       was.className = "gt-pack-was";
-      was.textContent = `MRP ${rupees(offer.mrpPaise)}`;
+      was.textContent = `MRP ${rupees(listPaise)}`;
       price.append(was);
+    }
+    if (hero && hero.code) {
+      const save = document.createElement("span");
+      save.className = "gt-pack-save";
+      save.textContent = `${hero.code} applied`;
+      price.append(save);
     }
 
     bd.append(name, desc, price);
@@ -250,9 +289,10 @@ function renderBar(products) {
   // handover collected in person, and promising Cash on Delivery beside it
   // would be offering something this checkout does not do.
   const offer = offerFor(HERO_PACK);
+  const d = heroDisplay(hero);
   if (sub) sub.textContent = offer
     ? `${rupees(offer.offerPaise)} launch offer · MRP ${rupees(offer.mrpPaise)} · Secure payment`
-    : `${rupees(hero.amountPaise)} · Secure payment`;
+    : `${rupees(d.nowPaise)}${d.code ? ` with ${d.code}` : ""}${d.listPaise > d.nowPaise ? ` · MRP ${rupees(d.listPaise)}` : ""} · Secure payment`;
 }
 
 function renderAddOn(addOns) {
@@ -359,6 +399,60 @@ const CODE_REFUSALS = {
   "wrong-pack": "That code is for a different pack."
 };
 
+// The last code that got the celebration, so re-checking the same code (a
+// quantity change, the checkout re-check, a blur) never fires it twice.
+let _celebrated = "";
+
+// Counts a figure up or down to its target. A snap under reduced motion.
+function countTo(el, from, to, ms = 650) {
+  const still = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (still || from === to) { el.textContent = rupees(to); return; }
+  const t0 = performance.now();
+  const step = (now) => {
+    const k = Math.min(1, (now - t0) / ms);
+    const eased = 1 - Math.pow(1 - k, 3);
+    el.textContent = rupees(from + (to - from) * eased);
+    if (k < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
+// Re-draws everything that quotes a price, so a code changes the pack, the chip
+// and the sticky bar together rather than leaving one of them stale.
+function refreshPricing(animate = false) {
+  const before = Number(document.querySelector(".gt-pack-now")?.dataset.paise) || 0;
+  renderChips(_products);
+  renderPacks(_products);
+  renderBar(_products);
+  const now = document.querySelector(".gt-pack-now");
+  if (animate && now) {
+    const to = Number(now.dataset.paise) || 0;
+    countTo(now, before, to);
+    now.classList.remove("gt-pop"); void now.offsetWidth; now.classList.add("gt-pop");
+  }
+}
+
+// The three faces of the code card: idle, refused, and won. Won swaps the field
+// for a banner naming the code and the saving, with a way to take it off.
+function showCodeState(state) {
+  const card = byId("drCodeCard");
+  const win = byId("drCodeWin");
+  const note = byId("drCodeNote");
+  if (!card || !win || !note) return;
+  const won = Boolean(state && state.ok);
+  card.classList.toggle("gt-code-won", won);
+  win.hidden = !won;
+  if (won) {
+    const saved = Math.max(0, (state.catalogPaise || 0) - (state.payablePaise || 0));
+    byId("drCodeWinT").textContent = `${state.code || codeValue()} applied`;
+    const amount = byId("drCodeWinAmt");
+    countTo(amount, 0, saved);
+    byId("drCodeWinS").textContent = `You pay ${rupees(state.payablePaise)} instead of ${rupees(state.catalogPaise)}`;
+    note.textContent = "";
+    note.className = "gt-code-n";
+  }
+}
+
 async function checkCode(sku) {
   const note = byId("drCodeNote");
   const code = codeValue();
@@ -366,8 +460,11 @@ async function checkCode(sku) {
 
   if (!code) {
     promoState = null;
+    _celebrated = "";
     note.textContent = "";
     note.className = "gt-code-n";
+    showCodeState(null);
+    if (_products[HERO_PACK]) refreshPricing();
     return;
   }
 
@@ -393,12 +490,27 @@ async function checkCode(sku) {
   }
 
   if (promoState && promoState.ok) {
-    note.textContent = `Code applied. You pay ${rupees(promoState.payablePaise)} instead of ${rupees(promoState.catalogPaise)}.`;
-    note.className = "gt-code-n gt-code-ok";
+    const first = _celebrated !== code;
+    _celebrated = code;
+    showCodeState({ ...promoState, code });
+    if (_products[HERO_PACK]) refreshPricing(first);
+    // The paper lands once per code, after the banner is up.
+    if (first) burstConfetti(byId("gtCfti"), "gt-cfti");
   } else {
+    _celebrated = "";
+    showCodeState(null);
     note.textContent = CODE_REFUSALS[promoState && promoState.reason] || "That code is not valid.";
     note.className = "gt-code-n gt-code-bad";
+    if (_products[HERO_PACK]) refreshPricing();
   }
+}
+
+// Takes the code off and puts the page back to the plain price.
+function removeCode() {
+  const input = byId("drCode");
+  if (input) input.value = "";
+  void checkCode(HERO_PACK);
+  if (input) input.focus();
 }
 
 // A handover sale needs a name and a phone and nothing else. The phone is not
@@ -1080,6 +1192,8 @@ function wireCheckout(products) {
   }
   const apply = byId("drCodeApply");
   if (apply) apply.addEventListener("click", () => checkCode(_sku));
+  const remove = byId("drCodeRemove");
+  if (remove) remove.addEventListener("click", removeCode);
 
   // The stepper's own delegated listener, separate from the Order handler
   // below. It matches on `button[data-qty-dir]`, which an `a[data-sku]` click
@@ -1105,6 +1219,8 @@ function wireCheckout(products) {
     if (n) n.textContent = String(next);
     const total = card.querySelector(".gt-pack-qty-total");
     if (total) applyQtyTotal(total, priced, next, sku);
+    // A flat code prices the whole order, so the figure has to be re-asked.
+    if (codeValue()) void checkCode(sku);
   });
 
   byId("gtDoneX").addEventListener("click", hideSheet);
@@ -1174,7 +1290,9 @@ async function load() {
   }
 
   _products = payload.products;
-  _launchOffer = payload.launchOffer || null;
+  // No launch offer here: /direct sells at the catalogue price and a code is
+  // the only way the price comes down. (/get still runs the launch offer.)
+  _launchOffer = null;
   _cod = typeof payload.codSurchargePaise === "number" && Array.isArray(payload.codProductIds)
     ? {
         surchargePaise: payload.codSurchargePaise,
@@ -1188,8 +1306,8 @@ async function load() {
   const linkCode = (params.get("promo") || "").trim().toUpperCase().slice(0, 32);
   const linkSku = params.get("sku");
   const code = byId("drCode");
-  if (code && !code.value && (linkCode || _launchOffer?.code)) {
-    code.value = linkCode || _launchOffer.code;
+  if (code && !code.value && linkCode) {
+    code.value = linkCode;
     await checkCode(linkCode && linkSku && payload.products[linkSku] ? linkSku : HERO_PACK);
   }
 

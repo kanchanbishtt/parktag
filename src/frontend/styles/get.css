@@ -1271,3 +1271,72 @@ html:has(.gt-body) { overscroll-behavior-x: none; }
 }
 .dr-sheet-n { margin: 0; text-align: center; font-size: 0.8rem; color: #5a6a80; }
 .dr-secure { text-align: center; font-size: 0.75rem; color: #7a8798; }
+
+
+/* ── The code card on /direct ───────────────────────────────────────────────
+ * A ticket that turns into a win banner once the server accepts the code. The
+ * confetti itself is confetti.js on the shared .gt-cfti layer. */
+.gt-code {
+  position: relative;
+  padding: 1rem 1rem 0.9rem;
+  border: 2px dashed #c9d3e2;
+  border-radius: 1rem;
+  background: linear-gradient(180deg, #fff, var(--gt-ground, #f6f8fb));
+  transition: border-color .3s, background .3s, box-shadow .3s;
+}
+.gt-code-head { display: flex; gap: .7rem; align-items: center; margin-bottom: .2rem; }
+.gt-code-ic { color: var(--gt-red, #ff2700); flex: none; }
+.gt-code-t { margin: 0; font-weight: 800; font-size: 1rem; }
+.gt-code-s { margin: 0; font-size: .82rem; color: var(--gt-ink-2, #41506a); }
+.gt-code-fields { display: grid; gap: .4rem; margin-top: .6rem; }
+.gt-code-win { display: none; }
+
+.gt-code-won {
+  border-style: solid;
+  border-color: #1b7a46;
+  background: linear-gradient(120deg, #e8f7ee 0%, #f6fff9 45%, #e8f7ee 100%);
+  background-size: 200% 100%;
+  box-shadow: 0 8px 26px rgba(27, 122, 70, .18);
+  animation: gt-code-shine 2.4s ease-in-out 1, gt-code-pop .5s cubic-bezier(.2, 1.4, .4, 1) 1;
+}
+.gt-code-won .gt-code-head,
+.gt-code-won .gt-code-fields { display: none; }
+.gt-code-won .gt-code-win {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: .2rem .8rem;
+  align-items: center;
+}
+.gt-code-win[hidden] { display: none !important; }
+.gt-code-win-ic { font-size: 2rem; animation: gt-code-wiggle .9s ease-in-out 2; }
+.gt-code-win-t { margin: 0; font-weight: 800; font-size: 1.05rem; color: #14532d; letter-spacing: .04em; }
+.gt-code-win-s { margin: 0; font-size: .82rem; color: #1b7a46; font-weight: 600; }
+.gt-code-win-save { text-align: right; display: grid; line-height: 1.1; }
+.gt-code-win-save span { font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; color: #1b7a46; font-weight: 700; }
+.gt-code-win-save strong { font-size: 1.6rem; font-weight: 900; color: #14532d; }
+.gt-code-rm {
+  grid-column: 1 / -1;
+  justify-self: start;
+  background: none; border: 0; padding: 0;
+  font: inherit; font-size: .78rem; font-weight: 600;
+  color: var(--gt-ink-2, #41506a); text-decoration: underline; cursor: pointer;
+}
+
+.gt-pack-save {
+  display: inline-block;
+  margin-left: .4rem;
+  padding: .1rem .5rem;
+  border-radius: 999px;
+  background: #1b7a46; color: #fff;
+  font-size: .68rem; font-weight: 800; letter-spacing: .04em;
+}
+.gt-pop { animation: gt-price-pop .55s cubic-bezier(.2, 1.5, .4, 1) 1; display: inline-block; color: #1b7a46; }
+
+@keyframes gt-code-pop { 0% { transform: scale(.94); } 100% { transform: scale(1); } }
+@keyframes gt-code-shine { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
+@keyframes gt-code-wiggle { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-14deg) scale(1.15); } 75% { transform: rotate(14deg) scale(1.15); } }
+@keyframes gt-price-pop { 0% { transform: scale(1); } 40% { transform: scale(1.35); } 100% { transform: scale(1); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .gt-code-won, .gt-code-win-ic, .gt-pop { animation: none; }
+}

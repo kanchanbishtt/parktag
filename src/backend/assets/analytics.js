@@ -212,6 +212,17 @@
     select_item:    { ga: "select_item",    pixel: null }
   };
 
+  // Keep Clarity's conversion path small and decision-useful. These names are
+  // also the GA4 vocabulary, so the same checkout can be compared across both
+  // products without maintaining a second translation table. No parameters
+  // are sent to Clarity here, which keeps delivery details out of recordings.
+  var CLARITY_FUNNEL_EVENTS = {
+    begin_checkout: 1,
+    add_shipping_info: 1,
+    add_payment_info: 1,
+    purchase: 1
+  };
+
   // Allow-list, not a deny-list. A deny-list means every future call site is one
   // careless argument away from posting a phone number, a plate or a tag token
   // to Google and Meta. Anything not named here is dropped before dispatch.
@@ -328,6 +339,12 @@
     if (pixelReady && map.pixel) {
       try {
         window.fbq(map.custom ? "trackCustom" : "track", map.pixel, clean, { eventID: id });
+      } catch (_) { /* analytics must never break the page */ }
+    }
+
+    if (CLARITY_FUNNEL_EVENTS[name] && typeof window.clarity === "function") {
+      try {
+        window.clarity("event", name);
       } catch (_) { /* analytics must never break the page */ }
     }
   }

@@ -196,6 +196,10 @@ export function getEnv() {
     // Optional. Set it only while verifying in Events Manager → Test Events;
     // events carrying it are routed to the test view instead of live reporting.
     metaCapiTestEventCode: process.env.META_CAPI_TEST_EVENT_CODE || "",
+    // Owner-dashboard product analytics (retention, not the marketing funnel —
+    // see lib/integrations/mixpanel.js for why that stays server-side only).
+    // Unset → the module no-ops, the correct state for dev and staging.
+    mixpanelToken: process.env.MIXPANEL_TOKEN || "",
     googleClientId: process.env.GOOGLE_CLIENT_ID || "",
     googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
     googleCallbackUrl: process.env.GOOGLE_CALLBACK_URL || "http://127.0.0.1:4000/api/auth/google/callback",

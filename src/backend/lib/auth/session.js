@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 
 import { getEnv } from "../env.js";
 import { getCollections } from "../db/repositories.js";
+import { sendMixpanelEventBestEffort } from "../integrations/mixpanel.js";
 
 const SESSION_COOKIE = "wavetag_session";
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
@@ -113,6 +114,19 @@ export async function createSession(app, user) {
 
   session.cachedAt = now.getTime();
   app.sessions.set(sessionId, session);
+
+  // Every owner login path (credential, mobile OTP, Google, and the
+  // auto-login after registration) creates a session through here, so this is
+  // the one place that reports a sign-in rather than four separate call
+  // sites. Admin sessions are excluded — this is owner-dashboard product
+  // analytics, not an internal-tool audit log.
+  if (user.role === "owner") {
+    sendMixpanelEventBestEffort(app.log, getEnv(), {
+      eventName: "owner_signed_in",
+      distinctId: user.id
+    });
+  }
+
   return sessionId;
 }
 

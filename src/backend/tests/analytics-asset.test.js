@@ -165,6 +165,22 @@ describe("event id determinism", () => {
   });
 });
 
+describe("Clarity checkout funnel", () => {
+  test("reports the four conversion stages without checkout parameters", () => {
+    const funnelMap = source.slice(
+      source.indexOf("var CLARITY_FUNNEL_EVENTS"),
+      source.indexOf("var ALLOWED")
+    );
+
+    for (const event of ["begin_checkout", "add_shipping_info", "add_payment_info", "purchase"]) {
+      assert.match(funnelMap, new RegExp(`\\b${event}: 1\\b`));
+    }
+
+    assert.match(source, /window\.clarity\("event", name\);/);
+    assert.doesNotMatch(source, /window\.clarity\("event", name, clean\);/);
+  });
+});
+
 describe("surface detection survives defer", () => {
   test("the surface is not read from document.currentScript alone", () => {
     // Every analytics tag is deferred so it cannot block first paint, and

@@ -963,6 +963,9 @@
   // still reads the same at every existing call site.
   function close(saved) {
     clearInterval(resendTimer);
+    if (guestMode && !saved && typeof window.clarity === "function") {
+      window.clarity("event", "checkout_dismissed");
+    }
     dismiss();
     // Closed by Deliver, Cancel, the backdrop or Escape: take the sheet's
     // history entry with it, or the next back press would be a dud.
@@ -1077,6 +1080,9 @@
         savedAddress = null;
         profileName = "";
         showForm(null);
+        if (typeof window.clarity === "function") {
+          window.clarity("event", "address_started");
+        }
         popIn();
         return;
       }

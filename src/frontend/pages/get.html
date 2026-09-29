@@ -18,8 +18,9 @@
     <link rel="modulepreload" href="/scripts/recaptcha.js?v=__ASSET_VERSION__" />
     <link rel="modulepreload" href="/scripts/confetti.js?v=__ASSET_VERSION__" />
     <link rel="modulepreload" href="/scripts/referral-link.js?v=__ASSET_VERSION__" />
-
+    <link rel="preload" as="image" href="/images/final-landing-sticker.webp" fetchpriority="high" />
     <link rel="preload" as="font" type="font/woff2" href="/fonts/inter-latin-var.woff2" crossorigin />
+
     <link rel="stylesheet" href="/styles/get.css?v=__ASSET_VERSION__" />
     <link rel="stylesheet" href="/styles/pt-steps.css?v=__ASSET_VERSION__" />
     <!-- Checkout's hosts, looked up ahead of time. DNS only: it is cached for
@@ -167,7 +168,7 @@
                traffic to the other storefront. get.js intercepts on data-sku. -->
           <p class="gt-ref" id="gtRef" role="status" hidden></p>
 
-          <a class="gt-btn gt-cta" href="#packs" id="gtCta" data-sku="pt-car-2">Order now</a>
+          <a class="gt-btn gt-cta" href="#packs" id="gtCta" data-sku="pt-car-2">Order now · Free delivery</a>
 
           <p class="gt-fine">One-time tag purchase · Pay online, or cash on delivery on Car Tag packs · 7-day replacement</p>
         </div>

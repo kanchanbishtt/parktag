@@ -2,6 +2,7 @@ import { ObjectId } from "mongodb";
 
 import { sendMetaWhatsappAlert, isMetaWhatsappConfigured } from "../integrations/meta.js";
 import { sendOwnerAlertEmail } from "../integrations/email.js";
+import { sendMixpanelEventBestEffort } from "../integrations/mixpanel.js";
 import { getCollections } from "../db/repositories.js";
 import { captureScannerLocation } from "./scan-location.js";
 import { carMapUrl, resolveCarLocation } from "./car-location.js";
@@ -266,6 +267,12 @@ export async function createContactAction(env, input) {
         contactAttempts: { $add: [{ $ifNull: ["$contactAttempts", 0] }, 1] }
       });
   await collections.tags.updateOne({ _id: tag._id }, tagUpdate);
+
+  sendMixpanelEventBestEffort(input.log, env, {
+    eventName: "contact_action",
+    distinctId: String(tag.ownerId),
+    properties: { method: input.action, channel: input.messageChannel || null }
+  });
 
   return {
     ok: true,

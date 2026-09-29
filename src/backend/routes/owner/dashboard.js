@@ -19,6 +19,7 @@ import {
   CALLBACK_PASS_PAISE
 } from "../../lib/core/callback-pass.js";
 import { registerOwnerToScannerCall } from "../../lib/core/pending-call.js";
+import { sendMixpanelEventBestEffort } from "../../lib/integrations/mixpanel.js";
 import { membershipCountdown } from "../../lib/core/membership-fulfilment.js";
 import {
   cleanGender,
@@ -912,6 +913,12 @@ export function registerOwnerRoutes(app, env) {
       };
     }
 
+    sendMixpanelEventBestEffort(request.log, env, {
+      eventName: "tag_status_changed",
+      distinctId: String(ownerId),
+      properties: { status }
+    });
+
     return {
       ok: true,
       tag: {
@@ -989,6 +996,11 @@ export function registerOwnerRoutes(app, env) {
       return { ok: false, error: "Tag not found" };
     }
 
+    sendMixpanelEventBestEffort(request.log, env, {
+      eventName: "emergency_contact_updated",
+      distinctId: String(ownerId)
+    });
+
     return { ok: true, emergencyContact: result.emergencyContact || null };
   });
 
@@ -1029,6 +1041,11 @@ export function registerOwnerRoutes(app, env) {
         "[vault] vehicle deleted but some document blobs could not be removed — sweep required"
       );
     }
+
+    sendMixpanelEventBestEffort(request.log, env, {
+      eventName: "tag_deactivated",
+      distinctId: String(ownerId)
+    });
 
     return { ok: true };
   });

@@ -9,6 +9,7 @@ import { toE164 } from "../../lib/core/phone.js";
 import { createPasswordHash, createSecureToken, safeEqual, hashIp, minutesFromNow, getClientIp, maskPlateNumber, getPlateLastFour, isNonEmptyString } from "../../lib/auth/security.js";
 import { createSession, writeSessionCookie } from "../../lib/auth/session.js";
 import { sendCapiEventBestEffort, activationEventId } from "../../lib/integrations/meta-capi.js";
+import { sendMixpanelEventBestEffort } from "../../lib/integrations/mixpanel.js";
 import {
   findOwnerHoldingMobile,
   isDuplicateMobileError,
@@ -368,6 +369,18 @@ export function registerPublicRoutes(app, env) {
         ok: false,
         error: "Tag not found"
       };
+    }
+
+    // A stranger's page load, attributed to the owner being reached — not to a
+    // scanner Mixpanel has no business identifying. Unclaimed/claimable tags
+    // have no ownerId yet and are excluded: nobody's retention is being
+    // measured until someone actually owns the tag being scanned.
+    if (tag.ownerId) {
+      sendMixpanelEventBestEffort(request.log, env, {
+        eventName: "tag_scanned",
+        distinctId: String(tag.ownerId),
+        properties: { vehicle_type: tag.vehicleType || null }
+      });
     }
 
     // NOTE: plateLastFour is intentionally NOT returned — the last-4 answer must
@@ -1544,6 +1557,12 @@ export function registerPublicRoutes(app, env) {
       expiresAt: new Date(now.getTime() + 10 * 60 * 1000)
     });
 
+    sendMixpanelEventBestEffort(request.log, env, {
+      eventName: "contact_action",
+      distinctId: String(tag.ownerId),
+      properties: { method: "call" }
+    });
+
     return { ok: true, virtualNumber: env.exotelCallerId };
   });
 
@@ -1816,6 +1835,14 @@ export function registerPublicRoutes(app, env) {
       },
       "[emergency] pending SOS call registered"
     );
+
+    if (tag.ownerId) {
+      sendMixpanelEventBestEffort(request.log, env, {
+        eventName: "contact_action",
+        distinctId: String(tag.ownerId),
+        properties: { method: "emergency_call" }
+      });
+    }
 
     return { ok: true, virtualNumber: env.exotelCallerId };
   });

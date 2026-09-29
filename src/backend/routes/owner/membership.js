@@ -13,6 +13,7 @@ import {
   isRazorpayConfigured,
   verifyRazorpaySignature
 } from "../../lib/integrations/payments.js";
+import { sendMixpanelEventBestEffort } from "../../lib/integrations/mixpanel.js";
 import { activateMembership, membershipPeriodStart } from "../../lib/core/membership-fulfilment.js";
 import { isInPremiumTrial } from "../../lib/core/vault.js";
 import { generateOrderNumber } from "../../lib/core/order-number.js";
@@ -315,6 +316,16 @@ export function registerMembershipRoutes(app, env) {
         order,
         paymentId: razorpay_payment_id,
         log: request.log
+      });
+
+      sendMixpanelEventBestEffort(request.log, env, {
+        eventName: "membership_renewed",
+        distinctId: String(ownerId),
+        properties: {
+          plan_id: order.planId,
+          months: order.months,
+          amount: order.amount / 100
+        }
       });
 
       // The receipt says what the SERVER recorded, not what the browser was

@@ -3,6 +3,7 @@ import { ObjectId } from "mongodb";
 import { getCollections } from "../../lib/db/repositories.js";
 import { safeEqual } from "../../lib/auth/security.js";
 import { normalizeCallOutcome, parseCallDuration } from "../../lib/core/call-outcome.js";
+import { sendMixpanelEventBestEffort } from "../../lib/integrations/mixpanel.js";
 
 // Exotel has no request-signing scheme for callbacks (unlike Twilio/Meta), so
 // the mitigation is a shared secret embedded in the callback URLs configured
@@ -244,6 +245,25 @@ export function registerProviderRoutes(app, env) {
           { $set: { consumed: true, consumedAt: new Date().toISOString() } }
         )
         .catch(() => null);
+
+      // Read-only lookup, same match either path above just wrote by: the
+      // owner's product-analytics id is never stamped onto the pendingCalls
+      // row itself, so it has to come from whichever contactRequest this
+      // event belongs to.
+      const contactRequest = await collections.contactRequests
+        .findOne(
+          customField && ObjectId.isValid(customField)
+            ? { _id: new ObjectId(customField) }
+            : { providerRequestId: callSid }
+        )
+        .catch(() => null);
+      if (contactRequest?.ownerId) {
+        sendMixpanelEventBestEffort(request.log, env, {
+          eventName: "masked_call_connected",
+          distinctId: String(contactRequest.ownerId),
+          properties: { call_duration: seconds, call_type: contactRequest.action || null }
+        });
+      }
     }
 
     if (body.RecordingUrl) set.recordingUrl = body.RecordingUrl;

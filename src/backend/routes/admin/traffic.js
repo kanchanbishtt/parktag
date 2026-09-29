@@ -1,6 +1,7 @@
 import { requireSession } from "../../lib/auth/auth.js";
 import { getCollections } from "../../lib/db/repositories.js";
 import { reconcile } from "../../lib/core/reconciliation.js";
+import { REAL_ORDERS, summariseUtmSales } from "../../lib/core/utm-sales.js";
 import { istDayKey, PROBE_PATH_RE } from "../system/analytics.js";
 
 // Read side of landing-page traffic geography.
@@ -13,6 +14,9 @@ import { istDayKey, PROBE_PATH_RE } from "../system/analytics.js";
 
 const ALLOWED_RANGES = [7, 30, 90];
 const DEFAULT_RANGE = 30;
+// The sales report can look further back than the traffic one: orders are kept, landing visits are not.
+const UTM_SALES_RANGES = [7, 30, 90, 365];
+const UTM_SALES_MAX_ROWS = 20000;
 // Long tails are noise on a dashboard; the totals below still count everything.
 const TOP_N = 12;
 // Enough to work through in one sitting; the rest are stale anyway.
@@ -143,6 +147,42 @@ export function registerAdminTrafficRoutes(app, env) {
 
     const { unlinkedTags, unfilledOrders } = await reconcile(collections);
     return { ok: true, unlinkedTags, unfilledOrders };
+  });
+
+  // Sales by tagged link: what each campaign's utm_* actually produced.
+  //
+  //   GET /api/admin/utm-sales?days=30
+  //
+  // Read straight from shopOrders and grouped in memory (see lib/core/utm-sales.js): a few hundred rows a month,
+  // and it keeps the grouping testable without a database.
+  app.get("/api/admin/utm-sales", async (request, reply) => {
+    const blocked = await requireSession(app, "admin")(request, reply);
+    if (blocked) return blocked;
+
+    const collections = await getCollections(env);
+    if (!collections) { reply.code(503); return { ok: false, error: "Database is not available." }; }
+
+    const requested = Number(request.query?.days);
+    const days = UTM_SALES_RANGES.includes(requested) ? requested : DEFAULT_RANGE;
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    // createdAt is an ISO string on current rows and a Date on some older ones; a string bound alone skips those.
+    const rows = await collections.shopOrders
+      .find(
+        { ...REAL_ORDERS, $or: [{ createdAt: { $gte: since.toISOString() } }, { createdAt: { $gte: since } }] },
+        { projection: { status: 1, amount: 1, promoCode: 1, promoDiscountPaise: 1, attribution: 1 } }
+      )
+      .limit(UTM_SALES_MAX_ROWS)
+      .toArray();
+
+    return {
+      ok: true,
+      days,
+      since: since.toISOString(),
+      truncated: rows.length === UTM_SALES_MAX_ROWS,
+      basis: "Last-touch utm_* on the order. Sales are paid plus COD; test orders and giveaways excluded.",
+      ...summariseUtmSales(rows)
+    };
   });
 
   app.get("/api/admin/traffic", async (request, reply) => {

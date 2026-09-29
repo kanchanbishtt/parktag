@@ -75,6 +75,58 @@ function renderGreetingAffordance(owner) {
   nameEdit.hidden = false;
 }
 
+// Every element that says who the owner is, repainted from one place.
+//
+// The greeting, the menu header, the User Info panel and the profile card all
+// show the same name and number, and each save path used to update its own
+// pick of them — so a name added on the greeting reached the menu's info row
+// but not the menu's greeting or the profile card until the next reload.
+// `patch` is folded into the cached owner first, so the dashboard's own idea
+// of the owner and what is on screen cannot disagree. A caller that has a
+// value the server has not confirmed yet passes it here all the same and calls
+// again with the server's answer (or the old values) when it arrives.
+function applyOwnerIdentity(patch = {}) {
+  if (_owner) Object.assign(_owner, patch);
+  const o = _owner || patch;
+
+  // The server derives the greeting (first name, with an address to fall back
+  // on); until it has, the first word of the name is the obvious stand-in.
+  const greeting =
+    o.greetingName || (o.displayName || "").trim().split(/\s+/)[0] || UI.greetFallback;
+  if (greetName) greetName.textContent = `${UI.greetPrefix} ${greeting}!`;
+  renderGreetingAffordance(o);
+
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  set("menuName", greeting);
+  set("menuAvatar", greeting.charAt(0).toUpperCase());
+  set("mi-name", o.displayName || o.email || o.mobile || "-");
+
+  const mobile = o.mobile || _ownerMobile || null;
+  const mobileEl = document.getElementById("mi-mobile");
+  if (mobileEl) {
+    mobileEl.textContent = mobile || "Not set";
+    mobileEl.style.color = mobile ? "#03162D" : "#6B7280";
+  }
+  const mobileEdit = document.getElementById("mi-mobile-edit");
+  if (mobileEdit) mobileEdit.style.display = mobile ? "none" : "flex";
+  const mobileAlert = document.getElementById("mobile-missing-alert");
+  if (mobileAlert) mobileAlert.style.display = mobile ? "none" : "flex";
+
+  // Name, initial and number on the identity card. Hoisted, so callable from
+  // here although it is declared further down.
+  renderProfileView();
+}
+
+// What to put back if a save is refused after the page has already shown it.
+function ownerIdentitySnapshot() {
+  if (!_owner) return null;
+  return {
+    displayName: _owner.displayName || "",
+    hasOwnName: Boolean(_owner.hasOwnName),
+    greetingName: _owner.greetingName || ""
+  };
+}
+
 function openNameEditor() {
   if (!nameForm) return;
   nameInput.value = _ownerName;
@@ -107,6 +159,22 @@ async function saveOwnerName(event) {
 
   const save = document.getElementById("greet-name-save");
   if (save) save.disabled = true;
+
+  // Shown the moment it is typed, not when the server confirms it. The round
+  // trip is the only wait in this flow and there is nothing to show during it;
+  // a refusal is rare and puts the field back with the reason, and the old
+  // name with it.
+  const previous = ownerIdentitySnapshot();
+  applyOwnerIdentity({ displayName: value, hasOwnName: Boolean(value), greetingName: "" });
+  closeNameEditor();
+
+  const restore = (message) => {
+    applyOwnerIdentity(previous || { displayName: "", hasOwnName: false, greetingName: "" });
+    openNameEditor();
+    if (nameInput) nameInput.value = value;
+    setNameStatus(message);
+  };
+
   try {
     const res = await fetch("/api/owner/profile", {
       method: "PATCH",
@@ -119,28 +187,18 @@ async function saveOwnerName(event) {
       // characters"). Anything else is the framework talking — a bare "Not
       // Found" from a route that isn't deployed yet means nothing to whoever
       // is typing their name, so it does not get shown to them.
-      setNameStatus(
-        res.status === 400 && data.error ? data.error : "Could not save your name. Please try again."
-      );
+      restore(res.status === 400 && data.error ? data.error : "Could not save your name. Please try again.");
       return;
     }
-    _ownerName = data.displayName || "";
-    if (greetName) {
-      greetName.textContent = `${UI.greetPrefix} ${data.greetingName || UI.greetFallback}!`;
-    }
-    renderGreetingAffordance({ displayName: _ownerName, hasOwnName: data.hasOwnName });
-    // Keep the menu's owner panel in step — it reads the same name. Updated
-    // directly rather than through that panel's own `set` helper, which is a
-    // local inside its render function and not in scope here.
-    if (_owner) {
-      _owner.displayName = _ownerName;
-      _owner.hasOwnName = data.hasOwnName;
-      const miName = document.getElementById("mi-name");
-      if (miName) miName.textContent = _ownerName || _owner.email || _owner.mobile || "-";
-    }
-    closeNameEditor();
+    // The server's version: the name as normalised, and the greeting it
+    // derived, which can differ from the first word typed.
+    applyOwnerIdentity({
+      displayName: data.displayName || "",
+      hasOwnName: Boolean(data.hasOwnName),
+      greetingName: data.greetingName || ""
+    });
   } catch {
-    setNameStatus("Network error. Please try again.");
+    restore("Network error. Please try again.");
   } finally {
     if (save) save.disabled = false;
   }
@@ -650,6 +708,11 @@ async function saveProfile(event) {
   if (btn) { btn.disabled = true; btn.textContent = "Saving..."; }
   _pfStatus("");
 
+  // The page behind the sheet shows the new name at once — the greeting and
+  // the card the sheet slides away to reveal. Put back if the save is refused.
+  const previous = ownerIdentitySnapshot();
+  applyOwnerIdentity({ displayName: name, hasOwnName: Boolean(name), greetingName: "" });
+
   try {
     const res = await fetch("/api/owner/profile", {
       method: "PATCH",
@@ -667,6 +730,7 @@ async function saveProfile(event) {
     const data = await res.json().catch(() => ({}));
 
     if (!res.ok || !data.ok) {
+      if (previous) applyOwnerIdentity(previous);
       const message = res.status === 400 && data.error
         ? data.error
         : "Could not save. Please try again.";
@@ -682,26 +746,20 @@ async function saveProfile(event) {
       return;
     }
 
-    // The greeting, the menu panel and the cached owner all read this name.
-    _ownerName = data.displayName || "";
-    if (greetName) {
-      greetName.textContent = UI.greetPrefix + " " + (data.greetingName || UI.greetFallback) + "!";
-    }
-    renderGreetingAffordance({ displayName: _ownerName, hasOwnName: data.hasOwnName });
-    if (_owner) {
-      _owner.displayName = _ownerName;
-      _owner.hasOwnName = data.hasOwnName;
-      _owner.profile = data.profile || _owner.profile;
-      const miName = document.getElementById("mi-name");
-      if (miName) miName.textContent = _ownerName || _owner.email || _owner.mobile || "-";
-    }
-    // The sheet closes onto the profile view, and the card behind it shows the
-    // name that was just changed.
-    renderProfileView();
+    // The server's version of the name and greeting, plus the details as
+    // stored. The sheet closes onto the profile view, and the card behind it
+    // already shows the name that was just changed.
+    applyOwnerIdentity({
+      displayName: data.displayName || "",
+      hasOwnName: Boolean(data.hasOwnName),
+      greetingName: data.greetingName || "",
+      ...(data.profile ? { profile: data.profile } : {})
+    });
 
     _pfStatus("Saved");
     setTimeout(closeProfile, 550);
   } catch {
+    if (previous) applyOwnerIdentity(previous);
     _pfStatus("Network error. Please try again.", "err");
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = "Save changes"; }
@@ -833,24 +891,15 @@ async function pfVerifyPhoneCode() {
 
     const saved = data.mobile || mobile;
     _ownerMobile = saved;
-    if (_owner) _owner.mobile = saved;
     _pfPendingMobile = null;
     _pfRenderPhone();
     _pfSetError("pfPhoneInput", "pfPhoneErr", "");
 
-    // The same number is on the User Info panel and gates the callback button,
-    // so both are brought up to date rather than left showing "Not set" until
-    // the next reload.
-    const miMobile = document.getElementById("mi-mobile");
-    if (miMobile) { miMobile.textContent = saved; miMobile.style.color = "#03162D"; }
-    const miEdit = document.getElementById("mi-mobile-edit");
-    if (miEdit) miEdit.style.display = "none";
-    const alert = document.getElementById("mobile-missing-alert");
-    if (alert) alert.style.display = "none";
+    // The same number is on the User Info panel, the identity card, and gates
+    // the callback button, so all of them are brought up to date rather than
+    // left showing "Not set" until the next reload.
+    applyOwnerIdentity({ mobile: saved });
     if (typeof renderActivity === "function") renderActivity(allRequests);
-    // The identity card had been showing "Add your number". It is showing the
-    // number now.
-    renderProfileView();
   } catch {
     _pfSetError("pfPhoneInput", "pfPhoneErr", "Network error. Try again.");
   } finally {
@@ -2332,14 +2381,11 @@ async function verifyMobileOtp() {
       const saved = data.mobile || mobile;
       _ownerMobile = saved;
       _miPendingMobile = null;
-      const mobileEl = document.getElementById("mi-mobile");
-      if (mobileEl) { mobileEl.textContent = saved; mobileEl.style.color = "#03162D"; }
-      const mobileEdit = document.getElementById("mi-mobile-edit");
-      if (mobileEdit) mobileEdit.style.display = "none";
       const otpRow = document.getElementById("mi-mobile-otp-row");
       if (otpRow) otpRow.style.display = "none";
-      const mobileAlert = document.getElementById("mobile-missing-alert");
-      if (mobileAlert) mobileAlert.style.display = "none";
+      // The number is also on the identity card and the profile sheet's
+      // cached owner, not only this panel.
+      applyOwnerIdentity({ mobile: saved });
       _miStatus("Phone number verified and saved.", "#16A34A");
       _toast("Phone number verified. Call Back is now enabled.", "ok");
       renderActivity(allRequests);

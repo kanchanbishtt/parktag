@@ -76,6 +76,7 @@ const adminPage = path.join(pagesRoot, "admin/index.html");
 const adminMarketingPage = path.join(pagesRoot, "admin/marketing.html");
 const adminPromoCodesPage = path.join(pagesRoot, "admin/promo-codes.html");
 const adminReviewsPage = path.join(pagesRoot, "admin/reviews.html");
+const adminApiTokensPage = path.join(pagesRoot, "admin/api-tokens.html");
 const adminOverviewPage = path.join(pagesRoot, "admin/overview.html");
 const adminTrafficPage = path.join(pagesRoot, "admin/traffic.html");
 const adminEtagsPage = path.join(pagesRoot, "admin/etags.html");
@@ -1435,6 +1436,10 @@ export async function buildApp() {
 
   app.get("/admin/reviews", async (request, reply) => {
     return guardAdmin(request, reply, adminReviewsPage);
+  });
+
+  app.get("/admin/api-tokens", async (request, reply) => {
+    return guardAdmin(request, reply, adminApiTokensPage);
   });
 
   app.get("/admin/owners", async (request, reply) => {

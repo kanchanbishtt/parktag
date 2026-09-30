@@ -58,7 +58,7 @@ test("every page shell still has a working named route", async () => {
   // Session-gated pages redirect rather than serve to a stranger.
   for (const name of [
     "overview", "etags", "activations", "issuance", "print-queue", "traffic", "marketing",
-    "promo-codes", "reviews", "owners", "activity", "admins", "sticker-designer"
+    "promo-codes", "reviews", "api-tokens", "owners", "activity", "admins", "sticker-designer"
   ]) {
     assert.equal((await get(`/admin/${name}`)).statusCode, 302, `/admin/${name}`);
   }

@@ -992,3 +992,11 @@ Covers UX and security improvements made after M13 call flow was confirmed worki
 - [ ] Watch GA4 / Pixel / Clarity event counts for a day: vendor tags now start at idle (or after 8 s at most), so very fast bounces may be counted less.
 - [ ] Decide on `landing/public/brand-guideline/` (176 files, 2 MB, publicly served) and on putting a CDN in front once the cache headers here are in production.
 - [ ] Minify `styles.css` at serve time (about 50 KB of comments) and delete the dead rules copied into `styles/admin.css`.
+
+## Admin nav and API tokens page, 2026-09-29
+
+- [x] Found `/admin/promo-codes` and `/admin/reviews` had pages but no sidebar link on any page (only reachable by typing the URL). Added both links, plus API Tokens, to the sidebar on all 13 admin pages.
+- [x] New `/admin/api-tokens` page (`pages/admin/api-tokens.html`, `scripts/admin/api-tokens.js`) over the existing `/api/admin/api-tokens` routes: create (name, read/write, 1-90 days), one-time reveal with copy, list with status and last used, revoke. Route added in `app.js`.
+- [x] `tests/admin-nav.test.js` (no DB): every admin page links to every other and marks only itself active. Verified in Chromium against a mock API: create, reveal, escaping, revoke, 375px width, no console errors.
+- [ ] Run `app-delivery.test.js` and `admin-api-tokens.test.js` in CI (they need Mongo; not run locally, no database here). `app-delivery` now expects `/admin/api-tokens` to redirect when signed out.
+- [ ] `/api/admin/utm-sales` (PR 287) still has no UI; decide whether to add a table to the Traffic page.

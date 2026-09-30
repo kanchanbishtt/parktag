@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>ParkTag Admin | API Tokens</title>
+  <link rel="icon" href="/favicon.ico" sizes="32x32" />
+  <link rel="icon" href="/images/icon.png" type="image/png" />
+  <link rel="apple-touch-icon" href="/images/apple-touch-icon.png" />
+  <link rel="preload" as="font" type="font/woff2" href="/fonts/inter-latin-var.woff2" crossorigin>
+  <link rel="stylesheet" href="/styles/admin-shell.css?v=__ASSET_VERSION__" />
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Segoe UI", Tahoma, sans-serif; background: #F1F1F0; color: #03162D; overflow-wrap: break-word; }
+    .wrap { max-width: 1000px; margin: 0 auto; padding: 14px 12px 40px; }
+    .top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+    .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    .brand-logo { height: 30px; width: auto; mix-blend-mode: multiply; }
+    .brand-sep { color: #9aa5b1; }
+    .title { font-size: 1.15rem; margin: 0; }
+    .sub { color: #667; font-size: .85rem; margin: 0 0 14px; line-height: 1.45; }
+
+    .msg { padding: 14px; border-radius: 10px; margin-bottom: 14px; font-size: .9rem; display: none; }
+    .msg.err { background: #FDECEA; border: 1px solid #F5C2C0; color: #8A1F1A; display: block; }
+    .msg.ok { background: #E6F6EC; border: 1px solid #B7E0C6; color: #17663A; display: block; }
+    .empty { background: #fff; border: 1px dashed #CFCFCC; border-radius: 12px; padding: 26px; text-align: center; color: #667; font-size: .9rem; }
+    .err-text { color: #8A1F1A; border-color: #F5C2C0; }
+
+    .create { background: #fff; border: 1px solid #E3E3E1; border-radius: 14px; padding: 14px; margin-bottom: 16px; }
+    .create h2 { margin: 0 0 10px; font-size: 1rem; }
+    .fields { display: flex; align-items: end; gap: 10px; flex-wrap: wrap; }
+    .fields label { display: flex; flex-direction: column; gap: 5px; color: #5A5A57; font-size: .72rem; font-weight: 700; text-transform: uppercase; }
+    .fields input, .fields select { padding: 9px 10px; border: 1px solid #D6D6D3; border-radius: 8px; font: inherit; font-size: .9rem; text-transform: none; background: #fff; color: #03162D; }
+    .fields .f-name { flex: 1 1 220px; }
+    .fields .f-name input { width: 100%; }
+    .fields input[type="number"] { width: 100px; }
+    .hint { color: #667; font-size: .78rem; margin: 10px 0 0; line-height: 1.4; }
+    .primary { min-height: 38px; padding: 0 16px; border: 0; border-radius: 8px; background: #03162D; color: #fff; font-weight: 700; cursor: pointer; font-family: inherit; }
+    .primary:disabled { opacity: .6; cursor: default; }
+
+    .reveal { background: #FFF8E6; border: 1px solid #F2D98C; border-radius: 14px; padding: 14px; margin-bottom: 16px; }
+    .reveal[hidden] { display: none; }
+    .reveal h2 { margin: 0 0 4px; font-size: 1rem; }
+    .reveal p { margin: 0 0 10px; color: #6B5310; font-size: .84rem; }
+    .reveal-row { display: flex; gap: 8px; align-items: stretch; flex-wrap: wrap; }
+    .reveal code { flex: 1 1 260px; min-width: 0; display: block; padding: 10px 12px; background: #fff; border: 1px solid #E3D6A6; border-radius: 8px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .82rem; word-break: break-all; user-select: all; }
+    .reveal button { border: 0; border-radius: 8px; padding: 0 14px; min-height: 38px; font-weight: 700; cursor: pointer; font-family: inherit; background: #03162D; color: #fff; }
+    .reveal button.ghost { background: #EDEDEB; color: #03162D; }
+
+    .card { background: #fff; border: 1px solid #E3E3E1; border-radius: 14px; overflow: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: .84rem; min-width: 820px; }
+    th, td { text-align: left; padding: 10px; border-bottom: 1px solid #F1F2F4; white-space: nowrap; }
+    th { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; color: #667; background: #FAFBFC; }
+    tr:last-child td { border-bottom: none; }
+    .name { font-weight: 700; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .muted { color: #667; }
+
+    .pill { display: inline-block; font-size: .68rem; font-weight: 800; padding: 2px 9px; border-radius: 20px; }
+    .pill.active, .pill.read { background: #E6F6EC; color: #17663A; }
+    .pill.write { background: #FFF1DA; color: #8A5300; }
+    .pill.revoked, .pill.expired { background: #EDEDEB; color: #5A5A57; }
+    .revoke { border: 0; border-radius: 8px; padding: 6px 12px; font-size: .78rem; font-weight: 700; cursor: pointer; font-family: inherit; background: #FDECEA; color: #8A1F1A; }
+    .revoke:hover:not(:disabled) { background: #F5C2C0; }
+    .revoke:disabled { opacity: .6; cursor: default; }
+  </style>
+</head>
+<body>
+  <div class="pt-admin-shell">
+    <aside class="pt-admin-sidebar">
+      <div class="pt-admin-brand">
+        <img src="/images/light-logo.png" alt="ParkTag" class="pt-admin-brand-logo" />
+        <span class="pt-admin-brand-role">Admin</span>
+      </div>
+      <nav class="pt-admin-nav">
+        <span class="pt-admin-nav-section">Management</span>
+        <a class="pt-admin-nav-item" href="/admin/overview"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="14" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="3" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="14" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/></svg> Overview</a>
+        <a class="pt-admin-nav-item" href="/admin/etags"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 7a2 2 0 0 1 2-2h6l8 8a2 2 0 0 1 0 2.8l-4.2 4.2a2 2 0 0 1-2.8 0L4 12V7Z" stroke="currentColor" stroke-width="2"/><circle cx="7.5" cy="9.5" r="1.5" fill="currentColor"/></svg> Tags</a>
+        <a class="pt-admin-nav-item" href="/admin/activations"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M20 6 9 17l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Activations</a>
+        <a class="pt-admin-nav-item" href="/admin/issuance"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="14" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="3" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><path d="M14 14h2v2h-2zM18 14h3M14 18v3M18 18h3v3h-3z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Batch Issuance</a>
+        <a class="pt-admin-nav-item" href="/admin/print-queue"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v8H6z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Print Queue</a>
+        <a class="pt-admin-nav-item" href="/admin/sticker-designer"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 20h9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg> Sticker Designer</a>
+        <a class="pt-admin-nav-item" href="/admin/marketing"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 11v2a1 1 0 0 0 1 1h2l4 4V6L6 10H4a1 1 0 0 0-1 1Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M16 8.5a4 4 0 0 1 0 7M19 5.5a8 8 0 0 1 0 13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Field Demo</a>
+        <a class="pt-admin-nav-item" href="/admin/promo-codes"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M8 8h.01" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg> Promo Codes</a>
+        <a class="pt-admin-nav-item" href="/admin/reviews"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="m12 3 2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.5 6.6 19.5l1.2-6L3.3 9.3l6.1-.7L12 3Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg> Reviews</a>
+        <span class="pt-admin-nav-section">Monitoring</span>
+        <a class="pt-admin-nav-item" href="/admin/traffic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M3 12h18M12 3c2.5 2.7 2.5 15.3 0 18M12 3c-2.5 2.7-2.5 15.3 0 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Traffic</a>
+        <a class="pt-admin-nav-item" href="/admin/owners"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="2"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Owners</a>
+        <a class="pt-admin-nav-item" href="/admin/activity"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M22 12h-4l-3 9L9 3l-3 9H2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Activity Feed</a>
+        <a class="pt-admin-nav-item" href="/admin/admins"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 2L4 6v6c0 5.25 3.5 9.74 8 11 4.5-1.26 8-5.75 8-11V6l-8-4Z" stroke="currentColor" stroke-width="2"/></svg> Admin Management</a>
+        <a class="pt-admin-nav-item is-active" href="/admin/api-tokens"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="8" cy="15" r="4" stroke="currentColor" stroke-width="2"/><path d="m11 12 9-9M16 7l3 3M14 9l2 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> API Tokens</a>
+      </nav>
+      <div class="pt-admin-sidebar-footer">
+        <button id="admin-refresh-button" class="pt-admin-sidebar-btn pt-admin-btn-ghost">Refresh</button>
+        <button id="admin-logout-button" class="pt-admin-sidebar-btn pt-admin-btn-danger">Sign out</button>
+      </div>
+    </aside>
+    <main class="pt-admin-main">
+  <div class="wrap">
+    <div class="top">
+      <div class="brand">
+        <img class="brand-logo" src="/images/light-logo.png" alt="ParkTag" width="735" height="280" />
+        <span class="brand-sep" aria-hidden="true">·</span>
+        <h1 class="title">API Tokens</h1>
+      </div>
+    </div>
+    <p class="sub">A token lets a script or tool call the admin API without signing in. Read tokens can view data; write tokens can also change promo codes and shop settings. A token can never manage admins, issue or delete tags, or create other tokens. You only see your own tokens.</p>
+    <div id="msg" class="msg" role="status"></div>
+
+    <form id="token-form" class="create" autocomplete="off">
+      <h2>Create a token</h2>
+      <div class="fields">
+        <label class="f-name">Name
+          <input name="name" type="text" maxlength="60" required placeholder="e.g. Reporting script" />
+        </label>
+        <label>Scope
+          <select name="scope">
+            <option value="read" selected>Read</option>
+            <option value="write">Write</option>
+          </select>
+        </label>
+        <label>Expires in (days)
+          <input name="days" type="number" min="1" max="90" step="1" value="30" required />
+        </label>
+        <button id="token-submit" class="primary" type="submit">Create token</button>
+      </div>
+      <p class="hint">Up to 90 days, and at most 10 active tokens at a time. Creating and revoking tokens is recorded in the audit log.</p>
+    </form>
+
+    <section id="reveal" class="reveal" hidden aria-live="polite">
+      <h2>Copy your new token now</h2>
+      <p>It is shown only once. If you lose it, revoke it and create another.</p>
+      <div class="reveal-row">
+        <code id="reveal-value"></code>
+        <button id="reveal-copy" type="button">Copy</button>
+        <button id="reveal-done" class="ghost" type="button">I've copied it</button>
+      </div>
+    </section>
+
+    <div id="tokens"><p class="empty">Loading…</p></div>
+  </div>
+    </main>
+  </div>
+  <script src="/scripts/admin/shell.js?v=__ASSET_VERSION__"></script>
+  <script src="/scripts/admin/api-tokens.js?v=__ASSET_VERSION__"></script>
+</body>
+</html>

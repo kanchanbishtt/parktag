@@ -286,6 +286,67 @@ Your premium now runs until *{{4}}*.
 
 ---
 
+### 2.8 `parktag_tag_locked` — MARKETING (not yet submitted)
+
+For an E-Tag whose free contacts are spent, sent when a scanner reads the plate
+off it and finds it locked. At most once per tag per 24 hours
+(`lib/core/locked-tag-nudge.js`). Its job is to sell the Premium tag at the one
+moment the owner can see what the free one is costing them.
+
+**Until this is approved the app sends `parktag_owner_notification_v2`
+instead**, with a fixed sentence in `{{2}}` (`LOCKED_NUDGE_REASON`). That works
+today, but it is a sales message riding in a UTILITY template, and two things
+follow from that:
+
+- The alert's closing line, "Please check your vehicle when you can", is
+  written for a reported problem and reads oddly after a pitch.
+- Meta does not review a variable at send time, but it does act on how
+  recipients respond. A utility template that draws blocks or reports can be
+  paused, and this one also carries **every real owner alert**. Keep the
+  sentence free of prices and discounts, and move to the template below as
+  soon as it can be used.
+
+**Header (text):** `ParkTag`
+
+**Body:**
+```
+Hi *{{1}}*, someone just tried to reach you at your *{{2}}* and could not get
+through.
+
+The free contacts on your ParkTag are finished, so calls, WhatsApp alerts and
+the emergency call are all switched off.
+
+Upgrade to a Premium tag for unlimited private calls and alerts for a full
+year, and never miss someone at your vehicle again.
+```
+
+**Footer:** `Powered by ParkTag`
+
+**Buttons:** URL, dynamic, `https://app.parktag.me/v/{{1}}` — text: `Get Premium`;
+quick reply — text: `Stop promotions` (the Meta webhook already honours it).
+
+**Samples:** `{{1}}` = `Girish`, `{{2}}` = `car`, button `{{1}}` = `65f1a2b3c4d5e6f701234567`
+
+What has to be true before the code switches to it:
+
+- **It is MARKETING, so it needs consent.** `canSendMarketing` requires a
+  recorded opt-in, and an owner who activated a door hanger was never asked for
+  one. Either add an opt-in tick to the activation wizard first, or this
+  template reaches almost nobody. Until then the v2 alert is the only thing
+  that gets through.
+- **It never carries the scanner's reason.** The reason is what a free contact
+  buys. A locked tag that still delivers it is not locked.
+- **Price stays out of the body** even here. The button leads to the page that
+  quotes it, and a price in the text dates the template the day it changes.
+
+To switch: add a sender beside `sendMetaWhatsappAlert` in
+`lib/integrations/meta.js` (two body variables and the `/v/` button parameter,
+the same shape as `sendMetaWhatsappTrialEnding`), gate it on `canSendMarketing`
+in `sendNudge`, and keep the v2 alert as the fallback for owners without an
+opt-in.
+
+---
+
 ## 3. Footers: done
 
 Edited via the API: `parktag_tag_activated`, `parktag_order_update_v2`,

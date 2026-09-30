@@ -65,3 +65,10 @@ Only unclaimed, unprinted, non-demo tags are printed; bike stock is refused.
 4. For the vendor proof, add `--dieline` (magenta trim, 1.5in hole and slit).
 
 `--sample N` makes a watermarked proof with fake tokens and no database. Never print it.
+
+## After the two contacts
+
+The tag locks, and stays locked: no call, no message and no Emergency call. The
+scan page says only that the owner has used the tag's free limit. A scanner who
+reads the plate off it is counted, and the owner is messaged, at most once a day,
+to upgrade. See `locked-tag-flow.md`.

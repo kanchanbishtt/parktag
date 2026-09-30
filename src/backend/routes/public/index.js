@@ -3,6 +3,7 @@ import { ObjectId } from "mongodb";
 
 import { createContactAction, isSupportedContactReason } from "../../lib/core/contact-actions.js";
 import { callEntitlement, callBlockedCode, callBlockedMessage, spendFreeContactPipeline } from "../../lib/core/call-access.js";
+import { isLockedEtag, recordLockedAttempt, LOCKED_NUDGE_INTERVAL_MS } from "../../lib/core/locked-tag-nudge.js";
 import { captureScannerLocation } from "../../lib/core/scan-location.js";
 import { captureEmergencyLocation } from "../../lib/core/emergency-alert.js";
 import { toE164 } from "../../lib/core/phone.js";
@@ -409,8 +410,13 @@ export function registerPublicRoutes(app, env) {
         // itself must never reach the scanner; the SOS call is masked through
         // Exotel exactly like the owner call, so the client only ever learns
         // that the button is worth showing.
+        //
+        // False on an E-Tag whose free contacts are spent as well: the
+        // Emergency call is part of what locks (see register-emergency-call).
+        // The page then leads to the public helplines, exactly as it does for
+        // a tag with no contact, so this boolean still says nothing about WHY.
         emergencyAvailable:
-          tag.status === "active" && isNonEmptyString(tag.emergencyContact),
+          tag.status === "active" && isNonEmptyString(tag.emergencyContact) && !isLockedEtag(tag),
         claimable: isClaimable(tag),
         // Which vehicle type the activation wizard opens on, derived from the
         // sticker's mount type (see suggestedVehicleTypeForMount). Sent only
@@ -651,6 +657,34 @@ export function registerPublicRoutes(app, env) {
     );
 
     const callAccess = callEntitlement(tag);
+
+    // Somebody has read the plate off a vehicle whose tag is locked. They came
+    // to reach the owner and cannot, which is the moment the owner most needs
+    // to hear about, so it is counted here and the owner is told (at most once
+    // a day: lib/core/locked-tag-nudge.js).
+    //
+    // HERE rather than behind a button on the scan page. The page says nothing
+    // to the scanner about the owner being told, on purpose: the message is
+    // capped, can fail to deliver, and is none of the scanner's business, so
+    // any such line would sometimes be untrue.
+    //
+    // One count per scanner per tag per day. The session document is one per
+    // (scanner, tag) and outlives a single verification, so somebody retrying
+    // the plate does not inflate the number the owner is shown.
+    if (isLockedEtag(tag)) {
+      const dayAgo = new Date(now.getTime() - LOCKED_NUDGE_INTERVAL_MS).toISOString();
+      const firstToday = await collections.verificationSessions.updateOne(
+        { _id: ipDocId, $or: [{ lockedCountedAt: null }, { lockedCountedAt: { $lte: dayAgo } }] },
+        { $set: { lockedCountedAt: now.toISOString() } }
+      );
+      if (firstToday.modifiedCount === 1) {
+        // Not awaited. The scanner's answer must not wait on a WhatsApp send,
+        // and a failure here must never turn a correct plate into an error.
+        recordLockedAttempt(env, collections, tag, request.log).catch((err) => {
+          request.log.error({ err, event: "locked-attempt-failed" }, "[locked tag] attempt not recorded");
+        });
+      }
+    }
 
     return {
       ok: true,
@@ -1574,11 +1608,14 @@ export function registerPublicRoutes(app, env) {
   //
   // Two deliberate differences from the ordinary owner call:
   //
-  //  1. It does NOT consume, and is NOT blocked by, the free contact. This is
-  //     the accident path — refusing to connect next of kin because a stranger
-  //     already used the tag's one free contact would be indefensible. Abuse is
-  //     bounded instead by the plate-verification grant (below), the rate limit,
-  //     and the fact that the call only ever reaches a number the owner chose.
+  //  1. It does NOT consume a free contact, so an emergency call never uses up
+  //     an E-Tag's allowance. It IS blocked once that allowance is spent: a
+  //     locked E-Tag places no masked call of any kind (owner's decision,
+  //     30 Sep 2026; it used to be exempt). The page then shows the public
+  //     helplines, which are not ours to switch off. A premium tag whose year
+  //     has lapsed is NOT affected and still connects. Abuse is bounded by the
+  //     plate-verification grant (below), the rate limit, and the fact that
+  //     the call only ever reaches a number the owner chose.
   //
   //  2. It still REQUIRES a valid grant. Without it, anyone enumerating tokens
   //     could ring a stranger's next of kin, so plate possession stays the
@@ -1643,6 +1680,18 @@ export function registerPublicRoutes(app, env) {
     if (!tag || tag.status !== "active") {
       reply.code(404);
       return { ok: false, error: "Tag not found or not active" };
+    }
+
+    // A locked E-Tag places no emergency call either. Checked before a call
+    // route is registered or the day's emergency ceiling is touched. The page
+    // answers this code with the public helplines.
+    if (isLockedEtag(tag)) {
+      reply.code(402);
+      return {
+        ok: false,
+        code: "EMERGENCY_LOCKED",
+        error: "Emergency calling is not available on this tag."
+      };
     }
 
     if (!env.exotelCallerId) {

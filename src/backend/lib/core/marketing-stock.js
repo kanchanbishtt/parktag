@@ -92,6 +92,12 @@ export const DEMO_TAG_FIELDS = [
   // The counter behind freeContactUsed. Left behind, the next customer would
   // start with the demo's calls already spent.
   "freeContactsSpent",
+  // And what happened after it locked. A sticker handed to a customer must not
+  // arrive telling them three people already failed to reach them, nor with
+  // its once-a-day owner message already spent.
+  "blockedAttempts",
+  "lastBlockedAt",
+  "lockedNudgeAt",
   // The complimentary window opens at activation, so a demo sticker that has
   // been activated once must forget when — otherwise the customer who ends up
   // buying it inherits however much of the window the demo already spent.

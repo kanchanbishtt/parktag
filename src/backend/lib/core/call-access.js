@@ -181,7 +181,8 @@ export function callBlockedMessage(entitlement) {
   if (entitlement && entitlement.tier === CALL_TIER_LAPSED) {
     return "Calling isn't available for this vehicle right now. You can still leave a message.";
   }
-  return "This E-Tag's free contact has already been used. The owner can re-enable contact with the official ParkTag sticker.";
+  // "contacts", without a number: one on an E-Tag, two on door hanger stock.
+  return "This E-Tag's free contacts have already been used. The owner can re-enable contact with the official ParkTag sticker.";
 }
 
 // The machine-readable reason, for clients that branch on it.

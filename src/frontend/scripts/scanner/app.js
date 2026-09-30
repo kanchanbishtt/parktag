@@ -492,6 +492,11 @@ function setContactAvailability(available) {
   // or missing code falls back to the sticker CTA — the behaviour this page has
   // always had — rather than showing nothing at all.
   const lapsed = !available && contactBlockedCode === "CALL_SUBSCRIPTION_REQUIRED";
+  // A locked E-Tag places no Emergency call either: the server refuses it
+  // (owner's decision, 30 Sep 2026). The Emergency button therefore leads to
+  // the public helplines, not to a call that cannot be made. A premium tag
+  // whose year has lapsed is a different case and keeps its Emergency call.
+  if (!available && !lapsed) emergencyAvailable = false;
   setHidden("purchase-cta", available || lapsed);
   setHidden("contact-unavailable-cta", !lapsed);
   if (!available) {
@@ -504,11 +509,12 @@ function setContactAvailability(available) {
     closeReasonStep();
   }
 
-  // The SOS block is gated on nothing at all. A used-up free contact must not
-  // block an accident call, and neither must an owner who never nominated
-  // anyone: `emergencyAvailable` now decides which screen the button leads to
-  // — the owner's next of kin, or the public helplines — not whether a scanner
-  // standing at a crash is offered help in the first place.
+  // The SOS block itself is always shown. `emergencyAvailable` decides which
+  // screen the button leads to — the owner's next of kin, or the public
+  // helplines — not whether a scanner standing at a crash is offered help in
+  // the first place. An owner who never nominated anyone gets the helplines,
+  // and so does a locked E-Tag, whose Emergency call is switched off above.
+  // 112 is not ours to withhold.
   setHidden("pt-sos-block", false);
 }
 
@@ -558,6 +564,11 @@ function openSosConfirm() {
 // being up.
 const HELPLINE_NOTE_NO_CONTACT =
   "No emergency contact added for this tag. Use the All India helplines below.";
+// When the page does not know WHY the call is off. The load payload says only
+// that it is, and a locked E-Tag may well have a contact on file, so "no
+// contact added" would be a false statement about somebody's account.
+const HELPLINE_NOTE_UNAVAILABLE =
+  "Emergency calling is not available on this tag. Use the All India helplines below.";
 
 function openSosHelplines(note) {
   const dialog = byId("sos-helplines");
@@ -565,7 +576,7 @@ function openSosHelplines(note) {
   // The note says why the helplines are being offered. It must be set every
   // time, not only when a caller passes one, or the previous reason survives
   // into a visit where it is untrue.
-  setText("sos-helplines-note", note || HELPLINE_NOTE_NO_CONTACT);
+  setText("sos-helplines-note", note || HELPLINE_NOTE_UNAVAILABLE);
 
   if (!dialog || typeof dialog.showModal !== "function") {
     return;
@@ -661,17 +672,19 @@ async function handleSosCall() {
       onSlow: () => sosSteps.slow("Still connecting, the signal is weak here")
     });
 
-    if (data.code === "NO_EMERGENCY_CONTACT") {
-      // The owner cleared it between page load and the tap. The block stays —
-      // the scanner is mid-emergency and has already confirmed — but it now
-      // leads to the helplines, which is where this call has to go instead.
+    if (data.code === "NO_EMERGENCY_CONTACT" || data.code === "EMERGENCY_LOCKED") {
+      // The owner cleared the contact between page load and the tap, or the
+      // E-Tag locked in that time. The block stays — the scanner is
+      // mid-emergency and has already confirmed — but it now leads to the
+      // helplines, which is where this call has to go instead. Only the first
+      // case is said to be a missing contact; that is the only one where it is.
       emergencyAvailable = false;
       sosSteps.fail("");
       sosSteps.destroy();
       closeSosPanels();
       releaseSos();
       setRequestStatus("request-status", "", "info");
-      openSosHelplines();
+      openSosHelplines(data.code === "NO_EMERGENCY_CONTACT" ? HELPLINE_NOTE_NO_CONTACT : undefined);
       return;
     }
     if (data.code === "EMERGENCY_LIMIT") {
@@ -872,7 +885,7 @@ async function createRequest(payload) {
   // 402 = free contact used up. Server is authoritative; flip the UI to the CTA.
   if (status === 402) {
     setContactAvailability(false);
-    const err = new Error(data.error || "This E-Tag's free contact has been used.");
+    const err = new Error(data.error || "This E-Tag's free contacts have been used.");
     err.freeUsed = true;
     throw err;
   }
@@ -1210,14 +1223,17 @@ async function handlePlateVerification(event) {
   contactBlockedCode = data.contactBlockedCode || null;
   setContactAvailability(data.contactAvailable !== false);
 
-  // A spent or lapsed tag closes the owner call and the alert, not Emergency.
-  // The server exempts SOS from the free contact and from the call
-  // subscription, and this used to drop it anyway: the scanner confirmed the
-  // warning, read the plate, typed their number, and landed on the sticker
-  // upsell with no emergency call placed and nothing saying why.
-  if (data.contactAvailable === false && pendingVerifiedAction !== "sos") {
+  // A blocked tag closes the owner call and the alert. Whether it closes
+  // Emergency depends on why it is blocked: a lapsed premium tag still places
+  // the emergency call, so an SOS carries on below; a locked E-Tag does not
+  // (setContactAvailability has just cleared emergencyAvailable), so an SOS
+  // goes to the public helplines rather than ending on the sticker panel with
+  // nothing said.
+  if (data.contactAvailable === false && (pendingVerifiedAction !== "sos" || !emergencyAvailable)) {
+    const wantedSos = pendingVerifiedAction === "sos";
     pendingVerifiedAction = "";
     setRequestStatus("request-status", "Verified ✓", "success");
+    if (wantedSos) openSosHelplines();
     return;
   }
 

@@ -1025,6 +1025,19 @@ const ADD_CARD = `
   </div>
 </a>`;
 
+// What a locked E-Tag's card says. Once somebody has actually tried and failed
+// to reach this owner, that is the line: it is the true reason to upgrade, and
+// "your free contact has been used" on its own reads as a limit reached, not
+// as people being turned away at the car.
+function lockedTagNote(tag) {
+  const missed = Math.max(0, Math.trunc(Number(tag.missedContacts) || 0));
+  if (missed > 0) {
+    return `${missed} ${missed === 1 ? "person" : "people"} tried to reach you and could not. Buy a Premium tag to be reachable again.`;
+  }
+  const many = Number(tag.freeContactAllowance) > 1;
+  return `Your free ${many ? "contacts have" : "contact has"} been used. Buy a premium tag to keep being reachable.`;
+}
+
 function vehicleCard(tag, idx) {
   const colorIdx  = allTags.indexOf(tag);
   const color     = VEHICLE_COLORS[(colorIdx >= 0 ? colorIdx : idx) % VEHICLE_COLORS.length];
@@ -1059,7 +1072,7 @@ function vehicleCard(tag, idx) {
         Download Premium Tag
       </button>`;
   } else if (hasId && trialExpired) {
-    actionsInner = `<p class="pt-vlc-trial">Your free contact has been used. Buy a premium tag to keep being reachable.</p>
+    actionsInner = `<p class="pt-vlc-trial">${esc(lockedTagNote(tag))}</p>
       <button class="pt-vlc-act buy" onclick="event.stopPropagation();goToShopForReplace('${tag.id}')">Buy Premium Tag</button>`;
   }
   const actions = actionsInner ? `\n  <div class="pt-vlc-actions">${actionsInner}</div>` : "";

@@ -150,6 +150,14 @@ const DASHBOARD_TAG_PROJECTION = {
   premium: 1,
   purchaseStatus: 1,
   freeContactUsed: 1,
+  // Read by freeContactAllowance() and freeContactsLeft() below. Left out of
+  // this projection, both saw a tag with neither field and fell back to the
+  // default, so door hanger stock (two free contacts) was shown to its owner
+  // as having one.
+  freeContactAllowance: 1,
+  freeContactsSpent: 1,
+  // Scanners who reached the tag after it locked. See locked-tag-nudge.js.
+  blockedAttempts: 1,
   emergencyContact: 1,
   serialNumber: 1,
   batchNumber: 1,
@@ -333,6 +341,10 @@ export function registerOwnerRoutes(app, env) {
           // for most E-Tags, two for door hanger stock; the copy says which.
           freeContactAllowance: freeContactAllowance(tag),
           freeContactsLeft: tag.premium ? 0 : freeContactsLeft(tag),
+          // How many people reached this E-Tag after it locked and could not
+          // contact the owner. The card says so: it is the honest reason to
+          // upgrade, and until now nothing recorded it at all.
+          missedContacts: tag.premium ? 0 : Math.max(0, Math.trunc(Number(tag.blockedAttempts) || 0)),
           // Whether masked calling is running on this tag, and why. The page
           // needs the reason as well as the answer: "not available" and "ends
           // in 5 days" are the same boolean and completely different messages.

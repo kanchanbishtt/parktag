@@ -980,6 +980,21 @@ Covers UX and security improvements made after M13 call flow was confirmed worki
 - [ ] Run the Mongo-backed suites in CI (`guest-checkout`, `address-suggest` updated for the new wording and fixture), merge, deploy, and place one test checkout with a mismatched pincode.
 - [ ] Decide whether to WhatsApp the buyer automatically when a paid order's booking still fails.
 
+## Locked E-Tag: owner nudged, nothing promised to the scanner, 2026-09-30
+
+- [x] Checked what happens once a door hanger tag's two free contacts are spent. The call and the alert were refused (402), but the owner was told nothing: no message when the limit was reached and none when later scanners were turned away, and those attempts were not recorded anywhere. The Emergency call still connected.
+- [x] Owner's rules, applied: (1) locked means locked, **including the Emergency call**; (2) the scan page makes **no claim** that the owner was told, because the message is capped and can fail; (3) the owner's message should sell the Premium tag.
+- [x] Emergency: `register-emergency-call` refuses a locked E-Tag (402 `EMERGENCY_LOCKED`) and the load payload reports `emergencyAvailable: false` for it, so the Emergency button leads to the public helplines. A premium tag whose year has lapsed is not affected. Consequence, tested in `contact-routing.test.js`: on a one-contact E-Tag the scanner's own call is what locks it, so they cannot then escalate to Emergency on the same visit.
+- [x] Scanner: the locked panel reads "This tag's free limit is used up … its owner has used the full limit", with the sticker link and nothing else. No button, no status. The helplines note no longer says "no emergency contact added" when the page does not know that to be the reason.
+- [x] Owner: a verified scan of a locked tag is counted server-side from the verify route (one per scanner per tag per day) and the owner is messaged at most once per tag per 24 hours on WhatsApp and e-mail (`lib/core/locked-tag-nudge.js`). The send is claimed by a conditional update and released if delivery fails. It never carries the scanner's reason.
+- [x] The message rides in `{{2}}` of the approved `parktag_owner_notification_v2`, worded to sell: what is switched off, and what upgrading gives back. No price or discount. **Risk:** this is promotional copy in a UTILITY template that also carries every real alert; if recipients block or report it Meta can pause the template. `docs/WHATSAPP_TEMPLATES.md` 2.8 has the proper MARKETING template and the opt-in it needs.
+- [x] Dashboard: the locked vehicle card says how many people tried and could not reach the owner (`missedContacts`).
+- [x] Found on the way: `DASHBOARD_TAG_PROJECTION` left out `freeContactAllowance` and `freeContactsSpent`, so door hanger stock was shown to its owner with one free contact instead of two. The scan page and the 402 message also said "one free contact" on tags that had two.
+- [x] Tests: `locked-tag-nudge.test.js` (32), `scanner-locked-panel.test.js` (11), one new and two changed in `contact-routing.test.js`.
+- [ ] After deploy: scan a locked door hanger tag on a phone, enter the plate, and confirm the WhatsApp arrives once, the dashboard count goes up, and Emergency shows only the helplines.
+- [ ] Add a marketing opt-in to the activation wizard, then submit `parktag_tag_locked` and move the pitch off the utility alert.
+- [ ] Decide whether the owner should also be told at the moment the last free contact is spent. It needs its own template.
+
 ## Performance audit fixes, 2026-09-28
 
 - [x] Audit written to `PERFORMANCE_AUDIT.md` (live traces, headers, three code audits). Landing hero LCP was 5.7 s on throttled mobile because `AnimateIn` hid the hero until hydration; `/get` was 0.65 s.

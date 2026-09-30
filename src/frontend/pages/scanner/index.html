@@ -616,7 +616,7 @@
             <!-- Rewritten by openSosHelplines: there is more than one reason to
                  land here, and "no contact added" is a lie in the others. -->
             <p class="pt-note-box" id="sos-helplines-note">
-              No emergency contact added for this tag. Use the All India helplines below.
+              Emergency calling is not available on this tag. Use the All India helplines below.
             </p>
 
             <section class="pt-helpline-card">
@@ -669,13 +669,20 @@
           <div id="sos-dial-steps"></div>
         </div>
 
-        <!-- Free-contact-used CTA (replaces the buttons once the free contact is used) -->
+        <!-- A locked E-Tag (replaces the buttons once its free contacts are used).
+             It states one thing, which is true every time: the owner has used
+             this tag's free limit. It says nothing about the owner being told
+             or alerted. A message does go to the owner (at most once a day, see
+             locked-tag-nudge.js), but it can be capped or fail to deliver, and
+             a scanner deciding whether to wait must not be promised an alert
+             that did not go. "Limit", without a number: an E-Tag has one free
+             contact and door hanger stock has two. -->
         <div id="purchase-cta" class="pt-panel" hidden style="text-align:center">
           <div class="pt-success-mark pt-mark-muted" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none"><path d="M7 10V7.5a5 5 0 0 1 10 0V10" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><rect x="4.5" y="10" width="15" height="10" rx="2.6" stroke="currentColor" stroke-width="1.9"/></svg>
           </div>
-          <h3>Free contact already used</h3>
-          <p>This vehicle's one free contact has been used. The official ParkTag sticker enables unlimited private contact.</p>
+          <h3>This tag's free limit is used up</h3>
+          <p>This was a free trial ParkTag, and its owner has used the full limit. Calls and messages through it are switched off until the owner upgrades to the official ParkTag sticker.</p>
           <a id="purchase-cta-btn" href="https://parktag.me" target="_blank" rel="noopener"
              class="pt-btn pt-btn-primary pt-btn-full" style="text-decoration:none;margin-top:6px">
             Purchase Official ParkTag QR Sticker

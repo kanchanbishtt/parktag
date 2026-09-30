@@ -283,8 +283,10 @@ describe("caller number claims", () => {
     assert.equal(dialed.body, OWNER_PHONE);
   });
 
+  // On a PREMIUM tag. On an E-Tag the owner call spends the free contact, the
+  // tag locks, and a locked E-Tag places no Emergency call (the test below).
   test("the same handset may escalate from the owner call to Emergency", async () => {
-    const token = await createTag();
+    const token = await createTag({ premium: true });
     const phone = nextPhone();
     const address = uniqueAddress();
 
@@ -310,12 +312,36 @@ describe("caller number claims", () => {
     assert.equal(routes[0].type, "scanner_to_emergency");
   });
 
+  // Owner's decision, 30 Sep 2026: once an E-Tag's free contacts are spent it
+  // places no masked call of any kind. This is the consequence worth seeing
+  // plainly: on a one-contact E-Tag, the scanner's own call is what locks it,
+  // so they cannot then escalate to Emergency on the same visit.
+  test("on an E-Tag, the call that spends the free contact closes Emergency too", async () => {
+    const token = await createTag();
+    const phone = nextPhone();
+    const address = uniqueAddress();
+    const grant = await grantFor(token, address);
+
+    await collections.tags.updateOne({ token }, { $set: { emergencyContact: SECOND_OWNER_PHONE } });
+
+    assert.equal((await post(`/api/tags/${token}/register-call`, { phone, grant }, address)).statusCode, 200);
+
+    const sos = await post(`/api/tags/${token}/register-emergency-call`, { phone, grant }, address);
+    assert.equal(sos.statusCode, 402);
+    assert.equal(sos.json().code, "EMERGENCY_LOCKED");
+
+    // The owner route the scanner did register is untouched by the refusal.
+    const routes = await liveRoutesFor(`+91${phone}`);
+    assert.equal(routes.length, 1);
+    assert.notEqual(routes[0].type, "scanner_to_emergency");
+  });
+
   test("escalating to Emergency survives the handset changing address", async () => {
     // A phone on mobile data can come back from a different address between two
     // taps (carrier NAT, IPv4 vs IPv6). The owner route it registered a moment
     // ago is for this same vehicle and is retired by this registration anyway,
     // so it must not be read as another client holding the number.
-    const token = await createTag();
+    const token = await createTag({ premium: true });
     const phone = nextPhone();
     const firstAddress = uniqueAddress();
     const grant = await grantFor(token, firstAddress);

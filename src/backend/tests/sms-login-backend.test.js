@@ -75,3 +75,15 @@ test('legacy mobile spelling reuses its account rather than making a duplicate',
   assert.equal(response.json().isNew, false);
   assert.equal(await collections.owners.countDocuments({}), 1);
 });
+
+test('a second SMS inside the window is refused with the seconds remaining', async () => {
+  const windowPhone = '+919000000003';
+  const first = await post('send', {phone: windowPhone, recaptchaToken: 'fake-token'});
+  assert.equal(first.statusCode, 200);
+  const second = await post('send', {phone: windowPhone, recaptchaToken: 'fake-token'});
+  assert.equal(second.statusCode, 429);
+  const body = second.json();
+  assert.ok(Number.isInteger(body.retryAfter) && body.retryAfter > 0 && body.retryAfter <= 600, `retryAfter=${body.retryAfter}`);
+  assert.equal(second.headers['retry-after'], String(body.retryAfter));
+  assert.match(body.error, /Please wait (\d+ min( \d+ sec)?|\d+ sec) before requesting another/);
+});

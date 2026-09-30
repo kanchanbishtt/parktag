@@ -202,13 +202,19 @@ export function registerFirebasePhoneAuthRoute(app, env) {
     } catch (err) {
       if (reservation) await releaseSmsWindow(collections, reservation);
       reply.code(429);
+      // Tell the page how long the number is blocked for, so it can show a
+      // countdown instead of a bare error — its own memory of the window is
+      // lost on every reload, and only this side knows the real expiry.
+      const retryAfter = Number.isInteger(err?.retryAfterSeconds) && err.retryAfterSeconds > 0 ? err.retryAfterSeconds : null;
+      if (retryAfter) reply.header("retry-after", String(retryAfter));
       return {
         ok: false,
         error: clientErrorMessage(
           err,
           "Too many verification codes requested. Please wait a while before trying again.",
           request.log
-        )
+        ),
+        ...(retryAfter ? { retryAfter } : {})
       };
     }
 
@@ -300,7 +306,7 @@ export function registerFirebasePhoneAuthRoute(app, env) {
 export async function reserveSmsWindow(collections, phone, now = Date.now()) {
   if (!collections) throw new Error("Database not configured.");
   const id = `sms-window:${normalizeIdentifier(phone)}`;
-  const expiresAt = new Date(now + 600000).toISOString();
+  const expiresAt = new Date(now + SMS_WINDOW_MS).toISOString();
   try {
     await collections.otpTokens.updateOne(
       { _id: id, expiresAt: { $lte: new Date(now).toISOString() } },
@@ -309,9 +315,29 @@ export async function reserveSmsWindow(collections, phone, now = Date.now()) {
     );
   } catch (error) {
     if (error.code !== 11000) throw error;
-    throw Object.assign(new Error("Please wait 10 minutes between SMS requests."), { expose: true });
+    // A live window exists for this number. Read its expiry so the caller can
+    // tell the user exactly how long to wait rather than "10 minutes" every time.
+    // The lookup is a courtesy: if it fails, still refuse, with the full window.
+    const existing = await Promise.resolve()
+      .then(() => collections.otpTokens.findOne({ _id: id }, { projection: { expiresAt: 1 } }))
+      .catch(() => null);
+    const remainingMs = existing?.expiresAt ? Date.parse(existing.expiresAt) - now : SMS_WINDOW_MS;
+    const retryAfterSeconds = Math.max(1, Math.ceil((Number.isFinite(remainingMs) ? remainingMs : SMS_WINDOW_MS) / 1000));
+    throw Object.assign(
+      new Error(`An SMS was sent to this number recently. Please wait ${formatWait(retryAfterSeconds)} before requesting another.`),
+      { expose: true, retryAfterSeconds }
+    );
   }
   return { id, expiresAt };
+}
+
+const SMS_WINDOW_MS = 600000;
+
+function formatWait(seconds) {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  if (m === 0) return `${s} sec`;
+  return s === 0 ? `${m} min` : `${m} min ${s} sec`;
 }
 
 async function releaseSmsWindow(collections, reservation) {

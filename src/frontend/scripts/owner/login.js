@@ -53,6 +53,39 @@ let _smsAvailable = false;
 let _smsNextSendAt = 0;
 let _smsRevealGeneration = 0;
 let _smsTick = null;
+
+// The SMS window is enforced by the server per number, for 10 minutes. This
+// page mirrors it so the button can count down instead of failing on tap —
+// but page memory dies on every reload, back-navigation and tab switch, and
+// the person who never got their first SMS is exactly the one who reloads.
+// So the window is kept in localStorage, keyed to the number it belongs to,
+// and re-read whenever a number is (re)entered. Missing or blocked storage
+// (private mode) degrades to the in-memory copy; the server still has the
+// last word either way.
+const SMS_WINDOW_MS = 10 * 60 * 1000;
+const SMS_WINDOW_KEY = "pt_sms_window";
+function loadSmsWindow(phone) {
+  try {
+    const stored = JSON.parse(localStorage.getItem(SMS_WINDOW_KEY) || "null");
+    if (stored && stored.phone === phone && Number.isFinite(stored.nextSendAt) && stored.nextSendAt > Date.now()) return stored.nextSendAt;
+  } catch { /* storage unavailable or corrupt: fall through */ }
+  return 0;
+}
+function startSmsWindow(phone, ms) {
+  _smsNextSendAt = Date.now() + ms;
+  try { localStorage.setItem(SMS_WINDOW_KEY, JSON.stringify({ phone, nextSendAt: _smsNextSendAt })); } catch { /* best effort */ }
+  refreshSmsFallback();
+}
+function smsWaitRemaining() {
+  return Math.max(0, Math.ceil((_smsNextSendAt - Date.now()) / 1000));
+}
+function formatWait(seconds) {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  if (m === 0) return `${s} sec`;
+  return s === 0 ? `${m} min` : `${m} min ${s} sec`;
+}
+
 function resetSmsFallback() {
   _smsAvailable = false;
   _smsRevealGeneration += 1;
@@ -61,7 +94,7 @@ function resetSmsFallback() {
 }
 function refreshSmsFallback() {
   if (byId("sms-fallback")) byId("sms-fallback").hidden = !_smsAvailable || !_currentPhone || _phoneChannel !== "whatsapp" || _identifierMode !== "mobile";
-  const remaining = Math.max(0, Math.ceil((_smsNextSendAt - Date.now()) / 1000));
+  const remaining = smsWaitRemaining();
   for (const id of ["sms-fallback-btn", ...(_phoneChannel === "sms" ? ["phone-resend-btn"] : [])]) {
     const btn = byId(id);
     if (!btn) continue;
@@ -96,17 +129,32 @@ async function sendWhatsappOtp(raw) {
   const phone = normalizePhoneE164(raw);
   const channel = byId("phone-channel")?.value === "sms" ? "sms" : "whatsapp";
   let sessionInfo = null;
+  // A number may already be inside an SMS window this page has forgotten
+  // (reload, back button). Pick the later of memory and storage.
+  _smsNextSendAt = Math.max(_smsNextSendAt, loadSmsWindow(phone));
   if (channel === "sms") {
-    if (Date.now() < _smsNextSendAt) throw new Error("Please wait 10 minutes between SMS requests.");
+    if (smsWaitRemaining() > 0) {
+      refreshSmsFallback();
+      throw new Error(`Please wait ${formatWait(smsWaitRemaining())} before requesting another SMS.`);
+    }
     if (byId("sms-consent")) byId("sms-consent").hidden = false;
     const recaptchaToken = await getFirebaseCaptchaToken();
-    const data = await fetchJson("/api/auth/firebase-phone/send", {
-      method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ phone, recaptchaToken })
-    });
+    let data;
+    try {
+      data = await fetchJson("/api/auth/firebase-phone/send", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ phone, recaptchaToken })
+      });
+    } catch (error) {
+      // The server knows the real window (it survives reloads; this page's
+      // memory does not). When it says how long is left, start the countdown
+      // from that so the person sees a timer, not a bare error.
+      if (error?.retryAfter > 0) startSmsWindow(phone, error.retryAfter * 1000);
+      throw error;
+    }
     if (!data.sessionInfo) throw new Error("Could not start SMS verification. Please try again.");
     sessionInfo = data.sessionInfo;
-    _smsNextSendAt = Date.now() + 10 * 60 * 1000;
+    startSmsWindow(phone, SMS_WINDOW_MS);
   } else {
     const recaptchaToken = await getCaptchaToken("send_otp");
     await fetchJson("/api/auth/send-otp", {
@@ -167,7 +215,13 @@ async function verifyWhatsappOtp() {
 async function fetchJson(url, options) {
   const response = await fetch(url, options);
   const data = await response.json();
-  if (!response.ok) throw new Error(data.error || "Request failed");
+  if (!response.ok) {
+    const error = new Error(data.error || "Request failed");
+    error.status = response.status;
+    // 429s from the SMS window carry how many seconds remain.
+    if (Number.isFinite(data.retryAfter) && data.retryAfter > 0) error.retryAfter = data.retryAfter;
+    throw error;
+  }
   return data;
 }
 
@@ -483,15 +537,25 @@ async function loginOwner() {
       await sendWhatsappOtp(raw);
     } catch (error) {
       if (btn) { btn.disabled = false; btn.classList.remove("pt-btn-loading"); }
-      // WhatsApp failing must not hide its own fallback. Keep the entered
-      // number, open the verification step, and offer SMS immediately.
+      // A failed send must not hide the SMS fallback. Keep the entered
+      // number, open the verification step, and offer SMS (with its countdown,
+      // if this number is inside a window) right away.
+      const attempted = byId("phone-channel")?.value === "sms" ? "sms" : "whatsapp";
       _currentPhone = normalizePhoneE164(raw);
       _phoneChannel = "whatsapp";
       _smsAvailable = true;
+      _smsNextSendAt = Math.max(_smsNextSendAt, loadSmsWindow(_currentPhone));
       byId("phone-step2").style.display = "";
       byId("owner-form-step1").style.display = "none";
       refreshSmsFallback();
-      setStatus("WhatsApp could not send the code. Please try SMS below.", "error");
+      // Name the channel that actually failed: an SMS refusal (typically the
+      // 10-minute window) must not be reported as a WhatsApp failure.
+      setStatus(
+        attempted === "sms"
+          ? (error instanceof Error && error.message ? error.message : "Could not send SMS. Please try again.")
+          : "WhatsApp could not send the code. Please try SMS below.",
+        "error"
+      );
     } finally {
       _phoneBusy = false;
     }
@@ -527,7 +591,12 @@ async function resendWhatsappOtp() {
     setStatus(error instanceof Error ? error.message : "Failed to resend code.", "error");
   } finally {
     _phoneBusy = false;
-    if (btn) { btn.disabled = false; btn.classList.remove("pt-btn-loading"); }
+    if (btn) btn.classList.remove("pt-btn-loading");
+    // Do not blindly re-enable: on the SMS channel the button is the
+    // countdown, and it must stay disabled until the window has passed.
+    // refreshSmsFallback owns its state there; WhatsApp has no cooldown.
+    if (_phoneChannel === "sms") refreshSmsFallback();
+    else if (btn) btn.disabled = false;
   }
 }
 

@@ -1000,3 +1000,13 @@ Covers UX and security improvements made after M13 call flow was confirmed worki
 - [x] `tests/admin-nav.test.js` (no DB): every admin page links to every other and marks only itself active. Verified in Chromium against a mock API: create, reveal, escaping, revoke, 375px width, no console errors.
 - [ ] Run `app-delivery.test.js` and `admin-api-tokens.test.js` in CI (they need Mongo; not run locally, no database here). `app-delivery` now expects `/admin/api-tokens` to redirect when signed out.
 - [ ] `/api/admin/utm-sales` (PR 287) still has no UI; decide whether to add a table to the Traffic page.
+
+## SMS login window countdown, 2026-09-30
+
+- [x] Tested the owner-login "Try SMS" 10-minute window. Server side held (second send to the same number → 429). Page side did not: the window lived only in script memory, so a reload or back-navigation offered SMS again and the server's refusal showed as a bare error with no timer; a server 429 never started a countdown; tapping Resend inside the window re-enabled the button for a second; an SMS refusal was worded as a WhatsApp failure.
+- [x] `reserveSmsWindow` now reads the live window's expiry and refuses with `retryAfterSeconds`; the send route returns it as `retryAfter` in the 429 body and a `Retry-After` header, with the wait spelled out in the message.
+- [x] `owner/login.js` keeps the window in `localStorage` keyed to the number (`pt_sms_window`), restores it whenever that number is entered again, starts the countdown from the server's `retryAfter` on a 429, keeps Resend disabled while the window runs, and reports an SMS refusal as SMS.
+- [x] Tests: six new cases in `sms-login-ui.test.js` (countdown to Resend, Resend inside window, reload persistence, per-number scoping, server 429 countdown, WhatsApp wording) and one in `sms-login-backend.test.js` (429 carries the remaining seconds). Existing cooldown test updated for the new wording.
+- [ ] Manual pass with real Firebase keys: send SMS, reload, confirm the timer is still counting; wait it out and confirm Resend works.
+- [x] "I'm not a robot" card overflowed the sign-in card on phones when trying SMS: Google's `normal` widget is a fixed 304px, the card leaves `viewport - 82px` (278px on a 360px phone). `firebase-sms.js` now measures the container and asks for `compact` (164px) when `normal` will not fit; the container is centred and clipped to the card. Tests in `sms-captcha-size.test.js`.
+- [ ] Look at the captcha on a real phone with Firebase keys (360px and 390px wide): compact card centred on the first, normal card centred on the second.

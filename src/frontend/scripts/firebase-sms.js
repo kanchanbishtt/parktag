@@ -17,9 +17,23 @@ async function getFirebaseAuth() {
   return authPromise;
 }
 
+// Google's "I'm not a robot" card comes in two fixed sizes and cannot be
+// resized: "normal" is 304px wide, "compact" is 164px. The sign-in card leaves
+// under 304px on most phones (a 360px screen has about 278px), where "normal"
+// spilled out of the card and off the screen. Pick the size that fits the
+// space the widget is actually given.
+const NORMAL_CAPTCHA_WIDTH = 304;
+export function captchaSizeFor(availableWidth) {
+  return availableWidth >= NORMAL_CAPTCHA_WIDTH ? "normal" : "compact";
+}
+
 export async function getFirebaseCaptchaToken() {
   const { auth, RecaptchaVerifier } = await getFirebaseAuth();
-  const verifier = new RecaptchaVerifier(auth, "firebase-sms-recaptcha", { size: "normal" });
+  const container = document.getElementById("firebase-sms-recaptcha");
+  // clientWidth is 0 if the container is missing or hidden. Treat unknown as
+  // narrow: "compact" fits everywhere, "normal" only where it was measured to.
+  const available = container?.clientWidth || 0;
+  const verifier = new RecaptchaVerifier(auth, "firebase-sms-recaptcha", { size: captchaSizeFor(available) });
   try {
     // Each send/resend needs a fresh, single-use token. The backend dispatches
     // SMS so its per-IP and shared WhatsApp/SMS destination limits still apply.

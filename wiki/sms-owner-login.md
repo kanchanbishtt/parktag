@@ -23,3 +23,17 @@ both reservations. The login page also exposes SMS immediately if WhatsApp
 sending fails instead of hiding the fallback behind WhatsApp success.
 
 Release: PR #253 merged with explicit owner override after all CI checks passed. Railway e93c90a2-7c36-49ef-a1ab-80d23dc824a0 succeeded at 434e06a. Live health, parktag1 config and both login options verified. 28 local targeted tests passed. Real handset delivery remains untested.
+
+## The 10-minute window must survive a reload (2026-09-30)
+
+The server enforces one SMS per number per 10 minutes (`reserveSmsWindow`, a
+TTL'd `sms-window:<number>` document). The page mirrors that as a countdown,
+but any page-only copy of the window is lost on reload — and the person who
+never received their first SMS is exactly the one who reloads. Two rules follow:
+
+- The page stores the window in `localStorage` under `pt_sms_window`, keyed to
+  the number, and re-reads it whenever a number is entered. A different number
+  is not held to it; the server is per-number anyway.
+- The server is the source of truth. Its 429 carries `retryAfter` (seconds) and
+  a `Retry-After` header, and the page starts its countdown from that. Never
+  show a "wait" error for SMS without also starting the timer.

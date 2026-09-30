@@ -553,8 +553,21 @@
   // Fetched the first time a summary with two prices opens, not on page load:
   // most sheets never need it. Whatever price is already showing is upgraded
   // in place once it lands.
+  //
+  // Only where its stylesheet lays out correctly. NumberFlow pulls the digits
+  // 0.5em to the left with a negative margin and pushes them back with a
+  // padding written in CSS round(). A browser without round() (Chrome and
+  // Android WebView before 125, Samsung Internet before 27) drops the padding
+  // and keeps the margin, so the first digit slides under the rupee sign and
+  // ₹399 reads as ₹99. Those browsers keep the plain text, which is correct.
+  function numberFlowFits() {
+    try {
+      return typeof CSS !== "undefined" && typeof CSS.supports === "function" &&
+        CSS.supports("padding", "round(nearest, 1px, 1px)");
+    } catch (e) { return false; }
+  }
   function loadNumberFlow() {
-    if (numberFlowLoad) return;
+    if (numberFlowLoad || !numberFlowFits()) return;
     numberFlowLoad = import("/scripts/vendor/number-flow.js").then(function (m) {
       m.define("number-flow", m.default);
       numberFlow = m;

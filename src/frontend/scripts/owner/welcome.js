@@ -2029,7 +2029,32 @@ function renderReferral(ref) {
   document.getElementById("refSub").textContent =
     `Your friend gets ${off} off when they pay online. You get ${months} ${months === 1 ? "month" : "months"} of Premium for each friend who buys.`;
   document.getElementById("refLink").textContent = link.replace(/^https?:\/\//, "");
+  renderReferralEarned(ref);
   card.hidden = false;
+}
+
+// What the link has earned so far. The card used to make the offer and never
+// report on it: a month arriving was a date moving on another screen. Empty,
+// and hidden, until a friend has actually bought.
+function renderReferralEarned(ref) {
+  const line = document.getElementById("refEarned");
+  if (!line) return;
+  const count = (value) => Math.max(0, Math.trunc(Number(value) || 0));
+  const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+  const friends = count(ref.friends);
+  const earned = count(ref.monthsEarned);
+  const waiting = count(ref.monthsWaiting);
+
+  const parts = [];
+  if (earned > 0) {
+    const who = friends > 0 ? `${plural(friends, "friend has", "friends have")} bought with your link. ` : "";
+    parts.push(`${who}You have earned ${plural(earned, "month", "months")} of Premium.`);
+  }
+  if (waiting > 0) {
+    parts.push(`${plural(waiting, "month is", "months are")} waiting, and will be added as soon as you have a Premium tag.`);
+  }
+  line.textContent = parts.join(" ");
+  line.hidden = parts.length === 0;
 }
 
 function referralMessage() {

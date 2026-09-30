@@ -24,6 +24,7 @@
 import test, { describe, before, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
 import { ObjectId } from "mongodb";
+import { readFile } from "node:fs/promises";
 
 import { assertDisposableDatabase } from "./helpers.js";
 import { getEnv } from "../lib/env.js";
@@ -37,7 +38,11 @@ import {
   ALPHABET,
   referralCodeFor,
   resolveReferral,
-  grantReferralReward
+  grantReferralReward,
+  redeemReferralCredit,
+  countReferralRewards,
+  referralSummary,
+  referralRewardMessage
 } from "../lib/core/referrals.js";
 
 assertDisposableDatabase();
@@ -322,5 +327,203 @@ describe("the reward", () => {
     const res = await grantReferralReward(env, null, { orderId: "x", referredBy: new ObjectId() }, null);
     assert.equal(res.granted, false);
     assert.equal(res.reason, "error");
+  });
+});
+
+describe("the month actually lands", () => {
+  const endOf = async (tagId) =>
+    new Date((await collections.tags.findOne({ _id: tagId })).subscription.currentPeriodEnd).getTime();
+
+  async function referredOrder(referrerId, name) {
+    const order = { orderId: `${MARK}-${name}`, referredBy: referrerId, paymentMethod: "online" };
+    await collections.shopOrders.insertOne({ ...order, testMarker: MARK });
+    return order;
+  }
+
+  // Read, compute, write back: two friends paying in the same second both read
+  // the same start and wrote the same end, and one month vanished.
+  test("two friends paying at the same moment are two months, not one", async () => {
+    const referrerId = await makeOwner();
+    // Lapsed trial, so both rewards count from now and the sum is easy to read.
+    const tagId = await makeTag(referrerId, { activatedAt: iso(Date.now() - 500 * DAY) });
+    const orders = await Promise.all(["a", "b", "c"].map((n) => referredOrder(referrerId, `race-${n}`)));
+
+    const results = await Promise.all(orders.map((order) => grantReferralReward(env, collections, order, null)));
+
+    assert.deepEqual(results.map((r) => r.granted), [true, true, true]);
+    const end = await endOf(tagId);
+    assert.ok(
+      end > Date.now() + 85 * DAY && end < Date.now() + 95 * DAY,
+      `three months from now, got ${iso(end)}`
+    );
+  });
+
+  // `status: "active"` with no end date is a comped tag: unlimited. The reward
+  // wrote a dated period over it and turned forever into thirteen months.
+  test("an open-ended subscription is never shortened", async () => {
+    const referrerId = await makeOwner();
+    const comped = await makeTag(referrerId, {
+      activatedAt: iso(Date.now() - 30 * DAY),
+      subscription: { status: "active" }
+    });
+
+    const res = await grantReferralReward(env, collections, await referredOrder(referrerId, "comped"), null);
+
+    assert.equal(res.held, true, "nothing to add a month to, so it is held");
+    const tag = await collections.tags.findOne({ _id: comped });
+    assert.deepEqual(tag.subscription, { status: "active" });
+  });
+
+  test("with a comped tag and a dated one, the month goes to the dated one", async () => {
+    const referrerId = await makeOwner();
+    const comped = await makeTag(referrerId, { subscription: { status: "active", currentPeriodEnd: null } });
+    const dated = await makeTag(referrerId, { activatedAt: iso(Date.now() - 300 * DAY) });
+
+    const res = await grantReferralReward(env, collections, await referredOrder(referrerId, "mixed"), null);
+
+    assert.equal(res.tagId, String(dated));
+    assert.equal((await collections.tags.findOne({ _id: comped })).subscription.currentPeriodEnd, null);
+  });
+
+  // A held reward used to leave no trace on its order, so the cap could not
+  // see it and neither could the count on the referral card.
+  test("a held month is recorded on its order and counts toward the cap", async () => {
+    const referrerId = await makeOwner();
+    const order = await referredOrder(referrerId, "held");
+
+    await grantReferralReward(env, collections, order, null);
+
+    const stored = await collections.shopOrders.findOne({ orderId: order.orderId });
+    assert.ok(stored.referralRewardedAt);
+    assert.equal(stored.referralRewardHeld, true);
+    assert.equal(stored.referralRewardTagId, undefined);
+    assert.equal(await countReferralRewards(collections, referrerId), 1);
+  });
+
+  test("the message names the referrer, the friend, the reward and the new end date", () => {
+    const message = referralRewardMessage({
+      owner: { mobile: "+919800000077", displayName: "Girish Kumar" },
+      order: { shippingAddress: { fullName: "Kanchan Bisht", phone: "9812345678" } },
+      months: 1,
+      until: "2027-10-12T06:00:00.000Z"
+    });
+    assert.deepEqual(message, {
+      to: "+919800000077",
+      name: "Girish",
+      friend: "Kanchan",
+      reward: "1 month",
+      endsOn: "12 October 2027"
+    });
+  });
+
+  test("the message copes with a nameless referrer, a nameless parcel and several months", () => {
+    const message = referralRewardMessage({
+      owner: { phone: "9800000078" },
+      order: {},
+      months: 3,
+      until: "2027-01-05T00:00:00.000Z"
+    });
+    assert.equal(message.to, "9800000078");
+    assert.equal(message.name, "there");
+    assert.equal(message.friend, "A friend");
+    assert.equal(message.reward, "3 months");
+  });
+
+  test("a referrer with no number gets no message rather than a failed send", () => {
+    assert.equal(referralRewardMessage({ owner: { email: "a@example.com" }, order: {}, months: 1, until: new Date().toISOString() }), null);
+    assert.equal(referralRewardMessage({ owner: null, order: {}, months: 1, until: new Date().toISOString() }), null);
+  });
+
+  test("the sender posts the approved template with its values in that order", async () => {
+    const meta = await readFile(new URL("../lib/integrations/meta.js", import.meta.url), "utf8");
+    const sender = meta.slice(meta.indexOf("export async function sendMetaWhatsappReferralReward"));
+    assert.match(sender.slice(0, 400), /template: "parktag_referral_reward"/);
+    assert.match(sender.slice(0, 400), /bodyComponent\(name, friend, reward, endsOn\)/);
+  });
+
+  // external-guard.js refuses every template send in a test run, which reads
+  // to the caller exactly like a provider outage. The month must survive it.
+  test("a message that cannot be sent never costs the reward", async () => {
+    const referrerId = await makeOwner({ mobile: "+919800000078" });
+    const tagId = await makeTag(referrerId, { activatedAt: iso(Date.now() - 300 * DAY) });
+    const order = await referredOrder(referrerId, "undeliverable");
+
+    const configured = { ...env, metaWhatsappPhoneNumberId: "1234567890", metaWhatsappAccessToken: "test-token" };
+    const res = await grantReferralReward(configured, collections, order, null);
+    // The send is not awaited by the payment path; let it fail in its own time.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    assert.equal(res.granted, true);
+    assert.equal(res.tagId, String(tagId));
+    assert.ok((await collections.shopOrders.findOne({ orderId: order.orderId })).referralRewardedAt);
+  });
+});
+
+describe("months that were waiting for a premium tag", () => {
+  const endOf = async (tagId) =>
+    new Date((await collections.tags.findOne({ _id: tagId })).subscription.currentPeriodEnd).getTime();
+  const credit = async (ownerId) => (await collections.owners.findOne({ _id: ownerId })).referralCreditMonths;
+
+  test("are all added, together, once there is a tag to take them", async () => {
+    const ownerId = await makeOwner({ referralCreditMonths: 3 });
+    const tagId = await makeTag(ownerId, { activatedAt: iso(Date.now() - 500 * DAY) });
+
+    const res = await redeemReferralCredit(collections, ownerId, null);
+
+    assert.equal(res.redeemed, 3);
+    assert.equal(res.tagId, String(tagId));
+    assert.equal(await credit(ownerId), 0);
+    const end = await endOf(tagId);
+    assert.ok(end > Date.now() + 85 * DAY && end < Date.now() + 95 * DAY, `three months, got ${iso(end)}`);
+  });
+
+  test("stay waiting while there is still no premium tag", async () => {
+    const ownerId = await makeOwner({ referralCreditMonths: 2 });
+    await makeTag(ownerId, { premium: false });
+
+    assert.equal((await redeemReferralCredit(collections, ownerId, null)).redeemed, 0);
+    assert.equal(await credit(ownerId), 2);
+  });
+
+  test("are spent once however many callers arrive together", async () => {
+    const ownerId = await makeOwner({ referralCreditMonths: 1 });
+    const tagId = await makeTag(ownerId, { activatedAt: iso(Date.now() - 500 * DAY) });
+
+    const results = await Promise.all(
+      Array.from({ length: 5 }, () => redeemReferralCredit(collections, ownerId, null))
+    );
+
+    assert.equal(results.reduce((sum, r) => sum + r.redeemed, 0), 1);
+    assert.equal(await credit(ownerId), 0);
+    assert.ok((await endOf(tagId)) < Date.now() + 35 * DAY);
+  });
+
+  test("an owner holding nothing costs nothing and changes nothing", async () => {
+    const ownerId = await makeOwner();
+    const tagId = await makeTag(ownerId, { activatedAt: iso(Date.now() - 30 * DAY) });
+
+    assert.deepEqual(await redeemReferralCredit(collections, ownerId, null), { redeemed: 0 });
+    assert.equal((await collections.tags.findOne({ _id: tagId })).subscription, undefined);
+  });
+
+  test("never throws", async () => {
+    assert.deepEqual(await redeemReferralCredit(null, new ObjectId(), null), { redeemed: 0 });
+  });
+});
+
+describe("what the card reports", () => {
+  test("friends, months earned and months still waiting", () => {
+    assert.deepEqual(referralSummary(0, 0), { friends: 0, monthsEarned: 0, monthsWaiting: 0 });
+    assert.deepEqual(referralSummary(3, 0), { friends: 3, monthsEarned: 3 * REFERRAL_REWARD_MONTHS, monthsWaiting: 0 });
+    assert.deepEqual(referralSummary(2, 1), { friends: 2, monthsEarned: 2 * REFERRAL_REWARD_MONTHS, monthsWaiting: 1 });
+  });
+
+  test("months banked before orders were stamped are still counted as earned", () => {
+    assert.deepEqual(referralSummary(0, 2), { friends: 0, monthsEarned: 2, monthsWaiting: 2 });
+  });
+
+  test("junk in either number reads as nothing", () => {
+    assert.deepEqual(referralSummary(undefined, "x"), { friends: 0, monthsEarned: 0, monthsWaiting: 0 });
+    assert.deepEqual(referralSummary(-4, -1), { friends: 0, monthsEarned: 0, monthsWaiting: 0 });
   });
 });

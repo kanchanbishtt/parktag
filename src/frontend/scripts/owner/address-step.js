@@ -189,7 +189,7 @@
       "#pt-addr-summary-price{flex:0 0 auto;font-size:1.08rem;font-weight:900;color:var(--navy);}",
       "#pt-addr-summary-price del{display:block;font-size:.72rem;font-weight:600;color:var(--muted);}",
       "#pt-addr-summary-price number-flow{font-variant-numeric:tabular-nums;}",
-      ".pt-addr-summary-offer{display:inline-flex;margin-top:9px;border-radius:999px;background:#E6F6EC;color:#17663A;padding:5px 9px;font-size:.68rem;font-weight:800;}",
+      ".pt-addr-summary-offer{display:inline-flex;margin:9px 6px 0 0;border-radius:999px;background:#E6F6EC;color:#17663A;padding:5px 9px;font-size:.68rem;font-weight:800;}",
       ".pt-addr-summary-terms{display:flex;flex-wrap:wrap;gap:6px 12px;margin-top:11px;padding-top:10px;border-top:1px dashed var(--line);font-size:.7rem;font-weight:700;color:#4b5563;}",
       ".pt-addr-summary-terms span:before{content:'✓';color:#0E8A00;font-weight:900;margin-right:5px;}",
       ".pt-addr-summary-pay{margin:10px 0 0;font-size:.72rem;line-height:1.4;color:var(--muted);}",
@@ -529,14 +529,16 @@
     if (codOn) loadNumberFlow();
     setPayChoice("online");
 
-    var oldOffer = els.summary.querySelector(".pt-addr-summary-offer");
-    if (oldOffer) oldOffer.remove();
-    if (summary.offerLabel) {
-      var offer = document.createElement("span");
-      offer.className = "pt-addr-summary-offer";
-      offer.textContent = summary.offerLabel;
-      els.summary.appendChild(offer);
-    }
+    // Up to two badges: a promo code, and a friend's link. Both come off the
+    // online price only, so setPayChoice hides them beside Cash on Delivery.
+    els.summary.querySelectorAll(".pt-addr-summary-offer").forEach(function (el) { el.remove(); });
+    [summary.offerLabel, summary.referralLabel].forEach(function (label) {
+      if (!label) return;
+      var badge = document.createElement("span");
+      badge.className = "pt-addr-summary-offer";
+      badge.textContent = label;
+      els.summary.appendChild(badge);
+    });
     els.summary.classList.remove("pt-hide");
   }
 
@@ -613,8 +615,7 @@
     els.payChoice.querySelectorAll("input").forEach(function (input) { input.checked = input.value === payChoice; });
     if (payPrices) renderSummaryPrice(cod ? payPrices.cod : payPrices.online, payPrices.mrp);
     // Codes never apply to COD, so the "applied" badge must not show beside it.
-    var offerBadge = els.summary.querySelector(".pt-addr-summary-offer");
-    if (offerBadge) offerBadge.classList.toggle("pt-hide", cod);
+    els.summary.querySelectorAll(".pt-addr-summary-offer").forEach(function (el) { el.classList.toggle("pt-hide", cod); });
     els.summaryPay.textContent = cod
       ? "Nothing to pay now. Pay " + inr(payPrices.cod) + " in cash when your order arrives."
       : "No payment is taken on this step. Continue to pay securely using UPI, cards or net banking.";

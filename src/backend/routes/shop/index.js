@@ -1051,6 +1051,11 @@ export function registerShopRoutes(app, env) {
         deliveryPhone: shipping.phone
       });
       const referredBy = referral.ok ? referral.referrerId : null;
+      // Why a code the buyer DID send took nothing off, for the page to say so
+      // before the payment window opens at a price it did not quote. Null when
+      // no code was sent, when it was applied, and on COD (never applies there,
+      // and the sheet already prices COD without it).
+      const referralRefused = !cod && rawRef && !referral.ok ? referral.reason || "unknown" : null;
 
       const catalogPaise = Math.round(product.amount * 100) * quantity + (addOn?.amountPaise || 0);
       const promoDiscountPaise = promo.ok ? promo.discountPaise : 0;
@@ -1145,6 +1150,11 @@ export function registerShopRoutes(app, env) {
           orderNumber: reusable.orderNumber,
           amount: reusable.amount,
           currency: reusable.currency,
+          // Said on a reused order too. The page shows the friend's discount
+          // before payment and checks this to confirm the order carries it; a
+          // retry used to come back without the field, which read as "refused".
+          referralDiscountPaise: referredBy ? REFERRAL_DISCOUNT_PAISE : 0,
+          referralRefused,
           promoCode: reusable.promoCode || null,
           description: `${reusable.orderNumber} · ${breakdownText((orderBreakdown(reusable) || []).filter((row) => !row.total), ", ")}`,
           keyId: env.razorpayKeyId,
@@ -1226,6 +1236,7 @@ export function registerShopRoutes(app, env) {
           orderId: order.id,
           orderNumber,
           referralDiscountPaise: referredBy ? REFERRAL_DISCOUNT_PAISE : 0,
+          referralRefused,
           promoDiscountPaise,
           // The code the SERVER applied, for the purchase event's `coupon`.
           // Not what the page asked for: a refused code must not be reported.
@@ -1394,6 +1405,33 @@ export function registerShopRoutes(app, env) {
         // What the buyer needs to find this order again without an account.
         trackWith: (order.shippingAddress && order.shippingAddress.phone || "").slice(-4)
       };
+    }
+  );
+
+  // Is this a friend's link that will actually take money off?
+  //
+  // /get shows the friend's discount in the checkout sheet before anybody
+  // pays, and it may only do that for a code this server will honour. A page
+  // that quotes the discounted price for a code nobody holds, and then opens a
+  // payment window for the full one, is the display-and-charge mismatch the
+  // pricing comment below describes.
+  //
+  // This answers with a PRICE, never a promise, exactly as promo/check does.
+  // create-order resolves the code again, with the delivery phone this call
+  // does not have, and that resolution decides what is charged: a buyer using
+  // their own link is refused there, and the response says so.
+  //
+  // Rate limited because it reports whether a code exists.
+  app.post(
+    "/api/shop/referral/check",
+    { config: { rateLimit: { max: 20, timeWindow: "1 minute" } } },
+    async (request, reply) => {
+      const collections = await getCollections(env);
+      if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
+
+      const referral = await resolveReferral(collections, (request.body || {}).code);
+      if (!referral.ok) return { ok: false };
+      return { ok: true, discountPaise: REFERRAL_DISCOUNT_PAISE };
     }
   );
 

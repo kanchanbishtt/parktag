@@ -993,6 +993,19 @@ Covers UX and security improvements made after M13 call flow was confirmed worki
 - [ ] Decide on `landing/public/brand-guideline/` (176 files, 2 MB, publicly served) and on putting a CDN in front once the cache headers here are in production.
 - [ ] Minify `styles.css` at serve time (about 50 KB of comments) and delete the dead rules copied into `styles/admin.css`.
 
+## Referral flow end to end, 2026-09-30
+
+- [x] Traced "refer a friend" from the dashboard card to the reward. The server priced and rewarded correctly on a first, uninterrupted online payment; everything around that was broken or missing, and no test drove the routes a browser actually calls.
+- [x] Friend: `get.js`, `shop.js` and `direct.js` cleared the parked code as soon as an order was CREATED, so closing the payment window and trying again sent no code and was charged the full price. Now cleared in `showDone`, once the order is placed.
+- [x] Friend: the checkout sheet quoted the full price and the ₹50 only appeared inside Razorpay. `/get` now asks `POST /api/shop/referral/check` whether the code is real, then shows the online price with the link off and a "Friend's link" badge (`address-step.js` takes `referralLabel`; both badges hide beside COD, which never takes it).
+- [x] Friend: a code the server refuses at checkout (your own link) no longer opens a payment window at a price the sheet did not quote. `create-order` returns `referralRefused`; the page stops, says why and drops the code. The reused-order response also lacked `referralDiscountPaise`.
+- [x] Owner: a referrer with no premium tag had the month banked in `referralCreditMonths` and nothing ever spent it. `redeemReferralCredit` adds it when the dashboard loads and a premium tag exists, claiming the balance before spending so concurrent loads spend it once.
+- [x] Owner: the reward was read-then-write, so two friends paying together lost a month; it also wrote a dated period over an open-ended (comped) subscription. `extendPremium` is now a conditional update with retry, and open-ended tags are skipped.
+- [x] Owner: nothing told them. The card now reports friends, months earned and months waiting (`referral.friends / monthsEarned / monthsWaiting`), and the approved `parktag_referral_reward` template, which no code sent, goes out after a reward lands. Held rewards are stamped on their order so the cap and the count see them.
+- [x] Tests: `referral-journey.test.js` (11, HTTP end to end with only Razorpay's order mint stubbed; all fail on the old code), `referral-checkout-page.test.js` (12), 17 more in `referrals.test.js`, 4 in `referral-card.test.js`.
+- [ ] After deploy: one real referred purchase on production. Check the sheet shows the discounted online price, the referrer's Premium date moves by a month, the card line appears and the WhatsApp arrives (the template has not been sent before).
+- [ ] Decide whether `/shop` should show the friend's price in its sheet too. It keeps the code and the server applies it, but only `/get`, where the share link points, shows it.
+
 ## Admin nav and API tokens page, 2026-09-29
 
 - [x] Found `/admin/promo-codes` and `/admin/reviews` had pages but no sidebar link on any page (only reachable by typing the URL). Added both links, plus API Tokens, to the sidebar on all 13 admin pages.

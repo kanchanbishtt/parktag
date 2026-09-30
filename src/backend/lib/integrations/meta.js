@@ -352,6 +352,21 @@ export async function fetchMetaWhatsappMedia(env, mediaId, { maxBytes = 5 * 1024
 }
 
 // Membership confirmation. Requires an approved template named
+// `parktag_referral_reward`, four body variables in this order: {{1}} the
+// referrer's name, {{2}} the friend's first name, {{3}} what was added
+// ("1 month"), {{4}} the date premium now runs until. Its header and its
+// "See my account" button are static, so neither takes a parameter.
+//
+// UTILITY: it confirms a reward already on the account, and asks for nothing.
+export async function sendMetaWhatsappReferralReward(env, { to, name, friend, reward, endsOn }) {
+  return sendTemplate(env, {
+    to,
+    template: "parktag_referral_reward",
+    components: bodyComponent(name, friend, reward, endsOn),
+    publicMessage: "Unable to send the WhatsApp referral reward message."
+  });
+}
+
 // `parktag_membership_confirmed` with three body variables in this order:
 // {{1}} name, {{2}} plan label, {{3}} the date premium runs until.
 //

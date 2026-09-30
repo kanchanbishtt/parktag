@@ -1600,6 +1600,7 @@
 }
 .pt-ref-title { font-size: 1.1rem; font-weight: 900; color: #03162D; margin: 0 0 6px; }
 .pt-ref-sub   { font-size: .82rem; color: #374151; margin: 0 0 12px; line-height: 1.55; font-weight: 500; }
+.pt-ref-earned { font-size: .82rem; color: #17663A; margin: -4px 0 12px; line-height: 1.55; font-weight: 700; }
 .pt-ref-link {
   background: #fff; border: 1px solid #E5E7EB; border-radius: 10px; padding: 10px 12px;
   font-size: .82rem; font-weight: 700; color: #03162D; overflow-wrap: anywhere;

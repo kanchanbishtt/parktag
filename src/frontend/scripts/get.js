@@ -578,6 +578,55 @@ function hideSheet() {
   closeSheet();
 }
 
+// ── A friend's link ───────────────────────────────────────────────
+// What the parked code takes off, once the SERVER has said it will honour it.
+// Zero until then, and zero again if it is refused.
+//
+// The page used to announce the discount for any well-formed code and leave
+// the checkout sheet quoting the full price, so a friend saw nothing come off
+// until Razorpay opened. Now the sheet shows it, which is only safe for a code
+// that is real: quoting a price the payment window will not honour is the one
+// thing a checkout must not do.
+let _referralOff = 0;
+
+function dropReferral() {
+  clearReferralCode();
+  _referralOff = 0;
+  const note = byId("gtRef");
+  if (note) { note.hidden = true; note.textContent = ""; }
+}
+
+async function checkReferral() {
+  const code = referralCode();
+  if (!code) return;
+  let answer = null;
+  // Bounded, because a reloaded checkout waits on this before it reopens.
+  const abort = typeof AbortController === "function" ? new AbortController() : null;
+  const timer = abort ? setTimeout(() => abort.abort(), 4000) : null;
+  try {
+    const res = await fetch("/api/shop/referral/check", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ code }),
+      ...(abort ? { signal: abort.signal } : {})
+    });
+    if (res.ok) answer = await res.json();
+  } catch { /* offline or too slow: treated as "could not ask" below */ }
+  if (timer) clearTimeout(timer);
+  // Could not ask (offline, rate limited). Nothing is promised on the page;
+  // the code stays parked and the server still decides at checkout.
+  if (!answer) return;
+  // Nobody holds this code. Forget it rather than carry it to checkout.
+  if (!answer.ok || !(Number(answer.discountPaise) > 0)) { dropReferral(); return; }
+
+  _referralOff = Number(answer.discountPaise);
+  const note = byId("gtRef");
+  if (note) {
+    note.textContent = `🎁 Friend's link applied: an extra ${rupees(_referralOff)} off when you pay online.`;
+    note.hidden = false;
+  }
+}
+
 // Razorpay's own sheet reports its own failures, so this only has to speak up
 // for the two steps either side of it.
 function say(message) {
@@ -640,6 +689,13 @@ async function buy(sku) {
   // where the buyer picks online or Cash on Delivery, for a pack that takes it.
   const offer = offerFor(sku);
   const cod = codFor(sku, quantity);
+  // A friend's link the server has confirmed (checkReferral). It comes off the
+  // ONLINE price, because that is what the payment window is about to ask for,
+  // and never off Cash on Delivery: the server does not apply it there.
+  const totalPaise = product ? pricedTotalPaise(sku, product, quantity, addOn) : 0;
+  const refOff = referralCode() ? _referralOff : 0;
+  // The server's own floor: no discount takes the goods below one rupee.
+  const onlinePaise = refOff ? Math.max(totalPaise - refOff, 100) : totalPaise;
   // Marked open before the sheet shows, so a reload from here brings it back.
   cartSave({ checkout: sku });
   const collecting = window.ptCollectAddress({
@@ -649,9 +705,10 @@ async function buy(sku) {
     orderSummary: product
       ? {
           name: `${quantity > 1 ? `${quantity} × ` : ""}${product.name}${addOn ? ` + ${addOn.name}` : ""}`,
-          amountPaise: pricedTotalPaise(sku, product, quantity, addOn),
-          mrpPaise: offer ? (product.amountPaise * quantity) + (addOn?.amountPaise || 0) : null,
+          amountPaise: onlinePaise,
+          mrpPaise: offer || refOff ? (product.amountPaise * quantity) + (addOn?.amountPaise || 0) : null,
           offerLabel: offer ? `${offer.code} auto-applied` : null,
+          referralLabel: refOff ? `Friend's link: ${rupees(totalPaise - onlinePaise)} off` : null,
           cod: cod
             ? { amountPaise: pricedTotalPaise(sku, product, quantity, addOn) + cod.surchargePaise, feePaise: cod.surchargePaise }
             : null
@@ -740,6 +797,17 @@ async function buy(sku) {
     // The server's message names the field that is wrong rather than saying
     // "invalid", so it is worth surfacing verbatim.
     if (!res.ok || !order.ok) throw new Error(order && order.error);
+    // The sheet quoted the friend's price. If the server did not apply it (a
+    // buyer using their own link is the case that reaches here), stop before
+    // the payment window opens at a price this page did not show. The code is
+    // dropped, so the next attempt quotes and charges the same figure.
+    if (!payCod && refOff > 0 && !(Number(order.referralDiscountPaise) > 0)) {
+      dropReferral();
+      const why = order.referralRefused === "self"
+        ? "A friend's link cannot be used with your own number"
+        : "That friend's link could not be applied";
+      throw new Error(`${why}, so this order is ${rupees(order.amount)}. Tap the button again to continue at that price.`);
+    }
     // Before the payment window opens, not after it closes. Everything from
     // here on depends on the buyer's browser still being alive; this is the
     // last line that does not.
@@ -748,8 +816,6 @@ async function buy(sku) {
     _paidCoupon = order.promoCode || null;
     _paidQty = quantity;
     _paidCod = order.paymentMethod === "cod";
-    // Spent. A second purchase this session should not silently reuse it.
-    clearReferralCode();
   } catch (err) {
     stopOrderPacing();
     orderSteps.fail("");
@@ -876,6 +942,11 @@ function showDone(done) {
   { const d = byId("gtDone"); if (d) d.hidden = false; }
   _busy = false;
   cartClear(); // the order exists; nothing left to bring back
+  // And the friend's link is spent. Cleared HERE, not when the order was
+  // created: that is what it used to do, so a buyer who closed the payment
+  // window and tried again was sent back without the code and charged the
+  // full price. A second purchase this session still does not reuse it.
+  clearReferralCode();
   byId("gtDoneSub").textContent = done.paymentMethod === "cod"
     ? `Order ${done.orderNumber} is placed. Pay ${rupees(done.amount)} in cash when it arrives. We have sent the details to your mobile.`
     : done.pending
@@ -1192,13 +1263,9 @@ async function load() {
       }
     : null;
   renderChips(payload.products);
-  // A friend's link: the discount is applied by the server at payment, so say
-  // so here, or the page quotes a price the buyer will not actually pay.
-  const refNote = byId("gtRef");
-  if (refNote && referralCode() && Number(payload.referralDiscountPaise) > 0) {
-    refNote.textContent = `🎁 Friend's link applied: an extra ${rupees(payload.referralDiscountPaise)} off when you pay online, taken off at payment.`;
-    refNote.hidden = false;
-  }
+  // A friend's link: ask the server whether it is one it will honour, then say
+  // so here and in the checkout sheet. Not awaited; the packs do not wait on it.
+  const referralChecked = checkReferral();
   // What this tab had chosen before a reload. Counts only for packs still in
   // the catalogue, and only whole numbers of at least one.
   const saved = cartRead();
@@ -1220,7 +1287,11 @@ async function load() {
   // Reloaded mid-checkout: reopen it on the same pack. buy() refills the
   // address from the draft. A pack that has since sold out is not reopened.
   const resume = PACKS.find((pack) => pack.id === saved.checkout);
-  if (resume && !resume.soldOut && _products[resume.id] && !_products[resume.id].soldOut) buy(resume.id);
+  // After the friend's-link check, so the reopened sheet quotes the same price
+  // the first one did. It never rejects and gives up after four seconds.
+  if (resume && !resume.soldOut && _products[resume.id] && !_products[resume.id].soldOut) {
+    referralChecked.then(() => buy(resume.id));
+  }
 
   // After the page is usable, never in front of it. A returning buyer's order
   // matters, but not more than the shop rendering.

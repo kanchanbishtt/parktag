@@ -44,6 +44,9 @@ import {
 } from "../../lib/core/order-tracking.js";
 import {
   referralCodeFor,
+  countReferralRewards,
+  referralSummary,
+  redeemReferralCredit,
   REFERRAL_DISCOUNT_PAISE,
   REFERRAL_REWARD_MONTHS
 } from "../../lib/core/referrals.js";
@@ -190,7 +193,7 @@ export function registerOwnerRoutes(app, env) {
       collections.tags
         .find({ ownerId, deletedAt: { $in: [null, undefined] } }, { projection: DASHBOARD_TAG_PROJECTION })
         .toArray();
-    const [owner, initialTags, requests, livePasses, addressForName, referralCode] = await Promise.all([
+    const [owner, initialTags, requests, livePasses, addressForName, referralCode, referralRewards] = await Promise.all([
       collections.owners.findOne({ _id: ownerId }),
       findLiveTags(),
       collections.contactRequests
@@ -209,7 +212,10 @@ export function registerOwnerRoutes(app, env) {
       // carries rows for owners who have actually looked. Best effort: a code
       // that cannot be minted costs a referral card, and must never cost
       // somebody their dashboard.
-      referralCodeFor(collections, ownerId).catch(() => null)
+      referralCodeFor(collections, ownerId).catch(() => null),
+      // How many friends have bought, for the card. Same terms as the code
+      // above: a count that cannot be read costs a line on a card.
+      countReferralRewards(collections, ownerId).catch(() => 0)
     ]);
 
     // A live session whose account is gone. This is reachable: deactivating a
@@ -248,6 +254,20 @@ export function registerOwnerRoutes(app, env) {
       }
       await collections.owners.updateOne({ _id: ownerId }, { $set: { localVehicles: [] } });
       tags = await findLiveTags();
+    }
+
+    // Months this owner was holding for want of a premium tag to put them on.
+    // Spent here because this is where every route to a premium tag ends up;
+    // see redeemReferralCredit. Skipped outright for an owner holding nothing,
+    // which is nearly all of them, so the ordinary load pays for none of it.
+    let referralMonthsHeld = Math.max(0, Math.trunc(Number(owner.referralCreditMonths) || 0));
+    if (referralMonthsHeld > 0) {
+      const spent = await redeemReferralCredit(collections, ownerId, request.log);
+      if (spent.redeemed > 0) {
+        referralMonthsHeld = 0;
+        // The tag that took the months was read before they landed.
+        tags = await findLiveTags();
+      }
     }
 
     const resolvedName = resolveOwnerName(owner, addressForName);    return {
@@ -423,7 +443,12 @@ export function registerOwnerRoutes(app, env) {
         rewardMonths: REFERRAL_REWARD_MONTHS,
         // Prepaid only. The card must say so, or somebody shares a link and
         // their friend pays COD and neither of them gets anything.
-        prepaidOnly: true
+        prepaidOnly: true,
+        // What the link has earned: friends who bought, months that came of
+        // it, and any still waiting for a premium tag to land on. Without
+        // these the card made an offer and never reported on it, and a month
+        // arriving was a date moving on another screen.
+        ...referralSummary(referralRewards, referralMonthsHeld)
       }
     };
   });

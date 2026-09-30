@@ -453,8 +453,6 @@ async function buy(sku, product) {
     _paidPaise = order.amount || 0;
     _paidCoupon = order.promoCode || null;
     _paidCod = order.paymentMethod === "cod";
-    // Spent. A second purchase this session must not silently reuse it.
-    clearReferralCode();
   } catch (err) {
     stopOrderPacing();
     orderSteps.fail("");
@@ -561,6 +559,10 @@ function showDone(done) {
   { const w = byId("shWorking"); if (w) w.hidden = true; }
   { const d = byId("shDone"); if (d) d.hidden = false; }
   _busy = false;
+  // The order exists, so a friend's link is spent. Cleared HERE, not when the
+  // order was created: a buyer who closed the payment window and tried again
+  // was sent back without the code and charged the full price.
+  clearReferralCode();
   byId("shDoneSub").textContent = done.paymentMethod === "cod"
     ? `Order ${done.orderNumber} is placed. Pay ${rupees(done.amount)} in cash when it arrives. We have sent the details to your mobile.`
     : done.pending

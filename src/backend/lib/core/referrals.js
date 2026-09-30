@@ -36,6 +36,8 @@ import { membershipPeriodStart } from "./membership-fulfilment.js";
 import { hasActiveSubscription } from "./subscription.js";
 import { premiumTrialEndsAt } from "./vault.js";
 import { toE164 } from "./phone.js";
+import { firstNameOf, resolveOwnerName } from "./owner-name.js";
+import { isMetaWhatsappConfigured, sendMetaWhatsappReferralReward } from "../integrations/meta.js";
 
 // What each side gets. Constants rather than literals at the call sites, so the
 // two numbers that define the offer are readable in one place.
@@ -208,6 +210,137 @@ export async function resolveReferral(collections, rawCode, { deliveryPhone = nu
   return { ok: true, referrerId: referrer._id, code };
 }
 
+const LIVE = { deletedAt: { $in: [null, undefined] } };
+
+/**
+ * When this premium tag's paid-for time runs out, in ms, or null when there is
+ * nothing a month could be added to.
+ *
+ * Null for an OPEN-ENDED subscription, deliberately. A comped or grandfathered
+ * tag is `status: "active"` with no end date, which subscription.js reads as
+ * unlimited. The first version of the reward ignored that case and wrote a
+ * dated period over it, so a referral turned "forever" into "thirteen months":
+ * the one tag a reward could only ever make worse.
+ */
+function premiumEndsAt(tag, now) {
+  const sub = tag.subscription || tag.callSubscription || tag.documentSubscription;
+  const active = hasActiveSubscription(tag, now);
+  if (active && (sub.currentPeriodEnd === null || sub.currentPeriodEnd === undefined)) return null;
+
+  const subEnd = active ? new Date(sub.currentPeriodEnd).getTime() : 0;
+  const trialEnd = premiumTrialEndsAt(tag, now);
+  const ends = Math.max(subEnd || 0, trialEnd ? new Date(trialEnd).getTime() : 0);
+  return Number.isFinite(ends) && ends > 0 ? ends : null;
+}
+
+// The tag whose premium runs out SOONEST. A month is worth most on the tag
+// closest to lapsing, and adding it to a tag with two years left would be a
+// reward the referrer never notices.
+async function extendableTagFor(collections, ownerId, now) {
+  const tags = await collections.tags.find({ ownerId, premium: true, ...LIVE }).toArray();
+  return (
+    tags
+      .map((tag) => ({ tag, ends: premiumEndsAt(tag, now) }))
+      .filter((row) => row.ends !== null)
+      .sort((a, b) => a.ends - b.ends)[0]?.tag || null
+  );
+}
+
+/**
+ * Add `months` to one tag, atomically. Returns `{ endsAt }`, or null when the
+ * tag cannot take them.
+ *
+ * Conditional on the subscription still being the one that was read. The first
+ * version read the tag, worked out the new end date and wrote it back
+ * unconditionally, so two friends paying in the same second both read the same
+ * start, both wrote the same end, and one of the two months vanished. Here the
+ * loser's update matches nothing, and it goes round again on top of the
+ * winner's date.
+ */
+async function extendPremium(collections, tagId, months, now) {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const tag = await collections.tags.findOne({ _id: tagId, premium: true, ...LIVE });
+    if (!tag || premiumEndsAt(tag, now) === null) return null;
+
+    // membershipPeriodStart, not `now`. It is the existing, tested arithmetic
+    // that refuses to back-date a new period into a running trial or an active
+    // subscription — so a month added to a tag with eight months of trial left
+    // lands at month nine, not next week.
+    const startsAt = membershipPeriodStart(tag, now);
+    const endsAt = new Date(addMonths(startsAt, months)).toISOString();
+
+    const written = await collections.tags.updateOne(
+      // `null` matches a subscription that is absent as well as one that is null.
+      { _id: tag._id, subscription: tag.subscription ?? null },
+      {
+        $set: {
+          // `subscription` only. The two legacy field names are read by
+          // subscription.js but deliberately never written -- writing a third
+          // copy of one fact is how they came to disagree in the first place.
+          subscription: { status: "active", currentPeriodEnd: endsAt, source: "referral" },
+          updatedAt: new Date().toISOString()
+        }
+      }
+    );
+    if (written.modifiedCount === 1) return { endsAt };
+  }
+  return null;
+}
+
+function monthsLabel(months) {
+  return months === 1 ? "1 month" : `${months} months`;
+}
+
+function readableDate(iso) {
+  return new Date(iso).toLocaleDateString("en-IN", {
+    day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Kolkata"
+  });
+}
+
+/**
+ * The four values the reward message carries, and the number it goes to. Null
+ * when the referrer has no number to send it to.
+ *
+ * Pure, and separate from the send, so what the message says can be held down
+ * by a test: external-guard.js refuses every real template send in a test run,
+ * which is right, and would otherwise leave this wording checked by nothing.
+ */
+export function referralRewardMessage({ owner, address = null, order, months, until }) {
+  const to = owner && (owner.mobile || owner.phone);
+  if (!to) return null;
+  return {
+    to,
+    // Never the raw displayName: see resolveOwnerName.
+    name: firstNameOf(resolveOwnerName(owner, address)) || "there",
+    // First name only, off the parcel. It is the friend they sent the link to.
+    friend: firstNameOf(order?.shippingAddress?.fullName || "") || "A friend",
+    reward: monthsLabel(months),
+    endsOn: readableDate(until)
+  };
+}
+
+// Tell the referrer. Until this existed the only sign of a reward was a date
+// on the profile card moving by a month, which nobody notices; the template
+// (`parktag_referral_reward`, docs/WHATSAPP_TEMPLATES.md 2.7) had been approved
+// and was sent by nothing.
+//
+// Best effort and never awaited by the payment path: the month is already on
+// the tag, and a message that cannot be delivered must not be able to delay or
+// fail somebody else's purchase.
+async function notifyReferralReward(env, collections, { referrerId, order, months, until, log }) {
+  try {
+    if (!env || !isMetaWhatsappConfigured(env)) return;
+    const owner = await collections.owners.findOne({ _id: referrerId });
+    const address = collections.addresses
+      ? await collections.addresses.findOne({ ownerId: referrerId }).catch(() => null)
+      : null;
+    const message = referralRewardMessage({ owner, address, order, months, until });
+    if (message) await sendMetaWhatsappReferralReward(env, message);
+  } catch (err) {
+    log?.warn?.({ err, event: "referral-reward-notify-failed", orderId: order?.orderId }, "[referral] reward message not sent");
+  }
+}
+
 /**
  * Give the referrer their month. Called once, from fulfilPaidOrder, behind the
  * conditional update that decides an order is paid.
@@ -239,37 +372,28 @@ export async function grantReferralReward(env, collections, order, log) {
       return { granted: false, reason: "capped" };
     }
 
-    // The tag whose premium runs out SOONEST. A month is worth most on the tag
-    // closest to lapsing, and adding it to a tag with two years left would be a
-    // reward the referrer never notices.
-    const tags = await collections.tags
-      .find({ ownerId: referrerId, premium: true, deletedAt: { $in: [null, undefined] } })
-      .toArray();
-
     const now = Date.now();
-    const dated = tags
-      .map((tag) => {
-        const sub = tag.subscription || tag.callSubscription || tag.documentSubscription;
-        const subEnd = hasActiveSubscription(tag, now) && sub?.currentPeriodEnd
-          ? new Date(sub.currentPeriodEnd).getTime()
-          : null;
-        const trialEnd = premiumTrialEndsAt(tag, now);
-        const ends = Math.max(subEnd || 0, trialEnd ? new Date(trialEnd).getTime() : 0);
-        return { tag, ends };
-      })
-      .filter((row) => Number.isFinite(row.ends) && row.ends > 0)
-      .sort((a, b) => a.ends - b.ends);
+    const target = await extendableTagFor(collections, referrerId, now);
+    const extended = target
+      ? await extendPremium(collections, target._id, REFERRAL_REWARD_MONTHS, now)
+      : null;
+    const rewardedAt = new Date().toISOString();
 
-    const target = dated[0]?.tag;
-
-    if (!target) {
+    if (!extended) {
       // A referrer with no premium tag has nothing to extend. The month is held
-      // on the account rather than dropped, so it can be honoured when they buy
-      // one. Nothing spends this yet, deliberately: a credit ledger is worth
-      // building when somebody actually holds a credit, not before.
+      // on the account rather than dropped, and redeemReferralCredit() spends it
+      // the first time they have a tag that can take it.
+      //
+      // The order is stamped here too. It used not to be, which left a held
+      // reward invisible to the cap above and to the count on the referral
+      // card: earned, and recorded nowhere but a bare number on the account.
       await collections.owners.updateOne(
         { _id: referrerId },
         { $inc: { referralCreditMonths: REFERRAL_REWARD_MONTHS } }
+      );
+      await collections.shopOrders.updateOne(
+        { orderId: order.orderId },
+        { $set: { referralRewardedAt: rewardedAt, referralRewardHeld: true } }
       );
       log?.info?.(
         { event: "referral-credit-held", referrerId: String(referrerId) },
@@ -278,33 +402,9 @@ export async function grantReferralReward(env, collections, order, log) {
       return { granted: true, held: true };
     }
 
-    // membershipPeriodStart, not `now`. It is the existing, tested arithmetic
-    // that refuses to back-date a new period into a running trial or an active
-    // subscription — so a month added to a tag with eight months of trial left
-    // lands at month nine, not next week.
-    const startsAt = membershipPeriodStart(target, now);
-    const endsAt = new Date(addMonths(startsAt, REFERRAL_REWARD_MONTHS)).toISOString();
-
-    await collections.tags.updateOne(
-      { _id: target._id },
-      {
-        $set: {
-          // `subscription` only. The two legacy field names are read by
-          // subscription.js but deliberately never written -- writing a third
-          // copy of one fact is how they came to disagree in the first place.
-          subscription: {
-            status: "active",
-            currentPeriodEnd: endsAt,
-            source: "referral"
-          },
-          updatedAt: new Date().toISOString()
-        }
-      }
-    );
-
     await collections.shopOrders.updateOne(
       { orderId: order.orderId },
-      { $set: { referralRewardedAt: new Date().toISOString(), referralRewardTagId: String(target._id) } }
+      { $set: { referralRewardedAt: rewardedAt, referralRewardTagId: String(target._id) } }
     );
 
     log?.info?.(
@@ -313,14 +413,106 @@ export async function grantReferralReward(env, collections, order, log) {
         referrerId: String(referrerId),
         tagId: String(target._id),
         months: REFERRAL_REWARD_MONTHS,
-        until: endsAt
+        until: extended.endsAt
       },
       "[referral] premium extended"
     );
 
-    return { granted: true, tagId: String(target._id), until: endsAt };
+    // Not awaited: see notifyReferralReward. It absorbs its own failures.
+    notifyReferralReward(env, collections, {
+      referrerId, order, months: REFERRAL_REWARD_MONTHS, until: extended.endsAt, log
+    });
+
+    return { granted: true, tagId: String(target._id), until: extended.endsAt };
   } catch (err) {
     log?.error?.({ err, orderId: order?.orderId }, "[referral] reward failed");
     return { granted: false, reason: "error" };
   }
+}
+
+/**
+ * Spend the months a referrer was holding, now that they have a tag to put
+ * them on.
+ *
+ * grantReferralReward banks a month when the referrer owns no premium tag, and
+ * for as long as nothing spent that balance the offer on the card ("you get a
+ * month for each friend who buys") was simply untrue for every owner on a free
+ * tag: the friend paid, the counter went up, and the month never arrived.
+ *
+ * Called when the dashboard loads, which is the one place every route to a
+ * premium tag ends up (a sticker activated, a free tag upgraded, one issued by
+ * an admin), rather than from each of those paths separately.
+ *
+ * The balance is CLAIMED before it is spent: a conditional update takes it to
+ * zero, and only the caller whose update matched goes on to extend the tag.
+ * Two dashboard loads at once therefore spend it once. If the extension then
+ * fails, the months go back.
+ *
+ * Never throws. A balance that cannot be spent now is spent on a later visit.
+ */
+export async function redeemReferralCredit(collections, ownerId, log) {
+  try {
+    const owner = await collections.owners.findOne(
+      { _id: ownerId, referralCreditMonths: { $gte: 1 } },
+      { projection: { referralCreditMonths: 1 } }
+    );
+    const months = Math.trunc(Number(owner?.referralCreditMonths) || 0);
+    if (months < 1) return { redeemed: 0 };
+
+    const now = Date.now();
+    const target = await extendableTagFor(collections, ownerId, now);
+    if (!target) return { redeemed: 0 };
+
+    const claimed = await collections.owners.updateOne(
+      { _id: ownerId, referralCreditMonths: owner.referralCreditMonths },
+      { $set: { referralCreditMonths: 0 } }
+    );
+    if (claimed.modifiedCount !== 1) return { redeemed: 0 };
+
+    const extended = await extendPremium(collections, target._id, months, now);
+    if (!extended) {
+      await collections.owners.updateOne({ _id: ownerId }, { $inc: { referralCreditMonths: months } });
+      return { redeemed: 0 };
+    }
+
+    log?.info?.(
+      { event: "referral-credit-redeemed", referrerId: String(ownerId), tagId: String(target._id), months, until: extended.endsAt },
+      "[referral] held months added to a premium tag"
+    );
+    return { redeemed: months, tagId: String(target._id), until: extended.endsAt };
+  } catch (err) {
+    log?.error?.({ err, ownerId: String(ownerId) }, "[referral] held credit could not be redeemed");
+    return { redeemed: 0 };
+  }
+}
+
+/**
+ * How many of this owner's referrals have been rewarded.
+ *
+ * Counted from the orders rather than kept as a running total on the account:
+ * the orders are the record of what was paid for, and a counter beside them is
+ * a second copy that can drift. Served by the `referral_rewards` index.
+ */
+export async function countReferralRewards(collections, ownerId) {
+  return collections.shopOrders.countDocuments({
+    referredBy: ownerId,
+    referralRewardedAt: { $type: "string" }
+  });
+}
+
+/**
+ * What the referral card says this owner has earned so far.
+ *
+ * `monthsWaiting` is the balance redeemReferralCredit has not been able to
+ * spend yet. It is never more than `monthsEarned`; the Math.max covers months
+ * banked before held orders were stamped, which the count cannot see.
+ */
+export function referralSummary(rewards, creditMonths = 0) {
+  const friends = Math.max(0, Math.trunc(Number(rewards) || 0));
+  const monthsWaiting = Math.max(0, Math.trunc(Number(creditMonths) || 0));
+  return {
+    friends,
+    monthsEarned: Math.max(friends * REFERRAL_REWARD_MONTHS, monthsWaiting),
+    monthsWaiting
+  };
 }

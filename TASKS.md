@@ -971,6 +971,14 @@ Covers UX and security improvements made after M13 call flow was confirmed worki
 - [x] Keep reports privacy-safe: no request, user, IP or breadcrumbs; phone numbers, OTPs and emails masked; route pattern tags only. User-facing `clientError`s and 4xx are not reported. Verified with 6 unit tests and an end-to-end run against a local fake Sentry endpoint.
 - [ ] Create the Sentry project, set `SENTRY_DSN` on Railway, and confirm the first real event arrives scrubbed.
 
+## Shop product images refreshed, 2026-09-30
+
+- [x] Car Tag (Pack of 2): new artwork (two tilted stickers) on the dashboard shop and on `/shop`. Desktop uses the supplied 16:9 image as is (`shop-car-2-v2-desktop.webp`). The phone card is 4:3, so `shop-car-2-v2-900.webp` is the same artwork with the striped background carried on above and below, not a crop, which would have put the stickers against the card edges.
+- [x] Bike Tag (Pack of 2): the phone image was a different photograph from the desktop one. `shop-bike-v2-900.webp` is now a 4:3 crop of the same supplied photo.
+- [x] Combo Tag (Pack of 2): no change needed. Both existing files already carry the supplied artwork.
+- [x] New filenames rather than files replaced in place, because `/images/` is cached for thirty days. The three replaced files are removed; nothing else referenced them.
+- [ ] Not changed: the small `shop-*-thumb.webp` images on `/get` and `/direct`. The Pack of 2 thumbnail there still shows the earlier straight layout.
+
 ## Checkout pincode guard, 2026-09-27
 
 - [x] Rename the checkout field from "PIN code / 6-digit PIN" to "Pincode (postal code) / e.g. 110052": a buyer read it as a card PIN, typed a Kerala code on a New Delhi address, paid, and the Delhivery booking failed (PT-260927-00037).

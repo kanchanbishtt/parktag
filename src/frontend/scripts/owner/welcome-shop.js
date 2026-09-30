@@ -42,8 +42,8 @@ const PRODUCTS = [
     orig: 799,
     discount: 38,
     variants: ["Car", "Auto"],
-    image: "/images/shop-car-2-900.webp",
-    imageDesktop: "/images/shop-car-2-desktop.webp",
+    image: "/images/shop-car-2-v2-900.webp",
+    imageDesktop: "/images/shop-car-2-v2-desktop.webp",
   },
   // Combo before Bike, so the two photographic thumbnails sit on opposite
   // corners of the two-column grid rather than stacked down one side. Order in
@@ -71,7 +71,7 @@ const PRODUCTS = [
     orig: 799,
     discount: 38,
     variants: ["Bike", "Scooter", "Helmet"],
-    image: "/images/shop-bike-900.webp",
+    image: "/images/shop-bike-v2-900.webp",
     imageDesktop: "/images/shop-bike-desktop.webp",
   },
 ];

@@ -17,7 +17,7 @@ const PACKS = [
   {
     id: "pt-car-2",
     desc: "Two tags: two cars, or the front and back of one.",
-    image: "/images/shop-car-2-900.webp",
+    image: "/images/shop-car-2-v2-900.webp",
     badge: "Best seller"
   },
   {
@@ -39,7 +39,7 @@ const PACKS = [
   {
     id: "pt-bike-1",
     desc: "For a two-wheeler, front and back.",
-    image: "/images/shop-bike-900.webp",
+    image: "/images/shop-bike-v2-900.webp",
     soldOut: true
   }
 ];

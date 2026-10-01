@@ -1358,6 +1358,7 @@ export function registerPublicRoutes(app, env) {
       };
     }
 
+    // Masking policy (server-enforced, cannot be bypassed from the client):
     // an E-Tag includes one free masked CALL; a premium tag includes a year
     // of them and then needs a subscription. callEntitlement decides both.
     //

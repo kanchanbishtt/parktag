@@ -35,14 +35,18 @@ export const CALL_TIER_TRIAL = "premium-trial";
 export const CALL_TIER_SUBSCRIBED = "premium-subscription";
 export const CALL_TIER_LAPSED = "premium-lapsed";
 
-// How many free masked contacts an E-Tag gets before it locks.
+// How many free masked CALLS an E-Tag gets before it locks.
 //
 // One, unless the tag was stamped otherwise. Door hanger stock is stamped with
 // DOORHANGER_FREE_CONTACTS by scripts/print-doorhangers.js, because the hanger
-// promises the owner they can try it with a friend and still have a real
-// contact left. `freeContactUsed` stays the one flag every reader branches on:
-// it now means "the allowance is spent", and the spend itself is counted in
-// `freeContactsSpent` by spendFreeContactPipeline below.
+// promises the owner they can try it with a friend and still have a real call
+// left. `freeContactUsed` stays the one flag every reader branches on: it
+// means "the call allowance is spent", counted in `freeContactsSpent` by
+// spendFreeContactPipeline below.
+//
+// A CALL spends one only once it has connected (MIN_ANSWERED_CALL_SECONDS
+// below), not when the scanner is handed the number. A WhatsApp alert never
+// spends one, for any E-Tag — see callBlockedMessage/callBlockedCode below.
 export const DEFAULT_FREE_CONTACTS = 1;
 export const DOORHANGER_FREE_CONTACTS = 2;
 const MAX_FREE_CONTACTS = 10;

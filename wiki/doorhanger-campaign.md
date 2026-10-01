@@ -68,7 +68,15 @@ Only unclaimed, unprinted, non-demo tags are printed; bike stock is refused.
 
 ## After the two contacts
 
-The tag locks, and stays locked: no call, no message and no Emergency call. The
-scan page says only that the owner has used the tag's free limit. A scanner who
-reads the plate off it is counted, and the owner is messaged, at most once a day,
-to upgrade. See `locked-tag-flow.md`.
+The two free contacts are two free **calls**, and a call is only counted once
+the scanner and the owner have been **connected for at least a second**
+(2026-10-01): a call nobody answered costs nothing. Once both are spent the
+private call and the Emergency call lock, and stay locked. The **WhatsApp alert keeps
+working for life** and never spends a free call (owner's decision, 2026-10-01).
+
+The owner is told once, on WhatsApp, that the free trial has ended (the
+`parktag_free_trial_ended` template). The scan page keeps the WhatsApp tile and
+says Private Call is not available. A scanner who reads the plate off a locked
+tag is counted, and the owner is messaged, at most once a day, that someone could
+not call them. Nothing sent to the owner says that WhatsApp still works. See
+`locked-tag-flow.md`, section 5.

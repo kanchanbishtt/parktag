@@ -1029,6 +1029,10 @@ const ADD_CARD = `
 // to reach this owner, that is the line: it is the true reason to upgrade, and
 // "your free contact has been used" on its own reads as a limit reached, not
 // as people being turned away at the car.
+//
+// WhatsApp never locks for any E-Tag, door hanger stock included (see
+// call-access.js), so every branch here names Call specifically rather than
+// implying the owner is unreachable.
 function lockedTagNote(tag) {
   const missed = Math.max(0, Math.trunc(Number(tag.missedContacts) || 0));
   if (missed > 0) {

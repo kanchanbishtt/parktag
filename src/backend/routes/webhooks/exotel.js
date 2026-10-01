@@ -5,6 +5,7 @@ import { safeEqual } from "../../lib/auth/security.js";
 import { normalizeCallOutcome, parseCallDuration } from "../../lib/core/call-outcome.js";
 import { sendMixpanelEventBestEffort } from "../../lib/integrations/mixpanel.js";
 import { spendFreeContactPipeline, MIN_ANSWERED_CALL_SECONDS } from "../../lib/core/call-access.js";
+import { notifyTrialEnded } from "../../lib/core/trial-ended-notice.js";
 
 // Exotel has no request-signing scheme for callbacks (unlike Twilio/Meta), so
 // the mitigation is a shared secret embedded in the callback URLs configured
@@ -295,6 +296,13 @@ export function registerProviderRoutes(app, env) {
             await collections.tags
               .updateOne({ _id: tag._id }, spendFreeContactPipeline(spentAt, { updatedAt: spentAt }))
               .catch(() => null);
+            // If that was the last free call, the owner is told the trial is
+            // over. Not awaited: Exotel is waiting on this response and the
+            // send can take seconds. notifyTrialEnded claims on the tag
+            // itself (freeContactUsed + trialEndedNotice), so it is safe to
+            // call unconditionally here — it is a no-op unless this spend was
+            // the one that locked the tag.
+            notifyTrialEnded(env, collections, tag, request.log);
           }
         }
       }

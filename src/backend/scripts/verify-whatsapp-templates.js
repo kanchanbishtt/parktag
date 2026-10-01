@@ -28,7 +28,11 @@
 import {
   isMetaWhatsappConfigured,
   sendMetaWhatsappMembershipConfirmation,
-  sendMetaWhatsappOrderUpdate
+  sendMetaWhatsappOrderUpdate,
+  OWNER_ALERT_TEMPLATE,
+  OWNER_ALERT_PLATE_TEMPLATE,
+  EMERGENCY_LOCATION_TEMPLATE,
+  FREE_TRIAL_ENDED_TEMPLATE
 } from "../lib/integrations/meta.js";
 
 const env = {
@@ -40,9 +44,18 @@ const env = {
 
 // What meta.js will send, and how many body variables each call fills. The
 // counts are the point: they are what Meta checks at send time.
+//
+// `fallback` marks a template the code tries first and survives without: until
+// it is approved, what it says happens instead, so a pending one is
+// reported and not counted as a failure. `category` is checked for those,
+// because they switch themselves on at approval and all are sent without a
+// marketing opt-in.
 const EXPECTED = [
   { name: "parktag_login", bodyParams: 1, used: "OTP login, COD verification, account deletion" },
-  { name: "parktag_owner_notification", bodyParams: 2, used: "scanner reports an issue with a vehicle" },
+  { name: OWNER_ALERT_TEMPLATE, bodyParams: 2, used: "scanner reports an issue with a vehicle" },
+  { name: OWNER_ALERT_PLATE_TEMPLATE, bodyParams: 3, used: "the same alert, naming the vehicle", fallback: `${OWNER_ALERT_TEMPLATE} is sent instead`, category: "UTILITY" },
+  { name: EMERGENCY_LOCATION_TEMPLATE, bodyParams: 2, used: "car location to the emergency contact", fallback: `${OWNER_ALERT_TEMPLATE} is sent instead`, category: "UTILITY" },
+  { name: FREE_TRIAL_ENDED_TEMPLATE, bodyParams: 2, used: "last free contact spent, trial over", fallback: "nothing is sent", category: "UTILITY" },
   { name: "parktag_order_update_v2", bodyParams: 3, used: "shop order confirmation + Track order button" },
   { name: "parktag_membership_confirmed", bodyParams: 3, used: "membership purchase confirmation" },
   { name: "parktag_review_request_v1", bodyParams: 1, used: "review request, 3 days after delivery" }
@@ -115,19 +128,26 @@ async function main() {
   for (const want of EXPECTED) {
     const got = byName.get(want.name);
     if (!got) {
-      line(want.name, `MISSING — ${want.used}`);
-      ok = false;
+      line(want.name, want.fallback ? `not submitted, so ${want.fallback}` : `MISSING — ${want.used}`);
+      if (!want.fallback) ok = false;
       continue;
     }
 
     const actual = bodyParamCount(got.components);
     const mismatch = actual !== want.bodyParams;
+    const wrongCategory = Boolean(want.category) && got.category !== want.category;
     const note = mismatch
       ? `variables ${actual}, code sends ${want.bodyParams} — WILL FAIL AT SEND`
       : `${actual} variables`;
 
     line(want.name, `${got.status} · ${got.category} · ${note}`);
-    if (got.status !== "APPROVED" || mismatch) ok = false;
+    if (wrongCategory) {
+      line("", `expected ${want.category}: it is sent without a marketing opt-in — DELETE IT, and then ${want.fallback}`);
+    }
+    if (want.fallback && got.status !== "APPROVED") {
+      line("", `until it is approved, ${want.fallback}`);
+    }
+    if ((got.status !== "APPROVED" && !want.fallback) || mismatch || wrongCategory) ok = false;
   }
 
   const testTo = process.env.WHATSAPP_TEST_TO;

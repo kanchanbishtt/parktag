@@ -16,10 +16,13 @@ import { startTestApp, stopTestApp, uniqueAddress } from "./helpers.js";
 import { createSession } from "../lib/auth/session.js";
 import { getEnv } from "../lib/env.js";
 import { DOORHANGER_FREE_CONTACTS } from "../lib/core/call-access.js";
+import { createContactAction } from "../lib/core/contact-actions.js";
+import { settleTrialEndedNotices } from "../lib/core/trial-ended-notice.js";
 import { DEMO_TAG_FIELDS } from "../lib/core/marketing-stock.js";
 import {
   LOCKED_NUDGE_INTERVAL_MS,
   LOCKED_NUDGE_REASON,
+  lockedNudgeReason,
   isLockedEtag,
   recordLockedAttempt
 } from "../lib/core/locked-tag-nudge.js";
@@ -228,12 +231,16 @@ describe("what the message says", () => {
     assert.ok(LOCKED_NUDGE_REASON.length < 400);
   });
 
-  test("it says someone could not get through, what is switched off, and what upgrading gives", () => {
-    assert.match(LOCKED_NUDGE_REASON, /tried to contact you and could not get through/);
-    assert.match(LOCKED_NUDGE_REASON, /free contacts are finished/);
-    assert.match(LOCKED_NUDGE_REASON, /calls, WhatsApp alerts and the emergency call are all switched off/);
+  // WhatsApp never locks for any E-Tag (owner's decision, 1 Oct 2026), so the
+  // message names only what actually switched off: the call and the
+  // Emergency call. It never mentions WhatsApp at all — an E-Tag whose alert
+  // still works needs no telling that it does.
+  test("it speaks of the call only, and never names WhatsApp", () => {
+    assert.match(LOCKED_NUDGE_REASON, /^they could not call you\. /);
+    assert.match(LOCKED_NUDGE_REASON, /free calls are finished/);
+    assert.match(LOCKED_NUDGE_REASON, /private calls and the emergency call are switched off/);
     assert.match(LOCKED_NUDGE_REASON, /Upgrade to a Premium tag/);
-    assert.match(LOCKED_NUDGE_REASON, /unlimited private calls and alerts for a full year/);
+    assert.doesNotMatch(LOCKED_NUDGE_REASON, /whatsapp|alert|could not get through|could not reach/i);
   });
 
   // The scanner's reason is what a contact buys. It must never ride along.
@@ -246,6 +253,12 @@ describe("what the message says", () => {
   // it does not cross: that is what gets a utility template paused.
   test("it quotes no price and no discount", () => {
     assert.doesNotMatch(LOCKED_NUDGE_REASON, /₹|Rs\.?\s*\d|\d+\s*%|\boffer\b|\bdiscount\b|\bfree month\b/i);
+  });
+
+  // The same message for every locked E-Tag, door hanger stock included: there
+  // is no longer a second sentence to choose between.
+  test("is the one fixed message, for every tag", () => {
+    assert.equal(lockedNudgeReason(), LOCKED_NUDGE_REASON);
   });
 });
 
@@ -367,6 +380,23 @@ describe("a verified scan of a locked tag", () => {
     assert.equal((await fresh(tag)).freeContactUsed, true);
   });
 
+  // Door hanger stock is a locked E-Tag like any other: WhatsApp is already
+  // covered above for every E-Tag, and this confirms the call and Emergency
+  // call lock the same way here too — door hanger stock gets no exemption.
+  test("a locked door hanger tag still refuses the call and the Emergency call", async () => {
+    const tag = await makeTag(await makeOwner({ mobile: "+919300000001", phone: "+919300000001" }), { emergencyContact: "+919300000002" });
+    const address = uniqueAddress();
+    const { grant } = (await verify(tag, address)).json();
+
+    const call = await app.inject({ method: "POST", url: `/api/tags/${tag.token}/register-call`, payload: { phone: "9300000003", grant }, remoteAddress: address });
+    assert.equal(call.statusCode, 402);
+    assert.equal(call.json().code, "FREE_USED");
+
+    const sos = await app.inject({ method: "POST", url: `/api/tags/${tag.token}/register-emergency-call`, payload: { phone: "9300000003", grant }, remoteAddress: address });
+    assert.equal(sos.statusCode, 402);
+    assert.equal(sos.json().code, "EMERGENCY_LOCKED");
+  });
+
   test("the dashboard shows how many people could not reach them", async () => {
     const ownerId = await makeOwner();
     const tag = await makeTag(ownerId);
@@ -470,5 +500,51 @@ describe("a recycled sticker starts clean", () => {
     for (const field of ["blockedAttempts", "lastBlockedAt", "lockedNudgeAt"]) {
       assert.ok(DEMO_TAG_FIELDS.includes(field), `${field} would survive into the next customer's tag`);
     }
+  });
+});
+
+describe("what a WhatsApp alert costs", () => {
+  // createContactAction, with e-mail switched to its dev path (logged, not
+  // sent) so the alert "delivers" without a provider. WhatsApp is not
+  // configured in a test run, so e-mail is the channel that reaches the owner.
+  const quietEnv = { ...env, emailSmtpHost: "" };
+  const alert = (tag) => createContactAction(quietEnv, { token: tag.token, action: "message", messageChannel: "whatsapp", reason: REASON });
+  const realLog = console.log;
+  before(() => { console.log = () => {}; });
+  after(() => { console.log = realLog; });
+
+  // Nothing, for any E-Tag — door hanger stock included. It never was the
+  // masked call the free allowance protects (see call-access.js), so sending
+  // one, however many times, touches neither freeContactsSpent nor
+  // freeContactUsed.
+  test("an unlocked E-Tag: nothing is spent, however many times it is sent", async () => {
+    const tag = await makeTag(await makeOwner({ email: `${MARK}-a@example.com` }), { freeContactsSpent: 0, freeContactUsed: false });
+
+    assert.equal((await alert(tag)).ok, true);
+    assert.equal((await alert(tag)).ok, true);
+    assert.equal((await alert(tag)).ok, true);
+    await settleTrialEndedNotices();
+
+    const after = await fresh(tag);
+    assert.equal(after.freeContactsSpent, 0, "three alerts, and the free call is still there");
+    assert.equal(after.freeContactUsed, false);
+    assert.equal(after.contactAttempts, 3, "they are still counted as contacts");
+    assert.equal("trialEndedNotice" in after, false);
+  });
+
+  test("an already-locked E-Tag: it still goes through, and announces nothing", async () => {
+    const tag = await makeTag(await makeOwner({ email: `${MARK}-b@example.com` }));
+
+    assert.equal((await alert(tag)).ok, true);
+    await settleTrialEndedNotices();
+
+    const after = await fresh(tag);
+    // Unchanged from the fixture: the WhatsApp alert touched neither field.
+    assert.equal(after.freeContactUsed, true);
+    assert.equal(after.freeContactsSpent, DOORHANGER_FREE_CONTACTS);
+    // trialEndedNotice is a call-connect event only (see webhooks/exotel.js).
+    // This tag locked before this alert, and the alert itself spends nothing,
+    // so there is no spend here for the notice to be claimed by.
+    assert.equal("trialEndedNotice" in after, false);
   });
 });

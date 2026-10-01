@@ -1,9 +1,11 @@
 // A scanner has reached a tag whose free contacts are spent.
 //
-// An E-Tag locks after its free contacts (one, or two on door hanger stock),
-// and that is the product working: the lock is the whole reason to buy the
-// sticker. Locked means locked. No masked call, no WhatsApp alert and no
-// Emergency call are placed through it.
+// An E-Tag locks after its free calls (one, or two on door hanger stock), and
+// that is the product working: the lock is the whole reason to buy the
+// sticker. Locked means the masked call and the Emergency call are off. The
+// WhatsApp alert is not a masked call and never cost a free contact — it
+// keeps working on every E-Tag, locked or not (owner's decision, 1 Oct 2026;
+// see call-access.js).
 //
 // What was broken was what happened next, which was nothing. The owner was
 // never told, so a driver blocked in behind their car waited for a call the
@@ -24,12 +26,15 @@
 //
 // ── What the owner's message leaves out ───────────────────────────────────
 //
-//   THE OWNER LEARNS THAT SOMEONE TRIED. NOT WHY, AND NOT HOW TO CALL BACK.
+//   THE OWNER LEARNS THAT SOMEONE TRIED TO CALL. NOT WHY, AND NOT HOW TO CALL
+//   BACK.
 //
-// A WhatsApp alert with the scanner's reason in it is precisely the free
-// contact the tag no longer has. If this message carried the reason, a locked
-// tag would work exactly as an unlocked one does, for ever, for nothing.
-// Finding out what they wanted is what the Premium tag is for.
+// A scanner standing at a locked tag can still send a WhatsApp alert with
+// their own reason in it — that channel never locked. This nudge is a
+// DIFFERENT message: the passive, throttled one the owner gets just for being
+// scanned, whether or not the scanner also sent one. It deliberately carries
+// no reason, so it cannot be mistaken for the scanner's own alert and does
+// not duplicate it.
 //
 // ── One message a day ─────────────────────────────────────────────────────
 //
@@ -54,6 +59,9 @@
 // template built for an outright offer; it is MARKETING and needs an opt-in a
 // door hanger owner was never asked for. docs/WHATSAPP_TEMPLATES.md 2.8 has a
 // dedicated template to submit, which is where stronger copy belongs.
+//
+// This is the message for a scanner who was TURNED AWAY. The one sent at the
+// moment the last free contact is spent is trial-ended-notice.js.
 
 import { callEntitlement, CALL_TIER_ETAG_USED } from "./call-access.js";
 import { canSendUtility } from "./messaging-consent.js";
@@ -71,11 +79,20 @@ export const LOCKED_NUDGE_INTERVAL_MS = 24 * 60 * 60 * 1000;
 // Read with the template around it: "Hello Girish, someone scanned the ParkTag
 // QR sticker on your vehicle and reported: <this>. Please check your vehicle
 // when you can."
+// WhatsApp alerts and nothing else ever locks for any E-Tag (call-access.js),
+// so this names only what actually switched off: the private call and the
+// Emergency call. It does not mention WhatsApp at all, on the owner's
+// instruction (1 Oct 2026): the message is there to sell the call, and an
+// E-Tag whose alert still works needs no telling that it does.
 export const LOCKED_NUDGE_REASON =
-  "they tried to contact you and could not get through. " +
-  "Your ParkTag's free contacts are finished, so calls, WhatsApp alerts and the emergency call are all switched off. " +
-  "Upgrade to a Premium tag in the ParkTag app for unlimited private calls and alerts for a full year, " +
-  "and never miss someone at your vehicle again";
+  "they could not call you. " +
+  "Your ParkTag's free calls are finished, so private calls and the emergency call are switched off. " +
+  "Upgrade to a Premium tag in the ParkTag app for unlimited private calls for a full year, " +
+  "and never miss a call about your vehicle again";
+
+export function lockedNudgeReason() {
+  return LOCKED_NUDGE_REASON;
+}
 
 /**
  * Is this an E-Tag that has used up its free contacts?
@@ -103,7 +120,8 @@ async function sendNudge(env, collections, tag, log) {
 
   if (mobile && isMetaWhatsappConfigured(env)) {
     attempts.push(
-      sendMetaWhatsappAlert(env, { to: mobile, ownerName, reason: LOCKED_NUDGE_REASON, tagId: String(tag._id) })
+      // The plate, so an owner with several tags knows which one this is about.
+      sendMetaWhatsappAlert(env, { to: mobile, ownerName, reason: lockedNudgeReason(), tagId: String(tag._id), plate: tag.plateNumber || null })
         .then(() => true)
         .catch((err) => {
           log?.warn?.({ err, event: "locked-nudge-whatsapp-failed", tagId: String(tag._id) }, "[locked tag] WhatsApp not sent");
@@ -117,7 +135,7 @@ async function sendNudge(env, collections, tag, log) {
       sendOwnerAlertEmail(env, {
         to: owner.email,
         ownerName,
-        reason: LOCKED_NUDGE_REASON,
+        reason: lockedNudgeReason(),
         plateNumber: tag.plateNumber || null,
         tagId: String(tag._id)
       })

@@ -98,6 +98,9 @@ export const DEMO_TAG_FIELDS = [
   "blockedAttempts",
   "lastBlockedAt",
   "lockedNudgeAt",
+  // Nor with "your free trial has ended" already said: the next owner's trial
+  // ends in its own time and they are told then (trial-ended-notice.js).
+  "trialEndedNotice",
   // The complimentary window opens at activation, so a demo sticker that has
   // been activated once must forget when — otherwise the customer who ends up
   // buying it inherits however much of the window the demo already spent.

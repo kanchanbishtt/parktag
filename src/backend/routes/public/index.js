@@ -715,7 +715,13 @@ export function registerPublicRoutes(app, env) {
       //
       // Only the reason is sent, never the tier or any date. It is enough to
       // pick the right words and it says nothing about the owner's billing.
-      contactBlockedCode: callAccess.masking ? null : callBlockedCode(callAccess)
+      contactBlockedCode: callAccess.masking ? null : callBlockedCode(callAccess),
+      // Every E-Tag: the WhatsApp alert works whatever `contactAvailable`
+      // says, and costs no free contact — only a lapsed Premium subscription
+      // turns it off (see call-access.js's tier table). The page uses this to
+      // keep the WhatsApp tile up on a locked tag; the permission itself is
+      // checked on /api/contact-requests.
+      messageAlwaysOn: callAccess.tier !== CALL_TIER_LAPSED
     };
   });
 
@@ -1352,7 +1358,6 @@ export function registerPublicRoutes(app, env) {
       };
     }
 
-    // Masking policy (server-enforced, cannot be bypassed from the client):
     // an E-Tag includes one free masked CALL; a premium tag includes a year
     // of them and then needs a subscription. callEntitlement decides both.
     //

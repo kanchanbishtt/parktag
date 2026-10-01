@@ -184,7 +184,22 @@ export const OWNER_ALERT_TEMPLATE = "parktag_owner_notification_v2";
 // switches itself on with no deploy.
 export const OWNER_ALERT_MAP_TEMPLATE = "parktag_owner_notification_map_v1";
 
-export async function sendMetaWhatsappAlert(env, { to, ownerName, reason, tagId = null, mapUrl = null }) {
+// v2 plus the vehicle number, for an owner with several tags who otherwise
+// cannot tell which vehicle the alert is about:
+//
+//   {{1}} first name   {{2}} plate number   {{3}} what was reported
+//
+// A new name rather than an edit of v2: an edit that adds a variable would,
+// once approved, reject every send still passing two. Like the map variant it
+// is tried first and falls back, so approval needs no deploy. The older
+// templates have no slot for the plate, so there it rides at the end of the
+// reason. The FULL plate: this goes to the owner's own number, about their own
+// vehicle (see the note on parktag_tag_activated below).
+export const OWNER_ALERT_PLATE_TEMPLATE = "parktag_owner_notification_v4";
+
+export async function sendMetaWhatsappAlert(env, { to, ownerName, reason, tagId = null, mapUrl = null, plate = null }) {
+  const reasonWithPlate = plate ? `${reason} (vehicle ${plate})` : reason;
+
   if (mapUrl) {
     try {
       return await sendTemplate(env, {
@@ -192,12 +207,25 @@ export async function sendMetaWhatsappAlert(env, { to, ownerName, reason, tagId 
         template: OWNER_ALERT_MAP_TEMPLATE,
         components: [
           { type: "header", parameters: [{ type: "image", image: { link: mapUrl } }] },
-          ...bodyComponent(ownerName, reason)
+          ...bodyComponent(ownerName, reasonWithPlate)
         ],
         publicMessage: "Unable to send the WhatsApp message right now."
       });
     } catch (err) {
       console.warn("[WaveTag] map alert template not sent, using the plain alert:", err?.providerDetail || err?.message);
+    }
+  }
+
+  if (plate) {
+    try {
+      return await sendTemplate(env, {
+        to,
+        template: OWNER_ALERT_PLATE_TEMPLATE,
+        components: bodyComponent(ownerName, plate, reason),
+        publicMessage: "Unable to send the WhatsApp message right now."
+      });
+    } catch (err) {
+      console.warn("[WaveTag] plate alert template not sent, using the plain alert:", err?.providerDetail || err?.message);
     }
   }
 
@@ -215,13 +243,61 @@ export async function sendMetaWhatsappAlert(env, { to, ownerName, reason, tagId 
     template: OWNER_ALERT_TEMPLATE,
     components: usesButton
       ? [
-          ...bodyComponent(ownerName, reason),
+          ...bodyComponent(ownerName, reasonWithPlate),
           // Index "0" is the button's position in the template, not an id. The
           // parameter is the dynamic SUFFIX of the approved base URL, so it is
           // the tag id and never a whole link.
           { type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: String(tagId) }] }
         ]
-      : bodyComponent(ownerName, reason),
+      : bodyComponent(ownerName, reasonWithPlate),
+    publicMessage: "Unable to send the WhatsApp message right now."
+  });
+}
+
+// Where the car is, to the owner's EMERGENCY CONTACT after an SOS call, against
+// `parktag_emergency_location_v1`:
+//
+//   {{1}} masked plate   {{2}} the place the car is near
+//   button  "Open in Maps" -> google.com/maps/search/?api=1&query={{1}}
+//
+// The button parameter is "lat,lng", the suffix of that fixed URL. The
+// recipient is not an owner and has no name on file, so the body has none.
+export const EMERGENCY_LOCATION_TEMPLATE = "parktag_emergency_location_v1";
+
+export async function sendMetaWhatsappEmergencyLocation(env, { to, plate, place, mapQuery }) {
+  return sendTemplate(env, {
+    to,
+    template: EMERGENCY_LOCATION_TEMPLATE,
+    components: [
+      ...bodyComponent(plate, place),
+      { type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: String(mapQuery) }] }
+    ],
+    publicMessage: "Unable to send the WhatsApp emergency location."
+  });
+}
+
+// The free trial on an E-Tag has just ended: its last free contact (the second,
+// on door hanger stock) was spent a moment ago. Against
+// `parktag_free_trial_ended`, sent once per tag by trial-ended-notice.js:
+//
+//   {{1}} first name   {{2}} plate number
+//   button  "See my vehicle" -> app.parktag.me/v/{{1}}
+//
+// UTILITY by design: it states a change to something the owner holds and what
+// is now switched off, and leaves the selling to the page behind the button. A
+// door hanger owner was never asked for a marketing opt-in, so a MARKETING
+// template could not be sent to them at all (docs/WHATSAPP_TEMPLATES.md 2.8
+// and 2.9).
+export const FREE_TRIAL_ENDED_TEMPLATE = "parktag_free_trial_ended";
+
+export async function sendMetaWhatsappFreeTrialEnded(env, { to, name, plate, tagId }) {
+  return sendTemplate(env, {
+    to,
+    template: FREE_TRIAL_ENDED_TEMPLATE,
+    components: [
+      ...bodyComponent(name, plate),
+      { type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: String(tagId) }] }
+    ],
     publicMessage: "Unable to send the WhatsApp message right now."
   });
 }

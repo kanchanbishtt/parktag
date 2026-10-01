@@ -1001,7 +1001,42 @@ Covers UX and security improvements made after M13 call flow was confirmed worki
 - [x] Tests: `locked-tag-nudge.test.js` (32), `scanner-locked-panel.test.js` (11), one new and two changed in `contact-routing.test.js`.
 - [ ] After deploy: scan a locked door hanger tag on a phone, enter the plate, and confirm the WhatsApp arrives once, the dashboard count goes up, and Emergency shows only the helplines.
 - [ ] Add a marketing opt-in to the activation wizard, then submit `parktag_tag_locked` and move the pitch off the utility alert.
-- [ ] Decide whether the owner should also be told at the moment the last free contact is spent. It needs its own template.
+- [x] Decide whether the owner should also be told at the moment the last free contact is spent. It needs its own template. **Decided yes, 2026-10-01**: see the next section.
+
+## Three alert templates: vehicle number, emergency location, trial ended, 2026-10-01
+
+- [x] Owner alert names the vehicle. `sendMetaWhatsappAlert` takes a `plate` and tries the new `parktag_owner_notification_v4` (name, plate, reason) first, falling back to v2. The plate also rides at the end of the reason on v2 and on the map variant ("… (vehicle DL9CP4455)"), so an owner with several tags sees it from the next deploy, before Meta approves anything.
+- [x] Emergency contact's location message gets its own template, `parktag_emergency_location_v1` (masked plate, place, Open in Maps button). Tried first; until approved the owner alert carries it as before.
+- [x] Owner is told once, at the moment the last free contact is spent, on `parktag_free_trial_ended` (`lib/core/trial-ended-notice.js`, called from both routes that spend a contact, claimed by a conditional update, outcome recorded on the tag as `trialEndedNotice`). Applies to every E-Tag, not only door hanger stock. No fallback: until the template is approved nothing is sent.
+- [x] `src/backend/scripts/create-alert-templates.js` submits all three (`--dry-run` prints them). Copy recorded in `docs/WHATSAPP_TEMPLATES.md` 2.9 to 2.11.
+- [x] `verify-whatsapp-templates.js` lists the three, checks their category, and now checks the owner alert the code really sends (it was still checking v1).
+- [x] Tests: `alert-templates.test.js` (28, template shape and send/fallback against a stubbed Meta) and `trial-ended-notice.test.js` (11).
+- [x] Submitted all three on 2026-10-01 (Meta returned PENDING, UTILITY for each). The trial-ended button reads "See my vehicle": in this account `parktag_premium_lapsed` with "Turn premium back on" was filed MARKETING while `parktag_premium_ending_today` with "See my vehicle" stayed UTILITY.
+- [x] Meta approved all three as UTILITY on 2026-10-01 (checked in the account).
+- [x] Trial-ended wording changed the same day on the owner's instruction: it no longer mentions WhatsApp alerts, only "private calls and the emergency call". Edit accepted by Meta and back in review; the first approved wording stays live until the edit is approved.
+- [x] The edited `parktag_free_trial_ended` is APPROVED and still UTILITY (checked in the account, 2026-10-01). All three templates are live with their final wording.
+- [x] **Product decision settled, 2026-10-01:** WhatsApp alerts keep working for ever on **door hanger tags**; only the private call and the Emergency call lock. See the next section.
+
+## Door hanger tags keep their WhatsApp alert for life, 2026-10-01
+
+- [x] `hasLifetimeAlerts(tag)` in `call-access.js`: a non-premium tag stamped with more than one free contact, which is the only marker door hanger stock carries. Ordinary E-Tags are unchanged (one free contact, call or alert, then fully locked).
+- [x] Server: `/api/contact-requests` no longer refuses a locked door hanger tag; `register-call` and `register-emergency-call` still do. A WhatsApp alert on door hanger stock spends no free contact, so the two free contacts are two free calls. `/verify` answers `messageAlwaysOn`.
+- [x] Scan page: on a locked door hanger tag the WhatsApp tile stays, the Private Call tile is hidden and a note says the call is not available. After an alert on a door hanger tag that still has a call left, the call stays available.
+- [x] The alert names the vehicle (already done above), and so does the once-a-day message.
+- [x] Owner-facing wording for door hanger tags speaks of calls only and never says WhatsApp still works (owner's instruction): the once-a-day message ("they could not call you …"), the dashboard card ("N people could not call you") and the vehicle page ("free calls").
+- [x] The trial-ended notice is only considered after a contact that actually spent something, so an alert on a tag that locked long ago cannot announce it late.
+- [x] Tests: 41 in `locked-tag-nudge.test.js` (9 new), 16 in `scanner-locked-panel.test.js` (5 new).
+- [x] **A free call is counted only when it connects** (owner's rule, 2026-10-01). `register-call` no longer spends anything; Exotel's status callback spends one free call when it reports at least 1 second of conversation (`lib/core/free-call-spend.js`), once per scan. Unanswered, busy, failed and never-dialled calls cost nothing. Applies to every E-Tag's calls, not only door hanger stock. The trial-ended notice now follows the connected call.
+- [x] Tests: 10 new in `free-contact-allowance.test.js` (unanswered, never dialled, status word without duration, redial, duplicate report, premium, upgrade mid-call), plus the Emergency consequence in `contact-routing.test.js`.
+- [ ] After deploy, on a real door hanger tag: place one call and let it ring out, confirm the dashboard still shows 2 free calls; then place one that is answered and confirm it shows 1. This also proves Exotel's status callback is reaching production with a talk time, which the deduction now depends on.
+- [ ] Not yet checked in a real browser: scan a locked door hanger tag on a phone and confirm the WhatsApp tile is full width, the call tile is gone, the note shows, and the alert arrives naming the vehicle.
+- [ ] The hanger itself prints "First 2 contacts free". It is still true (two free calls), but decide whether the next print run should say "2 free calls + WhatsApp alerts for life".
+- [ ] Owner-facing pages for ordinary E-Tags still say "1 free contact via masked call or WhatsApp" and are unchanged. Decide whether ordinary E-Tags should get lifetime alerts too.
+- [ ] **Reminder: rotate the Meta token.** The production `META_WHATSAPP_ACCESS_TOKEN` was pasted into a chat on 2026-10-01, so it is in that conversation's history, and it is also saved in `.env.meta.local` in this folder. Once the three templates are approved, generate a new token in Meta (Business Settings → System users), update it on Railway, and delete `.env.meta.local` or replace the token in it.
+- [ ] Found while listing the account: `parktag_owner_notification_v3` (Call-back button) is APPROVED but the code still sends v2; `parktag_premium_lapsed` and `parktag_referral_reward` are now MARKETING, which `docs/WHATSAPP_TEMPLATES.md` still describes as UTILITY. Check whether either is sent without a marketing opt-in.
+- [ ] After approval and deploy: report an issue on a tag and confirm the vehicle number shows; spend the last free contact on a door hanger tag and confirm the trial-ended WhatsApp arrives once; place an SOS call with location shared and confirm the emergency contact gets the new message with a working map button.
+- [ ] Decide whether the trial-ended notice should also go by e-mail to owners with no mobile on file.
+- [ ] `parktag_owner_notification_map_v2` with its own plate variable, to replace the "(vehicle …)" suffix on the map alert.
 
 ## Performance audit fixes, 2026-09-28
 

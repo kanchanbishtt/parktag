@@ -55,6 +55,12 @@ let contactBlockedCode = null;
 // one-shot unless /verify positively says otherwise — a missing or malformed
 // response can never unlock an E-Tag.
 let unlimitedContact = false;
+// Every E-Tag: the WhatsApp alert works whatever the call allowance says, and
+// sending one costs the scanner nothing — only a lapsed Premium subscription
+// turns it off. Defaults to false, like unlimitedContact, so only a positive
+// answer from /verify can keep the WhatsApp tile up on a locked tag. The
+// server checks it again.
+let messageAlwaysOn = false;
 // Whether the owner has set an emergency contact for this tag. The number is
 // never sent to the browser — this is only a flag telling us to offer SOS.
 let emergencyAvailable = false;
@@ -457,6 +463,7 @@ function resetActionState() {
   contactGrant = "";
   contactAvailable = true;
   unlimitedContact = false;
+  messageAlwaysOn = false;
   // Cleared with the rest: a scanner who reads a lapsed tag and then a
   // different one must not carry the first tag's panel across to the second.
   contactBlockedCode = null;
@@ -1222,6 +1229,7 @@ async function handlePlateVerification(event) {
 
   contactGrant = data.grant || "";
   unlimitedContact = data.unlimitedContact === true;
+  messageAlwaysOn = data.messageAlwaysOn === true;
   verifiedPlateLastFour = entered;
   setVerifiedBadge(true);
 
@@ -1260,7 +1268,11 @@ async function handlePlateVerification(event) {
   // (setContactAvailability has just cleared emergencyAvailable), so an SOS
   // goes to the public helplines rather than ending on the sticker panel with
   // nothing said.
-  if (data.contactAvailable === false && (pendingVerifiedAction !== "sos" || !emergencyAvailable)) {
+  // The one action a blocked tag may still carry out is a WhatsApp alert —
+  // it is not the masked call the trial protects, and never was (see
+  // call-access.js) — which carries on below.
+  const alertStillGoes = pendingVerifiedAction === "message" && messageAlwaysOn;
+  if (data.contactAvailable === false && !alertStillGoes && (pendingVerifiedAction !== "sos" || !emergencyAvailable)) {
     const wantedSos = pendingVerifiedAction === "sos";
     pendingVerifiedAction = "";
     setRequestStatus("request-status", "Verified ✓", "success");
@@ -1464,11 +1476,12 @@ async function handleFinalCallAction() {
 
   let virtualNumber = "";
   try {
-    // No retry here on purpose. The server sets freeContactUsed before this
-    // answer leaves it, so replaying a request whose response was lost would
-    // come back 402 "free contact already used" for a call that in fact
-    // worked -- and the page would then tell the scanner their one contact is
-    // spent. A deadline and an honest failure are the safe half of the fix.
+    // No retry here on purpose. A premium tag is stamped as contacted before
+    // this answer leaves the server, and every registration writes a contact
+    // row the owner sees, so replaying a request whose response was lost would
+    // log a second call that was never made. (An E-Tag's free call is no longer
+    // spent here at all: it is spent when the call connects.) A deadline and
+    // an honest failure are the safe half of the fix.
     const { ok, status, data } = await requestJson(`/api/tags/${token}/register-call`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -1646,7 +1659,7 @@ function closeReasonStep() {
 // Sending still runs requireVerification("message"), so the plate check stays
 // the single door to every contact action — this step cannot short-circuit it.
 function openReasonStep() {
-  if (actionLocked || !contactAvailable) {
+  if (actionLocked || !messageAlwaysOn) {
     return;
   }
 
@@ -1742,14 +1755,16 @@ async function handleWhatsAppNotify() {
     );
     setRequestStatus("request-status", "WhatsApp alert sent to the owner.", "success");
 
-    // A premium tag is paid for and has no contact limit, so notifying the
-    // owner must not cost the scanner their call. `actionLocked` is released
-    // because it also guards the number-submit and dial handlers further down
-    // the call path, not just this button.
-    // Only the call button comes back: an E-Tag has genuinely spent its one
-    // contact here, and for premium the WhatsApp button stays down so a single
-    // scanner cannot sit on the page repeating alerts at the owner.
-    if (unlimitedContact) {
+    // Sending a WhatsApp alert never touches the call allowance (it is not
+    // the masked call the trial protects — see call-access.js), so the call
+    // button's own state is unchanged by this send. Only re-enable it when
+    // the call was actually available before: it was disabled above purely
+    // to prevent a double-submit while this request was in flight, and it
+    // must stay disabled if calling itself is locked (FREE_USED or lapsed).
+    // `actionLocked` is released either way, because it also guards the
+    // number-submit and dial handlers further down the call path, not just
+    // this button.
+    if (contactAvailable) {
       actionLocked = false;
       setDisabled("call-owner-button", false);
       setText(

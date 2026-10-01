@@ -9,8 +9,8 @@
 //   someone else's car has no reason to be sold the owner's upgrade.
 //
 //   THE MASKED CALL AND EMERGENCY STAY LOCKED. No call and no Emergency call
-//   through a locked E-Tag. The Emergency button leads to the public
-//   helplines instead.
+//   through a locked E-Tag, door hanger stock included. The Emergency button
+//   leads to the public helplines instead.
 
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -106,6 +106,20 @@ test("a used-up free contact keeps the tiles up and disables only Call", () => {
   assert.equal(page.hidden["contact-unavailable-cta"], true, "the lapsed-only panel stays hidden");
 });
 
+// Door hanger stock gets no exemption any more: this is the same test as
+// above, run against a tag whose allowance happens to be a door hanger's.
+test("a used-up door hanger tag behaves exactly like any other locked E-Tag", () => {
+  const page = availability({ blockedCode: "FREE_USED" });
+  page.context.setContactAvailability(false);
+
+  assert.equal(page.hidden["scanner-contact-actions"], false, "the tiles stay up");
+  assert.equal(page.disabled["call-owner-button"], true, "without the call");
+  assert.equal(page.hidden["call-tile-exhausted-note"], false, "and the scanner is told the call is off");
+  assert.equal(page.hidden["share-car-location"], false, "the alert can still carry the car's position");
+  assert.equal(page.emergency(), false, "Emergency is off on a locked door hanger tag too");
+  assert.equal(page.hidden["pt-sos-block"], false);
+});
+
 test("a locked E-Tag switches the Emergency call off as well", () => {
   const page = availability({ blockedCode: "FREE_USED" });
   page.context.setContactAvailability(false);
@@ -139,7 +153,9 @@ test("an Emergency tap on a locked tag goes to the helplines, without saying why
   assert.match(appJs, /openSosHelplines\(data\.code === "NO_EMERGENCY_CONTACT" \? HELPLINE_NOTE_NO_CONTACT : undefined\);/);
 
   // Verified for an SOS and found locked: helplines, not a dead end.
-  assert.match(appJs, /if \(data\.contactAvailable === false && \(pendingVerifiedAction !== "sos" \|\| !emergencyAvailable\)\) \{/);
+  // (A WhatsApp alert on a locked E-Tag is the one action that carries on.)
+  assert.match(appJs, /const alertStillGoes = pendingVerifiedAction === "message" && messageAlwaysOn;/);
+  assert.match(appJs, /if \(data\.contactAvailable === false && !alertStillGoes && \(pendingVerifiedAction !== "sos" \|\| !emergencyAvailable\)\) \{/);
   assert.match(appJs, /if \(wantedSos\) openSosHelplines\(\);/);
 });
 

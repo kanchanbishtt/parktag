@@ -1787,6 +1787,12 @@ a:focus-visible { outline: 2px solid #FF2700; outline-offset: 2px; }
   padding: 8px 22px 28px;
 }
 
+/* A locked door hanger tag keeps only its WhatsApp tile (the call tile is
+   hidden), and one tile takes the full row rather than half of it. */
+.pt-contact-actions:has(> .pt-tile[hidden]) {
+  grid-template-columns: 1fr;
+}
+
 /* Under the contact tiles: the optional "share where the car is" toggle and
    the two fine-print notes, as one group on the tiles' 22px gutters. It
    tucks into the tiles' 28px bottom padding (the -12px leaves a 16px step),

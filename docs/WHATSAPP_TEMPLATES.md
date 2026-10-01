@@ -293,6 +293,9 @@ off it and finds it locked. At most once per tag per 24 hours
 (`lib/core/locked-tag-nudge.js`). Its job is to sell the Premium tag at the one
 moment the owner can see what the free one is costing them.
 
+Not to be confused with 2.9, which tells the owner once, as a plain UTILITY
+notice, at the moment the trial ends.
+
 **Until this is approved the app sends `parktag_owner_notification_v2`
 instead**, with a fixed sentence in `{{2}}` (`LOCKED_NUDGE_REASON`). That works
 today, but it is a sales message riding in a UTILITY template, and two things
@@ -344,6 +347,136 @@ To switch: add a sender beside `sendMetaWhatsappAlert` in
 the same shape as `sendMetaWhatsappTrialEnding`), gate it on `canSendMarketing`
 in `sendNudge`, and keep the v2 alert as the fallback for owners without an
 opt-in.
+
+---
+
+### 2.9 `parktag_free_trial_ended` — UTILITY (submitted 2026-10-01, Meta id 1136798835688745)
+
+Sent **once per tag, at the moment its last free contact is spent**: the first
+on an ordinary E-Tag, the second on door hanger stock
+(`lib/core/trial-ended-notice.js`). Until now an owner learned their tag had
+locked only when a later scanner was turned away, which could be days on.
+
+This is not 2.8. That one fires when a scanner is turned away, and sells. This
+one states a change to something the owner holds, the way
+`parktag_premium_lapsed` does, so it needs no marketing opt-in and reaches a
+door hanger owner, who was never asked for one.
+
+**Header (text):** `ParkTag`
+
+**Body:**
+```
+Hi *{{1}}*, the free trial on the ParkTag for your vehicle *{{2}}* has ended.
+
+Its free contacts are used up, so private calls and the emergency call through
+this tag are now switched off.
+```
+
+> **WhatsApp alerts are not mentioned, on purpose** (owner's decision,
+> 2026-10-01). The first approved version listed "calls, WhatsApp alerts and
+> the emergency call"; it was edited the same day to name calls only.
+
+**Footer:** `Powered by ParkTag`
+
+**Button (URL, dynamic):** `https://app.parktag.me/v/{{1}}` — text: `See my vehicle`
+
+**Samples:** `{{1}}` = `Girish`, `{{2}}` = `DL9CP4455`, button `{{1}}` = `65f1a2b3c4d5e6f701234567`
+
+> **No word of Premium, a price or an upgrade in the body**, on purpose. That is
+> what keeps it UTILITY (see 2.2); the button leads to the page that sells.
+>
+> **The button says "See my vehicle", not "Turn my tag back on".** Checked in
+> the account on 2026-10-01: `parktag_premium_lapsed` ("…has ended", button
+> "Turn premium back on") was filed as MARKETING, while
+> `parktag_premium_ending_today` (near-identical body, button "See my vehicle"
+> to `/v/{{1}}`) stayed UTILITY. The buying verb on the button is the
+> difference, so this one uses the button that survived.
+>
+> `{{2}}` is the full plate. It goes to the owner's own number, and it is what
+> tells an owner with several tags which one has locked.
+>
+> **Nothing stands in for it while it is in review.** The owner alert's wording
+> is "someone … reported", which this is not, so until approval no message is
+> sent at this moment, exactly as before. The tag records the outcome either
+> way: `trialEndedNotice: { at, whatsapp: "sent" | "not-sent" }`.
+
+---
+
+### 2.10 `parktag_emergency_location_v1` — UTILITY (submitted 2026-10-01, Meta id 2671684443267225)
+
+Where the car is, sent to the owner's **emergency contact** after an SOS call in
+which the scanner tapped "Share where the car is" (`lib/core/emergency-alert.js`).
+Until it is approved the same facts ride in `{{2}}` of the owner alert, which
+opens "Hello there, someone scanned the ParkTag QR sticker on your vehicle…" to
+a relative who owns no ParkTag, and carries the map link as untappable body text.
+
+**Header (text):** `ParkTag`
+
+**Body:**
+```
+An emergency has been reported at vehicle *{{1}}*, near *{{2}}*.
+
+The person at the vehicle is calling you through ParkTag. If you miss the call,
+tap the button below to see where the vehicle is.
+```
+
+**Footer:** `Powered by ParkTag`
+
+**Button (URL, dynamic):** `https://www.google.com/maps/search/?api=1&query={{1}}` — text: `Open in Maps`
+
+**Samples:** `{{1}}` = `DL9CP####`, `{{2}}` = `Wave Mall, Sector 18, Noida`, button `{{1}}` = `28.5677,77.323`
+
+> `{{1}}` is the **masked** plate and there is no name in the body: a mistyped
+> emergency number must receive nothing that identifies a person. When Ola Maps
+> returns no place, `{{2}}` is "the point shown on the map", because Meta
+> rejects a blank variable.
+>
+> The button is the one place a link outside our own domain is used: it is the
+> same Google Maps link `carMapLink()` already builds, and the variable is only
+> the rounded `lat,lng`.
+
+---
+
+### 2.11 `parktag_owner_notification_v4` — UTILITY (submitted 2026-10-01, Meta id 39009627572018151)
+
+`parktag_owner_notification_v2` with the **vehicle number** added, for an owner
+with several tags who cannot otherwise tell which vehicle the alert is about.
+
+A new name rather than an edit of v2. An edit that adds a variable would, the
+moment Meta approved it, reject every send still passing two, and the alert
+would be down until the next deploy.
+
+**Header (text):** `ParkTag`
+
+**Body:**
+```
+Hello {{1}}, someone scanned the ParkTag QR sticker on your vehicle *{{2}}* and
+reported: {{3}}.
+
+Please check your vehicle when you can.
+```
+
+**Footer:** `Powered by ParkTag`
+
+**Samples:** `{{1}}` = `Girish`, `{{2}}` = `DL9CP4455`, `{{3}}` = `the vehicle's lights appear to be on`
+
+> `sendMetaWhatsappAlert` tries this template whenever the caller passes a
+> plate, and falls back to v2 when the send fails, so approval needs no deploy.
+>
+> **The plate reaches the owner before approval too.** v2 and the map variant
+> have no slot for it, so there it is appended to the reason:
+> "…and reported: the vehicle's lights appear to be on (vehicle DL9CP4455)."
+> The map variant (`parktag_owner_notification_map_v1`) keeps doing that after
+> v4 is approved; a `map_v2` with its own plate variable is the tidy follow-up.
+>
+> No Call-back button. That is `parktag_owner_notification_v3`, still not
+> switched on; folding the two together is a separate decision.
+
+**How 2.9, 2.10 and 2.11 were submitted:** `node --env-file=.env.meta.local src/backend/scripts/create-alert-templates.js`
+with the production `META_WHATSAPP_ACCESS_TOKEN` and `WHATSAPP_BUSINESS_ACCOUNT_ID`
+(`--dry-run` prints the three payloads and sends nothing). After approval run
+`npm run verify:whatsapp`: it reports each one's status and flags any that Meta
+has filed as MARKETING, which should then be deleted.
 
 ---
 

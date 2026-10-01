@@ -156,7 +156,8 @@ export async function createContactAction(env, input) {
           // the dynamic suffix of /v/:tagId. Passed now rather than when v3
           // clears review, so the switch in meta.js really is one line. The v2
           // template in use today ignores it.
-          sendMetaWhatsappAlert(env, { to: mobile, ownerName, reason: reasonText, tagId: String(tag._id), mapUrl: carMapUrl(env, carLocation) })
+          // The plate tells an owner with several tags which vehicle this is.
+          sendMetaWhatsappAlert(env, { to: mobile, ownerName, reason: reasonText, tagId: String(tag._id), mapUrl: carMapUrl(env, carLocation), plate: tag.plateNumber || null })
             .then((result) => { provider = result; return true; })
             .catch((err) => {
               console.error("[WaveTag] owner alert WhatsApp failed:", err?.message, err?.providerDetail);

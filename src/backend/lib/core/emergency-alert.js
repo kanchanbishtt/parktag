@@ -16,7 +16,7 @@
 // helplines instead, which is the flow that already covers it.
 //
 // The message carries the MASKED plate and the rounded point (~11 m, see
-// car-location.js). Never the scanner's number: the call is masked for exactly
+// car-location.js), in `parktag_emergency_location_v1` (docs/WHATSAPP_TEMPLATES.md). Never the scanner's number: the call is masked for exactly
 // that reason. Never the owner's number either. A mistyped emergency contact
 // therefore receives nothing that identifies a person.
 //
@@ -34,11 +34,23 @@
 
 import { toE164 } from "./phone.js";
 import { readCarLocation, resolveCarLocation, carMapLink, carMapUrl } from "./car-location.js";
-import { isMetaWhatsappConfigured, sendMetaWhatsappAlert } from "../integrations/meta.js";
+import { isMetaWhatsappConfigured, sendMetaWhatsappAlert, sendMetaWhatsappEmergencyLocation } from "../integrations/meta.js";
 import { maskPlateNumber, redactText } from "../auth/security.js";
 
-// What the relative reads. One line, because a WhatsApp template variable may
-// not contain a line break.
+// What fills `parktag_emergency_location_v1`: the masked plate, the place, and
+// "lat,lng" for its Open in Maps button. A variable may not be blank, so an
+// unnamed point still gets words that read in "…, near {{2}}".
+export function emergencyAlertFields(tag, carLocation) {
+  return {
+    plate: maskPlateNumber(tag?.plateNumber) || tag?.vehicleLabel || "a ParkTag vehicle",
+    place: carLocation?.place || "the point shown on the map",
+    mapQuery: `${carLocation.lat},${carLocation.lng}`
+  };
+}
+
+// The same message as one sentence, for the owner-alert template that carries
+// it until the dedicated one is approved. One line, because a WhatsApp
+// template variable may not contain a line break.
 export function emergencyAlertText(tag, carLocation) {
   const plate = maskPlateNumber(tag?.plateNumber) || tag?.vehicleLabel || "a ParkTag vehicle";
   const near = carLocation?.place ? `, near ${carLocation.place}` : "";
@@ -77,15 +89,17 @@ export function captureEmergencyLocation(env, collections, { requestId, tag, raw
 
     if (isMetaWhatsappConfigured(env)) {
       try {
-        // The approved owner-alert template: its {{2}} carries the sentence
-        // and, once the map variant clears review, the header carries the map.
-        await sendMetaWhatsappAlert(env, {
-          to: targetPhone,
-          ownerName: "there",
-          reason: emergencyAlertText(tag, carLocation),
-          tagId: String(tag._id),
-          mapUrl: carMapUrl(env, carLocation)
-        });
+        // The dedicated template first. Until Meta approves it the send fails
+        // and the approved owner-alert template carries the same facts in its
+        // {{2}}, so approval switches this over with no deploy.
+        await sendMetaWhatsappEmergencyLocation(env, { to: targetPhone, ...emergencyAlertFields(tag, carLocation) })
+          .catch(() => sendMetaWhatsappAlert(env, {
+            to: targetPhone,
+            ownerName: "there",
+            reason: emergencyAlertText(tag, carLocation),
+            tagId: String(tag._id),
+            mapUrl: carMapUrl(env, carLocation)
+          }));
         outcome.whatsapp = "sent";
       } catch (err) {
         outcome.whatsapp = "failed";

@@ -362,16 +362,34 @@ describe("caller number claims", () => {
   });
 
   // Owner's decision, 30 Sep 2026: once an E-Tag's free contacts are spent it
-  // places no masked call of any kind. This is the consequence worth seeing
-  // plainly: on a one-contact E-Tag, the scanner's own call is what locks it,
-  // so they cannot then escalate to Emergency on the same visit.
-  //
-  // The free contact is spent once the call actually bridges and holds for
-  // MIN_ANSWERED_CALL_SECONDS (see call-access.js), not by registering it —
-  // that leg runs through the Exotel webhook and is exercised end to end in
-  // call-outcomes.test.js. Spending it directly here keeps this test about
-  // what it says it is about: Emergency locking once the contact is gone.
-  test("on an E-Tag, the call that spends the free contact closes Emergency too", async () => {
+  // places no masked call of any kind. And, 1 Oct 2026: a call only spends one
+  // once the two have actually been connected. So on a one-contact E-Tag it is
+  // the scanner's own CONVERSATION that locks it, and only after that can they
+  // not escalate to Emergency on the same visit.
+  test("on an E-Tag, the call that connects spends the free contact and closes Emergency too", async () => {
+    const token = await createTag();
+    const phone = nextPhone();
+    const address = uniqueAddress();
+    const grant = await grantFor(token, address);
+    const auth = `token=${encodeURIComponent(process.env.EXOTEL_WEBHOOK_SECRET || "")}`;
+    const callSid = `qa-connect-${phone}`;
+
+    await collections.tags.updateOne({ token }, { $set: { emergencyContact: SECOND_OWNER_PHONE } });
+
+    assert.equal((await post(`/api/tags/${token}/register-call`, { phone, grant }, address)).statusCode, 200);
+    // Exotel routes the call, and reports that they spoke.
+    await app.inject({ method: "GET", url: `/api/exotel/dial-whom?${auth}&CallFrom=${encodeURIComponent(`+91${phone}`)}&CallSid=${callSid}` });
+    await post(`/api/provider/exotel/webhook?${auth}`, { CallSid: callSid, CallStatus: "completed", ConversationDuration: "30" }, uniqueAddress());
+    assert.equal((await collections.tags.findOne({ token })).freeContactUsed, true);
+
+    const sos = await post(`/api/tags/${token}/register-emergency-call`, { phone, grant }, address);
+    assert.equal(sos.statusCode, 402);
+    assert.equal(sos.json().code, "EMERGENCY_LOCKED");
+  });
+
+  // The other half, and the one that matters at a real accident: the owner did
+  // not pick up. Nothing was spent, so Emergency is still there.
+  test("on an E-Tag, a call the owner never answered leaves Emergency open", async () => {
     const token = await createTag();
     const phone = nextPhone();
     const address = uniqueAddress();
@@ -380,19 +398,14 @@ describe("caller number claims", () => {
     await collections.tags.updateOne({ token }, { $set: { emergencyContact: SECOND_OWNER_PHONE } });
 
     assert.equal((await post(`/api/tags/${token}/register-call`, { phone, grant }, address)).statusCode, 200);
-    await collections.tags.updateOne(
-      { token },
-      { $set: { freeContactUsed: true, freeContactsSpent: 1, freeContactUsedAt: new Date().toISOString() } }
-    );
+    assert.notEqual((await collections.tags.findOne({ token })).freeContactUsed, true, "registering spends nothing");
 
     const sos = await post(`/api/tags/${token}/register-emergency-call`, { phone, grant }, address);
-    assert.equal(sos.statusCode, 402);
-    assert.equal(sos.json().code, "EMERGENCY_LOCKED");
+    assert.equal(sos.statusCode, 200);
 
-    // The owner route the scanner did register is untouched by the refusal.
     const routes = await liveRoutesFor(`+91${phone}`);
     assert.equal(routes.length, 1);
-    assert.notEqual(routes[0].type, "scanner_to_emergency");
+    assert.equal(routes[0].type, "scanner_to_emergency");
   });
 
   test("escalating to Emergency survives the handset changing address", async () => {

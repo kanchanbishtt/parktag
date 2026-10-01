@@ -16,12 +16,12 @@
       @keyframes pt-badge-pop { 0% { opacity: 0; transform: scale(.6); } 60% { transform: scale(1.08); } 100% { opacity: 1; transform: scale(1); } }
       #scanner-action-shell:not([hidden]) { animation: pt-pop .3s cubic-bezier(.2,.7,.3,1) both; }
       .pt-success-panel:not([hidden]) { animation: pt-pop .32s cubic-bezier(.2,.7,.3,1) both; }
-      #purchase-cta:not([hidden]) { animation: pt-pop .32s cubic-bezier(.2,.7,.3,1) both; }
+      #call-tile-exhausted-note:not([hidden]) { animation: pt-pop .32s cubic-bezier(.2,.7,.3,1) both; }
       .pt-verified-badge { animation: pt-badge-pop .45s cubic-bezier(.2,.8,.2,1) both; }
       .pt-step:not([hidden]) { animation: pt-pop .26s cubic-bezier(.2,.7,.3,1) both; }
       @media (prefers-reduced-motion: reduce) {
         #scanner-action-shell:not([hidden]), .pt-success-panel:not([hidden]),
-        #purchase-cta:not([hidden]), .pt-verified-badge,
+        #call-tile-exhausted-note:not([hidden]), .pt-verified-badge,
         .pt-step:not([hidden]) { animation: none; }
       }
     </style>
@@ -549,6 +549,17 @@
           </div>
         </div>
 
+        <!-- Shown next to the tiles, not instead of them, when only the CALL
+             route is retired: the free trial is a masked-CALL allowance, not a
+             shared "contact" budget (see call-access.js), so WhatsApp above
+             stays live and this is a note rather than a takeover panel. No
+             purchase link here — a scanner standing at someone else's car has
+             no reason to be sold the owner's upgrade; see the delayed WhatsApp
+             nudge sent to the owner instead. -->
+        <p id="call-tile-exhausted-note" class="pt-note-box" hidden>
+          This owner has already used their free masked-call trial, so Private Call is off. You can still notify them over WhatsApp.
+        </p>
+
         <!-- Emergency / SOS — only rendered when the owner has set a next-of-kin
              number (tag.emergencyAvailable). Deliberately separated from the two
              routine actions above so it cannot be tapped by reflex. -->
@@ -669,25 +680,14 @@
           <div id="sos-dial-steps"></div>
         </div>
 
-        <!-- A locked E-Tag (replaces the buttons once its free contacts are used).
-             It states one thing, which is true every time: the owner has used
-             this tag's free limit. It says nothing about the owner being told
-             or alerted. A message does go to the owner (at most once a day, see
-             locked-tag-nudge.js), but it can be capped or fail to deliver, and
-             a scanner deciding whether to wait must not be promised an alert
-             that did not go. "Limit", without a number: an E-Tag has one free
-             contact and door hanger stock has two. -->
-        <div id="purchase-cta" class="pt-panel" hidden style="text-align:center">
-          <div class="pt-success-mark pt-mark-muted" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none"><path d="M7 10V7.5a5 5 0 0 1 10 0V10" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><rect x="4.5" y="10" width="15" height="10" rx="2.6" stroke="currentColor" stroke-width="1.9"/></svg>
-          </div>
-          <h3>This tag's free limit is used up</h3>
-          <p>This was a free trial ParkTag, and its owner has used the full limit. Calls and messages through it are switched off until the owner upgrades to the official ParkTag sticker.</p>
-          <a id="purchase-cta-btn" href="https://parktag.me" target="_blank" rel="noopener"
-             class="pt-btn pt-btn-primary pt-btn-full" style="text-decoration:none;margin-top:6px">
-            Purchase Official ParkTag QR Sticker
-          </a>
-        </div>
+        <!-- Shown when an E-Tag's free contact is spent. Private Call disables
+             in place (applyCallBlocked() below) with a note pointing at
+             WhatsApp instead of swapping the whole panel for a purchase CTA:
+             WhatsApp is not the masked call the trial protects and keeps
+             working, so there is still something useful for the scanner to
+             do here. Emergency locks too (owner's decision, 30 Sep 2026) and
+             falls back to the public helplines — see setContactAvailability()
+             in scanner/app.js. -->
 
         <!-- Shown instead of the panel above when the vehicle HAS an official
              sticker but its call service is not running. Deliberately says

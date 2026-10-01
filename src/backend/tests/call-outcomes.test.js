@@ -21,6 +21,7 @@ import {
   wasAnswered,
   shouldOfferCallback
 } from "../lib/core/call-outcome.js";
+import { MIN_ANSWERED_CALL_SECONDS } from "../lib/core/call-access.js";
 
 let app;
 let collections;
@@ -54,6 +55,7 @@ test.beforeEach(async () => {
 test.after(async () => {
   await collections.owners.deleteMany({});
   await collections.contactRequests.deleteMany({});
+  await collections.tags.deleteMany({ token: /^outcome-spend-/ });
   await stopTestApp(app);
 });
 
@@ -261,4 +263,83 @@ test("the page reads the verdict, not Exotel's wording", async () => {
   // that was already correct.
   assert.doesNotMatch(js.body, /r\.callResult === "connected" \? "Connected"/,
     'the old badge tested for "connected", which Exotel never sends');
+});
+
+// ── The free contact is spent HERE now, not at dial time ───────────────────
+// See call-access.js and the webhook's `outcome === "answered"` branch.
+
+async function seedTagAndCall(token, callSid, { freeContactUsed = false } = {}) {
+  await collections.tags.insertOne({
+    token,
+    ownerId: owner._id,
+    status: "active",
+    premium: false,
+    freeContactUsed,
+    vehicleLabel: "Outcome Spend Fixture",
+    createdAt: new Date().toISOString()
+  });
+  const { insertedId } = await collections.contactRequests.insertOne({
+    token,
+    ownerId: owner._id,
+    phone: SCANNER,
+    action: "call",
+    status: "connecting",
+    providerRequestId: callSid,
+    createdAt: new Date().toISOString()
+  });
+  return insertedId;
+}
+
+test("a bridge that holds for the minimum spends the free contact", async () => {
+  const token = "outcome-spend-answered";
+  const requestId = await seedTagAndCall(token, "EXO-SID-SPEND-OK");
+
+  await postStatus({
+    CustomField: String(requestId),
+    CallSid: "EXO-SID-SPEND-OK",
+    CallStatus: "completed",
+    ConversationDuration: String(MIN_ANSWERED_CALL_SECONDS)
+  });
+
+  const tag = await collections.tags.findOne({ token });
+  assert.equal(tag.freeContactsSpent, 1);
+  assert.equal(tag.freeContactUsed, true, "one free call, so one answered bridge locks it");
+
+  const stored = await collections.contactRequests.findOne({ _id: requestId });
+  assert.ok(stored.freeContactSpentAt, "the claim is recorded on the request that earned it");
+});
+
+test("a bridge shorter than the minimum spends nothing", async () => {
+  const token = "outcome-spend-short";
+  const requestId = await seedTagAndCall(token, "EXO-SID-SPEND-SHORT");
+
+  await postStatus({
+    CustomField: String(requestId),
+    CallSid: "EXO-SID-SPEND-SHORT",
+    CallStatus: "completed",
+    ConversationDuration: String(MIN_ANSWERED_CALL_SECONDS - 1)
+  });
+
+  const tag = await collections.tags.findOne({ token });
+  assert.equal(tag.freeContactUsed, false, `${MIN_ANSWERED_CALL_SECONDS - 1}s is a ring, not a call`);
+});
+
+test("a redelivered terminal event does not spend the free contact twice", async () => {
+  // Exotel can and does redeliver a status callback. The claim on the
+  // contactRequest (freeContactSpentAt) is what makes a second "answered,
+  // 5 seconds" for the same call a no-op rather than a second spend.
+  const token = "outcome-spend-duplicate";
+  const requestId = await seedTagAndCall(token, "EXO-SID-SPEND-DUP");
+  const payload = {
+    CustomField: String(requestId),
+    CallSid: "EXO-SID-SPEND-DUP",
+    CallStatus: "completed",
+    ConversationDuration: "5"
+  };
+
+  await postStatus(payload);
+  await postStatus(payload);
+
+  const tag = await collections.tags.findOne({ token });
+  assert.equal(tag.freeContactsSpent, 1, "the redelivery must not spend a second contact");
 });

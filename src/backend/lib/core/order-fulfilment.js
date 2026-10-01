@@ -231,7 +231,7 @@ export async function fulfilPaidOrder(env, collections, { order, paymentId, log 
   let bookedWaybill = null;
   if (!isHandover && isDelhiveryConfigured(env) && order.shippingAddress) {
     try {
-      const { waybill, pickup } = await bookShipmentAndPickup(env, collections, {
+      const { waybill, pickup, internalCancelledAt, internalCancelError } = await bookShipmentAndPickup(env, collections, {
         orderId: order.orderId,
         address: order.shippingAddress,
         productName: order.productName
@@ -248,11 +248,19 @@ export async function fulfilPaidOrder(env, collections, { order, paymentId, log 
             // failure the customer cannot see and we cannot infer later.
             ...(pickup.requested
               ? { pickupRequestedFor: pickup.forDate, pickupId: pickup.pickupId }
-              : { pickupError: pickup.error || pickup.reason })
+              : { pickupError: pickup.error || pickup.reason }),
+            // internalCancelledAt means this order's own waybill was voided
+            // right after booking because it's a Girish/Kanchan test order —
+            // see bookShipmentAndPickup. internalCancelError means that voiding
+            // failed, so the test shipment is still live and needs manual
+            // cancellation in Delhivery One.
+            ...(internalCancelledAt ? { internalCancelledAt } : {}),
+            ...(internalCancelError ? { internalCancelError } : {})
           },
           $unset: {
             shipmentError: "",
-            ...(pickup.requested ? { pickupError: "" } : {})
+            ...(pickup.requested ? { pickupError: "" } : {}),
+            ...(internalCancelledAt ? { internalCancelError: "" } : {})
           }
         }
       );

@@ -1032,10 +1032,10 @@ const ADD_CARD = `
 function lockedTagNote(tag) {
   const missed = Math.max(0, Math.trunc(Number(tag.missedContacts) || 0));
   if (missed > 0) {
-    return `${missed} ${missed === 1 ? "person" : "people"} tried to reach you and could not. Buy a Premium tag to be reachable again.`;
+    return `${missed} ${missed === 1 ? "person" : "people"} tried to call you and couldn't get through. Buy a Premium tag to bring Call back — WhatsApp still reaches you.`;
   }
   const many = Number(tag.freeContactAllowance) > 1;
-  return `Your free ${many ? "contacts have" : "contact has"} been used. Buy a premium tag to keep being reachable.`;
+  return `Your free ${many ? "calls have" : "call has"} been used. Buy a premium tag to keep Call working — WhatsApp still reaches you.`;
 }
 
 function vehicleCard(tag, idx) {
@@ -1244,8 +1244,8 @@ ${_nbFilter ? `
     ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 2l2.4 7.4H22l-6 4.4 2.3 7.2L12 16.6 5.7 21l2.3-7.2-6-4.4h7.6L12 2z" stroke="#D97706" stroke-width="1.8" stroke-linejoin="round"/></svg>`
     : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="#10B981" stroke-width="2"/><path d="M9 12l2 2 4-4" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
   const tipText = freeLeft < total && !premium
-    ? `Upgrade to <strong>Premium</strong> for unlimited private contact. Your number stays hidden.`
-    : `Each free E-Tag includes <strong>1 free contact</strong> via masked call or WhatsApp.`;
+    ? `Upgrade to <strong>Premium</strong> for unlimited masked calls. Your number stays hidden.`
+    : `Each free E-Tag includes <strong>1 free masked call</strong>, plus unlimited WhatsApp alerts.`;
 
   // No Tag Status list. It restated the My Vehicles grid directly below it —
   // same plates, same status, same per-tag badge — so an owner scrolled past

@@ -409,7 +409,7 @@ async function mintReplacementIfNeeded(collections, ownerId, order) {
 async function bookCodShipment(env, collections, { orderNumber, shipping, productName, amountPaise }, log) {
   if (!isDelhiveryConfigured(env)) return null;
   try {
-    const { waybill, pickup } = await bookShipmentAndPickup(env, collections, {
+    const { waybill, pickup, internalCancelledAt, internalCancelError } = await bookShipmentAndPickup(env, collections, {
       orderId: orderNumber,
       address: shipping,
       productName,
@@ -423,11 +423,16 @@ async function bookCodShipment(env, collections, { orderNumber, shipping, produc
           shipmentBookedAt: new Date().toISOString(),
           ...(pickup.requested
             ? { pickupRequestedFor: pickup.forDate, pickupId: pickup.pickupId }
-            : { pickupError: pickup.error || pickup.reason })
+            : { pickupError: pickup.error || pickup.reason }),
+          // See bookShipmentAndPickup: Kanchan/internal-team COD orders get
+          // their waybill voided right after booking.
+          ...(internalCancelledAt ? { internalCancelledAt } : {}),
+          ...(internalCancelError ? { internalCancelError } : {})
         },
         $unset: {
           shipmentError: "",
-          ...(pickup.requested ? { pickupError: "" } : {})
+          ...(pickup.requested ? { pickupError: "" } : {}),
+          ...(internalCancelledAt ? { internalCancelError: "" } : {})
         }
       }
     );

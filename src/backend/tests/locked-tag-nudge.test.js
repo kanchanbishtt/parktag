@@ -347,8 +347,13 @@ describe("a verified scan of a locked tag", () => {
     assert.equal(res.statusCode, 404);
   });
 
-  test("the tag stays locked: the alert is still refused", async () => {
-    const tag = await makeTag(await makeOwner());
+  // The masked CALL stays locked (tested in call-access.test.js /
+  // contact-routing.test.js), but the WhatsApp alert is not that call and
+  // never was — see the masking check in /api/contact-requests.
+  test("WhatsApp still reaches the owner: only the masked call is locked", async () => {
+    // An owner contact channel is required to send at all — see
+    // contact-actions.js. Email, since Meta WhatsApp has no real creds here.
+    const tag = await makeTag(await makeOwner({ email: "locked-nudge-qa@example.invalid" }));
     const { grant } = (await verify(tag)).json();
 
     const message = await app.inject({
@@ -357,8 +362,8 @@ describe("a verified scan of a locked tag", () => {
       payload: { token: tag.token, action: "message", messageChannel: "whatsapp", reason: REASON, grant },
       remoteAddress: uniqueAddress()
     });
-    assert.equal(message.statusCode, 402);
-    assert.equal(message.json().code, "FREE_USED");
+    assert.equal(message.statusCode, 200);
+    assert.equal(message.json().ok, true);
     assert.equal((await fresh(tag)).freeContactUsed, true);
   });
 

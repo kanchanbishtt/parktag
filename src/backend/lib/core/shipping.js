@@ -14,7 +14,8 @@
 // It is not inside createShipment itself because deduplicating the pickup needs
 // the database, and lib/integrations is the layer that does not get to touch it.
 
-import { createShipment, requestPickup, nextPickupDate } from "../integrations/delhivery.js";
+import { createShipment, requestPickup, cancelShipment, nextPickupDate } from "../integrations/delhivery.js";
+import { isInternalPhone } from "./internal-orders.js";
 
 const DUPLICATE_KEY = 11000;
 
@@ -98,6 +99,16 @@ export async function ensurePickupRequested(env, collections, { pickupDate, expe
  * without a waybill there is no parcel and the caller needs to record that.
  * Never throws for the pickup: that failure is reported in the returned
  * `pickup` object for the caller to persist.
+ *
+ * Girish and Kanchan's own orders book a REAL waybill and REAL pickup here,
+ * same as any customer's — that is the whole point of testing through
+ * production. The one difference: right after booking, an internal order's
+ * waybill is voided again via cancelShipment, so the end-to-end flow is
+ * genuinely exercised without a rider actually getting dispatched for it. The
+ * shared PICKUP REQUEST for that warehouse/day is left alone on purpose — it
+ * can be covering a real order's ride too, so only the one waybill is
+ * touched. isInternalPhone is checked here, not left to each of the three
+ * callers, so a fourth caller cannot forget it.
  */
 export async function bookShipmentAndPickup(env, collections, shipment, log) {
   const booked = await createShipment(env, shipment);
@@ -109,5 +120,15 @@ export async function bookShipmentAndPickup(env, collections, shipment, log) {
     log
   );
 
-  return { ...booked, pickup };
+  if (!isInternalPhone(env, shipment.address?.phone)) {
+    return { ...booked, pickup };
+  }
+
+  try {
+    await cancelShipment(env, booked.waybill);
+    return { ...booked, pickup, internalCancelledAt: new Date().toISOString() };
+  } catch (err) {
+    log?.error?.({ err, waybill: booked.waybill }, "[internal-order] Delhivery auto-cancel failed");
+    return { ...booked, pickup, internalCancelError: String(err?.message || err) };
+  }
 }

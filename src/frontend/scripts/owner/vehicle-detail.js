@@ -387,13 +387,16 @@ function updatePremiumUI() {
   if (downloadItem) downloadItem.style.display = "none";
 
   if (isFreeUsed) {
-    // Free trial spent → send them to the shop to buy a premium tag.
-    if (copy) copy.textContent = "Your free contact has been used. Buy a premium tag to keep being reachable.";
+    // Free trial spent → send them to the shop to buy a premium tag. WhatsApp
+    // is not part of this trial (see call-access.js) and stays reachable
+    // either way, so the copy asks for the call back rather than overclaiming
+    // that upgrading is the only way to hear from a finder at all.
+    if (copy) copy.textContent = "Your free masked-call trial has been used. Buy a premium tag to keep Call working — WhatsApp still reaches you.";
     if (buyBtn) { buyBtn.style.display = ""; buyBtn.disabled = !realId; }
   } else {
     // Free trial still live → informational only, no purchase yet.
-    const left = freeLeft === 1 ? "1 free contact" : `${freeLeft} free contacts`;
-    if (copy) copy.textContent = `This E-Tag has ${left} left. After that, buy a premium tag to keep Call & WhatsApp active.`;
+    const left = freeLeft === 1 ? "1 free call" : `${freeLeft} free calls`;
+    if (copy) copy.textContent = `This E-Tag has ${left} left. After that, buy a premium tag to keep Call working — WhatsApp stays available either way.`;
     if (buyBtn) buyBtn.style.display = "none";
   }
   applyEtagDownloadMode();
@@ -423,7 +426,7 @@ function applyEtagDownloadMode() {
     if (btnLabel)  btnLabel.textContent  = "Download E-Tag PDF";
     if (intro)  intro.textContent  = "Thank you for generating your free ParkTag E-Tag.";
     if (instrH) instrH.textContent = "How to fix the E-Tag to your windscreen";
-    if (freebox) freebox.innerHTML = "This free E-Tag includes <b>1 free contact</b>. A finder can reach you once via masked call or WhatsApp (your number stays private). For unlimited contact, upgrade to the official physical ParkTag sticker.";
+    if (freebox) freebox.innerHTML = "This free E-Tag includes <b>1 free masked call</b> and unlimited WhatsApp alerts (your number stays private either way). For unlimited masked calls too, upgrade to the official physical ParkTag sticker.";
   }
 
   // Put the real tag QR on both sticker variants (the generated one was left on a

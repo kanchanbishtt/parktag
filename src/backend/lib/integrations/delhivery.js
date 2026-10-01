@@ -163,6 +163,49 @@ export async function createShipment(env, { orderId, address, productName, codAm
   return { waybill, refnum: pkg.refnum || orderId, raw: data };
 }
 
+// Voids an already-booked shipment by waybill, used to auto-cancel internal
+// test orders right after booking (see bookShipmentAndPickup in
+// lib/core/shipping.js): the courier flow still runs for real so the test is
+// genuine, but no rider ends up collecting it.
+//
+// Delhivery exposes no API to cancel a PICKUP REQUEST (confirmed against both
+// the public docs and their own developer portal, which lists Pickup Request
+// Creation but no cancel/edit counterpart) — pickups are shared per
+// warehouse-per-day across every order in that slot, so cancelling one would
+// risk cancelling a real order's ride too. Cancelling the SHIPMENT instead is
+// scoped to exactly this waybill and is a documented endpoint: their own
+// "Cancel Order API" docs confirm the path, that it takes a `waybill`, and
+// that a Pick Up package moves to status "Cancelled". The field name
+// (`waybill`, not an array) is confirmed from their official Laravel SDK,
+// which is the only place the full request shape is shown; the docs page
+// itself stops at the `cancellation` key. Like requestPickup, this has not
+// been run against this account yet — the first real call is the first
+// internal order booked after this ships.
+export async function cancelShipment(env, waybill) {
+  refuseInTestRun(env, "Cancelling a Delhivery shipment");
+
+  const response = await fetchWithTimeout(`${env.delhiveryBaseUrl}/api/p/edit`, {
+    method: "POST",
+    headers: { ...authHeaders(env), "content-type": "application/json" },
+    body: JSON.stringify({ waybill, cancellation: "true" })
+  }, 10000);
+
+  const text = await response.text();
+  let data = null;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    data = { raw: text };
+  }
+
+  if (!response.ok || data?.success === false) {
+    const reason = data?.error || data?.message || data?.rmk || JSON.stringify(data);
+    throw new Error(`Delhivery shipment cancellation failed: ${reason}`);
+  }
+
+  return { cancelled: true };
+}
+
 // The date to ask a rider for, as YYYY-MM-DD.
 //
 // Computed in IST, not in the container's timezone. Railway runs UTC, so an

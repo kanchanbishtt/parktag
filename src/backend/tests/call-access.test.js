@@ -199,8 +199,9 @@ describe("the owner's masking switch follows the ladder", () => {
     const e = callEntitlement({ premium: false, freeContactUsed: true });
     assert.equal(e.tier, CALL_TIER_ETAG_USED);
     assert.equal(e.masking, false);
-    // The copy for this rung points at the sticker, not at a subscription.
-    assert.match(callBlockedMessage(e), /official ParkTag sticker/);
+    // The copy for this rung points at WhatsApp, not at a subscription — an
+    // E-Tag's trial is call-only now, and WhatsApp still works.
+    assert.match(callBlockedMessage(e), /WhatsApp/);
   });
 
   test("a premium tag inside its 90 days may", () => {
@@ -262,7 +263,7 @@ describe("what a blocked scanner is told", () => {
     // silently change what a deployed page does with an unactivated sticker.
     const e = callEntitlement({ premium: false, freeContactUsed: true });
     assert.equal(callBlockedCode(e), "FREE_USED");
-    assert.match(callBlockedMessage(e), /official ParkTag sticker/);
+    assert.match(callBlockedMessage(e), /WhatsApp/);
   });
 
   test("a lapsed tag says nothing to the scanner about money", () => {

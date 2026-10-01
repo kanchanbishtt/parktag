@@ -258,6 +258,35 @@ export async function sendMetaWhatsappTrialEnding(env, { to, name, vehicle, rema
   });
 }
 
+// The masked-call trial has run out. Against `parktag_call_limit_reached`,
+// created by scripts/create-call-limit-template.js:
+//
+//   {{1}} first name   {{2}} vehicle
+//   button  "Upgrade" -> app.parktag.me/owner-membership?tag={{1}}
+//
+// Sent once, roughly two hours after the trial's last free contact was spent
+// (see lib/core/campaigns/call-limit-reached.js) — not on every subsequent
+// scan of an already-exhausted tag, which would read as nagging rather than
+// as news.
+//
+// UTILITY, same reasoning as `parktag_trial_ending`: this reports a state
+// change to a service the owner already holds. No price in the body, on
+// purpose — see that template's comment for why one would likely flip the
+// category to MARKETING on review.
+export const CALL_LIMIT_REACHED_TEMPLATE = "parktag_call_limit_reached";
+
+export async function sendMetaWhatsappCallLimitReached(env, { to, name, vehicle, tagId }) {
+  return sendTemplate(env, {
+    to,
+    template: CALL_LIMIT_REACHED_TEMPLATE,
+    components: [
+      ...bodyComponent(name, vehicle),
+      { type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: String(tagId) }] }
+    ],
+    publicMessage: "Unable to send the WhatsApp call-limit notice."
+  });
+}
+
 export async function sendMetaWhatsappTagActivated(env, { to, name, vehicle, plate }) {
   return sendTemplate(env, {
     to,

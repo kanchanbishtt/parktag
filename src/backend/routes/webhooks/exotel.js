@@ -4,6 +4,7 @@ import { getCollections } from "../../lib/db/repositories.js";
 import { safeEqual } from "../../lib/auth/security.js";
 import { normalizeCallOutcome, parseCallDuration } from "../../lib/core/call-outcome.js";
 import { sendMixpanelEventBestEffort } from "../../lib/integrations/mixpanel.js";
+import { spendFreeContactPipeline, MIN_ANSWERED_CALL_SECONDS } from "../../lib/core/call-access.js";
 
 // Exotel has no request-signing scheme for callbacks (unlike Twilio/Meta), so
 // the mitigation is a shared secret embedded in the callback URLs configured
@@ -263,6 +264,39 @@ export function registerProviderRoutes(app, env) {
           distinctId: String(contactRequest.ownerId),
           properties: { call_duration: seconds, call_type: contactRequest.action || null }
         });
+      }
+
+      // The free contact is spent HERE, not at dial time (see register-call in
+      // routes/public/index.js) — only once the two people on the line
+      // actually talked for MIN_ANSWERED_CALL_SECONDS. `action === "call"`
+      // excludes the emergency/SOS route (never spends) and the owner-to-
+      // scanner callback (the OWNER's call, not the scanner's allowance).
+      //
+      // Claimed on the contactRequest, atomically, before the tag is touched:
+      // Exotel can and does redeliver a terminal status event, and a second
+      // delivery of the same answered call must spend nothing a second time.
+      if (
+        contactRequest?.action === "call" &&
+        contactRequest.token &&
+        seconds !== null &&
+        seconds >= MIN_ANSWERED_CALL_SECONDS
+      ) {
+        const claim = await collections.contactRequests
+          .findOneAndUpdate(
+            { _id: contactRequest._id, freeContactSpentAt: { $exists: false } },
+            { $set: { freeContactSpentAt: new Date().toISOString() } }
+          )
+          .catch(() => null);
+
+        if (claim) {
+          const tag = await collections.tags.findOne({ token: contactRequest.token }).catch(() => null);
+          if (tag && !tag.premium) {
+            const spentAt = new Date().toISOString();
+            await collections.tags
+              .updateOne({ _id: tag._id }, spendFreeContactPipeline(spentAt, { updatedAt: spentAt }))
+              .catch(() => null);
+          }
+        }
       }
     }
 

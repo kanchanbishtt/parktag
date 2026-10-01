@@ -191,7 +191,7 @@ if (!doBook) {
 
 console.log("\nBooking...");
 try {
-  const { waybill, pickup } = await bookShipmentAndPickup(env, collections, {
+  const { waybill, pickup, internalCancelledAt, internalCancelError } = await bookShipmentAndPickup(env, collections, {
     orderId: order.orderId || order.orderNumber,
     address: order.shippingAddress,
     productName: order.productName,
@@ -209,7 +209,9 @@ try {
         shipmentRecoveredAt: new Date().toISOString(),
         ...(pickup.requested
           ? { pickupRequestedFor: pickup.forDate, pickupId: pickup.pickupId }
-          : { pickupError: pickup.error || pickup.reason })
+          : { pickupError: pickup.error || pickup.reason }),
+        ...(internalCancelledAt ? { internalCancelledAt } : {}),
+        ...(internalCancelError ? { internalCancelError } : {})
       }
     }
   );
@@ -221,6 +223,11 @@ try {
       ? `  Pickup: ${pickup.forDate} (id ${pickup.pickupId})\n`
       : `  Pickup FAILED: ${pickup.error || pickup.reason}. The label exists but nobody is collecting it.\n`
   );
+  if (internalCancelledAt) {
+    console.log(`  Internal order: waybill auto-cancelled at ${internalCancelledAt}.\n`);
+  } else if (internalCancelError) {
+    console.log(`  Internal order: auto-cancel FAILED (${internalCancelError}). Cancel ${waybill} by hand in Delhivery One.\n`);
+  }
 } catch (err) {
   console.error(`\n  Failed: ${err.message}\n`);
   await collections.shopOrders.updateOne(

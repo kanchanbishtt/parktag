@@ -83,6 +83,33 @@ async function registerCall(token) {
   });
 }
 
+// The free contact is no longer spent by dialling — see call-access.js and
+// webhooks/exotel.js. It is spent once Exotel reports the bridge actually
+// held for at least MIN_ANSWERED_CALL_SECONDS, so these fixtures drive the
+// real webhook, the same one Exotel's dashboard calls, rather than asserting
+// on register-call's response alone.
+async function answerCall(token) {
+  counter += 1;
+  const callSid = `QA-ANSWERED-${counter}`;
+  const contactRequest = await collections.contactRequests.findOne(
+    { token, action: "call" },
+    { sort: { createdAt: -1 } }
+  );
+  assert.ok(contactRequest, "fixture must have a call contactRequest to answer");
+  const response = await app.inject({
+    method: "POST",
+    url: "/api/provider/exotel/webhook",
+    headers: { "content-type": "application/json" },
+    payload: {
+      CustomField: String(contactRequest._id),
+      CallSid: callSid,
+      CallStatus: "completed",
+      ConversationDuration: "3"
+    }
+  });
+  assert.equal(response.statusCode, 200, "fixture webhook post should succeed");
+}
+
 before(async () => {
   ({ app, collections } = await startTestApp());
   await collections.rateLimits.deleteMany({}).catch(() => {});
@@ -121,11 +148,15 @@ describe("free contact allowance", () => {
 
     assert.equal((await registerCall(token)).statusCode, 200);
     let tag = await collections.tags.findOne({ token });
+    assert.equal(tag.freeContactsSpent ?? 0, 0, "dialling alone must not spend it");
+    await answerCall(token);
+    tag = await collections.tags.findOne({ token });
     assert.equal(tag.freeContactsSpent, 1);
     assert.equal(tag.freeContactUsed, false);
     assert.equal(callEntitlement(tag).masking, true);
 
     assert.equal((await registerCall(token)).statusCode, 200);
+    await answerCall(token);
     tag = await collections.tags.findOne({ token });
     assert.equal(tag.freeContactsSpent, 2);
     assert.equal(tag.freeContactUsed, true);
@@ -137,21 +168,50 @@ describe("free contact allowance", () => {
     assert.equal(third.json().code, "FREE_USED");
   });
 
-  test("an ordinary E-Tag still locks after one call", async () => {
+  test("an ordinary E-Tag still locks after one ANSWERED call", async () => {
     const token = await createTag();
 
     assert.equal((await registerCall(token)).statusCode, 200);
-    const tag = await collections.tags.findOne({ token });
+    let tag = await collections.tags.findOne({ token });
+    assert.equal(tag.freeContactUsed, false, "still just a ring until the bridge answers");
+
+    await answerCall(token);
+    tag = await collections.tags.findOne({ token });
     assert.equal(tag.freeContactUsed, true);
 
     const second = await registerCall(token);
     assert.equal(second.statusCode, 402);
   });
 
-  test("a junk allowance on the tag locks after one call, not never", async () => {
+  test("dialling and ringing out spends nothing — only a bridge that actually holds does", async () => {
+    const token = await createTag();
+
+    assert.equal((await registerCall(token)).statusCode, 200);
+    const contactRequest = await collections.contactRequests.findOne({ token, action: "call" });
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/provider/exotel/webhook",
+      headers: { "content-type": "application/json" },
+      payload: {
+        CustomField: String(contactRequest._id),
+        CallSid: "QA-NO-ANSWER",
+        CallStatus: "no-answer",
+        ConversationDuration: "0"
+      }
+    });
+    assert.equal(response.statusCode, 200);
+
+    const tag = await collections.tags.findOne({ token });
+    assert.equal(tag.freeContactUsed, false, "a ring that nobody answered must not lock the tag");
+    // Still reachable — the trial was never actually spent.
+    assert.equal((await registerCall(token)).statusCode, 200);
+  });
+
+  test("a junk allowance on the tag locks after one answered call, not never", async () => {
     const token = await createTag({ freeContactAllowance: "999" });
 
     assert.equal((await registerCall(token)).statusCode, 200);
+    await answerCall(token);
     const tag = await collections.tags.findOne({ token });
     assert.equal(tag.freeContactUsed, true);
   });

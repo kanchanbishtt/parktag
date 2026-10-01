@@ -25,8 +25,8 @@
 import test, { before, after, beforeEach, describe } from "node:test";
 import assert from "node:assert/strict";
 
-import { requestPickup, nextPickupDate } from "../lib/integrations/delhivery.js";
-import { ensurePickupRequested } from "../lib/core/shipping.js";
+import { requestPickup, cancelShipment, nextPickupDate } from "../lib/integrations/delhivery.js";
+import { ensurePickupRequested, bookShipmentAndPickup } from "../lib/core/shipping.js";
 import { ensureCoreIndexes } from "../lib/db/repositories.js";
 import { startTestApp, stopTestApp } from "./helpers.js";
 
@@ -315,5 +315,157 @@ describe("a pickup failure is survivable", () => {
 
     assert.equal(calls.length, 1, "the retry never reached Delhivery");
     assert.equal(result.requested, true);
+  });
+});
+
+describe("cancelling a shipment", () => {
+  test("a cancellation is refused during a test run", async () => {
+    await assert.rejects(
+      () => cancelShipment(ENV, "WB1"),
+      (err) => err.refusedByTestGuard === true
+    );
+  });
+
+  test("it posts the waybill and the cancellation flag", async () => {
+    const { calls } = await withFetch(
+      () => okResponse({ success: true }),
+      () => cancelShipment(LIVE, "WB1")
+    );
+
+    assert.equal(calls.length, 1);
+    assert.match(calls[0].url, /\/api\/p\/edit$/);
+    assert.equal(calls[0].init.method, "POST");
+    assert.match(calls[0].init.headers.Authorization, /^Token /);
+
+    const sent = JSON.parse(calls[0].init.body);
+    assert.equal(sent.waybill, "WB1");
+    assert.equal(sent.cancellation, "true");
+  });
+
+  test("an explicit failure throws with Delhivery's own reason", async () => {
+    await assert.rejects(
+      () =>
+        withFetch(
+          () => okResponse({ success: false, error: "already delivered" }),
+          () => cancelShipment(LIVE, "WB1")
+        ),
+      /already delivered/
+    );
+  });
+});
+
+// Girish and Kanchan's own orders book a REAL shipment and pickup, same as any
+// customer's, and only THEN get their own waybill voided — see
+// bookShipmentAndPickup in lib/core/shipping.js. These pin that the courier
+// flow still runs for real, that only the internal order's waybill is
+// touched, and that a failed auto-cancel is surfaced rather than swallowed.
+describe("internal test orders auto-cancel their own shipment", () => {
+  const INTERNAL_ENV = { ...LIVE, internalTestPhones: "9876500854" };
+  const INTERNAL_ADDRESS = {
+    fullName: "Kanchan",
+    phone: "9876500854",
+    line1: "32/11 Wave One",
+    city: "Noida",
+    state: "Uttar Pradesh",
+    pincode: "201301"
+  };
+  const CUSTOMER_ADDRESS = { ...INTERNAL_ADDRESS, fullName: "Jibin", phone: "9812300001" };
+
+  function createdResponse(waybill) {
+    return new Response(JSON.stringify({ packages: [{ waybill, status: "Success" }] }));
+  }
+
+  // Routes by URL, not call order, because createShipment, requestPickup and
+  // (for internal orders) cancelShipment each hit a different endpoint inside
+  // the one bookShipmentAndPickup call.
+  function routeFetch({ create, pickup, cancel }) {
+    return async (url, init) => {
+      const target = String(url);
+      if (target.includes("/api/cmu/create.json")) return create(target, init);
+      if (target.includes("/fm/request/new/")) return pickup(target, init);
+      if (target.includes("/api/p/edit")) return cancel(target, init);
+      throw new Error(`unexpected call to ${target}`);
+    };
+  }
+
+  async function withRoutedFetch(handlers, fn) {
+    const original = globalThis.fetch;
+    globalThis.fetch = routeFetch(handlers);
+    try {
+      return await fn();
+    } finally {
+      globalThis.fetch = original;
+    }
+  }
+
+  test("Kanchan's order is booked, then its own waybill is cancelled", async () => {
+    const cancelCalls = [];
+    const out = await withRoutedFetch(
+      {
+        create: () => createdResponse("WB-INTERNAL"),
+        pickup: () => okResponse(),
+        cancel: (url, init) => {
+          cancelCalls.push({ url, init });
+          return okResponse({ success: true });
+        }
+      },
+      () =>
+        bookShipmentAndPickup(INTERNAL_ENV, collections, {
+          orderId: "PT-INTERNAL-01",
+          address: INTERNAL_ADDRESS,
+          productName: "Duo"
+        })
+    );
+
+    assert.equal(out.waybill, "WB-INTERNAL");
+    assert.ok(out.internalCancelledAt, "the internal order's waybill was never cancelled");
+    assert.equal(cancelCalls.length, 1, "cancelShipment was not called exactly once");
+    assert.equal(JSON.parse(cancelCalls[0].init.body).waybill, "WB-INTERNAL");
+  });
+
+  test("a real customer's waybill is left alone", async () => {
+    let cancelCalled = false;
+    const out = await withRoutedFetch(
+      {
+        create: () => createdResponse("WB-CUSTOMER"),
+        pickup: () => okResponse(),
+        cancel: () => {
+          cancelCalled = true;
+          return okResponse({ success: true });
+        }
+      },
+      () =>
+        bookShipmentAndPickup(INTERNAL_ENV, collections, {
+          orderId: "PT-CUSTOMER-01",
+          address: CUSTOMER_ADDRESS,
+          productName: "Duo"
+        })
+    );
+
+    assert.equal(out.waybill, "WB-CUSTOMER");
+    assert.equal(out.internalCancelledAt, undefined);
+    assert.equal(cancelCalled, false, "a real customer's shipment was cancelled");
+  });
+
+  test("a failed auto-cancel is reported, not swallowed", async () => {
+    const out = await withRoutedFetch(
+      {
+        create: () => createdResponse("WB-FAIL"),
+        pickup: () => okResponse(),
+        cancel: () => okResponse({ success: false, error: "edit window closed" })
+      },
+      () =>
+        bookShipmentAndPickup(INTERNAL_ENV, collections, {
+          orderId: "PT-INTERNAL-02",
+          address: INTERNAL_ADDRESS,
+          productName: "Duo"
+        })
+    );
+
+    // The shipment and pickup still succeeded — only the auto-cancel failed,
+    // so the waybill is real and needs a human to void it in Delhivery One.
+    assert.equal(out.waybill, "WB-FAIL");
+    assert.equal(out.internalCancelledAt, undefined);
+    assert.match(out.internalCancelError, /edit window closed/);
   });
 });

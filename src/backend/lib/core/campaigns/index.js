@@ -13,6 +13,7 @@
 //   2. every send goes through sendOnce() with a natural dedupeKey.
 
 import * as trialEnding from "./trial-ending.js";
+import * as callLimitReached from "./call-limit-reached.js";
 import * as cartReminder from "./cart-reminder.js";
 import * as reviewRequest from "./review-request.js";
 
@@ -24,4 +25,9 @@ import * as reviewRequest from "./review-request.js";
 // somebody a feature they are still paying attention to, while a missed cart
 // nudge costs a sale that was already half-lost. A review request is a favour
 // we are asking, so it goes last.
-export const CAMPAIGNS = [trialEnding, cartReminder, reviewRequest];
+//
+// call-limit-reached sits right after trial-ending: it is the other message
+// that tells an owner a service they rely on just stopped working, and unlike
+// a cart nudge it costs nothing to under-send (freeContactUsedAt only moves
+// forward), so missing a tick costs no more than a slightly later notice.
+export const CAMPAIGNS = [trialEnding, callLimitReached, cartReminder, reviewRequest];

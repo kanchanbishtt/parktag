@@ -47,6 +47,13 @@ export const DEFAULT_FREE_CONTACTS = 1;
 export const DOORHANGER_FREE_CONTACTS = 2;
 const MAX_FREE_CONTACTS = 10;
 
+// A free contact is spent by a CALL only once the bridge actually held for
+// this long, not by dialling. Exotel's status callback reports duration in
+// whole seconds, so this is the smallest value that means "the two people on
+// the line said something to each other" rather than "the line rang and
+// dropped" — see webhooks/exotel.js, the only place that reads it.
+export const MIN_ANSWERED_CALL_SECONDS = 2;
+
 // The allowance stamped on a tag. Anything that is not a sane small integer
 // reads as the default, never as more: a junk field must not mint free calls.
 export function freeContactAllowance(tag) {
@@ -181,8 +188,7 @@ export function callBlockedMessage(entitlement) {
   if (entitlement && entitlement.tier === CALL_TIER_LAPSED) {
     return "Calling isn't available for this vehicle right now. You can still leave a message.";
   }
-  // "contacts", without a number: one on an E-Tag, two on door hanger stock.
-  return "This E-Tag's free contacts have already been used. The owner can re-enable contact with the official ParkTag sticker.";
+  return "Masked calling is off for this vehicle — the owner has already used their free trial calls. You can still notify them over WhatsApp.";
 }
 
 // The machine-readable reason, for clients that branch on it.

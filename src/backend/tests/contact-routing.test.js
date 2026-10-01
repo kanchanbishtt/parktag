@@ -211,6 +211,55 @@ describe("contact-requests is the message endpoint only", () => {
     assert.equal(res.statusCode, 404);
     assert.equal(await collections.contactRequests.countDocuments({ token }), 0);
   });
+
+  test("an E-Tag's spent call trial does not block the WhatsApp alert", async () => {
+    // The bug #3 above used to cause from the other side: this endpoint spent
+    // the allowance it should never have touched. Now that it does not, an
+    // E-Tag with NO free calls left must still be able to reach this route —
+    // masked calling is off, but the owner alert never cost a masked call.
+    const token = await createTag();
+    await collections.tags.updateOne(
+      { token },
+      { $set: { freeContactUsed: true, freeContactUsedAt: new Date().toISOString() } }
+    );
+    // sendOwnerAlertEmail no-ops in dev/test without real SMTP creds, so an
+    // owner email is what lets this assert success end to end rather than
+    // just "not 402" — see contact-actions.js.
+    const owner = await collections.owners.findOne({ mobile: OWNER_PHONE });
+    await collections.owners.updateOne({ _id: owner._id }, { $set: { email: "route-qa@example.invalid" } });
+
+    const address = uniqueAddress();
+    const grant = await grantFor(token, address);
+    const res = await post(
+      "/api/contact-requests",
+      { token, grant, action: "message", messageChannel: "whatsapp" },
+      address
+    );
+
+    assert.equal(res.statusCode, 200, "an exhausted call trial must not block the message channel");
+  });
+
+  test("a lapsed premium tag still blocks the WhatsApp alert too", async () => {
+    // The one tier that DOES still lose the message channel: a lapsed
+    // subscription means the tag itself has stopped being reachable, not
+    // merely out of free calls — see call-access.js's tier table.
+    const token = await createTag({ premium: true });
+    await collections.tags.updateOne(
+      { token },
+      { $set: { premiumSince: new Date(Date.now() - 400 * 24 * 60 * 60 * 1000).toISOString() } }
+    );
+
+    const address = uniqueAddress();
+    const grant = await grantFor(token, address);
+    const res = await post(
+      "/api/contact-requests",
+      { token, grant, action: "message", messageChannel: "whatsapp" },
+      address
+    );
+
+    assert.equal(res.statusCode, 402);
+    assert.equal(res.json().code, "CALL_SUBSCRIPTION_REQUIRED");
+  });
 });
 
 describe("caller number claims", () => {
@@ -316,6 +365,12 @@ describe("caller number claims", () => {
   // places no masked call of any kind. This is the consequence worth seeing
   // plainly: on a one-contact E-Tag, the scanner's own call is what locks it,
   // so they cannot then escalate to Emergency on the same visit.
+  //
+  // The free contact is spent once the call actually bridges and holds for
+  // MIN_ANSWERED_CALL_SECONDS (see call-access.js), not by registering it —
+  // that leg runs through the Exotel webhook and is exercised end to end in
+  // call-outcomes.test.js. Spending it directly here keeps this test about
+  // what it says it is about: Emergency locking once the contact is gone.
   test("on an E-Tag, the call that spends the free contact closes Emergency too", async () => {
     const token = await createTag();
     const phone = nextPhone();
@@ -325,6 +380,10 @@ describe("caller number claims", () => {
     await collections.tags.updateOne({ token }, { $set: { emergencyContact: SECOND_OWNER_PHONE } });
 
     assert.equal((await post(`/api/tags/${token}/register-call`, { phone, grant }, address)).statusCode, 200);
+    await collections.tags.updateOne(
+      { token },
+      { $set: { freeContactUsed: true, freeContactsSpent: 1, freeContactUsedAt: new Date().toISOString() } }
+    );
 
     const sos = await post(`/api/tags/${token}/register-emergency-call`, { phone, grant }, address);
     assert.equal(sos.statusCode, 402);

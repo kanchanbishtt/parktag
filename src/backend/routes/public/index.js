@@ -2,7 +2,7 @@ import { isInternalTag, isInternalPhone } from "../../lib/core/internal-orders.j
 import { ObjectId } from "mongodb";
 
 import { createContactAction, isSupportedContactReason } from "../../lib/core/contact-actions.js";
-import { callEntitlement, callBlockedCode, callBlockedMessage, spendFreeContactPipeline } from "../../lib/core/call-access.js";
+import { callEntitlement, callBlockedCode, callBlockedMessage, CALL_TIER_LAPSED } from "../../lib/core/call-access.js";
 import { isLockedEtag, recordLockedAttempt, LOCKED_NUDGE_INTERVAL_MS } from "../../lib/core/locked-tag-nudge.js";
 import { captureScannerLocation } from "../../lib/core/scan-location.js";
 import { captureEmergencyLocation } from "../../lib/core/emergency-alert.js";
@@ -1269,11 +1269,13 @@ export function registerPublicRoutes(app, env) {
 
     // This endpoint sends the owner a WhatsApp alert, and that is all it has
     // ever done: the call branch reached createContactAction, which only ever
-    // dispatches for `message`, so it registered no route, dialled nobody, and
-    // returned ok — while still spending the tag's one free contact on the way
-    // out. A stranger holding a grant could therefore retire an E-Tag's ability
-    // to be contacted with a single request that contacted no one, and the
-    // scanner page never used the branch at all (calls go to
+    // dispatches for `message`, so it registered no route and dialled nobody.
+    // It used to also spend the tag's one free contact on the way out — a
+    // stranger holding a grant could retire an E-Tag's ability to be called
+    // with a single request that contacted no one. It no longer spends
+    // anything (see the masking check below): a WhatsApp alert costs nothing
+    // because it was never the masked call the allowance protects. The scanner
+    // page never used the branch at all (calls go to
     // /api/tags/:token/register-call, which registers a real masked route).
     //
     // Named explicitly rather than defaulted: this used to fall back to "call"
@@ -1351,10 +1353,16 @@ export function registerPublicRoutes(app, env) {
     }
 
     // Masking policy (server-enforced, cannot be bypassed from the client):
-    // an E-Tag includes one free masked contact; a premium tag includes a year
-    // and then needs a subscription. callEntitlement decides both.
+    // an E-Tag includes one free masked CALL; a premium tag includes a year
+    // of them and then needs a subscription. callEntitlement decides both.
+    //
+    // This WhatsApp alert is not a masked call and never was one — it reveals
+    // no phone number to either side — so an E-Tag's spent call trial does not
+    // block it. Only a lapsed premium subscription does: that tier is the one
+    // case where the tag itself has stopped being reachable, not just out of
+    // free calls. See the tier table atop call-access.js.
     const callAccess = callEntitlement(tag);
-    if (!callAccess.masking) {
+    if (callAccess.tier === CALL_TIER_LAPSED) {
       reply.code(402);
       return {
         ok: false,
@@ -1566,15 +1574,21 @@ export function registerPublicRoutes(app, env) {
         .catch((err) => request.log.warn({ err }, "[car-location] call row not updated"));
     }
 
-    // An E-Tag spends one free contact and locks once its allowance is gone
-    // (door hanger stock has two). Premium tags keep the old stamp: masking
-    // there is decided by the trial and subscription, not this flag.
-    await collections.tags.updateOne(
-      { _id: tag._id },
-      tag.premium
-        ? { $set: { freeContactUsed: true, freeContactUsedAt: now.toISOString(), updatedAt: now.toISOString() } }
-        : spendFreeContactPipeline(now.toISOString(), { updatedAt: now.toISOString() })
-    );
+    // Premium tags keep the old stamp here: masking there is decided by the
+    // trial and subscription, not by an allowance, so recording that a call
+    // was placed costs nothing and gates nothing.
+    //
+    // An E-Tag's free contact is NOT spent here. Dialling is not talking —
+    // spending it on initiation charged a scanner's one real contact for a
+    // call that rang out, was busy, or never left the flow. It is spent
+    // instead by the Exotel status webhook, once the bridge has actually held
+    // for MIN_ANSWERED_CALL_SECONDS. See webhooks/exotel.js.
+    if (tag.premium) {
+      await collections.tags.updateOne(
+        { _id: tag._id },
+        { $set: { freeContactUsed: true, freeContactUsedAt: now.toISOString(), updatedAt: now.toISOString() } }
+      );
+    }
 
     await supersedePendingCalls(collections, callerPhone, token, now);
 

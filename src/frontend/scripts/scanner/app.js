@@ -476,36 +476,49 @@ function resetActionState() {
   setContactAvailability(true);
 }
 
-// Toggle between the contact buttons and the "Purchase sticker" CTA based on
-// whether the free contact is still available (server-authoritative).
+// Toggle between the contact tiles and the "Calling isn't available" CTA
+// based on whether contact is available at all (server-authoritative).
+//
+// Only a LAPSED premium subscription retires both routes now — that tier is
+// the one case where the tag itself has stopped being reachable. An E-Tag's
+// spent free-call trial (FREE_USED) is handled by applyCallBlocked() below: it
+// retires Private Call only and leaves the tiles up, because WhatsApp is not
+// the masked call the trial protects and never cost anything to send.
 function setContactAvailability(available) {
   contactAvailable = available;
-  setHidden("scanner-why-title", !available);
-  setHidden("scanner-contact-actions", !available);
+
+  const lapsed = !available && contactBlockedCode === "CALL_SUBSCRIPTION_REQUIRED";
+  // FREE_USED keeps the tiles up — WhatsApp is not the masked call the trial
+  // protects, so there is still something here for the scanner to do. Only a
+  // lapsed subscription (or any other reason, should one ever exist) takes
+  // the whole group down in favour of contact-unavailable-cta below.
+  const freeUsed = !available && contactBlockedCode === "FREE_USED";
+  const hideTiles = !available && !freeUsed;
+
+  setHidden("scanner-why-title", hideTiles);
+  setHidden("scanner-contact-actions", hideTiles);
   // The area notice belongs to the tiles, not to the page: a tag that cannot be
   // contacted records no location, so promising one would be a lie, and warning
-  // about a sharing that is not happening is its own kind of wrong.
-  setHidden("scanner-location-notice", !available);
-  setHidden("share-car-location", !available);
+  // about a sharing that is not happening is its own kind of wrong. A FREE_USED
+  // tag can still be contacted (over WhatsApp), so this stays up for it too.
+  setHidden("scanner-location-notice", hideTiles);
+  setHidden("share-car-location", hideTiles);
 
-  // Two reasons to be blocked, two panels, and never both at once. An unknown
-  // or missing code falls back to the sticker CTA — the behaviour this page has
-  // always had — rather than showing nothing at all.
-  const lapsed = !available && contactBlockedCode === "CALL_SUBSCRIPTION_REQUIRED";
   // A locked E-Tag places no Emergency call either: the server refuses it
   // (owner's decision, 30 Sep 2026). The Emergency button therefore leads to
   // the public helplines, not to a call that cannot be made. A premium tag
   // whose year has lapsed is a different case and keeps its Emergency call.
   if (!available && !lapsed) emergencyAvailable = false;
-  setHidden("purchase-cta", available || lapsed);
   setHidden("contact-unavailable-cta", !lapsed);
-  if (!available) {
+  applyCallBlocked(freeUsed);
+
+  if (hideTiles) {
     // Hide any open contact sub-panels too.
     closeDialModal();
     setHidden("message-panel", true);
     setHidden("call-popup", true);
-    // Leaving the reason popup up once the free contact is gone would offer a
-    // message the server would refuse.
+    // Leaving the reason popup up once contact is gone would offer an action
+    // the server would refuse.
     closeReasonStep();
   }
 
@@ -516,6 +529,17 @@ function setContactAvailability(available) {
   // and so does a locked E-Tag, whose Emergency call is switched off above.
   // 112 is not ours to withhold.
   setHidden("pt-sos-block", false);
+}
+
+// Retires just the Private Call tile, leaving WhatsApp live and the tiles
+// visible. Called both from setContactAvailability (the state known right
+// after plate verification) and from the register-call 402 handler (the rare
+// race where the trial ran out between verifying and dialling) — one function
+// so the two paths cannot drift into showing different things for the same
+// server answer.
+function applyCallBlocked(blocked) {
+  setDisabled("call-owner-button", blocked);
+  setHidden("call-tile-exhausted-note", !blocked);
 }
 
 // ── Emergency / SOS ──────────────────────────────────────────────────────
@@ -882,10 +906,16 @@ async function createRequest(payload) {
       setRequestStatus("request-status", "Still sending… signal is weak here.", "info")
   });
 
-  // 402 = free contact used up. Server is authoritative; flip the UI to the CTA.
+  // 402 here now means a lapsed premium subscription — an E-Tag's spent free
+  // call trial no longer blocks this WhatsApp alert (see /api/contact-requests
+  // in routes/public/index.js). Server is authoritative; flip the UI to the CTA.
   if (status === 402) {
     setContactAvailability(false);
-    const err = new Error(data.error || "This E-Tag's free contacts have been used.");
+    // A 402 on this WhatsApp-send endpoint now only means a lapsed premium
+    // subscription — an E-Tag's spent free-call trial no longer reaches this
+    // code path at all (see /api/contact-requests in routes/public/index.js) —
+    // so the fallback describes that case, not a used-up E-Tag.
+    const err = new Error(data.error || "Calling isn't available for this vehicle right now.");
     err.freeUsed = true;
     throw err;
   }
@@ -1216,10 +1246,11 @@ async function handlePlateVerification(event) {
     setRequestStatus("plate-verify-status", "", "info");
     showOnly("scanner-action-shell");
   }
-  // Reflect free-usage state: show buttons, or the Purchase CTA if used up.
-  // Whether this tag has anything left is only knowable after the plate
-  // checks out — the load payload deliberately withholds it, so that scanning
-  // a stranger's tag cannot be used to probe how it has been used.
+  // Reflect free-usage state: both tiles, Private Call retired, or (lapsed
+  // premium only) the full "calling isn't available" CTA. Whether this tag
+  // has anything left is only knowable after the plate checks out — the load
+  // payload deliberately withholds it, so that scanning a stranger's tag
+  // cannot be used to probe how it has been used.
   contactBlockedCode = data.contactBlockedCode || null;
   setContactAvailability(data.contactAvailable !== false);
 
@@ -1446,7 +1477,18 @@ async function handleFinalCallAction() {
     });
 
     if (status === 402) {
-      setContactAvailability(false);
+      // FREE_USED retires Private Call only — WhatsApp stays live, same as
+      // the state /verify would have reported had the trial already run out
+      // by then. CALL_SUBSCRIPTION_REQUIRED (lapsed premium) is the full
+      // block; in practice /verify already caught that case earlier and this
+      // branch is not reached, but the check stays honest about what the
+      // server just said rather than assuming which one it must be.
+      contactBlockedCode = data.code || contactBlockedCode;
+      if (data.code === "FREE_USED") {
+        applyCallBlocked(true);
+      } else {
+        setContactAvailability(false);
+      }
       callSteps.fail("");
       callSteps.destroy();
       releaseCall();
@@ -1722,7 +1764,8 @@ async function handleWhatsAppNotify() {
     actionLocked = false;
     setDisabled("call-owner-button", false);
     setDisabled("send-whatsapp-button", false);
-    // A 402 (free contact used) already flips the UI to the Purchase CTA.
+    // A 402 (lapsed premium) already flips the UI to the "calling isn't
+    // available" CTA.
     if (!error.freeUsed) {
       setRequestStatus(
         "request-status",

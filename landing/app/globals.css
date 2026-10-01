@@ -135,6 +135,14 @@ details summary { list-style: none; }
 }
 .pt-rotator {
   display: inline-grid;
+  /* A fill-in-the-blank line under the word. The words change width as they
+     rotate; the line does not, because it belongs to the box, which is as wide
+     as the longest word. It reads as a slot being filled rather than a link or
+     a button, which is how visitors were tapping it. */
+  background-image: repeating-linear-gradient(90deg, rgba(255, 255, 255, .55) 0 5px, transparent 5px 9px);
+  background-repeat: no-repeat;
+  background-size: 100% 2px;
+  background-position: 0 calc(100% - 2px);
 }
 .pt-rotator > span {
   grid-area: 1 / 1;

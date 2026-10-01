@@ -22,6 +22,15 @@ import { ImageZoom } from "./components/ImageZoom";
 // and nothing linked to it. It now lives at /shop, and /get redirects there.
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.parktag.me";
 
+// Each promise in the hero row jumps to the part of the page that backs it up.
+// They are tapped as if they were buttons (Clarity recordings of ad visitors),
+// and a visitor who taps "No number sharing" is asking for proof of it.
+const HERO_CHIP_LINKS: Record<string, string> = {
+  "No app required": "#why-parktag",
+  "Easy installation": "#installation",
+  "No number sharing": "#how-it-works"
+};
+
 
 /* ── Brand Sticker ── */
 const QR_DOTS: [number, number][] = [
@@ -242,10 +251,13 @@ export default async function Home() {
                   ] as [string, string, React.ReactNode][]).map(([label, hide, icon], i) => (
                     <li key={label} className={`items-center gap-x-4 ${hide || "inline-flex"}`}>
                       {i > 0 && <span aria-hidden="true" className="w-px h-4 bg-white/15" />}
-                      <span className="inline-flex items-center gap-2">
+                      <a
+                        href={HERO_CHIP_LINKS[label]}
+                        className="inline-flex items-center gap-2 transition-colors hover:text-white focus-visible:text-white"
+                      >
                         <span className="text-[#FEE600]">{icon}</span>
-                        {label}
-                      </span>
+                        <span className="underline decoration-dotted decoration-white/40 underline-offset-4">{label}</span>
+                      </a>
                     </li>
                   ))}
                 </ul>
@@ -467,7 +479,7 @@ export default async function Home() {
         </section>
 
         {/* ── WHY PARKTAG ── */}
-        <section className="bg-gray-50 py-20 sm:py-28">
+        <section id="why-parktag" className="bg-gray-50 py-20 sm:py-28 scroll-mt-16">
           <div className="max-w-5xl mx-auto px-4 sm:px-6">
             <div className="grid md:grid-cols-2 gap-14 lg:gap-20 items-center">
 
@@ -528,7 +540,7 @@ export default async function Home() {
           steps one through three, so the sequence just stopped rather than
           arriving anywhere; it is the payoff and now reads as one.
         */}
-        <section id="how-it-works" data-nav-dark className="bg-[#03162D] py-20 sm:py-28">
+        <section id="how-it-works" data-nav-dark className="bg-[#03162D] py-20 sm:py-28 scroll-mt-16">
           <div className="max-w-3xl mx-auto px-4 sm:px-6">
 
             <div className="text-center mb-14">
@@ -633,7 +645,7 @@ export default async function Home() {
 
         {/* ── REAL INSTALLS ── */}
         {/* Our own photos and footage of real tags. No stock, no renders. */}
-        <section className="bg-white py-20 sm:py-28">
+        <section id="installation" className="bg-white py-20 sm:py-28 scroll-mt-16">
           <div className="max-w-5xl mx-auto px-4 sm:px-6">
             <AnimateIn>
               <p className="mb-4"><SectionLabel>Real tags, real cars</SectionLabel></p>

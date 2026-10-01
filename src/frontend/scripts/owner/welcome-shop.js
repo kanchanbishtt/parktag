@@ -195,6 +195,48 @@ function renderShop() {
   `).join("");
 }
 
+// ── Surviving a reload ────────────────────────────────────────
+//
+// The product sheet, the delivery address step and the pack step are overlays
+// on the dashboard, not pages, so a reload used to drop the buyer back on the
+// shop grid with all three closed. Which one is open is kept here, in this
+// tab's sessionStorage, and put back on load (see _resumeCheckout at the end of
+// this file). The address being typed is kept by the address sheet itself.
+//
+//   step "product"  the product sheet is open
+//   step "address"  BUY NOW was tapped and the address step is up
+//   step "pack"     the address is done and the pack step is open
+//
+// Cleared when a sheet is dismissed, when an order is placed or paid (both go
+// through closePackSheet), and with everything else at sign-out.
+const CHECKOUT_KEY = "pt_dash_checkout";
+
+function _readCheckout() {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(CHECKOUT_KEY) || "null");
+    return saved && typeof saved === "object" && typeof saved.sku === "string" ? saved : null;
+  } catch {
+    return null; // private mode, storage disabled, corrupt value: never fatal
+  }
+}
+
+function _keepCheckout(patch) {
+  try { sessionStorage.setItem(CHECKOUT_KEY, JSON.stringify({ ...(_readCheckout() || {}), ...patch })); } catch { /* ignore */ }
+}
+
+function _forgetCheckout() {
+  try { sessionStorage.removeItem(CHECKOUT_KEY); } catch { /* ignore */ }
+}
+
+// Read once, before anything can overwrite it. While it is set, this reload
+// owns the checkout: a ?shop=1&sku= link still in the address bar must not
+// start a second one on top of it (see ptStartBuy).
+let _resumeCheckout = _readCheckout();
+// Fixed for this page load. The link's own start can arrive before or after
+// the restore below has run, so it is refused on this, not on the variable the
+// restore clears.
+const _resumingOnLoad = Boolean(_resumeCheckout);
+
 // ── Open product detail ───────────────────────────────────────
 let _activeProduct = null;
 let _activeVariant = 0;
@@ -202,6 +244,7 @@ let _activeVariant = 0;
 function openProduct(idx) {
   _activeProduct = idx;
   _activeVariant = 0;
+  _keepCheckout({ sku: PRODUCTS[idx].id, variant: 0, step: "product" });
   renderSheet();
 
   if (window.ptTrack) {
@@ -215,6 +258,9 @@ function openProduct(idx) {
 }
 
 function closeProduct() {
+  // The pack step calls this on its way in and then records itself, so this
+  // only forgets a checkout that had not got that far.
+  _forgetCheckout();
   document.getElementById("ptBackdrop").classList.remove("open");
   document.getElementById("ptSheet").classList.remove("open");
   document.body.style.overflow = "";
@@ -222,6 +268,7 @@ function closeProduct() {
 
 function selectVariant(i) {
   _activeVariant = i;
+  _keepCheckout({ variant: i });
   document.querySelectorAll(".pt-sheet-var").forEach((el, j) => {
     el.classList.toggle("active", j === i);
   });
@@ -280,6 +327,10 @@ window.ptStartBuy = function ptStartBuy(sku) {
   const idx = PRODUCTS.findIndex((p) => p.id === sku);
   if (idx === -1) return false;
 
+  // Reloaded mid-checkout with the link still in the address bar: the saved
+  // checkout is being put back, at the step the buyer had reached.
+  if (_resumingOnLoad) return true;
+
   openProduct(idx);
   handleBuyNow();
   return true;
@@ -292,8 +343,14 @@ async function handleBuyNow() {
   // the "Choose your pack" step so the user configures their tags before paying.
   loadShopPricing(); // warm the price list while the address step is up
   if (typeof window.ptCollectAddress === "function") {
+    _keepCheckout({ sku: p.id, variant: _activeVariant, step: "address" });
     const haveAddress = await window.ptCollectAddress();
-    if (!haveAddress) return; // user backed out of the address step
+    if (!haveAddress) {
+      // Backed out of the address step. The product sheet is still open
+      // underneath, so that is where a reload should return to.
+      _keepCheckout({ step: "product" });
+      return;
+    }
   }
   openPackSheet(p.id, variant);
 }
@@ -487,20 +544,22 @@ function openPackSheet(preselectId, variant) {
     if (document.getElementById("ptPackSheet").classList.contains("open")) renderPackSheet();
   });
   closeProduct(); // leave the product sheet; show the pack step
+  _keepCheckout({ sku: preselectId, step: "pack", packVariant: _packVariant, tier: _packTier, bike: _packBike });
   document.getElementById("ptPackBackdrop").classList.add("open");
   document.getElementById("ptPackSheet").classList.add("open");
   document.body.style.overflow = "hidden";
 }
 
 function closePackSheet() {
+  _forgetCheckout(); // dismissed, or the order is placed: nothing to reopen
   document.getElementById("ptPackBackdrop").classList.remove("open");
   document.getElementById("ptPackSheet").classList.remove("open");
   document.body.style.overflow = "";
 }
 
 // Car tier acts like a deselectable radio: tapping the selected one clears it.
-function selectPackTier(id) { _packTier = _packTier === id ? null : id; renderPackSheet(); }
-function togglePackBike() { _packBike = !_packBike; renderPackSheet(); }
+function selectPackTier(id) { _packTier = _packTier === id ? null : id; _keepCheckout({ tier: _packTier }); renderPackSheet(); }
+function togglePackBike() { _packBike = !_packBike; _keepCheckout({ bike: _packBike }); renderPackSheet(); }
 
 // Map the current selection → the single catalog SKU the backend prices.
 // car+bike → combined SKU, car only → car SKU, bike only → pt-bike-1, none → null.
@@ -1085,3 +1144,46 @@ _restoreTabFromHash();
 // Someone editing the fragment by hand, or a back/forward that crosses a
 // fragment set by something other than switchTab.
 window.addEventListener("hashchange", _restoreTabFromHash);
+
+// ── Restore an open checkout on load ─────────────────────────────
+//
+// Reloaded with the product sheet, the address step or the pack step open: put
+// the buyer back on the one they were on. After DOMContentLoaded, not now: the
+// address step is fetched by a deferred script, and reopening before it exists
+// would skip the address and go straight to the pack step.
+function _restoreCheckout() {
+  const saved = _resumeCheckout;
+  if (!saved) return;
+
+  // Untrusted: it came out of storage. Anything that does not name a product
+  // this shop sells, or a step it has, is dropped.
+  const idx = PRODUCTS.findIndex((p) => p.id === saved.sku);
+  const packSku = saved.step === "pack" && (PACK_PRICES[saved.sku] || idx !== -1);
+  if ((idx === -1 && !packSku) || !["product", "address", "pack"].includes(saved.step)) {
+    _resumeCheckout = null;
+    _forgetCheckout();
+    return;
+  }
+
+  switchTab("shop");
+
+  if (saved.step === "pack") {
+    openPackSheet(saved.sku, typeof saved.packVariant === "string" ? saved.packVariant : undefined);
+    // The selection as it stood, where it is one the sheet can show.
+    if (saved.tier === null || PACK_PRICES[saved.tier]) _packTier = saved.tier;
+    if (typeof saved.bike === "boolean") _packBike = saved.bike;
+    _keepCheckout({ tier: _packTier, bike: _packBike });
+    renderPackSheet();
+    _resumeCheckout = null;
+    return;
+  }
+
+  openProduct(idx);
+  const variants = PRODUCTS[idx].variants || [];
+  if (Number.isInteger(saved.variant) && saved.variant > 0 && saved.variant < variants.length) selectVariant(saved.variant);
+  _resumeCheckout = null;
+  if (saved.step === "address") handleBuyNow();
+}
+
+if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", _restoreCheckout);
+else _restoreCheckout();

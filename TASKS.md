@@ -1081,3 +1081,29 @@ Covers UX and security improvements made after M13 call flow was confirmed worki
 - [ ] Manual pass with real Firebase keys: send SMS, reload, confirm the timer is still counting; wait it out and confirm Resend works.
 - [x] "I'm not a robot" card overflowed the sign-in card on phones when trying SMS: Google's `normal` widget is a fixed 304px, the card leaves `viewport - 82px` (278px on a 360px phone). `firebase-sms.js` now measures the container and asks for `compact` (164px) when `normal` will not fit; the container is centred and clipped to the card. Tests in `sms-captcha-size.test.js`.
 - [ ] Look at the captcha on a real phone with Firebase keys (360px and 390px wide): compact card centred on the first, normal card centred on the second.
+
+## A reload no longer loses the checkout, 2026-10-01
+
+- [x] Reported: the delivery address step disappears on reload. Found the cause: the step is one shared sheet (`scripts/owner/address-step.js`) opened by four pages, and only `/get` restored it. `/shop`, `/direct` and the dashboard shop closed it and lost everything typed.
+- [x] The sheet keeps its own draft (fields, Cash on Delivery choice, an unticked WhatsApp box) in `sessionStorage`, so every page that opens it gets the typed address back. `/get`'s own copy of that logic is removed.
+- [x] `/shop` and `/direct` reopen the delivery step on the same pack after a reload, and keep the add-on tick; `/direct` also keeps the pack counts and the typed code. Shared storage in `scripts/checkout-cart.js`.
+- [x] Dashboard shop: the product sheet, the delivery step and the pack step (with its selection) each come back after a reload.
+- [x] Backing out is not reopened; a paid or placed order clears everything; a reopened checkout is not counted as a new `begin_checkout`; a sold-out or junk saved pack is ignored; with storage disabled the pages behave as before.
+- [x] After a reload the sheet reuses its history entry, so Back does not need two presses.
+- [x] Tests: `checkout-survives-reload.test.js` (30, real pages and the real sheet in jsdom; 13 of the first 21 fail on the old code). `direct-coupon-page.test.js` harness given the new shared module.
+- [x] Confirmed on the local server that `/shop`, `/get` and `/direct` serve 200 and that the new `checkout-cart.js` import is stamped and served.
+- [ ] Not checked in a real browser (this Mac has only Safari, which cannot be driven without enabling remote automation). After deploy, on a phone: open `/shop`, tap Order, type half an address, reload, and confirm the step is back with the text. Repeat on `/direct` and in the dashboard shop.
+- [ ] A reload while Razorpay's own payment window is open returns to the delivery step (public pages) or the pack step (dashboard), with the address still filled in. Razorpay's window itself cannot be restored.
+
+## Checkout speed: the wait before Razorpay opens, 2026-10-01
+
+- [x] Reported: Razorpay's window takes 2 to 3 seconds on `/shop` and 5 to 6 on `/get`. Measured production with read-only requests: every request costs about 250 ms before the app runs (edge in Singapore, app server about 170 ms beyond it), and each database trip roughly 120 to 240 ms. Guest `create-order` did its database trips, the courier lookup and the Razorpay call one after another. `/get` also re-fetched an expired reCAPTCHA token at the tap. Written up in `wiki/checkout-speed.md`.
+- [x] `/get` keeps its bot-check token fresh while the delivery step is open (`scripts/fresh-captcha.js`), so the tap never waits for Google.
+- [x] New `POST /api/shop/guest/warm` (pincode only, returns nothing, rate limited): the address sheet calls it when the pincode is complete and when the form is, so the courier's answer is cached and the Razorpay connection is open before the tap.
+- [x] The server keeps its connection to Razorpay open between orders (`payments.js`), and `warmRazorpay` opens it early with the same read-only request the boot check uses.
+- [x] Guest `create-order` starts the courier lookup, the referral lookup and the unscored-order cap alongside the bot check, and creates the Razorpay order and the order number together. Decisions are taken in the original order. One cost: an order number is skipped on the rare order Razorpay refuses.
+- [x] `/shop` opens its connections to Razorpay's hosts at the tap.
+- [x] Simulated with production latencies: order creation 2715 ms before, 1014 ms after when warmed (2513 ms when nothing was warmed). Tests: `checkout-speed.test.js` (22).
+- [ ] **Decide on moving the Railway service to a region near the database and India.** It is the largest remaining lever and affects every page. Check the Atlas cluster region first: the app and the database must end up near each other.
+- [ ] After deploy, time a real order on `/shop` and `/get` on a phone, once straight through and once after waiting three minutes on the address form.
+- [ ] `/direct` still mints its bot-check token at the tap, and the signed-in dashboard checkout is unchanged. Apply the same fixes if wanted.

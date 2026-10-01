@@ -8,6 +8,10 @@ import { JSDOM } from "jsdom";
 const html = fs.readFileSync(new URL("../../frontend/pages/direct.html", import.meta.url), "utf8");
 const src = fs.readFileSync(new URL("../../frontend/scripts/direct.js", import.meta.url), "utf8")
   .replace(/^import .*$/gm, "");
+// The imports are stripped above and stood in for on the window below. This one
+// is the real module, made a plain function: the page's cart must really work.
+const cartSrc = fs.readFileSync(new URL("../../frontend/scripts/checkout-cart.js", import.meta.url), "utf8")
+  .replace(/^export /gm, "");
 
 const PRODUCTS = {
   "pt-car-1": { name: "ParkTag Car Tag (Pack of 1)", amountPaise: 29900 },
@@ -27,6 +31,7 @@ async function boot(url) {
   w.Element.prototype.scrollTo = () => {};
   w.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
   w.referralCode = () => null; w.clearReferralCode = () => {};
+  w.eval(cartSrc);
   w.fetch = async (u, opts) => {
     const json = (o) => ({ ok: true, json: async () => o });
     if (u.includes("public-catalogue")) {

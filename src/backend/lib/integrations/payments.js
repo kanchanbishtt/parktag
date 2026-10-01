@@ -1,3 +1,4 @@
+import https from "node:https";
 import Razorpay from "razorpay";
 import crypto from "node:crypto";
 
@@ -75,15 +76,59 @@ export function isRazorpayConfigured(env) {
 // test pointing at other ones) gets a new client rather than a stale one.
 const razorpayClients = new Map();
 
+// The connection to Razorpay is kept open between calls.
+//
+// Creating an order is the slowest step of a checkout, and most of that was
+// not Razorpay working: it was this server opening a fresh TCP and TLS
+// connection to api.razorpay.com for every single order, which is three round
+// trips before the request is even sent. Node's default agent drops an idle
+// connection after five seconds, and orders arrive minutes apart, so in
+// practice no order ever reused one.
+//
+// With this agent a connection stays open until Razorpay closes it, and
+// warmRazorpay() below opens one a few seconds before it is needed.
+const razorpayAgent = new https.Agent({ keepAlive: true, maxSockets: 8 });
+
 export function getRazorpay(env) {
   if (!isRazorpayConfigured(env)) return null;
   const cacheKey = `${env.razorpayKeyId}:${env.razorpayKeySecret}`;
   let client = razorpayClients.get(cacheKey);
   if (!client) {
     client = new Razorpay({ key_id: env.razorpayKeyId, key_secret: env.razorpayKeySecret });
+    // The SDK's own axios instance. If a future version moves it, this simply
+    // does nothing and the SDK keeps its default behaviour.
+    if (client.api?.rq?.defaults) client.api.rq.defaults.httpsAgent = razorpayAgent;
     razorpayClients.set(cacheKey, client);
   }
   return client;
+}
+
+// Open the connection to Razorpay before the order that needs it.
+//
+// Called when a buyer is about to pay (routes/shop: /api/shop/guest/warm). The
+// request is the same read-only `GET /v1/orders?count=1` the boot check makes:
+// it creates nothing, and its answer is not even read. What matters is that
+// the TLS handshake is done, so create-order a moment later pays one round
+// trip, not four.
+//
+// At most once every WARM_EVERY_MS per process: a connection that was just
+// opened or used is still open, and a busy checkout must not turn into a
+// stream of list requests. Never throws and never rejects.
+const WARM_EVERY_MS = 20 * 1000;
+let lastRazorpayWarmAt = 0;
+
+export function warmRazorpay(env, { now = Date.now() } = {}) {
+  const client = getRazorpay(env);
+  const rq = client?.api?.rq;
+  if (!rq || typeof rq.get !== "function") return false;
+  if (now - lastRazorpayWarmAt < WARM_EVERY_MS) return false;
+  lastRazorpayWarmAt = now;
+  // A warm-up that fails changes nothing: the order opens its own connection.
+  try {
+    Promise.resolve(rq.get("/v1/orders", { params: { count: 1 }, timeout: 5000, validateStatus: () => true }))
+      .catch(() => {});
+  } catch { /* same */ }
+  return true;
 }
 
 // Turn the HTTP status of a credential probe into what should be logged.

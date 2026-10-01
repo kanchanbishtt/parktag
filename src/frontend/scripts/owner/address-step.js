@@ -64,6 +64,103 @@
   var resendTimer = null;
   var RESEND_SECONDS = 30; // above the server's 20s double-submit window
 
+  // ── Surviving a reload ────────────────────────────────────────────────────
+  //
+  // A reload used to throw away every line typed into this sheet, on every page
+  // that opens it. /get kept its own copy by reading this sheet's elements from
+  // outside; /shop, /direct and the dashboard kept nothing. So the sheet now
+  // keeps its own draft: the fields, the Cash on Delivery choice and an
+  // UNTICKED WhatsApp box. Whichever page opens it next gets them back.
+  //
+  // The page decides whether to REOPEN the sheet after a reload, because only
+  // the page knows which pack was being bought. This file only makes sure that
+  // when it does, nothing has to be typed twice.
+  //
+  // sessionStorage, not localStorage: an address is personal, so it lasts for
+  // this tab and is gone when the tab closes. The mode is stored with it, so a
+  // guest's draft is never poured into a signed-in owner's profile form.
+  var DRAFT_KEY = "pt_addr_draft";
+
+  function draftRead() {
+    try {
+      var d = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || "null");
+      var mode = guestMode ? "guest" : "owner";
+      return d && typeof d === "object" && d.mode === mode && d.fields && typeof d.fields === "object" ? d : null;
+    } catch (_) {
+      return null; // private mode, storage disabled, corrupt value: never fatal
+    }
+  }
+
+  // Called on every keystroke and choice, and after the sheet fills a box
+  // itself (the pincode lookup, a picked suggestion), which fires no event.
+  function draftKeep() {
+    // Only while the sheet is up. A pincode lookup that answers after the sheet
+    // was dismissed must not write a draft back that the dismissal just cleared.
+    if (!els || !resolver) return;
+    var fields = {};
+    FIELDS.forEach(function (f) {
+      var value = els.inputs[f.key].value;
+      if (value) fields[f.key] = value;
+    });
+    try {
+      sessionStorage.setItem(DRAFT_KEY, JSON.stringify({
+        mode: guestMode ? "guest" : "owner",
+        fields: fields,
+        pay: payChoice,
+        optIn: !!(els.optIn && els.optIn.checked)
+      }));
+    } catch (_) { /* ignore */ }
+  }
+
+  // Once the order exists (or the address is saved to the profile) there is
+  // nothing left to bring back, and a finished purchase must not prefill the
+  // next one. Exposed as ptCollectAddress.clearDraft for the pages to call.
+  function draftClear() {
+    try { sessionStorage.removeItem(DRAFT_KEY); } catch (_) { /* ignore */ }
+  }
+
+  // ── Getting the slow things ready before the tap ──────────────────────────
+  //
+  // When a guest taps "Continue to pay" the server has to ask the courier
+  // whether the pincode is served and open a connection to Razorpay, and the
+  // buyer used to wait for both. Neither needs the tap: the pincode is known
+  // as soon as it is typed, and the payment is a few seconds away once the
+  // form is complete. So the server is told at those two moments
+  // (POST /api/shop/guest/warm) and does that work while the buyer is still
+  // reading the form.
+  //
+  // Only the pincode is sent. Not the name, the phone or the address: nothing
+  // personal leaves this sheet before the buyer presses the button. Nothing
+  // comes back and nothing here depends on it, so a call that fails, or is
+  // blocked, costs the buyer only the speed-up.
+  var WARM_EVERY_MS = 20 * 1000;
+  var warmedPin = "";
+  var warmedAt = 0;
+
+  function warmCheckout() {
+    // Guests only: the signed-in checkout goes through a different route.
+    if (!guestMode || !els || !resolver) return;
+    var pin = els.inputs.pincode.value;
+    if (!/^[1-9][0-9]{5}$/.test(pin)) return;
+    var now = Date.now();
+    if (pin === warmedPin && now - warmedAt < WARM_EVERY_MS) return;
+    warmedPin = pin;
+    warmedAt = now;
+    try {
+      fetch("/api/shop/guest/warm", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ pincode: pin })
+      }).catch(function () { /* a hint, never an error */ });
+    } catch (_) { /* a hint, never an error */ }
+  }
+
+  // The form as it stands would be accepted: the tap is close.
+  function warmIfComplete() {
+    if (!guestMode || !els || !resolver) return;
+    if (validate(readForm()) === null) warmCheckout();
+  }
+
   // The sheet is an overlay on the page, not a page of its own, so the phone's
   // back button used to leave the storefront altogether — and in an in-app
   // browser (Instagram, the Google app) that meant a blank tab. Opening the
@@ -417,7 +514,10 @@
       });
     });
     els.inputs.pincode.addEventListener("input", function () {
-      if (/^[1-9][0-9]{5}$/.test(this.value)) lookupPin(this.value);
+      if (/^[1-9][0-9]{5}$/.test(this.value)) {
+        lookupPin(this.value);
+        warmCheckout(); // the courier can be asked about this pincode now
+      }
     });
 
     // Street suggestions under House / Flat, Street, as other checkouts do.
@@ -458,6 +558,15 @@
     els.deliver.addEventListener("click", function () { close(true); });
     // Confirm view: they've moved — open the prefilled form to change it.
     els.edit.addEventListener("click", function () { showForm(savedAddress); });
+
+    // Everything typed or chosen in the sheet is kept for a reload. On the
+    // overlay, so it runs after the payment choice's own handler has updated
+    // payChoice (that listener sits on an inner element and fires first).
+    ov.addEventListener("input", draftKeep);
+    ov.addEventListener("change", draftKeep);
+    // And once the form is complete, the payment is seconds away.
+    ov.addEventListener("input", warmIfComplete);
+    ov.addEventListener("change", warmIfComplete);
 
     els.save.addEventListener("click", onSave);
     els.code.addEventListener("input", function () {
@@ -674,6 +783,7 @@
       els.inputs.pincode.value = sg.pincode;
       lookupPin(sg.pincode);
     }
+    draftKeep();
     hideSugg();
     if (typeof window.clarity === "function") window.clarity("event", "address_suggestion_used");
   }
@@ -697,6 +807,7 @@
         var state = STATES.filter(function (st) { return st.toLowerCase() === String(office.State || "").toLowerCase(); })[0];
         if (state) pinState = { pin: pin, state: state };
         if (!els.inputs.state.value && state) els.inputs.state.value = state;
+        draftKeep();
       })
       .catch(function () { /* typed by hand instead */ })
       .then(function () { if (timer) clearTimeout(timer); });
@@ -761,6 +872,19 @@
     // else. Only ever fills a blank; a saved address always wins.
     if (!els.inputs.fullName.value && profileName) {
       els.inputs.fullName.value = profileName;
+    }
+    // What was typed here before a reload wins over all of the above: it is the
+    // newest thing the buyer told us. Only what they actually typed; a box they
+    // left empty keeps its prefill.
+    var draft = draftRead();
+    if (draft) {
+      FIELDS.forEach(function (f) {
+        var typed = draft.fields[f.key];
+        if (typeof typed === "string" && typed) els.inputs[f.key].value = typed;
+      });
+      // Only ever restored as OFF. A buyer who unticked the WhatsApp box must
+      // not find it ticked again because they reloaded.
+      if (draft.optIn === false && els.optIn) els.optIn.checked = false;
     }
     // Two lines of copy that are only true when there is an account behind the
     // sheet. A guest is not saving anything to a profile, and telling them so
@@ -854,6 +978,7 @@
       }
       var data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.error || "Could not save address.");
+      draftClear(); // it is on the profile now
       close(true);
     } catch (e) {
       showErr(e.message || "Could not save address. Please try again.");
@@ -980,6 +1105,12 @@
     if (guestMode && !saved && typeof window.clarity === "function") {
       window.clarity("event", "checkout_dismissed");
     }
+    // A signed-in owner who backs out has abandoned whatever they were typing:
+    // their saved address stands, and the next open must show it, not a
+    // half-made edit. (A reload never comes through here, so it keeps the
+    // draft.) A guest's draft is kept either way: they have no saved address
+    // to fall back on, and backing out to pick another pack is ordinary.
+    if (!guestMode && !saved) draftClear();
     dismiss();
     // Closed by Deliver, Cancel, the backdrop or Escape: take the sheet's
     // history entry with it, or the next back press would be a dud.
@@ -1082,10 +1213,17 @@
       clearTimeout(closeTimer);
       els.ov.classList.remove("pt-closing");
       els.ov.classList.add("pt-open");
+      // After a reload the entry this sheet added is still the current one, so
+      // it is adopted, not added to: a second push would make the back button
+      // need two presses to leave.
       if (!historyEntry) {
         try {
-          window.history.pushState({ ptAddressSheet: true }, "");
-          historyEntry = true;
+          if (window.history.state && window.history.state.ptAddressSheet) {
+            historyEntry = true;
+          } else {
+            window.history.pushState({ ptAddressSheet: true }, "");
+            historyEntry = true;
+          }
         } catch (_) { /* no history to speak of: back leaves the page, as before */ }
       }
       // A guest has no saved address and no profile, so both lookups would be
@@ -1094,6 +1232,12 @@
         savedAddress = null;
         profileName = "";
         showForm(null);
+        // Cash on Delivery, if it was chosen before a reload and this open
+        // still offers it. setPayChoice re-prices the total and the button.
+        var kept = draftRead();
+        if (kept && kept.pay === "cod" && payPrices) setPayChoice("cod");
+        // An address restored after a reload may already be complete.
+        warmIfComplete();
         if (typeof window.clarity === "function") {
           window.clarity("event", "address_started");
         }
@@ -1108,10 +1252,15 @@
         var addr = results[0];
         profileName = results[1] || "";
         savedAddress = addr;
-        if (addr) showConfirm(addr);
-        else showForm(null);
+        // A draft in owner mode means the page was reloaded while the form was
+        // being filled in (backing out clears it), so go back to the form with
+        // what was typed, not to the confirm card.
+        if (addr && !draftRead()) showConfirm(addr);
+        else showForm(addr);
         popIn();
       });
     });
   };
+  // For the pages: forget the typed address once the order is placed or paid.
+  window.ptCollectAddress.clearDraft = draftClear;
 })();

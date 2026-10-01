@@ -15,6 +15,8 @@
 import { getCaptchaToken } from "./recaptcha.js";
 import { burstConfetti, clearConfetti } from "./confetti.js";
 import { referralCode, clearReferralCode } from "./referral-link.js";
+import { checkoutCart } from "./checkout-cart.js";
+import { keepFreshToken } from "./fresh-captcha.js";
 const PACKS = [
   {
     id: "pt-car-1",
@@ -362,76 +364,12 @@ let _maxQty = 20;
 //
 // A reload used to throw away everything the buyer had done: the pack counts,
 // the add-on tick, the open checkout and every line of the address typed into
-// it. All of that is kept here and put back on load.
+// it. The choices are kept here and put back on load; the address is kept by
+// the address sheet itself (owner/address-step.js), which every page shares.
 //
-// sessionStorage, not localStorage: this is one visit's cart and the address is
-// personal, so it survives a reload of the tab and is gone when the tab closes.
 // Cleared outright once an order is paid or placed, so a finished purchase is
 // never reopened by the next refresh.
-const CART_KEY = "pt_get_cart";
-const DRAFT_FIELDS = ["fullName", "phone", "line1", "line2", "landmark", "city", "state", "pincode"];
-let _draftWired = false;
-
-function cartRead() {
-  try {
-    const cart = JSON.parse(sessionStorage.getItem(CART_KEY) || "{}");
-    return cart && typeof cart === "object" && !Array.isArray(cart) ? cart : {};
-  } catch {
-    return {}; // private mode, storage disabled, corrupt value, never fatal
-  }
-}
-
-function cartSave(patch) {
-  try { sessionStorage.setItem(CART_KEY, JSON.stringify({ ...cartRead(), ...patch })); } catch { /* ignore */ }
-}
-
-function cartClear() {
-  try { sessionStorage.removeItem(CART_KEY); } catch { /* ignore */ }
-}
-
-// Refills the shared address sheet from the saved draft, and from then on keeps
-// the draft in step with what is typed. Reads the sheet's own element ids rather
-// than changing address-step.js, which the signed-in flows share.
-function draftRestore() {
-  const ov = byId("pt-addr-ov");
-  if (!ov) return;
-  const cart = cartRead();
-  const address = cart.address && typeof cart.address === "object" ? cart.address : {};
-  for (const key of DRAFT_FIELDS) {
-    const input = byId(`pt-addr-${key}`);
-    if (input && typeof address[key] === "string" && address[key]) input.value = address[key];
-  }
-  // Only ever restored as OFF. A buyer who unticked the WhatsApp box must not
-  // find it ticked again because they refreshed.
-  if (cart.optIn === false) {
-    const box = byId("pt-addr-optin");
-    if (box) box.checked = false;
-  }
-  // Cash on Delivery, only when this open actually offers it. The change event
-  // is what makes the sheet re-price the total and relabel its button.
-  if (cart.pay === "cod") {
-    const choice = byId("pt-addr-paychoice");
-    const radio = choice && !choice.classList.contains("pt-hide") && choice.querySelector("input[value='cod']");
-    if (radio) {
-      radio.checked = true;
-      radio.dispatchEvent(new Event("change", { bubbles: true }));
-    }
-  }
-
-  if (_draftWired) return;
-  _draftWired = true;
-  const keep = () => {
-    const draft = {};
-    for (const key of DRAFT_FIELDS) {
-      const input = byId(`pt-addr-${key}`);
-      if (input && input.value) draft[key] = input.value;
-    }
-    const pay = ov.querySelector("input[name='pt-addr-pay']:checked");
-    cartSave({ address: draft, optIn: !!byId("pt-addr-optin")?.checked, pay: pay ? pay.value : "online" });
-  };
-  ov.addEventListener("input", keep);
-  ov.addEventListener("change", keep);
-}
+const { read: cartRead, save: cartSave, clear: cartClear } = checkoutCart("pt_get_cart");
 
 // ── Remembering an order the buyer may never see confirmed ─────────────────
 //
@@ -655,11 +593,6 @@ function preconnect(origin) {
   } catch { /* a hint, never fatal */ }
 }
 
-// Google accepts a reCAPTCHA token for two minutes. One minted when the sheet
-// opened is used only while comfortably inside that; past it, a fresh one is
-// cheap because the script is loaded by then.
-const CAPTCHA_FRESH_MS = 90 * 1000;
-
 async function buy(sku) {
   if (_busy) return;
   _sku = sku;
@@ -670,8 +603,11 @@ async function buy(sku) {
   preconnect("https://checkout.razorpay.com");
   // The bot check, for the same reason. It used to start only at "Continue to
   // pay": fetch the site key, download Google's script, then run it, all while
-  // the buyer watched. Now that happens while they type the address.
-  const earlyCaptcha = { at: Date.now(), token: getCaptchaToken("guest_checkout") };
+  // the buyer watched. Now that happens while they type the address, and it is
+  // kept fresh for as long as that takes (see fresh-captcha.js): a token lasts
+  // two minutes and an address usually takes longer, so the one minted here
+  // was stale by the tap and the buyer waited for another.
+  const captcha = keepFreshToken(() => getCaptchaToken("guest_checkout"));
   // Read once, up front, so the value submitted below can never drift from
   // whatever the stepper happens to show by the time the request lands.
   const quantity = _qty.get(sku) || 1;
@@ -680,6 +616,7 @@ async function buy(sku) {
   _checkedOutAddOn = addOn;
 
   if (typeof window.ptCollectAddress !== "function") {
+    captcha.stop();
     say("The delivery step could not load. Please refresh and try again.");
     return;
   }
@@ -698,7 +635,7 @@ async function buy(sku) {
   const onlinePaise = refOff ? Math.max(totalPaise - refOff, 100) : totalPaise;
   // Marked open before the sheet shows, so a reload from here brings it back.
   cartSave({ checkout: sku });
-  const collecting = window.ptCollectAddress({
+  const picked = await window.ptCollectAddress({
     guest: true,
     // The COD phone check in the sheet sends a code, so it is bot-scored too.
     captchaToken: () => getCaptchaToken("guest_checkout"),
@@ -715,11 +652,8 @@ async function buy(sku) {
         }
       : null
   });
-  // In guest mode the sheet builds and blanks its form synchronously, so the
-  // saved draft goes in straight after, before anything is awaited.
-  draftRestore();
-  const picked = await collecting;
   if (!picked) {
+    captcha.stop();
     cartSave({ checkout: null }); // backed out on purpose: do not reopen it
     return;
   }
@@ -768,8 +702,7 @@ async function buy(sku) {
     // Razorpay's payment window loads from api.razorpay.com the moment this
     // order comes back, so that connection is opened now, in parallel.
     preconnect("https://api.razorpay.com");
-    const early = Date.now() - earlyCaptcha.at < CAPTCHA_FRESH_MS ? await earlyCaptcha.token : "";
-    const recaptchaToken = early || (await getCaptchaToken("guest_checkout"));
+    const recaptchaToken = await captcha.take();
 
     const res = await fetch("/api/shop/guest/create-order", {
       method: "POST",

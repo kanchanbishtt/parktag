@@ -4,6 +4,7 @@ import { captureMetaCheckoutContext } from "../../lib/integrations/meta-checkout
 import { readAttribution } from "../../lib/core/attribution.js";
 import {
   createRazorpayOrder,
+  warmRazorpay,
   verifyRazorpaySignature,
   isRazorpayConfigured,
   getShopProduct,
@@ -919,10 +920,56 @@ export function registerShopRoutes(app, env) {
       // not surface as an unhandled rejection. It still throws where awaited.
       lookups.catch(() => {});
 
-      const captcha = await verifyRecaptcha(env, recaptchaToken, {
+      // ── Everything else that only READS, started now too ─────────────────
+      //
+      // This route used to do its work in a line: the bot check, then the
+      // courier, then the referral, then the reuse lookup, then Razorpay, then
+      // the order number, then the insert. Each waited for the one before, and
+      // each is a round trip to another machine, so a buyer who had tapped
+      // "Continue to pay" watched them queue: measured from the outside, two
+      // to three seconds before Razorpay's window could even begin to open.
+      //
+      // None of the three below depends on another, and none of them writes,
+      // so they now run together with the lookups above and the bot check
+      // below. The DECISIONS are still taken in the same order as before,
+      // further down: each result is only looked at where its check always
+      // stood, so a request that was refused before is refused the same way.
+      //
+      // A request the bot check then refuses has cost a courier lookup it would
+      // not have made before. That is bounded by this route's own per-address
+      // limit, and the answer is cached per pincode.
+      //
+      // The address is validated here to get a pincode and a phone that are
+      // safe to look up. A handover sale uses a different validator (decided by
+      // the code, further down), and then these are simply not used.
+      const earlyAddress = validateAddress(rawAddress);
+      const earlyServiceability = !cod && earlyAddress.ok
+        ? checkPincodeServiceability(env, earlyAddress.address.pincode)
+        : null;
+      const earlyReferral = !cod && earlyAddress.ok && rawRef
+        ? lookups.then(({ collections }) => (collections
+            ? resolveReferral(collections, rawRef, { deliveryPhone: earlyAddress.address.phone })
+            : null))
+        : null;
+      earlyServiceability?.catch(() => {});
+      earlyReferral?.catch(() => {});
+
+      const captchaCheck = verifyRecaptcha(env, recaptchaToken, {
         remoteIp: request.ip,
         expectedAction: "guest_checkout"
       });
+      // The cap on unscored orders COUNTS one, so it runs only in the case it
+      // always ran in: no token at all, and not Cash on Delivery (which is
+      // refused outright below). A missing token is known without asking
+      // Google, so this starts at once, beside everything above.
+      const unscoredGuard = captchaCheck.then(async (result) => (
+        !result.ok && result.reason === "missing-token" && !cod
+          ? unscoredCheckoutExhausted(await getCollections(env), request.ip)
+          : false
+      ));
+      unscoredGuard.catch(() => {});
+
+      const captcha = await captchaCheck;
       if (!captcha.ok) {
         // An ABSENT token is not evidence of a bot, and treating it as one
         // makes an ad blocker a reason somebody cannot buy. Everything else
@@ -949,8 +996,7 @@ export function registerShopRoutes(app, env) {
           };
         }
 
-        const collectionsForGuard = await getCollections(env);
-        if (await unscoredCheckoutExhausted(collectionsForGuard, request.ip)) {
+        if (await unscoredGuard) {
           request.log.warn(
             { event: "guest-checkout-unscored-exhausted" },
             "[guest checkout] too many unscored orders from one address"
@@ -1024,7 +1070,7 @@ export function registerShopRoutes(app, env) {
       // somebody with the sticker in their hand, so there is no parcel to post
       // and no address to collect. Name and phone still are required, because
       // the phone is what later links the activated tag back to this order.
-      const checked = handover ? validateHandoverContact(rawAddress) : validateAddress(rawAddress);
+      const checked = handover ? validateHandoverContact(rawAddress) : earlyAddress;
       if (!checked.ok) { reply.code(400); return { ok: false, error: checked.error }; }
       const shipping = checked.address;
 
@@ -1032,7 +1078,9 @@ export function registerShopRoutes(app, env) {
       // an unservable pincode surfaced only after the money was taken and the
       // booking failed (PT-260927-00037). Same rule as COD: only an explicit
       // "no" refuses, an unknown answer fails open.
-      if (!handover && !cod && (await checkPincodeServiceability(env, shipping.pincode)).serviceable === false) {
+      //
+      // The lookup has been running since the top of this handler.
+      if (!handover && !cod && (await (earlyServiceability || checkPincodeServiceability(env, shipping.pincode))).serviceable === false) {
         reply.code(400);
         return { ok: false, error: "We can't deliver to that pincode. Please check it is your area's postal code." };
       }
@@ -1052,9 +1100,15 @@ export function registerShopRoutes(app, env) {
       //
       // Not on COD, for the reasons in referrals.js: the reward is never granted
       // on a COD order, and COD is the cheap path for faking one.
-      const referral = cod ? { ok: false } : await resolveReferral(collections, rawRef, {
-        deliveryPhone: shipping.phone
-      });
+      //
+      // Already in flight when there is a code and an ordinary address. A
+      // handover validates its contact differently, so it resolves here as
+      // before, against the phone that validator produced.
+      const referral = cod
+        ? { ok: false }
+        : (earlyReferral && !handover
+            ? await earlyReferral
+            : await resolveReferral(collections, rawRef, { deliveryPhone: shipping.phone }));
       const referredBy = referral.ok ? referral.referrerId : null;
       // Why a code the buyer DID send took nothing off, for the page to say so
       // before the payment window opens at a price it did not quote. Null when
@@ -1170,23 +1224,28 @@ export function registerShopRoutes(app, env) {
       if (!isRazorpayConfigured(env)) { reply.code(500); return { ok: false, error: "Razorpay not configured." }; }
 
       try {
-        const order = await createRazorpayOrder(env, {
-          // Server-derived, never the client's. expectedOrderPaise applies the
-          // referral discount if and only if resolveReferral approved one.
-          amount: expectedPaise / 100,
-          receipt: `ptg_${productId}_${Date.now()}`,
-          notes: {
-            productId,
-            productName: addOn ? `${product.name} + ${addOn.name}` : product.name,
-            addOnId: addOn?.id || "",
-            guest: "1",
-            // Razorpay caps a note at 256 characters.
-            breakdown: breakdownText(priceRows).slice(0, 256),
-            ...addressToNotes(shipping)
-          }
-        });
+        // Together, not one after the other: the order number is a counter in
+        // our own database and does not need Razorpay's answer. The one cost
+        // is that a number is skipped on the rare order Razorpay refuses.
+        const [order, orderNumber] = await Promise.all([
+          createRazorpayOrder(env, {
+            // Server-derived, never the client's. expectedOrderPaise applies the
+            // referral discount if and only if resolveReferral approved one.
+            amount: expectedPaise / 100,
+            receipt: `ptg_${productId}_${Date.now()}`,
+            notes: {
+              productId,
+              productName: addOn ? `${product.name} + ${addOn.name}` : product.name,
+              addOnId: addOn?.id || "",
+              guest: "1",
+              // Razorpay caps a note at 256 characters.
+              breakdown: breakdownText(priceRows).slice(0, 256),
+              ...addressToNotes(shipping)
+            }
+          }),
+          generateOrderNumber(collections)
+        ]);
 
-        const orderNumber = await generateOrderNumber(collections);
         await collections.shopOrders.insertOne({
       metaCheckoutContext: captureMetaCheckoutContext(request),
       attribution: readAttribution(request),
@@ -1261,6 +1320,38 @@ export function registerShopRoutes(app, env) {
         reply.code(500);
         return { ok: false, error: "Failed to create order. Please try again." };
       }
+    }
+  );
+
+  // "A buyer is about to pay": get the slow things ready before they tap.
+  //
+  // The delivery step calls this while the buyer is still typing: once when the
+  // pincode is complete, and again when the whole form is. It does the two
+  // things create-order would otherwise wait on at the worst moment:
+  //
+  //   - asks the courier whether the pincode is served, so the answer is in the
+  //     cache when the order asks (see checkPincodeServiceability);
+  //   - opens the connection to Razorpay (warmRazorpay), so creating the order
+  //     does not start with a TLS handshake.
+  //
+  // It takes a pincode and nothing else: no name, no phone, no address, no
+  // cart. It creates nothing, decides nothing and returns nothing, so there is
+  // nothing here to probe, and a call that is dropped or refused costs the
+  // buyer only the speed-up. Answered at once; the work carries on behind it.
+  //
+  // Limited per address like every other open endpoint: each uncached pincode
+  // is a call to the courier, and that must not be anybody's to spend freely.
+  app.post(
+    "/api/shop/guest/warm",
+    { config: { rateLimit: { max: 20, timeWindow: "1 minute" } } },
+    async (request, reply) => {
+      const pincode = typeof request.body?.pincode === "string" ? request.body.pincode : "";
+      if (/^[1-9][0-9]{5}$/.test(pincode)) {
+        checkPincodeServiceability(env, pincode).catch(() => {});
+      }
+      warmRazorpay(env);
+      reply.code(204);
+      return null;
     }
   );
 

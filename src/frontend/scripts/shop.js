@@ -12,6 +12,7 @@
 // decision, so it is written down rather than derived from price.
 import { referralCode, clearReferralCode } from "./referral-link.js";
 import { getCaptchaToken } from "./recaptcha.js";
+import { checkoutCart } from "./checkout-cart.js";
 
 const PACKS = [
   {
@@ -259,6 +260,15 @@ async function showRecall() {
 
 let _sku = null;
 let _busy = false;
+
+// ── Surviving a refresh ────────────────────────────────────────────────────
+//
+// A reload used to close the delivery step and untick the add-on. The add-on
+// tick and the pack whose checkout is open are kept here and put back on load;
+// the address is kept by the address sheet itself. Cleared once an order is
+// paid or placed, so a finished purchase is never reopened by the next refresh.
+const cart = checkoutCart("pt_shop_cart");
+
 // The amount the SERVER priced this order at, kept so the purchase event can
 // report revenue. Measurement only -- nothing is ever charged from it.
 let _paidPaise = 0;
@@ -288,6 +298,7 @@ function renderAddOns(addOns) {
   // Ticking the box, not the order that follows: this is how many people want
   // the plate at all, including the ones who never pay.
   byId("shAddonCheck")?.addEventListener("change", (event) => {
+    cart.save({ addOn: event.target.checked });
     if (event.target.checked && window.ptTrack) {
       ptTrack("add_on_selected", { item_id: addOn.id, value: addOn.amountPaise / 100, currency: "INR" });
     }
@@ -355,9 +366,22 @@ function say(message) {
   note.scrollIntoView({ block: "center", behavior: "smooth" });
 }
 
+// Opens a connection to a host we are about to need. Added at the moment of
+// intent, not written into the HTML: a page-load preconnect is spent on every
+// visitor, and the browser drops an idle one after about ten seconds.
+function preconnect(origin) {
+  try {
+    const link = document.createElement("link");
+    link.rel = "preconnect";
+    link.href = origin;
+    document.head.appendChild(link);
+  } catch { /* a hint, never fatal */ }
+}
+
 async function buy(sku, product) {
   // Fetched in parallel with the address step; only opened after the order.
   window.ptLoadRazorpay();
+  preconnect("https://checkout.razorpay.com");
   if (_busy) return;
   _sku = sku;
 
@@ -372,6 +396,8 @@ async function buy(sku, product) {
   // The sheet is also where the buyer picks online or Cash on Delivery, for a
   // pack the catalogue says takes it.
   const cod = _cod && _cod.productIds.includes(sku) ? _cod : null;
+  // Marked open before the sheet shows, so a reload from here brings it back.
+  cart.save({ checkout: sku });
   const picked = await window.ptCollectAddress({
     guest: true,
     // The COD phone check in the sheet sends a code, and the server wants a
@@ -389,7 +415,10 @@ async function buy(sku, product) {
         }
       : null
   });
-  if (!picked) return;
+  if (!picked) {
+    cart.save({ checkout: null }); // backed out on purpose: do not reopen it
+    return;
+  }
   const { paymentMethod = "online", codToken, ...address } = picked;
 
   if (window.ptTrack && product) {
@@ -426,6 +455,9 @@ async function buy(sku, product) {
 
   let order;
   try {
+    // Razorpay's payment window loads from api.razorpay.com the moment this
+    // order comes back, so that connection is opened now, in parallel.
+    if (paymentMethod !== "cod") preconnect("https://api.razorpay.com");
     // COD only: the server refuses an unscored COD order. Online checkout here
     // stays as it was, with no token.
     const recaptchaToken = paymentMethod === "cod" ? await getCaptchaToken("guest_checkout") : undefined;
@@ -459,6 +491,7 @@ async function buy(sku, product) {
     orderSteps.destroy();
     _busy = false; // the flow is over; let the buyer try again
     closeSheet();
+    cart.save({ checkout: null });
     say((err && err.message) || "Could not start the payment. Please try again.");
     return;
   }
@@ -491,6 +524,7 @@ async function buy(sku, product) {
     orderSteps.destroy();
     _busy = false; // the flow is over; let the buyer try again
     closeSheet();
+    cart.save({ checkout: null });
     say("The payment window could not load. Check your connection and try again.");
     return;
   }
@@ -505,8 +539,11 @@ async function buy(sku, product) {
     image: "/images/parktag-checkout-logo.png",
     prefill: order.prefill || {},
     theme: { color: "#03162D" },
-    modal: { ondismiss: () => { _busy = false; } },
+    modal: { ondismiss: () => { _busy = false; cart.save({ checkout: null }); } },
     handler: async (response) => {
+      // Paid. Forget the cart now rather than after verify: a reload in between
+      // must not reopen a checkout for an order that is already paid.
+      cart.clear();
       try {
         const res = await fetch("/api/shop/guest/verify-payment", {
           method: "POST",
@@ -559,6 +596,7 @@ function showDone(done) {
   { const w = byId("shWorking"); if (w) w.hidden = true; }
   { const d = byId("shDone"); if (d) d.hidden = false; }
   _busy = false;
+  cart.clear(); // the order exists; nothing left to bring back
   // The order exists, so a friend's link is spent. Cleared HERE, not when the
   // order was created: a buyer who closed the payment window and tried again
   // was sent back without the code and charged the full price.
@@ -661,8 +699,24 @@ async function load() {
     : null;
   renderGrid(payload.products, _launchOffer);
   renderAddOns(payload.addOns);
+  // What this tab had chosen before a reload. Set directly, not through a
+  // change event: that would re-fire add_on_selected for a tick the buyer made
+  // before the reload.
+  const saved = cart.read();
+  if (_addOn && typeof saved.addOn === "boolean") {
+    const box = byId("shAddonCheck");
+    if (box) box.checked = saved.addOn;
+  }
   wireCheckout(payload.products);
   byId("shYear").textContent = String(new Date().getFullYear());
+
+  // Reloaded mid-checkout: reopen it on the same pack. The address sheet
+  // refills itself from its own draft. A pack that has since sold out, or left
+  // the catalogue, is not reopened.
+  const resume = PACKS.find((pack) => pack.id === saved.checkout);
+  if (resume && !resume.soldOut && payload.products[resume.id] && !payload.products[resume.id].soldOut) {
+    buy(resume.id, payload.products[resume.id]);
+  }
 
   // After the page is usable, never in front of it.
   showRecall();

@@ -29,6 +29,7 @@
 import { getCaptchaToken } from "./recaptcha.js";
 import { burstConfetti, clearConfetti } from "./confetti.js";
 import { referralCode, clearReferralCode } from "./referral-link.js";
+import { checkoutCart } from "./checkout-cart.js";
 const PACKS = [
   {
     id: "pt-car-1",
@@ -310,6 +311,7 @@ function renderAddOn(addOns) {
   // Ticking the box, not the order that follows: this is how many people want
   // the plate at all, including the ones who never pay.
   byId("gtAddonCheck")?.addEventListener("change", (event) => {
+    cart.save({ addOn: event.target.checked });
     if (event.target.checked && window.ptTrack) {
       ptTrack("add_on_selected", { item_id: addOn.id, value: addOn.amountPaise / 100, currency: "INR" });
     }
@@ -375,6 +377,15 @@ let _paidQty = 1;
 // an element. Floored at 1 wherever it is written: this is "how many of this
 // pack", not a cart with a remove button, so there is no zero.
 const _qty = new Map();
+
+// ── Surviving a refresh ────────────────────────────────────────────────────
+//
+// A reload used to throw away everything the buyer had done on this page: the
+// pack counts, the add-on tick, the code they typed and the open checkout. The
+// choices are kept here and put back on load; the address is kept by the
+// address sheet itself. Cleared once an order is paid or placed, so a finished
+// purchase is never reopened by the next refresh.
+const cart = checkoutCart("pt_direct_cart");
 
 // ── The code ───────────────────────────────────────────────────────────────
 //
@@ -456,6 +467,9 @@ function showCodeState(state) {
 async function checkCode(sku) {
   const note = byId("drCodeNote");
   const code = codeValue();
+  // Kept for a reload, including an empty box: a code the buyer removed must
+  // not come back because the link they arrived on still names it.
+  cart.save({ code });
   if (!note) return;
 
   if (!code) {
@@ -738,7 +752,9 @@ function say(message) {
 // is gone" console error for visitors who never bought anything.
 const loadRazorpay = () => window.ptLoadRazorpay();
 
-async function buy(sku) {
+// `resumed` is a checkout reopened after a reload. It is the same checkout the
+// buyer already began, so it is not counted as beginning one again.
+async function buy(sku, { resumed = false } = {}) {
   if (_busy) return;
   _sku = sku;
   // Fired here, not awaited: clicking "buy" is a real intent signal (unlike a
@@ -778,7 +794,7 @@ async function buy(sku) {
     ? promoState.payablePaise
     : (product?.amountPaise || 0) * quantity;
   const coupon = promoState?.ok ? (promoState.code || codeValue()) : null;
-  if (window.ptTrack) {
+  if (window.ptTrack && !resumed) {
     ptTrack("begin_checkout", {
       method: "guest",
       items: [{ item_id: sku, quantity }, ...(addOn ? [{ item_id: addOn.id, quantity: 1 }] : [])],
@@ -810,6 +826,8 @@ async function buy(sku) {
   // Above the COD cap the sheet offers online only; the server refuses it anyway.
   const cod = !handover && _cod && _cod.productIds.includes(sku) &&
     !(_cod.maxQuantity && quantity > _cod.maxQuantity) ? _cod : null;
+  // Marked open before the sheet shows, so a reload from here brings it back.
+  cart.save({ checkout: sku });
   const picked = handover
     ? await collectHandoverContact()
     : await window.ptCollectAddress({
@@ -828,7 +846,10 @@ async function buy(sku) {
             }
           : null
       });
-  if (!picked) return;
+  if (!picked) {
+    cart.save({ checkout: null }); // backed out on purpose: do not reopen it
+    return;
+  }
   const { paymentMethod = "online", codToken, marketingOptIn = false, marketingOptInSource, ...address } = picked;
 
   if (window.ptTrack && product) {
@@ -915,6 +936,7 @@ async function buy(sku) {
     orderSteps.destroy();
     _busy = false; // the flow is over; let the buyer try again
     closeSheet();
+    cart.save({ checkout: null });
     say((err && err.message) || "Could not start the payment. Please try again.");
     return;
   }
@@ -947,6 +969,7 @@ async function buy(sku) {
     orderSteps.destroy();
     _busy = false; // the flow is over; let the buyer try again
     closeSheet();
+    cart.save({ checkout: null });
     say("The payment window could not load. Check your connection and try again.");
     return;
   }
@@ -963,8 +986,11 @@ async function buy(sku) {
     theme: { color: "#03162D" },
     // Dismissing is not a failure. The order stays "created" and is handed
     // back on the next attempt rather than minting a second one.
-    modal: { ondismiss: () => { _busy = false; } },
+    modal: { ondismiss: () => { _busy = false; cart.save({ checkout: null }); } },
     handler: async (response) => {
+      // Paid. Forget the cart now rather than after verify: a reload in between
+      // must not reopen a checkout for an order that is already paid.
+      cart.clear();
       try {
         const res = await fetch("/api/shop/guest/verify-payment", {
           method: "POST",
@@ -1020,6 +1046,7 @@ function showDone(done) {
   { const w = byId("gtWorking"); if (w) w.hidden = true; }
   { const d = byId("gtDone"); if (d) d.hidden = false; }
   _busy = false;
+  cart.clear(); // the order exists; nothing left to bring back
   // The order exists, so a friend's link is spent. Cleared HERE, not when the
   // order was created: a buyer who closed the payment window and tried again
   // was sent back without the code and charged the full price.
@@ -1214,6 +1241,7 @@ function wireCheckout(products) {
     // an upper bound was a deliberate product decision NOT to add.
     const next = btn.dataset.qtyDir === "inc" ? current + 1 : Math.max(1, current - 1);
     _qty.set(sku, next);
+    cart.save({ qty: Object.fromEntries(_qty) });
 
     const card = btn.closest(".gt-pack");
     if (!card) return;
@@ -1302,22 +1330,49 @@ async function load() {
         maxQuantity: Number.isInteger(payload.codMaxQuantity) ? payload.codMaxQuantity : null
       }
     : null;
+  // What this tab had chosen before a reload. Counts first, because the code
+  // check below prices the code against them. Only packs still in the
+  // catalogue, and only whole numbers of at least one.
+  const saved = cart.read();
+  const savedQty = saved.qty && typeof saved.qty === "object" ? saved.qty : {};
+  for (const [sku, n] of Object.entries(savedQty)) {
+    if (_products[sku] && Number.isInteger(n) && n >= 1) _qty.set(sku, n);
+  }
+  const resumeSku = typeof saved.checkout === "string" && payload.products[saved.checkout] ? saved.checkout : null;
+
   // A campaign link (?promo=CODE&sku=...) pre-fills its code; the server still
-  // decides whether it applies, exactly as if the buyer had typed it.
+  // decides whether it applies, exactly as if the buyer had typed it. A code
+  // this tab last had in the box wins over the link, including an empty one:
+  // it is the newer thing the buyer did.
   const params = new URLSearchParams(location.search);
   const linkCode = (params.get("promo") || "").trim().toUpperCase().slice(0, 32);
   const linkSku = params.get("sku");
+  const startCode = typeof saved.code === "string" ? saved.code.trim().toUpperCase().slice(0, 32) : linkCode;
   const code = byId("drCode");
-  if (code && !code.value && linkCode) {
-    code.value = linkCode;
-    await checkCode(linkCode && linkSku && payload.products[linkSku] ? linkSku : HERO_PACK);
+  if (code && !code.value && startCode) {
+    code.value = startCode;
+    await checkCode(resumeSku || (linkSku && payload.products[linkSku] ? linkSku : HERO_PACK));
   }
 
   renderChips(payload.products);
   renderPacks(payload.products);
   renderBar(payload.products);
   renderAddOn(payload.addOns);
+  // Set directly, not through a change event: that would re-fire the
+  // add_on_selected event for a tick the buyer made before the reload.
+  if (_addOn && typeof saved.addOn === "boolean") {
+    const box = byId("gtAddonCheck");
+    if (box) box.checked = saved.addOn;
+  }
   wireCheckout(payload.products);
+
+  // Reloaded mid-checkout: reopen it on the same pack, as a continuation and
+  // not a new checkout. The address sheet refills itself from its own draft.
+  // A pack that has since sold out is not reopened.
+  const resumePack = PACKS.find((pack) => pack.id === resumeSku);
+  if (resumePack && !resumePack.soldOut && !payload.products[resumeSku].soldOut) {
+    buy(resumeSku, { resumed: true });
+  }
 
   // After the page is usable, never in front of it. A returning buyer's order
   // matters, but not more than the shop rendering.

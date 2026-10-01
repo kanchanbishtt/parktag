@@ -142,6 +142,7 @@
      page's CSP allows and the other strict pages deliberately do not — see
      PAYMENT_STRICT_PAGES in app.js. checkout-loader.js fetches it once the
      page is idle; membership.js awaits ptLoadRazorpay() before new Razorpay(). -->
+<script src="/scripts/client-error-beacon.js?v=__ASSET_VERSION__" defer></script>
 <script src="/scripts/checkout-loader.js?v=__ASSET_VERSION__" data-warm-razorpay defer></script>
 <script src="/scripts/owner/smart-back.js?v=__ASSET_VERSION__"></script>
 <script src="/scripts/owner/session-guard.js?v=__ASSET_VERSION__" defer></script>

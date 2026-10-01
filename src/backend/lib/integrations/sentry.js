@@ -84,6 +84,27 @@ export function initSentry(env) {
   return true;
 }
 
+// A failure the BROWSER saw and reported itself, via POST /api/system/client-
+// error — mainly the Meta in-app browser tearing a checkout script down
+// mid-load. Deliberately captureMessage, not captureException: there is no
+// real stack from the client, only a message the page sent, and inventing an
+// Error around it would misrepresent what this is. scrubEvent still runs on
+// it (beforeSend applies to every event type), so emails and long digit runs
+// are redacted the same way a server error's would be.
+export function captureClientError({ message, context, extra } = {}) {
+  if (!Sentry.isInitialized()) return;
+
+  Sentry.withScope((scope) => {
+    scope.setTag("source", "client");
+    if (context) scope.setTag("context", String(context).slice(0, 64));
+    scope.setLevel("warning");
+    for (const [key, value] of Object.entries(extra || {})) {
+      scope.setExtra(key, redactText(value));
+    }
+    Sentry.captureMessage(String(message || "Client error").slice(0, 500));
+  });
+}
+
 export function captureServerError(error, { request, statusCode, context } = {}) {
   if (!Sentry.isInitialized()) return;
 

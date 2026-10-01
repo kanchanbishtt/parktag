@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import { getClientIp, isNonEmptyString, safeEqual } from "../../lib/auth/security.js";
 import { getCollections } from "../../lib/db/repositories.js";
 import { lookupGeo } from "../../lib/integrations/geoip.js";
+import { captureClientError } from "../../lib/integrations/sentry.js";
 
 // Ingest for landing-page traffic geography.
 //
@@ -202,6 +203,39 @@ export function registerAnalyticsRoutes(app, env) {
 
       await collections.landingVisits.insertOne(doc);
 
+      reply.code(204);
+      return null;
+    }
+  );
+
+  // A small, public, same-origin beacon the browser fires on an uncaught
+  // error or a rejected promise, from client-error-beacon.js. Needs no shared
+  // key: it is same-origin (the page posting to its own app), carries no
+  // address or balance to protect, and is rate-limited per caller like any
+  // other public write. Nothing is stored here — it goes straight to Sentry
+  // (captureClientError, which scrubs it the same way a server error is
+  // scrubbed) so it stays within the one error-monitoring pipeline this app
+  // already has, instead of a second, bespoke one.
+  app.post(
+    "/api/system/client-error",
+    { config: { rateLimit: { max: 20, timeWindow: "1 minute" } } },
+    async (request, reply) => {
+      const body = request.body || {};
+      const message = String(body.message || "").trim().slice(0, 300);
+
+      if (message) {
+        captureClientError({
+          message,
+          context: body.context,
+          extra: {
+            url: String(body.url || "").slice(0, 300),
+            userAgent: String(body.userAgent || "").slice(0, 300)
+          }
+        });
+      }
+
+      // 204 either way: this is a fire-and-forget beacon (sendBeacon has no
+      // response handler), so there is nothing for the page to act on.
       reply.code(204);
       return null;
     }

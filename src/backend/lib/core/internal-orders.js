@@ -67,3 +67,54 @@ export function isInternalPhone(env, phone) {
 export function isInternalTag(tag) {
   return tag?.internal === true || tag?.batchNumber === "Batch-002";
 }
+
+// ── Keeping our own clicking out of our own analytics ──────────────────────
+//
+// The phone list above cleans the ledger. It did nothing for GA4, the Pixel or
+// Clarity, which are fed by the browser: one morning of checkout testing
+// produced two "purchases", 26 begin_checkouts and a 135-click session that
+// accounted for most of that day's dead clicks. Two signals mark a browser as
+// ours, and either is enough.
+
+/**
+ * Is this request from our own network?
+ *
+ * Exact addresses, not ranges: the office has one static line. Fails open
+ * like the phone list, so an unset variable measures everybody.
+ */
+export function isInternalIp(env, ip) {
+  const address = String(ip || "").replace(/^::ffff:/, "");
+  if (!address) return false;
+
+  return String((env && env.internalIps) || "")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .includes(address);
+}
+
+// Read by assets/analytics.js in the browser, so deliberately not httpOnly.
+// It carries no secret: its only power is to switch measurement OFF.
+export const INTERNAL_DEVICE_COOKIE = "pt_internal";
+
+/**
+ * Remember that this browser is one of ours.
+ *
+ * Called where an order is placed to one of our own numbers. From then on the
+ * analytics bundle drops every event on this device, on a phone on mobile data
+ * as much as on the office line, with nobody having to remember a setup step.
+ * Scoped to the parent domain so the marketing site honours it too.
+ */
+export function markInternalDevice(reply, env, phone) {
+  if (!isInternalPhone(env, phone)) return;
+
+  const request = reply.request;
+  const sharedDomain = /(^|\.)parktag\.me$/.test(request?.hostname || "");
+  reply.setCookie(INTERNAL_DEVICE_COOKIE, "1", {
+    path: "/",
+    maxAge: 365 * 24 * 60 * 60,
+    sameSite: "lax",
+    secure: request?.protocol === "https",
+    ...(sharedDomain ? { domain: "parktag.me" } : {})
+  });
+}

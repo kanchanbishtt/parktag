@@ -144,7 +144,7 @@
                to quote a figure the checkout does not charge. -->
           <ul class="gt-chips" id="gtChips">
             <li class="gt-chip gt-chip-price"><span class="gt-sk gt-sk-chip">&nbsp;</span></li>
-            <li class="gt-chip">1 year Premium included</li>
+            <li class="gt-chip"><a href="#gtPremium">1 year Premium included</a></li>
             <li class="gt-chip gt-chip-ok">Lifetime WhatsApp alerts</li>
             <li class="gt-chip gt-chip-ok">Free delivery</li>
           </ul>
@@ -202,7 +202,7 @@
           <h3 class="gt-feat-t">No app to scan</h3>
           <p class="gt-feat-s">Any iPhone or Android camera opens it. Only you need an account.</p>
         </li>
-        <li class="gt-feat">
+        <li class="gt-feat" id="gtPremium">
           <span class="gt-feat-i" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none"><path d="M12 3l7 3v6c0 4.2-2.9 7.6-7 9-4.1-1.4-7-4.8-7-9V6l7-3z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </span>
@@ -317,7 +317,13 @@
             <p class="gt-code-win-s" id="drCodeWinS"></p>
           </div>
           <div class="gt-code-win-save"><span>You save</span><strong id="drCodeWinAmt">₹0</strong></div>
-          <button class="gt-code-rm" id="drCodeRemove" type="button">Remove</button>
+          <!-- Change keeps the code in the field so one wrong letter can be
+               fixed; Remove clears it. A buyer was tapping the banner itself
+               to do the first and nothing answered. -->
+          <div class="gt-code-acts">
+            <button class="gt-code-rm" id="drCodeEdit" type="button">Change code</button>
+            <button class="gt-code-rm" id="drCodeRemove" type="button">Remove</button>
+          </div>
         </div>
       </section>
 

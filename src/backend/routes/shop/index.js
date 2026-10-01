@@ -46,7 +46,7 @@ import {
   resolvePromo,
   shippingFeePaiseFor
 } from "../../lib/core/promo-codes.js";
-import { isInternalPhone } from "../../lib/core/internal-orders.js";
+import { isInternalPhone, markInternalDevice } from "../../lib/core/internal-orders.js";
 import { clientErrorMessage } from "../../lib/errors.js";
 
 // COD carries a flat +₹49 handling fee on top of the price, once per order.
@@ -1125,6 +1125,9 @@ export function registerShopRoutes(app, env) {
         promoDiscountPaise,
         shippingFeePaise
       );
+      // One of ours: this browser stops being measured (analytics.js reads the
+      // cookie), the same way the order below stays out of revenue.
+      markInternalDevice(reply, env, shipping.phone);
       if (cod) {
         return placeGuestCod(env, collections, request, reply, {
           paymentMethod: "cod",
@@ -1755,6 +1758,9 @@ export function registerShopRoutes(app, env) {
       // Persist the server-created order so verify-payment can prove the payment
       // maps to a real order at the catalog price (M15 Step 5). Amount is stored
       // in paise, exactly as Razorpay recorded it.
+      // One of ours: this browser stops being measured (analytics.js reads the
+      // cookie), the same way the order below stays out of revenue.
+      markInternalDevice(reply, env, shipping.phone);
       const orderNumber = await generateOrderNumber(collections);
       {
         await collections.shopOrders.insertOne({
@@ -2066,6 +2072,9 @@ export function registerShopRoutes(app, env) {
     // When the confirmation screen's flash offer stops being valid. Written
     // down at order time so the deadline the buyer is shown and the one
     // cod-prepay-order enforces are the same deadline.
+    // One of ours: this browser stops being measured (analytics.js reads the
+    // cookie), the same way the order below stays out of revenue.
+    markInternalDevice(reply, env, shipping.phone);
     const flashOfferExpiresAt = new Date(Date.now() + FLASH_WINDOW_MS).toISOString();
     await collections.shopOrders.insertOne({
       metaCheckoutContext: captureMetaCheckoutContext(request),

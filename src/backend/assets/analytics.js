@@ -26,6 +26,35 @@
     return;
   }
 
+  // Our own devices measure nothing.
+  //
+  // The server already keeps our test orders out of revenue by phone number
+  // (lib/core/internal-orders.js); this is the same idea for the browser. One
+  // morning of checkout testing put two purchases and 26 begin_checkouts into
+  // GA4 and the Pixel, and a single 135-click session into Clarity, where it
+  // made up most of that day's dead clicks.
+  //
+  // A device is ours when it holds the pt_internal cookie. It gets one in two
+  // ways: the server sets it when an order is placed to one of our numbers, or
+  // somebody opens any page once with ?pt_internal=1 (and ?pt_internal=0 to
+  // undo it). The office network is handled before this file is even served,
+  // by INTERNAL_IPS. The cookie sits on the parent domain so the marketing
+  // site and the app agree; the host guard above already limits this to
+  // parktag.me hosts.
+  function isInternal() {
+    return /(?:^|; )pt_internal=1(?:;|$)/.test(document.cookie || "");
+  }
+  var internalFlag = /[?&]pt_internal=([01])(?:&|$)/.exec((window.location && window.location.search) || "");
+  if (internalFlag) {
+    document.cookie = "pt_internal=" + (internalFlag[1] === "1" ? "1; Max-Age=31536000" : "; Max-Age=0") +
+      "; Path=/; Domain=parktag.me; SameSite=Lax" +
+      (window.location.protocol === "https:" ? "; Secure" : "");
+  }
+  if (isInternal()) {
+    window.ptTrack = function () {};
+    return;
+  }
+
   var GA4_ID = "__GA4_MEASUREMENT_ID__";
   var PIXEL_ID = "__META_PIXEL_ID__";
 
@@ -319,6 +348,11 @@
   // ---------------------------------------------------------------- dispatch
 
   function dispatch(name, params) {
+    // Asked on every event, not only at load: the server sets the cookie in
+    // answer to the order itself, part-way through a page that was already
+    // being measured, and the purchase that follows must not be sent.
+    if (isInternal()) return;
+
     var map = EVENTS[name];
     if (!map) {
       // Unknown name = a typo at the call site. Fail loudly in the console

@@ -30,7 +30,13 @@
 import test, { describe } from "node:test";
 import assert from "node:assert/strict";
 
-import { isInternalPhone, internalPhoneList } from "../lib/core/internal-orders.js";
+import {
+  isInternalPhone,
+  internalPhoneList,
+  isInternalIp,
+  markInternalDevice,
+  INTERNAL_DEVICE_COOKIE
+} from "../lib/core/internal-orders.js";
 
 const ENV = { internalTestPhones: "9876500854, 9876500645" };
 
@@ -79,5 +85,71 @@ describe("recognising our own numbers", () => {
   test("it reads from configuration, not a constant", () => {
     assert.equal(isInternalPhone({ internalTestPhones: "9999900000" }, "9999900000"), true);
     assert.equal(isInternalPhone({ internalTestPhones: "9999900000" }, "9876500854"), false);
+  });
+});
+
+// The ledger half is above. The same morning of testing also wrote two
+// purchases into GA4 and the Pixel and a 135-click session into Clarity, which
+// the phone list could do nothing about: those are fed by the browser.
+describe("recognising our own network", () => {
+  const NET = { internalIps: "203.0.113.7, 198.51.100.9" };
+
+  test("a listed address is internal, a neighbour is not", () => {
+    assert.equal(isInternalIp(NET, "203.0.113.7"), true);
+    assert.equal(isInternalIp(NET, "198.51.100.9"), true);
+    assert.equal(isInternalIp(NET, "203.0.113.8"), false);
+    assert.equal(isInternalIp(NET, "203.0.113.70"), false, "an exact match, not a prefix");
+  });
+
+  test("the IPv4-mapped form a dual-stack socket reports is the same address", () => {
+    assert.equal(isInternalIp(NET, "::ffff:203.0.113.7"), true);
+  });
+
+  // Fails open for the same reason the phone list does: measuring our own
+  // clicks is an annoyance, silently not measuring customers is an outage.
+  test("no list, or no address, means the visit is measured", () => {
+    for (const env of [{}, { internalIps: "" }, { internalIps: " , " }, null]) {
+      assert.equal(isInternalIp(env, "203.0.113.7"), false);
+    }
+    for (const missing of [null, undefined, ""]) {
+      assert.equal(isInternalIp(NET, missing), false);
+    }
+  });
+});
+
+describe("remembering that a browser is ours", () => {
+  function replyOn(hostname, protocol = "https") {
+    const cookies = [];
+    return { cookies, request: { hostname, protocol }, setCookie: (name, value, options) => cookies.push({ name, value, options }) };
+  }
+
+  test("an order to one of our numbers marks the device for a year, on both sites", () => {
+    const reply = replyOn("app.parktag.me");
+    markInternalDevice(reply, ENV, "+919876500854");
+
+    assert.deepEqual(reply.cookies, [{
+      name: INTERNAL_DEVICE_COOKIE,
+      value: "1",
+      options: { path: "/", maxAge: 31536000, sameSite: "lax", secure: true, domain: "parktag.me" }
+    }]);
+    // analytics.js has to read it, so it must not be httpOnly.
+    assert.equal(reply.cookies[0].options.httpOnly, undefined);
+  });
+
+  test("a customer's order sets nothing", () => {
+    const reply = replyOn("app.parktag.me");
+    markInternalDevice(reply, ENV, "9812345678");
+    assert.deepEqual(reply.cookies, []);
+  });
+
+  test("off the production domain the cookie stays host-only", () => {
+    const reply = replyOn("localhost", "http");
+    markInternalDevice(reply, ENV, "9876500854");
+    assert.equal(reply.cookies[0].options.domain, undefined);
+    assert.equal(reply.cookies[0].options.secure, false);
+
+    const lookalike = replyOn("notparktag.me");
+    markInternalDevice(lookalike, ENV, "9876500854");
+    assert.equal(lookalike.cookies[0].options.domain, undefined);
   });
 });

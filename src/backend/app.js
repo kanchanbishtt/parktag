@@ -12,7 +12,8 @@ import QRCode from "qrcode";
 
 import { getEnv } from "./lib/env.js";
 import { captureServerError, shouldReport } from "./lib/integrations/sentry.js";
-import { renderAnalyticsBundle } from "./lib/analytics.js";
+import { renderAnalyticsBundle, INTERNAL_ANALYTICS_BUNDLE } from "./lib/analytics.js";
+import { isInternalIp } from "./lib/core/internal-orders.js";
 import { BoundedTtlMap } from "./lib/bounded-map.js";
 import { clientError, clientErrorMessage } from "./lib/errors.js";
 import { readSession } from "./lib/auth/session.js";
@@ -1087,6 +1088,28 @@ export async function buildApp() {
   });
 
   app.get("/pt-analytics.js", async (request, reply) => {
+    // Our own network gets a bundle that measures nothing (INTERNAL_IPS).
+    // Decided before the public ETag is looked at, or an office browser
+    // holding the public copy would be told "304, keep using it".
+    //
+    // Stored but never trusted (no-cache), with an ETag of its own. Stored,
+    // because that is what replaces a public copy the browser already holds:
+    // an unstorable answer would leave the old one in place, to be served
+    // stale for a day. Never trusted, so every load asks again and a laptop
+    // taken home gets the real bundle the moment its address changes. Private,
+    // so no shared cache can hand this to a customer.
+    if (isInternalIp(env, request.ip)) {
+      const internalEtag = '"pt-internal"';
+      reply.type("application/javascript");
+      reply.header("Cache-Control", "private, no-cache");
+      reply.header("Cross-Origin-Resource-Policy", "cross-origin");
+      reply.header("ETag", internalEtag);
+      if (matchesEtag(request.headers["if-none-match"], internalEtag)) {
+        return reply.code(304).send();
+      }
+      return INTERNAL_ANALYTICS_BUNDLE;
+    }
+
     const bundle = await loadAnalytics(analyticsAsset);
     reply.type("application/javascript");
     reply.header("Cache-Control", "public, max-age=300, stale-while-revalidate=86400");

@@ -519,6 +519,21 @@ async function checkCode(sku) {
   }
 }
 
+// Back to the field with the applied code still in it, selected, so a wrong
+// letter can be fixed without retyping the rest. The price keeps the applied
+// code until a different one is checked; leaving the field unchanged re-checks
+// the same code and the banner returns.
+function editCode() {
+  const card = byId("drCodeCard");
+  const win = byId("drCodeWin");
+  const input = byId("drCode");
+  if (!card || !win || !input) return;
+  card.classList.remove("gt-code-won");
+  win.hidden = true;
+  input.focus();
+  input.select();
+}
+
 // Takes the code off and puts the page back to the plain price.
 function removeCode() {
   const input = byId("drCode");
@@ -1223,6 +1238,12 @@ function wireCheckout(products) {
   if (apply) apply.addEventListener("click", () => checkCode(_sku));
   const remove = byId("drCodeRemove");
   if (remove) remove.addEventListener("click", removeCode);
+  // "Change code", and the banner text itself: that is where the buyer who
+  // wanted to edit actually tapped.
+  const edit = byId("drCodeEdit");
+  if (edit) edit.addEventListener("click", editCode);
+  const applied = document.querySelector("#drCodeWin .gt-code-win-bd");
+  if (applied) applied.addEventListener("click", editCode);
 
   // The stepper's own delegated listener, separate from the Order handler
   // below. It matches on `button[data-qty-dir]`, which an `a[data-sku]` click

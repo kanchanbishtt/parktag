@@ -27,3 +27,10 @@ export function renderAnalyticsBundle(source, env) {
     source
   );
 }
+
+// What a browser on our own network is served instead (INTERNAL_IPS). ptTrack
+// still exists so no call site has to feature-detect, exactly as in the
+// bundle's own unconfigured branch; nothing loads and nothing is sent.
+export const INTERNAL_ANALYTICS_BUNDLE =
+  "// ParkTag: this visit is from our own network, so nothing is measured.\n" +
+  "window.ptTrack=function(){};\n";

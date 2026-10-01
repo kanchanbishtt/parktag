@@ -275,6 +275,10 @@ html:has(.gt-body) { overscroll-behavior-x: none; }
   padding: 7px 12px;
 }
 .gt-chip-price { color: var(--gt-ink); font-weight: 700; }
+/* The one chip that is a link: it jumps to what the Premium year covers.
+   Underlined so it reads as tappable beside the three that are not. */
+.gt-chip a { color: inherit; text-decoration: underline dotted; text-underline-offset: 3px; }
+#gtPremium { scroll-margin-top: 84px; }
 .gt-chip-ok { background: var(--gt-ok-bg); border-color: #CBE9D8; color: var(--gt-ok-ink); }
 
 /* The page's primary action. Full width, and taller than the 44px floor
@@ -1314,9 +1318,9 @@ html:has(.gt-body) { overscroll-behavior-x: none; }
 .gt-code-win-save { text-align: right; display: grid; line-height: 1.1; }
 .gt-code-win-save span { font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; color: #1b7a46; font-weight: 700; }
 .gt-code-win-save strong { font-size: 1.6rem; font-weight: 900; color: #14532d; }
+.gt-code-win-bd { cursor: pointer; }
+.gt-code-acts { grid-column: 1 / -1; display: flex; gap: 1rem; }
 .gt-code-rm {
-  grid-column: 1 / -1;
-  justify-self: start;
   background: none; border: 0; padding: 0;
   font: inherit; font-size: .78rem; font-weight: 600;
   color: var(--gt-ink-2, #41506a); text-decoration: underline; cursor: pointer;
@@ -1339,4 +1343,30 @@ html:has(.gt-body) { overscroll-behavior-x: none; }
 
 @media (prefers-reduced-motion: reduce) {
   .gt-code-won, .gt-code-win-ic, .gt-pop { animation: none; }
+}
+
+
+/* ── Tap to enlarge ─────────────────────────────────────────────────────────
+   Proof photos and chat screenshots open at full size in one <dialog>
+   (wireZoom in get.js). The cursor says so on a desktop; on a phone the tap
+   simply works. */
+img.gt-heard-shot,
+img.gt-proof-media { cursor: zoom-in; }
+
+.gt-zoom {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  max-width: 96vw;
+  max-height: 96dvh;
+  cursor: zoom-out;
+}
+.gt-zoom::backdrop { background: rgba(3, 22, 45, .86); }
+.gt-zoom img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 96vw;
+  max-height: 92dvh;
+  border-radius: 12px;
 }

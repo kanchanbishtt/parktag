@@ -160,7 +160,7 @@
                to quote a figure the checkout does not charge. -->
           <ul class="gt-chips" id="gtChips">
             <li class="gt-chip gt-chip-price"><span class="gt-sk gt-sk-chip">&nbsp;</span></li>
-            <li class="gt-chip">1 year Premium included</li>
+            <li class="gt-chip"><a href="#gtPremium">1 year Premium included</a></li>
             <li class="gt-chip gt-chip-ok">Lifetime WhatsApp alerts</li>
             <li class="gt-chip gt-chip-ok">Free delivery</li>
           </ul>
@@ -287,7 +287,7 @@
           <h3 class="gt-feat-t">No app to scan</h3>
           <p class="gt-feat-s">Any iPhone or Android camera opens it. Only you need an account.</p>
         </li>
-        <li class="gt-feat">
+        <li class="gt-feat" id="gtPremium">
           <span class="gt-feat-i" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none"><path d="M12 3l7 3v6c0 4.2-2.9 7.6-7 9-4.1-1.4-7-4.8-7-9V6l7-3z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </span>
@@ -471,6 +471,14 @@
          sheet scrolls its own overflow and would clip the paper to the card.
          Empty and pointer-events:none until confetti.js puts a canvas in it. -->
     <div class="gt-cfti-host" id="gtCfti" aria-hidden="true"></div>
+
+    <!-- A proof photo or chat screenshot at full size. Visitors were tapping
+         them to read the message in the picture and nothing happened. One
+         dialog for all of them; get.js fills it in. Any tap, or Escape, closes
+         it. -->
+    <dialog class="gt-zoom" id="gtZoom" aria-label="Enlarged photo">
+      <img id="gtZoomImg" alt="" />
+    </dialog>
 
     <script src="/scripts/client-error-beacon.js?v=__ASSET_VERSION__" defer></script>
     <script src="/scripts/checkout-loader.js?v=__ASSET_VERSION__" data-address-step="/scripts/owner/address-step.js?v=__ASSET_VERSION__" defer></script>

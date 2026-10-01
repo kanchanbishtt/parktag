@@ -132,6 +132,23 @@ five fixed keys the UI offers and the server rejects anything else.
 
 ---
 
+## 3a. Keeping our own activity out of the numbers
+
+Our own testing used to land in GA4, the Pixel and Clarity like anybody else's.
+Three switches now stop that, and any one of them is enough:
+
+| Switch | How it is set | What it covers |
+|---|---|---|
+| `INTERNAL_IPS` (env, comma separated) | Set once on the app service to the office's static IP | Every browser on the office line. `/pt-analytics.js` is served as a no-op, uncached, to those addresses. |
+| `pt_internal` cookie, set by the server | Automatically, when an order is placed to a number in `INTERNAL_TEST_PHONES` | That browser from then on, on any network, on both `parktag.me` and `app.parktag.me`. |
+| `pt_internal` cookie, set by hand | Open any page once with `?pt_internal=1`. Undo with `?pt_internal=0`. | Same as above, for a device that has never placed a test order. |
+
+A flagged device loads no vendor script and sends no event. To check a device: `document.cookie` contains
+`pt_internal=1`, and the Network tab shows no request to Google, Meta or Clarity.
+
+**Testing analytics itself** therefore needs an unflagged browser: a private
+window off the office network, or `?pt_internal=0` first.
+
 ## 4. Known gaps
 
 | Gap | Impact | Fix |

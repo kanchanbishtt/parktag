@@ -13,6 +13,7 @@ import { HowItWorksSteps } from "./components/HowItWorksSteps";
 import { WhyBetter } from "./components/WhyBetter";
 import { DuoOfferButtonLabel, DuoOfferDetails, DuoOfferPrice, HeroOfferLabel, LaunchOfferBanner, getLaunchOffer } from "./components/LaunchOffer";
 import { LazyVideo } from "./components/LazyVideo";
+import { ImageZoom } from "./components/ImageZoom";
 
 // Buy buttons point at /shop, which is the public storefront: packs, prices
 // and a guest checkout, no login. It used to be an intent route that sent a
@@ -373,7 +374,9 @@ export default async function Home() {
                     height={900}
                     alt={alt}
                     loading="lazy"
-                    className="block w-full h-auto aspect-[4/5] object-cover rounded-2xl ring-1 ring-white/10 shadow-[0_18px_40px_-18px_rgba(0,0,0,0.6)]"
+                    // Opens at full size on tap: see <ImageZoom> at the end of the page.
+                    data-zoom
+                    className="block w-full h-auto aspect-[4/5] object-cover rounded-2xl ring-1 ring-white/10 shadow-[0_18px_40px_-18px_rgba(0,0,0,0.6)] cursor-zoom-in"
                   />
                   <blockquote className="mt-4 text-[14px] font-bold leading-snug text-white [text-wrap:pretty]">“{quote}”</blockquote>
                   <p className="mt-1.5 text-xs text-white/50">{meta}</p>
@@ -930,6 +933,7 @@ export default async function Home() {
           </div>
         </div>
       </footer>
+      <ImageZoom />
     </>
   );
 }

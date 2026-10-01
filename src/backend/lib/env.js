@@ -267,7 +267,12 @@ export function getEnv() {
     // somebody joins or leaves. Unset means nothing is internal, which
     // over-reports our testing rather than hiding a real sale. See
     // lib/core/internal-orders.js.
-    internalTestPhones: process.env.INTERNAL_TEST_PHONES || ""
+    internalTestPhones: process.env.INTERNAL_TEST_PHONES || "",
+    // Our own public IP addresses (the office line), comma separated. A
+    // browser on one of them is served an analytics bundle that measures
+    // nothing, so our own clicking stays out of GA4, the Pixel and Clarity.
+    // Unset means every visit is measured. See lib/core/internal-orders.js.
+    internalIps: process.env.INTERNAL_IPS || ""
   };
 
   // Strip surrounding whitespace from every configured string.

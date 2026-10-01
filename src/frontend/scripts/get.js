@@ -1042,6 +1042,29 @@ function wireGallery() {
 // with the prices and the hero image for the first seconds of a phone's
 // connection. Now it loads and plays as it nears the screen and pauses once
 // scrolled away. Without IntersectionObserver it simply plays, as before.
+// ── Tap to enlarge ─────────────────────────────────────────────────────────
+//
+// The chat screenshots carry the actual complaint as text inside the picture,
+// at a size nobody can read in a 250px card, so visitors tapped them and got
+// nothing. One <dialog> shows whichever photo was tapped at full size. The
+// browser supplies the rest: the backdrop, Escape, and focus coming back.
+function wireZoom() {
+  const dialog = byId("gtZoom");
+  const big = byId("gtZoomImg");
+  if (!dialog || !big || typeof dialog.showModal !== "function") return;
+
+  document.addEventListener("click", (event) => {
+    const shot = event.target.closest("img.gt-heard-shot, img.gt-proof-media");
+    if (!shot) return;
+    big.src = shot.currentSrc || shot.src;
+    big.alt = shot.alt;
+    dialog.showModal();
+  });
+  dialog.addEventListener("click", () => dialog.close());
+  // Emptied on close, or the next photo opens showing this one until it loads.
+  dialog.addEventListener("close", () => big.removeAttribute("src"));
+}
+
 function wireProofVideo() {
   const video = byId("gtProofVideo");
   if (!video) return;
@@ -1166,6 +1189,7 @@ async function load() {
   syncHeroLinks();
   wireGallery();
   wireProofVideo();
+  wireZoom();
 
   let payload;
   try {

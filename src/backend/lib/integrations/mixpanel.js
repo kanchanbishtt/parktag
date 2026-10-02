@@ -17,6 +17,7 @@
 import crypto from "node:crypto";
 
 import { getClientIp } from "../auth/security.js";
+import { isDisposableRun } from "../core/external-guard.js";
 import { attributionFromQuery, readAttribution } from "../core/attribution.js";
 
 const TRACK_URL = "https://api.mixpanel.com/track?ip=0";
@@ -25,8 +26,13 @@ const TRACK_URL = "https://api.mixpanel.com/track?ip=0";
 // login, a payment, a tag update). Short, and failure is ignored.
 const SEND_TIMEOUT_MS = 3000;
 
+// A test run is never "configured", even with a real token in the developer's
+// .env: tests exercise the same routes that fire these events, and every run
+// used to write fake orders and sign-ins into the live Mixpanel project. Same
+// signal external-guard.js uses for the courier and WhatsApp; it silently
+// no-ops rather than throwing because callers here are fire-and-forget.
 export function isMixpanelConfigured(env) {
-  return !!env.mixpanelToken;
+  return !!env.mixpanelToken && !isDisposableRun(env);
 }
 
 /**

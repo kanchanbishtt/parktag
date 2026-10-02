@@ -4,7 +4,9 @@ import test from "node:test";
 import {
   anonymousDistinctId,
   attributionProps,
+  isMixpanelConfigured,
   orderDistinctId,
+  sendMixpanelEvent,
   utmProps
 } from "../lib/integrations/mixpanel.js";
 
@@ -36,4 +38,17 @@ test("utm props: this URL wins over the cookie, junk is dropped, nothing yields 
   });
   assert.deepEqual(attributionProps({ query: { utm_source: "<script>" }, cookies: {} }), {});
   assert.deepEqual(utmProps(null), {});
+});
+
+test("a test run never sends, even with a real token in the environment", async () => {
+  const live = { mixpanelToken: "x".repeat(32), mongoCollectionPrefix: "" };
+  assert.equal(isMixpanelConfigured(live), true);
+  for (const prefix of ["test_", "ci_"]) {
+    const env = { ...live, mongoCollectionPrefix: prefix };
+    assert.equal(isMixpanelConfigured(env), false);
+    assert.deepEqual(await sendMixpanelEvent(env, { eventName: "e", distinctId: "d" }), {
+      ok: false,
+      skipped: "not-configured"
+    });
+  }
 });

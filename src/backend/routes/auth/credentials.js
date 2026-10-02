@@ -217,7 +217,9 @@ export function registerAuthRoutes(app, env) {
       // only — printed an empty line for every owner who registered by phone.
       const sessionId = await createSession(app, {
         ...user,
-        signInIdentifier: user.email || identifier
+        signInIdentifier: user.email || identifier,
+        signInMethod: "password",
+        request
       });
       // "Remember me" is an owner convenience. An admin cookie always ends with
       // the browser session, whatever the body says.

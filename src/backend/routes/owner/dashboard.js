@@ -1022,10 +1022,12 @@ export function registerOwnerRoutes(app, env) {
       };
     }
 
+    // "before", so the event can say whether this SOS number was set for the
+    // first time or changed. The number just written is `emergencyContact`.
     const result = await collections.tags.findOneAndUpdate(
       { _id: tagId, ownerId, deletedAt: { $in: [null, undefined] } },
       { $set: { emergencyContact, updatedAt: new Date().toISOString() } },
-      { returnDocument: "after" }
+      { returnDocument: "before" }
     );
 
     if (!result) {
@@ -1035,10 +1037,14 @@ export function registerOwnerRoutes(app, env) {
 
     sendMixpanelEventBestEffort(request.log, env, {
       eventName: "emergency_contact_updated",
-      distinctId: String(ownerId)
+      distinctId: String(ownerId),
+      properties: {
+        is_first_set: !result.emergencyContact,
+        vehicle_type: result.vehicleType || null
+      }
     });
 
-    return { ok: true, emergencyContact: result.emergencyContact || null };
+    return { ok: true, emergencyContact };
   });
 
   app.delete("/api/owner/tags/:tagId", async (request, reply) => {
@@ -1081,7 +1087,16 @@ export function registerOwnerRoutes(app, env) {
 
     sendMixpanelEventBestEffort(request.log, env, {
       eventName: "tag_deactivated",
-      distinctId: String(ownerId)
+      distinctId: String(ownerId),
+      properties: {
+        vehicle_type: result.vehicleType || null,
+        premium: Boolean(result.premium),
+        // Days the tag lived, from first activation. Null for a tag that was
+        // never activated. Says whether people drop the tag early or late.
+        age_days: result.activatedAt
+          ? Math.max(0, Math.floor((Date.now() - Date.parse(result.activatedAt)) / 86400000))
+          : null
+      }
     });
 
     return { ok: true };

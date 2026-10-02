@@ -10,7 +10,7 @@ import { toE164 } from "../../lib/core/phone.js";
 import { createPasswordHash, createSecureToken, safeEqual, hashIp, minutesFromNow, getClientIp, maskPlateNumber, getPlateLastFour, isNonEmptyString } from "../../lib/auth/security.js";
 import { createSession, writeSessionCookie } from "../../lib/auth/session.js";
 import { sendCapiEventBestEffort, activationEventId } from "../../lib/integrations/meta-capi.js";
-import { sendMixpanelEventBestEffort } from "../../lib/integrations/mixpanel.js";
+import { attributionProps, sendMixpanelEventBestEffort } from "../../lib/integrations/mixpanel.js";
 import {
   findOwnerHoldingMobile,
   isDuplicateMobileError,
@@ -907,6 +907,12 @@ export function registerPublicRoutes(app, env) {
     // on the reconciliation report anyway.
     await linkTagToOrder(collections, { tagId: tag._id, phone }, app.log);
 
+    if (!isInternalTag(tag)) sendMixpanelEventBestEffort(app.log, env, {
+      eventName: "tag_activated",
+      distinctId: String(ownerId),
+      properties: { flow: "claim", is_new_owner: true, ...attributionProps(request) }
+    });
+
     // Same notice as /activate below. This path sets an e-mail and a password
     // and may have no mobile at all, which is exactly why the notice tries both
     // channels rather than assuming WhatsApp.
@@ -1182,7 +1188,10 @@ export function registerPublicRoutes(app, env) {
       // Activation is always a mobile-OTP sign-in, so that is what the
       // dashboard should greet them with.
       signInIdentifier: mobile,
-      displayName: owner.displayName
+      displayName: owner.displayName,
+      signInMethod: "activation",
+      isNewUser: isNewOwner,
+      request
     });
     writeSessionCookie(reply, sessionId, env.runtimeMode === "production");
 
@@ -1212,6 +1221,17 @@ export function registerPublicRoutes(app, env) {
       },
       customData: { vehicle_type: vehicleType },
       testEventCode: env.metaCapiTestEventCode || undefined
+    });
+
+    if (!isInternalTag(tag) && !isInternalPhone(env, mobile)) sendMixpanelEventBestEffort(app.log, env, {
+      eventName: "tag_activated",
+      distinctId: String(owner._id),
+      properties: {
+        flow: "activate",
+        vehicle_type: vehicleType,
+        is_new_owner: isNewOwner,
+        ...attributionProps(request)
+      }
     });
 
     // Tell them their tag is live, on every channel they have.

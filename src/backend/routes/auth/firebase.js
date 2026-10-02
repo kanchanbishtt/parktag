@@ -5,6 +5,11 @@ import { isNonEmptyString } from "../../lib/auth/security.js";
 import { chargeExternalOtpSend, normalizeIdentifier, resolveOwnerByVerifiedMobile, isDuplicateMobileError } from "../../lib/auth/otp.js";
 import { clientErrorMessage } from "../../lib/errors.js";
 import { fetchWithTimeout } from "../../lib/core/fetch-timeout.js";
+import {
+  anonymousDistinctId,
+  attributionProps,
+  sendMixpanelEventBestEffort
+} from "../../lib/integrations/mixpanel.js";
 
 const FIREBASE_API_BASE = "https://identitytoolkit.googleapis.com/v1/accounts";
 
@@ -129,7 +134,10 @@ export function registerFirebasePhoneAuthRoute(app, env) {
         role: "owner",
         email: owner.email || owner.mobile || phoneE164,
         signInIdentifier: phoneE164,
-        displayName: owner.displayName
+        displayName: owner.displayName,
+        signInMethod: "firebase_phone",
+        isNewUser: isNew,
+        request
       });
       writeSessionCookie(reply, sessionId, env.runtimeMode === "production");
       return { ok: true, isNew };
@@ -227,6 +235,11 @@ export function registerFirebasePhoneAuthRoute(app, env) {
         { _id: charge.insertedId, channel: "firebase-pending" },
         { $set: { channel: "firebase", sentAt: new Date().toISOString() } }
       );
+      sendMixpanelEventBestEffort(request.log, env, {
+        eventName: "otp_requested",
+        distinctId: anonymousDistinctId(env, request),
+        properties: { method: "firebase_phone", ...attributionProps(request) }
+      });
       return { ok: true, sessionInfo: data.sessionInfo };
     } catch (err) {
       // HTTP errors are definite rejections: no SMS was sent. Do not let a
@@ -288,13 +301,23 @@ export function registerFirebasePhoneAuthRoute(app, env) {
         role: "owner",
         email: owner.email || owner.mobile || phoneE164,
         signInIdentifier: phoneE164,
-        displayName: owner.displayName
+        displayName: owner.displayName,
+        signInMethod: "firebase_phone",
+        isNewUser: isNew,
+        request
       });
       writeSessionCookie(reply, sessionId, env.runtimeMode === "production");
 
       return { ok: true, isNew };
     } catch (err) {
       request.log.error({ err }, "Firebase verify-code failed");
+      sendMixpanelEventBestEffort(request.log, env, {
+        eventName: "otp_failed",
+        distinctId: anonymousDistinctId(env, request),
+        // Firebase answers a bad code and an outage the same way, so unlike
+        // the WhatsApp path there is no "rejected" to report.
+        properties: { method: "firebase_phone", ...attributionProps(request) }
+      });
       reply.code(400);
       return { ok: false, error: "Invalid or expired code. Please try again." };
     }

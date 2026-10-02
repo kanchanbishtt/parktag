@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 
 import { getEnv } from "../env.js";
 import { getCollections } from "../db/repositories.js";
-import { sendMixpanelEventBestEffort } from "../integrations/mixpanel.js";
+import { attributionProps, sendMixpanelEventBestEffort } from "../integrations/mixpanel.js";
 
 const SESSION_COOKIE = "wavetag_session";
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
@@ -123,7 +123,14 @@ export async function createSession(app, user) {
   if (user.role === "owner") {
     sendMixpanelEventBestEffort(app.log, getEnv(), {
       eventName: "owner_signed_in",
-      distinctId: user.id
+      distinctId: user.id,
+      properties: {
+        // Callers say how this person got in. Unlabelled is a caller that
+        // forgot, which should be visible in Mixpanel, not guessed at.
+        method: user.signInMethod || "unknown",
+        is_new_user: Boolean(user.isNewUser),
+        ...attributionProps(user.request)
+      }
     });
   }
 

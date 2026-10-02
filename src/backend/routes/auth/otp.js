@@ -12,6 +12,11 @@ import { createSession, writeSessionCookie } from "../../lib/auth/session.js";
 import { getCollections } from "../../lib/db/repositories.js";
 import { clientErrorMessage } from "../../lib/errors.js";
 import { verifyRecaptcha, isRecaptchaConfigured } from "../../lib/integrations/recaptcha.js";
+import {
+  anonymousDistinctId,
+  attributionProps,
+  sendMixpanelEventBestEffort
+} from "../../lib/integrations/mixpanel.js";
 
 export function registerOtpAuthRoutes(app, env) {
   // verifyRecaptcha() no-ops when no keys are set, which is right for local work
@@ -72,6 +77,11 @@ export function registerOtpAuthRoutes(app, env) {
 
     try {
       await sendOtp(env, identifier);
+      sendMixpanelEventBestEffort(request.log, env, {
+        eventName: "otp_requested",
+        distinctId: anonymousDistinctId(env, request),
+        properties: { method: "otp", ...attributionProps(request) }
+      });
       return { ok: true };
     } catch (error) {
       reply.code(500);
@@ -216,13 +226,23 @@ export function registerOtpAuthRoutes(app, env) {
         // Normalised, not raw: "8791638854" and "+91 87916 38854" are the same
         // sign-in and should render the same way afterwards.
         signInIdentifier: normalized,
-        displayName: owner.displayName
+        displayName: owner.displayName,
+        signInMethod: isMobile ? "mobile_otp" : "email_otp",
+        isNewUser,
+        request
       });
       writeSessionCookie(reply, sessionId, env.runtimeMode === "production");
 
       return { ok: true, isNewUser };
     } catch (error) {
       const isExposable = error && error.expose === true;
+      // rejected = the code was wrong/expired/over its attempts; otherwise it
+      // was our failure, which a drop-off chart should not blame on the buyer.
+      sendMixpanelEventBestEffort(request.log, env, {
+        eventName: "otp_failed",
+        distinctId: anonymousDistinctId(env, request),
+        properties: { method: "otp", rejected: isExposable, ...attributionProps(request) }
+      });
       reply.code(isExposable ? 400 : 500);
       return {
         ok: false,

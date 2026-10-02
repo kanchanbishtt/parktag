@@ -47,6 +47,13 @@ import {
   shippingFeePaiseFor
 } from "../../lib/core/promo-codes.js";
 import { isInternalPhone, markInternalDevice } from "../../lib/core/internal-orders.js";
+import {
+  anonymousDistinctId,
+  attributionProps,
+  orderDistinctId,
+  sendMixpanelEventBestEffort,
+  utmProps
+} from "../../lib/integrations/mixpanel.js";
 import { clientErrorMessage } from "../../lib/errors.js";
 
 // COD carries a flat +₹49 handling fee on top of the price, once per order.
@@ -570,6 +577,20 @@ async function placeGuestCodLocked(env, collections, request, reply, order, codT
     createdAt: new Date().toISOString()
   };
   await collections.shopOrders.insertOne(placed);
+
+  if (!placed.internal) sendMixpanelEventBestEffort(request.log, env, {
+    eventName: "order_placed",
+    distinctId: orderDistinctId(placed),
+    properties: {
+      payment_method: "cod",
+      guest: true,
+      product_id: placed.productId,
+      quantity: placed.quantity,
+      amount: placed.amount / 100,
+      is_replacement: false,
+      ...utmProps(placed.attribution)
+    }
+  });
 
   const waybill = await bookCodShipment(env, collections, {
     orderNumber: placed.orderNumber,
@@ -1298,6 +1319,19 @@ export function registerShopRoutes(app, env) {
           createdAt: new Date().toISOString()
         });
 
+        if (!isInternalPhone(env, shipping.phone)) sendMixpanelEventBestEffort(request.log, env, {
+          eventName: "checkout_started",
+          distinctId: orderDistinctId({ orderNumber }),
+          properties: {
+            guest: true,
+            product_id: productId,
+            quantity,
+            amount: order.amount / 100,
+            is_replacement: false,
+            ...attributionProps(request)
+          }
+        });
+
         return {
           ok: true,
           orderId: order.id,
@@ -1422,6 +1456,11 @@ export function registerShopRoutes(app, env) {
         reply.code(err && err.expose ? 400 : 500);
         return { ok: false, error: clientErrorMessage(err, "Could not send the verification code. Please try again.", request.log) };
       }
+      sendMixpanelEventBestEffort(request.log, env, {
+        eventName: "otp_requested",
+        distinctId: anonymousDistinctId(env, request),
+        properties: { method: "cod_otp", guest: true, ...attributionProps(request) }
+      });
       return { ok: true, phoneHint: "••••" + phone.slice(-4) };
     }
   );
@@ -1440,6 +1479,11 @@ export function registerShopRoutes(app, env) {
         // verifyOtp burns the code and holds the attempt cap.
         await verifyOtp(env, phone, otp, { purpose: OTP_PURPOSE_COD_VERIFY });
       } catch (err) {
+        sendMixpanelEventBestEffort(request.log, env, {
+          eventName: "otp_failed",
+          distinctId: anonymousDistinctId(env, request),
+          properties: { method: "cod_otp", guest: true, rejected: Boolean(err && err.expose), ...attributionProps(request) }
+        });
         reply.code(err && err.expose ? 401 : 500);
         return { ok: false, error: clientErrorMessage(err, "Could not check the code. Please try again.", request.log) };
       }
@@ -1790,6 +1834,18 @@ export function registerShopRoutes(app, env) {
         });
       }
 
+      if (!isInternalPhone(env, shipping.phone)) sendMixpanelEventBestEffort(request.log, env, {
+        eventName: "checkout_started",
+        distinctId: String(ownerId),
+        properties: {
+          product_id: productId,
+          quantity,
+          amount: order.amount / 100,
+          is_replacement: Boolean(validReplaceTagId),
+          ...attributionProps(request)
+        }
+      });
+
       return {
         ok: true,
         orderId: order.id,
@@ -2111,6 +2167,19 @@ export function registerShopRoutes(app, env) {
       // us, since sign-in asks for a number and nothing else.
       deliveryName: shipping.fullName
     }, request.log);
+
+    if (!isInternalPhone(env, shipping.phone)) sendMixpanelEventBestEffort(request.log, env, {
+      eventName: "order_placed",
+      distinctId: String(ownerId),
+      properties: {
+        payment_method: "cod",
+        product_id: productId,
+        quantity,
+        amount: amountPaise / 100,
+        is_replacement: Boolean(validReplaceTagId),
+        ...attributionProps(request)
+      }
+    });
 
     return {
       ok: true,

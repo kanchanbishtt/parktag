@@ -4,6 +4,11 @@ import { getClientIp, isNonEmptyString, safeEqual } from "../../lib/auth/securit
 import { getCollections } from "../../lib/db/repositories.js";
 import { lookupGeo } from "../../lib/integrations/geoip.js";
 import { captureClientError } from "../../lib/integrations/sentry.js";
+import {
+  anonymousDistinctId,
+  attributionProps,
+  sendMixpanelEventBestEffort
+} from "../../lib/integrations/mixpanel.js";
 
 // Ingest for landing-page traffic geography.
 //
@@ -261,6 +266,15 @@ export function recordAppPageVisit(app, env, request, path) {
   // preview, so counting them would inflate exactly the number the ads are
   // judged on.
   if (isBotUserAgent(userAgent) || isProbePath(cleanPath(path))) return;
+
+  // The top of the owner funnel: an ad click landing on /get, /shop, /direct.
+  // Same bot filter as the row below, so Meta's link-preview fetch is not a
+  // visitor. utm_* ride along so the next steps can be compared by campaign.
+  sendMixpanelEventBestEffort(app.log, env, {
+    eventName: "page_viewed",
+    distinctId: anonymousDistinctId(env, request),
+    properties: { path: cleanPath(path), ...attributionProps(request) }
+  });
 
   void (async () => {
     try {

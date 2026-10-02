@@ -1,4 +1,5 @@
 import { isInternalPhone } from "./internal-orders.js";
+import { orderDistinctId, sendMixpanelEventBestEffort, utmProps } from "../integrations/mixpanel.js";
 // What happens once an online order is actually paid for.
 //
 // This used to live inline in POST /api/shop/verify-payment, which meant the
@@ -177,6 +178,23 @@ export async function fulfilPaidOrder(env, collections, { order, paymentId, log 
 
   if (paidTransition.modifiedCount !== 1) {
     return { firstTime: false, replaced: false, newTagId: null };
+  }
+
+  // Past the gate, so this fires once per order even though the browser
+  // callback and the Razorpay webhook both arrive here. Money received.
+  if (!order.internal) {
+    sendMixpanelEventBestEffort(log, env, {
+      eventName: "order_paid",
+      distinctId: orderDistinctId(order),
+      properties: {
+        payment_method: "online",
+        product_id: order.productId,
+        quantity: Number(order.quantity) || 1,
+        amount: order.amount / 100,
+        is_replacement: Boolean(order.replaceTagId),
+        ...utmProps(order.attribution)
+      }
+    });
   }
 
   let replaced = false;

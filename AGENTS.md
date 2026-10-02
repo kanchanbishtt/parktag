@@ -93,11 +93,11 @@ The next useful work should stay inside the Phase 1 MVP boundary:
 
 ---
 
-# Analytics Tracking — Mixpanel (owner dashboard only)
+# Analytics Tracking — Mixpanel (owner journey, server-side)
 
-This project uses **Mixpanel** for owner-dashboard product analytics — retention and engagement, not the marketing funnel. Do not introduce another analytics tool for this purpose without explicit instruction.
+This project uses **Mixpanel** for owner-dashboard product analytics — the owner journey from ad landing through activation, orders and dashboard use, server-side only. Do not introduce another analytics tool for this purpose without explicit instruction.
 
-The marketing/checkout funnel (GA4 + Meta Pixel/CAPI) is a separate system: `src/backend/assets/analytics.js` / `ptTrack()`. Do not route Mixpanel events through it, and do not route `ptTrack` events into Mixpanel — they answer different questions and mixing their vocabularies is the "one event, two meanings" anti-pattern.
+The marketing/checkout funnel (GA4 + Meta Pixel/CAPI) is a separate system: `src/backend/assets/analytics.js` / `ptTrack()`. Do not route Mixpanel events through it, and do not route `ptTrack` events into Mixpanel. The Mixpanel funnel events here (`page_viewed`, `checkout_started`, `order_paid`, ...) are emitted by the server and are their own vocabulary; keep them separate from the GA4/Pixel names.
 
 ## Tech Stack
 
@@ -113,29 +113,50 @@ The marketing/checkout funnel (GA4 + Meta Pixel/CAPI) is a separate system: `src
 
 ## Identity
 
-There is no `identify()` / `reset()` lifecycle here — that's a client-SDK concept for merging an anonymous pre-login user into a known one. Every event fires server-side, after auth, with the owner's stable database id (`request.session.userId`, stringified) passed directly as `distinct_id`. There is no anonymous state to merge.
+There is no `identify()` / `reset()` lifecycle here — that's a client-SDK concept for merging an anonymous pre-login user into a known one. Every event fires server-side. Three kinds of `distinct_id`, all derived server-side, never from client input:
+
+| Who | `distinct_id` | Used by |
+|---|---|---|
+| A known owner | the owner's database id, stringified | everything after sign-in or activation |
+| A visitor with no account yet | `anonymousDistinctId(env, request)`, a daily-rotating one-way hash of ip + user agent | `page_viewed`, `otp_requested`, `otp_failed` |
+| A guest buyer (the `/get` checkout takes no account) | `orderDistinctId(order)`, i.e. `guest-order:<orderNumber>` | `checkout_started`, `order_placed`, `order_paid` on guest orders |
+
+The logged-out and logged-in halves are deliberately **not** merged. They are tied together by `utm_source` / `utm_medium` / `utm_campaign` / `utm_content` on each event (`attributionProps(request)`, or `utmProps(order.attribution)` where there is no request), so compare steps by campaign rather than by person.
 
 **Do not** add a client-side Mixpanel SDK to fetch or expose the owner id for this purpose — see the security note above.
 
 ## Tracking Plan
 
+Journey order: ad click → page → OTP → account → activation → orders → dashboard use.
+
 | Event | Trigger | Key Properties | File |
 |---|---|---|---|
-| `owner_signed_in` | Any owner session created (credential, mobile OTP, Google, post-registration) | — | `src/backend/lib/auth/session.js` → `createSession()` |
-| `tag_scanned` | A claimed tag's public page is loaded | `vehicle_type` | `src/backend/routes/public/index.js` → `GET /api/tags/:token` |
+| `page_viewed` | A human opens `/shop`, `/get` or `/direct` (bots filtered) | `path`, `utm_*` | `routes/system/analytics.js` → `recordAppPageVisit()` |
+| `otp_requested` | A code was sent (login/activation WhatsApp, Firebase SMS, guest COD) | `method` (`otp` / `firebase_phone` / `cod_otp`), `utm_*` | `routes/auth/otp.js`, `routes/auth/firebase.js`, `routes/shop/index.js` |
+| `otp_failed` | A code was refused or verification errored | `method`, `rejected` (WhatsApp paths only: wrong/expired vs our failure), `utm_*` | same three files |
+| `owner_signed_in` | Any owner session created | `method` (`password` / `mobile_otp` / `email_otp` / `firebase_phone` / `google` / `activation`), `is_new_user`, `utm_*` | `lib/auth/session.js` → `createSession()`; each caller passes `signInMethod`, `isNewUser`, `request` |
+| `tag_activated` | A sticker went from assigned to live | `flow` (`activate` / `claim`), `vehicle_type` (activate only), `is_new_owner`, `utm_*` | `routes/public/index.js` → `/activate`, `/claim` |
+| `checkout_started` | An online order was created, before the payment window | `product_id`, `quantity`, `amount`, `is_replacement`, `guest` (guest only), `utm_*` | `routes/shop/index.js` → `create-order`, `guest/create-order` |
+| `order_placed` | A COD order was placed | `payment_method: "cod"`, `product_id`, `quantity`, `amount`, `is_replacement`, `guest`, `utm_*` | `routes/shop/index.js` → `place-cod`, `placeGuestCodLocked()` |
+| `order_paid` | Money received, once per order (browser callback and webhook race; the loser is a no-op) | `payment_method: "online"`, `product_id`, `quantity`, `amount`, `is_replacement`, `utm_*` | `lib/core/order-fulfilment.js` → `fulfilPaidOrder()` |
+| `tag_scanned` | A claimed tag's public page is loaded | `vehicle_type` | `routes/public/index.js` → `GET /api/tags/:token` |
 | `contact_action` | A scanner successfully reaches the owner (call, emergency call, or WhatsApp) | `method` (`call` / `emergency_call` / `message`) | `routes/public/index.js` (`register-call`, `register-emergency-call`), `lib/core/contact-actions.js` |
-| `masked_call_connected` | Exotel reports the call as actually answered | `call_duration`, `call_type` | `src/backend/routes/webhooks/exotel.js` |
+| `masked_call_connected` | Exotel reports the call as actually answered | `call_duration`, `call_type` | `routes/webhooks/exotel.js` |
 | `tag_status_changed` | Owner pauses/reactivates a tag | `status` | `routes/owner/dashboard.js` → `POST /api/owner/tags/:tagId/status` |
-| `emergency_contact_updated` | Owner sets/changes the SOS contact | — | `routes/owner/dashboard.js` → `POST .../emergency-contact` |
-| `tag_deactivated` | Owner deletes/deactivates a vehicle | — | `routes/owner/dashboard.js` → `DELETE /api/owner/tags/:tagId` |
+| `emergency_contact_updated` | Owner sets/changes the SOS contact | `is_first_set`, `vehicle_type` | `routes/owner/dashboard.js` → `POST .../emergency-contact` |
+| `tag_deactivated` | Owner deletes/deactivates a vehicle | `vehicle_type`, `premium`, `age_days` | `routes/owner/dashboard.js` → `DELETE /api/owner/tags/:tagId` |
 | `membership_renewed` | Razorpay payment verified for a membership order | `plan_id`, `months`, `amount` | `routes/owner/membership.js` → `verify-payment` |
+
+Order and activation events are skipped for internal/test orders (`order.internal`, `isInternalTag`, `isInternalPhone`), same as the Meta CAPI events.
+
+Not covered: `/api/register-owner` (email + password sign-up) fires no event of its own, and the COD-to-prepaid conversion (`cod-prepay-verify`) is not reported as `order_paid`.
 
 ## How to Add a New Mixpanel Event
 
 1. Check the table above first — reuse an existing event/property name if one already fits.
 2. Name it `snake_case`, past tense: `object_verb`.
 3. Call `sendMixpanelEventBestEffort(logger, env, { eventName, distinctId, properties })` from `lib/integrations/mixpanel.js`, **after** the action has actually succeeded (after the DB write / provider confirmation), not before.
-4. `distinctId` must be the owner's `ownerId` (stringified), sourced server-side from `request.session.userId` or the record's stored `ownerId` field — never accept a distinct_id from client input.
+4. `distinctId` is one of the three in the Identity table, always derived server-side (`request.session.userId`, the record's stored `ownerId`, `anonymousDistinctId`, `orderDistinctId`) — never accept a distinct_id from client input. Add `attributionProps(request)` to funnel events.
 5. Never include PII in properties (no phone numbers, plates, emails, tokens).
 6. Update the table above.
 7. Verify in Mixpanel Live View before considering it done.

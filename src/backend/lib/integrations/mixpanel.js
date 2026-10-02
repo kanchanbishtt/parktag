@@ -16,6 +16,9 @@
 
 import crypto from "node:crypto";
 
+import { getClientIp } from "../auth/security.js";
+import { attributionFromQuery, readAttribution } from "../core/attribution.js";
+
 const TRACK_URL = "https://api.mixpanel.com/track?ip=0";
 
 // Every call site here sits on a request path an owner is waiting on (a
@@ -90,4 +93,50 @@ export function sendMixpanelEventBestEffort(logger, env, event) {
       // sendMixpanelEvent already swallows everything; belt and braces so a
       // rejected promise can never become an unhandled rejection.
     });
+}
+
+/**
+ * utm_* for this request: the link being opened right now, else the cookie the
+ * landing request left (see core/attribution.js). Lets every funnel event be
+ * broken down by campaign without joining identities across the logged-out
+ * and logged-in halves of the journey. Slug-validated there, never personal.
+ */
+export function attributionProps(request) {
+  return utmProps(attributionFromQuery(request?.query) || readAttribution(request));
+}
+
+/** Same shape from an attribution already stored on an order. */
+export function utmProps(attribution) {
+  const out = {};
+  for (const key of ["source", "medium", "campaign", "content"]) {
+    if (attribution?.[key]) out[`utm_${key}`] = attribution[key];
+  }
+  return out;
+}
+
+/**
+ * distinct_id for someone who has no owner id yet (page views, OTP asked for,
+ * code rejected). One-way, rotating daily, never an address: same guarantee as
+ * the visitor hash in routes/system/analytics.js. Cannot be joined to an owner
+ * on purpose; the utm_* above is what ties the two halves together.
+ */
+export function anonymousDistinctId(env, request) {
+  const salt = env.analyticsHashSalt || env.analyticsIngestKey || "";
+  const day = new Date().toISOString().slice(0, 10);
+  const digest = crypto
+    .createHash("sha256")
+    .update(`${salt}|${day}|${getClientIp(request)}|${request.headers?.["user-agent"] || ""}`)
+    .digest("hex")
+    .slice(0, 32);
+  return `anon:${digest}`;
+}
+
+/**
+ * Who an order's events belong to. A signed-in buyer is their owner id. A guest
+ * (the /get checkout takes no account) has none, and the webhook that confirms
+ * their payment has no request to derive one from, so the order itself is the
+ * identity: no personal data, and still stable from checkout to payment.
+ */
+export function orderDistinctId(order) {
+  return order.ownerId ? String(order.ownerId) : `guest-order:${order.orderNumber}`;
 }

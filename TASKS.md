@@ -1108,6 +1108,14 @@ Covers UX and security improvements made after M13 call flow was confirmed worki
 - [ ] After deploy, time a real order on `/shop` and `/get` on a phone, once straight through and once after waiting three minutes on the address form.
 - [ ] `/direct` still mints its bot-check token at the tap, and the signed-in dashboard checkout is unchanged. Apply the same fixes if wanted.
 
+## Address QA: valid, invalid and unservable pincodes, 2026-10-03
+
+- [x] Drove every route that takes an address (guest create-order online and COD, the guest COD code send, the COD address check, the owner's address save, signed-in place-cod) with valid, invalid and unservable pincodes, with Delhivery's pincode answer stubbed. Suite: `address-qa.test.js` (52).
+- [x] Found and fixed, in `lib/core/address.js`: an 11-digit phone and a 7-digit pincode were cut to length and accepted; a state not on the sheet's list (e.g. "Mars", "UP") skipped the pincode check and was accepted. Phone and pincode are now matched whole; the state must be one the pincode table knows (the same list the sheet offers, pinned by a test). State labels in errors read "Jammu and Kashmir", not "And".
+- [x] Found and fixed, in `routes/shop/index.js`: signed-in `place-cod` never asked whether the courier collects cash at the saved pincode (the address save only asks whether it delivers at all). It now refuses a prepaid-only pincode like guest COD does; an unknown answer still fails open.
+- [x] Confirmed unchanged: a pincode from another state is refused without echoing it; an unserved pincode is refused online, for COD, at the code send and at the address save, before anything is written; a courier outage fails open. The sheet's own checks mirror the server (maxlength 10/6, a state list, India Post state cross-check).
+- [x] `quantity-checkout.test.js` fixture sent `state: "UP"`, which the sheet cannot send and the server now refuses; corrected to "Uttar Pradesh". 191 neighbouring tests pass locally.
+
 ## Cash on Delivery: the wait after "Place order, pay on delivery", 2026-10-03
 
 - [x] Reported: confirming the delivery address takes up to two seconds on `/shop` and `/get`. Paying online, the tap closes the sheet with no network call; the wait was the Cash on Delivery tap, which ran the Ola address check, a bot-check token mint and the WhatsApp code send one after another before the code screen appeared. Written up in `wiki/cod-address-tap.md`.

@@ -27,7 +27,7 @@ function guestCreateOrder(body) {
 
 const ADDRESS = {
   fullName: "Qty QA", phone: "9812345678", line1: "1 QA St",
-  city: "Noida", state: "UP", pincode: "201301"
+  city: "Noida", state: "Uttar Pradesh", pincode: "201301"
 };
 
 describe("guest checkout accepts a quantity", () => {

@@ -17,7 +17,7 @@ let app, collections, previous;
 
 const ADDRESS = {
   fullName: "Plate QA", phone: "9812345678", line1: "1 QA St",
-  city: "Noida", state: "UP", pincode: "201301"
+  city: "Noida", state: "Uttar Pradesh", pincode: "201301"
 };
 
 const createOrder = (body) =>

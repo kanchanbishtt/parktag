@@ -2097,6 +2097,15 @@ export function registerShopRoutes(app, env) {
       reply.code(400); return { error: `Cash on Delivery is limited to ${COD_MAX_QUANTITY} packs per order. Please pay online for more.` };
     }
 
+    // Same rule as guest COD: the courier must collect cash at this pincode.
+    // Saving the address only asked whether Delhivery delivers there at all,
+    // so a prepaid-only pincode reached the booking and failed after the
+    // buyer was told the order was placed. Only an explicit "no" refuses; an
+    // unknown answer fails open, like the rest of checkout.
+    if ((await checkPincodeServiceability(env, shipping.pincode)).cod === false) {
+      reply.code(400); return { error: "Cash on Delivery is not available at this pincode. Please pay online." };
+    }
+
     // Per-account ceiling (see MAX_COD_ORDERS_PER_WINDOW). Checked before the
     // OTP step so someone at their limit is told so immediately rather than
     // being walked through a verification that cannot end in an order.

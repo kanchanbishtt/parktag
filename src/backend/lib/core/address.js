@@ -56,11 +56,17 @@ const PIN_PREFIX_STATES = {
 };
 const KNOWN_STATES = new Set(Object.values(PIN_PREFIX_STATES).flat());
 const STATE_LABEL = {};
-for (const s of KNOWN_STATES) STATE_LABEL[s] = s.replace(/\b\w/g, (c) => c.toUpperCase());
+// "Jammu and Kashmir", as India Post and the sheet write it: the joining word
+// stays lower-case.
+for (const s of KNOWN_STATES) STATE_LABEL[s] = s.replace(/\b\w/g, (c) => c.toUpperCase()).replace(/\bAnd\b/g, "and");
 
 function normaliseState(state) {
   return String(state || "").toLowerCase().replace(/&/g, "and").replace(/^nct of /, "").replace(/\s+/g, " ").trim();
 }
+
+// The states a delivery address may name, as the sheet spells them, for the
+// page and for tests to agree with this table.
+export const INDIAN_STATES = Object.freeze([...KNOWN_STATES].map((s) => STATE_LABEL[s]).sort());
 
 // The state(s) a pincode belongs to when it plainly contradicts the chosen
 // state, else null (a match, or not enough to judge).
@@ -77,19 +83,27 @@ export function pincodeStateMismatch(pincode, state) {
 export function validateAddress(raw) {
   const body = raw || {};
   const fullName = clean(body.fullName, 80);
-  const phone = clean(body.phone, 10);
+  // Not cut to length like the free-text fields: the two regexes below bound
+  // these, and cutting first turned an 11-digit phone or a 7-digit pincode
+  // into a valid-looking one and let it through (QA, 2026-10-03). The sheet
+  // never sends either (maxlength), so only a direct request reaches this.
+  const phone = String(body.phone ?? "").trim();
   const line1 = clean(body.line1, 120);
   const line2 = clean(body.line2, 120);
   const landmark = clean(body.landmark, 120);
   const city = clean(body.city, 60);
   const state = clean(body.state, 60);
-  const pincode = clean(body.pincode, 6);
+  const pincode = String(body.pincode ?? "").trim();
 
   if (fullName.length < 2) return { ok: false, error: "Please enter the recipient's full name." };
   if (!PHONE_RE.test(phone)) return { ok: false, error: "Enter a valid 10-digit mobile number." };
   if (line1.length < 4) return { ok: false, error: "Enter your house / flat and street." };
   if (city.length < 2) return { ok: false, error: "Please enter your city." };
   if (state.length < 2) return { ok: false, error: "Please enter your state." };
+  // The sheet offers a list of states; a direct request can send anything,
+  // and an unknown state was skipped by the pincode check below rather than
+  // refused, so "Mars" shipped. The list is the one the pincode table knows.
+  if (!KNOWN_STATES.has(normaliseState(state))) return { ok: false, error: "Please choose your state from the list." };
   if (!PIN_RE.test(pincode)) return { ok: false, error: "Enter a valid 6-digit pincode (your area's postal code)." };
   const belongsTo = pincodeStateMismatch(pincode, state);
   if (belongsTo) {

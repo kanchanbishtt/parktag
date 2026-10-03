@@ -158,7 +158,10 @@
   // The form as it stands would be accepted: the tap is close.
   function warmIfComplete() {
     if (!guestMode || !els || !resolver) return;
-    if (validate(readForm()) === null) warmCheckout();
+    if (validate(readForm()) === null) {
+      warmCheckout();
+      if (payChoice === "cod") primeCaptcha();
+    }
   }
 
   // The sheet is an overlay on the page, not a page of its own, so the phone's
@@ -332,6 +335,8 @@
       "#pt-addr-sugg small{display:block;color:var(--muted);font-size:.72rem;margin-top:2px;}",
       "#pt-addr-err,#pt-addr-otp-err{display:none;background:#fdecec;color:#c0271b;font-size:.8rem;font-weight:600;padding:10px 13px;border-radius:11px;margin-bottom:13px;}",
       "#pt-addr-err.pt-show,#pt-addr-otp-err.pt-show{display:block;}",
+      "#pt-addr-otp-note{display:none;background:#fff4e5;color:#8a4b00;font-size:.8rem;font-weight:600;padding:10px 13px;border-radius:11px;margin-bottom:13px;}",
+      "#pt-addr-otp-note.pt-show{display:block;}",
       // The COD code: one wide field, digits spaced so a misread is visible.
       "#pt-addr-code{font-size:1.3rem;font-weight:800;letter-spacing:.45em;text-align:center;font-variant-numeric:tabular-nums;}",
 
@@ -463,11 +468,12 @@
       // ── Code view (guest Cash on Delivery) ──
       '<div id="pt-addr-otp" class="pt-hide">' +
       '<div id="pt-addr-otp-err" role="alert"></div>' +
+      '<div id="pt-addr-otp-note" role="status"></div>' +
       '<div class="pt-addr-f"><label for="pt-addr-code">6-digit code<span class="pt-req" aria-hidden="true">*</span></label>' +
       '<input type="text" id="pt-addr-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="••••••" aria-describedby="pt-addr-sub" required aria-required="true"></div>' +
       '<button id="pt-addr-verify" class="pt-addr-primary" type="button">' + IC.lock + "Verify &amp; place order</button>" +
       '<button id="pt-addr-resend" class="pt-addr-secondary" type="button" disabled>Resend code</button>' +
-      '<button id="pt-addr-back" class="pt-addr-link" type="button">Change mobile number</button>' +
+      '<button id="pt-addr-back" class="pt-addr-link" type="button">Change address or mobile number</button>' +
       "</div>" +
       "</div>";
 
@@ -500,6 +506,7 @@
       note: ov.querySelector("#pt-addr-note"),
       otp: ov.querySelector("#pt-addr-otp"),
       otpErr: ov.querySelector("#pt-addr-otp-err"),
+      otpNote: ov.querySelector("#pt-addr-otp-note"),
       code: ov.querySelector("#pt-addr-code"),
       verify: ov.querySelector("#pt-addr-verify"),
       resend: ov.querySelector("#pt-addr-resend"),
@@ -732,6 +739,9 @@
       el.textContent = cod ? "Cash on delivery · pay when your order arrives" : "Secured by Razorpay · UPI · Cards · Net Banking";
     });
     if (guestMode && els.save) els.save.innerHTML = IC.lock + saveLabel();
+    // The code send needs a bot score. Minted now, while the buyer is still on
+    // the form, so the tap does not wait on Google.
+    if (cod && guestMode) primeCaptcha();
   }
 
   function saveLabel() {
@@ -909,33 +919,24 @@
 
   // COD only: a parcel to an address the courier cannot find comes back, and
   // ParkTag pays both ways. Ola checks street, city and PIN agree; on a
-  // mismatch the buyer is warned once and may still place it ("Place anyway"
-  // is the same button pressed again with the address unchanged). A lookup
-  // that fails or times out never stops the order.
-  var codAddrAccepted = null;
-  async function addressLooksWrong(v) {
+  // mismatch the buyer is told once, on the code screen, and may still place
+  // it by entering the code. A lookup that fails or times out never stops the
+  // order. One verdict per address, so going back and forth does not ask twice.
+  var addrVerdicts = {};
+  var addrWarned = {};
+  function addressLooksWrong(v) {
     var key = JSON.stringify(v);
-    if (codAddrAccepted === key) return false;
-    els.save.disabled = true;
-    els.save.textContent = "Checking address…";
-    var validated = null;
-    try {
-      var res = await fetch("/api/shop/address-check", {
+    if (!addrVerdicts[key]) {
+      addrVerdicts[key] = fetch("/api/shop/address-check", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ address: v })
-      });
-      var data = res.ok ? await res.json() : null;
-      validated = data ? data.validated : null;
-    } catch (e) { /* unknown: carry on */ }
-    els.save.disabled = false;
-    els.save.innerHTML = IC.lock + saveLabel();
-    codAddrAccepted = key;
-    if (validated !== false) return false;
-    showErr("We couldn't match this address to PIN " + v.pincode + ". Please check the PIN and street, or tap the button again to place the order anyway.");
-    els.save.textContent = "Place anyway, pay on delivery";
-    if (typeof window.clarity === "function") window.clarity("event", "cod_address_mismatch");
-    return true;
+      })
+        .then(function (res) { return res.ok ? res.json() : null; })
+        .then(function (data) { return data ? data.validated : null; })
+        .catch(function () { return null; }); // unknown: carry on
+    }
+    return addrVerdicts[key].then(function (validated) { return validated === false; });
   }
 
   async function onSave() {
@@ -948,7 +949,6 @@
     // which sends it with the order.
     if (guestMode) {
       if (payPrices && payChoice === "cod") {
-        if (await addressLooksWrong(v)) return;
         startCodCheck(v);
         return;
       }
@@ -990,9 +990,29 @@
 
   // ── Guest Cash on Delivery: prove the mobile before resolving ──
 
+  // A bot-check token for the code send, minted ahead of the tap (see
+  // setPayChoice and warmIfComplete) and used while it is young enough for
+  // Google. A token is good once, so it is taken, never reused.
+  var CAPTCHA_FRESH_MS = 90 * 1000;
+  var primedCaptcha = null; // { at, token: Promise<string> }
+  function mintCaptcha() {
+    try { return Promise.resolve(captchaFn ? captchaFn() : "").then(function (t) { return t || ""; }, function () { return ""; }); }
+    catch (_) { return Promise.resolve(""); }
+  }
+  function primeCaptcha() {
+    if (!captchaFn || !guestMode) return;
+    if (primedCaptcha && Date.now() - primedCaptcha.at < CAPTCHA_FRESH_MS) return;
+    primedCaptcha = { at: Date.now(), token: mintCaptcha() };
+  }
+  async function takeCaptcha() {
+    var kept = primedCaptcha;
+    primedCaptcha = null;
+    var token = kept && Date.now() - kept.at < CAPTCHA_FRESH_MS ? await kept.token : "";
+    return token || mintCaptcha();
+  }
+
   async function sendCodCode(phone, pincode) {
-    var recaptchaToken = "";
-    try { recaptchaToken = captchaFn ? (await captchaFn()) || "" : ""; } catch (_) { /* server allows none */ }
+    var recaptchaToken = await takeCaptcha();
     var res = await fetch("/api/shop/guest/cod-otp/send", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -1002,19 +1022,48 @@
     if (!res.ok || !data.ok) throw new Error(data.error || "Could not send the code. Please try again.");
   }
 
-  async function startCodCheck(v) {
-    els.save.disabled = true;
-    els.save.textContent = "Sending code…";
-    try {
-      await sendCodCode(v.phone, v.pincode);
-      codAddress = v;
-      showOtp();
-    } catch (e) {
+  // The tap on "Place order, pay on delivery".
+  //
+  // This used to wait: the address was checked with Ola, then a bot-check
+  // token minted, then the code sent, and only then did the code screen
+  // appear, two seconds and more after the tap. None of that needs the buyer
+  // to watch it. The code screen is shown at once, saying the code is on its
+  // way; the send runs behind it (and a failure brings the form back with
+  // the reason, exactly where it would have appeared before); and the address
+  // verdict, asked for at the same moment, lands on the screen as a note if
+  // it is a mismatch. The code itself takes a few seconds to reach WhatsApp,
+  // which is longer than any of this.
+  //
+  // `codSeq` ties each answer to the tap that asked: a buyer who went back,
+  // or whose sheet was closed, is not shown a stale one.
+  var codSeq = 0;
+  function startCodCheck(v) {
+    codSeq += 1;
+    var seq = codSeq;
+    codAddress = v;
+    showOtp();
+    var onCodeScreen = function () { return seq === codSeq && els.otp && !els.otp.classList.contains("pt-hide"); };
+
+    sendCodCode(v.phone, v.pincode).then(function () {
+      if (!onCodeScreen()) return;
+      els.sub.textContent = "We sent a 6-digit code on WhatsApp to " + v.phone +
+        ". Enter it to place your Cash on Delivery order.";
+      startResendTimer();
+    }, function (e) {
+      if (!onCodeScreen()) return;
+      showForm(v);
       showErr(e.message || "Could not send the code. Please try again.");
-    } finally {
-      els.save.disabled = false;
-      els.save.innerHTML = IC.lock + saveLabel();
-    }
+    });
+
+    addressLooksWrong(v).then(function (wrong) {
+      if (!wrong || !onCodeScreen()) return;
+      els.otpNote.textContent = "We couldn't match this address to PIN " + v.pincode +
+        ". Go back to check the PIN and street, or enter the code to place the order anyway.";
+      els.otpNote.classList.add("pt-show");
+      var key = JSON.stringify(v);
+      if (!addrWarned[key] && typeof window.clarity === "function") window.clarity("event", "cod_address_mismatch");
+      addrWarned[key] = true;
+    });
   }
 
   function showOtpErr(msg) {
@@ -1030,14 +1079,19 @@
 
   function showOtp() {
     clearOtpErr();
+    els.otpNote.textContent = "";
+    els.otpNote.classList.remove("pt-show");
     els.code.value = "";
     els.title.textContent = "Confirm your mobile";
-    els.sub.textContent = "We sent a 6-digit code on WhatsApp to " + codAddress.phone +
-      ". Enter it to place your Cash on Delivery order.";
+    els.sub.textContent = "Sending a 6-digit code on WhatsApp to " + codAddress.phone +
+      "\u2026 Enter it to place your Cash on Delivery order.";
     els.form.classList.add("pt-hide");
     els.otp.classList.remove("pt-hide");
     reveal(els.otp);
-    startResendTimer();
+    // Resend opens once the first send has landed (see startCodCheck).
+    clearInterval(resendTimer);
+    els.resend.disabled = true;
+    els.resend.textContent = "Sending code\u2026";
     els.code.focus();
   }
 
@@ -1192,6 +1246,8 @@
     orderSummary = options && options.orderSummary ? options.orderSummary : null;
     captchaFn = options && typeof options.captchaToken === "function" ? options.captchaToken : null;
     codAddress = null;
+    codSeq += 1; // an answer still in flight from the last open is nobody's now
+    primedCaptcha = null;
     if (!els) build();
     // No summary means no priced COD: a stale choice must not carry over.
     payPrices = null;

@@ -1445,17 +1445,36 @@ export function registerShopRoutes(app, env) {
       }
       // Same bot check as guest create-order, minus its allowance for an absent
       // token: a COD code leads to a billed courier parcel, so COD needs a score.
-      const captcha = await verifyRecaptcha(env, recaptchaToken, {
+      //
+      // Asked of Google while the two read-only lookups below run: the open
+      // COD order for this phone and the courier's answer for the pincode.
+      // Neither writes, so a request the bot check refuses has cost two reads
+      // and nothing more. The DECISIONS are still taken in the same order as
+      // before: a refused bot check is answered first, then the per-address
+      // cap, then the open order, then the pincode.
+      const captchaCheck = verifyRecaptcha(env, recaptchaToken, {
         remoteIp: request.ip,
         expectedAction: "guest_checkout"
       });
+      const lookups = (async () => {
+        const collections = await getCollections(env);
+        if (!collections) return { collections };
+        const [open, serviceability] = await Promise.all([
+          findOpenGuestCod(collections, phone),
+          pincode ? checkPincodeServiceability(env, pincode) : null
+        ]);
+        return { collections, open, serviceability };
+      })();
+      lookups.catch(() => {});
+
+      const captcha = await captchaCheck;
       if (!captcha.ok) {
         reply.code(400);
         return captcha.reason === "missing-token"
           ? { ok: false, code: "COD_CAPTCHA_REQUIRED", error: COD_UNSCORED_ERROR }
           : { ok: false, error: "We couldn't verify this request. Please refresh the page and try again." };
       }
-      const collections = await getCollections(env);
+      const { collections, open, serviceability } = await lookups;
       if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
       if (await windowCountExceeded(collections, `guest-cod-otp:${request.ip}`, GUEST_COD_OTP_PER_IP, GUEST_COD_IP_WINDOW_MS)) {
         request.log.warn({ event: "guest-cod-otp-ip-exhausted" }, "[guest checkout] too many COD codes from one address");
@@ -1465,7 +1484,6 @@ export function registerShopRoutes(app, env) {
       // Every code is a paid WhatsApp message, so the refusals create-order
       // would give anyway are given here first. The same checks run again at
       // create-order; these only save the message.
-      const open = await findOpenGuestCod(collections, phone);
       if (open) {
         reply.code(429);
         return {
@@ -1474,7 +1492,7 @@ export function registerShopRoutes(app, env) {
           error: `There is already a Cash on Delivery order (${open.orderNumber}) for this number. Please pay online for another one.`
         };
       }
-      if (pincode && (await checkPincodeServiceability(env, pincode)).cod === false) {
+      if (serviceability && serviceability.cod === false) {
         reply.code(400);
         return { ok: false, error: "Cash on Delivery is not available at this pincode. Please pay online." };
       }

@@ -1108,6 +1108,14 @@ Covers UX and security improvements made after M13 call flow was confirmed worki
 - [ ] After deploy, time a real order on `/shop` and `/get` on a phone, once straight through and once after waiting three minutes on the address form.
 - [ ] `/direct` still mints its bot-check token at the tap, and the signed-in dashboard checkout is unchanged. Apply the same fixes if wanted.
 
+## Cash on Delivery: the wait after "Place order, pay on delivery", 2026-10-03
+
+- [x] Reported: confirming the delivery address takes up to two seconds on `/shop` and `/get`. Paying online, the tap closes the sheet with no network call; the wait was the Cash on Delivery tap, which ran the Ola address check, a bot-check token mint and the WhatsApp code send one after another before the code screen appeared. Written up in `wiki/cod-address-tap.md`.
+- [x] The code screen appears at the tap, saying the code is on its way; the send runs behind it and updates the screen, or brings the form back with the server's reason. An address Ola cannot match becomes an amber note on the code screen (the buyer may still place it); the back link reads "Change address or mobile number".
+- [x] The bot-check token is minted when Cash on Delivery is chosen and kept young while the form is typed. `POST /api/shop/guest/cod-otp/send` starts the bot check, the open-order lookup and the courier's pincode answer together, deciding in the old order.
+- [x] Tests: `cod-address-tap.test.js` (9, the real sheet in jsdom, no database); `guest-cod-otp-wiring.test.js` updated. `checkout-survives-reload`, `checkout-speed`, `address-suggest`, `guest-cod`, `guest-checkout-bot-gate`, `direct-coupon-page` and `guest-checkout` pass locally against the local MongoDB.
+- [ ] After deploy, on a phone: choose Cash on Delivery on `/shop`, tap the button, and confirm the code screen is immediate and the WhatsApp code follows. Try a PIN from another state to see the amber note.
+
 ## Cash on Delivery: the wait after "Place order", 2026-10-03
 
 - [x] Reported: a COD order on `/shop` takes five seconds or more to confirm. Found the cause: after writing the order, guest `create-order` waited for the Delhivery booking and pickup, the promo burn, the WhatsApp confirmation and the Meta conversion, one after another, before replying. Written up in `wiki/cod-order-speed.md`.

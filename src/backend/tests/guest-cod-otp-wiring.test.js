@@ -20,9 +20,10 @@ describe("guest COD phone check wiring", () => {
     assert.match(sheet, /\/api\/shop\/guest\/cod-otp\/send/);
     assert.match(sheet, /\/api\/shop\/guest\/cod-otp\/verify/);
     assert.match(sheet, /paymentMethod: "cod", codToken: data\.codToken/);
-    // The only other guest resolve is the online one. A plausibility check on
-    // the address may run first; the phone check still gates resolving COD.
-    assert.match(sheet, /if \(payPrices && payChoice === "cod"\) \{\s*if \(await addressLooksWrong\(v\)\) return;\s*startCodCheck\(v\);\s*return;\s*\}/);
+    // The only other guest resolve is the online one. The phone check gates
+    // resolving COD; the address plausibility check runs beside the send and
+    // only ever adds a note (see cod-address-tap.test.js).
+    assert.match(sheet, /if \(payPrices && payChoice === "cod"\) \{\s*startCodCheck\(v\);\s*return;\s*\}/);
   });
 
   for (const file of ["shop.js", "get.js", "direct.js"]) {

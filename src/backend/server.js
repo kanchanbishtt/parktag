@@ -1,6 +1,7 @@
 import { buildApp } from "./app.js";
 import { getEnv } from "./lib/env.js";
 import { closeMongoConnection } from "./lib/db/mongo.js";
+import { settleAfterReply } from "./lib/core/after-reply.js";
 import { getCollections, ensureCoreIndexes } from "./lib/db/repositories.js";
 import { verifyRazorpayCredentials } from "./lib/integrations/payments.js";
 import { startScheduler } from "./lib/core/scheduler.js";
@@ -44,6 +45,15 @@ async function shutdown(signal) {
     await app.close();          // 1. drain HTTP
   } catch (error) {
     app.log.error({ err: error }, "[shutdown] closing the HTTP server failed");
+  }
+
+  try {
+    // A reply that has gone out may still have its courier booking or its
+    // confirmation in flight (lib/core/after-reply.js). Let those land before
+    // the database they write to is closed under them.
+    await settleAfterReply();
+  } catch (error) {
+    app.log.error({ err: error }, "[shutdown] after-reply work did not settle");
   }
 
   try {

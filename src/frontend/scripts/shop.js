@@ -12,6 +12,7 @@
 // decision, so it is written down rather than derived from price.
 import { referralCode, clearReferralCode } from "./referral-link.js";
 import { getCaptchaToken } from "./recaptcha.js";
+import { keepFreshToken } from "./fresh-captcha.js";
 import { checkoutCart } from "./checkout-cart.js";
 
 const PACKS = [
@@ -396,6 +397,11 @@ async function buy(sku, product) {
   // The sheet is also where the buyer picks online or Cash on Delivery, for a
   // pack the catalogue says takes it.
   const cod = _cod && _cod.productIds.includes(sku) ? _cod : null;
+  // The bot check, started now rather than at the tap, and kept fresh while the
+  // buyer types (see fresh-captcha.js), as /get does. Only a Cash on Delivery
+  // order sends a token from this page, so it is only started for a pack that
+  // takes COD; an online order here is not made to load Google's script.
+  const captcha = cod ? keepFreshToken(() => getCaptchaToken("guest_checkout")) : null;
   // Marked open before the sheet shows, so a reload from here brings it back.
   cart.save({ checkout: sku });
   const picked = await window.ptCollectAddress({
@@ -416,6 +422,7 @@ async function buy(sku, product) {
       : null
   });
   if (!picked) {
+    if (captcha) captcha.stop();
     cart.save({ checkout: null }); // backed out on purpose: do not reopen it
     return;
   }
@@ -447,9 +454,11 @@ async function buy(sku, product) {
   showSheet();
 
   // Each names real work inside create-order: validateAddress, then the order
-  // number and the shopOrder write, then createRazorpayOrder. One request from
-  // here, so the run walks the stages on a schedule and can only be FINISHED by
-  // the response arriving.
+  // number and the shopOrder write, then createRazorpayOrder (or, for Cash on
+  // Delivery, the write itself: the courier booking and the confirmation run
+  // on the server after it has answered). One request from here, so the run
+  // walks the stages on a schedule and can only be FINISHED by the response
+  // arriving.
   const orderPacing = [700, 1500].map((delay) => setTimeout(() => orderSteps.advance(), delay));
   const stopOrderPacing = () => orderPacing.forEach(clearTimeout);
 
@@ -459,8 +468,12 @@ async function buy(sku, product) {
     // order comes back, so that connection is opened now, in parallel.
     if (paymentMethod !== "cod") preconnect("https://api.razorpay.com");
     // COD only: the server refuses an unscored COD order. Online checkout here
-    // stays as it was, with no token.
-    const recaptchaToken = paymentMethod === "cod" ? await getCaptchaToken("guest_checkout") : undefined;
+    // stays as it was, with no token. The token is the one kept fresh since
+    // the sheet opened, so the tap does not wait on Google.
+    if (captcha && paymentMethod !== "cod") captcha.stop();
+    const recaptchaToken = paymentMethod === "cod"
+      ? await (captcha ? captcha.take() : getCaptchaToken("guest_checkout"))
+      : undefined;
     const res = await fetch("/api/shop/guest/create-order", {
       method: "POST",
       headers: { "content-type": "application/json" },

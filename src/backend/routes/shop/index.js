@@ -55,6 +55,7 @@ import {
   utmProps
 } from "../../lib/integrations/mixpanel.js";
 import { clientErrorMessage } from "../../lib/errors.js";
+import { afterReply } from "../../lib/core/after-reply.js";
 
 // COD carries a flat +₹49 handling fee on top of the price, once per order.
 // Paying online removes it, so the online price always equals the catalog
@@ -490,6 +491,17 @@ function findOpenGuestCod(collections, phone) {
 const GUEST_COD_LOCK_MS = 60 * 1000;
 
 async function placeGuestCod(env, collections, request, reply, order, codToken) {
+  // The two outside answers the order needs, asked for before the lock is even
+  // taken: both only read, and both are the long poles here (the courier is
+  // cached per pincode in production, the address check is not), so they run
+  // while the lock and the open-order lookup take their database trips. A
+  // request refused below has cost one address check and nothing more.
+  const external = Promise.all([
+    checkPincodeServiceability(env, order.shippingAddress.pincode),
+    addressValidates(addressLine(order.shippingAddress), { log: request.log })
+  ]);
+  external.catch(() => {});
+
   const lockId = `guest-cod-lock:${order.shippingAddress.phone}`;
   const lock = () => collections.rateLimits.insertOne({ _id: lockId, resetAt: new Date(Date.now() + GUEST_COD_LOCK_MS) });
   try {
@@ -505,7 +517,7 @@ async function placeGuestCod(env, collections, request, reply, order, codToken) 
     await lock();
   }
   try {
-    return await placeGuestCodLocked(env, collections, request, reply, order, codToken);
+    return await placeGuestCodLocked(env, collections, request, reply, order, codToken, external);
   } finally {
     await collections.rateLimits.deleteOne({ _id: lockId }).catch(() => {});
   }
@@ -515,7 +527,7 @@ async function placeGuestCod(env, collections, request, reply, order, codToken) 
 // the courier collects `order.amount` at the door. Everything priced here was
 // already derived server-side by guest create-order; this only guards, writes,
 // books and tells people.
-async function placeGuestCodLocked(env, collections, request, reply, order, codToken) {
+async function placeGuestCodLocked(env, collections, request, reply, order, codToken, external) {
   const { shippingAddress: shipping } = order;
 
   // One open COD order per delivery phone. The same checkout sent twice (a
@@ -542,14 +554,20 @@ async function placeGuestCodLocked(env, collections, request, reply, order, codT
   // Asked alongside, never refusing: the sheet already warned a buyer whose
   // address did not match and let them place it anyway. Stored so refused
   // parcels can be compared against it later.
-  const [serviceability, addressValidated] = await Promise.all([
-    checkPincodeServiceability(env, shipping.pincode),
-    addressValidates(addressLine(shipping), { log: request.log })
-  ]);
+  //
+  // Both have been in flight since placeGuestCod started.
+  const [serviceability, addressValidated] = await external;
   if (serviceability.cod === false) {
     reply.code(400);
     return { ok: false, error: "Cash on Delivery is not available at this pincode. Please pay online." };
   }
+
+  // The order number is drawn now, beside the proof and the cap below rather
+  // than after them: one database trip fewer on the buyer's wait. The same
+  // trade the online path makes with Razorpay: a request refused by either
+  // check skips a number, and a gap in the sequence costs nobody anything.
+  const orderNumber = generateOrderNumber(collections);
+  orderNumber.catch(() => {});
 
   // Fake COD parcels are the cost this guards: the delivery phone must have
   // been proven by a code (see /api/shop/guest/cod-otp/verify). The proof is
@@ -570,7 +588,7 @@ async function placeGuestCodLocked(env, collections, request, reply, order, codT
 
   const placed = {
     ...order,
-    orderNumber: await generateOrderNumber(collections),
+    orderNumber: await orderNumber,
     addressValidated,
     metaCheckoutContext: captureMetaCheckoutContext(request),
     attribution: readAttribution(request),
@@ -592,29 +610,39 @@ async function placeGuestCodLocked(env, collections, request, reply, order, codT
     }
   });
 
-  const waybill = await bookCodShipment(env, collections, {
-    orderNumber: placed.orderNumber,
-    shipping,
-    productName: placed.productName,
-    amountPaise: placed.amount
-  }, request.log);
+  // The order is placed: that line above is the whole of it, and the buyer is
+  // told now. What follows is the courier, a database write, WhatsApp and
+  // Meta, one after another because the confirmation wants the waybill. This
+  // used to run BEFORE the reply, so a person who had tapped "Place order"
+  // watched four providers answer in turn, five seconds and more, for a screen
+  // that says nothing those providers decide. Each step already records its
+  // own failure (bookCodShipment writes shipmentError for retry, the senders
+  // log), so nothing is lost by the reply not waiting for them.
+  afterReply(request.log, `guest cod ${placed.orderNumber}`, async () => {
+    const waybill = await bookCodShipment(env, collections, {
+      orderNumber: placed.orderNumber,
+      shipping,
+      productName: placed.productName,
+      amountPaise: placed.amount
+    }, request.log);
 
-  // Placing a COD order is its "paid" moment: nothing later gates it, so the
-  // code is burnt and the conversion reported here, once.
-  await consumePromo(collections, placed.promoCode, placed.orderNumber, request.log);
+    // Placing a COD order is its "paid" moment: nothing later gates it, so the
+    // code is burnt and the conversion reported here, once.
+    await consumePromo(collections, placed.promoCode, placed.orderNumber, request.log);
 
-  await sendOrderConfirmation(env, collections, null, {
-    orderNumber: placed.orderNumber,
-    productName: placed.productName,
-    amountPaise: placed.amount,
-    breakdown: orderBreakdown(placed),
-    cod: true,
-    waybill,
-    deliveryPhone: shipping.phone,
-    deliveryName: shipping.fullName
-  }, request.log);
+    await sendOrderConfirmation(env, collections, null, {
+      orderNumber: placed.orderNumber,
+      productName: placed.productName,
+      amountPaise: placed.amount,
+      breakdown: orderBreakdown(placed),
+      cod: true,
+      waybill,
+      deliveryPhone: shipping.phone,
+      deliveryName: shipping.fullName
+    }, request.log);
 
-  await sendPurchaseConversion(env, collections, placed, request.log);
+    await sendPurchaseConversion(env, collections, placed, request.log);
+  });
 
   return guestCodResponse(placed);
 }
@@ -2154,19 +2182,24 @@ export function registerShopRoutes(app, env) {
       createdAt: new Date().toISOString()
     });
 
-    const bookedWaybill = await bookCodShipment(env, collections, {
-      orderNumber, shipping, productName: product.name, amountPaise
-    }, request.log);
+    // Same shape as the guest path: the order is placed, the owner is told
+    // now, and the courier booking and the confirmation run on after the
+    // reply. See placeGuestCodLocked for why.
+    afterReply(request.log, `place-cod ${orderNumber}`, async () => {
+      const bookedWaybill = await bookCodShipment(env, collections, {
+        orderNumber, shipping, productName: product.name, amountPaise
+      }, request.log);
 
-    // Best-effort confirmation (e-mail, or WhatsApp when no e-mail); for COD it
-    // carries the acceptance reminder + a tracking link once a waybill exists.
-    await sendOrderConfirmation(env, collections, ownerId, {
-      orderNumber, productName: product.name, amountPaise, cod: true,
-      waybill: bookedWaybill, deliveryPhone: shipping.phone,
-      // The name typed for the courier — the only name most owners ever give
-      // us, since sign-in asks for a number and nothing else.
-      deliveryName: shipping.fullName
-    }, request.log);
+      // Best-effort confirmation (e-mail, or WhatsApp when no e-mail); for COD it
+      // carries the acceptance reminder + a tracking link once a waybill exists.
+      await sendOrderConfirmation(env, collections, ownerId, {
+        orderNumber, productName: product.name, amountPaise, cod: true,
+        waybill: bookedWaybill, deliveryPhone: shipping.phone,
+        // The name typed for the courier — the only name most owners ever give
+        // us, since sign-in asks for a number and nothing else.
+        deliveryName: shipping.fullName
+      }, request.log);
+    });
 
     if (!isInternalPhone(env, shipping.phone)) sendMixpanelEventBestEffort(request.log, env, {
       eventName: "order_placed",

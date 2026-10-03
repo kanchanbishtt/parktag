@@ -1108,6 +1108,17 @@ Covers UX and security improvements made after M13 call flow was confirmed worki
 - [ ] After deploy, time a real order on `/shop` and `/get` on a phone, once straight through and once after waiting three minutes on the address form.
 - [ ] `/direct` still mints its bot-check token at the tap, and the signed-in dashboard checkout is unchanged. Apply the same fixes if wanted.
 
+## Cash on Delivery: the wait after "Place order", 2026-10-03
+
+- [x] Reported: a COD order on `/shop` takes five seconds or more to confirm. Found the cause: after writing the order, guest `create-order` waited for the Delhivery booking and pickup, the promo burn, the WhatsApp confirmation and the Meta conversion, one after another, before replying. Written up in `wiki/cod-order-speed.md`.
+- [x] New `lib/core/after-reply.js`: work a route hands off after its reply, failures logged with a label, tracked so `settleAfterReply()` can wait for it. `server.js` settles it between draining HTTP and closing Mongo; `tests/helpers.js` settles it in `stopTestApp`.
+- [x] Guest COD replies as soon as the order is written; the courier, the promo burn, the confirmation and the conversion run after the reply in the same order as before. The courier and address checks start before the phone lock; the order number is drawn beside the proof burn.
+- [x] Signed-in `/api/shop/place-cod`: the booking and the confirmation are handed off the same way.
+- [x] `/shop` keeps its bot-check token fresh while the delivery step is open for a pack that takes COD (`fresh-captcha.js`), so the tap does not wait on Google. Online orders there still send no token.
+- [x] Tests: `cod-order-speed.test.js` (9, no database) and a new case in `guest-cod.test.js` (reply before the promo burn, promo still burnt). `guest-cod.test.js`, `checkout-pricing.test.js` and `checkout-low-findings.test.js` need Mongo and could not be run from this Mac (Atlas times out); CI runs them.
+- [ ] After deploy, time a COD order on `/shop` on a phone, and confirm the WhatsApp confirmation still arrives a few seconds after the screen.
+- [ ] `/direct` still mints its bot-check token at the tap; the server-side change covers its COD orders already.
+
 ## /get: only the Order button starts a purchase, 2026-10-03
 
 - [x] Reported: a tap anywhere on the ₹299 or ₹399 pack card on `/get` (price, name, photo) opened the delivery address sheet. Reproduced with the real page in jsdom. Cause: PR #300 made the whole card buy ("dead taps on the price and the photo"), which reads as the page acting on its own.

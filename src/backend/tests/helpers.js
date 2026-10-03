@@ -9,6 +9,7 @@ import { buildApp } from "../app.js";
 import { getEnv } from "../lib/env.js";
 import { getCollections } from "../lib/db/repositories.js";
 import { closeMongoConnection } from "../lib/db/mongo.js";
+import { settleAfterReply } from "../lib/core/after-reply.js";
 import { createPasswordHash } from "../lib/auth/security.js";
 
 // Refuse to touch a database that isn't obviously disposable.
@@ -161,6 +162,9 @@ export async function startTestApp() {
 
 export async function stopTestApp(app) {
   await app.close();
+  // Work a route handed off after its reply (a COD order's courier booking and
+  // confirmation) must finish before the connection it writes through goes.
+  await settleAfterReply();
   await closeMongoConnection();
 }
 

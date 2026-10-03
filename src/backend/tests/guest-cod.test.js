@@ -24,6 +24,7 @@ import test, { before, after, beforeEach, describe } from "node:test";
 import assert from "node:assert/strict";
 
 import { startTestApp, stopTestApp, uniqueAddress } from "./helpers.js";
+import { settleAfterReply } from "../lib/core/after-reply.js";
 import { createOtpHash } from "../lib/auth/security.js";
 import { normalizeIdentifier, OTP_PURPOSE_AUTH, OTP_PURPOSE_COD_VERIFY } from "../lib/auth/otp.js";
 
@@ -100,6 +101,8 @@ after(async () => {
 });
 
 beforeEach(async () => {
+  await settleAfterReply();
+  await collections.promoCodes.updateOne({ code: "LAUNCH100" }, { $set: { usedCount: 0, usedByOrders: [] } });
   await collections.shopOrders.deleteMany({}).catch(() => {});
   await collections.rateLimits.deleteMany({ _id: /^guest-cod(-otp|-proof|-lock)?:/ }).catch(() => {});
   await purgeCodes();
@@ -293,6 +296,24 @@ describe("guest Cash on Delivery", () => {
     assert.equal(res.statusCode, 500, res.body);
     assert.equal(res.json().error, "Razorpay not configured.");
     assert.equal(await collections.otpTokens.countDocuments({ identifier: normalizeIdentifier(ADDRESS.phone) }), 0);
+  });
+
+  // The reply carries the order; the courier booking, the code burn and the
+  // confirmation run on after it (lib/core/after-reply.js). What the buyer is
+  // told must already be true when they are told it, and the rest must still
+  // happen.
+  test("the order is placed and answered before the code is burnt, and the code is still burnt", async () => {
+    const res = await cod({ promo: "LAUNCH100" });
+    assert.equal(res.statusCode, 200, res.body);
+    const { orderNumber } = res.json();
+    const order = await collections.shopOrders.findOne({ orderNumber, status: "cod" });
+    assert.ok(order, "the order exists at the reply");
+    assert.equal(order.promoCode, "LAUNCH100");
+
+    await settleAfterReply();
+    const launch = await collections.promoCodes.findOne({ code: "LAUNCH100" });
+    assert.equal(launch.usedCount, 1);
+    assert.deepEqual(launch.usedByOrders, [orderNumber]);
   });
 
   test("the public catalogue offers COD exactly where create-order takes it", async () => {

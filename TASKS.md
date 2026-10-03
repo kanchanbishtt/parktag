@@ -1108,6 +1108,13 @@ Covers UX and security improvements made after M13 call flow was confirmed worki
 - [ ] After deploy, time a real order on `/shop` and `/get` on a phone, once straight through and once after waiting three minutes on the address form.
 - [ ] `/direct` still mints its bot-check token at the tap, and the signed-in dashboard checkout is unchanged. Apply the same fixes if wanted.
 
+## Dashboard shop: Combo and Bike packs shown as sold out, 2026-10-03
+
+- [x] Reported: the signed-in dashboard shop on production still sold the Combo Tag and the Bike Tag, while `/shop` and `/get` show them sold out and the server refuses the order. `welcome-shop.js` hard-coded its four cards with no stock flag.
+- [x] `pt-combo` and `pt-bike-1` carry `soldOut: true` in `welcome-shop.js`. A sold-out card has no tap, a grey SOLD OUT badge, dimmed artwork, and keeps its name and price. `?shop=1&sku=` links, the product sheet and a saved checkout refuse them too. Styles in `owner-welcome.css`.
+- [x] Tests: `dashboard-shop-sold-out.test.js` (3, no database). `checkout-survives-reload`, `shop-sold-out`, `get-sold-out`, `checkout-low-findings`, `checkout-pricing` and `checkout-csp` pass locally against the local MongoDB.
+- [ ] After deploy, open the dashboard shop on a phone and confirm the two cards read SOLD OUT and do not open.
+
 ## Razorpay netbanking: blank page at the bank, 2026-10-03
 
 - [x] Reported: choosing netbanking in the Razorpay window shows a blank page. Cause: the page's CSP had `form-action 'self' https://www.facebook.com`. Cards, UPI and wallets stay inside Razorpay's iframe; netbanking posts a form through `api.razorpay.com` to the bank, and that directive refused the navigation.

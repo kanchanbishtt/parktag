@@ -926,6 +926,13 @@
     font-size: .6rem; font-weight: 800; padding: 3px 7px; border-radius: 5px;
     letter-spacing: .03em;
   }
+  /* Sold out: still readable, plainly unbuyable. The artwork is dimmed rather
+     than the whole card, so the name and the price stay at full contrast.
+     Mirrors the same state on /shop and /get. */
+  .pt-shop-card-out { cursor: default; background: #F9FAFB; }
+  .pt-shop-card-out:hover { transform: none; box-shadow: 0 1px 4px rgba(0,0,0,.05); border-color: #E5E7EB; }
+  .pt-shop-card-out .pt-shop-pic, .pt-shop-card-out .pt-shop-img > svg { opacity: .55; filter: grayscale(1); }
+  .pt-shop-badge-out { background: #6B7280; letter-spacing: .1em; }
   .pt-shop-body  { padding: 10px 11px 13px; }
   .pt-shop-name  {
     font-size: .82rem; font-weight: 700; color: #03162D; margin: 0 0 4px;

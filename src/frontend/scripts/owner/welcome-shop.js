@@ -61,6 +61,10 @@ const PRODUCTS = [
     variants: ["Car", "Bike", "Scooter"],
     image: "/images/shop-combo-900.webp",
     imageDesktop: "/images/shop-combo-desktop.webp",
+    // Out of stock, not withdrawn: shown at its price with no way to buy it,
+    // the same state /shop and /get give it. The server refuses the order
+    // too (SHOP_PRODUCTS.soldOut), so this is the screen agreeing with it.
+    soldOut: true
   },
   {
     id: "pt-bike-1",
@@ -73,6 +77,7 @@ const PRODUCTS = [
     variants: ["Bike", "Scooter", "Helmet"],
     image: "/images/shop-bike-v2-900.webp",
     imageDesktop: "/images/shop-bike-desktop.webp",
+    soldOut: true
   },
 ];
 
@@ -177,10 +182,13 @@ function ptShopImgFallback(img, size) {
 // ── Render shop grid ──────────────────────────────────────────
 function renderShop() {
   const grid = document.getElementById("shopGrid");
+  // A sold-out card is built without its onclick, so there is nothing to tap:
+  // the name and the price stay readable for somebody deciding whether to
+  // wait for stock, and the artwork is dimmed (see .pt-shop-card-out).
   grid.innerHTML = PRODUCTS.map((p, i) => `
-    <div class="pt-shop-card" onclick="openProduct(${i})">
+    <div class="pt-shop-card${p.soldOut ? " pt-shop-card-out" : ""}"${p.soldOut ? "" : ` onclick="openProduct(${i})"`}>
       <div class="pt-shop-img">
-        <span class="pt-shop-badge">${p.discount}% OFF</span>
+        <span class="pt-shop-badge${p.soldOut ? " pt-shop-badge-out" : ""}">${p.soldOut ? "SOLD OUT" : `${p.discount}% OFF`}</span>
         ${productImage(p, 68)}
       </div>
       <div class="pt-shop-body">
@@ -242,6 +250,9 @@ let _activeProduct = null;
 let _activeVariant = 0;
 
 function openProduct(idx) {
+  // Nothing on the grid calls this for a sold-out pack; a stale ?sku= link or
+  // a saved checkout can. There is no sheet to show for it.
+  if (!PRODUCTS[idx] || PRODUCTS[idx].soldOut) return;
   _activeProduct = idx;
   _activeVariant = 0;
   _keepCheckout({ sku: PRODUCTS[idx].id, variant: 0, step: "product" });
@@ -325,7 +336,7 @@ window.ptStartBuy = function ptStartBuy(sku) {
   // through a query string and sessionStorage, so it is untrusted input, and
   // the worst it can do here is name a product that is not in the catalogue.
   const idx = PRODUCTS.findIndex((p) => p.id === sku);
-  if (idx === -1) return false;
+  if (idx === -1 || PRODUCTS[idx].soldOut) return false;
 
   // Reloaded mid-checkout with the link still in the address bar: the saved
   // checkout is being put back, at the step the buyer had reached.
@@ -1157,7 +1168,7 @@ function _restoreCheckout() {
 
   // Untrusted: it came out of storage. Anything that does not name a product
   // this shop sells, or a step it has, is dropped.
-  const idx = PRODUCTS.findIndex((p) => p.id === saved.sku);
+  const idx = PRODUCTS.findIndex((p) => p.id === saved.sku && !p.soldOut);
   const packSku = saved.step === "pack" && (PACK_PRICES[saved.sku] || idx !== -1);
   if ((idx === -1 && !packSku) || !["product", "address", "pack"].includes(saved.step)) {
     _resumeCheckout = null;

@@ -1107,3 +1107,10 @@ Covers UX and security improvements made after M13 call flow was confirmed worki
 - [ ] **Decide on moving the Railway service to a region near the database and India.** It is the largest remaining lever and affects every page. Check the Atlas cluster region first: the app and the database must end up near each other.
 - [ ] After deploy, time a real order on `/shop` and `/get` on a phone, once straight through and once after waiting three minutes on the address form.
 - [ ] `/direct` still mints its bot-check token at the tap, and the signed-in dashboard checkout is unchanged. Apply the same fixes if wanted.
+
+## Razorpay netbanking: blank page at the bank, 2026-10-03
+
+- [x] Reported: choosing netbanking in the Razorpay window shows a blank page. Cause: the page's CSP had `form-action 'self' https://www.facebook.com`. Cards, UPI and wallets stay inside Razorpay's iframe; netbanking posts a form through `api.razorpay.com` to the bank, and that directive refused the navigation.
+- [x] `app.js`: `form-action` now also allows `https://api.razorpay.com` and `https://*.razorpay.com`, as Razorpay's CSP guidance lists. Nothing else widened.
+- [x] Tests: `netbanking-form-action.test.js` (4). `checkout-csp`, `csp-analytics` and `login-low-findings` pass locally.
+- [ ] After deploy, on a phone: pay a test order by netbanking and confirm the bank page loads. Razorpay's window taking about two seconds to open is the Razorpay script and its own frame, not this.

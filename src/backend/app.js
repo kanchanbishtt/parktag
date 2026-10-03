@@ -827,7 +827,13 @@ export async function buildApp() {
         frameSrc: ["https://accounts.google.com", "https://*.razorpay.com", "https://www.google.com", "https://www.facebook.com"],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
-        formAction: ["'self'", "https://www.facebook.com"],
+        // Netbanking is the one Razorpay method that leaves Razorpay's frame:
+        // the checkout posts a form that sends the window on to the bank, by
+        // way of api.razorpay.com. With only 'self' here the browser refused
+        // that navigation and the buyer saw a blank page where the bank's
+        // login should have been. Cards, UPI and wallets never leave the frame
+        // and were unaffected. (Razorpay's own CSP guidance lists these two.)
+        formAction: ["'self'", "https://www.facebook.com", "https://api.razorpay.com", "https://*.razorpay.com"],
         // 'self' alone renders a blank frame in VS Code's Simple Browser: the
         // page is embedded in a cross-origin webview iframe (vscode-webview://
         // on desktop, *.vscode-cdn.net on vscode.dev). Dev-only — production

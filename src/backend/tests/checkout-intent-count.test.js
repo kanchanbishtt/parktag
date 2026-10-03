@@ -1,8 +1,8 @@
 // begin_checkout (Meta's InitiateCheckout) must mean "tapped an Order button",
-// not "tapped somewhere on a pack card". Card taps still open checkout, but
-// Clarity showed most of them are people looking at the card, and counting
-// them inflated checkouts well past real intent. They go to select_item, which
-// is GA4-only so it never reaches Meta's optimiser.
+// not "tapped somewhere on a pack card". Card taps used to open checkout too
+// and were counted as select_item (GA4-only). Since 2026-10-03 a card tap does
+// nothing at all (see get-card-tap.test.js): the sheet opens only from Order,
+// so every begin_checkout is a pressed button and there is no card event.
 //
 // Read as text, like get-sold-out.test.js: no browser, no database.
 
@@ -16,12 +16,13 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const getJs = await readFile(path.join(HERE, "../../frontend/scripts/get.js"), "utf8");
 const analytics = await readFile(path.join(HERE, "../assets/analytics.js"), "utf8");
 
-test("begin_checkout fires only for an Order button, card taps send select_item", () => {
-  const begin = getJs.indexOf('ptTrack(fromButton ? "begin_checkout" : "select_item"');
-  assert.ok(begin > -1, "the Order handler must choose the event by what was tapped");
-  assert.match(getJs, /const fromButton = Boolean\(button\);/);
+test("begin_checkout fires only for an Order control, and a card tap sends nothing", () => {
+  const handler = getJs.slice(getJs.indexOf('const link = event.target.closest("a[data-sku]");'));
+  assert.ok(handler.indexOf('ptTrack("begin_checkout"') > -1, "the Order handler reports begin_checkout");
+  assert.doesNotMatch(getJs, /select_item/, "no card tap is reported: there is no card tap");
+  assert.doesNotMatch(getJs, /\.gt-pack\[data-sku\]/, "the handler matches Order controls, never the card");
 });
 
-test("select_item is GA4-only and never reaches the Meta pixel", () => {
+test("select_item stays GA4-only in the vocabulary, should a page ever send it", () => {
   assert.match(analytics, /select_item:\s*\{ ga: "select_item",\s*pixel: null \}/);
 });

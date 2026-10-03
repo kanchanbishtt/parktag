@@ -1108,6 +1108,13 @@ Covers UX and security improvements made after M13 call flow was confirmed worki
 - [ ] After deploy, time a real order on `/shop` and `/get` on a phone, once straight through and once after waiting three minutes on the address form.
 - [ ] `/direct` still mints its bot-check token at the tap, and the signed-in dashboard checkout is unchanged. Apply the same fixes if wanted.
 
+## /get: only the Order button starts a purchase, 2026-10-03
+
+- [x] Reported: a tap anywhere on the ₹299 or ₹399 pack card on `/get` (price, name, photo) opened the delivery address sheet. Reproduced with the real page in jsdom. Cause: PR #300 made the whole card buy ("dead taps on the price and the photo"), which reads as the page acting on its own.
+- [x] `get.js`: the card no longer carries a `data-sku`, and the Order handler matches Order controls only. `begin_checkout` now always means a pressed Order button; `select_item` is no longer sent from `/get`. The dead `.gt-pack[data-sku]` cursor rule is removed from `get.css`.
+- [x] Tests: `get-card-tap.test.js` (5, the real page and sheet in jsdom; the first two fail on the old code). `checkout-intent-count.test.js` updated. `get-sold-out`, `order-breakdown`, `checkout-survives-reload`, `get-page-speed`, `checkout-speed`, `direct-coupon-page` pass locally.
+- [ ] After deploy, on a phone: tap the price and the photo of each pack on `/get` and confirm nothing opens; tap Order and confirm the delivery sheet opens.
+
 ## Dashboard shop: Combo and Bike packs shown as sold out, 2026-10-03
 
 - [x] Reported: the signed-in dashboard shop on production still sold the Combo Tag and the Bike Tag, while `/shop` and `/get` show them sold out and the server refuses the order. `welcome-shop.js` hard-coded its four cards with no stock flag.

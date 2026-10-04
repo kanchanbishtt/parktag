@@ -5,10 +5,11 @@
 //
 // What makes this safe to add next to that:
 //   - DENY BY DEFAULT. A token may call only the routes listed below, and each is read or write. A route added to
-//     the admin later is cookie-only until somebody adds it here. Notably NOT listed: managing admins, issuing or
-//     deleting tags, marking prints, publishing designs, and these token routes themselves, so a token can never
-//     mint another token or widen its own reach.
-//   - Scoped. `read` covers the GET rows, `write` adds the write rows.
+//     the admin later is cookie-only until somebody adds it here. Notably NOT listed: managing admins, deleting
+//     tags or designs, and these token routes themselves, so a token can never mint another token or widen its
+//     own reach.
+//   - Scoped, each scope including the ones before it. `read` covers the GET rows, `write` adds promo codes and the
+//     shop setting, `ops` adds the day-to-day operations writes (issue tags, mark prints, review approval, ...).
 //   - Expiring and revocable. Every token has an expiry (at most MAX_DAYS) and can be revoked at once.
 //   - Stored as a SHA-256 hash. The token is 256 random bits, so a fast hash is enough and it is shown once.
 //   - Logged. Creating, revoking, and every write made with a token lands in the admin audit log.
@@ -23,7 +24,7 @@ export const TOKEN_PREFIX = "ptk_";
 export const MAX_DAYS = 90;
 export const DEFAULT_DAYS = 30;
 export const MAX_ACTIVE_PER_ADMIN = 10;
-export const SCOPES = ["read", "write"];
+export const SCOPES = ["read", "write", "ops"];
 
 const TOKEN_SHAPE = /^ptk_[A-Za-z0-9_-]{43}$/;
 // Stamp lastUsedAt at most this often: a token in a busy tool must not turn every read into a write.
@@ -41,8 +42,20 @@ const WRITE = [
   "POST /api/admin/promo-codes/:code/activate", "POST /api/admin/promo-codes/:code/revoke",
   "PATCH /api/admin/shop-settings"
 ];
+// Operations writes. Reversible or additive: nothing here deletes a tag or a design, and printing/export routes that
+// return PDFs or QR images stay out (they are not JSON). Designs can be published but not authored: saving one
+// carries megabytes of canvas JSON.
+const OPS = [
+  "POST /api/admin/tags/issue", "POST /api/admin/etags/:tagId/status",
+  "POST /api/admin/print-queue/:tagId/mark-printed", "POST /api/admin/print-queue/mark-run-printed",
+  "POST /api/admin/marketing/add", "POST /api/admin/marketing/:tagId/sold", "POST /api/admin/marketing/:tagId/deactivate",
+  "POST /api/admin/reviews/:id/approve", "POST /api/admin/activations/:orderId/reminder",
+  "POST /api/admin/sticker-designs/:id/publish", "POST /api/admin/sticker-designs/unpublish"
+];
 // "METHOD /route/pattern" -> the scope needed to call it.
-const RULES = new Map([...READ.map((p) => [`GET ${p}`, "read"]), ...WRITE.map((r) => [r, "write"])]);
+const RULES = new Map([
+  ...READ.map((p) => [`GET ${p}`, "read"]), ...WRITE.map((r) => [r, "write"]), ...OPS.map((r) => [r, "ops"])
+]);
 
 export function newApiToken() {
   const token = `${TOKEN_PREFIX}${crypto.randomBytes(32).toString("base64url")}`;
@@ -60,7 +73,8 @@ export function bearerApiToken(request) {
 /** May a token with this scope call this route? `route` is Fastify's pattern, e.g. /api/admin/etags/:tagId. */
 export function tokenMayCall(method, route, scope) {
   const needs = RULES.get(`${String(method).toUpperCase() === "HEAD" ? "GET" : String(method).toUpperCase()} ${route}`);
-  return needs === "read" ? SCOPES.includes(scope) : needs === "write" ? scope === "write" : false;
+  // SCOPES is ordered weakest to strongest and each scope includes the ones before it.
+  return needs !== undefined && SCOPES.includes(scope) && SCOPES.indexOf(scope) >= SCOPES.indexOf(needs);
 }
 
 export const isWrite = (method) => !["GET", "HEAD"].includes(String(method).toUpperCase());

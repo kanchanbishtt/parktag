@@ -68,19 +68,21 @@ test("read tokens read, write tokens write, and everything else is refused", () 
 
 test("the sensitive admin routes are out of reach even for a write token", () => {
   const refused = [
-    ["POST", "/api/admin/tags/issue"], ["DELETE", "/api/admin/tags/unclaimed/all"], ["DELETE", "/api/admin/tags/batch/:batchNumber"],
-    ["DELETE", "/api/admin/etags/:tagId"], ["POST", "/api/admin/etags/:tagId/status"],
+    ["DELETE", "/api/admin/tags/unclaimed/all"], ["DELETE", "/api/admin/tags/batch/:batchNumber"],
+    ["DELETE", "/api/admin/etags/:tagId"], ["DELETE", "/api/admin/sticker-designs/:id"],
+    ["POST", "/api/admin/sticker-designs"], ["PUT", "/api/admin/sticker-designs/:id"],
     ["GET", "/api/admin/admins"], ["DELETE", "/api/admin/admins/:id"], ["POST", "/api/admin/admins"],
     ["GET", "/api/admin/owners"], ["GET", "/api/admin/audit"], ["GET", "/api/admin/me"],
-    ["POST", "/api/admin/print-queue/mark-run-printed"], ["POST", "/api/admin/print-queue/export"],
-    ["POST", "/api/admin/sticker-designs/:id/publish"], ["POST", "/api/admin/reviews/:id/approve"],
+    ["POST", "/api/admin/print-queue/export"], ["POST", "/api/admin/print-queue/doorhangers"],
     ["GET", "/api/admin/tag-batches/:key/export.csv"],
     // a token must never mint, list or revoke tokens
     ["POST", "/api/admin/api-tokens"], ["GET", "/api/admin/api-tokens"], ["DELETE", "/api/admin/api-tokens/:id"],
     // not an admin route at all
     ["GET", "/api/owner/me"], ["GET", undefined]
   ];
-  for (const [method, route] of refused) assert.equal(tokenMayCall(method, route, "write"), false, `${method} ${route}`);
+  for (const scope of ["read", "write", "ops"]) {
+    for (const [method, route] of refused) assert.equal(tokenMayCall(method, route, scope), false, `${scope} ${method} ${route}`);
+  }
 });
 
 test("no bearer token means no lookup at all", async () => {
@@ -136,4 +138,21 @@ test("lastUsedAt is stamped, but not on every request", async () => {
 
   await authenticateApiToken(w.collections, req(token, "GET", "/api/admin/overview"), NOW + 6 * 60 * 1000);
   assert.equal(w.calls.update.length, 2, "six minutes later does");
+});
+
+test("ops is the top scope: it covers read, write and the operations writes, and nothing below it does", () => {
+  const ops = [
+    ["POST", "/api/admin/tags/issue"], ["POST", "/api/admin/etags/:tagId/status"],
+    ["POST", "/api/admin/print-queue/:tagId/mark-printed"], ["POST", "/api/admin/print-queue/mark-run-printed"],
+    ["POST", "/api/admin/marketing/add"], ["POST", "/api/admin/marketing/:tagId/sold"], ["POST", "/api/admin/marketing/:tagId/deactivate"],
+    ["POST", "/api/admin/reviews/:id/approve"], ["POST", "/api/admin/activations/:orderId/reminder"],
+    ["POST", "/api/admin/sticker-designs/:id/publish"], ["POST", "/api/admin/sticker-designs/unpublish"]
+  ];
+  for (const [method, route] of ops) {
+    assert.equal(tokenMayCall(method, route, "ops"), true, `ops ${method} ${route}`);
+    assert.equal(tokenMayCall(method, route, "write"), false, `write ${method} ${route}`);
+    assert.equal(tokenMayCall(method, route, "read"), false, `read ${method} ${route}`);
+  }
+  assert.equal(tokenMayCall("GET", "/api/admin/overview/summary", "ops"), true, "ops includes read");
+  assert.equal(tokenMayCall("POST", "/api/admin/promo-codes", "ops"), true, "ops includes write");
 });

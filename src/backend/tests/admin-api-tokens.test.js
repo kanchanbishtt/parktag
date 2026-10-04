@@ -98,6 +98,16 @@ test("a write token can manage promo codes and the change is audited", async () 
   assert.match(row.target, /mcp write/);
 });
 
+test("an ops token reaches the operations routes, a write token does not", async () => {
+  const ops = await createToken({ name: "mcp ops", scope: "ops", days: 7 });
+  const write = await createToken({ name: "mcp ops-denied", scope: "write", days: 7 });
+  // A malformed id: the route answers 400 itself, so 400 means "got in", 403 means "turned away at the door".
+  const url = "/api/admin/reviews/not-an-id/approve";
+  assert.equal((await withToken(ops.token, "POST", url, { approved: true })).statusCode, 400);
+  assert.equal((await withToken(write.token, "POST", url, { approved: true })).statusCode, 403);
+  assert.equal((await withToken(ops.token, "DELETE", "/api/admin/tags/unclaimed/all")).statusCode, 403, "deletes stay cookie-only");
+});
+
 test("even a write token cannot reach the sensitive routes or manage tokens", async () => {
   const { token } = await createToken({ name: "mcp write 2", scope: "write", days: 7 });
   const refused = [

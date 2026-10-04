@@ -44,6 +44,12 @@ function buildCollections(db, prefix) {
     // Scoped, revocable API tokens for tools that cannot sign in (lib/auth/api-token.js). Holds the SHA-256 of the
     // token, never the token.
     adminApiTokens: db.collection(withPrefix(prefix, "admin_api_tokens")),
+    // OAuth for the remote admin MCP endpoint (lib/auth/oauth.js). Clients register themselves (public, PKCE only);
+    // codes and consent transactions live ten minutes; a refresh token points at the api-token row it keeps alive.
+    // Secrets are stored as SHA-256 hashes, never as issued.
+    oauthClients: db.collection(withPrefix(prefix, "oauth_clients")),
+    oauthCodes: db.collection(withPrefix(prefix, "oauth_codes")),
+    oauthRefreshTokens: db.collection(withPrefix(prefix, "oauth_refresh_tokens")),
     owners: db.collection(withPrefix(prefix, "owners")),
     tags: db.collection(withPrefix(prefix, "tags")),
     // Login sessions — persisted so admins/owners stay logged in across server
@@ -320,6 +326,14 @@ const CORE_INDEXES = [
   // a coin toss.
   ["adminApiTokens", { tokenHash: 1 }, { unique: true, name: "token_hash_unique" }],
   ["adminApiTokens", { adminId: 1, createdAt: -1 }, { name: "admin_recent" }],
+  ["oauthClients", { clientId: 1 }, { unique: true, name: "client_id_unique" }],
+  // Registration is open, so a client expires 90 days after it was last used (or registered, if never used), and when
+  // the table is full the oldest never-used ones are evicted first (routes/oauth). A client in use is never evicted.
+  ["oauthClients", { lastActiveAt: 1 }, { expireAfterSeconds: 7776000, name: "ttl_idle" }],
+  ["oauthCodes", { tokenHash: 1 }, { unique: true, name: "token_hash_unique" }],
+  ["oauthCodes", { expiresAt: 1 }, { expireAfterSeconds: 0, name: "ttl" }],
+  ["oauthRefreshTokens", { tokenHash: 1 }, { unique: true, name: "token_hash_unique" }],
+  ["oauthRefreshTokens", { expiresAt: 1 }, { expireAfterSeconds: 0, name: "ttl" }],
   // Every vault read is scoped to one owner and usually one vehicle, and the
   // per-owner storage quota sums this collection on each upload.
   ["vaultDocuments", { ownerId: 1, tagId: 1, createdAt: -1 }, { name: "owner_vehicle" }],

@@ -1532,6 +1532,8 @@ function auditEventHtml(e) {
               : e.event === "api_token_created" ? ["change", `Created API token ${e.target || ""}`.trim()]
                 : e.event === "api_token_revoked" ? ["change", `Revoked API token ${e.target || ""}`.trim()]
                   : e.event === "api_token_write" ? ["change", `API token change: ${e.target || ""}`.trim()]
+                    : e.event === "oauth_authorized" ? ["change", `Connected an app: ${e.target || ""}`.trim()]
+                      : e.event === "oauth_denied" ? ["out", `Declined an app connection: ${e.target || ""}`.trim()]
                     : ["bad", e.reason === "no_account"
                       ? `Failed Google sign-in: not an admin account${times}`
                       : e.reason === "bot_check"

@@ -12,7 +12,7 @@
 export const ATTRIBUTION_COOKIE = "pt_attr";
 const MAX_AGE_S = 30 * 24 * 60 * 60;
 const KEYS = ["source", "medium", "campaign", "content", "term"];
-const SLUG = /^[A-Za-z0-9_.\-+ ]{1,64}$/;
+export const SLUG = /^[A-Za-z0-9_.\-+ ]{1,64}$/;
 
 function clean(value) {
   const v = String(value ?? "").trim();

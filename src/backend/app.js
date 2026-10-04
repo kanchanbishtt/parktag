@@ -32,6 +32,8 @@ import { registerAdminStickerDesignRoutes } from "./routes/admin/sticker-designs
 import { registerAdminPromoCodeRoutes } from "./routes/admin/promo-codes.js";
 import { registerAdminReviewRoutes } from "./routes/admin/reviews.js";
 import { registerAdminApiTokenRoutes } from "./routes/admin/api-tokens.js";
+import { registerMcpRoutes } from "./routes/mcp/index.js";
+import { PENDING_COOKIE as OAUTH_PENDING_COOKIE, registerOAuthRoutes, resumeAuthorize } from "./routes/oauth/index.js";
 import { registerAuthRoutes } from "./routes/auth/credentials.js";
 import { registerAnalyticsRoutes, recordAppPageVisit } from "./routes/system/analytics.js";
 import { registerDemoRoutes } from "./routes/system/demo.js";
@@ -588,7 +590,9 @@ export async function buildApp() {
   // route in this app, and every /api/shop/* route is a fetch from our own
   // checkout. That left the money routes — place a COD order, start a payment,
   // confirm one — as the only signed-in surface with no origin check at all.
-  const CSRF_PROTECTED_PREFIXES = ["/api/auth/", "/api/owner/", "/api/admin/", "/api/shop/"];
+  // /oauth/authorize is the consent decision: a cookie-authorised POST that hands an app admin power. (Its sibling
+  // /oauth/token and /oauth/register are cookie-less calls from the app itself, so they stay out.)
+  const CSRF_PROTECTED_PREFIXES = ["/api/auth/", "/api/owner/", "/api/admin/", "/api/shop/", "/oauth/authorize"];
   const CSRF_PROTECTED_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
   // Both sides of the comparison go through the URL parser. Comparing a parsed
   // origin against a concatenated string does not work: the parser drops a
@@ -1415,7 +1419,8 @@ export async function buildApp() {
 
   app.get("/admin", async (request, reply) => {
     if (await isSignedInAdmin(request)) {
-      reply.redirect("/admin/overview");
+      // An OAuth connect (Claude adding the admin MCP) may have sent them here to sign in first.
+      if (!resumeAuthorize(request, reply)) reply.redirect("/admin/overview");
       return;
     }
 
@@ -1432,6 +1437,8 @@ export async function buildApp() {
   }
 
   app.get("/admin/overview", async (request, reply) => {
+    // Google sign-in lands here rather than on /admin, so it has to resume a waiting OAuth connect too.
+    if (request.cookies?.[OAUTH_PENDING_COOKIE] && (await isSignedInAdmin(request)) && resumeAuthorize(request, reply)) return;
     return guardAdmin(request, reply, adminOverviewPage);
   });
 
@@ -1586,6 +1593,8 @@ export async function buildApp() {
   registerAdminPromoCodeRoutes(app, env);
   registerAdminReviewRoutes(app, env);
   registerAdminApiTokenRoutes(app, env);
+  registerOAuthRoutes(app, env);
+  registerMcpRoutes(app, env);
   registerAnalyticsRoutes(app, env);
 
   return app;

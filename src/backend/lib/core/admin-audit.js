@@ -20,7 +20,7 @@ export const ADMIN_AUDIT_RETENTION_SECONDS = 90 * 24 * 60 * 60;
 
 const EVENTS = new Set([
   "login", "logout", "login_failed", "login_locked", "admin_created", "admin_removed",
-  "api_token_created", "api_token_revoked", "api_token_write"
+  "api_token_created", "api_token_revoked", "api_token_write", "oauth_authorized", "oauth_denied"
 ]);
 
 // A short, human label for a user agent. Order matters: Edge and Opera also

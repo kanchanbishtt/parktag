@@ -80,13 +80,14 @@ export function tokenMayCall(method, route, scope) {
 export const isWrite = (method) => !["GET", "HEAD"].includes(String(method).toUpperCase());
 
 /**
- * Resolve a request's bearer token.
+ * Look a bearer token up: does it exist, is it live, and is its admin still there? No route check.
  *   null                    no usable token on the request
  *   { denied: "invalid" }   unknown, revoked, expired, or its admin is gone (indistinguishable to the caller on purpose)
- *   { denied: "route" }     a good token asked for something its scope or the allowlist does not cover
  *   { session, token }      a session-shaped object for request.session, plus the stored row
+ * The MCP endpoint uses this directly (it is not an /api/admin route); the admin routes go through
+ * authenticateApiToken below, which adds the per-route scope check.
  */
-export async function authenticateApiToken(collections, request, now = Date.now()) {
+export async function resolveApiToken(collections, request, now = Date.now()) {
   const raw = bearerApiToken(request);
   if (!raw) return null;
 
@@ -97,8 +98,6 @@ export async function authenticateApiToken(collections, request, now = Date.now(
     ? await collections.admins.findOne({ _id: new ObjectId(String(token.adminId)) }, { projection: { email: 1, displayName: 1 } })
     : null;
   if (!admin) return { denied: "invalid" };
-
-  if (!tokenMayCall(request.method, request.routeOptions?.url, token.scope)) return { denied: "route" };
 
   const last = token.lastUsedAt ? new Date(token.lastUsedAt).getTime() : 0;
   if (now - last > LAST_USED_EVERY_MS) {
@@ -120,4 +119,18 @@ export async function authenticateApiToken(collections, request, now = Date.now(
       expiresAt: token.expiresAt
     }
   };
+}
+
+/**
+ * Resolve a request's bearer token for an /api/admin route.
+ *   null                    no usable token on the request
+ *   { denied: "invalid" }   unknown, revoked, expired, or its admin is gone (indistinguishable to the caller on purpose)
+ *   { denied: "route" }     a good token asked for something its scope or the allowlist does not cover
+ *   { session, token }      a session-shaped object for request.session, plus the stored row
+ */
+export async function authenticateApiToken(collections, request, now = Date.now()) {
+  const found = await resolveApiToken(collections, request, now);
+  if (!found?.token) return found;
+  // lastUsedAt was stamped above even for a route the token may not call. That is harmless: the token is real.
+  return tokenMayCall(request.method, request.routeOptions?.url, found.token.scope) ? found : { denied: "route" };
 }

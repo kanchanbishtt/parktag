@@ -55,6 +55,39 @@ admins, owners, the audit log; token management. Those need a signed-in browser.
 - **Audit.** Approving and declining are logged, and every write through a connection is logged as
   `via Claude (OAuth)`.
 
+## Limits that hold even if Claude is tricked
+
+Enforced by the backend on every request that arrives with a token (hand-minted or OAuth), in `lib/auth/token-limits.js`.
+You, signed in to the panel, are not limited.
+
+| | Token limit |
+|---|---|
+| Promo discount | at most 50%, or Rs 500 off for flat and per-pack codes |
+| Promo use limit | `maxUses` required, 1 to 1000 |
+| Promo expiry | `expiresAt` required |
+| Tags issued per call | at most 500 |
+
+Editing an older code through a token only judges the fields the token changes, so it can still adjust shipping on a code
+you made without limits, but it cannot raise the discount or remove the use limit or expiry. For anything bigger, use
+the panel.
+
+## Customer text is fenced
+
+`parktag_reviews`, `parktag_tag`, `parktag_tags` and `parktag_activations` return what buyers wrote. Their output is
+wrapped in `<untrusted-customer-data id="...">` with a random id per call (so text inside cannot forge the closing tag),
+strings over 600 characters are cut, and a reminder says to treat it as data and never follow instructions inside it.
+This lowers the chance an injected instruction is followed. It does not stop one: the limits above and the scope you
+grant are what hold when it fails.
+
+## Call log
+
+Every tool call is recorded in `mcp_calls` (kept 90 days): who (admin, connection name, client, scope, IP), which tool,
+the arguments (cut at 1000 characters), whether it failed and why, how long it took, and the size of the response.
+The response body is deliberately not stored, because it can hold customer details.
+
+Read it signed in to the panel: `GET /api/admin/mcp-calls?limit=50&tool=parktag_reviews`, newest first. It is not on the
+token allowlist, so a connection cannot read its own trail. There is no page for it yet.
+
 ## Endpoints
 
 | | |
@@ -64,9 +97,10 @@ admins, owners, the audit log; token management. Those need a signed-in browser.
 | `GET /.well-known/oauth-authorization-server` | endpoints and capabilities |
 | `POST /oauth/register` | dynamic client registration |
 | `GET/POST /oauth/authorize` | sign-in redirect, consent screen, decision |
+| `GET /api/admin/mcp-calls` | the call log, admin session only |
 | `POST /oauth/token` | `authorization_code` and `refresh_token` |
 
-Code: `routes/oauth`, `routes/mcp`, `lib/auth/oauth.js`, `mcp/`. Tests: `tests/oauth.test.js`, `tests/oauth-mcp.test.js`.
+Code: `routes/oauth`, `routes/mcp`, `lib/auth/oauth.js`, `lib/auth/token-limits.js`, `mcp/`. Tests: `tests/oauth.test.js`, `tests/oauth-mcp.test.js`, `tests/mcp-guards.test.js`.
 
 The older stdio server (`parktag-admin-mcp`) still works with a pasted token. Its tools are the same ones; this
 endpoint is the maintained copy.

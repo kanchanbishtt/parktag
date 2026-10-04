@@ -89,7 +89,11 @@ test("a read token reads, is scoped to read, and stores only a hash", async () =
 test("a write token can manage promo codes and the change is audited", async () => {
   const created = await createToken({ name: "mcp write", scope: "write", days: 7 });
 
-  const res = await withToken(created.token, "POST", "/api/admin/promo-codes", { code: PROMO, discountMode: "flat", discountPaise: 10000, productIds: ["pt-car-2"] });
+  const res = await withToken(created.token, "POST", "/api/admin/promo-codes", {
+    code: PROMO, discountMode: "flat", discountPaise: 10000, productIds: ["pt-car-2"],
+    // tokens must give a code a use limit and an expiry (lib/auth/token-limits.js)
+    maxUses: 25, expiresAt: new Date(Date.now() + 30 * 86_400_000).toISOString()
+  });
   assert.equal(res.statusCode, 200, res.body);
   assert.equal((await withToken(created.token, "POST", `/api/admin/promo-codes/${PROMO}/revoke`)).statusCode, 200);
 

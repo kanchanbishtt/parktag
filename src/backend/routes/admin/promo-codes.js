@@ -14,6 +14,7 @@
 // This route only WRITES the shape resolvePromo/discountPaiseFor/
 // shippingFeePaiseFor already read (see lib/core/promo-codes.js) — it adds no
 // new interpretation of a code, only a guarded way to create one.
+import { promoLimitError } from "../../lib/auth/token-limits.js";
 import { requireSession } from "../../lib/auth/auth.js";
 import { getCollections } from "../../lib/db/repositories.js";
 import {
@@ -239,7 +240,7 @@ export function registerAdminPromoCodeRoutes(app, env) {
       createdBy: request.session?.email || null
     };
 
-    const error = validatePromoFields(doc);
+    const error = validatePromoFields(doc) || promoLimitError(request, doc);
     if (error) {
       reply.code(400);
       return { ok: false, error };
@@ -284,7 +285,7 @@ export function registerAdminPromoCodeRoutes(app, env) {
     const patch = pickWritableFields(request.body || {});
     const merged = { ...existing, ...patch };
 
-    const error = validatePromoFields(merged);
+    const error = validatePromoFields(merged) || promoLimitError(request, merged, patch);
     if (error) {
       reply.code(400);
       return { ok: false, error };

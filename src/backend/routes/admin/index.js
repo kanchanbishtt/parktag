@@ -1,3 +1,4 @@
+import { issueLimitError } from "../../lib/auth/token-limits.js";
 import { ObjectId } from "mongodb";
 
 import { requireSession } from "../../lib/auth/auth.js";
@@ -1163,6 +1164,12 @@ export function registerAdminRoutes(app, env) {
 
     const { batchNumber, batchLabel, quantity, stickerRequested, premiumBatch, mountType } =
       request.body || {};
+
+    const tooMany = issueLimitError(request, request.body?.quantity);
+    if (tooMany) {
+      reply.code(400);
+      return { ok: false, error: tooMany };
+    }
 
     const collections = await getCollections(env);
     let tags;

@@ -50,6 +50,9 @@ function buildCollections(db, prefix) {
     oauthClients: db.collection(withPrefix(prefix, "oauth_clients")),
     oauthCodes: db.collection(withPrefix(prefix, "oauth_codes")),
     oauthRefreshTokens: db.collection(withPrefix(prefix, "oauth_refresh_tokens")),
+    // One row per MCP tool call: who, which tool, with what arguments, how it ended. Never the response body, which can
+    // hold customer details. Kept 90 days.
+    mcpCalls: db.collection(withPrefix(prefix, "mcp_calls")),
     owners: db.collection(withPrefix(prefix, "owners")),
     tags: db.collection(withPrefix(prefix, "tags")),
     // Login sessions — persisted so admins/owners stay logged in across server
@@ -332,6 +335,8 @@ const CORE_INDEXES = [
   ["oauthClients", { lastActiveAt: 1 }, { expireAfterSeconds: 7776000, name: "ttl_idle" }],
   ["oauthCodes", { tokenHash: 1 }, { unique: true, name: "token_hash_unique" }],
   ["oauthCodes", { expiresAt: 1 }, { expireAfterSeconds: 0, name: "ttl" }],
+  ["mcpCalls", { at: 1 }, { expireAfterSeconds: 7776000, name: "ttl" }],
+  ["mcpCalls", { adminId: 1, at: -1 }, { name: "admin_recent" }],
   ["oauthRefreshTokens", { tokenHash: 1 }, { unique: true, name: "token_hash_unique" }],
   ["oauthRefreshTokens", { expiresAt: 1 }, { expireAfterSeconds: 0, name: "ttl" }],
   // Every vault read is scoped to one owner and usually one vehicle, and the

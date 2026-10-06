@@ -45,6 +45,9 @@ const content   = document.getElementById("vd-content");
   // for a local (unsaved) vehicle, for a tag the API does not return, and for a
   // failed fetch — all of which mean "no entitlement to report".
   let loadedCallAccess = null;
+  // The dashboard's record for this vehicle, or null when the dashboard could
+  // not be read. The two server-backed switches are seeded from it.
+  let loadedTag = null;
 
   // Always yields at least once, so the rest of the module has finished
   // evaluating (initToggles and friends) before the reveal runs.
@@ -61,11 +64,11 @@ const content   = document.getElementById("vd-content");
         isFreeUsed    = Boolean(tag.freeContactUsed);
         freeLeft      = Number.isInteger(tag.freeContactsLeft) ? tag.freeContactsLeft : 1;
         loadedCallAccess = tag.callAccess || null;
+        loadedTag = tag;
         // Stamp the unique E-Tag ID + activation status onto the print sticker (spec §9).
         const idEl = document.getElementById("print-etag-id");
         if (idEl && tag.etagId) idEl.textContent = String(tag.etagId).replace(/^PT-/, "");
-        const stEl = document.getElementById("print-status");
-        if (stEl) stEl.textContent = tag.status === "inactive" ? "Inactive" : "Active";
+        setPrintStatus(tag.status);
         // Sticker serial, printed on the sticker face itself (not the sheet).
         const serialEl = document.getElementById("print-figma-serial");
         if (serialEl) serialEl.textContent = tag.serial || "";
@@ -82,7 +85,7 @@ const content   = document.getElementById("vd-content");
   content.classList.add("visible");
   autoOpenSection();
   // After the gate above, which decides which switches are locked.
-  initToggles();
+  initToggles(loadedTag);
 })();
 
 // ── Populate fields ───────────────────────────────────────────
@@ -224,10 +227,43 @@ function applyMaskingGate(callAccess) {
   }
 }
 
-function initToggles() {
+// The two switches that are real: each is a field on the tag, written through
+// its own owner endpoint and read by the scanner routes. On a saved vehicle
+// they are seeded from the server and never from localStorage — an unsaved
+// (local) vehicle has nothing on the server to switch and keeps the remembered
+// value like the other switches.
+//
+//   Tag Active   → status active/inactive. Off takes every channel down: no
+//                  masked call, no WhatsApp alert, no Emergency call, and the
+//                  scanner page says the tag is inactive.
+//   Calls Active → callsPaused. Off retires the masked owner call only; the
+//                  alert and the Emergency call carry on.
+//
+// Same endpoints and the same revert-on-failure as the dashboard's own
+// switches (saveSw in welcome.js). While a request is in flight the switch is
+// held so a second tap cannot race the first.
+const SERVER_SWITCHES = {
+  "toggle-tag": {
+    path: "status",
+    body: (on) => ({ status: on ? "active" : "inactive" }),
+    seeded: (tag) => tag.status !== "inactive",
+    failed: "Couldn't update tag status. Try again.",
+    applied: (data) => setPrintStatus(data.tag && data.tag.status)
+  },
+  "toggle-calls": {
+    path: "calls",
+    body: (on) => ({ active: on }),
+    seeded: (tag) => !tag.callsPaused,
+    failed: "Couldn't update call settings. Try again.",
+    applied: () => {}
+  }
+};
+
+function initToggles(tag) {
   const state = loadToggles();
   document.querySelectorAll(".vd-switch input[type=checkbox]").forEach(cb => {
     const id = cb.id;
+    if (id in SERVER_SWITCHES && realId) return;
     // A locked switch is locked because the owner has not paid for it, so a
     // remembered value from this browser must not put it back on.
     if (id in state && !cb.disabled) cb.checked = state[id];
@@ -238,6 +274,47 @@ function initToggles() {
       saveToggles(s);
     });
   });
+  if (realId) {
+    for (const id of Object.keys(SERVER_SWITCHES)) initServerSwitch(id, tag);
+  }
+}
+
+// `tag` is the dashboard's record for this vehicle, or null when the dashboard
+// could not be read. Unknown reads as on, which is what the markup already
+// assumes; the switch still posts, so a tap sets the real value either way.
+function initServerSwitch(id, tag) {
+  const cb = document.getElementById(id);
+  const spec = SERVER_SWITCHES[id];
+  if (!cb || !spec) return;
+
+  cb.checked = tag ? spec.seeded(tag) : true;
+
+  cb.addEventListener("change", async () => {
+    const wanted = cb.checked;
+    cb.disabled = true;
+    try {
+      const res = await fetch(`/api/owner/tags/${encodeURIComponent(realId)}/${spec.path}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(spec.body(wanted))
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) throw new Error(data.error || `${spec.path} update failed`);
+      spec.applied(data);
+    } catch {
+      cb.checked = !wanted;
+      alert(spec.failed);
+    } finally {
+      cb.disabled = false;
+    }
+  });
+}
+
+// The activation status stamped on the print sticker (spec §9); kept in step
+// with the switch so a sheet printed right after a change reads correctly.
+function setPrintStatus(status) {
+  const stEl = document.getElementById("print-status");
+  if (stEl) stEl.textContent = status === "inactive" ? "Inactive" : "Active";
 }
 
 // ── SOS save ─────────────────────────────────────────────────

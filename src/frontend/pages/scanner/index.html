@@ -559,6 +559,13 @@
         <p id="call-tile-exhausted-note" class="pt-note-box" hidden>
           This owner has already used their free masked-call trial, so Private Call is off. You can still notify them over WhatsApp.
         </p>
+        <!-- The owner's Calls Active switch, off (tag.callsPaused). Its own note,
+             not a rewording of the one above: a paused call is the owner's
+             choice and says nothing about their trial. Same shape — the tile
+             group stays up, WhatsApp and Emergency carry on. -->
+        <p id="call-tile-paused-note" class="pt-note-box" hidden>
+          The owner has paused calls for this tag, so Private Call is off. You can still notify them over WhatsApp.
+        </p>
 
         <!-- Emergency / SOS — only rendered when the owner has set a next-of-kin
              number (tag.emergencyAvailable). Deliberately separated from the two

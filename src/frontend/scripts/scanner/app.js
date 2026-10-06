@@ -64,6 +64,12 @@ let messageAlwaysOn = false;
 // Whether the owner has set an emergency contact for this tag. The number is
 // never sent to the browser — this is only a flag telling us to offer SOS.
 let emergencyAvailable = false;
+// The owner's Calls Active switch, off. Retires the Private Call tile only:
+// the WhatsApp alert and the Emergency call are not affected (Tag Active is
+// the switch that takes everything down). Read from the load payload so the
+// tile is never offered, and again from /verify and register-call so a switch
+// flipped mid-visit is honoured. The server refuses the call regardless.
+let callsPaused = false;
 // Optional reason selected via the chips; the message itself is built server-side.
 let selectedReason = "";
 // Handle for the short pause between filling the chosen row's circle and moving
@@ -467,6 +473,8 @@ function resetActionState() {
   // Cleared with the rest: a scanner who reads a lapsed tag and then a
   // different one must not carry the first tag's panel across to the second.
   contactBlockedCode = null;
+  // Same reason: one owner's pause must not darken the next tag's tile.
+  callsPaused = false;
   clearSelectedReason();
   // Back to the two tiles: a fresh tag must not open on a half-answered
   // question left over from the previous one.
@@ -545,8 +553,15 @@ function setContactAvailability(available) {
 // so the two paths cannot drift into showing different things for the same
 // server answer.
 function applyCallBlocked(blocked) {
-  setDisabled("call-owner-button", blocked);
+  // The owner's pause (callsPaused) is a second, independent reason for the
+  // same outcome. Folded in here rather than at each call site so that a later
+  // setContactAvailability(true) cannot quietly re-enable a paused tile. Each
+  // reason has its own note; the trial note wins when both apply, being the
+  // more permanent state.
+  const off = blocked || callsPaused;
+  setDisabled("call-owner-button", off);
   setHidden("call-tile-exhausted-note", !blocked);
+  setHidden("call-tile-paused-note", blocked || !callsPaused);
 }
 
 // ── Emergency / SOS ──────────────────────────────────────────────────────
@@ -1004,6 +1019,10 @@ async function loadScannerView() {
     setValue("request-token", tag.token);
     setText("plate-mask-preview", tag.maskedPlateNumber || "••••");
     emergencyAvailable = tag.emergencyAvailable === true;
+    // Known before verification, so a paused tile is shown as off from the
+    // start rather than offered and then refused after the plate check.
+    callsPaused = tag.callsPaused === true;
+    applyCallBlocked(false);
 
     const configuredSupport = String(data.supportWhatsapp || "").replace(/\D/g, "");
     supportWhatsappDigits = configuredSupport || FALLBACK_SUPPORT_WHATSAPP;
@@ -1260,6 +1279,9 @@ async function handlePlateVerification(event) {
   // payload deliberately withholds it, so that scanning a stranger's tag
   // cannot be used to probe how it has been used.
   contactBlockedCode = data.contactBlockedCode || null;
+  // Re-read on every verify: the owner may have flipped the switch since the
+  // page loaded. setContactAvailability applies it through applyCallBlocked.
+  callsPaused = data.callsPaused === true;
   setContactAvailability(data.contactAvailable !== false);
 
   // A blocked tag closes the owner call and the alert. Whether it closes
@@ -1489,6 +1511,20 @@ async function handleFinalCallAction() {
       onSlow: () => callSteps.slow("Still setting up your line, the signal is weak here")
     });
 
+    if (status === 409 && data.code === "CALLS_PAUSED") {
+      // The owner switched calls off between the page loading and the tap.
+      // Same outcome as a paused load: the tile goes dark, WhatsApp stays.
+      callsPaused = true;
+      applyCallBlocked(false);
+      callSteps.fail("");
+      callSteps.destroy();
+      releaseCall();
+      // The dial sheet's Call Now would only be refused again, so close it and
+      // land back on the tiles, where the paused note says what happened and
+      // the WhatsApp tile is still live.
+      closeDialModal();
+      return;
+    }
     if (status === 402) {
       // FREE_USED retires Private Call only — WhatsApp stays live, same as
       // the state /verify would have reported had the trial already run out
@@ -1659,7 +1695,16 @@ function closeReasonStep() {
 // Sending still runs requireVerification("message"), so the plate check stays
 // the single door to every contact action — this step cannot short-circuit it.
 function openReasonStep() {
-  if (actionLocked || !messageAlwaysOn) {
+  if (actionLocked) {
+    return;
+  }
+  // messageAlwaysOn is the server's answer and only arrives with /verify, so
+  // before verification it is still at its default (false). Gating on it here
+  // regardless (since 1 Oct 2026) left the WhatsApp tile dead on every fresh
+  // scan: the only way in was to tap Private Call first. Once the scanner is
+  // verified the answer is real and is honoured — a lapsed premium tag keeps
+  // its alert off. Before that, the plate check is still the one door.
+  if (contactGrant && !messageAlwaysOn) {
     return;
   }
 

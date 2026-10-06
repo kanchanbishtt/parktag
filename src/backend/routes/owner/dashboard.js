@@ -142,6 +142,9 @@ function reauthDestination(owner) {
 const DASHBOARD_TAG_PROJECTION = {
   token: 1,
   status: 1,
+  // The Calls Active switch (POST /api/owner/tags/:tagId/calls). Absent on
+  // every tag created before it existed, which reads as calls on.
+  callsPaused: 1,
   vehicleType: 1,
   vehicleLabel: 1,
   plateNumber: 1,
@@ -329,6 +332,9 @@ export function registerOwnerRoutes(app, env) {
           etagId: etagIdFor(tag._id),
           serial: stickerSerialFor(tag),
           status: tag.status,
+          // Owner's Calls Active switch, inverted so the stored default (absent)
+          // is "on". Both owner pages seed their switch from this field.
+          callsPaused: Boolean(tag.callsPaused),
           vehicleType: tag.vehicleType || null,
           vehicleLabel: VEHICLE_LABELS[tag.vehicleType] || tag.vehicleLabel || "Vehicle",
           plateNumber: tag.plateNumber || null,
@@ -961,6 +967,70 @@ export function registerOwnerRoutes(app, env) {
       tag: {
         id: String(result._id),
         status: result.status
+      }
+    };
+  });
+
+  // Calls Active. The finer switch beside Tag Active: off pauses the masked
+  // owner call only, while the WhatsApp alert and the Emergency call carry on
+  // (owner's rule, 5 Oct 2026). Tag Active (status, above) remains the switch
+  // that takes every channel down. Stored inverted, as `callsPaused`, so the
+  // tags that predate the field need no backfill: absent means calls on.
+  //
+  // Enforced in register-call; surfaced to the scanner page through
+  // /api/tags/:token and /verify so the Private Call tile is not offered and
+  // then refused.
+  app.post("/api/owner/tags/:tagId/calls", async (request, reply) => {
+    const blocked = await requireSession(app, "owner")(request, reply);
+
+    if (blocked) {
+      return blocked;
+    }
+
+    const { active } = request.body || {};
+
+    if (typeof active !== "boolean") {
+      reply.code(400);
+      return {
+        ok: false,
+        error: "active must be true or false"
+      };
+    }
+
+    const collections = await getCollections(env);
+    const ownerId = toObjectId(request.session.userId);
+    const tagId = tryObjectId(request.params.tagId);
+    if (!tagId) { reply.code(400); return { ok: false, error: "Invalid tag id" }; }
+
+    const result = await collections.tags.findOneAndUpdate(
+      {
+        _id: tagId,
+        ownerId
+      },
+      {
+        $set: {
+          callsPaused: !active,
+          updatedAt: new Date().toISOString()
+        }
+      },
+      {
+        returnDocument: "after"
+      }
+    );
+
+    if (!result) {
+      reply.code(404);
+      return {
+        ok: false,
+        error: "Tag not found"
+      };
+    }
+
+    return {
+      ok: true,
+      tag: {
+        id: String(result._id),
+        callsActive: !result.callsPaused
       }
     };
   });

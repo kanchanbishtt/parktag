@@ -417,6 +417,12 @@ export function registerPublicRoutes(app, env) {
         // a tag with no contact, so this boolean still says nothing about WHY.
         emergencyAvailable:
           tag.status === "active" && isNonEmptyString(tag.emergencyContact) && !isLockedEtag(tag),
+        // The owner's Calls Active switch, off. Only the masked owner call is
+        // withheld: the WhatsApp alert and the Emergency call carry on, so the
+        // page retires the one tile rather than the group. A boolean only — it
+        // says the owner chose this, nothing about why. register-call enforces
+        // it; this is so the tile is not offered and then refused.
+        callsPaused: tag.status === "active" && Boolean(tag.callsPaused),
         claimable: isClaimable(tag),
         // Which vehicle type the activation wizard opens on, derived from the
         // sticker's mount type (see suggestedVehicleTypeForMount). Sent only
@@ -721,7 +727,11 @@ export function registerPublicRoutes(app, env) {
       // turns it off (see call-access.js's tier table). The page uses this to
       // keep the WhatsApp tile up on a locked tag; the permission itself is
       // checked on /api/contact-requests.
-      messageAlwaysOn: callAccess.tier !== CALL_TIER_LAPSED
+      messageAlwaysOn: callAccess.tier !== CALL_TIER_LAPSED,
+      // Owner's Calls Active switch, off. Independent of the entitlement above:
+      // a tag can have a masked call available and still not want one. Retires
+      // the Private Call tile only — see /api/tags/:token for the rule.
+      callsPaused: Boolean(tag.callsPaused)
     };
   });
 
@@ -1520,6 +1530,22 @@ export function registerPublicRoutes(app, env) {
     if (!tag || tag.status !== "active") {
       reply.code(404);
       return { ok: false, error: "Tag not found or not active" };
+    }
+
+    // The owner's Calls Active switch (POST /api/owner/tags/:tagId/calls).
+    // Checked before the entitlement so that a paused tag is never told about
+    // its trial, and before anything is written: no contact row, no call
+    // route, nothing spent. Only this route honours the switch — the WhatsApp
+    // alert (/api/contact-requests) and the Emergency call (register-
+    // emergency-call) are deliberately not gated by it; Tag Active is the
+    // switch that takes everything down.
+    if (tag.callsPaused) {
+      reply.code(409);
+      return {
+        ok: false,
+        code: "CALLS_PAUSED",
+        error: "The owner has paused calls for this tag. You can still send them a message."
+      };
     }
 
     const callAccess = callEntitlement(tag);

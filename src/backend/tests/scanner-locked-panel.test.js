@@ -75,13 +75,15 @@ test("nothing claims the tag had one free contact", () => {
 });
 
 // setContactAvailability, run for real against a stub page.
-function availability({ blockedCode = null, emergency = true } = {}) {
+function availability({ blockedCode = null, emergency = true, paused = false } = {}) {
   const hidden = {};
   const disabled = {};
   const context = vm.createContext({
     contactAvailable: true,
     contactBlockedCode: blockedCode,
     emergencyAvailable: emergency,
+    // The owner's Calls Active switch, off. Read by applyCallBlocked.
+    callsPaused: paused,
     setHidden: (id, value) => { hidden[id] = value; },
     setDisabled: (id, value) => { disabled[id] = value; },
     closeDialModal() {}, closeReasonStep() {}
@@ -144,6 +146,73 @@ test("a tag that can be contacted is left exactly as it was", () => {
   page.context.setContactAvailability(true);
   assert.equal(page.emergency(), true);
   assert.equal(page.disabled["call-owner-button"], false);
+  assert.equal(page.hidden["call-tile-exhausted-note"], true);
+  assert.equal(page.hidden["call-tile-paused-note"], true);
+});
+
+// The owner's Calls Active switch (tag.callsPaused). Off retires the Private
+// Call tile only — the alert and the Emergency call carry on — and is explained
+// by its own note, not the trial's.
+test("an owner who paused calls has only the Call tile off, with the paused note", () => {
+  const page = availability({ paused: true });
+  page.context.setContactAvailability(true);
+
+  assert.equal(page.hidden["scanner-contact-actions"], false, "the tile group, including WhatsApp, stays visible");
+  assert.equal(page.disabled["call-owner-button"], true, "only Call disables");
+  assert.equal(page.hidden["call-tile-paused-note"], false, "and the scanner is told the owner paused it");
+  assert.equal(page.hidden["call-tile-exhausted-note"], true, "not that a trial ran out");
+  assert.equal(page.hidden["contact-unavailable-cta"], true);
+  assert.equal(page.emergency(), true, "the Emergency call is not the owner call");
+});
+
+test("a paused tag whose trial is also used up shows the trial note, not both", () => {
+  const page = availability({ paused: true, blockedCode: "FREE_USED" });
+  page.context.setContactAvailability(false);
+
+  assert.equal(page.disabled["call-owner-button"], true);
+  assert.equal(page.hidden["call-tile-exhausted-note"], false);
+  assert.equal(page.hidden["call-tile-paused-note"], true);
+});
+
+// The WhatsApp tile opens the reason step. Before verification nothing is known
+// about the tag's alert (messageAlwaysOn only arrives with /verify), so the
+// tile must lead on to the plate check rather than silently do nothing — which
+// is what it did from 1 Oct 2026 until this test existed, leaving Private Call
+// as the only way in. After verification the server's answer is honoured.
+function reasonStep({ verified, messageAlwaysOn, locked = false }) {
+  const opened = [];
+  const context = vm.createContext({
+    actionLocked: locked,
+    contactGrant: verified ? "grant" : "",
+    messageAlwaysOn,
+    clearSelectedReason() {},
+    openOverlay: (id) => opened.push(id)
+  });
+  vm.runInContext(wholeFunction(appJs, "function openReasonStep() {"), context);
+  context.openReasonStep();
+  return opened;
+}
+
+test("the WhatsApp tile opens the reason step on a fresh, unverified scan", () => {
+  assert.deepEqual(reasonStep({ verified: false, messageAlwaysOn: false }), ["reason-modal"]);
+});
+
+test("after verification the WhatsApp tile follows the server's answer", () => {
+  assert.deepEqual(reasonStep({ verified: true, messageAlwaysOn: true }), ["reason-modal"]);
+  assert.deepEqual(reasonStep({ verified: true, messageAlwaysOn: false }), [], "a lapsed premium tag keeps its alert off");
+});
+
+test("a tile mid-action stays locked", () => {
+  assert.deepEqual(reasonStep({ verified: false, messageAlwaysOn: false, locked: true }), []);
+});
+
+const pausedNote = slice(html, 'id="call-tile-paused-note"', "</p>");
+
+test("the paused note says the owner paused calls and points at WhatsApp, nothing more", () => {
+  assert.match(pausedNote, /owner has paused calls/);
+  assert.match(pausedNote, /Private Call is off/);
+  assert.match(pausedNote, /still notify them over WhatsApp/i);
+  assert.doesNotMatch(pausedNote, /trial|free/i, "the pause says nothing about the owner's trial");
 });
 
 test("an Emergency tap on a locked tag goes to the helplines, without saying why", () => {

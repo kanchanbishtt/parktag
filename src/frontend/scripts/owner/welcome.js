@@ -2891,22 +2891,37 @@ function saveSw(el, key) {
   s[key] = el.checked;
   localStorage.setItem(_vKey(tag), JSON.stringify(s));
 
-  // Tag Active is backed by a real API endpoint
-  if (key === "tagActive") {
+  // Tag Active and Calls Active are backed by real API endpoints. Tag Active
+  // (status) takes every channel down; Calls Active (callsPaused) pauses the
+  // masked owner call only — the alert and the Emergency call carry on. The
+  // same two endpoints the vehicle detail page uses.
+  const server = key === "tagActive"
+    ? { path: "status", body: { status: el.checked ? "active" : "inactive" }, failed: "Couldn't update tag status. Try again." }
+    : key === "callsActive"
+      ? { path: "calls", body: { active: el.checked }, failed: "Couldn't update call settings. Try again." }
+      : null;
+  if (server) {
     const tagId = tag.id || String(tag._id || "");
     if (!tagId) return;
     const swEl = el;
-    fetch(`/api/owner/tags/${tagId}/status`, {
+    const wanted = el.checked;
+    const revert = () => {
+      s[key] = !wanted;
+      localStorage.setItem(_vKey(tag), JSON.stringify(s));
+      swEl.checked = !wanted;
+      _toast(server.failed, "err");
+    };
+    fetch(`/api/owner/tags/${tagId}/${server.path}`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ status: el.checked ? "active" : "inactive" })
-    }).catch(() => {
-      // Revert toggle on failure
-      s[key] = !el.checked;
-      localStorage.setItem(_vKey(tag), JSON.stringify(s));
-      swEl.checked = !swEl.checked;
-      _toast("Couldn't update tag status. Try again.", "err");
-    });
+      body: JSON.stringify(server.body)
+    }).then((res) => {
+      if (!res.ok) revert();
+      // Keep the in-memory record in step, so reopening the drawer without a
+      // reload seeds the switch from what the server now holds.
+      else if (key === "tagActive") tag.status = wanted ? "active" : "inactive";
+      else tag.callsPaused = !wanted;
+    }).catch(revert);
   }
 }
 window.saveSw = saveSw;
@@ -3048,11 +3063,13 @@ function _fillMenu() {
   const mobileAlert = document.getElementById("mobile-missing-alert");
   if (mobileAlert) mobileAlert.style.display = _ownerMobile ? "none" : "flex";
 
-  // Toggles — Tag Active uses real DB status; rest use localStorage
+  // Toggles — Tag Active and Calls Active use the tag's real fields (status and
+  // callsPaused, from the dashboard API); the rest use localStorage. A vehicle
+  // saved only on this device has neither field and keeps the remembered value.
   const s = _loadSw(tag);
   const sw = (id, v) => { const el = document.getElementById(id); if (el) el.checked = v; };
   sw("sw-tag",      tag.status ? tag.status === "active" : s.tagActive);
-  sw("sw-calls",    s.callsActive);
+  sw("sw-calls",    typeof tag.callsPaused === "boolean" ? !tag.callsPaused : s.callsActive);
   applyMaskingSw(tag, s);
   sw("sw-push",     s.pushNotif);
   sw("sw-email",    s.emailAlerts);

@@ -13,6 +13,14 @@ Rules:
 
 ## Milestones
 
+### Owner tag switches (Tag Active, Calls Active)
+- [x] Wire the vehicle detail page's Tag Active switch to `POST /api/owner/tags/:tagId/status` (it only wrote localStorage, so the dashboard and scanner kept treating the tag as active).
+- [x] Add `callsPaused` on the tag and `POST /api/owner/tags/:tagId/calls`; `register-call` refuses with 409 `CALLS_PAUSED`, while the WhatsApp alert and the Emergency call carry on.
+- [x] Surface `callsPaused` on `/api/tags/:token`, `/verify` and the owner dashboard; the scanner page retires the Private Call tile with its own note; both owner pages seed and save the switch through the server.
+- [x] Verify: `calls-active-switch.test.js` (owner endpoint, the three scanner routes, Tag Active off) and a headless check of the vehicle detail switches.
+- [x] Fix the scanner's WhatsApp tile, dead on every fresh scan since 1 Oct 2026 (the reason step was gated on `messageAlwaysOn`, which only arrives with `/verify`); it now leads into the plate check before verification and honours the server's answer after. Covered in `scanner-locked-panel.test.js`.
+- [x] Verify end to end in headless Chrome against the local server (28 checks): both switches on both owner pages, the dashboard pill and count, the scanner page fresh and stale (tap after the owner paused: `/verify` reports the pause, `register-call` 409, tile retires with no row written), the WhatsApp entry on a paused tag, Tag Active off and on.
+
 ### Admin sticker designer
 - [x] Add `/admin/sticker-designer`: a Fabric.js layer editor (text, shapes, lines, image and SVG upload, layers with show/hide, lock, reorder, rename, delete, undo/redo, preview) with the QR and serial as fixed per-tag placeholders.
 - [x] Store designs (`sticker_designs`), validate layout and artwork server-side, allow one live design (unique index), and serve artwork admin-only under a sandbox CSP.

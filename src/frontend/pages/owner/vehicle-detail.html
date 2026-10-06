@@ -89,6 +89,30 @@
             <div class="vd-info-row"><span class="vd-info-key">Vehicle Type</span><span class="vd-info-val" id="info-type">-</span></div>
             <div class="vd-info-row"><span class="vd-info-key">Owner</span><span class="vd-info-val" id="info-name">-</span></div>
             <div class="vd-info-row"><span class="vd-info-key">Tag ID</span><span class="vd-info-val" id="info-tagid">DEMO-TAG</span></div>
+            <div class="vd-info-row"><span class="vd-info-key">Phone Number</span><span class="vd-info-val" id="info-mobile">-</span></div>
+            <!-- Backup number: one per owner, saved without a code, rung after
+                 the owner's own when a masked call goes unanswered. The same
+                 row as in the dashboard menu, so it can be managed from either
+                 place; both read and write the same owner field. States are
+                 switched by renderBackupRow() in vehicle-detail.js. -->
+            <div class="vd-info-row vd-bk" id="bk-row">
+              <div class="vd-bk-head">
+                <span class="vd-info-key">Backup Number <span class="vd-bk-tag" id="bk-tag">Recommended</span></span>
+                <span class="vd-info-val" id="bk-value">Not set</span>
+              </div>
+              <p class="vd-bk-hint">If your phone is switched off or busy, the call rings this number next.</p>
+              <form class="vd-bk-edit" id="bk-edit">
+                <span class="vd-bk-prefix" aria-hidden="true">+91</span>
+                <input class="vd-field vd-bk-input" id="bk-input" type="tel" inputmode="numeric" autocomplete="tel-national" maxlength="10" placeholder="10-digit mobile" aria-label="Backup mobile number" />
+                <button type="submit" class="vd-bk-save" id="bk-save">Save</button>
+                <button type="button" class="vd-bk-link vd-bk-link-muted" id="bk-cancel" hidden>Cancel</button>
+              </form>
+              <div class="vd-bk-acts" id="bk-acts" hidden>
+                <button type="button" class="vd-bk-link" id="bk-change">Change</button>
+                <button type="button" class="vd-bk-link vd-bk-link-muted" id="bk-remove">Remove</button>
+              </div>
+              <p class="vd-bk-status" id="bk-status" hidden></p>
+            </div>
           </div>
         </div>
       </div>

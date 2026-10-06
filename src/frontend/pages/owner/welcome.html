@@ -79,6 +79,10 @@
                  stroke="currentColor" stroke-width="1.9" stroke-linecap="round">
               <path d="M4 7h16M4 12h16M4 17h16"/>
             </svg>
+            <!-- Count of things in the menu waiting on the owner (today: the
+                 backup number, when unset). A notification badge, so it reads
+                 as "1 thing to do" rather than as a status light. -->
+            <span class="pt-wh-badge" id="menuBadge" hidden aria-label="1 item needs attention">1</span>
           </button>
         </div>
 
@@ -834,7 +838,8 @@
         <div class="pt-mi-ic" style="background:#FFE3DD;color:#FF2700">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.8"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
         </div>
-        <span class="pt-mi-lb">User Info</span>
+        <span class="pt-mi-lb">User Info<small class="pt-mi-sub" id="userInfoSub" hidden>Add a backup number</small></span>
+        <span class="pt-mi-badge" id="userInfoBadge" hidden aria-label="1 item needs attention">1</span>
         <span class="pt-mi-ar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>
       </div>
       <div class="pt-mi-s"><div class="pt-mi-si">
@@ -862,6 +867,33 @@
             <button onclick="verifyMobileOtp()" style="background:#16A34A;color:#fff;border:none;border-radius:10px;padding:0 14px;font-size:.78rem;font-weight:700;cursor:pointer;white-space:nowrap">Verify &amp; save</button>
           </div>
           <p id="mi-mobile-status" style="font-size:.73rem;margin:0;display:none"></p>
+        </div>
+        <!-- Backup number: one per owner, saved without a code, rung after the
+             owner's own when a masked call goes unanswered. Lives here with the
+             other profile facts rather than on the overview. Filled and
+             switched between its states by renderBackupRow() in welcome.js. -->
+        <div class="pt-irow pt-bk" id="bk-row">
+          <div class="pt-bk-head">
+            <span class="pt-ik">Backup Number <span class="pt-bk-tag" id="bk-tag">Recommended</span></span>
+            <span class="pt-iv" id="bk-value">Not set</span>
+          </div>
+          <p class="pt-bk-hint">If your phone is switched off or busy, the call rings this number next.</p>
+          <form class="pt-bk-edit" id="bk-edit" onsubmit="saveBackupMobile(); return false;">
+            <div class="pt-input-phone-wrap" style="flex:1">
+              <span class="pt-phone-prefix" style="font-size:.8rem;padding:0 8px">
+                <svg width="14" height="10" viewBox="0 0 14 10" fill="none" aria-hidden="true"><rect width="14" height="10" rx="1" fill="#FF9933"/><rect y="3.33" width="14" height="3.34" fill="#fff"/><rect y="6.67" width="14" height="3.33" fill="#138808"/></svg>
+                +91
+              </span>
+              <input id="bk-input" type="tel" inputmode="numeric" autocomplete="tel-national" maxlength="10" class="pt-input pt-input-phone" placeholder="10-digit mobile" aria-label="Backup mobile number" style="font-size:.82rem;padding:8px 10px" oninput="this.value = this.value.replace(/\D/g, '').slice(0, 10)" />
+            </div>
+            <button type="submit" class="pt-bk-save" id="bk-save">Save</button>
+            <button type="button" class="pt-bk-link pt-bk-cancel" id="bk-cancel" onclick="cancelBackupEdit()" hidden>Cancel</button>
+          </form>
+          <div class="pt-bk-acts" id="bk-acts" hidden>
+            <button type="button" class="pt-bk-link" onclick="editBackupMobile()">Change</button>
+            <button type="button" class="pt-bk-link pt-bk-link-muted" onclick="removeBackupMobile()">Remove</button>
+          </div>
+          <p id="bk-status" class="pt-bk-status" hidden></p>
         </div>
         <div class="pt-irow" style="border-top:1px solid #F3F4F6;margin-top:6px;padding-top:12px">
           <button onclick="deleteAccount()" style="background:none;border:none;color:#DC2626;font-size:.78rem;font-weight:700;cursor:pointer;padding:0;font-family:inherit">Delete Account</button>

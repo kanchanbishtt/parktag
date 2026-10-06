@@ -115,6 +115,7 @@ function applyOwnerIdentity(patch = {}) {
   // Name, initial and number on the identity card. Hoisted, so callable from
   // here although it is declared further down.
   renderProfileView();
+  renderBackupRow();
 }
 
 // What to put back if a save is refused after the page has already shown it.
@@ -1284,6 +1285,133 @@ ${_nbFilter ? `
   <a class="pt-ov-save-btn" href="/parktag.vcf" aria-label="Add ParkTag's number 08047284348 to your contacts"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg>Add</a></div>`;
 }
 
+// ── Backup number ──────────────────────────────────────────────────
+// One per owner, not per vehicle (owner's rule, 5 Oct 2026), so it lives in
+// the menu's User Info beside the owner's own number, not on the overview,
+// which is about the vehicles. Saved without a code; the server's checks are
+// a real Indian mobile and not the owner's own number. Rung after the owner's
+// own when a masked call goes unanswered.
+//
+// The row (markup in welcome.html) has three states, switched here:
+//   unset    — "Not set", a Recommended tag, and the input in place
+//   set      — the number, with Change and Remove
+//   editing  — the input prefilled, with Cancel
+// While unset, a counted notification badge on the menu button and on the
+// User Info row points at it. That is the whole of the highlighting: a cue,
+// not a card.
+let _ownerBackup = null;
+let _backupEditing = false;
+
+// Shown exactly as the Phone Number row above it shows the owner's own number
+// (E.164, same face, no grouping), so the two read as a pair.
+function formatBackup(e164) {
+  return e164 || "";
+}
+
+function renderBackupRow() {
+  const row = document.getElementById("bk-row");
+  if (!row) return;
+  const set = Boolean(_ownerBackup);
+  const editing = _backupEditing || !set;
+
+  const value = document.getElementById("bk-value");
+  if (value) {
+    value.textContent = set ? formatBackup(_ownerBackup) : "Not set";
+    value.style.color = set ? "#03162D" : "#6B7280";
+  }
+  const tag = document.getElementById("bk-tag");
+  if (tag) tag.hidden = set;
+
+  const edit = document.getElementById("bk-edit");
+  if (edit) edit.hidden = !editing;
+  const input = document.getElementById("bk-input");
+  if (input && editing) input.value = _backupEditing && set ? String(_ownerBackup).replace(/^\+91/, "") : "";
+  const cancel = document.getElementById("bk-cancel");
+  if (cancel) cancel.hidden = !(_backupEditing && set);
+
+  const acts = document.getElementById("bk-acts");
+  if (acts) acts.hidden = editing;
+
+  if (!_backupEditing) backupStatus("");
+
+  // The notification badges: a count on the header menu button and on the
+  // User Info row, with the reason under the row's label. One item today.
+  for (const id of ["menuBadge", "userInfoBadge", "userInfoSub"]) {
+    const el = document.getElementById(id);
+    if (el) el.hidden = set;
+  }
+}
+
+function backupStatus(msg, isErr) {
+  const el = document.getElementById("bk-status");
+  if (!el) return;
+  el.textContent = msg;
+  el.style.color = isErr ? "#B91C1C" : "#047857";
+  el.hidden = !msg;
+}
+
+async function saveBackupMobile() {
+  const input = document.getElementById("bk-input");
+  const btn = document.getElementById("bk-save");
+  const digits = String(input?.value || "").replace(/\D/g, "");
+  if (!/^[6-9]\d{9}$/.test(digits)) {
+    backupStatus("Enter a 10-digit Indian mobile number.", true);
+    input?.focus();
+    return;
+  }
+  if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
+  try {
+    const res = await fetch("/api/owner/backup-mobile", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ mobile: `+91${digits}` })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) {
+      backupStatus(data.error || "Couldn't save the backup number. Try again.", true);
+      return;
+    }
+    _ownerBackup = data.backupMobile;
+    _backupEditing = false;
+    renderBackupRow();
+    _toast("Backup number saved.", "ok");
+  } catch {
+    backupStatus("Network error. The backup number was not saved.", true);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "Save"; }
+  }
+}
+
+async function removeBackupMobile() {
+  try {
+    const res = await fetch("/api/owner/backup-mobile", { method: "DELETE" });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) { _toast("Couldn't remove the backup number. Try again.", "err"); return; }
+    _ownerBackup = null;
+    _backupEditing = false;
+    renderBackupRow();
+    _toast("Backup number removed.", "ok");
+  } catch {
+    _toast("Network error. The backup number was not removed.", "err");
+  }
+}
+
+function editBackupMobile() {
+  _backupEditing = true;
+  renderBackupRow();
+  document.getElementById("bk-input")?.focus();
+}
+
+function cancelBackupEdit() {
+  _backupEditing = false;
+  renderBackupRow();
+}
+
+window.saveBackupMobile = saveBackupMobile;
+window.removeBackupMobile = removeBackupMobile;
+window.editBackupMobile = editBackupMobile;
+window.cancelBackupEdit = cancelBackupEdit;
+
 // ── Activity section ──────────────────────────────────────────────
 function formatTimeAgo(ms) {
   const s = Math.floor(ms / 1000);
@@ -1738,7 +1866,9 @@ function renderActivity(requests) {
     // has never fired, so the branch has never run.
     let resultBadge = "";
     if (isCall && r.callOutcome) {
-      const label = r.callOutcome === "answered" ? "Answered"
+      // "on backup" when Exotel reported that the backup number was the leg
+      // that picked up, so an owner whose own phone never rang understands why.
+      const label = r.callOutcome === "answered" ? (r.answeredOn === "backup" ? "Answered on backup" : "Answered")
                   : r.callOutcome === "missed"   ? "Missed" : "Failed";
       const bg    = r.callOutcome === "answered"
         ? "background:#DCFCE7;color:#14532D"
@@ -2600,6 +2730,8 @@ async function load() {
       // Populate burger menu owner header
       _owner       = data.owner;
       _ownerMobile = data.owner.mobile || null;
+      _ownerBackup = data.owner.backupMobile || null;
+      renderBackupRow();
       _userId = userId;
       // The shop checkout used to read the owner's name, e-mail and mobile off
       // a `window.__ptOwner` global set here, which then sat on the page for the
@@ -3062,6 +3194,7 @@ function _fillMenu() {
   if (mobileEdit) mobileEdit.style.display = _ownerMobile ? "none" : "flex";
   const mobileAlert = document.getElementById("mobile-missing-alert");
   if (mobileAlert) mobileAlert.style.display = _ownerMobile ? "none" : "flex";
+  renderBackupRow();
 
   // Toggles — Tag Active and Calls Active use the tag's real fields (status and
   // callsPaused, from the dashboard API); the rest use localStorage. A vehicle

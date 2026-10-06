@@ -294,6 +294,10 @@ export function registerOwnerRoutes(app, env) {
         // STRICT_SCRIPT_PAGES — its CSP still permits inline script.
         email: owner.email || null,
         mobile: owner.mobile || null,
+        // The backup number (POST /api/owner/backup-mobile): rung after the
+        // owner's own when a masked call goes unanswered. Null when unset,
+        // which is what the dashboard's "add one" card keys off.
+        backupMobile: owner.backupMobile || null,
         // What this person typed to sign in, so the header can echo it back
         // instead of ranking email above mobile and showing an address to
         // somebody who signed in with a phone number. Null on sessions created
@@ -392,6 +396,10 @@ export function registerOwnerRoutes(app, env) {
         // vocabulary (which it previously did, and got wrong).
         callOutcome: item.callOutcome || null,
         callDuration: typeof item.callDuration === "number" ? item.callDuration : null,
+        // "primary" | "backup" | null: which of the owner's numbers picked up,
+        // when Exotel reported it (routes/webhooks/exotel.js). Null on calls
+        // placed before a backup existed or when the provider did not say.
+        answeredOn: item.answeredOn || null,
         // Where the scanner contacted from, at city precision, or null when the
         // tag was not entitled to it, the address did not resolve, or the row
         // predates the feature. Sent as the already-derived fields plus a
@@ -583,6 +591,64 @@ export function registerOwnerRoutes(app, env) {
   // Generate (or fetch existing) a real, scannable E-Tag for a vehicle.
   // Returns a high-resolution QR linked to a 256-bit secure token. This is what
   // the print/PDF flow now uses instead of the old demo QR placeholder.
+  // ── Backup number ─────────────────────────────────────────────────────
+  // One per owner, not per vehicle (owner's rule, 5 Oct 2026). When a masked
+  // call to the owner goes unanswered, Exotel rings this number next: Dial
+  // Whom hands the Connect applet "owner,backup" and the applet dials the legs
+  // in order (routes/webhooks/exotel.js). Only the owner call uses it — the
+  // Emergency call targets the next of kin and is unchanged.
+  //
+  // Saved directly, with no OTP — the owner chose calls-only and no code. The
+  // number is never shown to a scanner and never dialled by anyone but Exotel,
+  // after a verified scanner has asked for the owner. The checks that remain
+  // are the cheap ones: a real Indian mobile, not the owner's own number
+  // (which would ring the same phone twice), and the usual write rate limit.
+  app.post("/api/owner/backup-mobile", { config: { rateLimit: { max: 10, timeWindow: "5 minutes" } } }, async (request, reply) => {
+    const blocked = await requireSession(app, "owner")(request, reply);
+    if (blocked) return blocked;
+
+    const { mobile } = request.body || {};
+    // Indian mobiles only: that is where the stickers ship and the only thing
+    // the Exotel account can ring. toE164 passes a foreign number through
+    // untouched, so the shape is pinned here rather than trusted from it.
+    const normalized = isMobileIdentifier(mobile) ? toE164(mobile) : null;
+    if (!normalized || !/^\+91[6-9]\d{9}$/.test(normalized)) {
+      reply.code(400);
+      return { ok: false, error: "Enter a valid 10-digit Indian mobile number." };
+    }
+
+    const collections = await getCollections(env);
+    if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
+
+    const ownerId = toObjectId(request.session.userId);
+    const owner = await collections.owners.findOne({ _id: ownerId }, { projection: { mobile: 1, phone: 1 } });
+    const own = toE164(owner?.mobile || owner?.phone || "");
+    if (own && own === normalized) {
+      reply.code(400);
+      return { ok: false, error: "That is already your main number. The backup should be a different phone." };
+    }
+
+    await collections.owners.updateOne(
+      { _id: ownerId },
+      { $set: { backupMobile: normalized, backupMobileUpdatedAt: new Date().toISOString() } }
+    );
+    return { ok: true, backupMobile: normalized };
+  });
+
+  app.delete("/api/owner/backup-mobile", { config: { rateLimit: { max: 10, timeWindow: "5 minutes" } } }, async (request, reply) => {
+    const blocked = await requireSession(app, "owner")(request, reply);
+    if (blocked) return blocked;
+
+    const collections = await getCollections(env);
+    if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
+
+    await collections.owners.updateOne(
+      { _id: toObjectId(request.session.userId) },
+      { $unset: { backupMobile: "" }, $set: { backupMobileUpdatedAt: new Date().toISOString() } }
+    );
+    return { ok: true, backupMobile: null };
+  });
+
   app.post("/api/owner/etag/generate", { config: { rateLimit: { max: 20, timeWindow: "5 minutes" } } }, async (request, reply) => {
     const blocked = await requireSession(app, "owner")(request, reply);
     if (blocked) return blocked;

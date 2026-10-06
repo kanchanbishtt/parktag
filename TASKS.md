@@ -13,6 +13,15 @@ Rules:
 
 ## Milestones
 
+### Owner backup number
+- [x] One backup number per owner (`owners.backupMobile`), saved without a code through `POST /api/owner/backup-mobile`, removed with `DELETE`; refuses non-Indian mobiles and the owner's own number.
+- [x] Snapshot it onto the call route at `register-call` (`pendingCalls.backupPhone`); Dial Whom hands Exotel `owner,backup` so the Connect applet rings them in order. Emergency calls unchanged.
+- [x] Record which leg answered (`contactRequests.answeredOn` from `DialWhomNumber`) and show "Answered on backup" in the owner's activity.
+- [x] Menu → User Info (dashboard and vehicle page): a "Backup Number" row under Phone Number with the input in place while unset (Recommended tag, an Instagram-style count badge on the menu button and on the User Info row); shows the number with Change and Remove once set, in the same face as the Phone Number row. Not on the overview and not asked during activation (owner's decisions).
+- [x] Verify: `backup-number.test.js` (endpoint, Dial Whom with and without a backup, snapshot survives removal, Emergency unaffected, answered-on-backup) and a headless Chrome pass over the dashboard card.
+- [x] Confirm against Exotel's Connect applet documentation that a comma-separated Dial Whom response is dialled one by one; make Dial Whom attempt-aware (`pendingCalls.dialRequests`) so a re-fetch after a failed leg offers the backup only and nothing after an answer. Verified end to end against a running server with Exotel-shaped requests (15 checks).
+- [ ] Exotel dashboard: check the Connect applet's per-attempt ring time (not documented by Exotel), then place one real test call to a tag whose owner has a backup. Nothing in the repo can see the applet setting.
+
 ### Owner tag switches (Tag Active, Calls Active)
 - [x] Wire the vehicle detail page's Tag Active switch to `POST /api/owner/tags/:tagId/status` (it only wrote localStorage, so the dashboard and scanner kept treating the tag as active).
 - [x] Add `callsPaused` on the tag and `POST /api/owner/tags/:tagId/calls`; `register-call` refuses with 409 `CALLS_PAUSED`, while the WhatsApp alert and the Emergency call carry on.

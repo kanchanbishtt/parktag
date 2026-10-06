@@ -133,9 +133,16 @@ export function registerProviderRoutes(app, env) {
     // redials. The status callback below now retires it once the two of them
     // have actually spoken, and `callSid` is stamped on here so it can find the
     // right row when that happens.
+    // Exotel asks this URL once per call, or once per ATTEMPT when the Connect
+    // applet's "Fetch Numbers after every call attempt" is on; the later asks
+    // carry the previous leg's result. Counted on the route so a route with a
+    // backup can answer each ask with only what is still worth dialling.
+    const prevStatus = String(request.query.DialCallStatus || "").toLowerCase() || null;
+    const prevNumber = request.query.DialWhomNumber ? toE164(request.query.DialWhomNumber) : null;
+
     const record = await collections.pendingCalls.findOneAndUpdate(
       { callerPhone, consumed: false, expiresAt: { $gt: now } },
-      { $set: { lastDialedAt: now.toISOString(), ...(callSid ? { callSid } : {}) } },
+      { $set: { lastDialedAt: now.toISOString(), ...(callSid ? { callSid } : {}) }, $inc: { dialRequests: 1 } },
       { returnDocument: "after", sort: { createdAt: -1, _id: -1 } }
     );
 
@@ -168,7 +175,43 @@ export function registerProviderRoutes(app, env) {
       ).catch(() => null);
     }
 
-    return reply.send(toE164(record.targetPhone));
+    // The owner's backup number, when the route carries one, rides behind the
+    // owner's own. Exotel's Connect applet accepts a comma-separated list from
+    // this URL and dials the legs in order, moving on when one is not answered
+    // within its ring time — that applet setting ("dial in order", short ring
+    // time on the first leg) is configured in the Exotel dashboard, not here.
+    // Snapshotted at register-call (public/index.js), so this reads the route
+    // and never the owner record. Emergency routes carry no backup.
+    const ownerLeg = toE164(record.targetPhone);
+    const backupLeg = record.backupPhone ? toE164(record.backupPhone) : null;
+
+    // No backup: exactly what this returned before backups existed, on every
+    // ask, so nothing changes for the calls that have always worked.
+    if (!backupLeg) return reply.send(ownerLeg);
+
+    // With a backup, the first ask gets both legs in order. A later ask (the
+    // applet re-fetching after an attempt) gets the backup only while the
+    // owner was the leg that just failed, and nothing once someone answered
+    // or the backup itself has been tried — so no phone rings twice.
+    const attempt = record.dialRequests || 1;
+    let legs;
+    if (attempt === 1) {
+      legs = [ownerLeg, backupLeg];
+    } else if (prevStatus === "completed") {
+      legs = [];
+    } else if (prevNumber ? prevNumber === ownerLeg : attempt === 2) {
+      legs = [backupLeg];
+    } else {
+      legs = [];
+    }
+    request.log.info({
+      event: "dial-whom-legs",
+      attempt,
+      prevStatus,
+      prevLeg: prevNumber ? maskPhone(prevNumber) : null,
+      legs: legs.map(maskPhone)
+    }, "[dial-whom] legs for this attempt");
+    return reply.send(legs.join(","));
   });
 
   app.post("/api/provider/exotel/webhook", async (request, reply) => {
@@ -234,6 +277,19 @@ export function registerProviderRoutes(app, env) {
     // outcome an earlier terminal event already established.
     const outcome = normalizeCallOutcome({ status: result, duration });
     if (outcome) set.callOutcome = outcome;
+
+    // Which of the owner's numbers picked up. DialWhomNumber is the leg the
+    // Connect applet actually bridged; compared with the route's snapshot so
+    // the owner's activity can say "on backup number". Only meaningful on a
+    // route that had a backup; left unset otherwise, and best-effort — a
+    // missing field here must never cost the outcome above.
+    const dialedLeg = body.DialWhomNumber || body.dial_whom_number || null;
+    if (outcome === "answered" && callSid && dialedLeg) {
+      const route = await collections.pendingCalls.findOne({ callSid }).catch(() => null);
+      if (route?.backupPhone) {
+        set.answeredOn = toE164(dialedLeg) === toE164(route.backupPhone) ? "backup" : "primary";
+      }
+    }
 
     // A conversation happened, so this authorisation has done its job. Matched
     // on the CallSid stamped by dial-whom, never on the caller's number alone,

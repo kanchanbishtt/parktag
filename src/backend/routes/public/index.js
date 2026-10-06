@@ -1648,6 +1648,11 @@ export function registerPublicRoutes(app, env) {
       callerPhone,
       registrantIpHash,
       targetPhone: ownerPhone,
+      // The owner's backup number, snapshotted onto the route so a number
+      // changed mid-call cannot redirect a ring already in flight. Dial Whom
+      // hands Exotel "owner,backup"; the applet rings them in order. Null when
+      // the owner has not set one, and never present on an Emergency route.
+      backupPhone: owner?.backupMobile ? toE164(owner.backupMobile) : null,
       token,
       ownerId: tag.ownerId,
       requestId,

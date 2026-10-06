@@ -241,6 +241,39 @@ body {
 .vd-info-key { font-size: 0.8rem; color: var(--ink-4); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
 .vd-info-val { font-size: 0.875rem; color: var(--ink); font-weight: 700; text-align: right; max-width: 58%; word-break: break-all; }
 
+/* Backup number row (User Info). The same label/value line as the rows above
+   it, then a hint, then either the input or Change/Remove. Mirrors the row in
+   the dashboard menu. */
+.vd-bk { flex-direction: column; align-items: stretch; gap: 8px; }
+.vd-bk-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.vd-bk-tag {
+  display: inline-block; margin-left: 6px; padding: 2px 7px; border-radius: 20px;
+  background: #FFF1F2; color: #9F1239; border: 1px solid #FECDD3;
+  font-size: .62rem; font-weight: 800; letter-spacing: .02em; text-transform: none; vertical-align: middle;
+}
+.vd-bk-tag[hidden] { display: none; }
+.vd-bk-hint { margin: 0; font-size: .78rem; line-height: 1.5; color: var(--ink-4); }
+.vd-bk-edit { display: flex; align-items: center; gap: 8px; }
+.vd-bk-edit[hidden] { display: none; }
+.vd-bk-prefix { flex-shrink: 0; font-size: .85rem; font-weight: 700; color: var(--ink); }
+.vd-bk-edit .vd-field { flex: 1; min-width: 0; margin: 0; }
+.vd-bk-save {
+  flex-shrink: 0; height: 42px; padding: 0 16px; border: none; border-radius: 11px;
+  background: #FF2700; color: #fff; font-size: .82rem; font-weight: 700; font-family: inherit; cursor: pointer;
+}
+.vd-bk-save:disabled { opacity: .6; cursor: default; }
+.vd-bk-acts { display: flex; align-items: center; gap: 14px; }
+.vd-bk-acts[hidden] { display: none; }
+.vd-bk-link {
+  background: none; border: none; padding: 0; cursor: pointer;
+  font-family: inherit; font-size: .82rem; font-weight: 700; color: #FF2700;
+}
+.vd-bk-link-muted { color: var(--ink-4); }
+.vd-bk-link-muted:hover { color: #B91C1C; }
+.vd-bk-link[hidden] { display: none; }
+.vd-bk-status { margin: 0; font-size: .78rem; font-weight: 600; }
+.vd-bk-status[hidden] { display: none; }
+
 /* ── Toggle row ──────────────────────────────────────── */
 .vd-toggle-row {
   display: flex; align-items: center; justify-content: space-between;

@@ -1433,6 +1433,62 @@
   .pt-ik { font-size: .7rem; font-weight: 700; color: #9CA3AF; text-transform: uppercase; letter-spacing: .05em; }
   .pt-iv { font-size: .82rem; font-weight: 700; color: #323232; text-align: right; max-width: 58%; word-break: break-all; }
 
+  /* Backup number row (User Info). The same label/value line as the rows
+     above it, then a hint, then either the input or Change/Remove. The only
+     colour is the tag and the Save button; the row itself stays as quiet as
+     its neighbours. */
+  .pt-bk { flex-direction: column; align-items: stretch; gap: 8px; }
+  .pt-bk-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .pt-bk-tag {
+    display: inline-block; margin-left: 6px; padding: 2px 7px; border-radius: 20px;
+    background: #FFF1F2; color: #9F1239; border: 1px solid #FECDD3;
+    font-size: .6rem; font-weight: 800; letter-spacing: .02em; text-transform: none; vertical-align: middle;
+  }
+  .pt-bk-tag[hidden] { display: none; }
+  .pt-bk-hint { margin: 0; font-size: .73rem; line-height: 1.5; color: #6B7280; }
+  .pt-bk-edit { display: flex; align-items: center; gap: 8px; width: 100%; }
+  .pt-bk-edit[hidden] { display: none; }
+  .pt-bk-save {
+    background: #FF2700; color: #fff; border: none; border-radius: 10px; padding: 0 14px;
+    height: 38px; font-size: .78rem; font-weight: 700; font-family: inherit; cursor: pointer; white-space: nowrap;
+  }
+  .pt-bk-save:disabled { opacity: .6; cursor: default; }
+  .pt-bk-acts { display: flex; align-items: center; gap: 14px; }
+  .pt-bk-acts[hidden] { display: none; }
+  .pt-bk-link {
+    background: none; border: none; padding: 0; cursor: pointer;
+    font-family: inherit; font-size: .78rem; font-weight: 700; color: #FF2700;
+  }
+  .pt-bk-link-muted { color: #6B7280; }
+  .pt-bk-link-muted:hover { color: #B91C1C; }
+  .pt-bk-cancel[hidden] { display: none; }
+  .pt-bk-status { margin: 0; font-size: .73rem; font-weight: 600; }
+  .pt-bk-status[hidden] { display: none; }
+
+  /* The cue that something in the menu is waiting on the owner: a counted
+     notification badge, the shape every phone app uses, so it cannot be taken
+     for a status light. One rides the corner of the header menu button; the
+     other sits on the User Info row with a one-line reason under the label. */
+  .pt-wh-btn { position: relative; overflow: visible; }
+  .pt-wh-badge {
+    position: absolute; top: -5px; right: -5px;
+    min-width: 19px; height: 19px; padding: 0 5px; border-radius: 10px; box-sizing: border-box;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: #FF2700; color: #fff; font-size: .68rem; font-weight: 800; line-height: 1;
+    border: 2px solid #03162D;
+    box-shadow: 0 1px 4px rgba(0,0,0,.35);
+  }
+  .pt-wh-badge[hidden] { display: none; }
+  .pt-mi-lb { display: flex; flex-direction: column; gap: 2px; }
+  .pt-mi-sub { font-size: .72rem; font-weight: 600; color: #FF2700; }
+  .pt-mi-sub[hidden] { display: none; }
+  .pt-mi-badge {
+    flex-shrink: 0; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; box-sizing: border-box;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: #FF2700; color: #fff; font-size: .7rem; font-weight: 800; line-height: 1;
+  }
+  .pt-mi-badge[hidden] { display: none; }
+
   /* Footer */
   .pt-menu-ft {
     flex-shrink: 0; border-top: 1px solid #E5E7EB;

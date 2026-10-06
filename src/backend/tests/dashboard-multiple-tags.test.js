@@ -31,6 +31,8 @@ for (const count of [2, 11]) {
         renderGreetingAffordance() {}, mergePendingVehicles() {},
         readSavedVehicles: () => pending ? [{ number: tags[0].plateNumber }, placeholder] : [],
         renderNoticeboard() {}, renderActivity() {}, renderReferral() {}, renderProfileView() {},
+        // The backup-number row in the menu, refreshed when the owner loads.
+        renderBackupRow() {},
         syncLocalVehicles: (vehicles, userId) => synced.push({ vehicles, userId })
       });
       // Execute the real card renderer and entire load try/catch, including migration.

@@ -31,6 +31,7 @@ import { registerAdminDoorhangerRoutes } from "./routes/admin/doorhangers.js";
 import { registerAdminStickerDesignRoutes } from "./routes/admin/sticker-designs.js";
 import { registerAdminPromoCodeRoutes } from "./routes/admin/promo-codes.js";
 import { registerAdminReviewRoutes } from "./routes/admin/reviews.js";
+import { registerAdminOrderRoutes } from "./routes/admin/orders.js";
 import { registerAdminTagReportRoutes } from "./routes/admin/tag-reports.js";
 import { registerAdminApiTokenRoutes } from "./routes/admin/api-tokens.js";
 import { registerMcpRoutes } from "./routes/mcp/index.js";
@@ -80,6 +81,7 @@ const adminPage = path.join(pagesRoot, "admin/index.html");
 const adminMarketingPage = path.join(pagesRoot, "admin/marketing.html");
 const adminPromoCodesPage = path.join(pagesRoot, "admin/promo-codes.html");
 const adminReviewsPage = path.join(pagesRoot, "admin/reviews.html");
+const adminOrdersPage = path.join(pagesRoot, "admin/orders.html");
 const adminTagReportsPage = path.join(pagesRoot, "admin/tag-reports.html");
 const adminApiTokensPage = path.join(pagesRoot, "admin/api-tokens.html");
 const adminOverviewPage = path.join(pagesRoot, "admin/overview.html");
@@ -1476,6 +1478,10 @@ export async function buildApp() {
     return guardAdmin(request, reply, adminReviewsPage);
   });
 
+  app.get("/admin/orders", async (request, reply) => {
+    return guardAdmin(request, reply, adminOrdersPage);
+  });
+
   app.get("/admin/tag-reports", async (request, reply) => {
     return guardAdmin(request, reply, adminTagReportsPage);
   });
@@ -1598,6 +1604,7 @@ export async function buildApp() {
   registerAdminStickerDesignRoutes(app, env);
   registerAdminPromoCodeRoutes(app, env);
   registerAdminReviewRoutes(app, env);
+  registerAdminOrderRoutes(app, env);
   registerAdminTagReportRoutes(app, env);
   registerAdminApiTokenRoutes(app, env);
   registerOAuthRoutes(app, env);

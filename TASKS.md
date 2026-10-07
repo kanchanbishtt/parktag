@@ -13,6 +13,12 @@ Rules:
 
 ## Milestones
 
+### Admin Orders page
+- [x] No admin screen showed an order with its amount, address and payment mode together. New page `/admin/orders` (sidebar: Management → Orders, on every admin page): Sales (paid or placed COD), Abandoned (created, never paid), Ours (the team's test orders), All; newest first, 50 a page; search by order number, buyer name, phone in any spelling, city, pincode, AWB or payment id.
+- [x] Each row: order number, channel, product × quantity, stickers activated of capacity; buyer and full address; amount in rupees with how it was paid (Paid online / Cash on delivery with the fee noted / COD paid online later with the COD figure / Paid by UPI for a hand sale / Not paid); delivery state with AWB linked to tracking. Details: price breakdown, payment id, paid at, promo and referral discounts, add-ons, email, account, campaign, note.
+- [x] Nothing recomputed: amounts and breakdown from `orderBreakdown`, address from `addressLine`, delivery state from the Activations page's `deliveryStateOf` (now exported), capacity from `capacityOf`. Read scope on API tokens; MCP `parktag_orders`.
+- [x] Verify: `admin-orders.test.js` (7: admin-only, paid online with promo/AWB/campaign, COD / COD-prepaid / delivered / handed over / abandoned, ours and deleted, search in seven spellings, paging, and a real COD order placed through `/api/shop/place-cod` read back with the amount, address and mode the checkout wrote); 58 token/activations/overview/read-path/hardening/pricing/tracking tests; headless Chrome with six seeded orders (15 checks), desktop and phone.
+
 ### Admin Tag Reports page
 - [x] A scanner's "Report wrong info" submission (`POST /api/tags/:token/report` → `tag_reports`) was stored and never read back. New admin page `/admin/tag-reports` (sidebar: Monitoring → Tag Reports, on every admin page) lists reports open-first with the reason, free text, the reported sticker (plate, serial, state) and its owner, and the reporter to call back (tel + WhatsApp).
 - [x] `GET /api/admin/tag-reports?status=open|resolved|all&q=&page=` (100 a page; search by plate, serial, reporter name/number or text) and `POST /api/admin/tag-reports/:id/status` { status, note } recording who, when and a note; reopen keeps the note; nothing is ever deleted.

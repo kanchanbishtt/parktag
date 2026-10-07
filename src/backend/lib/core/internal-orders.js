@@ -118,3 +118,74 @@ export function markInternalDevice(reply, env, phone) {
     ...(sharedDomain ? { domain: "parktag.me" } : {})
   });
 }
+
+// ── Keeping our own tags, accounts and calls out of the customer numbers ───
+//
+// The admin overview counted every tag with an owner as a "customer tag" and
+// every owner as an owner. Checked against production on 2026-10-06: of 21
+// customer tags, 8 were the team's own (test stickers on our own cars, the
+// Batch-002 internal batch), and most of the recent contact requests were us
+// testing the call flow. The headline said 12 premium tags activated; 8 were
+// customers.
+//
+// Same rule as orders: a tag is ours when it is in the internal batch, carries
+// the `internal` flag, or belongs to an owner whose number is on the internal
+// list. Contact requests are ours when they were made against one of those
+// tags. FAILS OPEN like isInternalPhone: with no list configured, only the
+// internal batch is excluded.
+//
+// Every spelling an Indian mobile may have been stored under on an owner row
+// (see storedPhoneVariants in auth/otp.js, which this mirrors rather than
+// imports: that module pulls in the OTP providers, and this one is read by the
+// shop and the admin alike).
+function ownerPhoneSpellings(e164) {
+  const digits = String(e164).replace(/\D/g, "");
+  if (!/^91[6-9]\d{9}$/.test(digits)) return [e164, digits, `+${digits}`];
+  const last10 = digits.slice(-10);
+  return [e164, digits, last10, `+${digits}`, `0${last10}`];
+}
+
+/**
+ * Filters that leave our own records out, computed once per request.
+ *
+ * Returns:
+ *   ownerIds   — the internal owners' ids (ObjectId), possibly empty
+ *   notOwner   — owners filter: { _id: { $nin } } or {}
+ *   isOwner    — owners filter matching only ours: { _id: { $in } } or null
+ *   notTag     — tags filter: not internal, not Batch-002, not ours
+ *   isTag      — tags filter matching only ours
+ *   notRequest — contact-requests filter: not against one of our tags
+ *   isRequest  — contact-requests filter matching only ours
+ */
+export async function internalScope(env, collections) {
+  const spellings = internalPhoneList(env).flatMap(ownerPhoneSpellings);
+  const owners = spellings.length
+    ? await collections.owners
+        .find({ $or: [{ mobile: { $in: spellings } }, { phone: { $in: spellings } }] }, { projection: { _id: 1 } })
+        .toArray()
+    : [];
+  const ownerIds = owners.map((o) => o._id);
+  // ownerId is an ObjectId on most tags and a string on some older ones.
+  const ownerKeys = ownerIds.flatMap((id) => [id, String(id)]);
+
+  const ours = [{ internal: true }, { batchNumber: "Batch-002" }];
+  if (ownerKeys.length) ours.push({ ownerId: { $in: ownerKeys } });
+  const isTag = { $or: ours };
+  const notTag = {
+    internal: { $ne: true },
+    batchNumber: { $ne: "Batch-002" },
+    ...(ownerKeys.length ? { ownerId: { $nin: ownerKeys } } : {})
+  };
+
+  const tokens = await collections.tags.distinct("token", isTag);
+
+  return {
+    ownerIds,
+    notOwner: ownerIds.length ? { _id: { $nin: ownerIds } } : {},
+    isOwner: ownerIds.length ? { _id: { $in: ownerIds } } : null,
+    notTag,
+    isTag,
+    notRequest: tokens.length ? { token: { $nin: tokens } } : {},
+    isRequest: tokens.length ? { token: { $in: tokens } } : null
+  };
+}

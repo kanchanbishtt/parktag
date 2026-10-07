@@ -172,3 +172,136 @@ export async function linkTagToOrder(collections, { tagId, phone }, log) {
     return { linked: false, reason: "error" };
   }
 }
+
+// ── Linking after the fact ─────────────────────────────────────────────────
+//
+// linkTagToOrder runs at activation, against the orders that exist at that
+// moment. Two real cases slip past it:
+//
+//   • A sale recorded by hand (record-manual-order.mjs) is usually written
+//     AFTER the customer has activated: the sticker changed hands, they stuck
+//     it on, and the order was typed in that evening. Nothing was there to
+//     link to. backlinkOrder closes that gap when the order is recorded.
+//
+//   • A buyer activates on a number other than the delivery phone (a spouse's
+//     car, a work number). No rule can tell that apart from a stranger, so
+//     the admin Activations page suggests likely matches and an admin links
+//     one by hand — linkTagToOrderByAdmin, with the same guards as the
+//     automatic path.
+//
+// Both reuse the one-slot-per-sticker write below. The database decides.
+
+import { storedPhoneVariants } from "../auth/otp.js";
+
+// Record `tagId` on `order` if it still has a free slot, and the order on the
+// tag. Returns { linked, reason }.
+async function claimSlot(collections, order, tagId) {
+  const capacity = capacityOf(order);
+  const claimed = await collections.shopOrders.updateOne(
+    {
+      orderNumber: order.orderNumber,
+      $expr: { $lt: [{ $size: { $ifNull: ["$assignedTagIds", []] } }, capacity] }
+    },
+    { $push: { assignedTagIds: tagId }, $set: { assignedTagAt: new Date().toISOString() } }
+  );
+  if (claimed.modifiedCount !== 1) return { linked: false, reason: "order-full" };
+
+  await collections.tags.updateOne(
+    { _id: tagId },
+    {
+      $set: {
+        assignedOrderNumber: order.orderNumber,
+        assignedAt: new Date().toISOString(),
+        purchaseStatus: "paid",
+        physicalTagPurchased: true
+      }
+    }
+  );
+  return { linked: true, orderNumber: order.orderNumber };
+}
+
+function linkableOrder(order) {
+  if (!order) return "no-order";
+  if (!PAID_STATES.includes(order.status)) return "not-paid";
+  if (order.deletedAt) return "order-deleted";
+  if (order.internal || order.channel === "internal") return "internal-order";
+  return null;
+}
+
+/**
+ * A newly recorded order looks back for stickers already activated on its
+ * delivery phone and takes them, oldest activation first, up to its capacity.
+ *
+ * NEVER THROWS. Returns { linked: [tagId...], reason }.
+ */
+export async function backlinkOrder(collections, order, log) {
+  try {
+    const refused = linkableOrder(order);
+    if (refused) return { linked: [], reason: refused };
+
+    const buyer = toE164(order.shippingAddress && order.shippingAddress.phone);
+    if (!buyer) return { linked: [], reason: "no-phone" };
+
+    const room = capacityOf(order) - (order.assignedTagIds || []).length;
+    if (room <= 0) return { linked: [], reason: "order-full" };
+
+    // Every spelling the number may be stored under on an owner record; see
+    // storedPhoneVariants for why a +91 lookup alone misses real accounts.
+    const variants = storedPhoneVariants(buyer);
+    const owners = await collections.owners
+      .find({ $or: [{ mobile: { $in: variants } }, { phone: { $in: variants } }] }, { projection: { _id: 1 } })
+      .toArray();
+    if (!owners.length) return { linked: [], reason: "no-owner" };
+
+    const tags = await collections.tags
+      .find(
+        {
+          ownerId: { $in: owners.map((o) => o._id) },
+          status: "active",
+          assignedOrderNumber: { $in: [null, undefined] },
+          deletedAt: { $in: [null, undefined] }
+        },
+        { sort: { activatedAt: 1, createdAt: 1 } }
+      )
+      .toArray();
+
+    const linked = [];
+    for (const tag of tags) {
+      if (linked.length >= room) break;
+      if (isInternalTag(tag)) continue;
+      const result = await claimSlot(collections, order, tag._id);
+      if (!result.linked) break; // the order filled up under us
+      linked.push(tag._id);
+    }
+    return { linked, reason: linked.length ? "linked" : tags.length ? "order-full" : "no-tag" };
+  } catch (err) {
+    log?.warn?.({ err, orderNumber: order && order.orderNumber }, "[linking] could not back-link an order");
+    return { linked: [], reason: "error" };
+  }
+}
+
+/**
+ * An admin ties one activated sticker to one order, having judged the match.
+ *
+ * Refuses, with a reason, rather than guessing: a tag already on an order
+ * stays there, an order with no room stays as it is, and internal test tags
+ * and orders are never joined to real ones.
+ *
+ * Returns { linked, reason, orderNumber }.
+ */
+export async function linkTagToOrderByAdmin(collections, { tagId, orderNumber }) {
+  const tag = await collections.tags.findOne({ _id: tagId });
+  if (!tag) return { linked: false, reason: "no-tag" };
+  if (tag.deletedAt) return { linked: false, reason: "tag-deleted" };
+  if (tag.status !== "active") return { linked: false, reason: "tag-not-active" };
+  if (isInternalTag(tag)) return { linked: false, reason: "internal-test-tag" };
+  if (tag.assignedOrderNumber) {
+    return { linked: false, reason: "already-linked", orderNumber: tag.assignedOrderNumber };
+  }
+
+  const order = await collections.shopOrders.findOne({ orderNumber });
+  const refused = linkableOrder(order);
+  if (refused) return { linked: false, reason: refused };
+
+  return claimSlot(collections, order, tag._id);
+}

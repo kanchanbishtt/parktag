@@ -80,13 +80,17 @@ function rowHtml(t) {
   const s = stateOf(t);
   const open = openDetails.has(t.id);
   const type = t.premium ? `<span class="tag premium">Premium</span>` : `<span class="tag">E-Tag</span>`;
+  // One of the team's own stickers (internal batch, or an owner on the
+  // internal list): listed like any other, left out of the overview's
+  // customer counts, and said so here.
+  const ours = t.internal ? `<span class="tag ours">Ours</span>` : "";
   const contacts = t.contactCount > 0 ? ` · ${plural(t.contactCount, "contact")}` : "";
   const phone = t.ownerMobile
     ? `<a href="tel:+${esc(telDigits(t.ownerMobile))}">${esc(t.ownerMobile)}</a>`
     : esc(t.ownerEmail || "No phone or email");
   return `<div class="row${t.deletedAt ? " is-deleted" : ""}${t.claimed ? "" : " is-stock"}">
       <div class="c-sticker">
-        <div class="main">${esc(t.serial || t.etagId)}${type}</div>
+        <div class="main">${esc(t.serial || t.etagId)}${type}${ours}</div>
         ${t.serial ? `<div class="sub">${esc(t.etagId)}</div>` : ""}
       </div>
       <div class="c-vehicle">

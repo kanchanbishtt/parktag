@@ -65,6 +65,15 @@
     .tag.cod { background: #E0E7FF; color: #3730A3; }
     .tag.premium { background: #FEF3C7; color: #92400E; }
     .tag.warn { background: #FEE2E2; color: #B91C1C; }
+    .tag.partial { background: #DCFCE7; color: #166534; }
+    .note { font-size: .85rem; color: #6B7280; margin: 0 0 10px; }
+    .more-btn.maybe { display: block; color: #B45309; }
+    .cands { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 8px; }
+    .cand { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 10px; border: 1px solid #E5E7EB; border-radius: 9px; background: #fff; }
+    .cand .why { color: #B45309; font-weight: 600; }
+    .btn.link { border: 1px solid #111827; background: #111827; color: #fff; }
+    .btn.link:hover { background: #1F2937; }
+    .btn.link[disabled] { opacity: .5; cursor: not-allowed; }
 
     /* Where the parcel is: a coloured dot and plain words. */
     .status { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: .9rem; }
@@ -184,6 +193,7 @@
           <option value="newest">Newest first</option>
         </select>
       </div>
+      <p class="note" id="queueNote" hidden></p>
       <div class="list queue" id="queueRows"><div class="empty">Loading…</div></div>
     </section>
 

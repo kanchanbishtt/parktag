@@ -119,7 +119,8 @@ test("every activations endpoint is admin-only", async () => {
   for (const [method, url, payload] of [
     ["GET", "/api/admin/activations"],
     ["GET", "/api/admin/activations/recent"],
-    ["POST", `/api/admin/activations/${new ObjectId()}/reminder`, { channel: "call" }]
+    ["POST", `/api/admin/activations/${new ObjectId()}/reminder`, { channel: "call" }],
+    ["POST", `/api/admin/activations/${new ObjectId()}/link`, { tagId: String(new ObjectId()) }]
   ]) {
     const response = await anon(method, url, payload);
     assert.ok([401, 403].includes(response.statusCode), `${method} ${url} must refuse, got ${response.statusCode}`);
@@ -307,4 +308,121 @@ test("recent activations: one list, filtered by type, searched on the server", a
   assert.equal(invalidBatch.statusCode, 400);
   const regexy = await authed("GET", `/api/admin/activations/recent?q=${encodeURIComponent("a(")}`);
   assert.equal(regexy.statusCode, 200);
+});
+
+// ── What "not activated" means, and finding the ones that were ────────────
+
+test("a multi-pack with one sticker live is counted apart from an order with none", async () => {
+  const ownerId = await insertOwner({ mobile: `+9198${String(++orderSeq).padStart(8, "0")}` });
+  const live = await insertTag({ ownerId, status: "active", activatedAt: new Date().toISOString() });
+  const partial = await insertOrder({ ownerId: null, productId: "pt-car-2", productName: "ParkTag Car Tag (Pack of 2)", assignedTagIds: [live._id] });
+  const none = await insertOrder({ ownerId: null });
+
+  const body = await queue();
+  const rowPartial = body.mine.find((o) => o.orderNumber === partial.orderNumber);
+  const rowNone = body.mine.find((o) => o.orderNumber === none.orderNumber);
+  assert.ok(rowPartial, "a pack with one of two live is still waiting on the second");
+  assert.equal(rowPartial.activatedStickers, 1);
+  assert.equal(rowPartial.stickers, 2);
+  assert.ok(rowNone, "an order with nothing live is waiting");
+  assert.equal(rowNone.activatedStickers, 0);
+  assert.equal(body.counts.none + body.counts.partial, body.counts.unactivated, "every row is either none or partial");
+  assert.ok(body.counts.partial >= 1 && body.counts.none >= 1);
+
+  const summary = await authed("GET", "/api/admin/overview/summary");
+  assert.equal(summary.statusCode, 200);
+  const a = summary.json().summary.activations;
+  assert.equal(a.awaiting, body.counts.none, "the overview's 'not activated' is orders with nothing live");
+  assert.equal(a.partial, body.counts.partial);
+});
+
+test("reseller orders are counted, never listed: their stickers are activated by other people", async () => {
+  const reseller = await insertOrder({ ownerId: null, channel: "reseller", productId: "pt-car-2", quantity: 10 });
+  const body = await queue();
+  assert.equal(body.mine.find((o) => o.orderNumber === reseller.orderNumber), undefined, "a reseller order is not in the reminder queue");
+  assert.ok(body.counts.resellerOrders >= 1, "but it is counted");
+});
+
+test("an activation on another number is suggested with its reasons, and an admin can link it", async () => {
+  const day = (n) => new Date(Date.now() - n * DAY).toISOString();
+  const order = await insertOrder({
+    ownerId: null,
+    productId: "pt-car-1",
+    shippingAddress: { fullName: "Priya Sharma", phone: `98${String(++orderSeq).padStart(8, "0")}`, state: "Haryana" },
+    createdAt: day(5)
+  });
+
+  // Same name, a Haryana plate, activated after the order, on a number the
+  // order has never seen: the buyer on her other phone, most likely.
+  const priya = await insertOwner({ displayName: "Priya Sharma", mobile: "+919811111111" });
+  const priyaTag = await insertTag({ ownerId: priya, status: "active", plateNumber: "HR26DK1234", activatedAt: day(3) });
+  // A stranger from Kerala: no reason at all.
+  const stranger = await insertOwner({ displayName: "Ramesh Nair", mobile: "+919822222222" });
+  await insertTag({ ownerId: stranger, status: "active", plateNumber: "KL07AB1111", activatedAt: day(3) });
+  // Same name, but activated well before the order existed: not this sale.
+  const earlier = await insertOwner({ displayName: "Priya Sharma", mobile: "+919833333333" });
+  await insertTag({ ownerId: earlier, status: "active", plateNumber: "HR26DK9999", activatedAt: day(10) });
+
+  let body = await queue();
+  let row = body.mine.find((o) => o.orderNumber === order.orderNumber);
+  assert.ok(row);
+  assert.deepEqual(row.candidates.map((c) => c.tagId), [String(priyaTag._id)], "only the plausible activation is offered");
+  assert.deepEqual(row.candidates[0].reasons.sort(), ["name", "state"]);
+  assert.equal(row.candidates[0].plateNumber, "HR26DK1234");
+
+  const link = await authed("POST", `/api/admin/activations/${row.id}/link`, { tagId: String(priyaTag._id) });
+  assert.equal(link.statusCode, 200, link.body);
+  assert.equal(link.json().orderNumber, order.orderNumber);
+
+  const tagAfter = await collections.tags.findOne({ _id: priyaTag._id });
+  assert.equal(tagAfter.assignedOrderNumber, order.orderNumber);
+  assert.equal(tagAfter.purchaseStatus, "paid");
+  const orderAfter = await collections.shopOrders.findOne({ _id: order._id });
+  assert.deepEqual(orderAfter.assignedTagIds.map(String), [String(priyaTag._id)]);
+
+  body = await queue();
+  assert.equal(body.mine.find((o) => o.orderNumber === order.orderNumber), undefined, "a pack of 1 with its sticker linked is done");
+
+  // The same sticker cannot be moved onto a second order, and a full order
+  // takes nothing more.
+  const other = await insertOrder({ ownerId: null, productId: "pt-car-1", createdAt: day(2) });
+  const again = await authed("POST", `/api/admin/activations/${other._id}/link`, { tagId: String(priyaTag._id) });
+  assert.equal(again.statusCode, 409);
+  assert.equal(again.json().reason, "already-linked");
+  const spare = await insertTag({ ownerId: stranger, status: "active", plateNumber: "KL07AB2222", activatedAt: day(1) });
+  const full = await authed("POST", `/api/admin/activations/${order._id}/link`, { tagId: String(spare._id) });
+  assert.equal(full.statusCode, 409);
+  assert.equal(full.json().reason, "order-full");
+});
+
+test("a sale recorded after the customer activated links the stickers already on that phone", async () => {
+  const { backlinkOrder } = await import("../lib/core/order-linking.js");
+  const phone = "9844444444";
+  const owner = await insertOwner({ displayName: "Hand Sale", mobile: `+91${phone}` });
+  const first = await insertTag({ ownerId: owner, status: "active", plateNumber: "DL8CAF1111", activatedAt: new Date(Date.now() - 3 * DAY).toISOString() });
+  const second = await insertTag({ ownerId: owner, status: "active", plateNumber: "DL8CAF2222", activatedAt: new Date(Date.now() - 2 * DAY).toISOString() });
+  const third = await insertTag({ ownerId: owner, status: "active", plateNumber: "DL8CAF3333", activatedAt: new Date(Date.now() - DAY).toISOString() });
+  const order = await insertOrder({
+    ownerId: null,
+    channel: "whatsapp",
+    productId: "pt-car-2",
+    shippingAddress: { fullName: "Hand Sale", phone, state: "Delhi" },
+    createdAt: new Date().toISOString()
+  });
+
+  const result = await backlinkOrder(collections, order);
+  assert.deepEqual(result.linked.map(String), [String(first._id), String(second._id)], "oldest activations first, up to the pack size");
+
+  const orderAfter = await collections.shopOrders.findOne({ _id: order._id });
+  assert.equal(orderAfter.assignedTagIds.length, 2);
+  assert.equal((await collections.tags.findOne({ _id: third._id })).assignedOrderNumber, undefined, "the third sticker waits for another order");
+  assert.equal(
+    (await queue()).mine.find((o) => o.orderNumber === order.orderNumber),
+    undefined,
+    "the recorded sale is no longer waiting"
+  );
+
+  // Nothing to link on a number nobody has activated with.
+  const empty = await insertOrder({ ownerId: null, channel: "whatsapp", shippingAddress: { fullName: "Nobody", phone: "9855555555" } });
+  assert.equal((await backlinkOrder(collections, empty)).reason, "no-owner");
 });

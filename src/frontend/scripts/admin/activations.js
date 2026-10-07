@@ -151,12 +151,43 @@ function detailsHtml(o) {
       ${item("Ordered", esc(o.placedAt ? new Date(o.placedAt).toLocaleString() : "—"))}
       ${o.ownerEmail ? item("Email", esc(o.ownerEmail)) : ""}
       ${item("Reminders", reminders)}
+      ${(o.candidates || []).length ? item("Possibly theirs", candidatesHtml(o)) : ""}
     </dl>`;
+}
+
+// Activated stickers on another number that could be this buyer's, with why.
+// The server suggests; the admin decides. Linking takes one of the order's
+// slots, so a pack of 2 with one live can take exactly one more.
+const REASON = { name: "same name", email: "same email", state: "plate from the delivery state" };
+function candidatesHtml(o) {
+  const room = Math.max(0, (o.stickers || 1) - (o.activatedStickers || 0));
+  const rows = (o.candidates || []).map((c) => `
+    <li class="cand">
+      <div>
+        <div class="mid">${esc(c.plateNumber || "No plate")}${c.premium ? `<span class="tag premium">Premium</span>` : `<span class="tag">E-Tag</span>`}</div>
+        <div class="sub">${esc(c.ownerName || "Unnamed owner")}${c.ownerMobile ? ` · ${esc(c.ownerMobile)}` : ""}${c.serial ? ` · ${esc(c.serial)}` : ""} · activated ${esc(ago(c.activatedAt) || "—")}</div>
+        <div class="sub why">${esc(c.reasons.map((r) => REASON[r] || r).join(", "))}</div>
+      </div>
+      <button class="btn link" type="button" data-link="${esc(c.tagId)}" data-order="${esc(o.id)}" ${room ? "" : "disabled"}>Link to this order</button>
+    </li>`).join("");
+  return `<p class="sub">Activated by somebody with a different number. Link one only when you are sure it is this buyer; a wrong link cannot be told apart from a right one later.</p>
+    <ul class="cands">${rows}</ul>
+    <div class="sub" data-link-note-for="${esc(o.id)}"></div>`;
 }
 
 function queueRowHtml(o) {
   const product = String(o.productName || "Order").replace(/^ParkTag\s+/i, "");
-  const pack = o.stickers > 1 ? ` · ${fmtCount(o.activatedStickers)} of ${fmtCount(o.stickers)} activated` : "";
+  // A pack with some stickers live is a different conversation from one with
+  // none: the buyer has done it once and has one left, so it gets its own badge.
+  const pack = o.stickers > 1
+    ? (o.activatedStickers > 0
+        ? `<span class="tag partial">${esc(fmtCount(o.activatedStickers))} of ${esc(fmtCount(o.stickers))} live</span>`
+        : ` · ${esc(fmtCount(o.stickers))} stickers`)
+    : "";
+  const n = (o.candidates || []).length;
+  const maybe = n
+    ? `<button class="more-btn maybe" type="button" data-details="${esc(o.id)}">${esc(fmtCount(n))} possible activation${n === 1 ? "" : "s"} on another number</button>`
+    : "";
   const open = openDetails.has(o.id);
   const d = waDigits(o.ownerMobile);
   const buttons = o.ownerMobile
@@ -173,7 +204,8 @@ function queueRowHtml(o) {
       </div>
       <div>
         <div class="mid">${esc(o.orderNumber || "—")}${o.paymentMethod === "cod" ? `<span class="tag cod">COD</span>` : ""}</div>
-        <div class="sub">${esc(product)}${esc(pack)}</div>
+        <div class="sub">${esc(product)}${pack}</div>
+        ${maybe}
         <button class="more-btn" type="button" data-details="${esc(o.id)}" aria-expanded="${open}">${open ? "Hide details" : "Details"}</button>
       </div>
       <div>${statusHtml(o)}</div>
@@ -228,6 +260,31 @@ queueRows.addEventListener("click", (event) => {
     const id = toggle.dataset.details;
     if (openDetails.has(id)) openDetails.delete(id); else openDetails.add(id);
     renderQueue();
+    return;
+  }
+  const linkBtn = event.target.closest("button[data-link]");
+  if (linkBtn) {
+    const orderId = linkBtn.dataset.order;
+    const note = () => queueRows.querySelector(`[data-link-note-for="${CSS.escape(orderId)}"]`);
+    linkBtn.disabled = true;
+    linkBtn.textContent = "Linking…";
+    fetch(`/api/admin/activations/${encodeURIComponent(orderId)}/link`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ tagId: linkBtn.dataset.link })
+    })
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.ok) throw new Error(data.error || "Could not link the sticker.");
+        // The order may now be complete and gone from the queue, or have one
+        // slot fewer: either way the server's list is the truth.
+        await loadQueue();
+      })
+      .catch((err) => {
+        linkBtn.disabled = false;
+        linkBtn.textContent = "Link to this order";
+        if (note()) note().innerHTML = `<span class="note-err">${esc(err.message)}</span>`;
+      });
     return;
   }
   const link = event.target.closest("a[data-remind]");
@@ -286,6 +343,14 @@ async function loadQueue() {
     if (!res.ok) throw new Error(data.error || "Failed");
     QUEUE = data.unactivated || [];
     queueCount.textContent = fmtCount(QUEUE.length);
+    // Reseller orders are counted, not listed: their stickers are activated by
+    // the reseller's own customers, on numbers this page cannot see.
+    const resellers = Number(data.counts && data.counts.resellerOrders) || 0;
+    const queueNote = document.getElementById("queueNote");
+    queueNote.hidden = !resellers;
+    queueNote.textContent = resellers
+      ? `${fmtCount(resellers)} reseller order${resellers === 1 ? " is" : "s are"} not listed: those stickers are activated by the reseller's customers, so this page cannot tell when they are done.`
+      : "";
     renderQueue();
     refreshTracking();
   } catch {

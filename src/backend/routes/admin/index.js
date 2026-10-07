@@ -30,7 +30,9 @@ import {
 import { orderBreakdown, breakdownText } from "../../lib/core/order-breakdown.js";
 import { landingTotals } from "./traffic.js";
 import { membershipCountdown } from "../../lib/core/membership-fulfilment.js";
-import { capacityOf } from "../../lib/core/order-linking.js";
+import { capacityOf, linkTagToOrderByAdmin } from "../../lib/core/order-linking.js";
+import { plateMatchesState } from "../../lib/core/plate-state.js";
+import { isInternalTag, internalScope } from "../../lib/core/internal-orders.js";
 import { refreshStaleTracking } from "../../lib/core/order-tracking.js";
 
 // Order the print queue the way the sheets should come off the printer: newest
@@ -162,19 +164,105 @@ function deliveryStateOf(order) {
 }
 
 // The headline numbers, as counts rather than by loading every tag.
-async function activationCounts(collections) {
+//
+// `customers` narrows the owned counts to customers' tags (the overview passes
+// internalScope().notTag); stock has no owner and is never ours or theirs.
+async function activationCounts(collections, customers = {}) {
   const [premiumActivated, premiumLive, premiumStock, etagActivated] = await Promise.all([
-    collections.tags.countDocuments(ownedPremiumFilter()),
-    collections.tags.countDocuments({ ...ownedPremiumFilter(), status: "active" }),
+    collections.tags.countDocuments({ ...ownedPremiumFilter(), ...customers }),
+    collections.tags.countDocuments({ ...ownedPremiumFilter(), ...customers, status: "active" }),
     collections.tags.countDocuments({
       premium: true, ownerId: { $in: [null] }, deletedAt: { $in: [null, undefined] }, ...NOT_MARKETING_STOCK
     }),
-    collections.tags.countDocuments(ownedEtagFilter())
+    collections.tags.countDocuments({ ...ownedEtagFilter(), ...customers })
   ]);
   return { premiumActivated, premiumLive, premiumStock, etagActivated };
 }
 
+// Activated stickers nobody has tied to an order, with who holds them: the
+// pool a buyer who activated on some other number would be found in. Newest
+// first and capped, because the queue is read on every visit to the page.
+async function unlinkedActivations(collections) {
+  const tags = await collections.tags
+    .find(
+      {
+        status: "active",
+        ownerId: { $ne: null },
+        assignedOrderNumber: { $in: [null, undefined] },
+        deletedAt: { $in: [null, undefined] },
+        ...NOT_MARKETING_STOCK
+      },
+      {
+        projection: { ownerId: 1, plateNumber: 1, serialNumber: 1, batchNumber: 1, etagId: 1, premium: 1, activatedAt: 1, createdAt: 1, internal: 1, testMarker: 1 },
+        sort: { activatedAt: -1, createdAt: -1 },
+        limit: 500
+      }
+    )
+    .toArray();
+  const real = tags.filter((t) => !isInternalTag(t));
+  const ownerIds = [...new Set(real.map((t) => String(t.ownerId)))].map((id) => { try { return new ObjectId(id); } catch { return null; } }).filter(Boolean);
+  const owners = ownerIds.length
+    ? await collections.owners.find({ _id: { $in: ownerIds } }, { projection: { displayName: 1, email: 1, mobile: 1, phone: 1 } }).toArray()
+    : [];
+  const ownerById = new Map(owners.map((o) => [String(o._id), o]));
+  return real.map((t) => {
+    const o = ownerById.get(String(t.ownerId)) || {};
+    return {
+      tagId: String(t._id),
+      serial: stickerSerialFor(t) || t.etagId || null,
+      plateNumber: t.plateNumber || null,
+      premium: Boolean(t.premium),
+      activatedAt: t.activatedAt || t.createdAt || null,
+      ownerName: o.displayName || null,
+      ownerEmail: o.email || null,
+      ownerMobile: o.mobile || o.phone || null
+    };
+  });
+}
+
+// The words of a name worth comparing: three letters or more, lower case.
+function nameWords(value) {
+  return new Set(String(value || "").toLowerCase().split(/[^a-z]+/).filter((w) => w.length >= 3));
+}
+
+// Reasons one activation might be this buyer's. Never a link on its own —
+// the admin reads the reasons and decides (POST .../link).
+//
+// A sticker cannot be activated before it was sold, so anything activated
+// more than a day and a half before the order is somebody else's. The slack
+// covers a hand sale recorded that evening with a noon timestamp.
+const BEFORE_ORDER_MS = 36 * 60 * 60 * 1000;
+// A state match alone is weak (every HR plate matches every Haryana buyer),
+// so on its own it only counts close to the order.
+const STATE_ALONE_MS = 14 * 24 * 60 * 60 * 1000;
+function suggestActivations(order, pool) {
+  const placed = Date.parse(order.createdAt || "") || 0;
+  const ship = order.shippingAddress || {};
+  const buyerWords = nameWords(ship.fullName || ship.name);
+  const buyerEmail = String(order.email || ship.email || "").trim().toLowerCase() || null;
+  const out = [];
+  for (const t of pool) {
+    const at = Date.parse(t.activatedAt || "") || 0;
+    if (placed && at && at < placed - BEFORE_ORDER_MS) continue;
+    const reasons = [];
+    const words = nameWords(t.ownerName);
+    if (buyerWords.size && [...words].some((w) => buyerWords.has(w))) reasons.push("name");
+    if (buyerEmail && t.ownerEmail && t.ownerEmail.trim().toLowerCase() === buyerEmail) reasons.push("email");
+    if (plateMatchesState(t.plateNumber, ship.state)) reasons.push("state");
+    if (!reasons.length) continue;
+    if (reasons.length === 1 && reasons[0] === "state" && !(placed && at && at - placed <= STATE_ALONE_MS)) continue;
+    out.push({ ...t, reasons });
+  }
+  // Strongest first, then the earliest activation.
+  out.sort((a, b) => b.reasons.length - a.reasons.length || String(a.activatedAt || "").localeCompare(String(b.activatedAt || "")));
+  return out.slice(0, 5);
+}
+
 // Sold orders whose stickers have not all been activated: the reminder queue.
+//
+// Returns { rows, resellerOrders }. A reseller order is left out of the rows
+// and only counted: its stickers go to the reseller's own customers, who
+// activate on their own phones, so nothing here can ever see them as done.
 async function buildActivationQueue(collections) {
   const [liveOwnerIds, orders] = await Promise.all([
     // Owners holding at least one LIVE premium tag. In the older data most
@@ -200,7 +288,9 @@ async function buildActivationQueue(collections) {
   const replaceTagById = new Map(replaceTags.map((t) => [String(t._id), t]));
 
   const pending = [];
+  let resellerOrders = 0;
   for (const ord of orders) {
+    if (ord.channel === "reseller") { resellerOrders += 1; continue; }
     const ownerKey = ord.ownerId ? String(ord.ownerId) : null;
     // Fulfilled when it minted a premium tag, the owner holds a live premium
     // tag, or its replace-target free tag was upgraded away or removed.
@@ -234,6 +324,13 @@ async function buildActivationQueue(collections) {
     : [];
   const ownerMap = new Map(owners.map((o) => [String(o._id), o]));
 
+  // Only read when somebody is waiting: the usual visit has an empty queue.
+  // A sticker some order already holds is not up for suggestion, even where
+  // the tag's own record of the link is missing (older data was linked from
+  // the order side only).
+  const taken = new Set(orders.flatMap((o) => (o.assignedTagIds || []).map(String)));
+  const pool = pending.length ? (await unlinkedActivations(collections)).filter((t) => !taken.has(t.tagId)) : [];
+
   const queue = [];
   for (const { ord, ownerKey, stickers, activatedStickers } of pending) {
     const o = (ownerKey && ownerMap.get(ownerKey)) || {};
@@ -262,13 +359,16 @@ async function buildActivationQueue(collections) {
       lastReminder: ord.lastActivationReminder || null,
       reminderCount: Array.isArray(ord.activationReminders) ? ord.activationReminders.length : 0,
       // The history behind the count, for the row's Details (capped at 20 on write).
-      reminders: Array.isArray(ord.activationReminders) ? ord.activationReminders.slice(-20) : []
+      reminders: Array.isArray(ord.activationReminders) ? ord.activationReminders.slice(-20) : [],
+      // Unlinked activations that might be this buyer on another number, with
+      // the reasons. Suggestions for an admin to link by hand, never linked here.
+      candidates: suggestActivations(ord, pool)
     });
   }
 
   // Waiting longest first: the default order on the page.
   queue.sort((a, b) => String(a.placedAt || "").localeCompare(String(b.placedAt || "")));
-  return queue;
+  return { rows: queue, resellerOrders };
 }
 
 // The contact-request fields /api/admin/summary hands back.
@@ -462,11 +562,17 @@ export function registerAdminRoutes(app, env) {
       for (const c of counts) countsByToken[c._id] = c.n;
     }
 
+    // Our own stickers are listed like any other, and marked, so the page still
+    // shows everything while the overview's customer counts leave them out.
+    const scope = await internalScope(env, collections);
+    const ourOwners = new Set(scope.ownerIds.map(String));
+
     const list = tags.map((t) => {
       const owner = ownerMap[String(t.ownerId)] || {};
       return {
         id: String(t._id),
         etagId: etagIdFor(t._id),
+        internal: isInternalTag(t) || ourOwners.has(String(t.ownerId)),
         // Serial printed on the physical sticker, or "" for a tag that has
         // none. stickerSerialFor is used unchanged — it is the same call the
         // print sheet and the owner dashboard make.
@@ -652,13 +758,66 @@ export function registerAdminRoutes(app, env) {
     if (blocked) return blocked;
 
     const collections = await getCollections(env);
-    const unactivated = await buildActivationQueue(collections);
+    const { rows, resellerOrders } = await buildActivationQueue(collections);
 
     return {
       ok: true,
-      counts: { unactivated: unactivated.length },
-      unactivated
+      counts: {
+        unactivated: rows.length,
+        // Nothing live yet, versus a multi-pack with some stickers live.
+        none: rows.filter((o) => !o.activatedStickers).length,
+        partial: rows.filter((o) => o.activatedStickers > 0).length,
+        resellerOrders
+      },
+      unactivated: rows
     };
+  });
+
+  // An admin ties an activated sticker to an order by hand, from the
+  // suggestions the queue offers (candidates on each row). Same guards as the
+  // automatic link at activation: one slot per sticker, nothing internal, and
+  // a sticker already on an order stays where it is.
+  app.post("/api/admin/activations/:id/link", async (request, reply) => {
+    const blocked = await requireSession(app, "admin")(request, reply);
+    if (blocked) return blocked;
+
+    const collections = await getCollections(env);
+    const toObjectId = (value) => { try { return new ObjectId(String(value)); } catch { return null; } };
+    const orderId = toObjectId(request.params.id);
+    const tagId = toObjectId(request.body && request.body.tagId);
+    if (!orderId || !tagId) {
+      reply.code(400);
+      return { ok: false, error: "orderId and tagId are required" };
+    }
+
+    const order = await collections.shopOrders.findOne({ _id: orderId }, { projection: { orderNumber: 1 } });
+    if (!order) {
+      reply.code(404);
+      return { ok: false, error: "Order not found" };
+    }
+
+    const result = await linkTagToOrderByAdmin(collections, { tagId, orderNumber: order.orderNumber });
+    if (!result.linked) {
+      const why = {
+        "no-tag": "That sticker no longer exists.",
+        "tag-deleted": "That sticker was removed.",
+        "tag-not-active": "That sticker is not active.",
+        "internal-test-tag": "That is an internal test sticker.",
+        "already-linked": `That sticker is already on order ${result.orderNumber || ""}.`.trim(),
+        "not-paid": "That order is not a paid sale.",
+        "order-deleted": "That order was removed.",
+        "internal-order": "That is an internal order.",
+        "order-full": "Every sticker on that order is already linked."
+      }[result.reason] || "Could not link the sticker.";
+      reply.code(409);
+      return { ok: false, error: why, reason: result.reason };
+    }
+
+    request.log.info(
+      { event: "activation-linked-by-admin", orderNumber: order.orderNumber, tagId: String(tagId), admin: request.session?.email || null },
+      "[activations] admin linked a sticker to an order"
+    );
+    return { ok: true, orderNumber: order.orderNumber };
   });
 
   // Refresh the courier status of in-transit orders in the reminder queue, so a
@@ -674,7 +833,7 @@ export function registerAdminRoutes(app, env) {
       if (blocked) return blocked;
 
       const collections = await getCollections(env);
-      const queue = await buildActivationQueue(collections);
+      const { rows: queue } = await buildActivationQueue(collections);
       const ids = queue
         .filter((row) => row.delivery?.state === "shipped")
         .map((row) => { try { return new ObjectId(row.id); } catch { return null; } })
@@ -1082,11 +1241,24 @@ export function registerAdminRoutes(app, env) {
     // Same filter as the Tags page's default (claimed) view.
     const customerTagFilter = { ownerId: { $ne: null }, ...notDeleted, ...NOT_MARKETING_STOCK };
 
+    // Our own tags, accounts and test calls are counted apart ("N ours"), so
+    // the customer figures mean customers. The pages these cards link to still
+    // list everything, with our rows marked.
+    const ours = await internalScope(env, collections);
+
+    // A call Exotel could not place lands as status "failed" (the provider's
+    // own word, written by the webhook) with callOutcome "failed"; a message
+    // the provider refused lands as "provider_failed". Both are failures the
+    // card promises to count.
+    const failedContact = { $or: [{ status: "provider_failed" }, { status: "failed" }, { callOutcome: "failed" }] };
+
     const [
       owners,
       ownersNew,
+      ownersOurs,
       customerTags,
       customerTagsActive,
+      tagsOurs,
       activations,
       activationQueue,
       batches,
@@ -1096,14 +1268,17 @@ export function registerAdminRoutes(app, env) {
       contacts,
       contactsNew,
       contactsFailed,
+      contactsOurs,
       traffic
     ] = await Promise.all([
-      collections.owners.countDocuments(NOT_DEMO_OWNER),
-      collections.owners.countDocuments({ ...NOT_DEMO_OWNER, ...createdSince }),
-      collections.tags.countDocuments(customerTagFilter),
-      collections.tags.countDocuments({ ...customerTagFilter, status: "active" }),
+      collections.owners.countDocuments({ ...NOT_DEMO_OWNER, ...ours.notOwner }),
+      collections.owners.countDocuments({ ...NOT_DEMO_OWNER, ...ours.notOwner, ...createdSince }),
+      ours.isOwner ? collections.owners.countDocuments({ ...NOT_DEMO_OWNER, ...ours.isOwner }) : 0,
+      collections.tags.countDocuments({ ...customerTagFilter, ...ours.notTag }),
+      collections.tags.countDocuments({ ...customerTagFilter, ...ours.notTag, status: "active" }),
+      collections.tags.countDocuments({ ...customerTagFilter, ...ours.isTag }),
       // GET /api/admin/activations: its counts and its reminder queue.
-      activationCounts(collections),
+      activationCounts(collections, ours.notTag),
       buildActivationQueue(collections),
       summariseBatches(collections),
       // GET /api/admin/print-queue, default and ?printed=1
@@ -1116,9 +1291,11 @@ export function registerAdminRoutes(app, env) {
           { projection: { marketingStock: 1, soldAt: 1, demoOwnerId: 1 } }
         )
         .toArray(),
-      collections.contactRequests.estimatedDocumentCount(),
-      collections.contactRequests.countDocuments(createdSince),
-      collections.contactRequests.countDocuments({ status: "provider_failed", ...createdSince }),
+      collections.contactRequests.countDocuments(ours.notRequest),
+      collections.contactRequests.countDocuments({ ...ours.notRequest, ...createdSince }),
+      // createdSince is itself an $or, so the two conditions meet under $and.
+      collections.contactRequests.countDocuments({ ...ours.notRequest, $and: [failedContact, createdSince] }),
+      ours.isRequest ? collections.contactRequests.countDocuments(ours.isRequest) : 0,
       landingTotals(collections, trafficDays)
     ]);
 
@@ -1129,11 +1306,18 @@ export function registerAdminRoutes(app, env) {
       summary: {
         owners: { total: owners, new: ownersNew },
         tags: { customer: customerTags, active: customerTagsActive },
+        // Our own records, left out of the customer figures above and shown
+        // next to them ("N ours") so a card still reconciles with its page.
+        internal: { owners: ownersOurs, tags: tagsOurs, contacts: contactsOurs },
         activations: {
           premiumActivated: activations.premiumActivated,
           premiumLive: activations.premiumLive,
           etag: activations.etagActivated,
-          awaiting: activationQueue.length
+          // Sold with nothing live yet. A multi-pack with some stickers live
+          // is counted apart, so "not activated" means what it says.
+          awaiting: activationQueue.rows.filter((o) => !o.activatedStickers).length,
+          partial: activationQueue.rows.filter((o) => o.activatedStickers > 0).length,
+          resellerOrders: activationQueue.resellerOrders
         },
         batches: {
           count: batches.length,
@@ -1562,6 +1746,9 @@ export function registerAdminRoutes(app, env) {
       for (const g of grouped) orderCounts.set(g._id, g.n);
     }
 
+    // Our own accounts stay in the list, marked, the same as on the Tags page.
+    const ourOwners = new Set((await internalScope(env, collections)).ownerIds.map(String));
+
     // Group once, then look up per owner, instead of re-scanning every tag for
     // every owner.
     const tagsByOwner = new Map();
@@ -1594,6 +1781,7 @@ export function registerAdminRoutes(app, env) {
           createdAt: owner.createdAt,
           mobile: owner.mobile || owner.phone || null,
           demo: Boolean(owner.demoCreatedOwner),
+          internal: ourOwners.has(String(owner._id)),
           orders: orderCounts.get(String(owner._id)) || 0,
           // How a person identifies each tag. The token is the QR's secret and
           // is not meant to be read off a screen.

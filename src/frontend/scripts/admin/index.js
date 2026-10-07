@@ -95,6 +95,14 @@ function currentAdminPage() {
   return document.querySelector("[data-admin-page]")?.dataset.adminPage || "login";
 }
 
+// " · 3 ours" after a customer figure, or nothing when none of the rows are
+// the team's own. The overview leaves our test stickers, accounts and calls
+// out of the customer numbers and says so here, so a card still adds up with
+// the page it links to, where those rows are listed and marked.
+function ours(n) {
+  return n > 0 ? ` · ${formatCount(n)} ours` : "";
+}
+
 function goToOverview() {
   window.location.href = "/admin/overview";
 }
@@ -966,7 +974,16 @@ function renderOverviewSummary(data) {
     {
       title: "Needs attention",
       cards: [
-        { href: "/admin/activations", label: "Sold, not activated", value: s.activations.awaiting, sub: "Paid or COD orders with no live tag yet" },
+        {
+          href: "/admin/activations",
+          label: "Sold, not activated",
+          value: s.activations.awaiting,
+          // A pack with one of two stickers live is not "not activated"; it is
+          // told apart here rather than padding this number.
+          sub: s.activations.partial
+            ? `Orders with no live sticker yet · ${formatCount(s.activations.partial)} more ${s.activations.partial === 1 ? "pack is" : "packs are"} partly activated`
+            : "Paid or COD orders with no live sticker yet"
+        },
         { href: "/admin/print-queue", label: "Unprinted tags", value: s.printQueue.unprinted, sub: "Waiting in the print queue" },
         { href: "/admin/activity", label: `Failed contacts (${period.short})`, value: s.contacts.failed, sub: "Calls or messages the provider could not deliver" }
       ]
@@ -974,8 +991,10 @@ function renderOverviewSummary(data) {
     {
       title: "Customers",
       cards: [
-        { href: "/admin/owners", label: "Owners", value: s.owners.total, sub: `+${formatCount(s.owners.new)} in the ${period.phrase}` },
-        { href: "/admin/etags", label: "Customer tags", value: s.tags.customer, sub: `${formatCount(s.tags.active)} active` },
+        // Customers only. Our own accounts, stickers and test calls are counted
+        // apart as "N ours", and the pages behind these cards mark those rows.
+        { href: "/admin/owners", label: "Owners", value: s.owners.total, sub: `+${formatCount(s.owners.new)} in the ${period.phrase}${ours(s.internal?.owners)}` },
+        { href: "/admin/etags", label: "Customer tags", value: s.tags.customer, sub: `${formatCount(s.tags.active)} active${ours(s.internal?.tags)}` },
         { href: "/admin/activations", label: "Premium tags activated", value: s.activations.premiumActivated, sub: `${formatCount(s.activations.premiumLive)} live now` },
         { href: "/admin/activations", label: "E-Tag stickers activated", value: s.activations.etag, sub: "Issued stickers with an owner" }
       ]
@@ -992,7 +1011,7 @@ function renderOverviewSummary(data) {
     {
       title: `Usage · ${period.phrase}`,
       cards: [
-        { href: "/admin/activity", label: "Contact requests", value: s.contacts.new, sub: `${formatCount(s.contacts.total)} all-time` },
+        { href: "/admin/activity", label: "Contact requests", value: s.contacts.new, sub: `${formatCount(s.contacts.total)} all-time${ours(s.internal?.contacts)}` },
         { href: "/admin/traffic", label: "Site visitors", value: s.traffic.visitors, sub: `${formatCount(s.traffic.views)} page views · ${trafficWindow}` }
       ]
     }
@@ -1366,9 +1385,12 @@ function ownerContactHtml(value) {
 }
 
 function ownerRowHtml(owner) {
+  // "Ours": one of the team's own accounts (a number on the internal list),
+  // left out of the overview's customer counts but listed here like anyone.
+  const badges = `${owner.demo ? `<span class="ow-badge" data-tone="demo">Demo</span>` : ""}${owner.internal ? `<span class="ow-badge" data-tone="internal">Ours</span>` : ""}`;
   const name = owner.displayName
-    ? `<p class="ow-name">${esc(owner.displayName)}${owner.demo ? `<span class="ow-badge" data-tone="demo">Demo</span>` : ""}</p>`
-    : `<p class="ow-name ow-muted">Unnamed owner${owner.demo ? `<span class="ow-badge" data-tone="demo">Demo</span>` : ""}</p>`;
+    ? `<p class="ow-name">${esc(owner.displayName)}${badges}</p>`
+    : `<p class="ow-name ow-muted">Unnamed owner${badges}</p>`;
   const contact = [owner.mobile, owner.email].filter(Boolean);
   const tags = owner.tagList || [];
   const joined = owner.createdAt ? new Date(owner.createdAt) : null;

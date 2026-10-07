@@ -13,6 +13,18 @@ Rules:
 
 ## Milestones
 
+### Activation queue: what "sold, not activated" means
+- [x] Overview tile counts only orders with nothing live; multi-packs with some stickers live are counted apart ("N more packs are partly activated") and wear a green "1 of 2 live" badge on the Activations page.
+- [x] Reseller orders (`channel: "reseller"`) are left out of the reminder queue and counted in a note: their stickers are activated by the reseller's customers on their own numbers, so the queue can never see them as done.
+- [x] A sale recorded by hand (`record-manual-order.mjs`) now looks back for stickers already activated on that phone and links them, up to the pack size (`backlinkOrder`).
+- [x] A buyer who activated on another number: each queue row suggests unlinked activations that could be theirs (same name, same email, or a plate from the delivery state, activated after the order), with the reasons; "Link to this order" (`POST /api/admin/activations/:id/link`) ties one by hand with the same one-slot-per-sticker guard as the automatic link.
+- [x] Verify: `admin-activations.test.js` (12, four new), overview summary, linking and reconciliation suites; headless Chrome over the overview tile and the Activations page (8 checks).
+- [x] Overview audit of the other tiles against production: Unprinted, Printed awaiting claim, Unsold premium stock, Batches and Site visitors reconcile. Owners, Customer tags, Premium/E-Tag activated and Contact requests counted the team's own test stickers, accounts and calls as customers (8 of 21 "customer tags" were ours).
+- [x] `internalScope()` (`lib/core/internal-orders.js`): our tags (internal flag, Batch-002, or owner on `INTERNAL_TEST_PHONES`), accounts and the contact requests against them are left out of the customer figures and reported apart ("N ours" in the tile subtitle); the Tags and Owners pages still list them, marked "Ours".
+- [x] "Failed contacts" now counts a call the provider could not place (status `failed` / `callOutcome: failed`, as the Exotel webhook writes it) as well as a refused message (`provider_failed`).
+- [ ] Production: every call on the Activity feed sits at "connecting"/"initiated" because the Exotel flow sends no status callback to `/api/provider/exotel/webhook`; until that applet setting is made, call outcomes and failed calls stay invisible. Also confirm `INTERNAL_TEST_PHONES` is set on Railway, or only Batch-002 is treated as ours.
+- [x] Verify: `admin-overview-internal.test.js` (2 new), 49 admin/internal suites; headless Chrome over the overview, Tags and Owners pages with an internal phone configured (9 checks).
+
 ### Owner backup number
 - [x] One backup number per owner (`owners.backupMobile`), saved without a code through `POST /api/owner/backup-mobile`, removed with `DELETE`; refuses non-Indian mobiles and the owner's own number.
 - [x] Snapshot it onto the call route at `register-call` (`pendingCalls.backupPhone`); Dial Whom hands Exotel `owner,backup` so the Connect applet rings them in order. Emergency calls unchanged.

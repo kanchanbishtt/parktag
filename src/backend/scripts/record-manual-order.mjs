@@ -30,6 +30,7 @@ import { getEnv } from "../lib/env.js";
 import { getCollections } from "../lib/db/repositories.js";
 import { closeMongoConnection } from "../lib/db/mongo.js";
 import { getShopProduct, SHOP_PRODUCTS } from "../lib/integrations/payments.js";
+import { backlinkOrder } from "../lib/core/order-linking.js";
 
 function arg(name) {
   const i = process.argv.indexOf(`--${name}`);
@@ -165,5 +166,19 @@ if (!doCommit) {
 
 await collections.shopOrders.insertOne(doc);
 console.log(`\n  Recorded ${orderNumber}  ${product.name}  Rs ${(amountPaise / 100).toFixed(2)}  (${channel}, ${method})\n`);
+
+// A hand sale is usually recorded after the customer has already stuck the
+// sticker on and activated it, so the link that happens at activation found
+// nothing. Look back now for stickers activated on this phone and take them,
+// up to the pack size. Nothing happens without a phone, and a wrong number
+// links nothing rather than something wrong.
+if (phone) {
+  const back = await backlinkOrder(collections, doc);
+  if (back.linked.length) {
+    console.log(`  Linked ${back.linked.length} already-activated sticker${back.linked.length === 1 ? "" : "s"} on ${phone} to ${orderNumber}.\n`);
+  } else {
+    console.log(`  No already-activated sticker found on ${phone} (${back.reason}); it will link when the customer activates.\n`);
+  }
+}
 
 await closeMongoConnection();

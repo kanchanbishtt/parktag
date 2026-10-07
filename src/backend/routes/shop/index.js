@@ -102,6 +102,38 @@ const GUEST_COD_OTP_PER_IP = 10;
 const PUBLIC_LAUNCH_PROMO_CODE = "LAUNCH100";
 const PUBLIC_LAUNCH_PRODUCT_ID = "pt-car-2";
 
+// The advertised offer, read the one way every page that shows it reads it:
+// the landing site (through /api/shop/public-catalogue), /shop, /get and the
+// dashboard shop (through /api/shop/pricing). Null when the code is revoked,
+// expired or worth nothing.
+async function readLaunchOffer(collections) {
+  const product = getShopProduct(PUBLIC_LAUNCH_PRODUCT_ID);
+  const promo = await resolvePromo(collections, PUBLIC_LAUNCH_PROMO_CODE, {
+    productId: PUBLIC_LAUNCH_PRODUCT_ID,
+    quantity: 1
+  });
+  if (!product || !promo.ok || promo.discountPaise <= 0) return null;
+  const mrpPaise = Math.round(product.amount * 100);
+  return {
+    code: promo.code,
+    productId: PUBLIC_LAUNCH_PRODUCT_ID,
+    mrpPaise,
+    discountPaise: promo.discountPaise,
+    offerPaise: Math.max(0, mrpPaise - promo.discountPaise)
+  };
+}
+
+// The launch offer on a signed-in owner's order, applied by the server.
+//
+// The public pages send the code from the browser. The dashboard shop never
+// did, so an owner who tapped "Duo Pack · ₹399" on the landing page was signed
+// in, sent to the dashboard by /shop, and charged ₹499. Applying it here means
+// no dashboard page has to remember to ask for it. The promo row still
+// decides everything: which packs, whether it is live, how much.
+async function ownerLaunchPromo(collections, { productId, quantity, deliveryPhone }) {
+  return resolvePromo(collections, PUBLIC_LAUNCH_PROMO_CODE, { productId, quantity, deliveryPhone });
+}
+
 // The Clear Dashboard Plate is sold with the Duo Pack only. Served on the
 // catalogue so the storefronts can hide it, and enforced at create-order so a
 // hand-built request cannot attach it to any other pack.
@@ -791,24 +823,11 @@ export function registerShopRoutes(app, env) {
     try {
       const collections = await getCollections(env);
       if (collections) {
-        const product = getShopProduct(PUBLIC_LAUNCH_PRODUCT_ID);
-        const [promo, settings] = await Promise.all([
-          resolvePromo(collections, PUBLIC_LAUNCH_PROMO_CODE, {
-            productId: PUBLIC_LAUNCH_PRODUCT_ID,
-            quantity: 1
-          }),
+        let settings;
+        [launchOffer, settings] = await Promise.all([
+          readLaunchOffer(collections),
           collections.storeSettings.findOne({ _id: "public-shop" })
         ]);
-        if (product && promo.ok && promo.discountPaise > 0) {
-          const mrpPaise = Math.round(product.amount * 100);
-          launchOffer = {
-            code: promo.code,
-            productId: PUBLIC_LAUNCH_PRODUCT_ID,
-            mrpPaise,
-            discountPaise: promo.discountPaise,
-            offerPaise: Math.max(0, mrpPaise - promo.discountPaise)
-          };
-        }
 
         const plate = settings?.dashboardPlate;
         if (plate?.enabled === true && Number(plate.pricePaise) >= 100) {
@@ -883,7 +902,8 @@ export function registerShopRoutes(app, env) {
       const {
         productId, variant: rawVariant, address: rawAddress, recaptchaToken,
         ref: rawRef,
-        // Only /direct sends this. A CODE, never an amount.
+        // /shop and /get send the launch code, /direct a typed one. A CODE,
+        // never an amount.
         promo: rawPromo,
         quantity: rawQuantity,
         addOnId: rawAddOnId,
@@ -1702,9 +1722,20 @@ export function registerShopRoutes(app, env) {
       if (product.soldOut) products[id].soldOut = true;
     }
 
+    // The same offer the landing page advertises, from the same function, and
+    // the one create-order and place-cod below apply.
+    let launchOffer = null;
+    try {
+      const collections = await getCollections(env);
+      if (collections) launchOffer = await readLaunchOffer(collections);
+    } catch (err) {
+      request.log.warn({ err }, "Could not read the launch offer for the dashboard shop");
+    }
+
     return {
       ok: true,
       products,
+      launchOffer,
       codSurchargePaise: COD_SURCHARGE_PAISE,
       flashDiscountPaise: FLASH_DISCOUNT_PAISE
     };
@@ -1788,8 +1819,11 @@ export function registerShopRoutes(app, env) {
     // unpaid, and still priced at the current catalog rate — a stored order
     // whose price has since moved would be rejected by verify-payment's amount
     // check, so handing it back would strand the buyer at the payment sheet.
-    const catalogPaise = Math.round(product.amount * 100) * quantity;
-    const expectedPaise = expectedOrderPaise(catalogPaise, { referredBy });
+    const mrpPaise = Math.round(product.amount * 100) * quantity;
+    const promo = await ownerLaunchPromo(collections, { productId, quantity, deliveryPhone: shipping.phone });
+    const promoDiscountPaise = promo.ok ? promo.discountPaise : 0;
+    const shippingFeePaise = promo.ok ? promo.shippingFeePaise : 0;
+    const expectedPaise = expectedOrderPaise(mrpPaise, { referredBy }, promoDiscountPaise, shippingFeePaise);
     const reusable = await collections.shopOrders.findOne({
       ownerId,
       status: "created",
@@ -1805,6 +1839,9 @@ export function registerShopRoutes(app, env) {
       // reuseQuantityFilter matches quantity-1 requests against rows written
       // before this field existed too — see its comment.
       quantity: reuseQuantityFilter(quantity),
+      // verify-payment prices the order from this code, so an order minted
+      // without the offer must not be handed back as if it had it.
+      promoCode: promo.ok ? promo.code : null,
       amount: expectedPaise
     }, { sort: { createdAt: -1 } });
 
@@ -1876,6 +1913,12 @@ export function registerShopRoutes(app, env) {
           referredBy,
           referralCode: referral.ok ? referral.code : null,
           referralDiscountPaise: referredBy ? REFERRAL_DISCOUNT_PAISE : 0,
+          // Same fields as a guest order. verify-payment re-prices from
+          // promoCode; the amounts beside it are for the receipt and admin.
+          promoCode: promo.ok ? promo.code : null,
+          promoDiscountPaise,
+          mrpPaise,
+          shippingFeePaise,
           createdAt: new Date().toISOString()
         });
       }
@@ -2179,7 +2222,14 @@ export function registerShopRoutes(app, env) {
     // (covers the outbound leg and a refused parcel's return leg once, not
     // once per sticker in the box), the same reasoning FLASH_DISCOUNT_PAISE's
     // header documents for why it must stay a fixed rupee figure.
-    const amountPaise = Math.round(product.amount * 100) * quantity + COD_SURCHARGE_PAISE;
+    //
+    // The launch offer applies on COD as it does on guest COD (₹399 + ₹49), so
+    // the dashboard and /shop quote a signed-in and a signed-out buyer the same.
+    const mrpPaise = Math.round(product.amount * 100) * quantity;
+    const promo = await ownerLaunchPromo(collections, { productId, quantity, deliveryPhone: shipping.phone });
+    const promoDiscountPaise = promo.ok ? promo.discountPaise : 0;
+    const shippingFeePaise = promo.ok ? promo.shippingFeePaise : 0;
+    const amountPaise = expectedOrderPaise(mrpPaise, {}, promoDiscountPaise, shippingFeePaise) + COD_SURCHARGE_PAISE;
     // When the confirmation screen's flash offer stops being valid. Written
     // down at order time so the deadline the buyer is shown and the one
     // cod-prepay-order enforces are the same deadline.
@@ -2205,6 +2255,11 @@ export function registerShopRoutes(app, env) {
       // to our own address is pure phantom revenue that never resolves.
       internal: isInternalPhone(env, shipping.phone),
       replaceTagId: validReplaceTagId,
+      promoCode: promo.ok ? promo.code : null,
+      promoDiscountPaise,
+      mrpPaise,
+      shippingFeePaise,
+      codSurchargePaise: COD_SURCHARGE_PAISE,
       flashOfferExpiresAt,
       createdAt: new Date().toISOString()
     });
@@ -2216,6 +2271,9 @@ export function registerShopRoutes(app, env) {
       const bookedWaybill = await bookCodShipment(env, collections, {
         orderNumber, shipping, productName: product.name, amountPaise
       }, request.log);
+
+      // As on guest COD: placing the order is its "paid" moment for the code.
+      if (promo.ok) await consumePromo(collections, promo.code, orderNumber, request.log);
 
       // Best-effort confirmation (e-mail, or WhatsApp when no e-mail); for COD it
       // carries the acceptance reminder + a tracking link once a waybill exists.

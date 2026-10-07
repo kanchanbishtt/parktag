@@ -13,6 +13,12 @@ Rules:
 
 ## Milestones
 
+### Launch offer: one price on every storefront
+- [x] Reported on live: the landing page says "Duo Pack · ₹399" but the shop charged ₹499. Cause: `/shop` sends a signed-in owner to the dashboard shop, which had a hard-coded price list, and its `create-order` / `place-cod` never applied LAUNCH100 (₹499 online, ₹548 COD instead of ₹399 / ₹448).
+- [x] `readLaunchOffer()` builds `launchOffer` for both `/api/shop/public-catalogue` (landing, /shop, /get) and `/api/shop/pricing` (dashboard). Owner `create-order` and `place-cod` apply the code on the server (`ownerLaunchPromo()`), store `promoCode` / `promoDiscountPaise` / `mrpPaise` like guest orders, and COD consumes the code. A stale unpaid order without the code is no longer reused.
+- [x] Dashboard shop: Duo card, product sheet and pack step show ₹399 with MRP ₹499 and "LAUNCH100 applied"; COD ₹448; the grid waits for server prices instead of flashing the local table.
+- [x] Verify: `launch-offer-parity.test.js` (8: same offer as the landing page, online charge + verify-payment, COD = offer + fee, Pack of 1 untouched, stale order not reused, revoking removes it everywhere, page reads the offer); fails 6/8 on the old code. 51 shop/checkout/COD/promo suites (627 pass; the 4 failures are the known baseline). Headless Chrome via `/shop?sku=pt-car-2` signed in, phone and desktop (22 checks). `wiki/launch-offer-pricing.md`.
+
 ### Scan page refresh: no raw errors for visitors
 - [x] Reported on live: refreshing a vehicle's contact page showed `{"message":"Route GET:/vehicle not found",...}`. Root cause: after the tag loads, `pt-analytics.js` rewrites the address bar to bare `/vehicle` (keeping the tag token away from the Meta Pixel), and no route served that path, so every refresh hit Fastify's default JSON 404. It only happens on `*.parktag.me` with the Pixel configured, so it never showed locally.
 - [x] `GET /vehicle` and `GET /tag` serve the scan page. `scanner/app.js` keeps the token in the tab's sessionStorage and uses it when the URL has none. With no token at all it asks the visitor to scan the sticker again. Share sends `/tag/<token>`.

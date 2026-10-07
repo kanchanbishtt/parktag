@@ -43,10 +43,11 @@ describe("sold-out packs on the dashboard shop", () => {
   test("a sold-out card has no tap, says so, and keeps its price", () => {
     // The onclick is only written for a pack that is not sold out.
     assert.match(source, /\$\{p\.soldOut \? "" : ` onclick="openProduct\(\$\{i\}\)"`\}/);
-    assert.match(source, /\$\{p\.soldOut \? "SOLD OUT" : `\$\{p\.discount\}% OFF`\}/);
+    assert.match(source, /\$\{p\.soldOut \? "SOLD OUT" : `\$\{shown\.discount\}% OFF`\}/);
     assert.match(source, /pt-shop-card\$\{p\.soldOut \? " pt-shop-card-out" : ""\}/);
-    // The price row is not conditional on stock.
-    assert.match(source, /<span class="pt-shop-price">₹\$\{p\.price\}<\/span>/);
+    // The price row is not conditional on stock. `shown` is the server's price
+    // (and launch offer) for the card; see launch-offer-parity.test.js.
+    assert.match(source, /<span class="pt-shop-price">₹\$\{shown\.price\}<\/span>/);
     assert.match(css, /\.pt-shop-card-out \{ cursor: default;/);
     assert.match(css, /\.pt-shop-badge-out \{/);
   });

@@ -185,22 +185,28 @@ function renderShop() {
   // A sold-out card is built without its onclick, so there is nothing to tap:
   // the name and the price stay readable for somebody deciding whether to
   // wait for stock, and the artwork is dimmed (see .pt-shop-card-out).
-  grid.innerHTML = PRODUCTS.map((p, i) => `
+  grid.innerHTML = PRODUCTS.map((p, i) => {
+    const shown = cardPrice(p);
+    return `
     <div class="pt-shop-card${p.soldOut ? " pt-shop-card-out" : ""}"${p.soldOut ? "" : ` onclick="openProduct(${i})"`}>
       <div class="pt-shop-img">
-        <span class="pt-shop-badge${p.soldOut ? " pt-shop-badge-out" : ""}">${p.soldOut ? "SOLD OUT" : `${p.discount}% OFF`}</span>
+        <span class="pt-shop-badge${p.soldOut ? " pt-shop-badge-out" : ""}">${p.soldOut ? "SOLD OUT" : `${shown.discount}% OFF`}</span>
         ${productImage(p, 68)}
       </div>
       <div class="pt-shop-body">
         <p class="pt-shop-name">${p.name}</p>
         <p class="pt-shop-feat">${p.features.slice(0, 3).join(" · ")}</p>
         <div class="pt-shop-prow">
-          <span class="pt-shop-price">₹${p.price}</span>
-          <span class="pt-shop-orig">₹${p.orig}</span>
+          <span class="pt-shop-price">₹${shown.price}</span>
+          <span class="pt-shop-orig">₹${shown.orig}</span>
         </div>
       </div>
     </div>
-  `).join("");
+  `;
+  }).join("");
+  // First paint is the local table; repaint once the server's prices and the
+  // launch offer are in, so the grid agrees with what checkout will charge.
+  if (!_shopPricing) loadShopPricing().then((d) => { if (d) renderShop(); });
 }
 
 // ── Surviving a reload ────────────────────────────────────────
@@ -257,6 +263,8 @@ function openProduct(idx) {
   _activeVariant = 0;
   _keepCheckout({ sku: PRODUCTS[idx].id, variant: 0, step: "product" });
   renderSheet();
+  // Opened from a link before the prices arrived: repaint with the offer.
+  if (!_shopPricing) loadShopPricing().then((d) => { if (d && _activeProduct === idx) renderSheet(); });
 
   if (window.ptTrack) {
     const _p = PRODUCTS && PRODUCTS[idx];
@@ -287,6 +295,8 @@ function selectVariant(i) {
 
 function renderSheet() {
   const p = PRODUCTS[_activeProduct];
+  const shown = cardPrice(p);
+  const offer = launchOfferFor(p.id);
   const body = document.getElementById("ptSheetBody");
   body.innerHTML = `
     <div class="pt-sheet-img">
@@ -294,14 +304,14 @@ function renderSheet() {
     </div>
     <p class="pt-sheet-name">${p.name}. ${p.desc}</p>
     <div class="pt-sheet-prow">
-      <span class="pt-sheet-price">₹${p.price}</span>
-      <span class="pt-sheet-orig">₹${p.orig}</span>
-      <span class="pt-sheet-disc">${p.discount}% off</span>
+      <span class="pt-sheet-price">₹${shown.price}</span>
+      <span class="pt-sheet-orig">₹${shown.orig}</span>
+      <span class="pt-sheet-disc">${offer ? `${offer.code} applied` : `${shown.discount}% off`}</span>
     </div>
     <p class="pt-sheet-var-lbl">Select Variant</p>
     <div class="pt-sheet-vars">
       ${p.variants.map((v, i) => `
-        <button class="pt-sheet-var${i === 0 ? " active" : ""}" onclick="selectVariant(${i})">${v}</button>
+        <button class="pt-sheet-var${i === _activeVariant ? " active" : ""}" onclick="selectVariant(${i})">${v}</button>
       `).join("")}
     </div>
     <p class="pt-sheet-offers-lbl">
@@ -512,11 +522,35 @@ function loadShopPricing() {
   return _shopPricingInFlight;
 }
 
+// The launch offer on this exact SKU, as the server will charge it, or null.
+// create-order and place-cod apply it themselves; this is only so the sheet
+// quotes the price the landing page advertised and the order will be written at.
+function launchOfferFor(sku) {
+  const offer = _shopPricing && _shopPricing.launchOffer;
+  return offer && offer.productId === sku ? offer : null;
+}
+
 // Rupee price for one row of the sheet: the server's figure when we have it,
 // the local table only until then.
 function rowRupees(sku, fallbackRupees) {
+  const offer = launchOfferFor(sku);
+  if (offer) return Math.round(offer.offerPaise / 100);
   const paise = _shopPricing && _shopPricing.products[sku] && _shopPricing.products[sku].amountPaise;
   return typeof paise === "number" ? Math.round(paise / 100) : fallbackRupees;
+}
+
+// Price, struck price and badge for a product card or sheet. With the launch
+// offer the struck price is the real MRP, the same pair the landing page shows.
+function cardPrice(p) {
+  const offer = launchOfferFor(p.id);
+  if (offer) {
+    return {
+      price: Math.round(offer.offerPaise / 100),
+      orig: Math.round(offer.mrpPaise / 100),
+      discount: Math.round((offer.discountPaise / offer.mrpPaise) * 100)
+    };
+  }
+  return { price: rowRupees(p.id, p.price), orig: p.orig, discount: p.discount };
 }
 
 const PACK_PRICES = { "pt-car-1": 299, "pt-car-2": 499, "pt-car-4": 899, bike: 499 };
@@ -594,6 +628,7 @@ function packProceed() {
 function renderPackSheet() {
   const sku = resolvePackSku();
   const empty = !sku;
+  const offer = launchOfferFor(sku);
   // The server prices the whole SKU, so the combined packs are priced as one
   // item rather than by re-adding the parts here.
   const localTotal = (_packTier ? PACK_PRICES[_packTier] : 0) + (_packBike ? PACK_PRICES.bike : 0);
@@ -635,7 +670,7 @@ function renderPackSheet() {
       <button type="button" class="pt-pack-proceed" onclick="packProceed()"${empty ? " disabled" : ""}>Pay online now</button>
       <button type="button" class="pt-pack-cod" onclick="packPlaceCod()"${empty || codTotal === null ? " disabled" : ""}>${codTotal === null ? "Cash on Delivery" : `Cash on Delivery · ₹${codTotal}`}</button>
     </div>
-    <p class="pt-pack-foot">${packFootNote(empty, total, codSurcharge, codTotal)}</p>
+    <p class="pt-pack-foot">${offer ? `${offer.code} applied: ₹${Math.round(offer.discountPaise / 100)} off the MRP of ₹${Math.round(offer.mrpPaise / 100)}. ` : ""}${packFootNote(empty, total, codSurcharge, codTotal)}</p>
   `;
 }
 
@@ -1082,7 +1117,12 @@ function switchTab(tab) {
   if (target === "shop") {
     const grid = document.getElementById("shopGrid");
     grid.innerHTML = skeletonShopCards(4);
-    requestAnimationFrame(() => setTimeout(renderShop, 280));
+    // The skeleton stays up until the server's prices are in (or two seconds
+    // pass), so the cards open on the price checkout will charge rather than
+    // flicking from the local table to the launch offer.
+    const pricesOrGiveUp = Promise.race([loadShopPricing(), new Promise((r) => setTimeout(r, 2000))]);
+    const minimumSkeleton = new Promise((r) => requestAnimationFrame(() => setTimeout(r, 280)));
+    Promise.all([pricesOrGiveUp, minimumSkeleton]).then(renderShop);
   }
 
   if (target === "profile" && typeof renderProfileView === "function") {

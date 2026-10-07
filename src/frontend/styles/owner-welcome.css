@@ -1129,6 +1129,27 @@
   }
   .pt-pack-cod:hover { background: #F9FAFB; border-color: #9CA3AF; }
   .pt-pack-cod:disabled { opacity: .55; cursor: default; }
+  /* Promo code, between the packs and the total. */
+  .pt-pack-code { display: flex; gap: 8px; margin: 14px 0 0; }
+  .pt-pack-code-in {
+    flex: 1; min-width: 0; padding: 12px 14px; border-radius: 12px; border: 1.5px solid #D1D5DB;
+    font-size: .95rem; font-family: inherit; font-weight: 700; color: #03162D;
+    text-transform: uppercase; letter-spacing: .04em; background: #fff;
+  }
+  .pt-pack-code-in::placeholder { text-transform: none; letter-spacing: 0; font-weight: 600; color: #9CA3AF; }
+  .pt-pack-code-in:focus { outline: 2px solid #03162D; outline-offset: -1px; }
+  .pt-pack-code-btn {
+    padding: 0 18px; border-radius: 12px; border: none; background: #03162D; color: #fff;
+    font-size: .9rem; font-weight: 800; font-family: inherit; cursor: pointer;
+  }
+  .pt-pack-code-btn:disabled { opacity: .55; cursor: default; }
+  .pt-pack-code-note { font-size: .8rem; font-weight: 600; margin: 8px 2px 0; color: #6B7280; }
+  .pt-pack-code-note.ok { color: #0F7A3D; }
+  .pt-pack-code-note.bad { color: #B42318; }
+  .pt-pack-code-x {
+    background: none; border: none; padding: 0; margin-left: 6px; font: inherit;
+    color: #03162D; text-decoration: underline; cursor: pointer;
+  }
 
   /* ── Shared flow header (same navy + dark logo as the dashboard) ─── */
   .pt-fhead {

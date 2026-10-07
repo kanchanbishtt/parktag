@@ -43,6 +43,8 @@ import {
   consumePromo,
   normalisePromoCode,
   promoValueFor,
+  readWebsiteOffers,
+  resolveCheckoutPromo,
   resolvePromo,
   shippingFeePaiseFor
 } from "../../lib/core/promo-codes.js";
@@ -97,41 +99,19 @@ const GUEST_COD_PROOF_MS = 10 * 60 * 1000;
 // order cap because a resend is also a send.
 const GUEST_COD_OTP_PER_IP = 10;
 
-// This public offer is an ordinary promo-code row. Revoking LAUNCH100 in the
-// admin dashboard removes the advertised price and stops checkout applying it.
-const PUBLIC_LAUNCH_PROMO_CODE = "LAUNCH100";
-const PUBLIC_LAUNCH_PRODUCT_ID = "pt-car-2";
+// The pack the landing page's hero and banner advertise. Its website offer is
+// served as `launchOffer` too, the single-offer shape the landing site reads.
+const HERO_PRODUCT_ID = "pt-car-2";
 
-// The advertised offer, read the one way every page that shows it reads it:
-// the landing site (through /api/shop/public-catalogue), /shop, /get and the
-// dashboard shop (through /api/shop/pricing). Null when the code is revoked,
-// expired or worth nothing.
-async function readLaunchOffer(collections) {
-  const product = getShopProduct(PUBLIC_LAUNCH_PRODUCT_ID);
-  const promo = await resolvePromo(collections, PUBLIC_LAUNCH_PROMO_CODE, {
-    productId: PUBLIC_LAUNCH_PRODUCT_ID,
-    quantity: 1
-  });
-  if (!product || !promo.ok || promo.discountPaise <= 0) return null;
-  const mrpPaise = Math.round(product.amount * 100);
-  return {
-    code: promo.code,
-    productId: PUBLIC_LAUNCH_PRODUCT_ID,
-    mrpPaise,
-    discountPaise: promo.discountPaise,
-    offerPaise: Math.max(0, mrpPaise - promo.discountPaise)
-  };
-}
-
-// The launch offer on a signed-in owner's order, applied by the server.
-//
-// The public pages send the code from the browser. The dashboard shop never
-// did, so an owner who tapped "Duo Pack · ₹399" on the landing page was signed
-// in, sent to the dashboard by /shop, and charged ₹499. Applying it here means
-// no dashboard page has to remember to ask for it. The promo row still
-// decides everything: which packs, whether it is live, how much.
-async function ownerLaunchPromo(collections, { productId, quantity, deliveryPhone }) {
-  return resolvePromo(collections, PUBLIC_LAUNCH_PROMO_CODE, { productId, quantity, deliveryPhone });
+// Website offers (promo codes with "Auto-apply on the website" on), read the
+// one way every page that shows them reads them: the landing site, /shop and
+// /get through /api/shop/public-catalogue, the dashboard shop through
+// /api/shop/pricing. Every order route below applies the same offers through
+// resolveCheckoutPromo, so what a page shows is what the order is charged,
+// for a new visitor and a signed-in customer alike.
+async function readOffers(collections) {
+  const offers = await readWebsiteOffers(collections, SHOP_PRODUCTS, { maxQuantity: MAX_ORDER_QUANTITY });
+  return { offers, launchOffer: offers[HERO_PRODUCT_ID] || null };
 }
 
 // The Clear Dashboard Plate is sold with the Duo Pack only. Served on the
@@ -817,6 +797,7 @@ export function registerShopRoutes(app, env) {
 
     // Prices must remain available even if Mongo has a short outage. The
     // dynamic offer and add-on fail closed in that case.
+    let offers = {};
     let launchOffer = null;
     let addOns = [];
     let complete = true;
@@ -824,8 +805,8 @@ export function registerShopRoutes(app, env) {
       const collections = await getCollections(env);
       if (collections) {
         let settings;
-        [launchOffer, settings] = await Promise.all([
-          readLaunchOffer(collections),
+        [{ offers, launchOffer }, settings] = await Promise.all([
+          readOffers(collections),
           collections.storeSettings.findOne({ _id: "public-shop" })
         ]);
 
@@ -851,7 +832,9 @@ export function registerShopRoutes(app, env) {
     return {
       complete,
       body: {
-        ok: true, products, launchOffer, addOns,
+        // offers: the website offer on each pack that has one. launchOffer: the
+        // hero pack's, kept in the shape the landing site already reads.
+        ok: true, products, offers, launchOffer, addOns,
         codSurchargePaise: COD_SURCHARGE_PAISE, codProductIds: GUEST_COD_PRODUCT_IDS,
         codMaxQuantity: COD_MAX_QUANTITY,
         // The ceiling every order route enforces, so the steppers stop there
@@ -902,9 +885,12 @@ export function registerShopRoutes(app, env) {
       const {
         productId, variant: rawVariant, address: rawAddress, recaptchaToken,
         ref: rawRef,
-        // /shop and /get send the launch code, /direct a typed one. A CODE,
-        // never an amount.
+        // A code the buyer typed (only /direct has a box). A CODE, never an
+        // amount. With none, the website offer applies on its own.
         promo: rawPromo,
+        // /direct sells at list price on purpose: no website offer there, only
+        // a typed code. Every other page leaves this out.
+        listPrice: rawListPrice,
         quantity: rawQuantity,
         addOnId: rawAddOnId,
         paymentMethod: rawPaymentMethod,
@@ -975,13 +961,22 @@ export function registerShopRoutes(app, env) {
         const wantsPlate = rawAddOnId === "dashboard-plate" && DASHBOARD_PLATE_PRODUCT_IDS.includes(productId);
         const [settings, promo] = await Promise.all([
           wantsPlate ? collections.storeSettings.findOne({ _id: "public-shop" }) : null,
-          resolvePromo(collections, rawPromo, {
-            deliveryPhone: (rawAddress || {}).phone,
-            // Without this a code tied to one pack comes off any of them, and
-            // omitting the product would be the way around the restriction.
-            productId,
-            quantity
-          })
+          rawListPrice === true
+            ? resolvePromo(collections, rawPromo, {
+              deliveryPhone: (rawAddress || {}).phone,
+              // Without this a code tied to one pack comes off any of them, and
+              // omitting the product would be the way around the restriction.
+              productId,
+              quantity
+            })
+            // The typed code if it is valid, else the website offer: the same
+            // rule the signed-in routes price by.
+            : resolveCheckoutPromo(collections, {
+              typedCode: rawPromo,
+              deliveryPhone: (rawAddress || {}).phone,
+              productId,
+              quantity
+            })
         ]);
         return { collections, settings, promo };
       })();
@@ -1675,7 +1670,9 @@ export function registerShopRoutes(app, env) {
     "/api/shop/promo/check",
     { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } },
     async (request, reply) => {
-      const { code, productId, phone, quantity: rawQuantity } = request.body || {};
+      // context "dashboard": the signed-in checkout, whose order routes refuse
+      // a hand-over code, so it is refused here too rather than quoted.
+      const { code, productId, phone, quantity: rawQuantity, context } = request.body || {};
 
       const product = getShopProduct(productId);
       if (!product) { reply.code(400); return { ok: false, error: "Unknown product." }; }
@@ -1689,7 +1686,10 @@ export function registerShopRoutes(app, env) {
       // discountPaiseFor treats one.
       const quantity = Math.max(1, Math.trunc(Number(rawQuantity) || 1));
       const catalogPaise = Math.round(product.amount * 100);
-      const promo = await resolvePromo(collections, code, { deliveryPhone: phone, productId, quantity });
+      let promo = await resolvePromo(collections, code, { deliveryPhone: phone, productId, quantity });
+      if (promo.ok && context === "dashboard" && promo.fulfilment === FULFILMENT_HANDOVER) {
+        promo = { ok: false, reason: "handover-only" };
+      }
 
       // A rejection is not an error. Every reason here is an ordinary thing for
       // a buyer to do, and the page shows the catalogue price and carries on.
@@ -1700,10 +1700,12 @@ export function registerShopRoutes(app, env) {
 
       return {
         ok: true,
+        code: promo.code,
         catalogPaise,
         discountPaise: promo.discountPaise,
         shippingFeePaise: promo.shippingFeePaise,
-        payablePaise: catalogPaise * quantity - promo.discountPaise + promo.shippingFeePaise,
+        // The order routes' own arithmetic (one-rupee floor, shipping on top).
+        payablePaise: expectedOrderPaise(catalogPaise * quantity, {}, promo.discountPaise, promo.shippingFeePaise),
         fulfilment: promo.fulfilment
       };
     }
@@ -1722,19 +1724,21 @@ export function registerShopRoutes(app, env) {
       if (product.soldOut) products[id].soldOut = true;
     }
 
-    // The same offer the landing page advertises, from the same function, and
-    // the one create-order and place-cod below apply.
+    // The same website offers the landing page and /shop show, from the same
+    // function, and the ones create-order and place-cod below apply.
+    let offers = {};
     let launchOffer = null;
     try {
       const collections = await getCollections(env);
-      if (collections) launchOffer = await readLaunchOffer(collections);
+      if (collections) ({ offers, launchOffer } = await readOffers(collections));
     } catch (err) {
-      request.log.warn({ err }, "Could not read the launch offer for the dashboard shop");
+      request.log.warn({ err }, "Could not read the website offers for the dashboard shop");
     }
 
     return {
       ok: true,
       products,
+      offers,
       launchOffer,
       codSurchargePaise: COD_SURCHARGE_PAISE,
       flashDiscountPaise: FLASH_DISCOUNT_PAISE
@@ -1756,7 +1760,8 @@ export function registerShopRoutes(app, env) {
     if (blocked) return blocked;
     const ownerId = toObjectId(request.session.userId);
 
-    const { productId, replaceTagId, quantity: rawQuantity } = request.body || {};
+    // promo: a code the customer typed in the dashboard. A CODE, never an amount.
+    const { productId, replaceTagId, quantity: rawQuantity, promo: rawPromo } = request.body || {};
     if (!productId) { reply.code(400); return { error: "productId required." }; }
 
     const quantityCheck = parseQuantity(rawQuantity);
@@ -1820,7 +1825,9 @@ export function registerShopRoutes(app, env) {
     // whose price has since moved would be rejected by verify-payment's amount
     // check, so handing it back would strand the buyer at the payment sheet.
     const mrpPaise = Math.round(product.amount * 100) * quantity;
-    const promo = await ownerLaunchPromo(collections, { productId, quantity, deliveryPhone: shipping.phone });
+    const promo = await resolveCheckoutPromo(collections, {
+      typedCode: rawPromo, productId, quantity, deliveryPhone: shipping.phone, allowHandover: false
+    });
     const promoDiscountPaise = promo.ok ? promo.discountPaise : 0;
     const shippingFeePaise = promo.ok ? promo.shippingFeePaise : 0;
     const expectedPaise = expectedOrderPaise(mrpPaise, { referredBy }, promoDiscountPaise, shippingFeePaise);
@@ -1861,6 +1868,8 @@ export function registerShopRoutes(app, env) {
         orderNumber: reusable.orderNumber,
         amount: reusable.amount,
         currency: reusable.currency,
+        promoCode: reusable.promoCode || null,
+        promoRefused: promo.typedRefusal || null,
         prefill: await checkoutPrefill(collections, ownerId)
       };
     }
@@ -1942,6 +1951,10 @@ export function registerShopRoutes(app, env) {
         referralDiscountPaise: referredBy ? REFERRAL_DISCOUNT_PAISE : 0,
         amount: order.amount,
         currency: order.currency,
+        // The code the order is priced with (typed or the website offer), and
+        // why a typed one was not used, for the page to say before paying.
+        promoCode: promo.ok ? promo.code : null,
+        promoRefused: promo.typedRefusal || null,
         prefill: await checkoutPrefill(collections, ownerId)
       };
     } catch (err) {
@@ -2117,7 +2130,7 @@ export function registerShopRoutes(app, env) {
     if (blocked) return blocked;
     const ownerId = toObjectId(request.session.userId);
 
-    const { productId, replaceTagId, otp, quantity: rawQuantity } = request.body || {};
+    const { productId, replaceTagId, otp, quantity: rawQuantity, promo: rawPromo } = request.body || {};
     if (!productId) { reply.code(400); return { error: "productId required." }; }
     const variant = shapeVariant((request.body || {}).variant);
 
@@ -2223,10 +2236,12 @@ export function registerShopRoutes(app, env) {
     // once per sticker in the box), the same reasoning FLASH_DISCOUNT_PAISE's
     // header documents for why it must stay a fixed rupee figure.
     //
-    // The launch offer applies on COD as it does on guest COD (₹399 + ₹49), so
-    // the dashboard and /shop quote a signed-in and a signed-out buyer the same.
+    // Codes apply on COD as they do on guest COD (website offer ₹399 + ₹49 on
+    // the Duo Pack), so a signed-in and a signed-out buyer are quoted the same.
     const mrpPaise = Math.round(product.amount * 100) * quantity;
-    const promo = await ownerLaunchPromo(collections, { productId, quantity, deliveryPhone: shipping.phone });
+    const promo = await resolveCheckoutPromo(collections, {
+      typedCode: rawPromo, productId, quantity, deliveryPhone: shipping.phone, allowHandover: false
+    });
     const promoDiscountPaise = promo.ok ? promo.discountPaise : 0;
     const shippingFeePaise = promo.ok ? promo.shippingFeePaise : 0;
     const amountPaise = expectedOrderPaise(mrpPaise, {}, promoDiscountPaise, shippingFeePaise) + COD_SURCHARGE_PAISE;
@@ -2304,6 +2319,8 @@ export function registerShopRoutes(app, env) {
       orderNumber,
       amount: amountPaise,
       productName: product.name,
+      promoCode: promo.ok ? promo.code : null,
+      promoRefused: promo.typedRefusal || null,
       // Seconds, not a timestamp: the browser counts down against its own
       // clock, and a phone whose clock is minutes out would otherwise show a
       // countdown that had already finished — or one that never did.

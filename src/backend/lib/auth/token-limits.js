@@ -38,6 +38,8 @@ export function promoLimitError(request, doc, patch = null) {
     return `maxUses must be a whole number from 1 to ${TOKEN_LIMITS.maxUses} for tokens. ${PROMO_HELP}`;
   }
   if (touches("expiresAt") && !doc.expiresAt) return `An expiry date is required for tokens. ${PROMO_HELP}`;
+  // Switching a code on for every visitor changes the price on the whole site.
+  if (touches("autoApply") && doc.autoApply === true) return `Only the admin panel can make a code a website offer. ${PROMO_HELP}`;
   return null;
 }
 

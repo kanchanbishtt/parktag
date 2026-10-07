@@ -86,6 +86,10 @@
     .sheet label { display: block; font-size: .8rem; font-weight: 700; text-transform: uppercase;
                    letter-spacing: .04em; color: #5A5A57; margin-bottom: 6px; }
     .sheet label.spaced { margin-top: 16px; }
+    .sheet label.auto-apply { display: flex; align-items: center; gap: 8px; text-transform: none;
+                              letter-spacing: 0; font-size: .92rem; color: #03162D; }
+    .sheet label.auto-apply input { width: 18px; height: 18px; accent-color: #FF2700; }
+    .pill.website { background: #FFF1D6; color: #8A4B00; margin-left: 6px; }
     .sheet input[type="text"], .sheet input[type="number"], .sheet input[type="datetime-local"], .sheet select {
       width: 100%; padding: 12px 14px; font-size: 1rem; font-family: inherit;
       border: 1px solid #D6D6D3; border-radius: 10px; background: #fff; color: #03162D;
@@ -266,6 +270,9 @@
 
       <label for="add-expires" class="spaced">Expires at (optional)</label>
       <input id="add-expires" type="datetime-local" />
+
+      <label class="spaced auto-apply"><input id="add-auto-apply" type="checkbox" /> Auto-apply on the website</label>
+      <p class="hint">Every buyer gets this price without typing the code: the landing page, /shop, /get and the customer dashboard all show and charge it. A typed code replaces it for that order. Not for single-use, phone-bound or hand-over codes.</p>
 
       <p id="add-msg" class="sheet-msg"></p>
 

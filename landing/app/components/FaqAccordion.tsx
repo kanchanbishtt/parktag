@@ -1,11 +1,34 @@
-const FAQS = [
+import { type Catalogue, codPaise, money } from "./LaunchOffer";
+
+// The two answers that quote a price are built from the live catalogue (the
+// same reply /shop and the dashboard price from), so they cannot drift from
+// what checkout charges. They used to be typed in, and still said "₹30 COD fee,
+// ₹529, codes online only" long after COD became ₹49 with codes applied.
+function deliveryAnswer(catalogue: Catalogue | null): string {
+  const base = "Delivery is free on every order, anywhere in India. We ship within 1–2 business days and delivery takes 2–4 business days, with a tracking number once dispatched.";
+  const fee = catalogue?.codSurchargePaise;
+  const solo = codPaise(catalogue, "pt-car-1", 29900);
+  const duo = codPaise(catalogue, "pt-car-2", 49900);
+  if (fee == null || solo == null || duo == null) {
+    return `${base} Cash on delivery is available on the Car Tag packs, for a small handling fee, where Delhivery accepts cash.`;
+  }
+  return `${base} Cash on delivery is available on the Car Tag packs where Delhivery accepts cash: the price you see plus a ${money(fee)} handling fee (${money(solo)} for one tag, ${money(duo)} for two). Website offers apply on cash on delivery too.`;
+}
+
+function plateAnswer(catalogue: Catalogue | null): string {
+  const plate = catalogue?.addOns.find((a) => a.id === "dashboard-plate");
+  const price = plate ? ` for ${money(plate.amountPaise)}` : "";
+  return `No. With the Duo Pack you can add the optional Clear Dashboard Plate${price}: 10 × 6 cm, 2 mm clear crystal acrylic. Stick your ParkTag on the plate, then place it on your dashboard instead of sticking it on the windscreen. It is never added automatically.`;
+}
+
+const faqs = (catalogue: Catalogue | null) => [
   {
     q: "Are WhatsApp scan notifications a Premium feature?",
     a: "No. WhatsApp scan notifications are included for the life of every active ParkTag. The first included year covers Premium tools such as masked calls, callback, scanner location details, the document vault and SOS features.",
   },
   {
     q: "Do I have to stick the ParkTag directly on my car?",
-    a: "No. With the Duo Pack you can add the optional Clear Dashboard Plate for ₹49: 10 × 6 cm, 2 mm clear crystal acrylic. Stick your ParkTag on the plate, then place it on your dashboard instead of sticking it on the windscreen. It is never added automatically.",
+    a: plateAnswer(catalogue),
   },
   {
     q: "How does ParkTag work?",
@@ -57,7 +80,7 @@ const FAQS = [
     // COD is quoted only for the car packs because those are the only packs
     // the guest checkout offers it on, and "where available" because a PIN code
     // Delhivery cannot collect cash at is refused at checkout.
-    a: "Delivery is free on every order, anywhere in India. We ship within 1–2 business days and delivery takes 2–4 business days, with a tracking number once dispatched. Cash on delivery is available on the Car Tag packs for a ₹30 COD fee on MRP (₹329 for one tag, ₹529 for two) where Delhivery accepts cash. The ₹399 launch price and other codes apply to online payment only.",
+    a: deliveryAnswer(catalogue),
   },
 ];
 
@@ -65,10 +88,10 @@ const FAQS = [
 // JS: it is server markup, and keyboard and screen reader behaviour come from
 // the browser. The open/close animation is progressive enhancement (see
 // .pt-faq in globals.css); browsers without it simply toggle.
-export function FaqAccordion() {
+export function FaqAccordion({ catalogue }: { catalogue: Catalogue | null }) {
   return (
     <div className="space-y-2">
-      {FAQS.map(({ q, a }) => (
+      {faqs(catalogue).map(({ q, a }) => (
         <details key={q} name="faq" className="pt-faq group bg-white border border-gray-200 rounded-xl overflow-hidden">
           <summary className="flex items-center justify-between px-6 py-4 font-semibold text-[#03162D] text-sm text-left cursor-pointer select-none">
             <span>{q}</span>

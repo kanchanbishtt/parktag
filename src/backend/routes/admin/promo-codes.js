@@ -41,7 +41,9 @@ const WRITABLE_FIELDS = [
   "maxUses",
   "startsAt",
   "expiresAt",
-  "fulfilment"
+  "fulfilment",
+  // "Auto-apply on the website": see resolveAutoOffer in promo-codes.js.
+  "autoApply"
 ];
 
 // Escape a string for safe use inside a RegExp — the substring search below is
@@ -106,6 +108,17 @@ function validatePromoFields(doc) {
 
   if (doc.fulfilment !== undefined && ![FULFILMENT_SHIP, FULFILMENT_HANDOVER].includes(doc.fulfilment)) {
     return `fulfilment must be one of ${FULFILMENT_SHIP}, ${FULFILMENT_HANDOVER}.`;
+  }
+
+  // A website offer is shown to everybody and applied to everybody, so it
+  // cannot be a code that only one buyer, one order or one hand-over may use.
+  if (doc.autoApply !== undefined && typeof doc.autoApply !== "boolean") {
+    return "autoApply must be true or false.";
+  }
+  if (doc.autoApply === true) {
+    if (doc.boundPhone) return "A website offer cannot be tied to one phone number. Remove the bound phone or turn off auto-apply.";
+    if (doc.singleUse) return "A website offer cannot be single-use. Use a maximum number of uses instead.";
+    if (doc.fulfilment === FULFILMENT_HANDOVER) return "A hand-over code cannot be a website offer.";
   }
 
   return null;

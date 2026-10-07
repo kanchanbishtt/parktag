@@ -162,6 +162,12 @@ function renderRow(row, report) {
   codeSpan.className = "code";
   codeSpan.textContent = row.code;
   codeTd.append(codeSpan);
+  if (row.autoApply === true) {
+    const web = document.createElement("span");
+    web.className = "pill website";
+    web.textContent = "Website offer";
+    codeTd.append(web);
+  }
 
   const discountTd = document.createElement("td");
   discountTd.dataset.label = "Discount";
@@ -314,6 +320,7 @@ const productsEl = document.getElementById("add-products");
 const maxUsesEl = document.getElementById("add-max-uses");
 const startsEl = document.getElementById("add-starts");
 const expiresEl = document.getElementById("add-expires");
+const autoApplyEl = document.getElementById("add-auto-apply");
 const titleEl = document.getElementById("add-title");
 const cancelEl = document.getElementById("add-cancel");
 const submitEl = document.getElementById("add-submit");
@@ -365,6 +372,7 @@ function openSheet(row = null) {
   maxUsesEl.value = row?.maxUses != null ? String(row.maxUses) : "";
   startsEl.value = toLocalInput(row?.startsAt);
   expiresEl.value = toLocalInput(row?.expiresAt);
+  autoApplyEl.checked = row?.autoApply === true;
   submitEl.disabled = false;
   submitEl.textContent = row ? "Save changes" : "Create code";
   sheetEl.showModal();
@@ -434,6 +442,8 @@ if (fabEl && sheetEl) {
       }
       body.maxUses = maxUses;
     }
+    // Always sent, so an edit can switch it off as well as on.
+    body.autoApply = autoApplyEl.checked;
     if (startsEl.value) body.startsAt = new Date(startsEl.value).toISOString();
     if (expiresEl.value) body.expiresAt = new Date(expiresEl.value).toISOString();
     if (body.startsAt && body.expiresAt && body.startsAt >= body.expiresAt) {

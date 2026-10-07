@@ -923,6 +923,8 @@ async function buy(sku, { resumed = false } = {}) {
         recaptchaToken,
         ref: referralCode(),
         promo: codeValue(),
+        // This page sells at list price: no website offer, only a typed code.
+        listPrice: true,
         quantity,
         addOnId: addOn?.id,
         paymentMethod,

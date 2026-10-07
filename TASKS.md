@@ -1196,3 +1196,12 @@ Covers UX and security improvements made after M13 call flow was confirmed worki
 - [x] `app.js`: `form-action` now also allows `https://api.razorpay.com` and `https://*.razorpay.com`, as Razorpay's CSP guidance lists. Nothing else widened.
 - [x] Tests: `netbanking-form-action.test.js` (4). `checkout-csp`, `csp-analytics` and `login-low-findings` pass locally.
 - [ ] After deploy, on a phone: pay a test order by netbanking and confirm the bank page loads. Razorpay's window taking about two seconds to open is the Razorpay script and its own frame, not this.
+
+## Switched-off tag: an inactive screen for the scanner, no reactivation from the sticker, 2026-10-07
+
+- [x] Reported: an owner switched Tag Active off on the dashboard; scanning the sticker opened the activation wizard ("You are about to reactivate the tag"), which sent an OTP, took the details and then failed with "Tag is not claimable". Cause: `scanner/app.js` chose the wizard from `status` alone (`unclaimed` or `inactive`), while the server only lets unowned stock be claimed, and a switched-off tag keeps its owner.
+- [x] `scanner/app.js`: the wizard and the "Register to activate" chip follow the server's `claimable` flag. Any other tag that is not `active` shows the new `#tag-off-card` and stops there. The "reactivate" wording is gone.
+- [x] `scanner/index.html` + `styles.css`: `#tag-off-card` says the tag is inactive and the owner has turned it off for now, with a **Get a ParkTag** button to `/get` and a small "Is this your vehicle?" link to `/owner`. No inputs, no owner data.
+- [x] No server change: the toggle already keeps `ownerId`, the dashboard lists the tag while off, and `/activate` and `/claim` already refuse owned tags.
+- [x] Tests: `tag-off-scan.test.js` (8). Headless Chrome at 390px: active → contact card; switched off → inactive card only, no chip, Get a ParkTag opens `/get`; still on the dashboard; switched on → contact card; unclaimed stock → wizard with chip. `wiki/tag-switches.md` updated.
+- [ ] After deploy, on a phone: switch a tag off on the dashboard, scan it, confirm the inactive screen; switch it on and scan again.

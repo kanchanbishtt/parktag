@@ -344,7 +344,8 @@ function showOnly(sectionId) {
   const ids = [
     "registration-shell",
     "scanner-action-shell",
-    "error-card"
+    "error-card",
+    "tag-off-card"
   ];
 
   for (const id of ids) {
@@ -802,7 +803,9 @@ async function handleSosCall() {
 }
 
 function setSummaryForTag(tag) {
-  const isRegistrationState = ["unclaimed", "inactive"].includes(tag.status);
+  // The server's word, not the status: an owner's tag switched off from the
+  // dashboard is "inactive" too, and it is not up for registration.
+  const isRegistrationState = tag.claimable === true;
 
   // The chip now carries one message only: this tag still needs registering.
   // An active tag no longer says "✓ Active" — the card already shows the plate
@@ -991,7 +994,13 @@ async function loadScannerView() {
   try {
     const data = await fetchJson(`/api/tags/${token}`);
     const tag = data.tag;
-    const registrationState = ["unclaimed", "inactive"].includes(tag.status);
+    // Only a tag the server calls claimable (unowned stock) opens the
+    // activation wizard. An owner's tag switched off from the dashboard is
+    // "inactive" as well, and used to land here too, where the wizard took a
+    // stranger's details and then failed with "Tag is not claimable". That tag
+    // is still the owner's, and only their dashboard switch turns it back on.
+    const registrationState = tag.claimable === true;
+    const switchedOff = !registrationState && tag.status !== "active";
 
     // Fired only once the tag resolves, so the count means "a real sticker was
     // scanned" rather than "the page loaded". Scans per activated tag per month
@@ -1030,20 +1039,20 @@ async function loadScannerView() {
 
     if (registrationState) {
       setText("scanner-load-status", "This WaveTag needs owner registration before contact can be enabled.");
-      setText(
-        "registration-title",
-        tag.status === "inactive"
-          ? "You are about to reactivate the tag"
-          : "You are about to activate the tag"
-      );
-      setText(
-        "registration-copy",
-        tag.status === "inactive"
-          ? "This tag is currently inactive. Reactivate it to start receiving alerts again."
-          : "Please activate all your tags. Each one is unique."
-      );
+      // No "reactivate" wording: a claimable tag has no owner, so whoever
+      // activates it is activating it for the first time.
+      setText("registration-title", "You are about to activate the tag");
+      setText("registration-copy", "Please activate all your tags. Each one is unique.");
       setupActivationWizard(tag, data.supportWhatsapp);
       showOnly("registration-shell");
+      return;
+    }
+
+    // Switched off by its owner. No contact actions and no activation, just a
+    // polite note and a way to get a ParkTag of their own.
+    if (switchedOff) {
+      setText("scanner-load-status", "This ParkTag has been turned off by its owner.");
+      showOnly("tag-off-card");
       return;
     }
 

@@ -240,6 +240,11 @@
       "border-radius:28px 28px 0 0;padding:10px 22px calc(22px + env(safe-area-inset-bottom));",
       "box-shadow:0 -18px 50px -12px rgba(14,18,32,.35);opacity:0;transform:translate3d(0,100%,0);",
       "transform-origin:bottom center;will-change:transform,opacity;}",
+      // The sheet still scrolls (wheel, touch, keys); only the native bar is
+      // hidden. Its grey track sat against the rounded card and the grip is the
+      // affordance here, as it already is for the gallery on /get.
+      "#pt-addr-sheet{scrollbar-width:none;-ms-overflow-style:none;}",
+      "#pt-addr-sheet::-webkit-scrollbar{display:none;}",
 
       // It rises from the edge it is anchored to and decelerates into place
       // rather than appearing at full size and scaling. Long enough that the eye

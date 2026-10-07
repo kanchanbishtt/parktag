@@ -13,6 +13,12 @@ Rules:
 
 ## Milestones
 
+### Launch offer: one price on every storefront
+- [x] Reported on live: the landing page says "Duo Pack · ₹399" but the shop charged ₹499. Cause: `/shop` sends a signed-in owner to the dashboard shop, which had a hard-coded price list, and its `create-order` / `place-cod` never applied LAUNCH100 (₹499 online, ₹548 COD instead of ₹399 / ₹448).
+- [x] `readLaunchOffer()` builds `launchOffer` for both `/api/shop/public-catalogue` (landing, /shop, /get) and `/api/shop/pricing` (dashboard). Owner `create-order` and `place-cod` apply the code on the server (`ownerLaunchPromo()`), store `promoCode` / `promoDiscountPaise` / `mrpPaise` like guest orders, and COD consumes the code. A stale unpaid order without the code is no longer reused.
+- [x] Dashboard shop: Duo card, product sheet and pack step show ₹399 with MRP ₹499 and "LAUNCH100 applied"; COD ₹448; the grid waits for server prices instead of flashing the local table.
+- [x] Verify: `launch-offer-parity.test.js` (8: same offer as the landing page, online charge + verify-payment, COD = offer + fee, Pack of 1 untouched, stale order not reused, revoking removes it everywhere, page reads the offer); fails 6/8 on the old code. 51 shop/checkout/COD/promo suites (627 pass; the 4 failures are the known baseline). Headless Chrome via `/shop?sku=pt-car-2` signed in, phone and desktop (22 checks). `wiki/launch-offer-pricing.md`.
+
 ### Admin Tag Reports page
 - [x] A scanner's "Report wrong info" submission (`POST /api/tags/:token/report` → `tag_reports`) was stored and never read back. New admin page `/admin/tag-reports` (sidebar: Monitoring → Tag Reports, on every admin page) lists reports open-first with the reason, free text, the reported sticker (plate, serial, state) and its owner, and the reporter to call back (tel + WhatsApp).
 - [x] `GET /api/admin/tag-reports?status=open|resolved|all&q=&page=` (100 a page; search by plate, serial, reporter name/number or text) and `POST /api/admin/tag-reports/:id/status` { status, note } recording who, when and a note; reopen keeps the note; nothing is ever deleted.

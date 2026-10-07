@@ -86,6 +86,14 @@ function getPricing(withCookie = true) {
   });
 }
 
+// The pack price the sheet shows: the launch offer where one is live for that
+// pack (LAUNCH100 may be in this database; see launch-offer-parity.test.js),
+// the catalogue price everywhere else.
+function quotedPaise(pricing, productId) {
+  const offer = pricing.launchOffer;
+  return offer && offer.productId === productId ? offer.offerPaise : pricing.products[productId].amountPaise;
+}
+
 function placeCod(productId) {
   return app.inject({
     method: "POST",
@@ -128,7 +136,7 @@ describe("the quoted price is the price that gets charged", () => {
   for (const productId of ["pt-car-1", "pt-car-2", "pt-car-4", "pt-car-2-bike"]) {
     test(`COD on ${productId} collects exactly what the sheet quotes`, async () => {
       const pricing = (await getPricing()).json();
-      const quoted = pricing.products[productId].amountPaise + pricing.codSurchargePaise;
+      const quoted = quotedPaise(pricing, productId) + pricing.codSurchargePaise;
 
       const placed = await placeCod(productId);
       assert.equal(placed.statusCode, 200, placed.body);
@@ -178,7 +186,7 @@ describe("the quoted price is the price that gets charged", () => {
 
     assert.equal(
       placed.json().amount - pricing.flashDiscountPaise,
-      pricing.products["pt-car-2"].amountPaise,
+      quotedPaise(pricing, "pt-car-2"),
       "the flash offer does not bring a COD order back to the catalog price"
     );
   });

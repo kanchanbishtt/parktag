@@ -145,7 +145,8 @@ function soldOrderFilter() {
 
 // Where the parcel is, from what is already stored on the order. Never calls
 // Delhivery: this list is read on every visit, and the courier is live.
-function deliveryStateOf(order) {
+// Shared with the Orders page (routes/admin/orders.js) so both read one truth.
+export function deliveryStateOf(order) {
   if (order.deliveredInPerson || order.fulfilment === "handover") {
     return { state: "handed_over", at: order.deliveredAt || order.createdAt || null };
   }

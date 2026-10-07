@@ -795,6 +795,21 @@
         <button type="button" class="pt-btn pt-btn-primary pt-btn-full" id="error-retry" hidden>Try again</button>
       </article>
 
+      <!-- A tag its owner has switched off from the dashboard (Tag Active).
+           The tag is still theirs: it is not offered for activation, because
+           only the owner's dashboard switch turns it back on. Says nothing
+           about the owner or the vehicle, only that contact is off for now. -->
+      <article class="pt-card pt-tag-off-card" id="tag-off-card" hidden>
+        <div class="pt-card-icon pt-icon-tag">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M10 9v6M14 9v6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <h1 class="pt-card-title">This tag is inactive</h1>
+        <p class="pt-card-sub">The owner has turned this ParkTag off for now, so it can't be used to contact them. Thank you for taking the time to scan it.</p>
+        <p class="pt-card-sub pt-tag-off-buy">Want a ParkTag for your own vehicle? Get yours from the link below.</p>
+        <a class="pt-btn pt-btn-primary pt-btn-full" id="tag-off-get" href="/get">Get a ParkTag</a>
+        <p class="pt-tag-off-owner">Is this your vehicle? <a href="/owner">Turn the tag back on from your dashboard</a>.</p>
+      </article>
+
     </main>
 
     <!-- Raised when an action needs something the scanner has not given yet: a

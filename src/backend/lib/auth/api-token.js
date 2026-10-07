@@ -35,7 +35,8 @@ const READ = [
   "/api/admin/reconciliation", "/api/admin/promo-codes", "/api/admin/promo-codes/report", "/api/admin/shop-settings",
   "/api/admin/etags", "/api/admin/etags/:tagId", "/api/admin/tag-batches", "/api/admin/print-queue",
   "/api/admin/activations", "/api/admin/activations/recent", "/api/admin/activity", "/api/admin/marketing",
-  "/api/admin/sticker-designs", "/api/admin/sticker-designs/current", "/api/admin/reviews", "/api/admin/tag-reports"
+  "/api/admin/sticker-designs", "/api/admin/sticker-designs/current", "/api/admin/reviews", "/api/admin/orders",
+  "/api/admin/tag-reports"
 ];
 const WRITE = [
   "POST /api/admin/promo-codes", "PATCH /api/admin/promo-codes/:code",

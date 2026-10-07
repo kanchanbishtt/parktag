@@ -42,11 +42,18 @@ let app;
 let collections;
 let adminCookie;
 
+// The route reads our own numbers from the environment, so it has to be set
+// before the app is built. helpers.js clears it for every suite, and this
+// number belongs to no other test in the file.
+const INTERNAL_PHONE = "9876500854";
+
 before(async () => {
+  process.env.INTERNAL_TEST_PHONES = INTERNAL_PHONE;
   ({ app, collections } = await startTestApp());
 });
 
 after(async () => {
+  delete process.env.INTERNAL_TEST_PHONES;
   await collections.landingVisits.deleteMany({ site: "app" }).catch(() => {});
   await collections.shopOrders.deleteMany({ productId: "qa-funnel" }).catch(() => {});
   await purgeLoginCollections(collections);
@@ -231,6 +238,24 @@ describe("the funnel joins views to orders", () => {
 
     assert.ok(phones.includes("9876500004"), "the abandoned checkout is missing");
     assert.ok(!phones.includes("9876500005"), "a paid order was listed as abandoned");
+  });
+
+  // Three checkouts typed in by Kanchan on a Tuesday morning read as three
+  // "checkouts started", and the ads got blamed for a leak that was a test.
+  test("our own test orders are left out of the funnel and the abandoned list", async () => {
+    await seedOrder("created", INTERNAL_PHONE);
+    await seedOrder("created", INTERNAL_PHONE);
+    await seedOrder("created", "9876500006");
+
+    const body = (await traffic()).json();
+    const today = body.funnel.days.at(-1);
+    const phones = body.abandoned.map((row) => row.phone);
+
+    assert.equal(today.checkoutsStarted, 1, "a test order was counted as a checkout");
+    assert.equal(body.funnel.totals.checkoutsStarted, 1);
+    assert.deepEqual(phones.filter((phone) => phone === INTERNAL_PHONE), [], "a test order was listed as abandoned");
+    assert.ok(phones.includes("9876500006"), "the real abandoned checkout went missing");
+    assert.equal(body.funnel.internalExcluded, 2, "the filter must report how many it left out");
   });
 
   test("the funnel is admin-only", async () => {

@@ -238,7 +238,36 @@ function readTokenFromUrl() {
 // Caching here rather than patching the one call site: three other places read
 // this too, and the next one added would inherit the same bug. Module scope
 // runs before any user interaction, so this always captures the real value.
-const TAG_TOKEN = readTokenFromUrl();
+//
+// The same strip broke a RELOAD. After it the address bar reads plain
+// "/vehicle", so refreshing the page (or reopening the tab) asked the server
+// for a route that did not exist and the scanner saw a raw JSON 404. The token
+// is therefore also kept in this tab's sessionStorage: a reload of the stripped
+// URL finds it there, and the server now serves this page at bare /vehicle and
+// /tag too. sessionStorage, not localStorage: it lives for this tab only, is
+// never sent anywhere (the Pixel reads the URL, not storage), and a different
+// sticker scanned later arrives with its own token in the URL, which wins.
+const SCAN_TOKEN_KEY = "pt_scan_token";
+
+function rememberedToken() {
+  try {
+    const saved = sessionStorage.getItem(SCAN_TOKEN_KEY) || "";
+    return /^[A-Za-z0-9]{12,64}$/.test(saved) ? saved : "";
+  } catch {
+    return ""; // storage blocked or private mode: behave as before
+  }
+}
+
+function resolveTagToken() {
+  const fromUrl = readTokenFromUrl();
+  if (fromUrl) {
+    try { sessionStorage.setItem(SCAN_TOKEN_KEY, fromUrl); } catch { /* ignore */ }
+    return fromUrl;
+  }
+  return rememberedToken();
+}
+
+const TAG_TOKEN = resolveTagToken();
 
 function getTokenFromUrl() {
   return TAG_TOKEN;
@@ -344,7 +373,8 @@ function showOnly(sectionId) {
   const ids = [
     "registration-shell",
     "scanner-action-shell",
-    "error-card"
+    "error-card",
+    "tag-off-card"
   ];
 
   for (const id of ids) {
@@ -418,7 +448,9 @@ function setupQuickActions(tag) {
 }
 
 async function handleQuickShare() {
-  const url = window.location.href;
+  // The sticker's own link, not the address bar: once the token has been
+  // stripped for the Pixel the bar reads plain "/vehicle", which leads nowhere.
+  const url = TAG_TOKEN ? `${window.location.origin}/tag/${TAG_TOKEN}` : window.location.href;
   const payload = {
     title: "ParkTag",
     text: "Contact this vehicle's owner privately through ParkTag.",
@@ -802,7 +834,9 @@ async function handleSosCall() {
 }
 
 function setSummaryForTag(tag) {
-  const isRegistrationState = ["unclaimed", "inactive"].includes(tag.status);
+  // The server's word, not the status: an owner's tag switched off from the
+  // dashboard is "inactive" too, and it is not up for registration.
+  const isRegistrationState = tag.claimable === true;
 
   // The chip now carries one message only: this tag still needs registering.
   // An active tag no longer says "✓ Active" — the card already shows the plate
@@ -979,11 +1013,15 @@ async function loadScannerView() {
   resetActionState();
 
   if (!token) {
+    // Reached with no sticker to look up: /vehicle opened in a new tab, a link
+    // copied after the token was stripped, or storage blocked. Said in words a
+    // passer-by can act on, never as a developer message.
+    setText("scanner-load-status", "Scan the ParkTag QR code on the vehicle to continue.");
+    setText("error-title", "Scan the sticker again");
     setText(
-      "scanner-load-status",
-      "No tag token was found in the URL. Open the page through a QR-linked token URL."
+      "error-message",
+      "This page opens from the QR code on a ParkTag sticker. Please scan the code on the vehicle again with your phone camera."
     );
-    setText("error-message", "No active WaveTag link was found for this page.");
     showOnly("error-card");
     return;
   }
@@ -991,7 +1029,13 @@ async function loadScannerView() {
   try {
     const data = await fetchJson(`/api/tags/${token}`);
     const tag = data.tag;
-    const registrationState = ["unclaimed", "inactive"].includes(tag.status);
+    // Only a tag the server calls claimable (unowned stock) opens the
+    // activation wizard. An owner's tag switched off from the dashboard is
+    // "inactive" as well, and used to land here too, where the wizard took a
+    // stranger's details and then failed with "Tag is not claimable". That tag
+    // is still the owner's, and only their dashboard switch turns it back on.
+    const registrationState = tag.claimable === true;
+    const switchedOff = !registrationState && tag.status !== "active";
 
     // Fired only once the tag resolves, so the count means "a real sticker was
     // scanned" rather than "the page loaded". Scans per activated tag per month
@@ -1030,20 +1074,20 @@ async function loadScannerView() {
 
     if (registrationState) {
       setText("scanner-load-status", "This WaveTag needs owner registration before contact can be enabled.");
-      setText(
-        "registration-title",
-        tag.status === "inactive"
-          ? "You are about to reactivate the tag"
-          : "You are about to activate the tag"
-      );
-      setText(
-        "registration-copy",
-        tag.status === "inactive"
-          ? "This tag is currently inactive. Reactivate it to start receiving alerts again."
-          : "Please activate all your tags. Each one is unique."
-      );
+      // No "reactivate" wording: a claimable tag has no owner, so whoever
+      // activates it is activating it for the first time.
+      setText("registration-title", "You are about to activate the tag");
+      setText("registration-copy", "Please activate all your tags. Each one is unique.");
       setupActivationWizard(tag, data.supportWhatsapp);
       showOnly("registration-shell");
+      return;
+    }
+
+    // Switched off by its owner. No contact actions and no activation, just a
+    // polite note and a way to get a ParkTag of their own.
+    if (switchedOff) {
+      setText("scanner-load-status", "This ParkTag has been turned off by its owner.");
+      showOnly("tag-off-card");
       return;
     }
 

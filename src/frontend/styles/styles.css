@@ -1232,6 +1232,31 @@ pre {
   margin-top: 20px;
 }
 
+/* A tag its owner has switched off. Same card language as the error card;
+   spacing on the card's own classes for the reason given just above. */
+.pt-tag-off-card {
+  text-align: center;
+}
+.pt-tag-off-card .pt-card-icon {
+  margin: 0 auto 16px;
+}
+.pt-tag-off-card .pt-tag-off-buy {
+  margin-top: 12px;
+}
+#tag-off-get {
+  margin-top: 20px;
+}
+.pt-tag-off-owner {
+  margin: 16px 0 0;
+  font-size: 0.82rem;
+  color: var(--pt-sub);
+  line-height: 1.5;
+}
+.pt-tag-off-owner a {
+  color: var(--pt-ink);
+  font-weight: 700;
+}
+
 /* Card icon */
 .pt-card-icon {
   width: 48px;

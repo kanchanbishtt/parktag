@@ -13,7 +13,10 @@ import vm from "node:vm";
 
 import { ALPHABET } from "../lib/core/referrals.js";
 
-const read = (path) => readFile(new URL(`../../frontend/scripts/${path}`, import.meta.url), "utf8");
+// CRLF folded to LF: a Windows checkout (core.autocrlf) has CRLF line endings,
+// and the slices below look for "\n}\n".
+const read = async (path) =>
+  (await readFile(new URL(`../../frontend/scripts/${path}`, import.meta.url), "utf8")).replace(/\r\n/g, "\n");
 const getJs = await read("get.js");
 const shopJs = await read("shop.js");
 const directJs = await read("direct.js");

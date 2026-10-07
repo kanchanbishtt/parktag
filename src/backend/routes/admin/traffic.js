@@ -2,6 +2,7 @@ import { requireSession } from "../../lib/auth/auth.js";
 import { getCollections } from "../../lib/db/repositories.js";
 import { reconcile } from "../../lib/core/reconciliation.js";
 import { REAL_ORDERS, summariseUtmSales } from "../../lib/core/utm-sales.js";
+import { isInternalPhone } from "../../lib/core/internal-orders.js";
 import { istDayKey, PROBE_PATH_RE } from "../system/analytics.js";
 
 // Read side of landing-page traffic geography.
@@ -231,7 +232,7 @@ export function registerAdminTrafficRoutes(app, env) {
       range: { days, from, to },
       configured: Boolean(env.analyticsIngestKey),
       ...summarize(rows, dayKeys),
-      ...(await shopFunnel(collections, dayKeys, from))
+      ...(await shopFunnel(collections, dayKeys, from, env))
     };
   });
 }
@@ -244,8 +245,8 @@ export function registerAdminTrafficRoutes(app, env) {
 // "checkout started" event, and its status becoming paid IS the purchase. So
 // the question the ads keep raising, did anyone who clicked actually try to
 // buy, is answerable from records the checkout was already keeping.
-async function shopFunnel(collections, dayKeys, from) {
-  const [views, orders] = await Promise.all([
+async function shopFunnel(collections, dayKeys, from, env) {
+  const [views, allOrders] = await Promise.all([
     collections.landingVisits
       .find({ day: { $gte: dayKeys[0], $lte: dayKeys[dayKeys.length - 1] }, site: "app" }, { projection: { _id: 0, day: 1, path: 1 } })
       .toArray(),
@@ -259,6 +260,14 @@ async function shopFunnel(collections, dayKeys, from) {
       )
       .toArray()
   ]);
+
+  // Our own testing leaves the funnel the same way it leaves the revenue
+  // figures. Without this, a morning of checkout testing read as three
+  // "checkouts started" and made a quiet day look like a leak at the address
+  // form. The count of what was left out stays visible so the filter can be
+  // checked rather than trusted.
+  const orders = allOrders.filter((order) => !isInternalPhone(env, order.shippingAddress?.phone));
+  const internalExcluded = allOrders.length - orders.length;
 
   const byDay = new Map(dayKeys.map((day) => [day, { day, shopViews: 0, checkoutsStarted: 0, paid: 0 }]));
 
@@ -308,5 +317,5 @@ async function shopFunnel(collections, dayKeys, from) {
       city: order.shippingAddress?.city || null
     }));
 
-  return { funnel: { days, totals }, abandoned };
+  return { funnel: { days, totals, internalExcluded }, abandoned };
 }

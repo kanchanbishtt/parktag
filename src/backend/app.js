@@ -31,6 +31,7 @@ import { registerAdminDoorhangerRoutes } from "./routes/admin/doorhangers.js";
 import { registerAdminStickerDesignRoutes } from "./routes/admin/sticker-designs.js";
 import { registerAdminPromoCodeRoutes } from "./routes/admin/promo-codes.js";
 import { registerAdminReviewRoutes } from "./routes/admin/reviews.js";
+import { registerAdminOrderRoutes } from "./routes/admin/orders.js";
 import { registerAdminTagReportRoutes } from "./routes/admin/tag-reports.js";
 import { registerAdminApiTokenRoutes } from "./routes/admin/api-tokens.js";
 import { registerMcpRoutes } from "./routes/mcp/index.js";
@@ -73,6 +74,7 @@ const pagesRoot = path.join(frontendRoot, "pages");
 // frontendRoot is also reachable raw through fastifyStatic.
 const analyticsAsset = path.join(currentDir, "assets/analytics.js");
 const scannerPage = path.join(pagesRoot, "scanner/index.html");
+const notFoundPage = path.join(pagesRoot, "not-found.html");
 const verifyPage = path.join(pagesRoot, "scanner/verify.html");
 const trackOrderPage = path.join(pagesRoot, "scanner/track-order.html");
 const reportTagPage = path.join(pagesRoot, "scanner/report-tag.html");
@@ -80,6 +82,7 @@ const adminPage = path.join(pagesRoot, "admin/index.html");
 const adminMarketingPage = path.join(pagesRoot, "admin/marketing.html");
 const adminPromoCodesPage = path.join(pagesRoot, "admin/promo-codes.html");
 const adminReviewsPage = path.join(pagesRoot, "admin/reviews.html");
+const adminOrdersPage = path.join(pagesRoot, "admin/orders.html");
 const adminTagReportsPage = path.join(pagesRoot, "admin/tag-reports.html");
 const adminApiTokensPage = path.join(pagesRoot, "admin/api-tokens.html");
 const adminOverviewPage = path.join(pagesRoot, "admin/overview.html");
@@ -938,6 +941,31 @@ export async function buildApp() {
     reply.code(statusCode).send({ ok: false, error: message });
   });
 
+  // An address the app has no page for. A browser asking for a page gets a
+  // ParkTag "page not found" screen; everything else (the API, scripts, images,
+  // webhooks) keeps the JSON Fastify has always sent, in the same shape.
+  //
+  // Fastify's JSON used to reach people too: a scan page refreshed after its
+  // token was stripped from the address bar showed `{"message":"Route
+  // GET:/vehicle not found",...}` to the person standing at the car.
+  app.setNotFoundHandler(async (request, reply) => {
+    const pathname = pathnameOf(request.url);
+    const wantsPage =
+      (request.method === "GET" || request.method === "HEAD") &&
+      !pathname.startsWith("/api/") &&
+      String(request.headers.accept || "").includes("text/html");
+    reply.code(404);
+    if (wantsPage) {
+      reply.header("Cache-Control", "no-store");
+      return servePage(request, reply, notFoundPage, { validators: false });
+    }
+    return {
+      message: `Route ${request.method}:${request.url} not found`,
+      error: "Not Found",
+      statusCode: 404
+    };
+  });
+
   await app.register(fastifyStatic, {
     root: frontendRoot,
     prefix: "/",
@@ -1476,6 +1504,10 @@ export async function buildApp() {
     return guardAdmin(request, reply, adminReviewsPage);
   });
 
+  app.get("/admin/orders", async (request, reply) => {
+    return guardAdmin(request, reply, adminOrdersPage);
+  });
+
   app.get("/admin/tag-reports", async (request, reply) => {
     return guardAdmin(request, reply, adminTagReportsPage);
   });
@@ -1571,6 +1603,14 @@ export async function buildApp() {
     return serveScannerPage(request, reply);
   });
 
+  // The same page with no token in the path. After a scan, pt-analytics.js
+  // rewrites the address bar to plain "/vehicle" so the Meta Pixel never sees
+  // a tag token, which made every refresh of a scan page a raw JSON 404. The
+  // page now finds its token in the tab's sessionStorage (scanner/app.js) and,
+  // when there is none, asks the visitor to scan the sticker again.
+  app.get("/vehicle", async (request, reply) => serveScannerPage(request, reply));
+  app.get("/tag", async (request, reply) => serveScannerPage(request, reply));
+
   registerRuntimeRoutes(app, env);
   registerDemoRoutes(app, env);
   registerPublicRoutes(app, env);
@@ -1598,6 +1638,7 @@ export async function buildApp() {
   registerAdminStickerDesignRoutes(app, env);
   registerAdminPromoCodeRoutes(app, env);
   registerAdminReviewRoutes(app, env);
+  registerAdminOrderRoutes(app, env);
   registerAdminTagReportRoutes(app, env);
   registerAdminApiTokenRoutes(app, env);
   registerOAuthRoutes(app, env);

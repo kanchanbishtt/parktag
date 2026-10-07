@@ -1,0 +1,77 @@
+/* The "page not found" page (pages/not-found.html). Self-contained, so it
+   renders the same whichever URL it is served at. */
+@font-face {
+  font-family: "Inter";
+  src: url("/fonts/inter-latin-var.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+* { box-sizing: border-box; }
+
+.nf-body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: #F4F6F9;
+  color: #03162D;
+  display: flex;
+  flex-direction: column;
+}
+
+.nf-head {
+  background: #03162D;
+  padding: 18px 20px;
+  display: flex;
+  justify-content: center;
+}
+
+.nf-logo { height: 42px; width: auto; display: block; mix-blend-mode: lighten; }
+
+.nf-main {
+  flex: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 40px 16px;
+}
+
+.nf-card {
+  width: 100%;
+  max-width: 420px;
+  background: #fff;
+  border: 1px solid #E5E7EB;
+  border-radius: 20px;
+  padding: 28px 22px;
+  text-align: center;
+  box-shadow: 0 10px 30px rgba(3, 22, 45, .08);
+}
+
+.nf-code {
+  margin: 0 0 8px;
+  font-size: .75rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: #FF2700;
+}
+
+.nf-title { margin: 0 0 10px; font-size: 1.35rem; font-weight: 900; line-height: 1.25; }
+
+.nf-text { margin: 0 0 22px; font-size: .95rem; line-height: 1.5; color: #495B7B; }
+
+.nf-actions { display: flex; flex-direction: column; gap: 10px; }
+
+.nf-btn {
+  display: block;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1.5px solid #D1D5DB;
+  color: #03162D;
+  font-weight: 800;
+  font-size: .95rem;
+  text-decoration: none;
+}
+
+.nf-btn-primary { background: #FF2700; border-color: #FF2700; color: #fff; }
+.nf-btn-primary:hover { background: #D92200; border-color: #D92200; }

@@ -1269,7 +1269,8 @@ export function registerAdminRoutes(app, env) {
       contactsNew,
       contactsFailed,
       contactsOurs,
-      traffic
+      traffic,
+      reportsOpen
     ] = await Promise.all([
       collections.owners.countDocuments({ ...NOT_DEMO_OWNER, ...ours.notOwner }),
       collections.owners.countDocuments({ ...NOT_DEMO_OWNER, ...ours.notOwner, ...createdSince }),
@@ -1296,7 +1297,9 @@ export function registerAdminRoutes(app, env) {
       // createdSince is itself an $or, so the two conditions meet under $and.
       collections.contactRequests.countDocuments({ ...ours.notRequest, $and: [failedContact, createdSince] }),
       ours.isRequest ? collections.contactRequests.countDocuments(ours.isRequest) : 0,
-      landingTotals(collections, trafficDays)
+      landingTotals(collections, trafficDays),
+      // GET /api/admin/tag-reports: what scanners flagged and nobody has handled.
+      collections.tagReports.countDocuments({ status: { $ne: "resolved" } })
     ]);
 
     return {
@@ -1334,6 +1337,7 @@ export function registerAdminRoutes(app, env) {
           sold: demoStock.filter((t) => demoState(t) === "sold").length
         },
         contacts: { total: contacts, new: contactsNew, failed: contactsFailed },
+        reports: { open: reportsOpen },
         traffic: { visitors: traffic.visitors, views: traffic.views }
       }
     };

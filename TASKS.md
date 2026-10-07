@@ -13,6 +13,12 @@ Rules:
 
 ## Milestones
 
+### Admin Tag Reports page
+- [x] A scanner's "Report wrong info" submission (`POST /api/tags/:token/report` → `tag_reports`) was stored and never read back. New admin page `/admin/tag-reports` (sidebar: Monitoring → Tag Reports, on every admin page) lists reports open-first with the reason, free text, the reported sticker (plate, serial, state) and its owner, and the reporter to call back (tel + WhatsApp).
+- [x] `GET /api/admin/tag-reports?status=open|resolved|all&q=&page=` (100 a page; search by plate, serial, reporter name/number or text) and `POST /api/admin/tag-reports/:id/status` { status, note } recording who, when and a note; reopen keeps the note; nothing is ever deleted.
+- [x] Overview: "Open tag reports" tile under Needs attention (`summary.reports.open`). API tokens: read scope for the list, ops scope for status. MCP: `parktag_tag_reports` (read, fenced) and `parktag_resolve_tag_report` (ops).
+- [x] Verify: `admin-tag-reports.test.js` (4: admin-only, public form → MongoDB → admin page with sticker and owner, views + search, resolve/reopen + overview count); 40 token/overview/hardening/report-form tests; headless Chrome end to end on the local server (13 checks).
+
 ### Activation queue: what "sold, not activated" means
 - [x] Overview tile counts only orders with nothing live; multi-packs with some stickers live are counted apart ("N more packs are partly activated") and wear a green "1 of 2 live" badge on the Activations page.
 - [x] Reseller orders (`channel: "reseller"`) are left out of the reminder queue and counted in a note: their stickers are activated by the reseller's customers on their own numbers, so the queue can never see them as done.

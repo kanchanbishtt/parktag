@@ -35,7 +35,7 @@ const READ = [
   "/api/admin/reconciliation", "/api/admin/promo-codes", "/api/admin/promo-codes/report", "/api/admin/shop-settings",
   "/api/admin/etags", "/api/admin/etags/:tagId", "/api/admin/tag-batches", "/api/admin/print-queue",
   "/api/admin/activations", "/api/admin/activations/recent", "/api/admin/activity", "/api/admin/marketing",
-  "/api/admin/sticker-designs", "/api/admin/sticker-designs/current", "/api/admin/reviews"
+  "/api/admin/sticker-designs", "/api/admin/sticker-designs/current", "/api/admin/reviews", "/api/admin/tag-reports"
 ];
 const WRITE = [
   "POST /api/admin/promo-codes", "PATCH /api/admin/promo-codes/:code",
@@ -49,7 +49,7 @@ const OPS = [
   "POST /api/admin/tags/issue", "POST /api/admin/etags/:tagId/status",
   "POST /api/admin/print-queue/:tagId/mark-printed", "POST /api/admin/print-queue/mark-run-printed",
   "POST /api/admin/marketing/add", "POST /api/admin/marketing/:tagId/sold", "POST /api/admin/marketing/:tagId/deactivate",
-  "POST /api/admin/reviews/:id/approve", "POST /api/admin/activations/:orderId/reminder",
+  "POST /api/admin/reviews/:id/approve", "POST /api/admin/tag-reports/:id/status", "POST /api/admin/activations/:orderId/reminder",
   "POST /api/admin/sticker-designs/:id/publish", "POST /api/admin/sticker-designs/unpublish"
 ];
 // "METHOD /route/pattern" -> the scope needed to call it.

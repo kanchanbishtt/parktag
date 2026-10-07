@@ -984,6 +984,7 @@ function renderOverviewSummary(data) {
             ? `Orders with no live sticker yet · ${formatCount(s.activations.partial)} more ${s.activations.partial === 1 ? "pack is" : "packs are"} partly activated`
             : "Paid or COD orders with no live sticker yet"
         },
+        { href: "/admin/tag-reports", label: "Open tag reports", value: s.reports?.open ?? 0, sub: "Flagged by scanners, not yet handled" },
         { href: "/admin/print-queue", label: "Unprinted tags", value: s.printQueue.unprinted, sub: "Waiting in the print queue" },
         { href: "/admin/activity", label: `Failed contacts (${period.short})`, value: s.contacts.failed, sub: "Calls or messages the provider could not deliver" }
       ]

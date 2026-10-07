@@ -12,8 +12,25 @@ The master switch. Off writes `status: "inactive"` through
 - `/verify`, `/api/contact-requests`, `register-call` and
   `register-emergency-call` all refuse (404 "Tag not found or not active").
 - `/api/tags/:token` withholds the masked plate, the caller number and the SOS
-  flag; the scanner page says the tag is inactive and offers reactivation.
+  flag, and reports `claimable: false`.
 - The owner link stays, so a paused sticker cannot be claimed by someone else.
+  The tag stays on the owner's dashboard, and the same switch turns it back on.
+  Nothing else does: there is no reactivation from the sticker.
+
+### What a scanner sees (owner's rule, 2026-10-07)
+
+The scan page shows `#tag-off-card`: "This tag is inactive", the owner has
+turned it off for now, a **Get a ParkTag** button to `/get`, and a small
+"Is this your vehicle?" link to `/owner`. No contact actions, no wizard.
+
+Until 2026-10-07 the page chose the activation wizard from the status alone
+(`["unclaimed", "inactive"].includes(tag.status)`), so a switched-off tag
+opened "You are about to reactivate the tag". The wizard sent an OTP, took the
+scanner's details, and the server then refused with "Tag is not claimable",
+because the tag still has its owner. The page now opens the wizard only when
+the server says `claimable: true` (unowned stock, including unowned
+`inactive` stock), and shows the inactive card for any other tag that is not
+`active`. A soft-deleted or replaced sticker lands on the same card.
 
 ## Calls Active → `callsPaused`
 
@@ -53,6 +70,9 @@ from the dashboard payload.
 
 - `src/backend/tests/calls-active-switch.test.js` covers the endpoint, the three
   scanner routes under each switch, and ownership.
+- `src/backend/tests/tag-off-scan.test.js` covers a switched-off tag: still
+  owned, still on the dashboard, not claimable, back on by the same switch, and
+  the scan page's inactive card.
 - The suite refuses to run against the `dev_` prefix: use
   `MONGODB_COLLECTION_PREFIX=test_ npm test`.
 - The server stamps script URLs with a hash of the asset tree at boot and serves

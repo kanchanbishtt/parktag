@@ -40,10 +40,18 @@ const routes = await readFile(PUBLIC_ROUTES, "utf8");
 
 describe("the tag token survives the analytics URL strip", () => {
   test("the token is read once at module load, not per call", () => {
+    // Captured once at module scope. resolveTagToken() reads the URL and, when
+    // the URL has been stripped (a reload), the tab's sessionStorage copy; see
+    // scan-page-refresh.test.js.
     assert.match(
       scanner,
-      /const TAG_TOKEN = readTokenFromUrl\(\);/,
+      /const TAG_TOKEN = resolveTagToken\(\);/,
       "the token is no longer captured once at module scope"
+    );
+    assert.match(
+      scanner,
+      /function resolveTagToken\(\)\s*\{\s*const fromUrl = readTokenFromUrl\(\);/,
+      "resolveTagToken no longer starts from the URL"
     );
     assert.match(
       scanner,

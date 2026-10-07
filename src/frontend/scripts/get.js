@@ -53,7 +53,9 @@ const SUPPORT_WHATSAPP = "918791638854";
 const HERO_PACK = "pt-car-2";
 
 let _products = {};
-let _launchOffer = null;
+// The website offer on each pack, off the catalogue. The server applies the
+// same offers to the order on its own; these are for showing the price.
+let _offers = {};
 let _addOn = null;
 let _checkedOutAddOn = null;
 // { surchargePaise, productIds, maxQuantity } off the catalogue: which packs take Cash on
@@ -73,7 +75,7 @@ function rupees(paise) {
 // server's own per-unit amountPaise -- never a computed discount, and never a
 // number this page invented.
 function offerFor(sku) {
-  return _launchOffer && _launchOffer.productId === sku ? _launchOffer : null;
+  return _offers[sku] || null;
 }
 
 function codFor(sku, quantity = 1) {
@@ -84,7 +86,11 @@ function codFor(sku, quantity = 1) {
 
 function pricedTotalPaise(sku, priced, qty, addOn = null) {
   const offer = offerFor(sku);
-  return (priced.amountPaise * qty) - (offer?.discountPaise || 0) + (addOn?.amountPaise || 0);
+  // The server's own figure for this many packs (a percent or per-pack offer
+  // does not scale like a flat one); the subtraction only for an older reply.
+  const byQty = offer && Array.isArray(offer.payableByQuantity) ? offer.payableByQuantity[qty - 1] : undefined;
+  const packs = typeof byQty === "number" ? byQty : (priced.amountPaise * qty) - (offer?.discountPaise || 0);
+  return packs + (addOn?.amountPaise || 0);
 }
 
 function applyQtyTotal(el, priced, qty, sku) {
@@ -109,7 +115,7 @@ function renderChips(products) {
   // not repeat the word ParkTag a third time on one screen.
   const offer = offerFor(HERO_PACK);
   chip.textContent = offer
-    ? `${hero.name.replace(/^ParkTag\s*/, "")} · ${rupees(offer.offerPaise)} launch offer · MRP ${rupees(offer.mrpPaise)}`
+    ? `${hero.name.replace(/^ParkTag\s*/, "")} · ${rupees(offer.offerPaise)} offer · MRP ${rupees(offer.mrpPaise)}`
     : `${hero.name.replace(/^ParkTag\s*/, "")} · ${rupees(hero.amountPaise)}`;
 }
 
@@ -268,7 +274,7 @@ function renderBar(products) {
   const offer = offerFor(HERO_PACK);
   const codNote = codFor(HERO_PACK) ? " · COD available" : "";
   if (sub) sub.textContent = offer
-    ? `${rupees(offer.offerPaise)} launch offer · MRP ${rupees(offer.mrpPaise)} · Free delivery${codNote}`
+    ? `${rupees(offer.offerPaise)} offer · MRP ${rupees(offer.mrpPaise)} · Free delivery${codNote}`
     : `${rupees(hero.amountPaise)} · Free delivery${codNote}`;
 }
 
@@ -718,7 +724,8 @@ async function buy(sku) {
         recaptchaToken,
         ref: referralCode(),
         quantity,
-        promo: offer?.code,
+        // No promo: the server applies the website offer itself, the same one
+        // this page shows, so the page can never forget to ask for it.
         addOnId: addOn?.id,
         paymentMethod,
         // Ticked at checkout. The server records WHEN, never a bare boolean.
@@ -1207,7 +1214,7 @@ async function load() {
   }
 
   _products = payload.products;
-  _launchOffer = payload.launchOffer || null;
+  _offers = payload.offers || (payload.launchOffer ? { [payload.launchOffer.productId]: payload.launchOffer } : {});
   if (Number.isInteger(payload.maxQuantity) && payload.maxQuantity >= 1) _maxQty = payload.maxQuantity;
   _cod = typeof payload.codSurchargePaise === "number" && Array.isArray(payload.codProductIds)
     ? {

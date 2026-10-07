@@ -296,7 +296,7 @@ function selectVariant(i) {
 function renderSheet() {
   const p = PRODUCTS[_activeProduct];
   const shown = cardPrice(p);
-  const offer = launchOfferFor(p.id);
+  const offer = websiteOfferFor(p.id);
   const body = document.getElementById("ptSheetBody");
   body.innerHTML = `
     <div class="pt-sheet-img">
@@ -401,7 +401,9 @@ async function startPayment(productId, variant, label, btn) {
     const orderRes = await fetch("/api/shop/create-order", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ productId, variant, replaceTagId })
+      // promo: the code typed in the pack step, if any. The server checks it
+      // again and falls back to the website offer if it does not apply.
+      body: JSON.stringify({ productId, variant, replaceTagId, promo: _typedCode ? _typedCode.code : undefined })
     });
     const orderData = await orderRes.json();
     if (!orderRes.ok || !orderData.orderId) throw new Error(orderData.error || "Order creation failed.");
@@ -457,6 +459,8 @@ async function startPayment(productId, variant, label, btn) {
         closePackSheet();
         window._replaceTagId = null; // consume the replace-context either way
         if (verifyData.ok) {
+          _typedCode = null; // used: the next order starts without it
+          _codeDraft = "";
           // Online = already paid → confirmation WITHOUT the flash offer.
           //
           // The figures come from verify-payment, i.e. off the order the server
@@ -522,27 +526,44 @@ function loadShopPricing() {
   return _shopPricingInFlight;
 }
 
-// The launch offer on this exact SKU, as the server will charge it, or null.
+// The website offer on this exact SKU, as the server will charge it, or null.
 // create-order and place-cod apply it themselves; this is only so the sheet
-// quotes the price the landing page advertised and the order will be written at.
-function launchOfferFor(sku) {
-  const offer = _shopPricing && _shopPricing.launchOffer;
+// quotes the price the landing page and /shop show, which is the price the
+// order will be written at.
+function websiteOfferFor(sku) {
+  const offers = _shopPricing && _shopPricing.offers;
+  if (offers) return offers[sku] || null;
+  const offer = _shopPricing && _shopPricing.launchOffer; // an older reply
   return offer && offer.productId === sku ? offer : null;
 }
 
-// Rupee price for one row of the sheet: the server's figure when we have it,
-// the local table only until then.
+// A code the customer typed in the pack step, and the server's answer for the
+// pack it was checked against: { code, sku, result } with result straight from
+// /api/shop/promo/check. A valid one replaces the website offer for that order,
+// the same rule the order routes price by.
+let _typedCode = null;
+let _codeDraft = "";
+
+function typedCodeFor(sku) {
+  return _typedCode && _typedCode.sku === sku && _typedCode.result && _typedCode.result.ok ? _typedCode : null;
+}
+
+// Rupee price for one row of the sheet: a valid typed code, else the website
+// offer, else the server's catalogue figure; the local table only until the
+// server has answered.
 function rowRupees(sku, fallbackRupees) {
-  const offer = launchOfferFor(sku);
+  const typed = typedCodeFor(sku);
+  if (typed) return Math.round(typed.result.payablePaise / 100);
+  const offer = websiteOfferFor(sku);
   if (offer) return Math.round(offer.offerPaise / 100);
   const paise = _shopPricing && _shopPricing.products[sku] && _shopPricing.products[sku].amountPaise;
   return typeof paise === "number" ? Math.round(paise / 100) : fallbackRupees;
 }
 
-// Price, struck price and badge for a product card or sheet. With the launch
+// Price, struck price and badge for a product card or sheet. With a website
 // offer the struck price is the real MRP, the same pair the landing page shows.
 function cardPrice(p) {
-  const offer = launchOfferFor(p.id);
+  const offer = websiteOfferFor(p.id);
   if (offer) {
     return {
       price: Math.round(offer.offerPaise / 100),
@@ -625,10 +646,87 @@ function packProceed() {
   startPayment(sku, _packVariant, label, document.querySelector(".pt-pack-proceed"));
 }
 
+// ── Promo code in the pack step ───────────────────────────────
+// The same words /direct shows for a refused code.
+const PACK_CODE_REFUSALS = {
+  malformed: "That code does not look right.",
+  unknown: "We do not recognise that code.",
+  revoked: "That code is no longer active.",
+  "not-started": "That code is not active yet.",
+  expired: "That code has expired.",
+  exhausted: "That code has already been used.",
+  "not-yours": "That code was issued for a different mobile number.",
+  "wrong-pack": "That code is for a different pack.",
+  "handover-only": "That code is for in-person sales only."
+};
+
+function escText(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+// Display only: create-order and place-cod resolve the code again and that is
+// what is charged. The delivery phone is the server's (the saved address), so
+// a phone-bound code is checked against it there, not here.
+async function checkPackCode(code, sku) {
+  try {
+    const res = await fetch("/api/shop/promo/check", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ code, productId: sku, quantity: 1, context: "dashboard" })
+    });
+    const result = await res.json();
+    return result && typeof result.ok === "boolean" ? result : { ok: false, reason: "unknown" };
+  } catch {
+    return { ok: false, reason: "unknown" };
+  }
+}
+
+function runPackCodeCheck(code, sku) {
+  _typedCode = { code, sku, result: null, checking: true };
+  checkPackCode(code, sku).then((result) => {
+    // Removed, replaced or re-pointed at another pack while this was in flight.
+    if (!_typedCode || _typedCode.code !== code || _typedCode.sku !== sku) return;
+    _typedCode = { code, sku, result };
+    if (document.getElementById("ptPackSheet").classList.contains("open")) renderPackSheet();
+  });
+}
+
+function applyPackCode() {
+  const code = _codeDraft.trim().toUpperCase();
+  const sku = resolvePackSku();
+  if (!code || !sku) return;
+  runPackCodeCheck(code, sku);
+  renderPackSheet();
+}
+
+function removePackCode() {
+  _typedCode = null;
+  _codeDraft = "";
+  renderPackSheet();
+}
+
+function packCodeNote(sku, offer) {
+  if (!_typedCode) return "";
+  const remove = `<button type="button" class="pt-pack-code-x" onclick="removePackCode()">Remove</button>`;
+  if (_typedCode.checking) return `<p class="pt-pack-code-note">Checking ${escText(_typedCode.code)}…</p>`;
+  const r = _typedCode.result;
+  if (r && r.ok) {
+    return `<p class="pt-pack-code-note ok">${escText(_typedCode.code)} applied: ₹${Math.round(r.discountPaise / 100)} off.${remove}</p>`;
+  }
+  const why = PACK_CODE_REFUSALS[r && r.reason] || "That code is not valid.";
+  const fallback = offer ? ` The ${escText(offer.code)} offer still applies.` : "";
+  return `<p class="pt-pack-code-note bad">${why}${fallback}${remove}</p>`;
+}
+
 function renderPackSheet() {
   const sku = resolvePackSku();
   const empty = !sku;
-  const offer = launchOfferFor(sku);
+  // A code checked against one pack, and the selection has moved to another:
+  // check it again for the pack now chosen (the answer can differ by pack).
+  if (_typedCode && sku && _typedCode.sku !== sku) runPackCodeCheck(_typedCode.code, sku);
+  const typed = typedCodeFor(sku);
+  const offer = websiteOfferFor(sku);
   // The server prices the whole SKU, so the combined packs are priced as one
   // item rather than by re-adding the parts here.
   const localTotal = (_packTier ? PACK_PRICES[_packTier] : 0) + (_packBike ? PACK_PRICES.bike : 0);
@@ -662,6 +760,15 @@ function renderPackSheet() {
       <span class="pt-pack-price">₹${rowRupees("pt-bike-1", PACK_PRICES.bike)}</span>
     </button>
 
+    <div class="pt-pack-code">
+      <input class="pt-pack-code-in" type="text" placeholder="Have a promo code?" aria-label="Promo code"
+        maxlength="16" autocomplete="off" autocapitalize="characters" spellcheck="false"
+        value="${escText(_codeDraft)}" oninput="_codeDraft = this.value"
+        onkeydown="if (event.key === 'Enter') { event.preventDefault(); applyPackCode(); }">
+      <button type="button" class="pt-pack-code-btn" onclick="applyPackCode()"${empty ? " disabled" : ""}>Apply</button>
+    </div>
+    ${packCodeNote(sku, offer)}
+
     <div class="pt-pack-total">
       <span class="pt-pack-total-lbl">Order total</span>
       <span class="pt-pack-total-amt">₹${total}</span>
@@ -670,7 +777,7 @@ function renderPackSheet() {
       <button type="button" class="pt-pack-proceed" onclick="packProceed()"${empty ? " disabled" : ""}>Pay online now</button>
       <button type="button" class="pt-pack-cod" onclick="packPlaceCod()"${empty || codTotal === null ? " disabled" : ""}>${codTotal === null ? "Cash on Delivery" : `Cash on Delivery · ₹${codTotal}`}</button>
     </div>
-    <p class="pt-pack-foot">${offer ? `${offer.code} applied: ₹${Math.round(offer.discountPaise / 100)} off the MRP of ₹${Math.round(offer.mrpPaise / 100)}. ` : ""}${packFootNote(empty, total, codSurcharge, codTotal)}</p>
+    <p class="pt-pack-foot">${!typed && offer ? `${offer.code} applied: ₹${Math.round(offer.discountPaise / 100)} off the MRP of ₹${Math.round(offer.mrpPaise / 100)}. ` : ""}${packFootNote(empty, total, codSurcharge, codTotal)}</p>
   `;
 }
 
@@ -713,6 +820,7 @@ async function placeCodRequest(sku, otp) {
       // validates it against its own list and drops anything else.
       variant: _packVariant,
       replaceTagId: window._replaceTagId || null,
+      promo: _typedCode ? _typedCode.code : undefined,
       otp: otp || undefined
     })
   });
@@ -722,6 +830,8 @@ async function placeCodRequest(sku, otp) {
 
 function finishCod(data) {
   window._replaceTagId = null;
+  _typedCode = null; // used: the next order starts without it
+  _codeDraft = "";
   closeCodOtp();
   closePackSheet();
   showConfirmation({

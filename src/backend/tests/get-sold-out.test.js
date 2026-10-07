@@ -95,9 +95,10 @@ describe("sold-out packs on /get", () => {
     assert.doesNotMatch(source, /el\.href = `\/shop/, "a hero CTA still links to /shop");
   });
 
-  test("the launch offer and acrylic add-on remain server-priced", () => {
-    assert.match(source, /_launchOffer = payload\.launchOffer \|\| null/);
-    assert.match(source, /promo: offer\?\.code/);
+  test("the website offer and acrylic add-on remain server-priced", () => {
+    assert.match(source, /_offers = payload\.offers \|\|/);
+    // The server applies the website offer itself; the page sends no code.
+    assert.doesNotMatch(source, /promo: offer/);
     assert.match(source, /addOnId: addOn\?\.id/);
     // Duo Pack only: the plate is picked per sku, never from the checkbox alone.
     assert.match(source, /\(_addOn\.productIds \|\| \[\]\)\.includes\(sku\)/);

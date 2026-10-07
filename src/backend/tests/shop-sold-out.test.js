@@ -118,8 +118,11 @@ describe("sold-out packs on /shop", () => {
     assert.match(addressSource, /UPI, cards or net banking/);
   });
 
-  test("the launch offer and acrylic add-on are sent as identifiers, never client-authored prices", () => {
-    assert.match(source, /promo:\s*_launchOffer/);
+  test("the website offer and acrylic add-on are sent as identifiers, never client-authored prices", () => {
+    // The offer is read off the catalogue and applied by the server; the page
+    // sends no code of its own (see website-offer-parity.test.js).
+    assert.match(source, /_offers = payload\.offers \|\|/);
+    assert.doesNotMatch(source, /promo:\s*_launchOffer/);
     assert.match(source, /addOnId:\s*addOn\?\.id/);
     // Duo Pack only: the plate is picked per sku, never from the checkbox alone.
     assert.match(source, /\(_addOn\.productIds \|\| \[\]\)\.includes\(sku\)/);

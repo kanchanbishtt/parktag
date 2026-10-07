@@ -11,7 +11,7 @@ import { WhatIsParkTag } from "./components/WhatIsParkTag";
 import { TrustStrip } from "./components/TrustStrip";
 import { HowItWorksSteps } from "./components/HowItWorksSteps";
 import { WhyBetter } from "./components/WhyBetter";
-import { DuoOfferButtonLabel, DuoOfferDetails, DuoOfferPrice, HeroOfferLabel, LaunchOfferBanner, getLaunchOffer } from "./components/LaunchOffer";
+import { DuoOfferButtonLabel, DuoOfferDetails, DuoOfferPrice, HeroOfferLabel, LaunchOfferBanner, SoloOfferDetails, SoloOfferPrice, codPaise, getCatalogue, money, packPaise } from "./components/LaunchOffer";
 import { LazyVideo } from "./components/LazyVideo";
 import { ImageZoom } from "./components/ImageZoom";
 
@@ -191,7 +191,9 @@ function BrandSticker() {
 
 /* ── Page ── */
 export default async function Home() {
-  const offer = await getLaunchOffer();
+  const catalogue = await getCatalogue();
+  const offer = catalogue?.launchOffer ?? null;
+  const duoCod = codPaise(catalogue, "pt-car-2", 49900);
   return (
     <>
       <SiteHeader />
@@ -733,10 +735,10 @@ export default async function Home() {
                 <div className="border border-gray-200 rounded-2xl p-8 flex flex-col h-full hover:border-gray-300 hover:shadow-xl motion-safe:hover:-translate-y-1 transition duration-300 ease-out">
                   <div className="text-xs font-bold tracking-widest uppercase text-[#495B7B] mb-5">Solo Tag</div>
                   <div className="flex items-end gap-2 mb-1">
-                    <span className="text-5xl font-extrabold text-[#03162D] tracking-tight leading-none">₹299</span>
+                    <SoloOfferPrice catalogue={catalogue} />
                     <span className="text-sm text-[#495B7B] mb-1">1 year included</span>
                   </div>
-                  <div className="text-xs text-[#495B7B] mb-8">1 vehicle · ₹299 per tag</div>
+                  <div className="text-xs text-[#495B7B] mb-8"><SoloOfferDetails catalogue={catalogue} /></div>
 
                   <ul className="space-y-3 mb-10 flex-1">
                     {[
@@ -786,7 +788,8 @@ export default async function Home() {
                       "Cheaper than buying two Solo tags",
                       "1 year of Premium included",
                       "Lifetime WhatsApp scan notifications",
-                      "Cash on delivery at ₹529 (offer is online-only)",
+                      // What the courier collects: the price above plus the COD fee.
+                      duoCod != null ? `Cash on delivery at ${money(duoCod)}` : "Cash on delivery available",
                       "Priority support",
                     ].map((f) => (
                       <li key={f} className="flex items-start gap-3 text-sm text-white/60">
@@ -870,7 +873,7 @@ export default async function Home() {
               please <Link href="/contact" className="text-[#FF2700] hover:underline">contact us</Link>{" "}
               using the email form.
             </h2>
-            <FaqAccordion />
+            <FaqAccordion catalogue={catalogue} />
           </div>
         </section>
 
@@ -890,7 +893,7 @@ export default async function Home() {
                 </a>
                 <BuyOnAmazonButton className="inline-flex items-center gap-1.5 text-base text-white/60 hover:text-white underline underline-offset-4 decoration-white/25 hover:decoration-white transition-colors" />
               </div>
-              <p className="text-white/25 text-sm mt-4">Starting at ₹299 · Ships across India · 1 year of Premium included · WhatsApp alerts stay free</p>
+              <p className="text-white/25 text-sm mt-4">Starting at {money(Math.min(packPaise(catalogue, "pt-car-1", 29900), packPaise(catalogue, "pt-car-2", 49900)))} · Ships across India · 1 year of Premium included · WhatsApp alerts stay free</p>
             </AnimateIn>
           </div>
         </section>

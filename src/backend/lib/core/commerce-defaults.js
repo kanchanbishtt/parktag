@@ -21,12 +21,20 @@ export async function ensureCommerceDefaults(collections, log) {
           usedByOrders: [],
           expiresAt: null,
           fulfilment: "ship",
+          autoApply: true,
           active: true,
           createdAt: now,
           createdBy: "system:commerce-defaults"
         }
       },
       { upsert: true }
+    );
+    // LAUNCH100 was the website offer before "Auto-apply on the website" was a
+    // switch. A row that has never had the switch gets it on, once; after that
+    // the admin's choice stands, the same bargain as $setOnInsert above.
+    await collections.promoCodes.updateOne(
+      { code: "LAUNCH100", autoApply: { $exists: false } },
+      { $set: { autoApply: true } }
     );
   } catch (error) {
     log?.warn?.({ err: error }, "[commerce] default launch offer could not be ensured");

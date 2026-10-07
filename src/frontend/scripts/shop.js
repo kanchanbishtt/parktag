@@ -95,7 +95,7 @@ function ratingRow(rating) {
   return row;
 }
 
-function renderGrid(products, launchOffer) {
+function renderGrid(products) {
   const list = byId("shGrid");
   if (!list) return;
 
@@ -113,12 +113,12 @@ function renderGrid(products, launchOffer) {
     if (want === pack.id) li.classList.add("sh-card-hi");
     if (pack.soldOut) li.classList.add("sh-card-out");
 
-    const offer = launchOffer && launchOffer.productId === pack.id ? launchOffer : null;
+    const offer = offerFor(pack.id);
 
     if (pack.soldOut) {
       li.append(el("span", "sh-badge sh-badge-out", "Sold out"));
     } else if (offer) {
-      li.append(el("span", "sh-badge", `Launch offer · ${rupees(offer.discountPaise)} off`));
+      li.append(el("span", "sh-badge", `Offer · ${rupees(offer.discountPaise)} off`));
     } else if (pack.badge) {
       const badge = el("span", "sh-badge");
       badge.innerHTML = STAR; // static markup, never user input
@@ -275,7 +275,12 @@ const cart = checkoutCart("pt_shop_cart");
 let _paidPaise = 0;
 // The promo code the server actually applied, reported as GA4 `coupon`.
 let _paidCoupon = null;
-let _launchOffer = null;
+// The website offer on each pack, off the catalogue. The server applies the
+// same offers to the order on its own; these are for showing the price.
+let _offers = {};
+function offerFor(sku) {
+  return _offers[sku] || null;
+}
 let _addOn = null;
 let _checkedOutAddOn = null;
 // { surchargePaise, productIds } off the catalogue: which packs take Cash on
@@ -393,7 +398,7 @@ async function buy(sku, product) {
 
   const addOn = selectedAddOn(sku);
   _checkedOutAddOn = addOn;
-  const offerPrice = _launchOffer && _launchOffer.productId === sku ? _launchOffer.offerPaise : product?.amountPaise;
+  const offerPrice = offerFor(sku) ? offerFor(sku).offerPaise : product?.amountPaise;
   // The sheet is also where the buyer picks online or Cash on Delivery, for a
   // pack the catalogue says takes it.
   const cod = _cod && _cod.productIds.includes(sku) ? _cod : null;
@@ -413,8 +418,8 @@ async function buy(sku, product) {
       ? {
           name: addOn ? `${product.name} + ${addOn.name}` : product.name,
           amountPaise: offerPrice + (addOn?.amountPaise || 0),
-          mrpPaise: _launchOffer && _launchOffer.productId === sku ? _launchOffer.mrpPaise : null,
-          offerLabel: _launchOffer && _launchOffer.productId === sku ? `${_launchOffer.code} auto-applied` : null,
+          mrpPaise: offerFor(sku) ? offerFor(sku).mrpPaise : null,
+          offerLabel: offerFor(sku) ? `${offerFor(sku).code} auto-applied` : null,
           cod: cod
             ? { amountPaise: offerPrice + (addOn?.amountPaise || 0) + cod.surchargePaise, feePaise: cod.surchargePaise }
             : null
@@ -432,7 +437,7 @@ async function buy(sku, product) {
     ptTrack("add_shipping_info", {
       value: (offerPrice + (addOn?.amountPaise || 0)) / 100,
       currency: "INR",
-      ...(_launchOffer && _launchOffer.productId === sku ? { coupon: _launchOffer.code } : {}),
+      ...(offerFor(sku) ? { coupon: offerFor(sku).code } : {}),
       items: [{ item_id: sku, quantity: 1 }, ...(addOn ? [{ item_id: addOn.id, quantity: 1 }] : [])]
     });
   }
@@ -483,7 +488,8 @@ async function buy(sku, product) {
         productId: sku,
         address,
         ref: referralCode(),
-        promo: _launchOffer && _launchOffer.productId === sku ? _launchOffer.code : undefined,
+        // No promo: the server applies the website offer itself, the same one
+        // the card shows, so a page can never forget to ask for it.
         recaptchaToken,
         addOnId: addOn?.id,
         paymentMethod,
@@ -664,7 +670,7 @@ function wireCheckout(products) {
 
     if (window.ptTrack) {
       const priced = products && products[sku];
-      const offer = _launchOffer && _launchOffer.productId === sku ? _launchOffer : null;
+      const offer = offerFor(sku);
       const addOn = selectedAddOn(sku);
       const valuePaise = priced
         ? (offer ? offer.offerPaise : priced.amountPaise) + (addOn?.amountPaise || 0)
@@ -706,11 +712,11 @@ async function load() {
     return;
   }
 
-  _launchOffer = payload.launchOffer || null;
+  _offers = payload.offers || (payload.launchOffer ? { [payload.launchOffer.productId]: payload.launchOffer } : {});
   _cod = typeof payload.codSurchargePaise === "number" && Array.isArray(payload.codProductIds)
     ? { surchargePaise: payload.codSurchargePaise, productIds: payload.codProductIds }
     : null;
-  renderGrid(payload.products, _launchOffer);
+  renderGrid(payload.products);
   renderAddOns(payload.addOns);
   // What this tab had chosen before a reload. Set directly, not through a
   // change event: that would re-fire add_on_selected for a tick the buyer made
@@ -739,8 +745,8 @@ async function load() {
   // event is the size of the drop the login wall was causing.
   if (window.ptTrack) {
     const lead = payload.products[PACKS[0].id];
-    // The launch offer's price when it is the one on screen, not the MRP.
-    const leadOffer = _launchOffer && _launchOffer.productId === PACKS[0].id ? _launchOffer : null;
+    // The offer price when there is one on screen, not the MRP.
+    const leadOffer = offerFor(PACKS[0].id);
     ptTrack("view_item", {
       items: Object.entries(payload.products).map(([id, p]) => ({ item_id: id, item_name: p.name })),
       ...(lead ? { value: (leadOffer ? leadOffer.offerPaise : lead.amountPaise) / 100, currency: "INR" } : {}),

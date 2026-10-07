@@ -34,8 +34,10 @@ const ADDRESS_STEP_JS = path.join(HERE, "../../frontend/scripts/owner/address-st
 // is a deliberate edit in two places rather than a silent one in the page.
 const SOLD_OUT = ["pt-combo", "pt-bike-1"];
 
-const source = await readFile(SHOP_JS, "utf8");
-const addressSource = await readFile(ADDRESS_STEP_JS, "utf8");
+// CRLF folded to LF: a Windows checkout (core.autocrlf) has CRLF line endings,
+// and the patterns below are written with \n.
+const source = (await readFile(SHOP_JS, "utf8")).replace(/\r\n/g, "\n");
+const addressSource = (await readFile(ADDRESS_STEP_JS, "utf8")).replace(/\r\n/g, "\n");
 
 // The `soldOut: true` entries the page actually declares.
 function declaredSoldOut(js) {

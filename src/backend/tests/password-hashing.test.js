@@ -58,16 +58,21 @@ test("a missing or malformed hash fails closed instead of throwing", async () =>
 
 test("the event loop keeps running while a hash comparison is in flight", async () => {
   const hash = await createPasswordHash("timer-check");
-  let ticks = 0;
+  // The longest the loop went without running a timer. Counting ticks instead
+  // depended on the OS timer: Windows fires a 1ms interval only every ~15ms,
+  // so a free loop there looked blocked.
+  let last = performance.now();
+  let longestGap = 0;
   const timer = setInterval(() => {
-    ticks += 1;
+    const now = performance.now();
+    longestGap = Math.max(longestGap, now - last);
+    last = now;
   }, 1);
-  const started = performance.now();
   await Promise.all([verifyPassword("timer-check", hash), burnHashComparison("x")]);
-  const elapsed = performance.now() - started;
   clearInterval(timer);
+  longestGap = Math.max(longestGap, performance.now() - last);
 
-  // A blocked loop fires a handful of ticks (measured: 5 in 460ms with
-  // bcryptjs). A free one fires a large fraction of elapsed milliseconds.
-  assert.ok(ticks > elapsed / 10, `only ${ticks} timer ticks in ${elapsed.toFixed(0)}ms`);
+  // bcryptjs holds the loop in ~100ms slices (measured: 5 ticks in 460ms). A
+  // free loop never waits much past one timer period (~1ms Linux, ~16ms Windows).
+  assert.ok(longestGap < 60, `the event loop stalled for ${longestGap.toFixed(0)}ms`);
 });

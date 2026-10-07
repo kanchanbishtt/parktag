@@ -13,6 +13,12 @@ Rules:
 
 ## Milestones
 
+### Scan page refresh: no raw errors for visitors
+- [x] Reported on live: refreshing a vehicle's contact page showed `{"message":"Route GET:/vehicle not found",...}`. Root cause: after the tag loads, `pt-analytics.js` rewrites the address bar to bare `/vehicle` (keeping the tag token away from the Meta Pixel), and no route served that path, so every refresh hit Fastify's default JSON 404. It only happens on `*.parktag.me` with the Pixel configured, so it never showed locally.
+- [x] `GET /vehicle` and `GET /tag` serve the scan page. `scanner/app.js` keeps the token in the tab's sessionStorage and uses it when the URL has none. With no token at all it asks the visitor to scan the sticker again. Share sends `/tag/<token>`.
+- [x] `setNotFoundHandler`: any unknown page in a browser gets `pages/not-found.html` (ParkTag "page not found"). The API, assets and webhooks keep the same JSON 404.
+- [x] Verify: `scan-page-refresh.test.js` (5; fails on main); `activation-token-survives-analytics.test.js` updated for `resolveTagToken()`; full suite (only the known baseline fails). Headless Chrome, running the exact `replaceState` production runs: main shows the JSON on refresh, the fix brings the same vehicle back twice, a fresh tab shows "Scan the sticker again", and an unknown page shows the ParkTag 404 (8/8). `wiki/scan-page-refresh.md`.
+
 ### Admin Orders page
 - [x] No admin screen showed an order with its amount, address and payment mode together. New page `/admin/orders` (sidebar: Management → Orders, on every admin page): Sales (paid or placed COD), Abandoned (created, never paid), Ours (the team's test orders), All; newest first, 50 a page; search by order number, buyer name, phone in any spelling, city, pincode, AWB or payment id.
 - [x] Each row: order number, channel, product × quantity, stickers activated of capacity; buyer and full address; amount in rupees with how it was paid (Paid online / Cash on delivery with the fee noted / COD paid online later with the COD figure / Paid by UPI for a hand sale / Not paid); delivery state with AWB linked to tracking. Details: price breakdown, payment id, paid at, promo and referral discounts, add-ons, email, account, campaign, note.

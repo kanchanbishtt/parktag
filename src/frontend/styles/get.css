@@ -27,16 +27,22 @@
  * the brand red, so the emphasis lands in the same place with our colour —
  * copying the palette as well as the layout would have made it their page. */
 
+/* Tokens follow the "ParkTag Direct Trust" system in the Stitch project
+ * (deep navy, alert red for the conversion control, green for verified
+ * contact, slate microcopy, pill touchpoints). The microcopy slate is the
+ * Stitch #64748B: the old #7A879B was 3.2:1 on the tinted grounds. */
 :root {
-  --gt-ink: #03162D;
+  --gt-ink: #0B132B;
   --gt-ink-2: #41506A;
-  --gt-ink-3: #7A879B;
-  --gt-red: #FF2700;
-  --gt-line: #E4E9F0;
+  --gt-ink-3: #64748B;
+  --gt-red: #FF3B30;
+  --gt-line: #E2E8F0;
   --gt-card: #FFFFFF;
-  --gt-ground: #F6F8FB;
-  --gt-ok-bg: #E8F7EE;
-  --gt-ok-ink: #1B7A46;
+  --gt-ground: #F8FAFC;
+  --gt-ok-bg: #E8FDF0;
+  --gt-ok-ink: #15803D;
+  --gt-ok-line: #86EFAC;
+  --gt-wa: #25D366;
   /* Light navy, the same tint owner-membership.css fills a selected plan card
      with — one value for "navy, but as a ground". */
   --gt-navy-tint: #EAF0F7;
@@ -98,14 +104,14 @@ html:has(.gt-body) { overscroll-behavior-x: none; }
   justify-content: center;
   min-height: 44px;
   padding: 10px 18px;
-  border-radius: 12px;
+  border-radius: 999px;
   font-weight: 700;
   line-height: 1.2;
   text-align: center;
   text-decoration: none;
   transition: transform .14s, box-shadow .14s, background-color .14s;
 }
-.gt-btn:active { transform: translateY(1px); }
+.gt-btn:active { transform: scale(.98); }
 
 @media (prefers-reduced-motion: reduce) {
   .gt-btn { transition: none; }
@@ -213,94 +219,198 @@ html:has(.gt-body) { overscroll-behavior-x: none; }
 
 /* ── Hero ────────────────────────────────────────────────────────────── */
 
-.gt-hero {
-  background: var(--gt-card);
-  border: 1px solid var(--gt-line);
-  border-radius: 20px;
-  padding: 22px 18px 18px;
-  text-align: center;
-  box-shadow: 0 2px 10px rgba(3, 22, 45, .05);
+.gt-hero.gt-hero-b {
+  text-align: left;
+  background: none;
+  border: 0;
+  padding: 0;
+  box-shadow: none;
 }
 
-.gt-title {
-  margin: 0;
-  font-size: clamp(1.35rem, 6.4vw, 1.72rem);
-  /* Loose enough that the highlight's own padding cannot crowd the line under
-     it. Tighten this and the red block starts touching "for your parked car". */
-  line-height: 1.42;
-  letter-spacing: -.02em;
+.gt-hero.gt-hero-b .gt-title {
+  margin: 4px 0 0;
+  font-size: clamp(1.55rem, 7.4vw, 2rem);
+  line-height: 1.22;
+  letter-spacing: -.025em;
   font-weight: 800;
+  text-wrap: balance;
 }
 
-/* The highlight, in brand red. box-decoration-break keeps the bar unbroken
-   when the phrase wraps onto a second line — without it the highlight loses
-   its padding on every line but the first. */
+/* The one phrase the line turns on, in the brand red. box-decoration-break
+   keeps the bar whole if the phrase wraps. */
 .gt-mark {
   display: inline;
   background: var(--gt-red);
   color: #fff;
-  padding: 6px 14px 8px;
+  padding: 2px 10px 4px;
   border-radius: 10px;
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
 }
 
-.gt-title-2 { display: block; margin-top: 12px; }
-
-.gt-lede {
-  margin: 12px auto 0;
-  max-width: 30rem;
-  color: var(--gt-ink-2);
-  font-size: .9rem;
-  line-height: 1.55;
-}
-
-.gt-chips {
+/* The four things worth knowing, as a 2x2 under the line. */
+.gt-perks {
   list-style: none;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 8px;
-  margin: 16px 0 0;
+  margin: 14px 0 0;
   padding: 0;
 }
-
-.gt-chip {
-  font-size: .76rem;
-  font-weight: 600;
-  color: var(--gt-ink-2);
-  background: var(--gt-ground);
-  border: 1px solid var(--gt-line);
-  border-radius: 999px;
-  padding: 7px 12px;
+.gt-perks li {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  padding: 9px 10px;
+  border-radius: 14px;
+  background: #EEF3FB;
 }
-.gt-chip-price { color: var(--gt-ink); font-weight: 700; }
-/* The one chip that is a link: it jumps to what the Premium year covers.
-   Underlined so it reads as tappable beside the three that are not. */
-.gt-chip a { color: inherit; text-decoration: underline dotted; text-underline-offset: 3px; }
-#gtPremium { scroll-margin-top: 84px; }
-.gt-chip-ok { background: var(--gt-ok-bg); border-color: #CBE9D8; color: var(--gt-ok-ink); }
+.gt-perk-i { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 9px; background: #fff; font-size: 1rem; }
+.gt-perks strong { display: block; font-size: .82rem; line-height: 1.2; font-weight: 800; color: var(--gt-ink); }
+.gt-perks small { display: block; margin-top: 1px; font-size: .72rem; line-height: 1.25; font-weight: 600; color: var(--gt-ink-2); }
+
+/* ── Showcase ────────────────────────────────────────────────────────────
+   The product photographed, then the artwork and the pack. The hazard strip is
+   the one on the tag itself. */
+.gt-show {
+  margin-top: 18px;
+  overflow: hidden;
+  background: var(--gt-card);
+  border: 1px solid var(--gt-line);
+  border-radius: 24px;
+  box-shadow: 0 2px 8px -2px rgba(11, 19, 43, .06), 0 1px 3px rgba(11, 19, 43, .04);
+}
+.gt-show-bar {
+  height: 8px;
+  background: repeating-linear-gradient(-45deg, #FACC15 0 9px, #0B132B 9px 18px);
+}
+.gt-show-in { display: grid; gap: 8px; padding: 10px; }
+.gt-show-main { position: relative; overflow: hidden; border-radius: 16px; background: var(--gt-navy-tint); }
+.gt-show-main img { display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; object-position: 50% 55%; cursor: zoom-in; }
+.gt-show-chip {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: rgba(11, 19, 43, .86);
+  color: #fff;
+  font-size: .72rem;
+  font-weight: 700;
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+.gt-show-chip-r { left: auto; right: 8px; background: rgba(255, 255, 255, .92); color: var(--gt-ink); }
+.gt-show-wide { grid-column: 1 / -1; }
+.gt-show-tile { margin: 0; padding: 6px; border: 1px solid var(--gt-line); border-radius: 16px; background: var(--gt-ground); text-align: center; }
+.gt-show-tile img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 10; object-fit: contain; border-radius: 10px; background: #fff; cursor: zoom-in; }
+.gt-show-tile figcaption { margin-top: 6px; font-size: .74rem; font-weight: 700; color: var(--gt-ink); }
+
+/* ── The price and the order button ────────────────────────────────────── */
+.gt-buy {
+  margin-top: 14px;
+  padding: 16px;
+  background: var(--gt-card);
+  border: 1px solid var(--gt-line);
+  border-radius: 24px;
+  box-shadow: 0 8px 24px -4px rgba(11, 19, 43, .12), 0 2px 6px -1px rgba(11, 19, 43, .06);
+}
+.gt-buy-hd { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.gt-buy-n { margin: 0; font-size: 1.05rem; line-height: 1.25; font-weight: 800; letter-spacing: -.01em; }
+.gt-buy-d { margin: 3px 0 0; font-size: .82rem; line-height: 1.4; color: var(--gt-ink-3); }
+.gt-buy-off { flex: none; padding: 5px 11px; border-radius: 999px; background: var(--gt-red); color: #fff; font-size: .72rem; font-weight: 800; letter-spacing: .03em; }
+.gt-price {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--gt-ground);
+}
+.gt-price-v { font-size: 1.8rem; line-height: 1.1; font-weight: 800; letter-spacing: -.02em; color: var(--gt-ink); font-variant-numeric: tabular-nums; }
+.gt-price-was { font-size: .84rem; color: var(--gt-ink-3); text-decoration: line-through; }
+.gt-price-free { margin-left: auto; padding: 4px 10px; border-radius: 999px; background: var(--gt-ok-bg); border: 1px solid var(--gt-ok-line); color: var(--gt-ok-ink); font-size: .72rem; font-weight: 800; }
 
 /* The page's primary action. Full width, and taller than the 44px floor
    because it is the one control the page is built around. */
 .gt-cta {
   display: flex;
   width: 100%;
-  margin: 16px 0 0;
+  margin: 14px 0 0;
   min-height: 54px;
   padding: 12px 18px;
-  border-radius: 14px;
-  background: var(--gt-ink);
+  border-radius: 999px;
+  /* Red, as on the sticky bar: the one conversion control on the page, and the
+     Stitch system reserves red for exactly that. */
+  background: var(--gt-red);
   color: #fff;
   font-size: clamp(.94rem, 3.6vw, 1.05rem);
   font-weight: 800;
-  /* The lift is tinted with the button's own colour, not left on the old red —
-     a red glow under a navy button reads as a rendering fault. */
-  box-shadow: 0 8px 20px rgba(3, 22, 45, .26);
+  box-shadow: 0 8px 24px -4px rgba(255, 59, 48, .45);
 }
-.gt-cta:hover { box-shadow: 0 10px 26px rgba(3, 22, 45, .34); }
+.gt-cta:hover { box-shadow: 0 10px 28px -4px rgba(255, 59, 48, .55); }
+.gt-see { display: block; width: max-content; margin: 8px auto 0; padding: 8px 6px; color: var(--gt-ink); font-size: .84rem; font-weight: 700; text-decoration: underline; text-underline-offset: 4px; }
+.gt-ticks { list-style: none; display: grid; gap: 8px; margin: 10px 0 0; padding: 12px 0 0; border-top: 1px solid var(--gt-line); font-size: .82rem; font-weight: 600; color: var(--gt-ink); }
+.gt-ticks li { display: flex; gap: 9px; align-items: flex-start; line-height: 1.35; }
+.gt-ticks li::before { content: "\2713"; flex: none; width: 18px; height: 18px; margin-top: 0; border-radius: 50%; background: var(--gt-ok-bg); color: var(--gt-ok-ink); font-size: .7rem; font-weight: 900; display: inline-flex; align-items: center; justify-content: center; }
 
-.gt-fine { margin: 12px 0 0; font-size: .74rem; color: var(--gt-ink-3); }
+/* ── The difference ────────────────────────────────────────────────────── */
+.gt-diff { margin-top: 22px; padding: 14px; background: var(--gt-card); border: 1px solid var(--gt-line); border-radius: 24px; }
+.gt-diff-hd { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.gt-diff-k { margin: 0; font-size: .74rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--gt-ink); }
+.gt-diff-pill { padding: 4px 10px; border-radius: 999px; background: #FFE4E1; color: #B42318; font-size: .7rem; font-weight: 800; }
+.gt-diff-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+.gt-diff-pair figure { margin: 0; }
+.gt-diff-pair figcaption { margin-top: 6px; font-size: .72rem; line-height: 1.35; font-weight: 700; color: var(--gt-ink-2); }
+.gt-diff-glass, .gt-diff-zoom { display: block; width: 100%; aspect-ratio: 4 / 5; border-radius: 16px; overflow: hidden; }
+/* The photo, moved in on the tag so it reads at this size. */
+.gt-diff-zoom img { display: block; width: 100%; height: 100%; object-fit: cover; transform: scale(1.9); transform-origin: 52% 56%; cursor: zoom-in; }
+/* The old way, drawn: a note taped behind the glass, with a number anyone can read. */
+.gt-diff-glass { position: relative; display: grid; place-items: center; overflow: hidden; background: linear-gradient(135deg, #5E7387, #9DB2C2 45%, #6A7F92); }
+.gt-diff-glass:after { content: ""; position: absolute; inset: 0; background: linear-gradient(115deg, rgba(255, 255, 255, .22) 0 18%, transparent 18% 40%, rgba(255, 255, 255, .12) 40% 52%, transparent 52%); }
+.gt-diff-note { position: relative; z-index: 1; width: 78%; padding: 18px 8px; background: #fff; border-radius: 3px; transform: rotate(-6deg); box-shadow: 0 8px 18px rgba(11, 19, 43, .3); text-align: center; }
+.gt-diff-note:before { content: ""; position: absolute; top: -8px; left: 50%; width: 38px; height: 14px; margin-left: -19px; background: rgba(250, 204, 21, .75); transform: rotate(3deg); }
+.gt-diff-note span { white-space: nowrap; font: italic 700 .98rem "Bradley Hand", "Segoe Script", "Comic Sans MS", cursive; color: #1E3A8A; letter-spacing: .02em; }
+.gt-diff-feats { list-style: none; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0 0; padding: 0; }
+.gt-diff-feats li { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 6px; border: 1px solid var(--gt-line); border-radius: 14px; background: var(--gt-ground); text-align: center; font-size: .74rem; line-height: 1.25; font-weight: 700; color: var(--gt-ink); }
+.gt-diff-feats svg { width: 20px; height: 20px; color: var(--gt-ink); }
+
+/* A quiet second route for the buyer with a question: a link with the
+   WhatsApp mark, not a second button beside the order button. */
+.gt-wa {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  margin-top: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  color: var(--gt-ink-2);
+  font-size: .84rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: transform .14s, background-color .14s;
+}
+.gt-wa img { width: 20px; height: 20px; flex: none; }
+.gt-wa:hover { background: var(--gt-ground); color: var(--gt-ink); }
+.gt-wa:active { transform: scale(.98); }
+@media (prefers-reduced-motion: reduce) { .gt-wa { transition: none; } .gt-wa:active { transform: none; } }
+
+/* Packs we cannot ship yet, folded away so they are not a third and fourth
+   choice beside the two that can be bought. */
+.gt-soon { margin-top: 12px; }
+.gt-soon > summary {
+  cursor: pointer;
+  padding: 10px 2px;
+  font-size: .8rem;
+  font-weight: 700;
+  color: var(--gt-ink-3);
+}
+.gt-soon[open] > summary { margin-bottom: 4px; }
 
 .gt-trust {
   margin: 14px 0 0;
@@ -604,32 +714,40 @@ html:has(.gt-body) { overscroll-behavior-x: none; }
 
 /* ── Steps ───────────────────────────────────────────────────────────── */
 
-.gt-steps { list-style: none; display: grid; gap: 8px; margin: 0; padding: 0; counter-reset: gt; }
+/* ── How it works ────────────────────────────────────────────────────── */
 
-.gt-step {
-  display: flex;
-  align-items: flex-start;
-  gap: 11px;
-  background: var(--gt-card);
-  border: 1px solid var(--gt-line);
-  border-radius: 14px;
-  padding: 12px;
+.gt-how { margin-top: 26px; }
+.gt-how-h { margin-top: 0; font-size: 1.15rem; }
+.gt-how-list { list-style: none; display: grid; gap: 12px; margin: 12px 0 0; padding: 0; }
+.gt-how-card { background: var(--gt-card); border: 1px solid var(--gt-line); border-radius: 20px; padding: 10px 10px 14px; box-shadow: 0 2px 8px -2px rgba(11, 19, 43, .06); }
+.gt-how-media { position: relative; aspect-ratio: 16 / 10; overflow: hidden; border-radius: 14px; background: var(--gt-navy-tint); }
+.gt-how-media img, .gt-pack img { cursor: zoom-in; }
+.gt-how-media img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.gt-how-n {
+  position: absolute; top: 10px; left: 10px;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--gt-red); color: #fff; font-size: .82rem; font-weight: 800;
 }
-.gt-step p { margin: 2px 0 0; font-size: .84rem; line-height: 1.5; color: var(--gt-ink-2); }
+.gt-how-card:nth-child(2) .gt-how-n { background: var(--gt-ink); }
+.gt-how-n-g { background: var(--gt-ok-ink) !important; }
+.gt-how-pill {
+  position: absolute; top: 10px; right: 10px;
+  padding: 4px 10px; border-radius: 999px;
+  background: var(--gt-wa); color: var(--gt-ink); font-size: .7rem; font-weight: 800;
+}
+.gt-how-pill-r { background: var(--gt-red); color: #fff; }
+.gt-how-t { margin: 12px 4px 0; font-size: .95rem; line-height: 1.3; font-weight: 800; }
+.gt-how-s { margin: 4px 4px 0; font-size: .82rem; line-height: 1.5; color: var(--gt-ink-2); }
 
-.gt-step-n {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: var(--gt-ink);
-  color: #fff;
-  font-size: .76rem;
-  font-weight: 700;
-}
+/* The drawn diagram: two phones and a shield. Colours come from the page's own
+   tokens so it follows them. */
+.gt-how-draw { display: grid; place-items: center; background: #F1F5F9; }
+.gt-how-draw { align-content: end; }
+.gt-how-draw svg { width: 100%; height: calc(100% - 26px); }
+.d-t { font-family: Inter, system-ui, sans-serif; font-weight: 700; }
+.d-lb { fill: var(--gt-ink-2); font: 700 11px Inter, system-ui, sans-serif; }
+.d-tx { fill: var(--gt-ink); font: 800 12px Inter, system-ui, sans-serif; }
 
 .gt-foot {
   margin: 24px 0 0;
@@ -639,6 +757,13 @@ html:has(.gt-body) { overscroll-behavior-x: none; }
 }
 .gt-foot a { color: var(--gt-ink-2); text-decoration: none; font-weight: 600; }
 .gt-foot a:hover { text-decoration: underline; }
+.gt-foot p { margin: 0; }
+.gt-foot-trust { display: inline-flex; align-items: center; gap: 7px; font-size: .84rem; font-weight: 700; color: var(--gt-ink-2); }
+.gt-foot-trust svg { width: 18px; height: 18px; flex: none; color: var(--gt-ink); }
+.gt-foot-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 4px; margin-top: 6px; }
+.gt-foot-links a { padding: 11px 10px; font-size: .84rem; }
+.gt-foot-mini { margin-top: 2px !important; }
+.gt-foot-copy { margin-top: 10px !important; font-size: .74rem; }
 
 /* ── Sticky buy bar ──────────────────────────────────────────────────── */
 
@@ -654,9 +779,10 @@ html:has(.gt-body) { overscroll-behavior-x: none; }
   padding: 10px max(12px, calc((100% - var(--gt-wrap)) / 2 + var(--gt-gutter) - 12px));
   /* The safe-area inset keeps the bar clear of the iPhone home indicator. */
   padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
-  background: rgba(255, 255, 255, .96);
+  background: rgba(255, 255, 255, .95);
   backdrop-filter: blur(10px);
   border-top: 1px solid var(--gt-line);
+  box-shadow: 0 -8px 24px -4px rgba(11, 19, 43, .12);
 }
 
 /* Both lines are clamped to one line each and ellipsised.
@@ -729,7 +855,6 @@ html:has(.gt-body) { overscroll-behavior-x: none; }
 @media (min-width: 600px) {
   :root { --gt-gutter: 24px; }
   .gt-hero { padding: 30px 26px 24px; }
-  .gt-lede { font-size: .95rem; }
   .gt-h2 { font-size: 1.02rem; }
   .gt-feat-t { font-size: .9rem; }
   .gt-feat-s { font-size: .8rem; }
@@ -933,75 +1058,6 @@ html:has(.gt-body) { overscroll-behavior-x: none; }
   }
 }
 
-
-/* ── Gallery ─────────────────────────────────────────────────────────────
-   Replaces the single .gt-shot figure that used to sit below the packs. Native
-   horizontal scroll with snap points: no library, no autoplay, no transform
-   juggling. The browser already does momentum, snapping, keyboard scrolling
-   and the trackpad gesture correctly. */
-
-.gt-gal { margin: 0 0 16px; }
-
-.gt-gal-track {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
-  scroll-snap-type: x mandatory;
-  border-radius: 16px;
-  background: var(--gt-navy-tint, #EAF0F7);
-  /* The dots are the affordance; a scrollbar under the artwork is noise. */
-  scrollbar-width: none;
-}
-.gt-gal-track::-webkit-scrollbar { display: none; }
-.gt-gal-track:focus-visible { outline: 2px solid var(--gt-red); outline-offset: 3px; }
-
-.gt-gal-slide {
-  flex: 0 0 100%;
-  scroll-snap-align: center;
-  padding: 14px;
-}
-/* One frame for every slide whatever its own ratio, so the block cannot change
-   height as you swipe. Contained, never cropped: the artwork is a designed
-   layout and cropping it would cut the printed copy off. */
-.gt-gal-slide img {
-  display: block;
-  width: 100%;
-  height: auto;
-  aspect-ratio: 4 / 3;
-  object-fit: contain;
-  border-radius: 10px;
-}
-.gt-gal-c {
-  margin: 10px 2px 0;
-  font-size: .74rem;
-  font-weight: 600;
-  color: var(--gt-ink-3);
-  text-align: center;
-}
-
-.gt-gal-dots { display: flex; justify-content: center; gap: 4px; margin-top: 10px; }
-/* 28px of tappable button around an 8px dot, rather than an 8px target. */
-.gt-gal-dot {
-  display: grid;
-  place-items: center;
-  width: 28px; height: 28px;
-  padding: 0;
-  border: 0;
-  background: none;
-  cursor: pointer;
-}
-.gt-gal-dot::before {
-  content: "";
-  width: 8px; height: 8px;
-  border-radius: 999px;
-  background: #C9D2DE;
-  transition: width .18s, background-color .18s;
-}
-.gt-gal-dot[aria-current="true"]::before { width: 22px; background: var(--gt-red); }
-@media (prefers-reduced-motion: reduce) { .gt-gal-dot::before { transition: none; } }
 
 /* ── Sold out ────────────────────────────────────────────────────────────
    Still readable, plainly unbuyable. The artwork is dimmed rather than the
@@ -1369,3 +1425,228 @@ img.gt-proof-media { cursor: zoom-in; }
   max-height: 92dvh;
   border-radius: 12px;
 }
+
+/* ── Shared with /direct ─────────────────────────────────────────────────
+   /direct loads this stylesheet too and still uses the original hero card,
+   photo carousel, chips, intro line and steps. /get moved to the newer hero
+   (.gt-hero-b above); these stay as they were so /direct is untouched by it. */
+.gt-hero {
+  background: var(--gt-card);
+  border: 1px solid var(--gt-line);
+  border-radius: 20px;
+  padding: 22px 18px 18px;
+  text-align: center;
+  box-shadow: 0 2px 10px rgba(3, 22, 45, .05);
+}
+
+.gt-title {
+  margin: 0;
+  font-size: clamp(1.35rem, 6.4vw, 1.72rem);
+  /* Loose enough that the highlight's own padding cannot crowd the line under
+     it. Tighten this and the red block starts touching "for your parked car". */
+  line-height: 1.42;
+  letter-spacing: -.02em;
+  font-weight: 800;
+}
+
+/* The highlight, in brand red. box-decoration-break keeps the bar unbroken
+   when the phrase wraps onto a second line — without it the highlight loses
+   its padding on every line but the first. */
+
+.gt-title-2 { display: block; margin-top: 12px; }
+
+.gt-lede {
+  margin: 12px auto 0;
+  max-width: 30rem;
+  color: var(--gt-ink-2);
+  font-size: .9rem;
+  line-height: 1.55;
+}
+
+.gt-chips {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin: 16px 0 0;
+  padding: 0;
+}
+
+.gt-chip {
+  font-size: .76rem;
+  font-weight: 600;
+  color: var(--gt-ink-2);
+  background: var(--gt-ground);
+  border: 1px solid var(--gt-line);
+  border-radius: 999px;
+  padding: 7px 12px;
+}
+.gt-chip-price { color: var(--gt-ink); font-weight: 700; }
+/* The one chip that is a link: it jumps to what the Premium year covers.
+   Underlined so it reads as tappable beside the three that are not. */
+.gt-chip a { color: inherit; text-decoration: underline dotted; text-underline-offset: 3px; }
+#gtPremium { scroll-margin-top: 84px; }
+.gt-chip-ok { background: var(--gt-ok-bg); border-color: #CBE9D8; color: var(--gt-ok-ink); }
+
+/* The page's primary action. Full width, and taller than the 44px floor
+   because it is the one control the page is built around. */
+
+.gt-fine { margin: 12px 0 0; font-size: .74rem; color: var(--gt-ink-3); }
+
+/* ── Gallery ─────────────────────────────────────────────────────────────
+   Replaces the single .gt-shot figure that used to sit below the packs. Native
+   horizontal scroll with snap points: no library, no autoplay, no transform
+   juggling. The browser already does momentum, snapping, keyboard scrolling
+   and the trackpad gesture correctly. */
+
+.gt-gal { margin: 0 0 16px; }
+
+.gt-gal-track {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  border-radius: 16px;
+  background: var(--gt-navy-tint, #EAF0F7);
+  /* The dots are the affordance; a scrollbar under the artwork is noise. */
+  scrollbar-width: none;
+}
+.gt-gal-track::-webkit-scrollbar { display: none; }
+.gt-gal-track:focus-visible { outline: 2px solid var(--gt-red); outline-offset: 3px; }
+
+.gt-gal-slide {
+  flex: 0 0 100%;
+  scroll-snap-align: center;
+  padding: 14px;
+}
+/* One frame for every slide whatever its own ratio, so the block cannot change
+   height as you swipe. Contained, never cropped: the artwork is a designed
+   layout and cropping it would cut the printed copy off. */
+.gt-gal-slide img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  object-fit: contain;
+  border-radius: 10px;
+}
+.gt-gal-c {
+  margin: 10px 2px 0;
+  font-size: .74rem;
+  font-weight: 600;
+  color: var(--gt-ink-3);
+  text-align: center;
+}
+
+.gt-gal-dots { display: flex; justify-content: center; gap: 4px; margin-top: 10px; }
+/* 28px of tappable button around an 8px dot, rather than an 8px target. */
+.gt-gal-dot {
+  display: grid;
+  place-items: center;
+  width: 28px; height: 28px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.gt-gal-dot::before {
+  content: "";
+  width: 8px; height: 8px;
+  border-radius: 999px;
+  background: #C9D2DE;
+  transition: width .18s, background-color .18s;
+}
+.gt-gal-dot[aria-current="true"]::before { width: 22px; background: var(--gt-red); }
+@media (prefers-reduced-motion: reduce) { .gt-gal-dot::before { transition: none; } }
+
+.gt-steps { list-style: none; display: grid; gap: 8px; margin: 0; padding: 0; counter-reset: gt; }
+
+.gt-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  background: var(--gt-card);
+  border: 1px solid var(--gt-line);
+  border-radius: 14px;
+  padding: 12px;
+}
+.gt-step p { margin: 2px 0 0; font-size: .84rem; line-height: 1.5; color: var(--gt-ink-2); }
+
+.gt-step-n {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--gt-ink);
+  color: #fff;
+  font-size: .76rem;
+  font-weight: 700;
+}
+
+@media (min-width: 0px) {
+  .gt-lede { font-size: .95rem; }
+}
+
+/* ── What you get ────────────────────────────────────────────────────────
+   The owner's feature list (as on the app's Premium screen) and the situations
+   it is for. Icon beside the label, not above it. */
+.gt-wgrid { list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 0; padding: 0; }
+.gt-wg { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 12px 10px; background: var(--gt-card); border: 1px solid var(--gt-line); border-radius: 16px; }
+.gt-wg-i { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 11px; background: var(--tile, #FFEFEB); color: var(--ink, var(--gt-red)); }
+.gt-wg-i svg { width: 19px; height: 19px; }
+.gt-wg-t { min-width: 0; font-size: .8rem; line-height: 1.3; font-weight: 700; color: var(--gt-ink); }
+.gt-wg.c1 { --tile: #FFEFEB; --ink: #E0301E; }
+.gt-wg.c2 { --tile: #E8F0FF; --ink: #2563EB; }
+.gt-wg.c3 { --tile: #E6F6EC; --ink: #15803D; }
+.gt-wg.c4 { --tile: #F1EAFE; --ink: #7C3AED; }
+.gt-wg.c5 { --tile: #FDE8F1; --ink: #DB2777; }
+.gt-wg.c6 { --tile: #FFF0E0; --ink: #EA580C; }
+.gt-wg.c7 { --tile: #FFEFEB; --ink: #E0301E; }
+.gt-wg.c8 { --tile: #E8F0FF; --ink: #2563EB; }
+.gt-wnote { margin: 10px 2px 0; font-size: .78rem; line-height: 1.5; color: var(--gt-ink-2); }
+.gt-cases { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; }
+.gt-cases li { padding: 6px 11px; border: 1px solid var(--gt-line); border-radius: 999px; background: var(--gt-card); font-size: .76rem; font-weight: 600; color: var(--gt-ink); white-space: nowrap; }
+
+/* /get only: section headings a clear step above the body text (1.35rem against the 1rem root),
+   so the page reads headline, section, detail. /direct keeps its own sizes. */
+.gt-body-get .gt-h2 { font-size: 1.35rem; letter-spacing: -.02em; }
+.gt-body-get .gt-how-h { font-size: 1.35rem; }
+
+/* "Sound familiar?": the screenshots carry the message, so each card gets a few
+   words, not a quotation, and the payoff is one line. */
+.gt-body-get .gt-heard-q { font-size: .9rem; font-weight: 800; }
+.gt-body-get .gt-heard-end {
+  display: flex; align-items: center; gap: 10px;
+  margin: 4px 0 0; padding: 12px 14px;
+  border: 1px solid var(--gt-ok-line); border-radius: 14px; background: var(--gt-ok-bg);
+  font-size: .86rem; line-height: 1.4; color: var(--gt-ok-ink);
+}
+.gt-body-get .gt-heard-end:before { content: "\2713"; flex: none; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: var(--gt-ok-ink); color: #fff; font-size: .8rem; font-weight: 900; }
+
+/* The proof video sits on its own poster. If a phone drops the decoded frame
+   (it does, to save memory) the tile shows the still, not a hole. */
+#gtProofVideo { background: #111827 url(/images/proof/sticking-demo-poster.jpg) center / cover no-repeat; }
+
+/* ── No dead taps ────────────────────────────────────────────────────────
+   Anything that looks like a tile or chip goes somewhere: the whole tile is the
+   link, and the badges drawn over photos let the tap through to the photo (which
+   opens it larger). */
+html:has(.gt-body-get) { scroll-padding-top: 76px; }
+.gt-perks li, .gt-wg, .gt-cases li, .gt-diff-feats li { padding: 0; }
+.gt-perks a, .gt-wg a, .gt-diff-feats a, .gt-cases a { display: flex; color: inherit; text-decoration: none; -webkit-tap-highlight-color: transparent; transition: transform .12s; }
+.gt-perks a:active, .gt-wg a:active, .gt-diff-feats a:active, .gt-cases a:active { transform: scale(.98); }
+.gt-perks a { align-items: center; gap: 9px; width: 100%; padding: 9px 10px; border-radius: 14px; }
+.gt-wg a { align-items: center; gap: 10px; width: 100%; min-width: 0; padding: 12px 10px; border-radius: 16px; }
+.gt-diff-feats a { flex-direction: column; align-items: center; gap: 6px; width: 100%; padding: 12px 6px; border-radius: 14px; }
+.gt-cases a { padding: 6px 11px; border-radius: 999px; }
+.gt-perks a:focus-visible, .gt-wg a:focus-visible, .gt-diff-feats a:focus-visible, .gt-cases a:focus-visible { outline: 2px solid var(--gt-ink); outline-offset: 2px; }
+.gt-show-chip, .gt-how-n, .gt-how-pill, .gt-buy-off { pointer-events: none; }
+[data-goto] { cursor: pointer; }
+@media (prefers-reduced-motion: reduce) { .gt-perks a, .gt-wg a, .gt-diff-feats a, .gt-cases a { transition: none; } }

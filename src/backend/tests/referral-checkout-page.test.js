@@ -110,7 +110,8 @@ test("the sheet is given the online price with the link off, and Cash on Deliver
   assert.match(buy, /amountPaise: onlinePaise,/);
   assert.match(buy, /referralLabel: refOff \? `Friend's link: \$\{rupees\(totalPaise - onlinePaise\)\} off` : null,/);
   // COD is priced from the undiscounted total: the server never applies it there.
-  assert.match(buy, /cod: cod\s*\? \{ amountPaise: pricedTotalPaise\(sku, product, quantity, addOn\) \+ cod\.surchargePaise,/);
+  assert.match(buy, /cod: cod\s*\? \{ amountPaise: pricedTotalPaise\(sku, product, quantity, null\) \+ cod\.surchargePaise,/);
+  // The plate is added by the sheet when it is ticked, never twice.
 });
 
 test("a price the sheet quoted is never silently replaced by a higher one at payment", () => {

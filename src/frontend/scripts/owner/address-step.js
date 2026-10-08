@@ -55,6 +55,14 @@
   var payChoice = "online";
   var trackedFields = {}; // checkout_field sent this open, by field key
   var payPrices = null; // { online, cod, mrp } for this open, or null: no COD offered
+  var priced = null; // { name, amount, mrp, fee, addOn } for this open, or null: no order shown
+  // The optional extra a caller can offer inside the sheet (the clear dashboard
+  // plate on /get): { id, name, description, amountPaise, image, checked,
+  // onChange }. addOnOn is whether it is ticked now. The caller's summary
+  // arrives WITHOUT it; currentSummary() adds it, so ticking and unticking just
+  // re-run the same pricing with one more line.
+  var addOnOffer = null;
+  var addOnOn = false;
 
   // Guest COD phone check. The server will not place a COD order until the
   // delivery mobile has passed a code, so the sheet sends one and verifies it
@@ -177,6 +185,7 @@
     phone: '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6.6 3.5 8.9 3.9l1 3.4-1.7 1.4a12 12 0 0 0 5.1 5.1l1.4-1.7 3.4 1 .4 2.3a1.6 1.6 0 0 1-1.6 1.9A13.4 13.4 0 0 1 4.7 5.1 1.6 1.6 0 0 1 6.6 3.5Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>',
     edit: '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m14.5 5.5 4 4M4 20l.9-3.6a2 2 0 0 1 .5-.9l10-10a2 2 0 0 1 2.8 0l.8.8a2 2 0 0 1 0 2.8l-10 10a2 2 0 0 1-.9.5L4 20Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>',
     lock: '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="10.5" width="14" height="9.5" rx="2.2" stroke="currentColor" stroke-width="1.7"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" stroke="currentColor" stroke-width="1.7"/></svg>',
+    tag: '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3.5 12.2V5a1.5 1.5 0 0 1 1.5-1.5h7.2a1.5 1.5 0 0 1 1.06.44l7.3 7.3a1.5 1.5 0 0 1 0 2.12l-6.7 6.7a1.5 1.5 0 0 1-2.12 0l-7.3-7.3a1.5 1.5 0 0 1-.44-1.06Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="8.3" cy="8.3" r="1.4" fill="currentColor"/></svg>',
     check: '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m5 12.5 4.2 4.2L19 7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
   };
 
@@ -217,8 +226,10 @@
       // than a warmer white. --navy is the brand ink the CTAs are cut from.
       // --line/--card were faintly warm (#ececf0 / #fafafb, both a touch violet);
       // they are cool now, and the card is plain white so it lifts off --ground.
-      "#pt-addr-ov{--r:#FF2700;--r-press:#d81f00;--navy:#03162D;--navy-2:#0B2C4D;--navy-sh:rgba(3,22,45,.42);",
-      "--ink:#0e1220;--muted:#6b7280;--ground:#F6F8FB;--line:#E4E9F0;--card:#fff;--tint:rgba(255,39,0,.08);",
+      // Tokens are the Stitch "ParkTag Direct Trust" system: navy ink, the alert
+      // red for the one conversion control, slate microcopy, slate-50 fields.
+      "#pt-addr-ov{--r:#FF3B30;--r-press:#E5322A;--navy:#0B132B;--navy-2:#131A33;--navy-sh:rgba(11,19,43,.42);",
+      "--ink:#0B132B;--muted:#64748B;--ground:#F8FAFC;--line:#E2E8F0;--card:#fff;--field:#F1F5F9;--tint:rgba(255,59,48,.08);",
       "--ease:cubic-bezier(.22,1,.36,1);",
       "position:fixed;inset:0;z-index:1200;display:none;align-items:flex-end;justify-content:center;",
       "background:rgba(14,18,32,.55);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);opacity:0;",
@@ -288,21 +299,58 @@
       // never have to hand over their full address while wondering which pack
       // they selected, what it costs, or when payment happens.
       "#pt-addr-summary{border:1px solid var(--line);border-radius:16px;padding:14px 15px;margin:0 0 16px;background:#fff;}",
-      ".pt-addr-summary-top{display:flex;align-items-start;justify-content:space-between;gap:12px;}",
+      ".pt-addr-summary-top{display:flex;align-items:center;justify-content:space-between;gap:12px;}",
+      ".pt-addr-summary-main{flex:1;min-width:0;}",
+      "#pt-addr-summary-img{flex:none;width:64px;height:64px;object-fit:contain;border-radius:12px;border:1px solid var(--line);background:#fff;}",
       ".pt-addr-summary-label{font-size:.65rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:3px;}",
       "#pt-addr-summary-name{font-size:.9rem;line-height:1.35;font-weight:800;color:var(--ink);}",
       "#pt-addr-summary-price{flex:0 0 auto;font-size:1.08rem;font-weight:900;color:var(--navy);}",
       "#pt-addr-summary-price del{display:block;font-size:.72rem;font-weight:600;color:var(--muted);}",
       "#pt-addr-summary-price number-flow{font-variant-numeric:tabular-nums;}",
-      ".pt-addr-summary-offer{display:inline-flex;margin:9px 6px 0 0;border-radius:999px;background:#E6F6EC;color:#17663A;padding:5px 9px;font-size:.68rem;font-weight:800;}",
-      ".pt-addr-summary-terms{display:flex;flex-wrap:wrap;gap:6px 12px;margin-top:11px;padding-top:10px;border-top:1px dashed var(--line);font-size:.7rem;font-weight:700;color:#4b5563;}",
-      ".pt-addr-summary-terms span:before{content:'✓';color:#0E8A00;font-weight:900;margin-right:5px;}",
-      ".pt-addr-summary-pay{margin:10px 0 0;font-size:.72rem;line-height:1.4;color:var(--muted);}",
+      // The coupon: a tag, the code in a dashed box (the shape every coupon code
+      // has), a note that it is applied, and the saving on the right.
+      ".pt-addr-summary-offer{display:flex;align-items:center;gap:12px;margin:12px 0 0;padding:11px 12px;border:1px solid #BBF7D0;border-radius:14px;background:#F0FDF4;color:#15803D;}",
+      ".pt-offer-ic{flex:none;display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;background:#DCFCE7;}",
+      ".pt-offer-ic svg{width:18px;height:18px;}",
+      ".pt-offer-b{flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:3px;}",
+      ".pt-offer-code{max-width:100%;padding:2px 9px;border:1.5px dashed #4ADE80;border-radius:7px;background:#fff;font-size:.8rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
+      ".pt-offer-note{font-size:.7rem;font-weight:700;color:#166534;}",
+      ".pt-offer-save{flex:none;padding:5px 11px;border-radius:999px;background:#15803D;color:#fff;font-size:.72rem;font-weight:800;letter-spacing:.01em;}",
+      ".pt-addr-summary-terms{display:flex;flex-wrap:wrap;gap:6px 12px;margin-top:11px;padding-top:10px;border-top:1px dashed var(--line);font-size:.7rem;font-weight:700;color:#41506A;}",
+      ".pt-addr-summary-terms span:before{content:'✓';color:#15803D;font-weight:900;margin-right:5px;}",
+      ".pt-addr-summary-pay{margin:12px 0 0;font-size:.72rem;line-height:1.4;color:var(--muted);}",
+      // What the total is made of: slate-50 panel, savings in green, the total
+      // set apart by a dashed rule and a heavier weight.
+      "#pt-addr-breakdown{margin:14px 0 0;padding:12px 14px;border-radius:14px;background:var(--field);font-size:.8rem;color:#41506A;}",
+      ".pt-addr-bk-row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:3px 0;}",
+      ".pt-addr-bk-row dt,.pt-addr-bk-row dd{margin:0;}",
+      ".pt-addr-bk-row dd{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--ink);}",
+      ".pt-addr-bk-row.pt-save dd{color:#15803D;font-weight:800;}",
+      ".pt-addr-bk-row.pt-total{margin-top:6px;padding-top:9px;border-top:1px dashed #CBD5E1;font-size:.95rem;font-weight:800;color:var(--ink);}",
+      ".pt-addr-bk-row.pt-total dd{font-size:1.1rem;font-weight:900;}",
+      // Colour carries meaning, as in the Stitch breakdown: a discount in red,
+      // what costs nothing in green, everything else in ink.
+      ".pt-addr-bk-row.pt-promo dt,.pt-addr-bk-row.pt-promo dd{color:#B91C1C;font-weight:700;}",
+      ".pt-addr-note-lock{display:flex;align-items:flex-start;gap:7px;margin:8px 0 0;font-size:.72rem;font-weight:600;line-height:1.4;color:var(--muted);}",
+      ".pt-addr-note-lock svg{flex:none;width:14px;height:14px;margin-top:1px;color:var(--ink);}",
+      // The extra, as a card you tick.
+      "#pt-addr-addon{display:flex;align-items:center;gap:11px;margin:14px 0 0;padding:12px;border:1.5px solid var(--line);border-radius:14px;background:#fff;cursor:pointer;transition:border-color .15s,background-color .15s;}",
+      "#pt-addr-addon:has(input:checked){border-color:var(--navy);background:var(--field);}",
+      "#pt-addr-addon input{flex:none;width:18px;height:18px;margin:0;accent-color:var(--navy);}",
+      "#pt-addr-addon img{flex:none;width:56px;height:56px;object-fit:cover;border-radius:12px;background:var(--field);}",
+      ".pt-addr-addon-b{min-width:0;}",
+      ".pt-addr-addon-b strong{display:block;font-size:.84rem;line-height:1.3;color:var(--ink);}",
+      ".pt-addr-addon-b small{display:block;margin-top:2px;font-size:.72rem;line-height:1.35;color:var(--muted);}",
+      // After the button: what happens next.
+      "#pt-addr-assure{display:flex;align-items:center;gap:12px;margin:14px 0 0;padding:10px;border-radius:14px;background:var(--field);}",
+      "#pt-addr-assure img{flex:none;width:56px;height:70px;object-fit:cover;border-radius:10px;}",
+      "#pt-addr-assure strong{display:block;font-size:.8rem;line-height:1.3;color:var(--ink);}",
+      "#pt-addr-assure span{display:block;margin-top:2px;font-size:.74rem;line-height:1.35;color:var(--muted);}",
       "#pt-addr-paychoice{display:grid;gap:8px;margin-top:11px;padding:0;border:0;}",
-      ".pt-addr-payopt{display:flex;align-items:center;gap:10px;border:1.5px solid var(--line);border-radius:13px;padding:11px 12px;font-size:.84rem;font-weight:700;color:var(--ink);cursor:pointer;}",
+      ".pt-addr-payopt{display:flex;align-items:center;gap:10px;border:1.5px solid var(--line);border-radius:14px;padding:12px 13px;background:#fff;font-size:.84rem;font-weight:700;color:var(--ink);cursor:pointer;transition:border-color .15s,background-color .15s;}",
       ".pt-addr-payopt input{accent-color:var(--navy);margin:0;}",
       ".pt-addr-payopt small{display:block;margin-top:2px;font-size:.72rem;font-weight:600;color:var(--muted);}",
-      ".pt-addr-payopt:has(input:checked){border-color:var(--navy);background:#F1F5FA;}",
+      ".pt-addr-payopt:has(input:checked){border-color:var(--navy);background:var(--field);}",
       ".pt-addr-optin{display:flex;align-items:flex-start;gap:9px;margin-top:11px;font-size:.76rem;font-weight:600;color:var(--muted);cursor:pointer;line-height:1.35;}",
       ".pt-addr-optin input{accent-color:var(--navy);margin:2px 0 0;flex:0 0 auto;}",
 
@@ -326,12 +374,30 @@
       ".pt-addr-f.pt-half-r{margin-left:8px;}",
       ".pt-addr-f label{display:block;font-size:.72rem;font-weight:700;letter-spacing:.01em;color:#374151;margin-bottom:5px;}",
       ".pt-req{color:var(--r);margin-left:3px;font-weight:800;}",
-      ".pt-addr-f input,.pt-addr-f select{width:100%;box-sizing:border-box;padding:12px 13px;border:1.5px solid var(--line);border-radius:13px;font-size:.94rem;color:var(--ink);background:#fff;outline:none;transition:border-color .15s,box-shadow .15s;}",
+      ".pt-addr-f input,.pt-addr-f select{width:100%;box-sizing:border-box;padding:12px 13px;border:1.5px solid var(--field);border-radius:14px;font-size:.94rem;color:var(--ink);background:var(--field);outline:none;transition:border-color .15s,box-shadow .15s,background-color .15s;}",
       ".pt-addr-f input::placeholder{color:#a8adb8;}",
-      ".pt-addr-f input:focus,.pt-addr-f select:focus{border-color:var(--r);box-shadow:0 0 0 3.5px var(--tint);}",
+      ".pt-addr-f input:focus,.pt-addr-f select:focus{border-color:var(--navy);background-color:#fff;box-shadow:0 0 0 3.5px rgba(11,19,43,.08);}",
+      // The +91 sits inside the field's own box so the pair reads as one control.
+      ".pt-addr-phone{display:flex;align-items:center;border:1.5px solid var(--field);border-radius:14px;background:var(--field);transition:border-color .15s,box-shadow .15s,background-color .15s;}",
+      ".pt-addr-phone:focus-within{border-color:var(--navy);background:#fff;box-shadow:0 0 0 3.5px rgba(11,19,43,.08);}",
+      ".pt-addr-phone span{padding:0 4px 0 13px;font-size:.94rem;font-weight:700;color:var(--ink);}",
+      ".pt-addr-f .pt-addr-phone input{border:0;background:transparent;box-shadow:none;padding-left:8px;}",
+      // Numbered steps. Counters skip anything that is display:none, so the
+      // payment step only takes a number when Cash on Delivery is on offer.
+      "#pt-addr-form{counter-reset:pt-step;}",
+      ".pt-addr-step{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:16px 0 8px;}",
+      "#pt-addr-err+.pt-addr-step{margin-top:4px;}",
+      ".pt-addr-step-t{font-size:.84rem;font-weight:800;color:var(--ink);}",
+      ".pt-addr-step-t:before{counter-increment:pt-step;content:'Step ' counter(pt-step) ': ';color:var(--muted);font-weight:700;}",
+      ".pt-addr-hint{font-size:.7rem;font-weight:600;color:var(--muted);}",
+      // The step heading already says "Your mobile number", so the box's own
+      // label stays for screen readers and is not drawn a second time.
+      ".pt-addr-f:has(.pt-addr-phone)>label{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;}",
+      "#pt-addr-paychoice{margin:16px 0 4px;}",
+      "#pt-addr-paychoice legend{padding:0;margin-bottom:8px;}",
       // Native menu, custom chevron. The empty option is the only invalid value
       // a required select can hold, so :invalid is exactly "nothing chosen yet".
-      ".pt-addr-f select{-webkit-appearance:none;appearance:none;padding-right:38px;font-family:inherit;line-height:1.3;background:#fff url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2341506A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\") no-repeat right 12px center/18px;}",
+      ".pt-addr-f select{-webkit-appearance:none;appearance:none;padding-right:38px;font-family:inherit;line-height:1.3;background:var(--field) url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2341506A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\") no-repeat right 12px center/18px;}",
       ".pt-addr-f select:invalid{color:#a8adb8;}",
       ".pt-addr-f select option{color:var(--ink);}",
       "#pt-addr-sugg{margin-top:6px;border:1px solid var(--line);border-radius:12px;background:#fff;overflow:hidden;box-shadow:0 6px 18px rgba(3,22,45,.08);}",
@@ -346,13 +412,14 @@
       "#pt-addr-code{font-size:1.3rem;font-weight:800;letter-spacing:.45em;text-align:center;font-variant-numeric:tabular-nums;}",
 
       // Buttons
-      // Navy, not red. The glow moves with it — a navy button over a red halo
-      // reads as a mistake, and the halo was most of what made the sheet warm.
-      ".pt-addr-primary{width:100%;display:flex;align-items:center;justify-content:center;gap:9px;padding:16px;border:none;border-radius:16px;",
-      "background:linear-gradient(180deg,var(--navy-2),var(--navy));color:#fff;font-size:1rem;font-weight:800;letter-spacing:.01em;cursor:pointer;",
-      "box-shadow:0 10px 22px -8px var(--navy-sh);transition:transform .12s ease,box-shadow .2s ease,background .2s ease;-webkit-tap-highlight-color:transparent;}",
+      // Red pill, as on the page behind it: this is the conversion control and
+      // the Stitch system keeps red for exactly that. The glow is the button's
+      // own colour, so it does not read as a mistake under it.
+      ".pt-addr-primary{width:100%;display:flex;align-items:center;justify-content:center;gap:9px;padding:16px;border:none;border-radius:999px;margin-top:16px;",
+      "background:var(--r);color:#fff;font-size:1rem;font-weight:800;letter-spacing:.01em;cursor:pointer;",
+      "box-shadow:0 8px 24px -4px rgba(255,59,48,.45);transition:transform .12s ease,box-shadow .2s ease,background .2s ease;-webkit-tap-highlight-color:transparent;}",
       ".pt-addr-primary svg{width:19px;height:19px;}",
-      ".pt-addr-primary:hover{box-shadow:0 12px 26px -8px rgba(3,22,45,.55);}",
+      ".pt-addr-primary:hover{background:var(--r-press);box-shadow:0 10px 28px -4px rgba(255,59,48,.55);}",
       ".pt-addr-primary:active{transform:scale(.975);}",
       ".pt-addr-primary:disabled{opacity:.65;cursor:default;box-shadow:none;transform:none;}",
       ".pt-addr-secondary{width:100%;display:flex;align-items:center;justify-content:center;gap:8px;padding:13px;margin-top:10px;",
@@ -389,7 +456,8 @@
     // Name, mobile, address and the COD code: never in a session replay.
     ov.setAttribute("data-clarity-mask", "True");
 
-    var rows = FIELDS.map(function (f) {
+    var fieldRows = {};
+    FIELDS.forEach(function (f) {
       var half = f.key === "city" || f.key === "state";
       var attrs =
         'type="' + f.type + '" id="pt-addr-' + f.key + '" placeholder="' + f.ph + '"' +
@@ -409,12 +477,22 @@
           '<option value="">' + f.ph + "</option>" +
           f.options.map(function (o) { return "<option>" + o + "</option>"; }).join("") +
           "</select>";
+      } else if (f.key === "phone") {
+        // The +91 is a label on the box, not part of the value: readForm and
+        // validate still see the ten digits and nothing else.
+        control = '<div class="pt-addr-phone"><span aria-hidden="true">+91</span><input ' + attrs + req + "></div>";
       } else {
         control = "<input " + attrs + req + ">";
       }
-      return '<div class="pt-addr-f' + (half ? " pt-half" : "") + (f.key === "state" ? " pt-half-r" : "") + '"><label for="pt-addr-' + f.key + '">' +
+      fieldRows[f.key] = '<div class="pt-addr-f' + (half ? " pt-half" : "") + (f.key === "state" ? " pt-half-r" : "") + '"><label for="pt-addr-' + f.key + '">' +
         f.label + star + "</label>" + control + "</div>";
-    }).join("");
+    });
+    // Mobile first, then payment, then where it goes: the order the Stitch
+    // checkout uses, and the one that asks for the smallest thing first. The
+    // numbers are CSS counters, so a step that is hidden (payment, when Cash on
+    // Delivery is not offered) takes no number and the rest still count 1, 2.
+    var phoneRow = fieldRows.phone;
+    var addressRows = ["fullName", "pincode", "line1", "line2", "city", "state"].map(function (k) { return fieldRows[k]; }).join("");
 
     var secure =
       '<div id="pt-addr-secure">' + IC.lock + '<span class="pt-addr-secure-t">Secured by Razorpay · UPI · Cards · Net Banking</span></div>';
@@ -426,21 +504,11 @@
       '<h3 id="pt-addr-title">Delivery address</h3>' +
       '<p class="pt-addr-sub" id="pt-addr-sub">Where should we ship your official ParkTag sticker?</p>' +
       '<div id="pt-addr-summary" class="pt-hide" aria-label="Order summary">' +
-      '<div class="pt-addr-summary-top"><div><div class="pt-addr-summary-label">Your order</div><div id="pt-addr-summary-name"></div></div><div id="pt-addr-summary-price"></div></div>' +
-      '<div class="pt-addr-summary-terms"><span>Free delivery</span><span>1 year Premium</span><span>7-day replacement</span></div>' +
-      '<fieldset id="pt-addr-paychoice" class="pt-hide"><legend class="pt-addr-summary-label">Payment</legend>' +
-      '<label class="pt-addr-payopt"><input type="radio" name="pt-addr-pay" value="online"><span id="pt-addr-pay-online"></span></label>' +
-      '<label class="pt-addr-payopt"><input type="radio" name="pt-addr-pay" value="cod"><span id="pt-addr-pay-cod"></span></label>' +
-      '</fieldset>' +
-      '<p class="pt-addr-summary-pay" id="pt-addr-summary-pay">No payment is taken on this step. Continue to pay securely using UPI, cards or net banking.</p>' +
-      // Meta reclassified the abandoned-cart template as MARKETING, which needs
-      // recorded opt-in, so the reminder can only reach a buyer who has this on.
-      //
-      // Ticked by default, by the owner's decision on 2026-09-23. The trade is
-      // written down rather than hidden: a pre-ticked box is weaker consent
-      // than a deliberate tick, so the stamp records WHICH it was, and the box
-      // sits in plain sight above the button with one tap to turn it off.
-      '<label class="pt-addr-optin"><input type="checkbox" id="pt-addr-optin" checked><span>Message me on WhatsApp about this order and ParkTag offers. Untick if you would rather not.</span></label>' +
+      '<div class="pt-addr-summary-top"><img id="pt-addr-summary-img" class="pt-hide" alt="" width="64" height="64" decoding="async"><div class="pt-addr-summary-main"><div class="pt-addr-summary-label">Your order</div><div id="pt-addr-summary-name"></div></div><div id="pt-addr-summary-price"></div></div>' +
+      // The Premium year is left off here on purpose: it is product detail for
+      // after the order (the Meta review), and this row is for what a first-time
+      // buyer needs to trust before handing over an address.
+      '<div class="pt-addr-summary-terms"><span>Free delivery</span><span>7-day replacement</span></div>' +
       '</div>' +
 
       // ── Confirm view (returning buyer) ──
@@ -463,10 +531,42 @@
       // ── Form view (first time / editing) ──
       '<div id="pt-addr-form" class="pt-hide">' +
       '<div id="pt-addr-err"></div>' +
-      rows +
+      '<div class="pt-addr-step"><span class="pt-addr-step-t">Your mobile number</span><span class="pt-addr-hint">For delivery updates</span></div>' +
+      phoneRow +
+      '<p class="pt-addr-note-lock">' + IC.lock + '<span>Kept private. Shared only with the courier so your order reaches you.</span></p>' +
+      '<fieldset id="pt-addr-paychoice" class="pt-hide"><legend class="pt-addr-step-t">Payment method</legend>' +
+      '<label class="pt-addr-payopt"><input type="radio" name="pt-addr-pay" value="online"><span id="pt-addr-pay-online"></span></label>' +
+      '<label class="pt-addr-payopt"><input type="radio" name="pt-addr-pay" value="cod"><span id="pt-addr-pay-cod"></span></label>' +
+      '</fieldset>' +
+      // The extra the page offers, between payment and address: a tick, its
+      // photo, what it is and what it costs. Hidden unless the caller offers one.
+      '<label id="pt-addr-addon" class="pt-hide"><input type="checkbox" id="pt-addr-addon-check">' +
+      '<img id="pt-addr-addon-img" class="pt-hide" alt="" width="56" height="56" decoding="async" loading="lazy">' +
+      '<span class="pt-addr-addon-b"><strong id="pt-addr-addon-t"></strong><small id="pt-addr-addon-d"></small></span></label>' +
+      '<div class="pt-addr-step"><span class="pt-addr-step-t">Delivery address</span></div>' +
+      addressRows +
+      // Only with an order to show: what the total is made of, then when the
+      // money is taken, then the one tick that needs a decision.
+      '<div id="pt-addr-checkout" class="pt-hide">' +
+      '<dl id="pt-addr-breakdown" aria-label="Price breakdown"></dl>' +
+      '<p class="pt-addr-summary-pay" id="pt-addr-summary-pay">No payment is taken on this step. Continue to pay securely using UPI, cards or net banking.</p>' +
+      // Meta reclassified the abandoned-cart template as MARKETING, which needs
+      // recorded opt-in, so the reminder can only reach a buyer who has this on.
+      //
+      // Ticked by default, by the owner's decision on 2026-09-23. The trade is
+      // written down rather than hidden: a pre-ticked box is weaker consent
+      // than a deliberate tick, so the stamp records WHICH it was, and the box
+      // sits in plain sight above the button with one tap to turn it off.
+      '<label class="pt-addr-optin"><input type="checkbox" id="pt-addr-optin" checked><span>Message me on WhatsApp about this order and ParkTag offers. Untick if you would rather not.</span></label>' +
+      '</div>' +
       '<button id="pt-addr-save" class="pt-addr-primary" type="button">' + IC.lock + "Save &amp; continue to pay</button>" +
       '<button id="pt-addr-cancel" class="pt-addr-link" type="button">Cancel</button>' +
       '<p id="pt-addr-note">Saved to your profile. You won\'t need to enter it again.</p>' +
+      // What happens after the tap. Delhivery is the courier orders are booked
+      // with (lib/integrations/delhivery.js) and /track-order follows them, so
+      // both are true; a delivery time is not promised because none is.
+      '<div id="pt-addr-assure" class="pt-hide"><img src="/images/proof/customer-handover.webp" alt="" width="56" height="70" loading="lazy" decoding="async">' +
+      '<div><strong>7-day replacement &bull; Free delivery</strong><span>Shipped with Delhivery. Track your order any time.</span></div></div>' +
       secure +
       "</div>" +
 
@@ -491,8 +591,18 @@
       sub: ov.querySelector("#pt-addr-sub"),
       summary: ov.querySelector("#pt-addr-summary"),
       summaryName: ov.querySelector("#pt-addr-summary-name"),
+      summaryImg: ov.querySelector("#pt-addr-summary-img"),
       summaryPrice: ov.querySelector("#pt-addr-summary-price"),
       summaryPay: ov.querySelector("#pt-addr-summary-pay"),
+      checkout: ov.querySelector("#pt-addr-checkout"),
+      assure: ov.querySelector("#pt-addr-assure"),
+      addon: ov.querySelector("#pt-addr-addon"),
+      addonCheck: ov.querySelector("#pt-addr-addon-check"),
+      addonImg: ov.querySelector("#pt-addr-addon-img"),
+      addonT: ov.querySelector("#pt-addr-addon-t"),
+      addonD: ov.querySelector("#pt-addr-addon-d"),
+      breakdown: ov.querySelector("#pt-addr-breakdown"),
+      eyebrowText: ov.querySelector("#pt-addr-eyebrow span"),
       optIn: ov.querySelector("#pt-addr-optin"),
       payChoice: ov.querySelector("#pt-addr-paychoice"),
       payOnline: ov.querySelector("#pt-addr-pay-online"),
@@ -592,6 +702,7 @@
     // Back to the form with what they typed, to fix a wrong number.
     ov.querySelector("#pt-addr-back").addEventListener("click", function () { showForm(codAddress); });
     els.payChoice.addEventListener("change", function (e) { setPayChoice(e.target.value); });
+    els.addonCheck.addEventListener("change", function () { setAddOn(this.checked); });
     ov.querySelector("#pt-addr-cancel").addEventListener("click", function () { close(false); });
     ov.querySelector("#pt-addr-cancel2").addEventListener("click", function () { close(false); });
     ov.addEventListener("click", function (e) { if (e.target === ov) close(false); });
@@ -617,19 +728,84 @@
     els.err.classList.remove("pt-show");
   }
 
+  // A picture path on this site and nowhere else: the caller is our own page,
+  // but the sheet is shared and the value ends up in an <img src>.
+  function ownImage(path) {
+    return typeof path === "string" && /^\/images\/[\w./-]+$/.test(path) && path.indexOf("..") < 0;
+  }
+
+  // The summary the caller gave, with the extra added when it is ticked: its
+  // price on the online total, the list price and the Cash on Delivery total,
+  // and a line for the breakdown to show.
+  function currentSummary() {
+    if (!orderSummary || !addOnOffer || !addOnOn) return orderSummary;
+    var add = Number(addOnOffer.amountPaise) || 0;
+    var s = Object.assign({}, orderSummary);
+    s.amountPaise = Number(orderSummary.amountPaise) + add;
+    if (orderSummary.mrpPaise != null && Number.isFinite(Number(orderSummary.mrpPaise))) {
+      s.mrpPaise = Number(orderSummary.mrpPaise) + add;
+    }
+    if (orderSummary.cod) {
+      s.cod = Object.assign({}, orderSummary.cod, { amountPaise: Number(orderSummary.cod.amountPaise) + add });
+    }
+    s.addOnLine = { name: String(addOnOffer.name || "Add-on"), amountPaise: add };
+    return s;
+  }
+
+  function showAddOnCard() {
+    var ok = !!(addOnOffer && priced && Number(addOnOffer.amountPaise) > 0 && addOnOffer.name);
+    els.addon.classList.toggle("pt-hide", !ok);
+    if (!ok) return;
+    els.addonCheck.checked = addOnOn;
+    els.addonT.textContent = addOnOffer.name + " (+" + inr(Number(addOnOffer.amountPaise)) + ")";
+    els.addonD.textContent = addOnOffer.description || "";
+    var withPhoto = ownImage(addOnOffer.image);
+    els.addonImg.classList.toggle("pt-hide", !withPhoto);
+    if (withPhoto) els.addonImg.src = addOnOffer.image;
+  }
+
+  function setAddOn(on) {
+    addOnOn = !!on;
+    if (addOnOffer && typeof addOnOffer.onChange === "function") {
+      try { addOnOffer.onChange(addOnOn); } catch (_) { /* the page's tick is a convenience */ }
+    }
+    // Same pricing, one more line. showOrderSummary resets the method to
+    // online, so the buyer's choice is put back.
+    var keep = payChoice;
+    showOrderSummary(currentSummary());
+    setPayChoice(keep);
+    draftKeep();
+  }
+
   function showOrderSummary(summary) {
     if (!els || !els.summary) return;
     var name = summary && typeof summary.name === "string" ? summary.name.trim() : "";
     var amountPaise = summary && Number(summary.amountPaise);
     if (!name || !Number.isFinite(amountPaise) || amountPaise <= 0) {
       els.summary.classList.add("pt-hide");
+      els.checkout.classList.add("pt-hide");
+      els.assure.classList.add("pt-hide");
+      els.eyebrowText.textContent = "Delivery";
       els.summaryName.textContent = "";
       els.summaryPrice.textContent = "";
+      els.summaryImg.classList.add("pt-hide");
       els.payChoice.classList.add("pt-hide");
+      priced = null;
+      payPrices = null;
       setPayChoice("online");
       return;
     }
     els.summaryName.textContent = name;
+    // The pack's picture, when the caller has one. Only a path on this site:
+    // the caller is our own page, but the sheet is shared and the value ends up
+    // in an <img src>.
+    var image = summary.image;
+    if (ownImage(image)) {
+      els.summaryImg.src = image;
+      els.summaryImg.classList.remove("pt-hide");
+    } else {
+      els.summaryImg.classList.add("pt-hide");
+    }
     renderSummaryPrice(amountPaise, Number(summary.mrpPaise));
 
     // Only a guest can choose COD (it is guest create-order that takes it),
@@ -647,20 +823,57 @@
       els.payCod.appendChild(codNote);
     }
     payPrices = codOn ? { online: amountPaise, cod: codPaise, mrp: Number(summary.mrpPaise) } : null;
+    priced = {
+      name: name,
+      amount: amountPaise,
+      mrp: Number(summary.mrpPaise),
+      fee: codOn ? Number(cod.feePaise) || 0 : 0,
+      addOn: summary.addOnLine || null
+    };
     if (codOn) loadNumberFlow();
     setPayChoice("online");
 
     // Up to two badges: a promo code, and a friend's link. Both come off the
     // online price only, so setPayChoice hides them beside Cash on Delivery.
     els.summary.querySelectorAll(".pt-addr-summary-offer").forEach(function (el) { el.remove(); });
+    // Drawn as a coupon (a ticket with a tag, the code and the saving), not a
+    // pill: a discount that has been applied should be the first thing noticed.
+    var saved = Number(summary.mrpPaise) - amountPaise;
     [summary.offerLabel, summary.referralLabel].forEach(function (label) {
       if (!label) return;
       var badge = document.createElement("span");
       badge.className = "pt-addr-summary-offer";
-      badge.textContent = label;
+      var icon = document.createElement("span");
+      icon.className = "pt-offer-ic";
+      icon.innerHTML = IC.tag;
+      // "LAUNCH auto-applied" -> the code on its own in a dashed box, the way a
+      // coupon code is shown anywhere else, and the rest as a small note under
+      // it. A label that is not in that shape (a friend's link) is shown whole.
+      var parts = /^(\S+)\s+(auto-)?applied$/i.exec(label);
+      var body = document.createElement("span");
+      body.className = "pt-offer-b";
+      var code = document.createElement("span");
+      code.className = "pt-offer-code";
+      code.textContent = parts ? parts[1] : label;
+      var note = document.createElement("span");
+      note.className = "pt-offer-note";
+      note.textContent = parts ? (parts[2] ? "Applied automatically" : "Coupon applied") : "Applied";
+      body.append(code, note);
+      badge.append(icon, body);
+      // The saving rides on the first coupon only: it is the whole discount
+      // between list price and what is charged, not one coupon's share.
+      if (saved > 0 && !els.summary.querySelector(".pt-offer-save")) {
+        var save = document.createElement("span");
+        save.className = "pt-offer-save";
+        save.textContent = "You save " + inr(saved);
+        badge.appendChild(save);
+      }
       els.summary.appendChild(badge);
     });
     els.summary.classList.remove("pt-hide");
+    els.checkout.classList.remove("pt-hide");
+    els.assure.classList.remove("pt-hide");
+    els.eyebrowText.textContent = "Secure checkout";
   }
 
   function inr(paise) {
@@ -743,15 +956,57 @@
     els.secureTexts.forEach(function (el) {
       el.textContent = cod ? "Cash on delivery · pay when your order arrives" : "Secured by Razorpay · UPI · Cards · Net Banking";
     });
+    renderBreakdown();
     if (guestMode && els.save) els.save.innerHTML = IC.lock + saveLabel();
     // The code send needs a bot score. Minted now, while the buyer is still on
     // the form, so the tap does not wait on Google.
     if (cod && guestMode) primeCaptcha();
   }
 
+  // What the buyer owes under the method they have picked, in paise, or 0
+  // when there is no order on screen.
+  function payTotal() {
+    if (!priced) return 0;
+    return payChoice === "cod" && payPrices ? payPrices.cod : priced.amount;
+  }
+
+  // The amount rides on the button, so the last thing read before the tap is
+  // the number that will be charged (or owed on the doorstep).
   function saveLabel() {
     if (!guestMode) return "Save &amp; continue to pay";
-    return payChoice === "cod" ? "Place order, pay on delivery" : "Continue to pay";
+    var total = payTotal();
+    return (payChoice === "cod" ? "Place order, pay on delivery" : "Continue to pay") + (total ? " · " + inr(total) : "");
+  }
+
+  // What the total is made of, as the list the Stitch checkout shows. The lines
+  // are derived from the same two numbers the header already shows (and the
+  // fee the caller priced), so they cannot add up to anything else: list price
+  // less the discount, plus the fee, is the total, by construction. Text only.
+  function renderBreakdown() {
+    if (!els || !els.breakdown) return;
+    els.breakdown.textContent = "";
+    if (!priced) return;
+    var cod = payChoice === "cod" && !!payPrices;
+    var total = payTotal();
+    var net = cod ? total - priced.fee : total;
+    var base = Number.isFinite(priced.mrp) && priced.mrp > net ? priced.mrp : net;
+    var add = priced.addOn ? priced.addOn.amountPaise : 0;
+    var rows = [[priced.name, inr(base - add), ""]];
+    if (add) rows.push([priced.addOn.name, "+" + inr(add), ""]);
+    if (base > net) rows.push(["Discount", "−" + inr(base - net), "pt-promo"]);
+    rows.push(["Delivery", "FREE", "pt-save"]);
+    if (cod) rows.push(["Cash on delivery fee", "+" + inr(priced.fee), ""]);
+    rows.push([cod ? "To pay on delivery" : "Total to pay", inr(total), "pt-total"]);
+    rows.forEach(function (r) {
+      var row = document.createElement("div");
+      row.className = "pt-addr-bk-row" + (r[2] ? " " + r[2] : "");
+      var dt = document.createElement("dt");
+      dt.textContent = r[0];
+      var dd = document.createElement("dd");
+      dd.textContent = r[1];
+      row.append(dt, dd);
+      els.breakdown.appendChild(row);
+    });
   }
 
   var suggTimer = null, suggSeq = 0, suggList = [];
@@ -911,10 +1166,12 @@
     }
     if (els.save) els.save.innerHTML = IC.lock + saveLabel();
 
-    els.title.textContent = prefill ? "Edit delivery address" : "Delivery address";
+    els.title.textContent = prefill ? "Edit delivery address" : priced ? "Complete your order" : "Delivery address";
     els.sub.textContent = prefill
       ? "Update where we should ship your sticker."
-      : "Where should we ship your official ParkTag sticker?";
+      : priced
+        ? "Your mobile number, how you will pay, and where it goes."
+        : "Where should we ship your official ParkTag sticker?";
     els.confirm.classList.add("pt-hide");
     els.otp.classList.add("pt-hide");
     clearInterval(resendTimer);
@@ -1179,6 +1436,8 @@
     }
     var r = resolver;
     resolver = null;
+    // When an extra was offered, the answer to it travels with the address.
+    if (saved && typeof saved === "object" && addOnOffer) saved = Object.assign({}, saved, { addOn: addOnOn });
     if (r) r(saved === true ? true : (saved || false));
   }
 
@@ -1256,7 +1515,10 @@
     if (!els) build();
     // No summary means no priced COD: a stale choice must not carry over.
     payPrices = null;
-    showOrderSummary(orderSummary);
+    addOnOffer = orderSummary && orderSummary.addOn && typeof orderSummary.addOn === "object" ? orderSummary.addOn : null;
+    addOnOn = !!(addOnOffer && addOnOffer.checked);
+    showOrderSummary(currentSummary());
+    showAddOnCard();
     return new Promise(function (resolve) {
       // If a sheet is somehow already open, cancel the previous waiter.
       if (resolver) resolver(false);

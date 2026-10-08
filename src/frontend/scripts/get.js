@@ -26,7 +26,9 @@ const PACKS = [
   {
     id: "pt-car-2",
     desc: "Best value. Tag two cars, or the front and back of one.",
-    image: "/images/shop-car-2-thumb.webp"
+    image: "/images/shop-car-2-thumb.webp",
+    // The two real tags, shown in the checkout sheet beside the order.
+    summaryImage: "/images/order-duo-thumb.webp"
   },
   // Out of stock, not withdrawn. A pack we still price but cannot ship is
   // shown with its price and no way to buy it, rather than dropped: a visitor
@@ -111,12 +113,39 @@ function renderChips(products) {
   const chip = document.querySelector(".gt-chip-price");
   if (!chip || !hero) return;
 
-  // "Pack of 2 · ₹499" — the name already says which pack, so the chip does
-  // not repeat the word ParkTag a third time on one screen.
   const offer = offerFor(HERO_PACK);
-  chip.textContent = offer
-    ? `${hero.name.replace(/^ParkTag\s*/, "")} · ${rupees(offer.offerPaise)} offer · MRP ${rupees(offer.mrpPaise)}`
-    : `${hero.name.replace(/^ParkTag\s*/, "")} · ${rupees(hero.amountPaise)}`;
+  const part = (tag, className, text) => {
+    const el = document.createElement(tag);
+    el.className = className;
+    el.textContent = text;
+    return el;
+  };
+  // The pack's own name and what it saves, from the catalogue: the card can
+  // only say what the checkout will charge.
+  const name = byId("gtBuyName");
+  if (name) name.textContent = hero.name;
+  const off = byId("gtBuyOff");
+  if (off) {
+    const pct = offer && offer.mrpPaise > offer.offerPaise
+      ? Math.round(((offer.mrpPaise - offer.offerPaise) / offer.mrpPaise) * 100)
+      : 0;
+    off.hidden = pct < 1;
+    off.textContent = pct >= 1 ? `${pct}% OFF` : "";
+  }
+  chip.replaceChildren(
+    part("strong", "gt-price-v", rupees(offer ? offer.offerPaise : hero.amountPaise)),
+    ...(offer ? [part("span", "gt-price-was", `MRP ${rupees(offer.mrpPaise)}`)] : []),
+    part("span", "gt-price-free", "Free delivery")
+  );
+
+  // Same rule as the sticky bar: cash on delivery is promised only when the
+  // catalogue says this pack takes it. The plain online line stands in for it
+  // otherwise, so the list never has a hole.
+  const cod = Boolean(codFor(HERO_PACK));
+  const codLine = byId("gtChipCod");
+  const onlineLine = byId("gtChipOnline");
+  if (codLine) codLine.hidden = !cod;
+  if (onlineLine) onlineLine.hidden = cod;
 }
 
 function renderPacks(products) {
@@ -124,6 +153,7 @@ function renderPacks(products) {
   if (!list) return;
 
   const rows = [];
+  const outRows = [];
   for (const pack of PACKS) {
     const priced = products[pack.id];
     // A pack the server no longer sells is dropped rather than shown at a
@@ -255,10 +285,20 @@ function renderPacks(products) {
     }
 
     li.append(img, bd, cta);
-    rows.push(li);
+    (soldOut ? outRows : rows).push(li);
   }
 
   list.replaceChildren(...rows);
+
+  // Sold-out packs leave the buy list so the visitor faces two real choices,
+  // not four with two dead ends. They stay one tap away under "Coming back
+  // soon" because that tap is how the waitlist demand gets counted.
+  const soon = byId("gtSoon");
+  const outList = byId("gtPacksOut");
+  if (soon && outList) {
+    outList.replaceChildren(...outRows);
+    soon.hidden = outRows.length === 0;
+  }
 }
 
 function renderBar(products) {
@@ -298,14 +338,6 @@ function renderAddOn(addOns) {
     if (event.target.checked && window.ptTrack) {
       ptTrack("add_on_selected", { item_id: addOn.id, value: addOn.amountPaise / 100, currency: "INR" });
     }
-  });
-  // The product image sits outside the <label>, for the CSS grid layout, so it
-  // doesn't toggle the checkbox natively. Buyers tap the photo expecting it to.
-  byId("gtAddonImage")?.addEventListener("click", () => {
-    const check = byId("gtAddonCheck");
-    if (!check) return;
-    check.checked = !check.checked;
-    check.dispatchEvent(new Event("change"));
   });
 }
 
@@ -620,8 +652,12 @@ async function buy(sku) {
   // whatever the stepper happens to show by the time the request lands.
   const quantity = _qty.get(sku) || 1;
   const product = _products[sku];
-  const addOn = selectedAddOn(sku);
-  _checkedOutAddOn = addOn;
+  // Offered inside the checkout sheet for the packs that take it, ticked when
+  // the box on the page is. What the buyer decides in the sheet comes back with
+  // the address (see below), so this is only where it starts.
+  const addOnOffered = _addOn && (_addOn.productIds || []).includes(sku) ? _addOn : null;
+  const addOnAtOpen = selectedAddOn(sku);
+  _checkedOutAddOn = addOnAtOpen;
 
   if (typeof window.ptCollectAddress !== "function") {
     captcha.stop();
@@ -637,7 +673,9 @@ async function buy(sku) {
   // A friend's link the server has confirmed (checkReferral). It comes off the
   // ONLINE price, because that is what the payment window is about to ask for,
   // and never off Cash on Delivery: the server does not apply it there.
-  const totalPaise = product ? pricedTotalPaise(sku, product, quantity, addOn) : 0;
+  // Without the plate: the sheet adds it when it is ticked, so the same number
+  // is never added twice.
+  const totalPaise = product ? pricedTotalPaise(sku, product, quantity, null) : 0;
   const refOff = referralCode() ? _referralOff : 0;
   // The server's own floor: no discount takes the goods below one rupee.
   const onlinePaise = refOff ? Math.max(totalPaise - refOff, 100) : totalPaise;
@@ -649,14 +687,33 @@ async function buy(sku) {
     captchaToken: () => getCaptchaToken("guest_checkout"),
     orderSummary: product
       ? {
-          name: `${quantity > 1 ? `${quantity} × ` : ""}${product.name}${addOn ? ` + ${addOn.name}` : ""}`,
+          name: `${quantity > 1 ? `${quantity} × ` : ""}${product.name}`,
           amountPaise: onlinePaise,
-          mrpPaise: offer || refOff ? (product.amountPaise * quantity) + (addOn?.amountPaise || 0) : null,
+          image: PACKS.find((p) => p.id === sku)?.summaryImage || PACKS.find((p) => p.id === sku)?.image,
+          mrpPaise: offer || refOff ? product.amountPaise * quantity : null,
           offerLabel: offer ? `${offer.code} auto-applied` : null,
           referralLabel: refOff ? `Friend's link: ${rupees(totalPaise - onlinePaise)} off` : null,
           cod: cod
-            ? { amountPaise: pricedTotalPaise(sku, product, quantity, addOn) + cod.surchargePaise, feePaise: cod.surchargePaise }
-            : null
+            ? { amountPaise: pricedTotalPaise(sku, product, quantity, null) + cod.surchargePaise, feePaise: cod.surchargePaise }
+            : null,
+          addOn: addOnOffered
+            ? {
+                id: addOnOffered.id,
+                name: addOnOffered.name,
+                description: addOnOffered.description,
+                amountPaise: addOnOffered.amountPaise,
+                image: addOnOffered.image,
+                checked: Boolean(addOnAtOpen),
+                // The same tick the page has: its own handler saves the choice
+                // and counts it, so the two can never disagree.
+                onChange: (on) => {
+                  const box = byId("gtAddonCheck");
+                  if (!box) return;
+                  box.checked = on;
+                  box.dispatchEvent(new Event("change"));
+                }
+              }
+            : undefined
         }
       : null
   });
@@ -665,8 +722,12 @@ async function buy(sku) {
     cartSave({ checkout: null }); // backed out on purpose: do not reopen it
     return;
   }
-  const { paymentMethod = "online", codToken, marketingOptIn = false, marketingOptInSource, ...address } = picked;
+  const { paymentMethod = "online", codToken, marketingOptIn = false, marketingOptInSource, addOn: addOnPicked, ...address } = picked;
   const payCod = paymentMethod === "cod";
+  // The sheet's answer, not the page's box, decides: the buyer may have ticked
+  // or unticked the plate there.
+  const addOn = addOnOffered && addOnPicked ? addOnOffered : null;
+  _checkedOutAddOn = addOn;
 
   if (window.ptTrack && product) {
     ptTrack("add_shipping_info", {
@@ -922,148 +983,36 @@ function showDone(done) {
   }
 }
 
-// ── Gallery dots ───────────────────────────────────────────────────────────
+// ── Photos ────────────────────────────────────────────────────────────────
 //
-// The scrolling is the browser's. This is only the two things it does not give
-// us: a dot that jumps to a slide, and a dot that knows which slide is showing.
-// Everything degrades to a plain scrollable strip if this never runs, which is
-// why the slides live in the HTML and are not built from a list in here.
-function wireGallery() {
-  const track = byId("gtGal");
-  const dots = byId("gtGalDots");
-  if (!track || !dots) return;
-
-  const slides = Array.from(track.children);
-  const buttons = Array.from(dots.children);
-  const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)");
-  const behavior = reduceMotion.matches ? "auto" : "smooth";
-
-  dots.addEventListener("click", (event) => {
-    const dot = event.target.closest("button[data-slide]");
-    if (!dot) return;
-    const slide = slides[Number(dot.dataset.slide)];
-    // block: "nearest" so jumping between images never drags the PAGE
-    // vertically, which is what scrollIntoView does by default.
-    if (slide) slide.scrollIntoView({ behavior, inline: "center", block: "nearest" });
-  });
-
-  // Every slide is exactly one track wide, so the index is the ratio. Read on
-  // scroll rather than only on click, so a swipe moves the dots too.
-  const sync = () => {
-    const index = Math.round(track.scrollLeft / track.clientWidth);
-    buttons.forEach((button, i) => {
-      button.setAttribute("aria-current", i === index ? "true" : "false");
-    });
-  };
-
-  // At most one read per frame: scroll fires far more often than the dots can
-  // usefully change, and each read of scrollLeft forces a layout.
-  let syncQueued = false;
-  track.addEventListener("scroll", () => {
-    if (syncQueued) return;
-    syncQueued = true;
-    requestAnimationFrame(() => { syncQueued = false; sync(); });
-  }, { passive: true });
-  sync();
-
-  // ── Autoplay ──────────────────────────────────────────────────────────────
-  //
-  // The track is a scroll-snap strip, so advancing it is just a scroll; the
-  // dots keep themselves in step through the sync() listener above and need no
-  // separate bookkeeping.
-  //
-  // The index is held here rather than read back from scrollLeft on each tick.
-  // Reading the live position only works while no scroll is in flight, which
-  // ties the interval to however long a smooth scroll happens to take — at a
-  // short interval the read rounds to whichever slide sits under the midpoint
-  // and the show stutters between two frames instead of moving on. Counting
-  // instead of measuring keeps the cadence independent of the animation.
-  const SLIDE_MS = 2500;
-
-  let index = 0;
-  let timer = null;
-  let onScreen = true;
-  let surrendered = false; // the visitor took the wheel; we do not take it back
-
-  const advance = () => {
-    // Wrapping from the last slide to the first is a jump across the whole
-    // strip. Smoothed, that reads as a fast rewind through every image; taken
-    // instantly it reads as the loop starting again, which is what it is.
-    const wrapping = index === slides.length - 1;
-    index = (index + 1) % slides.length;
-    track.scrollTo({
-      left: index * track.clientWidth,
-      behavior: wrapping ? "auto" : behavior
-    });
-  };
-
-  const pause = () => { if (timer) { clearInterval(timer); timer = null; } };
-
-  const play = () => {
-    if (timer || surrendered || !onScreen) return;
-    // A single slide has nowhere to go, and a visitor who has asked for less
-    // motion should not be handed a carousel that advances on its own at all.
-    if (slides.length < 2 || reduceMotion.matches) return;
-    timer = setInterval(advance, SLIDE_MS);
-  };
-
-  // Any deliberate input — a swipe, a dot, an arrow key — ends the autoplay for
-  // good. Pausing while a finger is down and resuming after would fight someone
-  // trying to look at one image, which is the whole reason they touched it.
-  const surrender = () => { surrendered = true; pause(); };
-  for (const type of ["pointerdown", "keydown", "wheel"]) {
-    track.addEventListener(type, surrender, { passive: true });
-  }
-  dots.addEventListener("pointerdown", surrender, { passive: true });
-
-  // Cursor over the images is not a surrender, only a reason to hold still
-  // while someone reads the caption.
-  track.addEventListener("mouseenter", pause);
-  track.addEventListener("mouseleave", play);
-
-  // Nothing should animate in a background tab: it burns battery to redraw a
-  // strip nobody is looking at, and the catch-up on return is ugly.
-  document.addEventListener("visibilitychange", () => {
-    if (document.hidden) pause(); else play();
-  });
-
-  // Same argument once the hero has been scrolled past.
-  if ("IntersectionObserver" in window) {
-    const io = new IntersectionObserver((entries) => {
-      for (const entry of entries) {
-        onScreen = entry.isIntersecting;
-        if (onScreen) play(); else pause();
-      }
-    }, { threshold: 0.5 });
-    io.observe(track);
-  } else {
-    play();
-  }
-
-  // A visitor can turn the setting on without reloading.
-  reduceMotion.addEventListener("change", () => {
-    if (reduceMotion.matches) pause(); else play();
+// Every photo on the page opens larger on a tap.
+// Panels that are not links but look like they might be (the how-it-works
+// cards, the price, the paper note) take the tap somewhere useful instead of
+// ignoring it. A tap on a photo is left to the zoom, and a real link or button
+// inside is left alone.
+function wireGoto() {
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)");
+  document.addEventListener("click", (event) => {
+    if (event.target.closest("a, button, input, label, img")) return;
+    const panel = event.target.closest("[data-goto]");
+    const target = panel && document.querySelector(panel.dataset.goto);
+    if (!target) return;
+    window.ptTrack?.("tile_tap", { target: panel.dataset.goto });
+    target.scrollIntoView({ behavior: reduce.matches ? "auto" : "smooth", block: "start" });
   });
 }
 
-// The sticking demo in "Real tags, real cars". It used to carry `autoplay`,
-// which makes a browser download the whole 1.8 MB file at page load, competing
-// with the prices and the hero image for the first seconds of a phone's
-// connection. Now it loads and plays as it nears the screen and pauses once
-// scrolled away. Without IntersectionObserver it simply plays, as before.
-// ── Tap to enlarge ─────────────────────────────────────────────────────────
-//
-// The chat screenshots carry the actual complaint as text inside the picture,
-// at a size nobody can read in a 250px card, so visitors tapped them and got
-// nothing. One <dialog> shows whichever photo was tapped at full size. The
-// browser supplies the rest: the backdrop, Escape, and focus coming back.
 function wireZoom() {
   const dialog = byId("gtZoom");
   const big = byId("gtZoomImg");
   if (!dialog || !big || typeof dialog.showModal !== "function") return;
 
   document.addEventListener("click", (event) => {
-    const shot = event.target.closest("img.gt-heard-shot, img.gt-proof-media");
+    // Every photo on the page opens larger on a tap. Clarity showed people
+    // tapping them to see more and nothing happening.
+    const shot = event.target.closest(
+      "img.gt-heard-shot, img.gt-proof-media, .gt-show img, .gt-diff-b img, .gt-how-media img, #gtAddonImage, .gt-pack img"
+    );
     if (!shot) return;
     big.src = shot.currentSrc || shot.src;
     big.alt = shot.alt;
@@ -1186,14 +1135,21 @@ function failQuietly() {
   }
 }
 
+// "Questions? Ask us on WhatsApp", under the Order button. Counted apart from
+// the waitlist taps so a buyer with a question can be told from one waiting
+// for stock.
+function wireAsk() {
+  byId("gtAsk")?.addEventListener("click", () => window.ptTrack?.("ask_whatsapp_click"));
+}
+
 async function load() {
   // Before the fetch: the buttons must point at the right pack even if the
-  // price never arrives, and the gallery is static markup that must not stop
-  // working because the price list is down.
+  // price never arrives.
   syncHeroLinks();
-  wireGallery();
   wireProofVideo();
   wireZoom();
+  wireGoto();
+  wireAsk();
 
   let payload;
   try {

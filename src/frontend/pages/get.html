@@ -20,7 +20,7 @@
     <link rel="modulepreload" href="/scripts/referral-link.js?v=__ASSET_VERSION__" />
     <link rel="modulepreload" href="/scripts/checkout-cart.js?v=__ASSET_VERSION__" />
     <link rel="modulepreload" href="/scripts/fresh-captcha.js?v=__ASSET_VERSION__" />
-    <link rel="preload" as="image" href="/images/final-landing-sticker.webp" fetchpriority="high" />
+    <link rel="preload" as="image" href="/images/shop-gal-windscreen.webp" fetchpriority="high" />
     <link rel="preload" as="font" type="font/woff2" href="/fonts/inter-latin-var.woff2" crossorigin />
 
     <link rel="stylesheet" href="/styles/get.css?v=__ASSET_VERSION__" />
@@ -41,7 +41,7 @@
     <script src="/scripts/ux-feedback.js?v=__ASSET_VERSION__" defer></script>
   </head>
 
-  <body class="gt-body">
+  <body class="gt-body gt-body-get">
 
     <!-- The one nav control is a way IN. This page is reached by people who
          have never signed in, so a dashboard-style header would offer them
@@ -96,91 +96,101 @@
            artwork landscape), so the frame is fixed and each image is CONTAINED
            inside it. Cropping to one ratio would cut the printed copy off the
            artwork. -->
-      <section class="gt-hero" aria-labelledby="gtTitle">
-        <div class="gt-gal">
-          <ul class="gt-gal-track" id="gtGal" tabindex="0" aria-label="ParkTag product images">
-            <li class="gt-gal-slide">
-              <img
-                src="/images/final-landing-sticker.webp"
-                width="1000" height="600"
-                fetchpriority="high" decoding="async"
-                alt="The ParkTag tag: scan the code to contact the vehicle owner, with call and WhatsApp buttons"
-              />
-              <p class="gt-gal-c">Scan to call or WhatsApp the owner. No app needed.</p>
-            </li>
-            <li class="gt-gal-slide">
+      <section class="gt-hero gt-hero-b" aria-labelledby="gtTitle">
+        <!-- The hook is the line the Stitch redesign tested: it names the thing
+             people do today (write a number on a card behind the glass) and says
+             the product replaces it. The price and the order button sit in their
+             own card under the pictures, as in the same design. -->
+        <h1 class="gt-title" id="gtTitle">Never write your <span class="gt-mark">phone number</span> on a car window again.</h1>
+        <!-- What the buyer gets, in four lines, before the first scroll. Each is
+             something the product does today: masked calling is included for the
+             first year, WhatsApp scan alerts stay free while the tag is active,
+             any phone camera opens the tag, and delivery is free. -->
+        <ul class="gt-perks">
+          <li><a href="#gtWhatTitle"><span class="gt-perk-i" aria-hidden="true">📞</span><span><strong>Masked calling</strong><small>1 year included</small></span></a></li>
+          <li><a href="#gtWhatTitle"><span class="gt-perk-i" aria-hidden="true">💬</span><span><strong>WhatsApp alerts</strong><small>Free for life</small></span></a></li>
+          <li><a href="#gtHowTitle"><span class="gt-perk-i" aria-hidden="true">📷</span><span><strong>No app to scan</strong><small>Any phone camera</small></span></a></li>
+          <li><a href="#packs"><span class="gt-perk-i" aria-hidden="true">🚚</span><span><strong>Free delivery</strong><small>7-day replacement</small></span></a></li>
+        </ul>
+
+        <!-- Real photo first (it is the LCP image), then the artwork and the pack.
+             Mixed ratios on purpose, so each is contained in its own tile. -->
+        <div class="gt-show">
+          <div class="gt-show-bar" aria-hidden="true"></div>
+          <div class="gt-show-in">
+            <div class="gt-show-main">
               <img
                 src="/images/shop-gal-windscreen.webp"
                 width="747" height="1000"
-                loading="lazy" decoding="async" fetchpriority="low"
+                fetchpriority="high" decoding="async"
                 alt="A ParkTag tag fixed inside a car windscreen, seen from outside the glass"
               />
-              <p class="gt-gal-c">Sticks inside the windscreen. Scannable from outside.</p>
-            </li>
-            <li class="gt-gal-slide">
-              <img
-                src="/images/shop-gal-in-hand.webp"
-                width="1000" height="965"
-                loading="lazy" decoding="async" fetchpriority="low"
-                alt="A ParkTag tag held in one hand in front of a car dashboard, showing its size"
-              />
-              <p class="gt-gal-c">Card sized. Keep it on the dashboard or the glovebox.</p>
-            </li>
-            <li class="gt-gal-slide">
-              <img
-                src="/images/shop-gal-desk.webp"
-                width="1000" height="961"
-                loading="lazy" decoding="async" fetchpriority="low"
-                alt="A ParkTag tag on a desk beside a car key, showing the printed front and the QR back"
-              />
-              <p class="gt-gal-c">Laminated and weatherproof, printed front and back.</p>
-            </li>
-          </ul>
-
-          <div class="gt-gal-dots" id="gtGalDots">
-            <button class="gt-gal-dot" type="button" data-slide="0" aria-label="Show image 1 of 4"></button>
-            <button class="gt-gal-dot" type="button" data-slide="1" aria-label="Show image 2 of 4"></button>
-            <button class="gt-gal-dot" type="button" data-slide="2" aria-label="Show image 3 of 4"></button>
-            <button class="gt-gal-dot" type="button" data-slide="3" aria-label="Show image 4 of 4"></button>
+              <span class="gt-show-chip">On a real windscreen</span>
+              <span class="gt-show-chip gt-show-chip-r">Inside mount</span>
+            </div>
+            <figure class="gt-show-tile gt-show-wide">
+              <img src="/images/parktag-tags-pair.webp" width="900" height="797" loading="lazy" decoding="async" fetchpriority="low" alt="Two ParkTag tags: scan the code to contact the vehicle owner, with call and WhatsApp buttons" />
+              <figcaption>The pack: two tags, printed on both sides</figcaption>
+            </figure>
           </div>
         </div>
 
-        <div class="gt-hero-bd">
-          <h1 class="gt-title" id="gtTitle">
-            <span class="gt-mark">Masked calls &amp; WhatsApp</span>
-            <span class="gt-title-2">for your parked car</span>
-          </h1>
-
-          <p class="gt-lede">
-            Someone blocks your gate, they scan the tag and reach you straight
-            away. Your number stays private.
-          </p>
-
-          <!-- Prices are fetched, never written here. The page must not be able
-               to quote a figure the checkout does not charge. -->
-          <ul class="gt-chips" id="gtChips">
-            <li class="gt-chip gt-chip-price"><span class="gt-sk gt-sk-chip">&nbsp;</span></li>
-            <li class="gt-chip"><a href="#gtPremium">1 year Premium included</a></li>
-            <li class="gt-chip gt-chip-ok">Lifetime WhatsApp alerts</li>
-            <li class="gt-chip gt-chip-ok">Free delivery</li>
-          </ul>
+        <!-- Prices are fetched, never written here. The page must not be able
+             to quote a figure the checkout does not charge. Cash on delivery is
+             shown only when the catalogue says the hero pack takes it
+             (renderChips), the same rule the sticky bar follows. -->
+        <div class="gt-buy">
+          <div class="gt-buy-hd">
+            <div>
+              <h2 class="gt-buy-n" id="gtBuyName">ParkTag Car Tag (Pack of 2)</h2>
+              <p class="gt-buy-d">Protect 2 cars, or the front and back of one.</p>
+            </div>
+            <span class="gt-buy-off" id="gtBuyOff" hidden></span>
+          </div>
+          <p class="gt-price gt-chip-price" data-goto="#packs"><span class="gt-sk gt-sk-chip">&nbsp;</span></p>
 
           <!-- The href is an in-page fallback for a no-JS visitor, deliberately
                NOT /shop: this page is an ad landing page and must not hand its
                traffic to the other storefront. get.js intercepts on data-sku. -->
           <p class="gt-ref" id="gtRef" role="status" hidden></p>
+          <a class="gt-btn gt-cta" href="#packs" id="gtCta" data-sku="pt-car-2">Get your ParkTag now</a>
+          <a class="gt-see" href="#gtHowTitle">See how it works <span aria-hidden="true">&darr;</span></a>
 
-          <a class="gt-btn gt-cta" href="#packs" id="gtCta" data-sku="pt-car-2">Order now · Free delivery</a>
-
-          <p class="gt-fine">One-time tag purchase · Pay online, or cash on delivery on Car Tag packs · 7-day replacement</p>
+          <ul class="gt-ticks" id="gtChips">
+            <li>7-day replacement guarantee</li>
+            <li id="gtChipCod" hidden>Pay online (UPI or card) or cash on delivery</li>
+            <li id="gtChipOnline">Pay online with UPI, cards or net banking</li>
+            <li>1 year of masked calling included</li>
+          </ul>
+          <a class="gt-wa" id="gtAsk" href="https://wa.me/918791638854?text=Hi%21%20I%20have%20a%20question%20about%20ParkTag." target="_blank" rel="noopener"><img src="/images/whatsapp-mark.png" alt="" width="20" height="20" loading="lazy" decoding="async"><span>Questions? Ask us on WhatsApp</span></a>
         </div>
       </section>
 
-      <!-- ── What it actually is ───────────────────────────────────────── -->
-      <p class="gt-trust">
-        Sticks inside your windscreen · Anyone can reach you, your number stays private ·
-        Laminated and weatherproof
-      </p>
+      <!-- ── The difference ───────────────────────────────────────────────────
+           What people do now, next to what this does. The left tile is drawn,
+           not photographed: it needs no stock picture and cannot be mistaken
+           for a customer. -->
+      <section class="gt-diff" aria-labelledby="gtDiffTitle">
+        <div class="gt-diff-hd">
+          <h2 class="gt-diff-k" id="gtDiffTitle">The difference</h2>
+          <span class="gt-diff-pill">Paper note vs ParkTag</span>
+        </div>
+        <div class="gt-diff-pair">
+          <figure class="gt-diff-a" data-goto="#gtHowTitle">
+            <div class="gt-diff-glass"><div class="gt-diff-note" aria-label="A handwritten paper note with a phone number on it"><span>123-456-7890</span></div></div>
+            <figcaption>A paper note: anyone can read your number</figcaption>
+          </figure>
+          <figure class="gt-diff-b">
+            <div class="gt-diff-zoom"><img src="/images/shop-gal-windscreen.webp" width="747" height="1000" loading="lazy" decoding="async" fetchpriority="low" alt="A ParkTag stuck inside a car windscreen" /></div>
+            <figcaption>ParkTag: they scan, your number stays hidden</figcaption>
+          </figure>
+        </div>
+        <ul class="gt-diff-feats">
+          <li><a href="#gtHowTitle"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="10.5" width="14" height="9.5" rx="2.2" stroke="currentColor" stroke-width="1.8"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" stroke="currentColor" stroke-width="1.8"/></svg><span>No number leakage</span></a></li>
+          <li><a href="#gtHowTitle"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5.5h16v10H9l-5 4v-14Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg><span>WhatsApp and call</span></a></li>
+          <li><a href="#gtProofTitle"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3l7 3v6c0 4.2-2.9 7.6-7 9-4.1-1.4-7-4.8-7-9V6l7-3z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Weatherproof laminate</span></a></li>
+        </ul>
+      </section>
 
       <!-- ── The problem, in residents' own words ───────────────────────
            Real WhatsApp messages from society and office groups, before the
@@ -189,35 +199,107 @@
            even whatever size the original screenshot was. -->
       <section class="gt-heard" aria-labelledby="gtHeardTitle">
         <h2 class="gt-h2" id="gtHeardTitle">Sound familiar?</h2>
-        <p class="gt-heard-s">Real messages from real WhatsApp groups this month. Names, numbers and plates hidden.</p>
+        <p class="gt-heard-s">Real WhatsApp groups. Names and plates hidden.</p>
         <ul class="gt-heard-row" tabindex="0" aria-label="Real parking complaints from WhatsApp groups, swipe for more">
           <li class="gt-heard-card">
             <img class="gt-heard-shot" src="/images/proof/chats/chat-blocked-two-days.webp" width="720" height="900" alt="WhatsApp message with a photo of a black SUV parked in someone else's basement parking spot" loading="lazy" decoding="async" fetchpriority="low" />
-            <blockquote class="gt-heard-q">“Whose car is this? It has been parked in my parking space for the past two days.”</blockquote>
+            <blockquote class="gt-heard-q">Parked in my spot for two days</blockquote>
             <p class="gt-heard-m">Residents’ group · 12:18 PM</p>
           </li>
           <li class="gt-heard-card">
             <img class="gt-heard-shot" src="/images/proof/chats/chat-blocking-my-cab.webp" width="720" height="900" alt="WhatsApp message with a photo of a car blocking a cab on a busy street" loading="lazy" decoding="async" fetchpriority="low" />
-            <blockquote class="gt-heard-q">“Can anyone please help me connect with the owner of this car? It’s blocking my cab.”</blockquote>
+            <blockquote class="gt-heard-q">Blocking my cab</blockquote>
             <p class="gt-heard-m">Office group · 11:03 AM</p>
           </li>
           <li class="gt-heard-card">
             <img class="gt-heard-shot" src="/images/proof/chats/chat-again-in-my-parking.webp" width="720" height="900" alt="WhatsApp message with a photo of a white SUV parked in the sender's spot again" loading="lazy" decoding="async" fetchpriority="low" />
-            <blockquote class="gt-heard-q">“Again this vehicle is parked in my parking today.”</blockquote>
+            <blockquote class="gt-heard-q">Parked in my spot again</blockquote>
             <p class="gt-heard-m">Residents’ group · 10:52 PM</p>
           </li>
           <li class="gt-heard-card">
             <img class="gt-heard-shot" src="/images/proof/chats/chat-remove-from-my-parking.webp" width="720" height="900" alt="WhatsApp message with a photo of the same white SUV, under a complaint ticket nobody expects to be resolved" loading="lazy" decoding="async" fetchpriority="low" />
-            <blockquote class="gt-heard-q">“Vehicle owner, remove it from my parking.”</blockquote>
+            <blockquote class="gt-heard-q">Nobody moves it</blockquote>
             <p class="gt-heard-m">Residents’ group · 9:34 PM</p>
           </li>
           <li class="gt-heard-card">
             <img class="gt-heard-shot" src="/images/proof/chats/chat-scooty-in-my-slot.webp" width="720" height="900" alt="WhatsApp messages with a photo of a scooter parked in someone's car slot" loading="lazy" decoding="async" fetchpriority="low" />
-            <blockquote class="gt-heard-q">“This scooty owner keep parking in the back side of my car.”</blockquote>
+            <blockquote class="gt-heard-q">Boxed in by a scooty</blockquote>
             <p class="gt-heard-m">Residents’ group · 7:25 PM</p>
           </li>
         </ul>
-        <p class="gt-heard-end">Every one of these ends in waiting and asking around. With a ParkTag on the windscreen, one scan reaches the owner in seconds, and nobody's number is shared.</p>
+        <p class="gt-heard-end" data-goto="#packs"><span><strong>With a ParkTag: one scan reaches the owner.</strong> Nobody's number is shared.</span></p>
+      </section>
+
+      <!-- ── How it works ───────────────────────────────────────────────────
+           Moved up from the foot of the page and given pictures (the Stitch
+           "How it works" cards): the review found visitors stay about 11
+           seconds and never reach a text list at the bottom. Real photos from
+           our own shots; the third picture is a drawn diagram because the only
+           way to photograph "your number stays hidden" is to make one up. -->
+      <section class="gt-how" aria-labelledby="gtHowTitle">
+        <h2 class="gt-h2 gt-how-h" id="gtHowTitle">How it works</h2>
+        <ol class="gt-how-list">
+          <li class="gt-how-card" data-goto="#packs">
+            <div class="gt-how-media">
+              <img src="/images/proof/sticking-demo-poster.jpg" width="540" height="960" loading="lazy" decoding="async" fetchpriority="low" style="object-position:30% 42%" alt="A hand peeling the film and pressing a ParkTag onto the inside of a windscreen" />
+              <span class="gt-how-n">1</span>
+            </div>
+            <h3 class="gt-how-t">Peel and stick inside the windscreen</h3>
+            <p class="gt-how-s">Peel the film and press it onto clean glass. Under a minute. Then scan it once yourself to add your number.</p>
+          </li>
+          <li class="gt-how-card" data-goto="#packs">
+            <div class="gt-how-media">
+              <img src="/images/shop-gal-windscreen.webp" width="747" height="1000" loading="lazy" decoding="async" fetchpriority="low" style="object-position:50% 55%" alt="A ParkTag tag on a windscreen, seen from outside the glass, ready to scan" />
+              <span class="gt-how-n">2</span>
+              <span class="gt-how-pill">No app needed</span>
+            </div>
+            <h3 class="gt-how-t">Anyone points a phone camera at it</h3>
+            <p class="gt-how-s">Any iPhone or Android camera opens it through the glass. Nothing to install.</p>
+          </li>
+          <li class="gt-how-card" data-goto="#packs">
+            <div class="gt-how-media gt-how-draw">
+              <svg viewBox="0 0 360 190" role="img" aria-label="The person who scans taps Call or WhatsApp on the contact page; your phone gets a ParkTag Alert call; neither number is shown">
+                <defs><linearGradient id="dkScreen" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1E293B"/><stop offset="1" stop-color="#0B132B"/></linearGradient></defs>
+                <!-- Scanner: the contact page they land on -->
+                <rect x="22" y="10" width="88" height="150" rx="16" fill="#0F172A"/>
+                <rect x="26" y="14" width="80" height="142" rx="12" fill="#fff"/>
+                <rect x="54" y="17" width="24" height="4" rx="2" fill="#0F172A"/>
+                <text class="d-t" x="66" y="38" text-anchor="middle" font-size="8.5" fill="#0B132B">Contact owner</text>
+                <rect x="38" y="46" width="56" height="14" rx="7" fill="#F1F5F9" stroke="#CBD5E1"/>
+                <text class="d-t" x="66" y="56" text-anchor="middle" font-size="7.5" fill="#0B132B">UP 16 •• ••••</text>
+                <rect x="36" y="76" width="60" height="22" rx="11" fill="#25D366"/>
+                <text class="d-t" x="66" y="90" text-anchor="middle" font-size="8.5" fill="#0B132B">WhatsApp</text>
+                <rect x="36" y="104" width="60" height="22" rx="11" fill="#0B132B"/>
+                <text class="d-t" x="66" y="118" text-anchor="middle" font-size="8.5" fill="#fff">Call</text>
+                <rect x="46" y="140" width="40" height="3" rx="1.5" fill="#E2E8F0"/>
+                <!-- You: the incoming alert -->
+                <rect x="250" y="10" width="88" height="150" rx="16" fill="#0F172A"/>
+                <rect x="254" y="14" width="80" height="142" rx="12" fill="url(#dkScreen)"/>
+                <rect x="282" y="17" width="24" height="4" rx="2" fill="#0F172A"/>
+                <circle cx="294" cy="52" r="15" fill="#1E293B" stroke="#FF3B30" stroke-width="2"/>
+                <text class="d-t" x="294" y="58" text-anchor="middle" font-size="16" fill="#fff">P</text>
+                <text class="d-t" x="294" y="86" text-anchor="middle" font-size="9" fill="#fff">ParkTag Alert</text>
+                <text class="d-t" x="294" y="99" text-anchor="middle" font-size="7.5" fill="#94A3B8">Masked call</text>
+                <circle cx="272" cy="134" r="10" fill="#EF4444"/>
+                <path d="M268 130l8 8M276 130l-8 8" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+                <circle cx="316" cy="134" r="10" fill="#22C55E"/>
+                <path d="M312 130c0 6 4 10 10 10l2-3-4-2-2 1c-2-1-3-2-4-4l1-2-2-4Z" fill="#fff"/>
+                <!-- Between them: the shield, and what it does -->
+                <path d="M116 80H150M210 80H244" stroke="#94A3B8" stroke-width="2.5" stroke-dasharray="5 5" stroke-linecap="round" fill="none"/>
+                <path d="M180 46 206 56v22c0 17-11 29-26 35-15-6-26-18-26-35V56l26-10Z" fill="#0B132B"/>
+                <rect x="171" y="72" width="18" height="14" rx="3" fill="#fff"/>
+                <path d="M175 72v-3a5 5 0 0 1 10 0v3" stroke="#fff" stroke-width="2.6" fill="none"/>
+                <text class="d-t" x="180" y="134" text-anchor="middle" font-size="11" font-weight="800" fill="#0B132B">Both numbers hidden</text>
+                <text class="d-t" x="66" y="182" text-anchor="middle" font-size="12" fill="#475569">Scanner</text>
+                <text class="d-t" x="294" y="182" text-anchor="middle" font-size="12" fill="#475569">You</text>
+              </svg>
+              <span class="gt-how-n gt-how-n-g">3</span>
+              <span class="gt-how-pill gt-how-pill-r">100% private</span>
+            </div>
+            <h3 class="gt-how-t">You get the call. Your number stays hidden.</h3>
+            <p class="gt-how-s">A masked call or a WhatsApp alert reaches you. The person scanning never sees your mobile number.</p>
+          </li>
+        </ol>
       </section>
 
       <!-- ── Real proof ─────────────────────────────────────────────────
@@ -250,7 +332,7 @@
       </section>
 
       <!-- ── Emergency ─────────────────────────────────────────────────── -->
-      <section class="gt-sos" aria-labelledby="gtSosTitle">
+      <section class="gt-sos" aria-labelledby="gtSosTitle" data-goto="#packs">
         <h2 class="gt-sos-t" id="gtSosTitle">When you can't answer, your family can</h2>
         <p class="gt-sos-s">
           Add an emergency contact to your tag. If you're ever unable to pick
@@ -266,28 +348,28 @@
            row ragged. -->
       <h2 class="gt-h2">Why a ParkTag</h2>
       <ul class="gt-feats">
-        <li class="gt-feat">
+        <li class="gt-feat" data-goto="#packs">
           <span class="gt-feat-i" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none"><path d="M6 10V7a6 6 0 1112 0v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="4" y="10" width="16" height="10" rx="2.5" stroke="currentColor" stroke-width="2"/></svg>
           </span>
           <h3 class="gt-feat-t">Private number</h3>
           <p class="gt-feat-s">The caller reaches you on a masked number and never sees your real mobile.</p>
         </li>
-        <li class="gt-feat">
+        <li class="gt-feat" data-goto="#packs">
           <span class="gt-feat-i" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 005 5L15 13l5 2v4a1 1 0 01-1 1A15 15 0 014 5a1 1 0 011-1z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
           </span>
           <h3 class="gt-feat-t">Call or WhatsApp</h3>
           <p class="gt-feat-s">WhatsApp scan alerts stay free for the life of your active ParkTag.</p>
         </li>
-        <li class="gt-feat">
+        <li class="gt-feat" data-goto="#packs">
           <span class="gt-feat-i" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="2"/><rect x="14" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="2"/><rect x="3" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="2"/><path d="M14 14h3v3h-3zM20 20h1M17 20v1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
           </span>
           <h3 class="gt-feat-t">No app to scan</h3>
           <p class="gt-feat-s">Any iPhone or Android camera opens it. Only you need an account.</p>
         </li>
-        <li class="gt-feat" id="gtPremium">
+        <li class="gt-feat" data-goto="#packs" id="gtPremium">
           <span class="gt-feat-i" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none"><path d="M12 3l7 3v6c0 4.2-2.9 7.6-7 9-4.1-1.4-7-4.8-7-9V6l7-3z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </span>
@@ -297,69 +379,30 @@
       </ul>
 
       <!-- ── What you get ────────────────────────────────────────────────────
-           The detail a cold visitor needs before paying a stranger online, and
-           the reason this page is longer than the shop grid: an ad click has no
-           marketing site behind it to answer any of this.
+           The features the app gives an owner (the same list as its Premium
+           screen), then the situations the tag is for. Both are things the
+           product does today; nothing here is a promise about a future release. -->
+      <h2 class="gt-h2" id="gtWhatTitle">What you get</h2>
+      <ul class="gt-wgrid">
+          <li class="gt-wg c1"><a href="#packs"><span class="gt-wg-i"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6.6 3.5 8.9 3.9l1 3.4-1.7 1.4a12 12 0 0 0 5.1 5.1l1.4-1.7 3.4 1 .4 2.3a1.6 1.6 0 0 1-1.6 1.9A13.4 13.4 0 0 1 4.7 5.1 1.6 1.6 0 0 1 6.6 3.5Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M15 4l5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="gt-wg-t">Call masking service</span></a></li>
+          <li class="gt-wg c2"><a href="#packs"><span class="gt-wg-i"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6.6 3.5 8.9 3.9l1 3.4-1.7 1.4a12 12 0 0 0 5.1 5.1l1.4-1.7 3.4 1 .4 2.3a1.6 1.6 0 0 1-1.6 1.9A13.4 13.4 0 0 1 4.7 5.1 1.6 1.6 0 0 1 6.6 3.5Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="gt-wg-t">Unlimited masked calls</span></a></li>
+          <li class="gt-wg c3"><a href="#packs"><span class="gt-wg-i"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6.6 3.5 8.9 3.9l1 3.4-1.7 1.4a12 12 0 0 0 5.1 5.1l1.4-1.7 3.4 1 .4 2.3a1.6 1.6 0 0 1-1.6 1.9A13.4 13.4 0 0 1 4.7 5.1 1.6 1.6 0 0 1 6.6 3.5Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M15 9l5-5m0 0h-4m4 0v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="gt-wg-t">Call back missed callers</span></a></li>
+          <li class="gt-wg c4"><a href="#packs"><span class="gt-wg-i"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 21s7-5.7 7-11a7 7 0 1 0-14 0c0 5.3 7 11 7 11Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="10" r="2.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="gt-wg-t">See where it was scanned</span></a></li>
+          <li class="gt-wg c5"><a href="#packs"><span class="gt-wg-i"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3.5 7.5A1.5 1.5 0 0 1 5 6h4l2 2h8a1.5 1.5 0 0 1 1.5 1.5v8A1.5 1.5 0 0 1 19 19H5a1.5 1.5 0 0 1-1.5-1.5v-10Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="gt-wg-t">Store 10 vehicle documents</span></a></li>
+          <li class="gt-wg c6"><a href="#packs"><span class="gt-wg-i"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="10.5" width="14" height="9.5" rx="2.2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="gt-wg-t">PIN-locked document vault</span></a></li>
+          <li class="gt-wg c7"><a href="#packs"><span class="gt-wg-i"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 4 3.5 19h17L12 4Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 10v4M12 16.8v.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="gt-wg-t">Emergency SOS contact</span></a></li>
+          <li class="gt-wg c8"><a href="#packs"><span class="gt-wg-i"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5.5 11.5 7.1 7.3A2 2 0 0 1 9 6h6a2 2 0 0 1 1.9 1.3l1.6 4.2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><rect x="3" y="11.5" width="18" height="6" rx="2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M6.5 14.5h.01M17.5 14.5h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="gt-wg-t">Add unlimited vehicles</span></a></li>
+      </ul>
+      <p class="gt-wnote">Masked calling is included for your first year. WhatsApp scan alerts stay free for life while your ParkTag is active.</p>
 
-           Everything here is checkable. The material and mounting are what
-           ships, the situations are the ones the scanner screen actually
-           offers, and the membership line matches what activation grants. -->
-      <h2 class="gt-h2">What you get</h2>
-      <ul class="gt-specs">
-        <li class="gt-spec">
-          <span class="gt-spec-i" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none"><path d="M12 3.5c3 3.4 5 6.2 5 8.6a5 5 0 0 1-10 0c0-2.4 2-5.2 5-8.6Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M4.5 4.5l15 15" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
-          </span>
-          <div>
-            <h3 class="gt-spec-t">Built for Indian roads</h3>
-            <p class="gt-spec-s">Laminated weatherproof vinyl that mounts on the inside of your windshield, so rain, dust and car washes never touch the print.</p>
-          </div>
-        </li>
-        <li class="gt-spec">
-          <span class="gt-spec-i" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="7.5" width="12" height="9.5" rx="2.5" stroke="currentColor" stroke-width="1.7"/><path d="M8 7.5V6.5A2.5 2.5 0 0 1 10.5 4h8A2.5 2.5 0 0 1 21 6.5v7a2.5 2.5 0 0 1-2.5 2.5H17" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
-          </span>
-          <div>
-            <h3 class="gt-spec-t">Two tags in a pack</h3>
-            <p class="gt-spec-s">Cover the front and rear of one vehicle, or take one tag each for two vehicles.</p>
-          </div>
-        </li>
-        <li class="gt-spec">
-          <span class="gt-spec-i" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none"><path d="M5.5 11.5 7.1 7.3A2 2 0 0 1 9 6h6a2 2 0 0 1 1.9 1.3l1.6 4.2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><rect x="3" y="11.5" width="18" height="6" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="M6.5 14.5h.01M17.5 14.5h.01" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
-          </span>
-          <div>
-            <h3 class="gt-spec-t">For every parking situation</h3>
-            <p class="gt-spec-s">Blocked driveway, headlights left on, a window open in the rain, a tow warning or a minor scratch. Anyone can reach you in seconds instead of leaving a note nobody sees.</p>
-          </div>
-        </li>
-        <li class="gt-spec">
-          <span class="gt-spec-i" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12.5" r="8.5" stroke="currentColor" stroke-width="1.7"/><path d="M12 8v4.5l3 1.8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </span>
-          <div>
-            <h3 class="gt-spec-t">Activation takes a minute</h3>
-            <p class="gt-spec-s">Scan the code yourself to register the vehicle. No app to install, no paperwork.</p>
-          </div>
-        </li>
-        <li class="gt-spec">
-          <span class="gt-spec-i" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none"><path d="M4 8h8M17.5 8H20M4 16h2.5M12 16h8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="14.8" cy="8" r="2.3" stroke="currentColor" stroke-width="1.7"/><circle cx="9.2" cy="16" r="2.3" stroke="currentColor" stroke-width="1.7"/></svg>
-          </span>
-          <div>
-            <h3 class="gt-spec-t">You stay in control</h3>
-            <p class="gt-spec-s">Manage your tags from your dashboard, pause one anytime, and deactivate it in one tap if you sell the vehicle.</p>
-          </div>
-        </li>
-        <li class="gt-spec">
-          <span class="gt-spec-i" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none"><rect x="3.5" y="5.5" width="17" height="15" rx="2.5" stroke="currentColor" stroke-width="1.7"/><path d="M8 3.5v4M16 3.5v4M3.5 10.5h17" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="m9.3 15.2 2 2 3.5-3.6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </span>
-          <div>
-            <h3 class="gt-spec-t">After the Premium year</h3>
-            <p class="gt-spec-s">Masked calling is included for a full year. WhatsApp scan alerts remain lifetime free while your ParkTag is active.</p>
-          </div>
-        </li>
+      <h2 class="gt-h2">When it helps</h2>
+      <ul class="gt-cases">
+          <li><a href="#gtHeardTitle">🚧 Blocked in</a></li>
+          <li><a href="#gtHeardTitle">🔦 Lights left on</a></li>
+          <li><a href="#gtHeardTitle">🌧️ Window open in rain</a></li>
+          <li><a href="#gtHeardTitle">🚨 Tow warning</a></li>
+          <li><a href="#gtHeardTitle">🚗 Scratch or bump</a></li>
+          <li><a href="#gtHeardTitle">🆘 Emergency</a></li>
       </ul>
 
       <!-- ── Optional dashboard plate ─────────────────────────────────── -->
@@ -367,7 +410,7 @@
         <img id="gtAddonImage" loading="lazy" decoding="async" fetchpriority="low" alt="Actual clear dashboard plate with a ParkTag held in hand" />
         <div class="gt-addon-bd">
           <span class="gt-addon-k">Optional · Duo Pack only</span>
-          <h2 id="gtAddonTitle">Prefer not to stick it on the glass?</h2>
+          <h2 id="gtAddonTitle">Clear dashboard plate</h2>
           <p id="gtAddonDescription"></p>
           <label class="gt-addon-choice">
             <input id="gtAddonCheck" type="checkbox" />
@@ -404,20 +447,31 @@
         </li>
       </ul>
 
+      <!-- Packs we cannot ship yet. Out of the first decision, but kept: the
+           "Tell me when it's back" taps are the only count of that demand. -->
+      <details class="gt-soon" id="gtSoon" hidden>
+        <summary>Coming back soon</summary>
+        <ul class="gt-packs" id="gtPacksOut"></ul>
+      </details>
+
       <p class="gt-note" id="gtNote" hidden></p>
 
-      <!-- ── How it works ──────────────────────────────────────────────── -->
-      <h2 class="gt-h2">How it works</h2>
-      <ol class="gt-steps">
-        <li class="gt-step"><span class="gt-step-n">1</span><p>Stick the tag inside your windscreen.</p></li>
-        <li class="gt-step"><span class="gt-step-n">2</span><p>Activate it once and add your number. It stays hidden.</p></li>
-        <li class="gt-step"><span class="gt-step-n">3</span><p>Anyone who needs you scans it and calls. You pick up.</p></li>
-      </ol>
-
       <footer class="gt-foot">
-        <a href="/track-order">Track an order</a>
-        <span aria-hidden="true">·</span>
-        <a href="/owner-login">Sign in</a>
+        <p class="gt-foot-trust">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3l7 3v6c0 4.2-2.9 7.6-7 9-4.1-1.4-7-4.8-7-9V6l7-3z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>100% secure payments by Razorpay</span>
+        </p>
+        <!-- The policies live on the marketing site, as /shop already links them;
+             new tab so a visitor reading one does not lose their pack and address. -->
+        <nav class="gt-foot-links" aria-label="Help and policies">
+          <a href="https://parktag.me/#faq" target="_blank" rel="noopener">FAQ</a>
+          <a href="https://parktag.me/terms" target="_blank" rel="noopener">Shipping</a>
+          <a href="https://parktag.me/refund" target="_blank" rel="noopener">Refunds</a>
+          <a href="https://parktag.me/privacy" target="_blank" rel="noopener">Privacy</a>
+          <a href="https://parktag.me/terms" target="_blank" rel="noopener">Terms</a>
+        </nav>
+        <p class="gt-foot-mini"><a href="/track-order">Track an order</a> &middot; <a href="/owner-login">Sign in</a></p>
+        <p class="gt-foot-copy">&copy; 2026 ParkTag. Made by EditTree.</p>
       </footer>
     </main>
 
@@ -425,7 +479,7 @@
     <div class="gt-bar" id="gtBar">
       <div class="gt-bar-txt">
         <strong id="gtBarName">ParkTag Car Tag</strong>
-        <span id="gtBarSub">Free delivery · 1 year Premium</span>
+        <span id="gtBarSub">Free delivery · 7-day replacement</span>
       </div>
       <!-- In-page fallback, not /shop: an ad landing page must not hand its
            paid traffic to the other storefront. get.js intercepts on data-sku. -->

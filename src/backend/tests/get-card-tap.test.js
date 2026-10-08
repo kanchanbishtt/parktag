@@ -110,3 +110,102 @@ describe("tapping a pack card on /get", () => {
     assert.doesNotMatch(read("styles/get.css"), /\.gt-pack\[data-sku\]/);
   });
 });
+
+// The Meta review (Oct 2026) found the first screen opened on a flat drawing
+// and product jargon, and that two of the four packs were dead ends. These pin
+// the first decision a cold visitor faces.
+describe("the first decision on /get", () => {
+  test("the hook is the line that names the habit it replaces, and the first photo is a real windscreen", () => {
+    const html = read("pages/get.html");
+    assert.match(html, /<h1 class="gt-title"[^>]*>Never write your <span class="gt-mark">phone number<\/span> on a car window again\.<\/h1>/);
+    assert.match(html, /<div class="gt-show-main">\s*<img\s+src="\/images\/shop-gal-windscreen\.webp"/);
+  });
+
+  test("the price card names the pack and its saving from the catalogue, and shows delivery and the payment line", async () => {
+    const w = await getPage();
+    assert.equal(w.document.getElementById("gtBuyName").textContent, "ParkTag Car Tag (Pack of 2)");
+    const price = w.document.querySelector(".gt-chip-price");
+    assert.match(price.textContent, /₹499/); // the test catalogue has no launch offer
+    assert.match(price.textContent, /Free delivery/);
+    // CATALOGUE has no launch offer, so there is no saving to claim.
+    assert.equal(w.document.getElementById("gtBuyOff").hidden, true);
+    assert.equal(w.document.getElementById("gtChipCod").hidden, false);
+    assert.equal(w.document.getElementById("gtChipOnline").hidden, true);
+  });
+
+  test("the paper-note comparison is on the page, with its three promises", () => {
+    const html = read("pages/get.html");
+    assert.match(html, /Paper note vs ParkTag/);
+    for (const label of ["No number leakage", "WhatsApp and call", "Weatherproof laminate"]) assert.match(html, new RegExp(label));
+  });
+
+  test("Premium and lifetime-alert jargon is not among the hero chips", async () => {
+    const w = await getPage();
+    const chips = w.document.getElementById("gtChips").textContent;
+    assert.doesNotMatch(chips, /Premium|Lifetime/);
+  });
+
+  test("the cash-on-delivery chip shows only when the catalogue says the hero pack takes it", async () => {
+    const w = await getPage();
+    assert.equal(w.document.getElementById("gtChipCod").hidden, false);
+  });
+
+  test("sold-out packs are out of the buy list but still one tap away, and still cannot be bought", async () => {
+    const w = await getPage();
+    const live = [...w.document.querySelectorAll("#gtPacks .gt-pack")];
+    assert.equal(live.length, 2);
+    assert.equal(live.filter((li) => li.classList.contains("gt-pack-out")).length, 0);
+
+    assert.equal(w.document.getElementById("gtSoon").hidden, false);
+    const soon = [...w.document.querySelectorAll("#gtPacksOut .gt-pack-out")];
+    assert.equal(soon.length, 2);
+    for (const li of soon) assert.equal(li.querySelector("[data-sku]"), null, "a sold-out card has no data-sku");
+  });
+});
+
+// Clarity showed people tapping photos to see them larger and nothing happening
+// (dead clicks). Every photo on the page opens in the one zoom dialog.
+describe("tapping a photo on /get", () => {
+  test("opens it larger: gallery, how-it-works, the plate and the packs, as well as the proof and chat shots", () => {
+    const get = read("scripts/get.js");
+    const selector = get.match(/const shot = event\.target\.closest\(\s*"([^"]+)"/)?.[1] || "";
+    for (const part of ["img.gt-heard-shot", "img.gt-proof-media", ".gt-show img", ".gt-diff-b img", ".gt-how-media img", "#gtAddonImage", ".gt-pack img"]) {
+      assert.ok(selector.includes(part), `${part} opens the zoom`);
+    }
+    assert.match(read("pages/get.html"), /<dialog class="gt-zoom" id="gtZoom"/);
+  });
+
+  test("the plate photo no longer toggles the box: a tap on a photo is a look, not a choice", () => {
+    assert.doesNotMatch(read("scripts/get.js"), /byId\("gtAddonImage"\)\?\.addEventListener\("click"/);
+  });
+});
+
+// Clarity showed dead clicks on /get: tiles and chips that look tappable and are
+// not. Every one of them is a link to something that exists on the page.
+describe("nothing on /get that looks tappable is dead", () => {
+  const html = read("pages/get.html");
+  const doc = new JSDOM(html.replace(/<script[\s\S]*?<\/script>/g, "")).window.document;
+
+  test("every tile and chip is a link to an element that exists", () => {
+    for (const group of [".gt-perks li", ".gt-wg", ".gt-cases li", ".gt-diff-feats li"]) {
+      const items = [...doc.querySelectorAll(group)];
+      assert.ok(items.length > 0, `${group} is on the page`);
+      for (const li of items) {
+        const a = li.querySelector("a[href^='#']");
+        assert.ok(a, `${group}: "${li.textContent.trim().slice(0, 30)}" has a link`);
+        assert.ok(doc.querySelector(a.getAttribute("href")), `${a.getAttribute("href")} exists`);
+      }
+    }
+  });
+
+  test("every data-goto panel points at an element that exists", () => {
+    const panels = [...doc.querySelectorAll("[data-goto]")];
+    assert.ok(panels.length >= 4);
+    for (const el of panels) assert.ok(doc.querySelector(el.dataset.goto), `${el.dataset.goto} exists`);
+  });
+
+  test("badges drawn over photos let the tap through to the photo", () => {
+    const css = read("styles/get.css");
+    assert.match(css, /\.gt-show-chip, \.gt-how-n, \.gt-how-pill, \.gt-buy-off \{ pointer-events: none; \}/);
+  });
+});

@@ -103,7 +103,11 @@ describe("sold-out packs on /get", () => {
     // Duo Pack only: the plate is picked per sku, never from the checkbox alone.
     assert.match(source, /\(_addOn\.productIds \|\| \[\]\)\.includes\(sku\)/);
     assert.doesNotMatch(source, /selectedAddOn\(\)/);
-    assert.match(source, /amountPaise: pricedTotalPaise\(sku, product, quantity, addOn\)/);
+    // What the sheet quotes is priced from the catalogue, without the plate (the
+    // sheet adds it when it is ticked); what is charged is still the server's.
+    assert.match(source, /amountPaise: pricedTotalPaise\(sku, product, quantity, null\)/);
+    // The plate that is ordered is the one the sheet answered with.
+    assert.match(source, /const addOn = addOnOffered && addOnPicked \? addOnOffered : null;/);
     assert.doesNotMatch(
       source,
       /body:\s*JSON\.stringify\([^)]*amountPaise/s,

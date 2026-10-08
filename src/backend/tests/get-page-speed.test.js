@@ -52,8 +52,10 @@ test("the proof video does not download at page load", () => {
   assert.match(script, /function wireProofVideo\(\)/);
 });
 
-test("the hero image is the WebP, and the hidden add-on photo waits until it is shown", () => {
-  assert.match(html, /src="\/images\/final-landing-sticker\.webp"[\s\S]{0,80}fetchpriority="high"/);
+test("the hero image is the WebP, preloaded, and the hidden add-on photo waits until it is shown", () => {
+  // The first slide is the real windscreen photo; the flat artwork is slide two.
+  assert.match(html, /src="\/images\/shop-gal-windscreen\.webp"[\s\S]{0,80}fetchpriority="high"/);
+  assert.match(html, /<link rel="preload" as="image" href="\/images\/shop-gal-windscreen\.webp" fetchpriority="high" \/>/);
   assert.match(html, /<img id="gtAddonImage" loading="lazy"/);
 });
 

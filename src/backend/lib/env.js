@@ -259,6 +259,9 @@ export function getEnv() {
     // until that record was actually read, which was the slot's closing edge
     // and left no room for the rider to be late.
     delhiveryPickupTime: process.env.DELHIVERY_PICKUP_TIME || "10:00:00",
+    // Where the daily Amazon pickup job reports (an n8n webhook that posts to
+    // Slack). Optional: unset means the job still runs and just stays quiet.
+    pickupNotifyWebhookUrl: process.env.PICKUP_NOTIFY_WEBHOOK_URL || "",
     // Our own mobile numbers, comma separated. Orders placed to one of these
     // are marked internal and kept out of revenue.
     //

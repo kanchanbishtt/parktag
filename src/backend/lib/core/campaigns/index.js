@@ -16,6 +16,7 @@ import * as trialEnding from "./trial-ending.js";
 import * as callLimitReached from "./call-limit-reached.js";
 import * as cartReminder from "./cart-reminder.js";
 import * as reviewRequest from "./review-request.js";
+import * as amazonPickup from "./amazon-pickup.js";
 
 // Ordered by how much the customer would mind missing it, because the
 // per-tick send budget is spent top-down: if the cap is ever hit, it is the
@@ -30,4 +31,7 @@ import * as reviewRequest from "./review-request.js";
 // that tells an owner a service they rely on just stopped working, and unlike
 // a cart nudge it costs nothing to under-send (freeContactUsedAt only moves
 // forward), so missing a tick costs no more than a slightly later notice.
-export const CAMPAIGNS = [trialEnding, callLimitReached, cartReminder, reviewRequest];
+//
+// amazon-pickup sends no messages (it always reports sent: 0), so its place in
+// the order spends none of the budget; it is last because nothing depends on it.
+export const CAMPAIGNS = [trialEnding, callLimitReached, cartReminder, reviewRequest, amazonPickup];

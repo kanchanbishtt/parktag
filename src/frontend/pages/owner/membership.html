@@ -71,6 +71,14 @@
     <div class="mb-sk mb-sk-feat" aria-hidden="true"></div>
   </div>
 
+  <!-- Only for an owner with more than one premium tag. A membership goes on
+       one vehicle and the server will not guess which, so the owner picks it
+       here. Filled from the server's list; hidden for everyone else. -->
+  <section class="mb-vehicles" id="mbVehiclesWrap" hidden>
+    <h2 class="mb-h" id="mbVehiclesH">Choose Your Vehicle</h2>
+    <div class="mb-vehicles-list" id="mbVehicles" role="radiogroup" aria-labelledby="mbVehiclesH"></div>
+  </section>
+
   <h2 class="mb-h">Choose Your Plan</h2>
   <div class="mb-plans" id="mbPlans" role="radiogroup" aria-label="Membership plans" aria-busy="true">
     <div class="mb-sk mb-sk-plan" aria-hidden="true"></div>

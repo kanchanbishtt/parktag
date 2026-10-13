@@ -4,6 +4,8 @@
 //   POST  /api/admin/promo-codes             create
 //   PATCH /api/admin/promo-codes/:code       partial update
 //   POST  /api/admin/promo-codes/:code/revoke   sets active: false
+//   POST  /api/admin/promo-codes/:code/activate sets active: true (a token only
+//                                               for a code within its limits)
 //   GET   /api/admin/promo-codes/report      redemptions, paid orders, revenue per code
 //
 // Revocation is its own named-action route rather than a PATCH { active:
@@ -298,7 +300,8 @@ export function registerAdminPromoCodeRoutes(app, env) {
     const patch = pickWritableFields(request.body || {});
     const merged = { ...existing, ...patch };
 
-    const error = validatePromoFields(merged) || promoLimitError(request, merged, patch);
+    // `existing` too: a token may adjust a code beyond its limits but not widen it (token-limits.js).
+    const error = validatePromoFields(merged) || promoLimitError(request, merged, patch, existing);
     if (error) {
       reply.code(400);
       return { ok: false, error };
@@ -347,6 +350,23 @@ export function registerAdminPromoCodeRoutes(app, env) {
     }
 
     const code = normalisePromoCode(request.params.code);
+
+    // A token switching a code on is judged on the whole code, as if it were
+    // creating it. This route used to skip the token limits altogether, so a
+    // code an admin had made big and then revoked (100% off, unlimited, a
+    // website offer) could be put back on sale by a token -- the exact thing
+    // the limits exist to stop. A signed-in admin is not limited, as elsewhere.
+    const existing = await collections.promoCodes.findOne({ code });
+    if (!existing) {
+      reply.code(404);
+      return { ok: false, error: `No promo code ${code}.` };
+    }
+    const limitError = promoLimitError(request, existing);
+    if (limitError) {
+      reply.code(400);
+      return { ok: false, error: `A token cannot switch ${code} on. ${limitError}` };
+    }
+
     const result = await collections.promoCodes.updateOne(
       { code },
       {

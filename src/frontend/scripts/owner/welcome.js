@@ -1,5 +1,14 @@
 import { callbackState, hasLivePass, CALLABLE, NEEDS_PAYMENT, NEEDS_PREMIUM, NEEDS_SUBSCRIPTION } from "./callback-eligibility.js";
 import { dashboardTags } from "./dashboard-tags.js";
+// Importing it parks a ?ref= from this page's own address (/shop sends a
+// signed-in owner here with the friend's code on the link). A code parked
+// earlier in the tab, on /get or /shop before signing in, is already there.
+import { referralCode, clearReferralCode } from "../referral-link.js";
+
+// welcome-shop.js is a classic script and cannot import, so the dashboard
+// checkout reads the friend's code through these.
+window.ptReferralCode = referralCode;
+window.ptClearReferralCode = clearReferralCode;
 
 // ── Banners carousel ─────────────────────────────────────────────
 const track    = document.getElementById("carTrack");
@@ -1301,6 +1310,12 @@ ${_nbFilter ? `
 // not a card.
 let _ownerBackup = null;
 let _backupEditing = false;
+// Save asks before it saves: the 10 digits waiting on "Is this number right?",
+// null when the question is not showing.
+let _backupPending = null;
+// A number that took itself off with the link in its WhatsApp notice. Shown
+// under the row until the owner saves a different one.
+let _backupDeclined = null;
 
 // Shown exactly as the Phone Number row above it shows the owner's own number
 // (E.164, same face, no grouping), so the two read as a pair.
@@ -1308,10 +1323,18 @@ function formatBackup(e164) {
   return e164 || "";
 }
 
+// Grouped for reading back in the confirm step, where the point is to catch a
+// wrong digit: "+91 98765 43210".
+function groupedMobile(digits) {
+  return `+91 ${digits.slice(0, 5)} ${digits.slice(5)}`;
+}
+
 function renderBackupRow() {
   const row = document.getElementById("bk-row");
   if (!row) return;
   const set = Boolean(_ownerBackup);
+  const confirming = Boolean(_backupPending);
+  // The row stays as the owner left it behind the pop-up, typed number and all.
   const editing = _backupEditing || !set;
 
   const value = document.getElementById("bk-value");
@@ -1325,14 +1348,22 @@ function renderBackupRow() {
   const edit = document.getElementById("bk-edit");
   if (edit) edit.hidden = !editing;
   const input = document.getElementById("bk-input");
-  if (input && editing) input.value = _backupEditing && set ? String(_ownerBackup).replace(/^\+91/, "") : "";
+  if (input && editing && !confirming) input.value = _backupEditing && set ? String(_ownerBackup).replace(/^\+91/, "") : "";
   const cancel = document.getElementById("bk-cancel");
   if (cancel) cancel.hidden = !(_backupEditing && set);
 
   const acts = document.getElementById("bk-acts");
   if (acts) acts.hidden = editing;
 
+  const confirm = document.getElementById("bk-confirm");
+  if (confirm) confirm.hidden = !confirming;
+  const num = document.getElementById("bk-confirm-num");
+  if (num && confirming) num.textContent = groupedMobile(_backupPending);
+
   if (!_backupEditing) backupStatus("");
+  if (!set && !confirming && _backupDeclined) {
+    backupStatus(`${_backupDeclined} asked not to be your backup. Please add a different number.`, true);
+  }
 
   // The notification badges: a count on the header menu button and on the
   // User Info row, with the reason under the row's label. One item today.
@@ -1350,15 +1381,44 @@ function backupStatus(msg, isErr) {
   el.hidden = !msg;
 }
 
-async function saveBackupMobile() {
+// Save: check the shape, then read the number back and ask.
+function saveBackupMobile() {
   const input = document.getElementById("bk-input");
-  const btn = document.getElementById("bk-save");
   const digits = String(input?.value || "").replace(/\D/g, "");
   if (!/^[6-9]\d{9}$/.test(digits)) {
     backupStatus("Enter a 10-digit Indian mobile number.", true);
     input?.focus();
     return;
   }
+  // An error from an earlier try must not sit under the row while the
+  // question is open.
+  backupStatus("");
+  _backupPending = digits;
+  renderBackupRow();
+  document.getElementById("bk-confirm-yes")?.focus();
+}
+
+// Escape answers the pop-up the way tapping outside it does: back to the
+// number, nothing saved.
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && _backupPending) backToBackupEdit();
+});
+
+// "Edit number": back to the input with what was typed still in it.
+function backToBackupEdit(error) {
+  const digits = _backupPending;
+  _backupPending = null;
+  renderBackupRow();
+  const input = document.getElementById("bk-input");
+  if (input && digits) input.value = digits;
+  if (error) backupStatus(error, true);
+  input?.focus();
+}
+
+async function confirmBackupMobile() {
+  const digits = _backupPending;
+  if (!digits) return;
+  const btn = document.getElementById("bk-confirm-yes");
   if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
   try {
     const res = await fetch("/api/owner/backup-mobile", {
@@ -1368,17 +1428,19 @@ async function saveBackupMobile() {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.ok) {
-      backupStatus(data.error || "Couldn't save the backup number. Try again.", true);
+      backToBackupEdit(data.error || "Couldn't save the backup number. Try again.");
       return;
     }
     _ownerBackup = data.backupMobile;
+    _backupDeclined = null;
+    _backupPending = null;
     _backupEditing = false;
     renderBackupRow();
     _toast("Backup number saved.", "ok");
   } catch {
-    backupStatus("Network error. The backup number was not saved.", true);
+    backToBackupEdit("Network error. The backup number was not saved.");
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = "Save"; }
+    if (btn) { btn.disabled = false; btn.textContent = "Yes, save"; }
   }
 }
 
@@ -1404,10 +1466,13 @@ function editBackupMobile() {
 
 function cancelBackupEdit() {
   _backupEditing = false;
+  _backupPending = null;
   renderBackupRow();
 }
 
 window.saveBackupMobile = saveBackupMobile;
+window.confirmBackupMobile = confirmBackupMobile;
+window.backToBackupEdit = () => backToBackupEdit();
 window.removeBackupMobile = removeBackupMobile;
 window.editBackupMobile = editBackupMobile;
 window.cancelBackupEdit = cancelBackupEdit;
@@ -2682,10 +2747,10 @@ async function load() {
       window.location.href = "/owner-login";
       return;
     }
-    if (!res.ok) {
-      grid.innerHTML = ADD_CARD;
-      return;
-    }
+    // A server error is a failed load, not an empty account. This used to draw
+    // only the "Add Vehicle" card, which told an owner with vehicles that they
+    // had none and offered no way to try again.
+    if (!res.ok) throw new Error(`dashboard responded ${res.status}`);
 
     const data = await res.json();
 
@@ -2731,6 +2796,7 @@ async function load() {
       _owner       = data.owner;
       _ownerMobile = data.owner.mobile || null;
       _ownerBackup = data.owner.backupMobile || null;
+      _backupDeclined = data.owner.backupDeclined || null;
       renderBackupRow();
       _userId = userId;
       // The shop checkout used to read the owner's name, e-mail and mobile off
@@ -2810,12 +2876,15 @@ async function load() {
     grid.innerHTML = `
       <div role="alert" style="grid-column:1/-1;text-align:center;padding:28px 16px 12px">
         <p style="font-size:.9rem;font-weight:700;color:#374151;margin:0 0 10px">${UI.loadError}</p>
-        <button onclick="load()"
+        <button type="button" data-dashboard-retry
           style="background:#FF2700;color:#fff;border:none;border-radius:10px;
                  padding:9px 22px;font-size:.85rem;font-weight:700;cursor:pointer;font-family:inherit">
           ${UI.retry}
         </button>
       </div>` + ADD_CARD;
+    // Bound here, not as onclick="load()": this file is a module, so `load` is
+    // not a global and the inline handler threw a ReferenceError on every tap.
+    grid.querySelector("[data-dashboard-retry]").addEventListener("click", () => load());
   }
 }
 

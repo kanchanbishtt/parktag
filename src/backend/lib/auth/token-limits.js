@@ -20,12 +20,51 @@ const PROMO_HELP =
   `with a use limit of ${TOKEN_LIMITS.maxUses} or fewer and an expiry date. Use the admin panel for anything bigger.`;
 
 /**
- * Check a promo code a token is creating (`doc` whole) or editing (`doc` merged, `patch` the fields being changed).
- * On an edit only what the token is touching is judged, so it can still adjust a code you made without these limits.
+ * Check a promo code a token is creating or switching on (`doc` whole), or editing (`doc` merged, `patch` the fields
+ * being changed, `before` the code as it stood). On an edit only what the token is touching is judged, so it can still
+ * adjust a code you made without these limits; but while that code stays beyond them, the token may not widen it.
  * Returns an error message, or null when the request is fine (or did not come from a token).
  */
-export function promoLimitError(request, doc, patch = null) {
+export function promoLimitError(request, doc, patch = null, before = null) {
   if (!viaToken(request)) return null;
+  const fieldError = limitError(doc, patch);
+  if (fieldError) return fieldError;
+  // Each field passing on its own is not enough. A 100%-off code of yours, used up and expired, came back for 1000
+  // uses until 2030 through an edit that set maxUses: 1000 (within the limit) and a later expiresAt (present): the
+  // code a token can never create, put back on sale field by field. So while the code as edited is still one a token
+  // could not create, the edit may only narrow it. Once the edit brings it within the limits as a whole, it is a code
+  // the token could have made, and anything goes.
+  if (before && limitError(doc, null)) {
+    const opened = widening(before, doc);
+    if (opened) return `A token cannot widen ${opened} on a code beyond its limits. ${PROMO_HELP}`;
+  }
+  return null;
+}
+
+const time = (value) => (value ? new Date(value).getTime() : null);
+// How many times the code can be used: single-use wins over maxUses, and no maxUses is no limit.
+const capOf = (doc) => (doc.singleUse ? 1 : Number.isInteger(doc.maxUses) ? doc.maxUses : Infinity);
+// The packs it is limited to, or null for every pack (an empty list means every pack too).
+const packsOf = (doc) => (Array.isArray(doc.productIds) && doc.productIds.length > 0 ? doc.productIds : null);
+
+// What an edit opens up that the code did not allow before, in words, or null. Read the way resolvePromo reads a code
+// (lib/core/promo-codes.js). Shipping is left out on purpose: adjusting it on an older code is what edits are for.
+function widening(before, after) {
+  if (capOf(after) > capOf(before)) return "the number of uses";
+  const endBefore = time(before.expiresAt);
+  if (endBefore !== null && (time(after.expiresAt) === null || time(after.expiresAt) > endBefore)) return "the expiry";
+  const startBefore = time(before.startsAt);
+  if (startBefore !== null && (time(after.startsAt) === null || time(after.startsAt) < startBefore)) return "the start date";
+  if (before.boundPhone && after.boundPhone !== before.boundPhone) return "the mobile number it is tied to";
+  const packsBefore = packsOf(before);
+  const packsAfter = packsOf(after);
+  if (packsBefore && (!packsAfter || packsAfter.some((id) => !packsBefore.includes(id)))) return "the packs it applies to";
+  if (before.fulfilment === "handover" && after.fulfilment !== "handover") return "where it can be used";
+  return null;
+}
+
+// The fixed ceilings, on the whole code (`patch` null) or on the fields an edit touches.
+function limitError(doc, patch) {
   const touches = (field) => patch === null || Object.hasOwn(patch, field);
 
   const modeChange = touches("discountMode");

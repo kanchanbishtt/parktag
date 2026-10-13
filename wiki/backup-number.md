@@ -54,7 +54,8 @@ docs, Connect applet (developer.exotel.com/applet).
 - API: `POST /api/owner/backup-mobile` `{ mobile }`, `DELETE
   /api/owner/backup-mobile`. The dashboard payload carries
   `owner.backupMobile`. Server checks: a real Indian mobile, not the owner's
-  own number, the usual owner write rate limit. No OTP, by decision.
+  own number, not a number that declined, the usual owner write rate limit.
+  No OTP, by decision; see "Confirm, tell, and a way to say no" below.
 - UI: the menu → User Info, directly under Phone Number, where the owner's
   other profile facts live; the same row on the vehicle page's User Info. The
   overview stays about the vehicles (owner's call after seeing it there
@@ -63,6 +64,36 @@ docs, Connect applet (developer.exotel.com/applet).
   too weak next to the vehicle-number dot). Set: the number in the same face
   as the Phone Number row, with Change and Remove. Nothing is shown to
   scanners.
+
+## Confirm, tell, and a way to say no (2026-10-08)
+
+No OTP still, by decision. Instead, three lighter checks:
+
+- **Read back before saving.** Save opens a pop-up over the page, background
+  blurred: "Is this number right?", the number large ("+91 98765 43210"),
+  **Yes, save** and **Edit number**. On both the dashboard menu and the
+  vehicle page. The number is shown in full and grouped, because the point is
+  to catch a wrong digit. On the dashboard the menu stays open behind it (the
+  pop-up sits at z-index 450, above the drawer's 401), so Edit number, Escape
+  or a tap outside returns the owner to the row exactly as they left it,
+  typed number and all.
+- **One WhatsApp to the backup person** (`parktag_backup_contact_v1`,
+  docs/WHATSAPP_TEMPLATES.md 2.12), sent after the save, never blocking it.
+  Once per number per owner (`backupNotice.mobile`), at most
+  `BACKUP_NOTICES_PER_DAY` (5) a day per owner, so the feature cannot be used
+  to message people. Until Meta approves the template nothing is sent.
+- **Remove my number.** The message's button opens `/backup/<token>`, a page
+  that asks; its button posts `/api/backup-contact/decline`. That takes the
+  number off the owner (only if it is still their backup), adds it to
+  `backupDeclinedMobiles` so the owner cannot put it back, and the dashboard
+  row says "+91… asked not to be your backup" until another number is saved.
+  Only a hash of the token is stored; a used token stops working.
+
+Code: `lib/core/backup-contact.js`, `routes/public/backup-contact.js`,
+`pages/scanner/backup-contact.html`. Tests: `backup-contact-consent.test.js`.
+
+Not built: a way for a declined number to opt back in. Support can clear
+`backupDeclinedMobiles` on the owner if it is ever asked for.
 
 ## Why no per-vehicle backup
 

@@ -142,7 +142,7 @@ export async function createContactAction(env, input) {
       // provider costs its own message and nothing else. The throw below fires
       // only when NOBODY could be reached, which is the condition that
       // genuinely deserves an error at the scanner.
-      const mobile = owner.phone || owner.mobile;
+      const mobile = owner.mobile || owner.phone;
       const ownerName = owner.displayName || "there";
       const baseReason = reasonLabel(input.reason) || "an issue has been reported";
       // Rides inside the approved {{2}} variable, so no new template is needed

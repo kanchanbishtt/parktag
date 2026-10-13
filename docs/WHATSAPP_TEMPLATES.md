@@ -480,6 +480,54 @@ has filed as MARKETING, which should then be deleted.
 
 ---
 
+### 2.12 `parktag_backup_contact_v1` — UTILITY (submitted and approved 2026-10-08, Meta id 1569004908362271)
+
+Sent **once to a new backup number**, when an owner saves it
+(`lib/core/backup-contact.js`). A backup number is saved without a code, so
+this is what tells its person why a stranger's call may ring them, and lets
+them say no. A mistyped number gets a message it does not recognise, which is
+how a typo comes to light.
+
+**Header (text):** `ParkTag`
+
+**Body:**
+```
+This number has been added by *{{1}}* as the backup contact on their ParkTag.
+
+If someone needs to reach them about their vehicle and they miss the call, it
+will ring you. The caller never sees your number.
+
+Not you, or don't want this? Tap below to remove your number.
+```
+
+**Footer:** `Powered by ParkTag`
+
+**Button (URL, dynamic):** `https://app.parktag.me/backup/{{1}}` — text: `Remove my number`
+
+**Samples:** `{{1}}` = `Kanchan`, button `{{1}}` = `3f9c2a7d1e5b4c8a9f0d6e2b7a1c4d5e`
+
+> The body opens "This number has been added by" rather than with the name:
+> Meta rejects a body whose first or last token is a placeholder.
+>
+> `{{1}}` is the owner's **first name only** (`firstNameOf(resolveOwnerName)`),
+> or "a ParkTag user" when there is none. Nothing else about the owner: no
+> plate, no number.
+>
+> The button opens a page that **asks**; only its "Remove my number" button
+> removes. A link that removed on open would be set off by WhatsApp's own link
+> preview.
+>
+> **Nothing stands in for it while it is in review.** Saving still works and
+> nothing is sent; the owner record notes `backupNotice.whatsapp: "not-sent"`.
+> It switches itself on at approval with no deploy. Numbers saved before then
+> are not told retroactively.
+
+**How it was submitted:** `WHATSAPP_BUSINESS_ACCOUNT_ID=276277365570926 node --env-file=.env src/backend/scripts/create-backup-contact-template.js`
+(the ParkTag WABA, which owns +91 93116 96888; the local `.env` does not carry the id),
+then `npm run verify:whatsapp` once Meta has answered.
+
+---
+
 ## 3. Footers: done
 
 Edited via the API: `parktag_tag_activated`, `parktag_order_update_v2`,

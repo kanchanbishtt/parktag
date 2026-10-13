@@ -21,8 +21,7 @@ import { Transform } from "node:stream";
 
 import { createPasswordHash, verifyPassword } from "../auth/security.js";
 import {
-  getLoginLock,
-  recordLoginFailure,
+  reserveLoginAttempt,
   clearLoginFailures
 } from "../auth/login-lockout.js";
 import { hasActiveSubscription } from "./subscription.js";
@@ -402,8 +401,11 @@ export async function setVaultPin(collections, ownerId, pin) {
 export async function verifyVaultPin(collections, ownerId, pin) {
   const key = String(ownerId);
 
-  const lock = await getLoginLock(collections, LOCKOUT_ROLE, key);
-  if (lock.locked) {
+  // The attempt is taken before the PIN is compared, so parallel guesses
+  // cannot all slip in under the limit (see reserveLoginAttempt). A success
+  // below clears it; a wrong PIN leaves it counted.
+  const lock = await reserveLoginAttempt(collections, LOCKOUT_ROLE, key);
+  if (!lock.allowed) {
     return { ok: false, locked: true, retryAfterSeconds: lock.retryAfterSeconds };
   }
 
@@ -419,7 +421,6 @@ export async function verifyVaultPin(collections, ownerId, pin) {
   // it. Testing the object itself is always truthy and would accept any PIN.
   const { valid } = await verifyPassword(String(pin || ""), owner.vaultPinHash);
   if (!valid) {
-    await recordLoginFailure(collections, LOCKOUT_ROLE, key);
     return { ok: false, locked: false };
   }
 

@@ -160,6 +160,31 @@ export function registerProviderRoutes(app, env) {
       return reply.send("");
     }
 
+    // A route lives ten minutes, and the owner can take the tag down inside
+    // that window: Tag Active off, Calls Active off, or the vehicle deleted
+    // (which also sets the status inactive). None of those touch the route, so
+    // the tag is read again here, at the moment a phone would ring, and held to
+    // the same rule register-call and register-emergency-call applied. The
+    // owner's own call back to a scanner is not a scan and is not gated here.
+    if (record.type === "scanner_to_owner" || record.type === "scanner_to_emergency") {
+      const tag = await collections.tags.findOne(
+        { token: record.token },
+        { projection: { status: 1, deletedAt: 1, callsPaused: 1 } }
+      );
+      const tagLive = Boolean(tag) && tag.status === "active" && !tag.deletedAt;
+      const callsOpen = record.type === "scanner_to_emergency" || !tag?.callsPaused;
+      if (!tagLive || !callsOpen) {
+        request.log.info({
+          event: "dial-whom-tag-closed",
+          caller: maskPhone(callerPhone),
+          type: record.type,
+          tagStatus: tag ? tag.status : null,
+          callsPaused: tag ? Boolean(tag.callsPaused) : null
+        }, "[dial-whom] route matched but its tag no longer takes this call");
+        return reply.send("");
+      }
+    }
+
     request.log.info({
       event: "dial-whom-connect",
       caller: maskPhone(callerPhone),

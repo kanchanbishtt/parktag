@@ -38,3 +38,11 @@ them was not. The rules below are what the journey needs.
 `referral-journey.test.js` drives the real routes with only Razorpay's order
 mint replaced. `external-guard.js` refuses template sends in a test run, so the
 message wording is tested through the pure `referralRewardMessage`.
+
+## The friend who signs in on the way
+
+The dashboard shop is a second checkout, and it used to forget the code: `/api/shop/create-order` read `ref` but `welcome-shop.js` never sent one. Reaching it is easy: `/get` has a "Sign in" button, and `/shop` sends a signed-in owner straight to `/owner-welcome?shop=1`.
+
+- **The code is the same parked code.** `welcome.js` imports `referral-link.js`, so a code parked on `/get` or `/shop` earlier in the tab is still there, and a `?ref=` on the dashboard's own address is parked too. `/shop` carries a well-formed `ref` across its redirect for a signed-in owner. `welcome-shop.js` is a classic script, so it reads the code through `window.ptReferralCode` / `window.ptClearReferralCode`.
+- **Same rules as `/get`.** The pack sheet quotes the discount only after `/api/shop/referral/check` confirms it (which, for a signed-in owner, refuses their own code), on the online price only. create-order checks the account and the delivery phone; if it refuses, the sheet stops before Razorpay, says why, and drops the code. The code is forgotten once an order is placed.
+- **A reused order must name the same referrer.** The reward goes to whoever the order names, so the owner route's reuse filter includes `referredBy`.

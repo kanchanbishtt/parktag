@@ -1,8 +1,11 @@
+import crypto from "node:crypto";
 import { ObjectId } from "mongodb";
 
 import { createSecureToken } from "../auth/security.js";
 import { createQrDataUrl } from "./qr-output.js";
 import { getEnv } from "../env.js";
+import { toE164 } from "./phone.js";
+import { canonicalEmail } from "../auth/identity.js";
 
 // Canonical display ID for an E-Tag (last 8 chars of MongoDB ObjectId, uppercased).
 export function etagIdFor(id) {
@@ -400,11 +403,160 @@ export async function createEtagForVehicle(collections, ownerId, input) {
     printStatus: "not_requested",
     stickerRequested: false,
     createdAt: new Date().toISOString(),
-    ...tagLifecycleDefaults()
+    ...tagLifecycleDefaults(),
+    ...(await earlierFreeContactState(collections, ownerId, plateNumber))
   };
 
   await collections.tags.insertOne(tag);
   return { tag, created: true };
+}
+
+// Plates compared the way a person reads them: "DL 01 AB 1234", "dl-01-ab-1234"
+// and "DL01AB1234" are one car.
+function compactPlate(plate) {
+  return String(plate || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
+// The free contact belongs to the car, not to the tag record. Deleting a
+// vehicle only soft-deletes its tag, so without this an owner whose free call
+// was spent could delete the car, add the same plate back and be handed a
+// fresh one. A new E-Tag therefore starts from the most-spent free-call state
+// of any earlier tag this owner had for the same plate, deleted or not, the
+// plate compared without spaces or dashes so a reformatted number is not a new
+// car either.
+//
+// Deleting the whole account removes its tags outright, so that case is
+// covered by a second source: rememberSpentFreeCalls below keeps a keyed hash
+// of identity + plate for each spent call, matched here against the new
+// account's mobile and e-mail.
+//
+// Premium tags are skipped: register-call stamps freeContactUsed on them too,
+// where it records a call rather than a spent trial (see trial-ended-notice.js).
+// trialEndedNotice comes across with the spent state so the owner is not told
+// a second time that the same trial has ended.
+//
+// Per owner only. Another account adding this plate gets its own free contact,
+// the same as a car that has been sold.
+const FREE_CALL_FIELDS = {
+  freeContactAllowance: 1,
+  freeContactsSpent: 1,
+  freeContactUsed: 1,
+  freeContactUsedAt: 1,
+  trialEndedNotice: 1
+};
+
+const spentOf = (t) => (Number.isInteger(t.freeContactsSpent) ? t.freeContactsSpent : 0);
+
+// The most-spent of these rows, or null when none has spent anything.
+function mostSpent(rows) {
+  let most = null;
+  for (const t of rows) {
+    if (!t.freeContactUsed && spentOf(t) === 0) continue;
+    if (
+      !most ||
+      (t.freeContactUsed && !most.freeContactUsed) ||
+      (Boolean(t.freeContactUsed) === Boolean(most.freeContactUsed) && spentOf(t) > spentOf(most))
+    ) {
+      most = t;
+    }
+  }
+  return most;
+}
+
+// One key per way the owner can sign in, so a new account on either the same
+// mobile or the same e-mail finds the record. HMAC rather than a bare hash:
+// phone numbers and plates are both small enough spaces to brute-force.
+function spentFreeCallKeys(owner, plateNumber) {
+  const plate = compactPlate(plateNumber);
+  if (!owner || !plate) return [];
+  const env = getEnv();
+  const secret = env.freeCallHashKey || env.metaAppSecret || "";
+  const identities = new Set(
+    [toE164(owner.mobile), toE164(owner.phone), canonicalEmail(owner.email)].filter(Boolean)
+  );
+  return [...identities].map((identity) =>
+    crypto.createHmac("sha256", secret).update(`${identity}|${plate}`).digest("hex")
+  );
+}
+
+async function earlierFreeContactState(collections, ownerId, plateNumber) {
+  const plate = compactPlate(plateNumber);
+  const [earlier, owner] = await Promise.all([
+    collections.tags
+      .find({ ownerId, premium: { $ne: true } }, { projection: { plateNumber: 1, ...FREE_CALL_FIELDS } })
+      .toArray(),
+    collections.owners.findOne({ _id: ownerId }, { projection: { mobile: 1, phone: 1, email: 1 } })
+  ]);
+  const keys = spentFreeCallKeys(owner, plateNumber);
+  const remembered = keys.length
+    ? await collections.spentFreeCalls.find({ _id: { $in: keys } }, { projection: FREE_CALL_FIELDS }).toArray()
+    : [];
+
+  const most = mostSpent([...earlier.filter((t) => compactPlate(t.plateNumber) === plate), ...remembered]);
+  if (!most) return {};
+
+  const state = { freeContactsSpent: spentOf(most) };
+  if (most.freeContactAllowance !== undefined) state.freeContactAllowance = most.freeContactAllowance;
+  if (most.freeContactUsed) {
+    state.freeContactUsed = true;
+    state.freeContactUsedAt = most.freeContactUsedAt || new Date().toISOString();
+    if (most.trialEndedNotice) state.trialEndedNotice = most.trialEndedNotice;
+  }
+  return state;
+}
+
+// How long a deleted account's spent free calls are remembered.
+const SPENT_FREE_CALL_RETENTION_MS = 365 * 24 * 60 * 60 * 1000;
+
+/**
+ * Remember the spent free calls of an account that is about to be deleted.
+ * Call it before the account's tags are removed. Stores, per car whose free
+ * call was touched, only keyed hashes of identity + plate and the free-call
+ * counters, for a year (TTL index on expiresAt) — no plate, number or e-mail.
+ *
+ * Never throws: an account deletion must not fail over this.
+ */
+export async function rememberSpentFreeCalls(collections, owner, log) {
+  try {
+    const tags = await collections.tags
+      .find({ ownerId: owner._id, premium: { $ne: true } }, { projection: { plateNumber: 1, ...FREE_CALL_FIELDS } })
+      .toArray();
+
+    const byPlate = new Map();
+    for (const t of tags) {
+      const plate = compactPlate(t.plateNumber);
+      if (plate) byPlate.set(plate, [...(byPlate.get(plate) || []), t]);
+    }
+
+    const expiresAt = new Date(Date.now() + SPENT_FREE_CALL_RETENTION_MS);
+    const writes = [];
+    for (const [plate, rows] of byPlate) {
+      const most = mostSpent(rows);
+      if (!most) continue;
+      for (const key of spentFreeCallKeys(owner, plate)) {
+        writes.push({
+          updateOne: {
+            filter: { _id: key },
+            update: {
+              // $max, so a second deletion never lowers what was remembered.
+              $max: { freeContactsSpent: spentOf(most), freeContactUsed: Boolean(most.freeContactUsed) },
+              $set: {
+                expiresAt,
+                ...(most.freeContactAllowance !== undefined ? { freeContactAllowance: most.freeContactAllowance } : {}),
+                ...(most.freeContactUsed
+                  ? { freeContactUsedAt: most.freeContactUsedAt || null, trialEndedNotice: most.trialEndedNotice || null }
+                  : {})
+              }
+            },
+            upsert: true
+          }
+        });
+      }
+    }
+    if (writes.length) await collections.spentFreeCalls.bulkWrite(writes, { ordered: false });
+  } catch (err) {
+    log?.warn?.({ err }, "[free call] could not remember spent free calls before account deletion");
+  }
 }
 
 // Mint a brand-new PREMIUM tag for one of an owner's vehicles. Used when an

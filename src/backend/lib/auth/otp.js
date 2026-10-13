@@ -469,13 +469,27 @@ export async function verifyOtp(env, identifier, code, { purpose = OTP_PURPOSE_A
     throw clientError("Invalid or expired code. Please try again.");
   }
 
-  // Enforce attempt limit
-  if ((record.attempts || 0) >= MAX_VERIFY_ATTEMPTS) {
-    await collections.otpTokens.updateOne(
-      { _id: record._id },
+  // Enforce the attempt limit by taking the attempt BEFORE the code is
+  // compared, in one conditional update. Reading the count, comparing, then
+  // incrementing let every guess sent in parallel read the same count, so a
+  // burst got as many comparisons as it had requests. Now only
+  // MAX_VERIFY_ATTEMPTS updates can match, however the guesses arrive; a
+  // correct code spends one too, and is then used up anyway.
+  const reserved = await collections.otpTokens.findOneAndUpdate(
+    { _id: record._id, used: false, attempts: { $not: { $gte: MAX_VERIFY_ATTEMPTS } } },
+    { $inc: { attempts: 1 } },
+    { returnDocument: "after" }
+  );
+  if (!reserved) {
+    // Either the allowance is spent, or a request racing this one has just
+    // used the code (a double tap on the right code). Only the first is a
+    // lockout; the second is the same answer as a code that has gone.
+    const burnt = await collections.otpTokens.findOneAndUpdate(
+      { _id: record._id, used: false },
       { $set: { used: true } }
     );
-    throw clientError("Too many incorrect attempts. Please request a new code.");
+    if (burnt) throw clientError("Too many incorrect attempts. Please request a new code.");
+    throw clientError("Invalid or expired code. Please try again.");
   }
 
   // Codes are stored hashed. `record.code` is only present on tokens issued
@@ -504,20 +518,23 @@ export async function verifyOtp(env, identifier, code, { purpose = OTP_PURPOSE_A
   }
 
   if (!matches) {
-    await collections.otpTokens.updateOne(
-      { _id: record._id },
-      { $inc: { attempts: 1 } }
-    );
-    const remaining = MAX_VERIFY_ATTEMPTS - (record.attempts || 0) - 1;
+    // The attempt was counted when it was reserved above.
+    const remaining = Math.max(0, MAX_VERIFY_ATTEMPTS - reserved.attempts);
     throw clientError(
       `Invalid code. ${remaining} attempt${remaining === 1 ? "" : "s"} remaining.`
     );
   }
 
-  await collections.otpTokens.updateOne(
-    { _id: record._id },
+  // Conditional, so one code signs in once: two requests carrying the right
+  // code at the same moment both pass the comparison, and only the first to
+  // mark it used may go on to create a session.
+  const consumed = await collections.otpTokens.updateOne(
+    { _id: record._id, used: false },
     { $set: { used: true, usedAt: new Date().toISOString() } }
   );
+  if (consumed.modifiedCount !== 1) {
+    throw clientError("Invalid or expired code. Please try again.");
+  }
 
   // Canonical lookup, so an account stored with a mixed-case address is found
   // rather than missed. Missing it here is what forked a second, empty account

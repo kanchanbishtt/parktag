@@ -690,7 +690,6 @@ async function loginWithPassword() {
   const btn = byId("password-login-btn");
   if (btn) { btn.disabled = true; btn.classList.add("pt-btn-loading"); }
   try {
-    const rememberMe = document.getElementById("remember-me")?.checked || false;
     await fetchJson("/api/auth/login", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -699,7 +698,7 @@ async function loginWithPassword() {
       // could never authenticate here — their number matched no address and the
       // answer was always "Invalid credentials". The endpoint still accepts the
       // old names from a cached client; this sends the ones that work for both.
-      body: JSON.stringify({ identifier, pin: secret, rememberMe })
+      body: JSON.stringify({ identifier, pin: secret })
     });
     window.location.href = "/owner-welcome";
   } catch (error) {

@@ -398,15 +398,35 @@ async function startPayment(productId, variant, label, btn) {
     // vehicle card. A paid order then mints a new premium tag for that vehicle
     // and soft-removes the old free tag. Null for a generic shop purchase.
     const replaceTagId = window._replaceTagId || null;
+    const refOff = parkedReferral() ? _referralOff : 0;
     const orderRes = await fetch("/api/shop/create-order", {
       method: "POST",
       headers: { "content-type": "application/json" },
       // promo: the code typed in the pack step, if any. The server checks it
       // again and falls back to the website offer if it does not apply.
-      body: JSON.stringify({ productId, variant, replaceTagId, promo: _typedCode ? _typedCode.code : undefined })
+      // ref: a friend's link, parked when they arrived. A HINT, never a price:
+      // the server resolves it, refuses the buyer's own and sets the discount.
+      body: JSON.stringify({
+        productId, variant, replaceTagId,
+        promo: _typedCode ? _typedCode.code : undefined,
+        ref: parkedReferral() || undefined
+      })
     });
     const orderData = await orderRes.json();
     if (!orderRes.ok || !orderData.orderId) throw new Error(orderData.error || "Order creation failed.");
+
+    // The sheet quoted the friend's price. If the server did not apply it (the
+    // buyer's own link, by account or delivery number), stop before the payment
+    // window opens at a price the sheet did not show. The code is dropped, so
+    // the next tap quotes and charges the same figure.
+    if (refOff > 0 && !(Number(orderData.referralDiscountPaise) > 0)) {
+      forgetReferral();
+      if (document.getElementById("ptPackSheet").classList.contains("open")) renderPackSheet();
+      const why = orderData.referralRefused === "self"
+        ? "A friend's link cannot be used with your own account or number"
+        : "That friend's link could not be applied";
+      throw new Error(`${why}, so this order is ${rupees(orderData.amount)}. Tap Pay online now again to continue at that price.`);
+    }
 
     // 2. Fetch key ID
     const keyRes = await fetch("/api/shop/razorpay-key");
@@ -461,6 +481,7 @@ async function startPayment(productId, variant, label, btn) {
         if (verifyData.ok) {
           _typedCode = null; // used: the next order starts without it
           _codeDraft = "";
+          forgetReferral(); // spent, as on /get: not carried into a second order
           // Online = already paid → confirmation WITHOUT the flash offer.
           //
           // The figures come from verify-payment, i.e. off the order the server
@@ -548,6 +569,63 @@ function typedCodeFor(sku) {
   return _typedCode && _typedCode.sku === sku && _typedCode.result && _typedCode.result.ok ? _typedCode : null;
 }
 
+// ── A friend's referral link ──────────────────────────────────
+// Parked by referral-link.js when the buyer arrived on a ?ref= link, on /get or
+// /shop before signing in, or on this page's own address (welcome.js hands the
+// two functions over). The checkout used to drop it: create-order read `ref`
+// and the dashboard never sent one, so a friend who signed in on the way paid
+// full price and the owner whose link it was earned nothing.
+//
+// What the code takes off, once the SERVER has said it will honour it. Zero
+// until then, and zero again if it is refused: the sheet only quotes a price
+// the payment window will charge.
+let _referralOff = 0;
+let _referralAsked = false;
+
+function parkedReferral() {
+  return typeof window.ptReferralCode === "function" ? window.ptReferralCode() : null;
+}
+
+function forgetReferral() {
+  if (typeof window.ptClearReferralCode === "function") window.ptClearReferralCode();
+  _referralOff = 0;
+}
+
+async function checkReferral() {
+  const code = parkedReferral();
+  if (!code || _referralAsked) return;
+  _referralAsked = true;
+  let answer = null;
+  try {
+    const res = await fetch("/api/shop/referral/check", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ code })
+    });
+    if (res.ok) answer = await res.json();
+  } catch { /* offline: treated as "could not ask" below */ }
+  // Could not ask. Nothing is promised; the code stays parked, is sent with the
+  // order and the server still decides. Asked again next time the sheet opens.
+  if (!answer) { _referralAsked = false; return; }
+  // Nobody holds this code, or it is this owner's own. Forget it.
+  if (!answer.ok || !(Number(answer.discountPaise) > 0)) { forgetReferral(); return; }
+  _referralOff = Number(answer.discountPaise);
+}
+
+// The online total in rupees with the friend's discount off, or null when
+// there is none to take. expectedOrderPaise's rules: the discount comes off the
+// goods, never below one rupee, and any shipping fee stays on top.
+function referralTotal(sku, total) {
+  const off = parkedReferral() ? _referralOff : 0;
+  if (!off || !sku) return null;
+  const typed = typedCodeFor(sku);
+  const offer = typed ? null : websiteOfferFor(sku);
+  const shippingPaise = typed
+    ? Number(typed.result.shippingFeePaise) || 0
+    : offer ? Math.max(0, offer.offerPaise - Math.max(offer.mrpPaise - offer.discountPaise, 100)) : 0;
+  return Math.round(Math.max(total * 100 - off, 100 + shippingPaise) / 100);
+}
+
 // Rupee price for one row of the sheet: a valid typed code, else the website
 // offer, else the server's catalogue figure; the local table only until the
 // server has answered.
@@ -607,6 +685,10 @@ function openPackSheet(preselectId, variant) {
   // Repaint once the server's prices land, so the Cash on Delivery total is
   // the real one before anyone can tap it.
   loadShopPricing().then(() => {
+    if (document.getElementById("ptPackSheet").classList.contains("open")) renderPackSheet();
+  });
+  // And once the friend's link, if there is one, is confirmed.
+  checkReferral().then(() => {
     if (document.getElementById("ptPackSheet").classList.contains("open")) renderPackSheet();
   });
   closeProduct(); // leave the product sheet; show the pack step
@@ -731,6 +813,9 @@ function renderPackSheet() {
   // item rather than by re-adding the parts here.
   const localTotal = (_packTier ? PACK_PRICES[_packTier] : 0) + (_packBike ? PACK_PRICES.bike : 0);
   const total = empty ? 0 : rowRupees(sku, localTotal);
+  // Paying online with a confirmed friend's link. Cash on Delivery stays at
+  // `total`: the server never applies the referral there.
+  const online = referralTotal(sku, total);
 
   // What Cash on Delivery actually costs: catalog + the server's handling
   // surcharge, which is what the courier is told to collect. Null until the
@@ -768,16 +853,17 @@ function renderPackSheet() {
       <button type="button" class="pt-pack-code-btn" onclick="applyPackCode()"${empty ? " disabled" : ""}>Apply</button>
     </div>
     ${packCodeNote(sku, offer)}
+    ${online === null ? "" : `<p class="pt-pack-code-note ok">🎁 Friend's link applied: ₹${total - online} off when you pay online.</p>`}
 
     <div class="pt-pack-total">
       <span class="pt-pack-total-lbl">Order total</span>
-      <span class="pt-pack-total-amt">₹${total}</span>
+      <span class="pt-pack-total-amt">₹${online === null ? total : online}</span>
     </div>
     <div class="pt-pack-actions">
       <button type="button" class="pt-pack-proceed" onclick="packProceed()"${empty ? " disabled" : ""}>Pay online now</button>
       <button type="button" class="pt-pack-cod" onclick="packPlaceCod()"${empty || codTotal === null ? " disabled" : ""}>${codTotal === null ? "Cash on Delivery" : `Cash on Delivery · ₹${codTotal}`}</button>
     </div>
-    <p class="pt-pack-foot">${!typed && offer ? `${offer.code} applied: ₹${Math.round(offer.discountPaise / 100)} off the MRP of ₹${Math.round(offer.mrpPaise / 100)}. ` : ""}${packFootNote(empty, total, codSurcharge, codTotal)}</p>
+    <p class="pt-pack-foot">${!typed && offer ? `${offer.code} applied: ₹${Math.round(offer.discountPaise / 100)} off the MRP of ₹${Math.round(offer.mrpPaise / 100)}. ` : ""}${packFootNote(empty, total, codSurcharge, codTotal, online)}</p>
   `;
 }
 
@@ -786,9 +872,17 @@ function renderPackSheet() {
 // surcharge the server actually applies. If that is ever set back to zero the
 // old sentence returns on its own, and it is right again, rather than being a
 // claim nobody rechecks.
-function packFootNote(empty, total, codSurcharge, codTotal) {
+//
+// With a friend's link the online price is lower than `total` and Cash on
+// Delivery is not, so the "adds a fee" sentence would no longer add up; it says
+// what each one costs instead.
+function packFootNote(empty, total, codSurcharge, codTotal, online) {
   if (empty) return "Select at least one tag to continue.";
   if (codTotal === null) return "Free delivery on all orders. Checking the Cash on Delivery price…";
+  if (online !== null) {
+    const fee = codSurcharge > 0 ? `, including a ₹${codSurcharge} handling fee` : "";
+    return `Free delivery on all orders. Pay online and it is ₹${online} with your friend's discount. Cash on Delivery is ₹${codTotal}${fee}; the discount is for online payment only.`;
+  }
   if (codSurcharge > 0) {
     return `Free delivery on all orders. Pay online and it is ₹${total}; Cash on Delivery adds a ₹${codSurcharge} handling fee, so the courier collects ₹${codTotal}.`;
   }
@@ -832,6 +926,7 @@ function finishCod(data) {
   window._replaceTagId = null;
   _typedCode = null; // used: the next order starts without it
   _codeDraft = "";
+  forgetReferral(); // an order is placed: cleared as /get clears it
   closeCodOtp();
   closePackSheet();
   showConfirmation({

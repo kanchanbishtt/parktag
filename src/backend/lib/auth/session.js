@@ -5,21 +5,37 @@ import { getCollections } from "../db/repositories.js";
 import { attributionProps, sendMixpanelEventBestEffort } from "../integrations/mixpanel.js";
 
 const SESSION_COOKIE = "wavetag_session";
-const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const DAY_MS = 24 * 60 * 60 * 1000;
+// Owners stay signed in. An owner session lives 30 days from its last use, and
+// each use pushes that out again (renewIfDue), so someone who opens the
+// dashboard every week or two never meets the sign-in screen. Most owners sign
+// in on a phone with a code, and the cookie used to end with the browser: every
+// time the browser was swiped away, they were asked for a new code.
+const SESSION_TTL_MS = 30 * DAY_MS;
+// However often it is used, an owner session ends 180 days after sign-in, so a
+// copied cookie is not good forever.
+const OWNER_SESSION_MAX_MS = 180 * DAY_MS;
+// The slide is written at most once a day per session, not on every request.
+const RENEW_AFTER_MS = DAY_MS;
 // Admin sessions are held to a working day. A week-long admin session is a
 // week-long window for a cookie left on a shared or stolen machine, and the
-// admin console is used in sittings, not kept open for days.
+// admin console is used in sittings, not kept open for days. They never slide.
 const ADMIN_SESSION_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
 
 export function sessionTtlMs(role) {
   return role === "admin" ? ADMIN_SESSION_TTL_MS : SESSION_TTL_MS;
 }
+
+// The longest a session can last counted from sign-in, renewals included.
+function sessionMaxAgeMs(role) {
+  return role === "admin" ? ADMIN_SESSION_TTL_MS : OWNER_SESSION_MAX_MS;
+}
 // How long a cached session may be served before readSession re-checks it
 // against Mongo. This bounds how long a REVOKED session can keep working from
 // an instance's in-memory cache — e.g. after a password reset (which deletes
 // the user's session docs) or a logout on a different instance. Without it, a
-// cached session would be honored until its 7-day expiry even though it no
-// longer exists in Mongo.
+// cached session would be honored until its expiry even though it no longer
+// exists in Mongo.
 const CACHE_REVALIDATE_MS = 30 * 1000; // 30 seconds
 
 // Sessions are persisted in MongoDB (the `sessions` collection) so they survive
@@ -47,11 +63,35 @@ async function ensureSessionIndex(coll) {
 
 // Live until its own expiry, and never past its role's lifetime counted from
 // when it was created. The second bound is what ends admin sessions issued
-// before the 12-hour limit existed: those rows still carry a 7-day expiresAt.
+// before the 12-hour limit existed (those rows still carry a 7-day expiresAt),
+// and what stops an owner session sliding past 180 days.
 function isLive(session, now) {
   if (!session || !session.expiresAt || new Date(session.expiresAt).getTime() <= now) return false;
   const created = session.createdAt ? new Date(session.createdAt).getTime() : NaN;
-  return Number.isNaN(created) || created + sessionTtlMs(session.role) > now;
+  return Number.isNaN(created) || created + sessionMaxAgeMs(session.role) > now;
+}
+
+// Slide a live owner session to 30 days from now, capped at 180 days from sign-in.
+// Skipped when the last slide was under a day ago, so this is one write a day
+// per session. A row with no createdAt is left alone: with nothing to cap it
+// against, it would slide for ever.
+//
+// Fire-and-forget: the request must not wait on it, and a missed write only
+// means the next request tries again. updateOne never upserts here, so a
+// session revoked in the meantime is not brought back.
+function renewIfDue(sessionId, session, now) {
+  if (session.role !== "owner") return;
+  const created = session.createdAt ? new Date(session.createdAt).getTime() : NaN;
+  if (Number.isNaN(created)) return;
+
+  const target = Math.min(now + SESSION_TTL_MS, created + OWNER_SESSION_MAX_MS);
+  if (target - new Date(session.expiresAt).getTime() < RENEW_AFTER_MS) return;
+
+  const expiresAt = new Date(target);
+  session.expiresAt = expiresAt;
+  sessionCollection()
+    .then((coll) => coll && coll.updateOne({ _id: sessionId }, { $set: { expiresAt } }))
+    .catch(() => {});
 }
 
 export function getSessionCookieName() {
@@ -146,13 +186,14 @@ export async function readSession(app, request) {
   // Fast path: in-process cache. Only serve from cache for a short window, then
   // fall through to Mongo so revoked sessions (password reset / logout on
   // another instance) stop being honored within CACHE_REVALIDATE_MS instead of
-  // surviving until their 7-day expiry. The Mongo fallback below returns null
+  // surviving until their expiry. The Mongo fallback below returns null
   // when the session doc is gone, which is exactly the revoked case.
   const cached = app.sessions.get(sessionId);
   if (cached) {
     if (!isLive(cached, now)) {
       app.sessions.delete(sessionId); // expired
     } else if (now - (cached.cachedAt || 0) < CACHE_REVALIDATE_MS) {
+      renewIfDue(sessionId, cached, now);
       return cached;
     }
     // live but stale → fall through to re-validate against Mongo
@@ -187,6 +228,7 @@ export async function readSession(app, request) {
     expiresAt: doc.expiresAt,
     cachedAt: now // reset the revalidation window now that Mongo confirmed it
   };
+  renewIfDue(sessionId, session, now);
   app.sessions.set(sessionId, session); // warm the cache
   return session;
 }
@@ -274,7 +316,10 @@ export async function clearSession(app, request, reply) {
   reply.clearCookie(SESSION_COOKIE, { path: "/" });
 }
 
-export function writeSessionCookie(reply, sessionId, isProduction = false, rememberMe = false) {
+// `role` decides how long the cookie lasts. Callers pass the role of the
+// session they just created; anything that is not "owner" gets a cookie that
+// ends with the browser.
+export function writeSessionCookie(reply, sessionId, isProduction = false, role = null) {
   // `secure` used to be exactly `isProduction`, i.e. one environment variable.
   // Set RUNTIME_MODE to anything but "production" on a live deployment and every
   // session cookie silently loses the flag — served over HTTPS, so nothing looks
@@ -294,8 +339,10 @@ export function writeSessionCookie(reply, sessionId, isProduction = false, remem
     sameSite: "lax",
     secure: isProduction || overHttps
   };
-  // Only persist across browser restarts when user explicitly chose "Remember me".
-  // Default is a session cookie — cleared when the browser tab/window closes.
-  if (rememberMe) opts.maxAge = Math.floor(SESSION_TTL_MS / 1000);
+  // An owner cookie survives the browser closing and is kept as long as the
+  // session could possibly last. The server row decides when it really ends
+  // (30 days idle, 180 from sign-in), so the cookie never needs rewriting when
+  // the session slides. An admin cookie ends with the browser.
+  if (role === "owner") opts.maxAge = Math.floor(OWNER_SESSION_MAX_MS / 1000);
   reply.setCookie(SESSION_COOKIE, sessionId, opts);
 }

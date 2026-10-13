@@ -14,6 +14,7 @@ import { getEnv } from "./lib/env.js";
 import { captureServerError, shouldReport } from "./lib/integrations/sentry.js";
 import { renderAnalyticsBundle, INTERNAL_ANALYTICS_BUNDLE } from "./lib/analytics.js";
 import { isInternalIp } from "./lib/core/internal-orders.js";
+import { referralCodeShape } from "./lib/core/referrals.js";
 import { BoundedTtlMap } from "./lib/bounded-map.js";
 import { clientError, clientErrorMessage } from "./lib/errors.js";
 import { readSession } from "./lib/auth/session.js";
@@ -53,6 +54,7 @@ import { registerProviderRoutes } from "./routes/webhooks/exotel.js";
 import { registerMetaWebhookRoutes } from "./routes/webhooks/meta.js";
 import { registerRazorpayWebhookRoutes } from "./routes/webhooks/razorpay.js";
 import { registerPublicRoutes } from "./routes/public/index.js";
+import { registerBackupContactRoutes } from "./routes/public/backup-contact.js";
 import { registerRegistrationRoutes } from "./routes/owner/registration.js";
 import { registerOtpAuthRoutes } from "./routes/auth/otp.js";
 import { registerGoogleAuthRoutes } from "./routes/auth/google.js";
@@ -78,6 +80,7 @@ const notFoundPage = path.join(pagesRoot, "not-found.html");
 const verifyPage = path.join(pagesRoot, "scanner/verify.html");
 const trackOrderPage = path.join(pagesRoot, "scanner/track-order.html");
 const reportTagPage = path.join(pagesRoot, "scanner/report-tag.html");
+const backupContactPage = path.join(pagesRoot, "scanner/backup-contact.html");
 const adminPage = path.join(pagesRoot, "admin/index.html");
 const adminMarketingPage = path.join(pagesRoot, "admin/marketing.html");
 const adminPromoCodesPage = path.join(pagesRoot, "admin/promo-codes.html");
@@ -1180,6 +1183,13 @@ export async function buildApp() {
     return servePage(request, reply, reportTagPage);
   });
 
+  // "Remove my number", the button in the WhatsApp notice a backup contact
+  // gets (lib/core/backup-contact.js). The page only asks; the POST behind its
+  // button does the work (routes/public/backup-contact.js).
+  app.get("/backup/:token", async (request, reply) => {
+    return servePage(request, reply, backupContactPage);
+  });
+
   app.get("/owner-login", async (request, reply) => {
     return servePage(request, reply, ownerLoginPage);
   });
@@ -1322,7 +1332,11 @@ export async function buildApp() {
     const sku = skuFromQuery(request);
 
     if (session && session.role === "owner") {
-      const carry = sku ? `&sku=${encodeURIComponent(sku)}` : "";
+      // A friend's ?ref= rides along too: the shop page that would have parked
+      // it (referral-link.js) never loads for a signed-in owner, and the
+      // dashboard parks it from its own address bar instead.
+      const ref = referralCodeShape((request.query || {}).ref);
+      const carry = (sku ? `&sku=${encodeURIComponent(sku)}` : "") + (ref ? `&ref=${ref}` : "");
       return reply.redirect(`/owner-welcome?shop=1${carry}`);
     }
 
@@ -1614,6 +1628,7 @@ export async function buildApp() {
   registerRuntimeRoutes(app, env);
   registerDemoRoutes(app, env);
   registerPublicRoutes(app, env);
+  registerBackupContactRoutes(app, env);
   registerProviderRoutes(app, env);
   registerMetaWebhookRoutes(app, env);
   registerRazorpayWebhookRoutes(app, env);

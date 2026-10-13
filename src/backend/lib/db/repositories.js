@@ -109,6 +109,10 @@ function buildCollections(db, prefix) {
     // the CODE and the server looks the money up here, which is the same rule
     // referrals are built on. See lib/core/promo-codes.js.
     promoCodes: db.collection(withPrefix(prefix, "promo_codes")),
+    // Spent E-Tag free calls of deleted accounts, so deleting the account and
+    // signing up again does not hand one back. Keyed hashes of identity + plate
+    // only; nothing readable. See rememberSpentFreeCalls in tag-issuance.js.
+    spentFreeCalls: db.collection(withPrefix(prefix, "spent_free_calls")),
     // Public shop controls that change without a deploy. One document holds
     // the dashboard-plate price and whether stock is available.
     storeSettings: db.collection(withPrefix(prefix, "store_settings")),
@@ -320,6 +324,8 @@ const CORE_INDEXES = [
   // Lockout records refresh updatedAt on every failure, so an active lock is
   // never near expiry; a week is just garbage collection for stale counters.
   ["loginAttempts", { updatedAt: 1 }, { expireAfterSeconds: 604800, name: "ttl" }],
+  // A deleted account's spent free calls are remembered for a year, then go.
+  ["spentFreeCalls", { expiresAt: 1 }, { expireAfterSeconds: 0, name: "ttl" }],
   // Admin sign-in log: kept 90 days, then dropped automatically. `at` is a real
   // Date (the TTL monitor ignores strings). The same index serves the newest-
   // first listing; the second serves the per-admin filter.

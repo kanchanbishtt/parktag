@@ -65,11 +65,15 @@ You, signed in to the panel, are not limited.
 | Promo discount | at most 50%, or Rs 500 off for flat and per-pack codes |
 | Promo use limit | `maxUses` required, 1 to 1000 |
 | Promo expiry | `expiresAt` required |
+| Website offer | never: only the panel can make a code auto-apply |
+| Switching a code on | only a code within all the promo limits above, judged whole |
 | Tags issued per call | at most 500 |
 
 Editing an older code through a token only judges the fields the token changes, so it can still adjust shipping on a code
-you made without limits, but it cannot raise the discount or remove the use limit or expiry. For anything bigger, use
-the panel.
+you made without limits, but it cannot raise the discount or remove the use limit or expiry. While that code is still
+beyond the limits it can only be narrowed: no more uses, no later expiry, no earlier start, no other phone or packs, no
+moving a hand-over code online. An edit that brings the whole code within the limits is a code a token could create, so
+it goes through. For anything bigger, use the panel.
 
 ## Customer text is fenced
 

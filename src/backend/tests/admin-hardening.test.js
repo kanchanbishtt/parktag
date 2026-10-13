@@ -138,7 +138,7 @@ test("an admin session issued before the limit ends 12 hours after it began; an 
   assert.equal(admin.statusCode, 401);
 
   const owner = await call("GET", "/api/session", { cookie: `wavetag_session=${OLD_SESSION_IDS[1]}` });
-  assert.equal(owner.json().session?.role, "owner", "owners keep their 7 days");
+  assert.equal(owner.json().session?.role, "owner", "owners keep theirs");
 
   await new Promise((resolve) => setTimeout(resolve, 100));
   assert.equal(await collections.sessions.countDocuments({ _id: OLD_SESSION_IDS[0] }), 0, "the expired admin row is cleared");

@@ -37,8 +37,7 @@ import {
 } from "./security.js";
 import {
   clearLoginFailures,
-  getLoginLock,
-  recordLoginFailure
+  reserveLoginAttempt
 } from "./login-lockout.js";
 
 export const LOGIN_PIN_MIN_DIGITS = 6;
@@ -156,8 +155,10 @@ export async function clearStoredLoginPin(collections, ownerId) {
 export async function verifyLoginPinForChange(collections, ownerId, pin) {
   const key = String(ownerId);
 
-  const lock = await getLoginLock(collections, PIN_CHANGE_LOCKOUT_ROLE, key);
-  if (lock.locked) {
+  // Taken before the PIN is compared, so parallel guesses cannot all slip in
+  // under the limit (see reserveLoginAttempt).
+  const lock = await reserveLoginAttempt(collections, PIN_CHANGE_LOCKOUT_ROLE, key);
+  if (!lock.allowed) {
     return { ok: false, locked: true, retryAfterSeconds: lock.retryAfterSeconds };
   }
 
@@ -178,7 +179,6 @@ export async function verifyLoginPinForChange(collections, ownerId, pin) {
   const { valid } = await verifyPassword(String(pin || ""), owner.loginPinHash);
 
   if (!valid) {
-    await recordLoginFailure(collections, PIN_CHANGE_LOCKOUT_ROLE, key);
     return { ok: false, locked: false };
   }
 

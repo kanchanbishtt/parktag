@@ -370,6 +370,43 @@ body {
   box-shadow: 0 3px 9px rgba(3, 22, 45, .3);
 }
 
+/* ── Vehicle picker ─────────────────────────────────── */
+/* Only shown to an owner with more than one premium tag. The same navy edge
+   and light navy fill as the plan cards, so the two choices on the page read
+   as one kind of control. Left-aligned rows rather than cards: a plate number
+   and a date need width more than they need a grid. */
+.mb-vehicles { margin-bottom: var(--space-sec); }
+.mb-vehicles-list { display: grid; gap: 10px; }
+.mb-veh {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+  width: 100%; min-width: 0; padding: 12px 14px;
+  background: var(--card); border: 1.5px solid var(--navy); border-radius: 14px;
+  font-family: inherit; text-align: left; cursor: pointer;
+  box-shadow: 0 1px 2px rgba(3, 22, 45, .06);
+  transition: background-color .16s, box-shadow .16s, transform .16s;
+}
+@media (hover: hover) {
+  .mb-veh:hover { box-shadow: 0 7px 18px rgba(3, 22, 45, .17); }
+}
+.mb-veh:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(3, 22, 45, .30), 0 7px 18px rgba(3, 22, 45, .17);
+}
+.mb-veh:active { transform: scale(.99); }
+.mb-veh[aria-checked="true"] {
+  background: var(--navy-tint);
+  border-width: 2px;
+  box-shadow: 0 10px 26px rgba(3, 22, 45, .26);
+}
+.mb-veh[aria-checked="true"]:focus-visible {
+  box-shadow: 0 0 0 3px rgba(3, 22, 45, .30), 0 10px 26px rgba(3, 22, 45, .26);
+}
+.mb-veh-plate {
+  font-size: 1rem; font-weight: 900; color: var(--navy); letter-spacing: .02em;
+  overflow-wrap: anywhere;
+}
+.mb-veh-meta { font-size: .74rem; font-weight: 700; color: var(--ink-3); }
+
 /* ── Feature grid ───────────────────────────────────── */
 .mb-feats { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--grid-gap); }
 .mb-feat {

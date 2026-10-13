@@ -115,7 +115,7 @@ async function sendNudge(env, collections, tag, log) {
   // Never the raw displayName: the OTP signup path used to store the phone
   // number in it. See resolveOwnerName.
   const ownerName = firstNameOf(resolveOwnerName(owner)) || "there";
-  const mobile = owner.phone || owner.mobile;
+  const mobile = owner.mobile || owner.phone;
   const attempts = [];
 
   if (mobile && isMetaWhatsappConfigured(env)) {

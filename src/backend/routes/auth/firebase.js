@@ -139,7 +139,7 @@ export function registerFirebasePhoneAuthRoute(app, env) {
         isNewUser: isNew,
         request
       });
-      writeSessionCookie(reply, sessionId, env.runtimeMode === "production");
+      writeSessionCookie(reply, sessionId, env.runtimeMode === "production", "owner");
       return { ok: true, isNew };
     } catch (err) {
       request.log.error({ err }, "Firebase token verification failed");
@@ -306,7 +306,7 @@ export function registerFirebasePhoneAuthRoute(app, env) {
         isNewUser: isNew,
         request
       });
-      writeSessionCookie(reply, sessionId, env.runtimeMode === "production");
+      writeSessionCookie(reply, sessionId, env.runtimeMode === "production", "owner");
 
       return { ok: true, isNew };
     } catch (err) {

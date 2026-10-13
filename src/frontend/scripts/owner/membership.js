@@ -38,6 +38,9 @@ const svg = (paths, size = 20) =>
 
 let data = null;
 let selectedPlan = null;
+// The premium tag the membership goes on. The server lists the owner's premium
+// tags; with one it is simply that one, with several the owner picks.
+let selectedTag = null;
 // Whether the skeleton is still on screen. The fade-up plays once, on the
 // first fill — re-rendering after a tap is a state change the owner caused and
 // asked to see immediately, and animating it makes the page feel laggy.
@@ -110,6 +113,52 @@ function renderPlans() {
 
     host.appendChild(card);
   }
+}
+
+// ── Vehicle picker ─────────────────────────────────────────────────────────
+
+const selectedTagRow = () => (data.tags || []).find((t) => t.tagId === selectedTag) || null;
+const vehicleName = (tag) => tag.plateNumber || tag.vehicleLabel || "Your vehicle";
+
+// Shown only with more than one premium tag. The server refuses to guess which
+// vehicle a purchase is for, and the page used to send no tag at all, so an
+// owner with two premium tags could not buy a membership.
+function renderVehicles() {
+  const wrap = byId("mbVehiclesWrap");
+  const host = byId("mbVehicles");
+  const tags = data.tags || [];
+  if (tags.length < 2) {
+    wrap.hidden = true;
+    return;
+  }
+
+  host.textContent = "";
+  for (const tag of tags) {
+    const row = el("button", "mb-veh");
+    row.type = "button";
+    row.setAttribute("role", "radio");
+    row.setAttribute("aria-checked", tag.tagId === selectedTag ? "true" : "false");
+    row.appendChild(el("span", "mb-veh-plate", vehicleName(tag)));
+
+    const until = tag.coveredUntil ? formatDate(tag.coveredUntil) : null;
+    const meta = until ? (tag.trial ? `Included until ${until}` : `Member until ${until}`) : "Not covered";
+    row.appendChild(el("span", "mb-veh-meta", meta));
+
+    row.addEventListener("click", () => {
+      selectedTag = tag.tagId;
+      renderVehicles();
+      renderCta();
+    });
+    host.appendChild(row);
+  }
+  wrap.hidden = false;
+}
+
+// The one to preselect: whichever runs out first (or is not covered at all),
+// the vehicle most likely to be the reason the owner opened this screen.
+function soonestTag(tags) {
+  const ends = (tag) => (tag.coveredUntil ? new Date(tag.coveredUntil).getTime() : 0);
+  return tags.reduce((a, b) => (ends(b) < ends(a) ? b : a), tags[0]);
 }
 
 // ── Feature grid ───────────────────────────────────────────────────────────
@@ -212,14 +261,23 @@ function renderCta() {
   const plan = data.plans.find((p) => p.id === selectedPlan);
   const cta = byId("mbCta");
 
-  const covered = Boolean(data.subscription && data.subscription.active);
+  // The cover shown is the chosen vehicle's own, not the furthest date across
+  // every tag: that is the period a purchase here extends.
+  const tag = selectedTagRow();
+  const cover = tag
+    ? (tag.coveredUntil ? { active: true, currentPeriodEnd: tag.coveredUntil, trial: tag.trial } : null)
+    : data.subscription;
+  const covered = Boolean(cover && cover.active);
   const action = covered ? "Extend Premium" : "Choose Premium";
   byId("mbCtaText").textContent = plan ? `${action}, ₹${plan.priceInr}` : action;
 
   // The flag comes from the server, so an environment with no Razorpay
   // configured shows the page and says why rather than opening a sheet that
   // cannot complete.
-  cta.disabled = !data.checkoutEnabled || busy;
+  // No premium tag, nothing to put a membership on: a free E-Tag gets nothing
+  // from one, and the server refuses it.
+  const noPremiumTag = Array.isArray(data.tags) && data.tags.length === 0;
+  cta.disabled = !data.checkoutEnabled || busy || noPremiumTag;
 
   const note = byId("mbNote");
 
@@ -231,12 +289,25 @@ function renderCta() {
     return;
   }
 
+  if (noPremiumTag) {
+    note.hidden = false;
+    setNote(
+      note,
+      "Membership is for premium tags",
+      "Get one for your vehicle from the shop on your dashboard: " +
+        `${data.trial.headline}, and a membership adds time after that.`
+    );
+    return;
+  }
+
   // Already covered: say so rather than selling them what they hold. Buying
   // again stays allowed and stays correct — the server extends from the end of
   // the current period, not from today — so the button stays live.
-  if (data.subscription && data.subscription.active && data.subscription.currentPeriodEnd) {
+  if (cover && cover.active && cover.currentPeriodEnd) {
     note.hidden = false;
-    const until = formatDate(data.subscription.currentPeriodEnd);
+    const until = formatDate(cover.currentPeriodEnd);
+    // Named when there are several, so the date is not read as every vehicle's.
+    const whose = (data.tags || []).length > 1 && tag ? `${vehicleName(tag)}: ` : "";
     // Two kinds of cover, and calling the included year a "membership" would be
     // wrong twice over: the owner never bought it, and it is the thing the
     // button is trying to sell them. The date and the "adds to it" rule are
@@ -248,8 +319,8 @@ function renderCta() {
     // injected into.
     setNote(
       note,
-      data.subscription.trial ? `Covered until ${until}` : `Member until ${until}`,
-      data.subscription.trial
+      whose + (cover.trial ? `Covered until ${until}` : `Member until ${until}`),
+      cover.trial
         ? `${data.trial.headline} with your ParkTag. There is nothing to pay ` +
           "until then, extending now adds time after that date. It does not replace it."
         : "Buying again adds to that date rather than restarting from today."
@@ -304,7 +375,9 @@ async function startCheckout() {
       method: "POST",
       credentials: "same-origin",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ planId: plan.id })
+      // The chosen premium tag. Sent even when there is only one, so the order
+      // goes on exactly the vehicle the screen showed.
+      body: JSON.stringify(selectedTag ? { planId: plan.id, tagId: selectedTag } : { planId: plan.id })
     });
 
     if (res.status === 401) {
@@ -344,7 +417,9 @@ async function startCheckout() {
     // zero-width space is non-empty yet renders nothing, leaving just the logo
     // — the same trick the shop checkout uses.
     name: "​",
-    description: `ParkTag Premium, ${plan.label}`,
+    description: (data.tags || []).length > 1 && selectedTagRow()
+      ? `ParkTag Premium, ${plan.label}, ${vehicleName(selectedTagRow())}`
+      : `ParkTag Premium, ${plan.label}`,
     image: "/images/parktag-checkout-logo.png",
     prefill: order.prefill || {},
     theme: { color: "#FF2700" },
@@ -374,6 +449,12 @@ async function startCheckout() {
 
         if (verifyRes.ok && result.ok) {
           data.subscription = { active: true, currentPeriodEnd: result.currentPeriodEnd };
+          // The vehicle it went on now shows its new date in the picker.
+          const paid = selectedTagRow();
+          if (paid && result.currentPeriodEnd) {
+            paid.coveredUntil = result.currentPeriodEnd;
+            paid.trial = false;
+          }
           setBusy(false);
 
           // The receipt is what the SERVER recorded, not the figures this page
@@ -392,6 +473,7 @@ async function startCheckout() {
           // The screen behind is repainted too, so closing the confirmation
           // does not reveal the state the buyer was in before they paid.
           renderPlans();
+          renderVehicles();
           return;
         }
 
@@ -473,6 +555,8 @@ async function load() {
   // monthly one if nothing is flagged, never nothing at all, so the sticky
   // button always names a price.
   selectedPlan = (data.plans.find((p) => p.popular) || data.plans[0] || {}).id || null;
+  const tags = Array.isArray(data.tags) ? data.tags : [];
+  selectedTag = tags.length ? soonestTag(tags).tagId : null;
 
   // className is cleared rather than the shimmer class removed one by one:
   // these two spans carry nothing else, and a leftover mb-sk would keep the
@@ -494,6 +578,7 @@ async function load() {
 
   document.querySelector(".mb-trial").classList.add("mb-in");
 
+  renderVehicles();
   renderPlans();
   renderAlwaysIncluded();
   renderFeatures();

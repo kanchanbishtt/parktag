@@ -1183,6 +1183,23 @@
 <script src="/scripts/checkout-loader.js?v=__ASSET_VERSION__" data-address-step="/scripts/owner/address-step.js?v=__ASSET_VERSION__" data-warm-razorpay defer></script>
 <script src="/scripts/lazy-print-images.js?v=__ASSET_VERSION__" defer></script>
 <script src="/scripts/owner/session-guard.js?v=__ASSET_VERSION__" defer></script>
+<!-- Backup number: Save asks first, in front of everything. The number is read
+     back in full, because a mistyped digit would send missed calls to a
+     stranger. Sits above the menu drawer, which stays open underneath, so
+     closing this returns the owner exactly where they were. Shown and hidden
+     by renderBackupRow() in welcome.js. -->
+<div class="pt-bkm" id="bk-confirm" role="dialog" aria-modal="true" aria-labelledby="bk-confirm-title" hidden>
+  <div class="pt-bkm-bg" onclick="backToBackupEdit()"></div>
+  <div class="pt-bkm-card">
+    <p class="pt-bkm-eyebrow">Backup number</p>
+    <h2 class="pt-bkm-title" id="bk-confirm-title">Is this number right?</h2>
+    <p class="pt-bkm-num" id="bk-confirm-num"></p>
+    <p class="pt-bkm-text">Calls you miss will ring this number next.</p>
+    <p class="pt-bkm-note">We'll send them one WhatsApp message so they know, with an option to say no.</p>
+    <button type="button" class="pt-bkm-yes" id="bk-confirm-yes" onclick="confirmBackupMobile()">Yes, save</button>
+    <button type="button" class="pt-bkm-edit" onclick="backToBackupEdit()">Edit number</button>
+  </div>
+</div>
 <script type="module" src="/scripts/owner/welcome.js?v=__ASSET_VERSION__"></script>
 <script src="/scripts/owner/welcome-shop.js?v=__ASSET_VERSION__"></script>
 </body>

@@ -273,7 +273,8 @@ For the prototype, keep security simple but real.
 - owner users sign in with a server-managed account created during claim or setup
 - admin signs in with a seeded admin account
 - authenticated browser sessions use secure HTTP-only cookies
-- session cookies are **session-scoped by default** (expire when browser closes); "Remember me" checkbox on login sets a 7-day persistent cookie
+- owner sessions **stay signed in**: every owner sign-in sets a persistent cookie; the server keeps the session 30 days from its last use, never past 180 days from sign-in (see `wiki/owner-sessions.md`)
+- admin sessions last 12 hours and their cookie ends when the browser closes
 - `/owner-welcome` is server-side guarded — HTML is never served without a valid session; invalid or missing session redirects to `/owner-login`
 - dashboard API returns 401/403 if session is missing or expired; frontend redirects to `/owner-login` on either code
 - backend authorization is role-based: `owner` and `admin`

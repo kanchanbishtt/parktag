@@ -629,13 +629,13 @@ describe("the client cannot decide what it pays", () => {
     const owner = await collections.owners.findOne({ email: EMAIL });
     buyerId = owner._id;
 
-    // A membership attaches to a tag, so the buyer needs one.
+    // A membership attaches to a premium tag, so the buyer needs one.
     const tag = await collections.tags.insertOne({
       ownerId: buyerId,
       plateNumber: "QA01MEM0001",
       vehicleType: "car",
       status: "active",
-      premium: false,
+      premium: true,
       token: "qa-membership-checkout",
       createdAt: new Date().toISOString()
     });

@@ -29,9 +29,11 @@ import {
 import { formatScannerLocation } from "../../lib/core/scan-location.js";
 import { carMapLink } from "../../lib/core/car-location.js";
 import { toE164 } from "../../lib/core/phone.js";
+import { afterReply } from "../../lib/core/after-reply.js";
+import { notifyBackupContact } from "../../lib/core/backup-contact.js";
 import { clientErrorMessage } from "../../lib/errors.js";
 import { createQrDataUrl, createQrSvg, createPrintQrDataUrl } from "../../lib/core/qr-output.js";
-import { createEtagForVehicle, buildTagScanUrl, VEHICLE_LABELS, etagIdFor, stickerSerialFor } from "../../lib/core/tag-issuance.js";
+import { createEtagForVehicle, buildTagScanUrl, VEHICLE_LABELS, etagIdFor, stickerSerialFor, rememberSpentFreeCalls } from "../../lib/core/tag-issuance.js";
 import { validateAddress } from "../../lib/core/address.js";
 import { resolveOwnerName, firstNameOf, cleanName, isIdentifierNotAName } from "../../lib/core/owner-name.js";
 import { checkPincodeServiceability, trackingUrl } from "../../lib/integrations/delhivery.js";
@@ -298,6 +300,9 @@ export function registerOwnerRoutes(app, env) {
         // owner's own when a masked call goes unanswered. Null when unset,
         // which is what the dashboard's "add one" card keys off.
         backupMobile: owner.backupMobile || null,
+        // A number that took itself off as the backup (the "Remove my number"
+        // link in its WhatsApp notice), until the owner saves another one.
+        backupDeclined: owner.backupDeclined?.mobile || null,
         // What this person typed to sign in, so the header can echo it back
         // instead of ranking email above mobile and showing an address to
         // somebody who signed in with a phone number. Null on sessions created
@@ -581,9 +586,13 @@ export function registerOwnerRoutes(app, env) {
 
     const normalized = normalizeIdentifier(mobile);
     const ownerId = toObjectId(request.session.userId);
+    // `phone` moves with `mobile`, as on every signup path. Left behind, it kept
+    // the number the owner just gave up: owner lookups match either field, so
+    // that number still counted as this account's (the WhatsApp opt-out
+    // webhook, the one-number-one-account guard).
     await collections.owners.updateOne(
       { _id: ownerId },
-      { $set: { mobile: normalized, mobileVerified: true } }
+      { $set: { mobile: normalized, phone: normalized, mobileVerified: true } }
     );
     return { ok: true, mobile: normalized };
   });
@@ -603,6 +612,10 @@ export function registerOwnerRoutes(app, env) {
   // after a verified scanner has asked for the owner. The checks that remain
   // are the cheap ones: a real Indian mobile, not the owner's own number
   // (which would ring the same phone twice), and the usual write rate limit.
+  //
+  // In place of a code, the person behind the number is told once on WhatsApp
+  // and can take it off (lib/core/backup-contact.js). A number that has done
+  // that is refused here, so the owner cannot simply put it back.
   app.post("/api/owner/backup-mobile", { config: { rateLimit: { max: 10, timeWindow: "5 minutes" } } }, async (request, reply) => {
     const blocked = await requireSession(app, "owner")(request, reply);
     if (blocked) return blocked;
@@ -621,16 +634,23 @@ export function registerOwnerRoutes(app, env) {
     if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
 
     const ownerId = toObjectId(request.session.userId);
-    const owner = await collections.owners.findOne({ _id: ownerId }, { projection: { mobile: 1, phone: 1 } });
+    const owner = await collections.owners.findOne({ _id: ownerId }, { projection: { mobile: 1, phone: 1, backupDeclinedMobiles: 1 } });
     const own = toE164(owner?.mobile || owner?.phone || "");
     if (own && own === normalized) {
       reply.code(400);
       return { ok: false, error: "That is already your main number. The backup should be a different phone." };
     }
+    if ((owner?.backupDeclinedMobiles || []).includes(normalized)) {
+      reply.code(400);
+      return { ok: false, error: "This number asked not to be your backup. Please choose a different number." };
+    }
 
     await collections.owners.updateOne(
       { _id: ownerId },
-      { $set: { backupMobile: normalized, backupMobileUpdatedAt: new Date().toISOString() } }
+      { $set: { backupMobile: normalized, backupMobileUpdatedAt: new Date().toISOString() }, $unset: { backupDeclined: "" } }
+    );
+    afterReply(request.log, "backup-contact-notice", () =>
+      notifyBackupContact(env, collections, { ownerId, mobile: normalized, log: request.log })
     );
     return { ok: true, backupMobile: normalized };
   });
@@ -999,10 +1019,15 @@ export function registerOwnerRoutes(app, env) {
     const tagId = tryObjectId(request.params.tagId);
     if (!tagId) { reply.code(400); return { ok: false, error: "Invalid tag id" }; }
 
+    // A deleted tag stays off. Scans only check `status`, while the dashboard
+    // hides anything with `deletedAt`, so switching one back on made it reach
+    // the owner through a tag they could no longer see or turn off. The admin
+    // status route refuses the same case.
     const result = await collections.tags.findOneAndUpdate(
       {
         _id: tagId,
-        ownerId
+        ownerId,
+        deletedAt: { $in: [null, undefined] }
       },
       {
         $set: {
@@ -1481,6 +1506,10 @@ export function registerOwnerRoutes(app, env) {
           "[vault] account deleted but some document blobs could not be removed — sweep required"
         );
       }
+
+      // Before the tags go: a spent free call must not come back with a new
+      // account on the same number or e-mail. Keyed hashes only, for a year.
+      await rememberSpentFreeCalls(collections, owner, request.log);
 
       await Promise.all([
         collections.tags.deleteMany({ ownerId }),

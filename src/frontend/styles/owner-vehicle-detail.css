@@ -271,6 +271,44 @@ body {
 .vd-bk-link-muted { color: var(--ink-4); }
 .vd-bk-link-muted:hover { color: #B91C1C; }
 .vd-bk-link[hidden] { display: none; }
+/* Backup number confirm: a pop-up over the whole page, the same as the
+   dashboard menu's (.pt-bkm in owner-welcome.css). */
+.vd-bkm {
+  position: fixed; inset: 0; z-index: 1000;
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.vd-bkm[hidden] { display: none; }
+.vd-bkm-bg {
+  position: absolute; inset: 0; background: rgba(3,22,45,.45);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  animation: vd-bkm-fade .18s ease-out;
+}
+.vd-bkm-card {
+  position: relative; width: 100%; max-width: 360px;
+  background: #fff; border-radius: 18px; padding: 22px 20px 16px;
+  box-shadow: 0 20px 50px rgba(3,22,45,.28); text-align: center;
+  animation: vd-bkm-pop .2s cubic-bezier(.2,.9,.3,1.2);
+}
+.vd-bkm-eyebrow { margin: 0 0 4px; font-size: .68rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-4); }
+.vd-bkm-title { margin: 0; font-size: 1.15rem; font-weight: 800; color: #03162D; }
+.vd-bkm-num {
+  margin: 14px 0 10px; padding: 12px; border-radius: 12px; background: #FFF4F1;
+  font-size: 1.45rem; font-weight: 800; letter-spacing: .02em; color: #03162D; white-space: nowrap;
+}
+.vd-bkm-text { margin: 0; font-size: .85rem; line-height: 1.5; color: #374151; }
+.vd-bkm-note { margin: 6px 0 16px; font-size: .76rem; line-height: 1.5; color: var(--ink-4); }
+.vd-bkm-yes {
+  display: block; width: 100%; height: 46px; border: none; border-radius: 12px;
+  background: #FF2700; color: #fff; font-family: inherit; font-size: .9rem; font-weight: 800; cursor: pointer;
+}
+.vd-bkm-yes:disabled { opacity: .6; cursor: default; }
+.vd-bkm-edit {
+  display: block; width: 100%; margin-top: 6px; height: 40px; border: none; background: none;
+  font-family: inherit; font-size: .85rem; font-weight: 700; color: var(--ink-4); cursor: pointer;
+}
+@keyframes vd-bkm-fade { from { opacity: 0; } }
+@keyframes vd-bkm-pop { from { opacity: 0; transform: scale(.94); } }
+@media (prefers-reduced-motion: reduce) { .vd-bkm-bg, .vd-bkm-card { animation: none; } }
 .vd-bk-status { margin: 0; font-size: .78rem; font-weight: 600; }
 .vd-bk-status[hidden] { display: none; }
 

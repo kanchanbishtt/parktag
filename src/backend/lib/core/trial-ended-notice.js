@@ -34,7 +34,7 @@ async function sendNotice(env, collections, tag, log) {
   const owner = tag.ownerId ? await collections.owners.findOne({ _id: tag.ownerId }) : null;
   if (!owner || !canSendUtility(owner)) return false;
 
-  const mobile = owner.phone || owner.mobile;
+  const mobile = owner.mobile || owner.phone;
   if (!mobile || !tag.plateNumber || !isMetaWhatsappConfigured(env)) return false;
 
   try {

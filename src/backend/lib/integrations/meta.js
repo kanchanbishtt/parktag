@@ -434,6 +434,31 @@ export async function sendMetaWhatsappReviewRequest(env, { to, name }) {
   });
 }
 
+// The owner has just saved a backup number. Tell the person behind it, once,
+// so they know why a stranger's call may ring them and can say no. Against
+// `parktag_backup_contact_v1`, created by scripts/create-backup-contact-template.js
+// (docs/WHATSAPP_TEMPLATES.md 2.12):
+//
+//   {{1}} the owner's first name
+//   button  "Remove my number" -> app.parktag.me/backup/{{1}}
+//
+// The button parameter is the one-time token that lets them take their number
+// off (lib/core/backup-contact.js). Until Meta approves the template the send
+// fails, nothing goes, and the number is still saved.
+export const BACKUP_CONTACT_TEMPLATE = "parktag_backup_contact_v1";
+
+export async function sendMetaWhatsappBackupContact(env, { to, ownerName, token }) {
+  return sendTemplate(env, {
+    to,
+    template: BACKUP_CONTACT_TEMPLATE,
+    components: [
+      ...bodyComponent(ownerName),
+      { type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: String(token) }] }
+    ],
+    publicMessage: "Unable to send the WhatsApp backup contact notice."
+  });
+}
+
 // Inbound media arrives as an id, not bytes. Two hops: the id resolves to a
 // short-lived URL, and that URL needs the same bearer token. Returns null
 // rather than throwing, and refuses anything over `maxBytes` so one huge

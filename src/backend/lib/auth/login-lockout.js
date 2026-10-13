@@ -37,57 +37,62 @@ function accountKey(role, email) {
   return crypto.createHash("sha256").update(`${role}|${identifier}`).digest("hex");
 }
 
-// Is this account currently locked? Call BEFORE verifying the password so a
-// locked account costs an attacker a DB read rather than a bcrypt comparison.
+// Take one attempt from the account's allowance BEFORE the secret is checked,
+// so a locked account costs an attacker a DB write rather than a bcrypt
+// comparison.
+//
+// It used to be check, then verify, then record the failure, and that has a
+// gap: every guess sent in parallel read "not locked" before any of them had
+// recorded its failure, so a burst got as many comparisons as it had requests,
+// however far past the limit that was. Here the attempt is counted first, in
+// one atomic pipeline update, and the caller compares only once it is allowed —
+// so at most MAX_FAILURES comparisons happen per window however the guesses
+// arrive.
+//
+// The attempt counts as a failure until the caller proves otherwise: on
+// success it calls clearLoginFailures, which removes the whole row, exactly as
+// a success always has. The attempt that takes the count to the limit is still
+// allowed (it is the last of the allowance) and lands the lock for the next.
+// An attempt refused for the lock is not a guess: it leaves a locked row as it
+// is, neither counting nor stretching the lock.
+//
+// Returns { allowed: true } or { allowed: false, retryAfterSeconds }.
 //
 // Fails OPEN on a storage error, which is safe here specifically because login
-// itself needs the same database to read the user: if this read fails, the
-// authentication below it cannot succeed either, so nothing is bypassed.
-export async function getLoginLock(collections, role, email) {
-  if (!collections?.loginAttempts) return { locked: false, retryAfterSeconds: 0 };
+// itself needs the same database to read the user: if this write fails, the
+// authentication behind it cannot succeed either, so nothing is bypassed.
+export async function reserveLoginAttempt(collections, role, email) {
+  if (!collections?.loginAttempts) return { allowed: true };
 
-  try {
-    const doc = await collections.loginAttempts.findOne({ _id: accountKey(role, email) });
-    if (!doc?.lockedUntil) return { locked: false, retryAfterSeconds: 0 };
-
-    const remainingMs = doc.lockedUntil.getTime() - Date.now();
-    if (remainingMs <= 0) return { locked: false, retryAfterSeconds: 0 };
-
-    return { locked: true, retryAfterSeconds: Math.ceil(remainingMs / 1000) };
-  } catch {
-    return { locked: false, retryAfterSeconds: 0 };
-  }
-}
-
-// `maxFailures` is an override, not a new policy: the per-ACCOUNT default of 10
-// is right for one account being ground down, and wrong for the per-IP counter
-// that credentials.js keys off a shared address. Ten failures from one IP is a
-// college or office NAT having an ordinary morning; the threshold there has to
-// be high enough that a crowd behind one address is never mistaken for an
-// attack, which is a different number rather than a different mechanism.
-export async function recordLoginFailure(collections, role, email, { maxFailures = MAX_FAILURES } = {}) {
-  if (!collections?.loginAttempts) return;
-
-  // Single atomic pipeline update. A read-modify-write would drop failures
-  // under exactly the concurrent load this exists to stop — parallel guesses
-  // would each read the same count and write back the same increment.
   // `$$NOW` is the server clock so replicas agree on window boundaries.
   const windowAlive = {
     $gt: [{ $add: [{ $ifNull: ["$windowStartAt", "$$NOW"] }, FAILURE_WINDOW_MS] }, "$$NOW"]
   };
-  const shouldLock = { $gte: ["$failures", maxFailures] };
+  // A missing lockedUntil reads as null, and null sorts below every date.
+  const lockedNow = { $gt: [{ $ifNull: ["$lockedUntil", null] }, "$$NOW"] };
+  const shouldLock = { $and: [{ $not: [lockedNow] }, { $gte: ["$failures", MAX_FAILURES] }] };
 
   try {
-    await collections.loginAttempts.updateOne(
+    const before = await collections.loginAttempts.findOneAndUpdate(
       { _id: accountKey(role, email) },
       [
         {
           $set: {
-            failures: { $cond: [windowAlive, { $add: [{ $ifNull: ["$failures", 0] }, 1] }, 1] },
+            failures: {
+              $cond: [
+                lockedNow,
+                "$failures",
+                { $cond: [windowAlive, { $add: [{ $ifNull: ["$failures", 0] }, 1] }, 1] }
+              ]
+            },
             // On insert `$windowStartAt` is missing, which makes windowAlive
             // true, so the $ifNull is what actually anchors the first window.
             windowStartAt: {
-              $cond: [windowAlive, { $ifNull: ["$windowStartAt", "$$NOW"] }, "$$NOW"]
+              $cond: [
+                lockedNow,
+                "$windowStartAt",
+                { $cond: [windowAlive, { $ifNull: ["$windowStartAt", "$$NOW"] }, "$$NOW"] }
+              ]
             }
           }
         },
@@ -124,19 +129,23 @@ export async function recordLoginFailure(collections, role, email, { maxFailures
                 { $ifNull: ["$lockCount", 0] }
               ]
             },
+            // Start the next window clean once a lock has been applied, so the
+            // counter measures failures since the lock rather than since forever.
+            failures: { $cond: [shouldLock, 0, "$failures"] },
             updatedAt: "$$NOW"
           }
-        },
-        {
-          // Start the next window clean once a lock has been applied, so the
-          // counter measures failures since the lock rather than since forever.
-          $set: { failures: { $cond: [shouldLock, 0, "$failures"] } }
         }
       ],
-      { upsert: true }
+      { upsert: true, returnDocument: "before" }
     );
+
+    const remainingMs = before?.lockedUntil ? before.lockedUntil.getTime() - Date.now() : 0;
+    if (remainingMs > 0) {
+      return { allowed: false, retryAfterSeconds: Math.ceil(remainingMs / 1000) };
+    }
+    return { allowed: true };
   } catch {
-    // Never let bookkeeping turn a failed login into a 500.
+    return { allowed: true };
   }
 }
 

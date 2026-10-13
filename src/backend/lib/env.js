@@ -161,6 +161,11 @@ export function getEnv() {
     // Salt for the daily-rotating visitor digest. Optional: falls back to the
     // ingest key. Set it separately if you'd rather the two not share a value.
     analyticsHashSalt: process.env.ANALYTICS_HASH_SALT || "",
+    // Key for the keyed hash that remembers a spent E-Tag free call after its
+    // account is deleted (lib/core/tag-issuance.js). Optional: falls back to
+    // META_APP_SECRET, which production always has. Changing it only forgets
+    // those records, so a returning owner gets a free call again.
+    freeCallHashKey: process.env.FREE_CALL_HASH_KEY || "",
     // IP→location provider. Any URL containing `{ip}` that answers JSON with
     // country / region / city. Defaults to ipwho.is, which needs no key, so
     // traffic geography works on a fresh deploy with nothing configured.
@@ -262,6 +267,9 @@ export function getEnv() {
     // Where the daily Amazon pickup job reports (an n8n webhook that posts to
     // Slack). Optional: unset means the job still runs and just stays quiet.
     pickupNotifyWebhookUrl: process.env.PICKUP_NOTIFY_WEBHOOK_URL || "",
+    // Where abandoned checkouts are reported (an n8n webhook that posts to
+    // Slack). Optional: unset means the job stays off.
+    abandonedNotifyWebhookUrl: process.env.ABANDONED_NOTIFY_WEBHOOK_URL || "",
     // Our own mobile numbers, comma separated. Orders placed to one of these
     // are marked internal and kept out of revenue.
     //

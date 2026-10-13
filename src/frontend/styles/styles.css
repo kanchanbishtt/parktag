@@ -5092,6 +5092,11 @@ body.pt-nav-open { overflow: hidden; }
   color: #6B7A90;
 }
 
+/* /backup/<token> (backup-contact.html): the report card's pieces, spaced for
+   two paragraphs and a button in one card. */
+.pt-bc-card .pt-report-sub + .pt-report-sub { margin-top: 10px; }
+.pt-bc-card .pt-report-submit { margin-top: 20px; }
+
 /* Dashed, not solid: this is a reference value to read back to support, not
    an input, and the dashes keep it from reading as an empty field. */
 .pt-report-idbox {

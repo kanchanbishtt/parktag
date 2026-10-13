@@ -32,7 +32,8 @@ import {
   OWNER_ALERT_TEMPLATE,
   OWNER_ALERT_PLATE_TEMPLATE,
   EMERGENCY_LOCATION_TEMPLATE,
-  FREE_TRIAL_ENDED_TEMPLATE
+  FREE_TRIAL_ENDED_TEMPLATE,
+  BACKUP_CONTACT_TEMPLATE
 } from "../lib/integrations/meta.js";
 
 const env = {
@@ -56,6 +57,7 @@ const EXPECTED = [
   { name: OWNER_ALERT_PLATE_TEMPLATE, bodyParams: 3, used: "the same alert, naming the vehicle", fallback: `${OWNER_ALERT_TEMPLATE} is sent instead`, category: "UTILITY" },
   { name: EMERGENCY_LOCATION_TEMPLATE, bodyParams: 2, used: "car location to the emergency contact", fallback: `${OWNER_ALERT_TEMPLATE} is sent instead`, category: "UTILITY" },
   { name: FREE_TRIAL_ENDED_TEMPLATE, bodyParams: 2, used: "last free contact spent, trial over", fallback: "nothing is sent", category: "UTILITY" },
+  { name: BACKUP_CONTACT_TEMPLATE, bodyParams: 1, used: "a new backup number is told, with a Remove my number button", fallback: "nothing is sent; the number is still saved", category: "UTILITY" },
   { name: "parktag_order_update_v2", bodyParams: 3, used: "shop order confirmation + Track order button" },
   { name: "parktag_membership_confirmed", bodyParams: 3, used: "membership purchase confirmation" },
   { name: "parktag_review_request_v1", bodyParams: 1, used: "review request, 3 days after delivery" }

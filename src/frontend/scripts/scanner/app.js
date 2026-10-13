@@ -1112,11 +1112,13 @@ async function loadScannerView() {
       ? "We could not reach ParkTag."
       : "This WaveTag could not be loaded.");
     setText("error-title", unreachable ? "No connection" : "Tag not found");
+    // Not the server's own text: for a missing tag that is "Tag not found",
+    // which only repeated the heading above it.
     setText(
       "error-message",
       unreachable
         ? offlineMessage(error, { action: "loading this tag" })
-        : (error instanceof Error ? error.message : "Failed to load the tag")
+        : "This QR code could not be linked to an active vehicle. Please check and try again."
     );
 
     const retry = byId("error-retry");

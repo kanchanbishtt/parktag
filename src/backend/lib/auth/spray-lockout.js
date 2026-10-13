@@ -54,90 +54,107 @@ function accountToken(identifier) {
     .slice(0, 16);
 }
 
-// Fails OPEN on a storage error, for the same reason getLoginLock does: this
-// read and the authentication behind it need the same database, so a failure
-// here cannot let anything through that would otherwise have been stopped.
-export async function getSprayLock(collections, ip) {
-  if (!collections?.loginAttempts) return { locked: false, retryAfterSeconds: 0 };
-
-  try {
-    const doc = await collections.loginAttempts.findOne({ _id: sourceKey(ip) });
-    if (!doc?.lockedUntil) return { locked: false, retryAfterSeconds: 0 };
-
-    const remainingMs = doc.lockedUntil.getTime() - Date.now();
-    if (remainingMs <= 0) return { locked: false, retryAfterSeconds: 0 };
-
-    return { locked: true, retryAfterSeconds: Math.ceil(remainingMs / 1000) };
-  } catch {
-    return { locked: false, retryAfterSeconds: 0 };
-  }
-}
-
-export async function recordSprayFailure(collections, ip, identifier) {
-  if (!collections?.loginAttempts) return;
+// Take this attempt's place in the source's count BEFORE the secret is checked.
+//
+// It used to be check, then verify, then record the failure. Guesses sent in
+// parallel all read "not locked" before any had recorded, so a burst got past
+// the threshold by however many were in flight. The per-IP rate limit kept
+// that small, but the count is now taken first, in one atomic pipeline update,
+// as reserveLoginAttempt does for the per-account counter.
+//
+// The identifier counts as a failed account until the caller proves otherwise:
+// a successful sign-in calls releaseSprayAttempt, which takes it off the list.
+// Up to MAX_DISTINCT_ACCOUNTS identifiers may be on the list; the attempt that
+// would add one more lands the lock and is refused. So the lock lands on the
+// same attempt as before (the one after the twelfth failure), and a sign-in
+// that succeeds never trips it. An attempt refused for the lock leaves the row
+// as it is.
+//
+// Returns { allowed: true } or { allowed: false, retryAfterSeconds }.
+//
+// Fails OPEN on a storage error, for the same reason reserveLoginAttempt does:
+// this write and the authentication behind it need the same database, so a
+// failure here cannot let anything through that would otherwise have been
+// stopped.
+export async function reserveSprayAttempt(collections, ip, identifier) {
+  if (!collections?.loginAttempts) return { allowed: true };
 
   const token = accountToken(identifier);
   const windowAlive = {
     $gt: [{ $add: [{ $ifNull: ["$windowStartAt", "$$NOW"] }, WINDOW_MS] }, "$$NOW"]
   };
+  // A missing lockedUntil reads as null, and null sorts below every date.
+  const lockedNow = { $gt: [{ $ifNull: ["$lockedUntil", null] }, "$$NOW"] };
+  const unlessLocked = (expr, field) => ({ $cond: [lockedNow, field, expr] });
+  // A new identifier with the list already full.
+  const overflow = {
+    $and: [
+      { $not: [{ $in: [token, "$sprayed"] }] },
+      { $gte: [{ $size: "$sprayed" }, MAX_DISTINCT_ACCOUNTS] }
+    ]
+  };
 
   try {
-    // One atomic pipeline update, like recordLoginFailure. A read-modify-write
-    // would drop entries under exactly the parallel load this exists to catch:
-    // a sprayer runs its guesses concurrently, and every one of them would read
-    // the same account list and write back the same single addition.
-    await collections.loginAttempts.updateOne(
+    const after = await collections.loginAttempts.findOneAndUpdate(
       { _id: sourceKey(ip) },
       [
         {
+          // On insert `$windowStartAt` is missing, which makes windowAlive
+          // true, so the $ifNull is what anchors the first window.
           $set: {
-            // On insert `$windowStartAt` is missing, which makes windowAlive
-            // true, so the $ifNull is what anchors the first window.
-            windowStartAt: {
-              $cond: [windowAlive, { $ifNull: ["$windowStartAt", "$$NOW"] }, "$$NOW"]
-            },
-            // $setUnion, so the same identifier failing repeatedly counts once
-            // — that is the per-account counter's job, not this one's.
-            sprayed: {
-              $cond: [
-                windowAlive,
-                { $setUnion: [{ $ifNull: ["$sprayed", []] }, [token]] },
-                [token]
-              ]
-            }
+            windowStartAt: unlessLocked(
+              { $cond: [windowAlive, { $ifNull: ["$windowStartAt", "$$NOW"] }, "$$NOW"] },
+              "$windowStartAt"
+            ),
+            sprayed: unlessLocked(
+              { $cond: [windowAlive, { $ifNull: ["$sprayed", []] }, []] },
+              { $ifNull: ["$sprayed", []] }
+            )
           }
         },
         {
-          // Reads the list written by the stage above.
+          // $setUnion, so the same identifier failing repeatedly counts once —
+          // that is the per-account counter's job, not this one's. The list is
+          // emptied once a lock lands, so it stays bounded and the next window
+          // measures afresh.
           $set: {
-            lockedUntil: {
-              $cond: [
-                { $gte: [{ $size: "$sprayed" }, MAX_DISTINCT_ACCOUNTS] },
-                { $add: ["$$NOW", LOCKOUT_MS] },
-                { $ifNull: ["$lockedUntil", null] }
-              ]
-            },
+            lockedUntil: unlessLocked(
+              { $cond: [overflow, { $add: ["$$NOW", LOCKOUT_MS] }, { $ifNull: ["$lockedUntil", null] }] },
+              "$lockedUntil"
+            ),
+            sprayed: unlessLocked(
+              { $cond: [overflow, [], { $setUnion: ["$sprayed", [token]] }] },
+              "$sprayed"
+            ),
             updatedAt: "$$NOW"
-          }
-        },
-        {
-          // Empty the list once a lock lands, so the array is bounded by
-          // MAX_DISTINCT_ACCOUNTS and the next window measures afresh rather
-          // than re-locking instantly off the same twelve entries.
-          $set: {
-            sprayed: {
-              $cond: [
-                { $gte: [{ $size: "$sprayed" }, MAX_DISTINCT_ACCOUNTS] },
-                [],
-                "$sprayed"
-              ]
-            }
           }
         }
       ],
-      { upsert: true }
+      { upsert: true, returnDocument: "after" }
+    );
+
+    const remainingMs = after?.lockedUntil ? after.lockedUntil.getTime() - Date.now() : 0;
+    if (remainingMs > 0 || !(after?.sprayed || []).includes(token)) {
+      return { allowed: false, retryAfterSeconds: Math.max(1, Math.ceil(remainingMs / 1000)) };
+    }
+    return { allowed: true };
+  } catch {
+    return { allowed: true };
+  }
+}
+
+// The attempt was not a failed guess after all: the sign-in succeeded (the
+// person holds that account's credential, so earlier misses on it from here
+// were theirs too), or the account's own lockout refused it before any check.
+// Takes the identifier off this source's list.
+export async function releaseSprayAttempt(collections, ip, identifier) {
+  if (!collections?.loginAttempts) return;
+  try {
+    await collections.loginAttempts.updateOne(
+      { _id: sourceKey(ip) },
+      { $pull: { sprayed: accountToken(identifier) } }
     );
   } catch {
-    // Never let bookkeeping turn a failed login into a 500.
+    // Never let bookkeeping turn a sign-in into a 500.
   }
 }

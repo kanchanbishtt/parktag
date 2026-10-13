@@ -13,6 +13,7 @@ import {
 } from "../../lib/integrations/payments.js";
 import { getCollections } from "../../lib/db/repositories.js";
 import { requireSession, toObjectId, tryObjectId } from "../../lib/auth/auth.js";
+import { readSession } from "../../lib/auth/session.js";
 import { generateOrderNumber } from "../../lib/core/order-number.js";
 import { addressLine, addressToNotes, pincodeStateMismatch, validateAddress, validateHandoverContact } from "../../lib/core/address.js";
 import { createPremiumTagForVehicle } from "../../lib/core/tag-issuance.js";
@@ -40,7 +41,9 @@ import {
 } from "../../lib/core/referrals.js";
 import {
   FULFILMENT_HANDOVER,
+  PROMO_TAKEN_RESPONSE,
   consumePromo,
+  holdPromoForOrder,
   normalisePromoCode,
   promoValueFor,
   readWebsiteOffers,
@@ -502,7 +505,7 @@ function findOpenGuestCod(collections, phone) {
 // by a unique _id in the TTL-expired rateLimits store, lets only one through.
 const GUEST_COD_LOCK_MS = 60 * 1000;
 
-async function placeGuestCod(env, collections, request, reply, order, codToken) {
+async function placeGuestCod(env, collections, request, reply, order, codToken, promo) {
   // The two outside answers the order needs, asked for before the lock is even
   // taken: both only read, and both are the long poles here (the courier is
   // cached per pincode in production, the address check is not), so they run
@@ -529,7 +532,7 @@ async function placeGuestCod(env, collections, request, reply, order, codToken) 
     await lock();
   }
   try {
-    return await placeGuestCodLocked(env, collections, request, reply, order, codToken, external);
+    return await placeGuestCodLocked(env, collections, request, reply, order, codToken, external, promo);
   } finally {
     await collections.rateLimits.deleteOne({ _id: lockId }).catch(() => {});
   }
@@ -539,7 +542,7 @@ async function placeGuestCod(env, collections, request, reply, order, codToken) 
 // the courier collects `order.amount` at the door. Everything priced here was
 // already derived server-side by guest create-order; this only guards, writes,
 // books and tells people.
-async function placeGuestCodLocked(env, collections, request, reply, order, codToken, external) {
+async function placeGuestCodLocked(env, collections, request, reply, order, codToken, external, promo) {
   const { shippingAddress: shipping } = order;
 
   // One open COD order per delivery phone. The same checkout sent twice (a
@@ -606,6 +609,14 @@ async function placeGuestCodLocked(env, collections, request, reply, order, codT
     attribution: readAttribution(request),
     createdAt: new Date().toISOString()
   };
+
+  // A capped code needs a slot before the order exists (see PROMO_HOLD_MS).
+  // Last, after every other refusal, so a request turned away for anything
+  // else holds nothing.
+  if (!(await holdPromoForOrder(collections, promo, { orderNumber: placed.orderNumber, deliveryPhone: shipping.phone, log: request.log }))) {
+    reply.code(409);
+    return PROMO_TAKEN_RESPONSE;
+  }
   await collections.shopOrders.insertOne(placed);
 
   if (!placed.internal) sendMixpanelEventBestEffort(request.log, env, {
@@ -639,7 +650,8 @@ async function placeGuestCodLocked(env, collections, request, reply, order, codT
     }, request.log);
 
     // Placing a COD order is its "paid" moment: nothing later gates it, so the
-    // code is burnt and the conversion reported here, once.
+    // code is burnt and the conversion reported here, once. The hold taken
+    // before the insert keeps the slot until this lands.
     await consumePromo(collections, placed.promoCode, placed.orderNumber, request.log);
 
     await sendOrderConfirmation(env, collections, null, {
@@ -967,7 +979,8 @@ export function registerShopRoutes(app, env) {
               // Without this a code tied to one pack comes off any of them, and
               // omitting the product would be the way around the restriction.
               productId,
-              quantity
+              quantity,
+              forOrder: true
             })
             // The typed code if it is valid, else the website offer: the same
             // rule the signed-in routes price by.
@@ -1221,7 +1234,7 @@ export function registerShopRoutes(app, env) {
           shippingFeePaise,
           codSurchargePaise: COD_SURCHARGE_PAISE,
           channel: promo.ok ? "direct" : "shop"
-        }, codToken);
+        }, codToken, promo);
       }
 
       // The same rows the buyer is shown after paying, built from the fields
@@ -1261,6 +1274,12 @@ export function registerShopRoutes(app, env) {
       );
 
       if (reusable && JSON.stringify(reusable.shippingAddress) === JSON.stringify(shipping)) {
+        // The reused order carries the code, so it needs the slot again: its
+        // hold may have lapsed, or moved to another checkout of this buyer's.
+        if (!(await holdPromoForOrder(collections, promo, { orderNumber: reusable.orderNumber, deliveryPhone: shipping.phone, log: request.log }))) {
+          reply.code(409);
+          return PROMO_TAKEN_RESPONSE;
+        }
         // A checkout retry may arrive after the Pixel set its cookies, or after
         // this fix shipped. Keep the latest browser context on the reused order.
         await collections.shopOrders.updateOne(
@@ -1294,6 +1313,16 @@ export function registerShopRoutes(app, env) {
         // Together, not one after the other: the order number is a counter in
         // our own database and does not need Razorpay's answer. The one cost
         // is that a number is skipped on the rare order Razorpay refuses.
+        //
+        // Except for a capped code, which must hold its slot (keyed by the
+        // order number) before a payable Razorpay order exists for it.
+        const nextOrderNumber = generateOrderNumber(collections);
+        if (promo.ok && promo.cap != null) {
+          if (!(await holdPromoForOrder(collections, promo, { orderNumber: await nextOrderNumber, deliveryPhone: shipping.phone, log: request.log }))) {
+            reply.code(409);
+            return PROMO_TAKEN_RESPONSE;
+          }
+        }
         const [order, orderNumber] = await Promise.all([
           createRazorpayOrder(env, {
             // Server-derived, never the client's. expectedOrderPaise applies the
@@ -1310,7 +1339,7 @@ export function registerShopRoutes(app, env) {
               ...addressToNotes(shipping)
             }
           }),
-          generateOrderNumber(collections)
+          nextOrderNumber
         ]);
 
         await collections.shopOrders.insertOne({
@@ -1458,6 +1487,14 @@ export function registerShopRoutes(app, env) {
       if (pincode !== undefined && (typeof pincode !== "string" || !/^[1-9]\d{5}$/.test(pincode))) {
         reply.code(400); return { ok: false, error: "Enter a valid 6-digit pincode (your area's postal code)." };
       }
+      // The COD tap, recorded before any refusal below (bot check, area cap, open
+      // order, pincode) so a COD attempt that never gets a code is still counted.
+      // otp_requested only fires once a code has actually gone out.
+      if (!isInternalPhone(env, phone)) sendMixpanelEventBestEffort(request.log, env, {
+        eventName: "cod_clicked",
+        distinctId: anonymousDistinctId(env, request),
+        properties: { guest: true, ...attributionProps(request) }
+      });
       // Same bot check as guest create-order, minus its allowance for an absent
       // token: a COD code leads to a billed courier parcel, so COD needs a score.
       //
@@ -1633,7 +1670,13 @@ export function registerShopRoutes(app, env) {
       const collections = await getCollections(env);
       if (!collections) { reply.code(500); return { ok: false, error: "Database not configured." }; }
 
-      const referral = await resolveReferral(collections, (request.body || {}).code);
+      // A signed-in owner (the dashboard shop asks too) is checked against
+      // their own account, so their own link is not quoted as a discount that
+      // create-order would then refuse. Signed out, nobody to compare with.
+      const session = await readSession(app, request);
+      const referral = await resolveReferral(collections, (request.body || {}).code, {
+        buyerOwnerId: session && session.role === "owner" ? session.userId : null
+      });
       if (!referral.ok) return { ok: false };
       return { ok: true, discountPaise: REFERRAL_DISCOUNT_PAISE };
     }
@@ -1778,22 +1821,28 @@ export function registerShopRoutes(app, env) {
     const collections = await getCollections(env);
     if (!collections) { reply.code(500); return { error: "Database not configured." }; }
 
-    // The referral code, if the buyer arrived on a ?ref= link. A CODE, never an
-    // amount: the discount below is a server constant and the browser has no
-    // say in it. A code that does not resolve, or that is the buyer's own, is
-    // dropped silently rather than failing the checkout -- a mistyped referral
-    // must never stand between somebody and paying us.
-    const referral = await resolveReferral(collections, (request.body || {}).ref, {
-      buyerOwnerId: ownerId,
-      deliveryPhone: null
-    });
-    const referredBy = referral.ok ? referral.referrerId : null;
-
     // Refuse to take money for a physical item with nowhere to ship it. The
     // checkout form saves the address first, so a missing one is out-of-order.
     const addressDoc = await collections.addresses.findOne({ ownerId });
     const shipping = addressDoc ? shapeAddress(addressDoc) : null;
     if (!shipping) { reply.code(400); return { error: "Please add a delivery address before paying." }; }
+
+    // The referral code, if the buyer arrived on a friend's ?ref= link (the
+    // dashboard sends the one referral-link.js parked). A CODE, never an
+    // amount: the discount below is a server constant and the browser has no
+    // say in it. Checked against the account AND the delivery phone, as the
+    // guest route does, so an owner cannot use their own link by shipping to
+    // their own number. A code that does not resolve is not an error -- a
+    // mistyped referral must never stand between somebody and paying us -- but
+    // the reply says why, so the page can stop before Razorpay opens at a price
+    // it did not show.
+    const rawRef = (request.body || {}).ref;
+    const referral = await resolveReferral(collections, rawRef, {
+      buyerOwnerId: ownerId,
+      deliveryPhone: shipping.phone
+    });
+    const referredBy = referral.ok ? referral.referrerId : null;
+    const referralRefused = rawRef && !referral.ok ? referral.reason || "unknown" : null;
 
     // Validate the replace-context tag (scoped to this owner, still a live,
     // non-premium tag). Invalid or absent → treat as a plain physical order.
@@ -1849,10 +1898,18 @@ export function registerShopRoutes(app, env) {
       // verify-payment prices the order from this code, so an order minted
       // without the offer must not be handed back as if it had it.
       promoCode: promo.ok ? promo.code : null,
+      // The same referrer too: the reward goes to whoever the order names, so
+      // an order started on one friend's link is not paid under another's.
+      referredBy,
       amount: expectedPaise
     }, { sort: { createdAt: -1 } });
 
     if (reusable && JSON.stringify(reusable.shippingAddress) === JSON.stringify(shipping)) {
+        // Same as the guest route: the reused order needs its slot again.
+        if (!(await holdPromoForOrder(collections, promo, { orderNumber: reusable.orderNumber, deliveryPhone: shipping.phone, log: request.log }))) {
+          reply.code(409);
+          return PROMO_TAKEN_RESPONSE;
+        }
         // A checkout retry may arrive after the Pixel set its cookies, or after
         // this fix shipped. Keep the latest browser context on the reused order.
         await collections.shopOrders.updateOne(
@@ -1868,6 +1925,10 @@ export function registerShopRoutes(app, env) {
         orderNumber: reusable.orderNumber,
         amount: reusable.amount,
         currency: reusable.currency,
+        // On a reused order too, for the same reason as the guest route: the
+        // page checks it before paying, and a missing field reads as refused.
+        referralDiscountPaise: referredBy ? REFERRAL_DISCOUNT_PAISE : 0,
+        referralRefused,
         promoCode: reusable.promoCode || null,
         promoRefused: promo.typedRefusal || null,
         prefill: await checkoutPrefill(collections, ownerId)
@@ -1881,6 +1942,18 @@ export function registerShopRoutes(app, env) {
     if (!isRazorpayConfigured(env)) { reply.code(500); return { error: "Razorpay not configured." }; }
 
     try {
+      // A capped code holds its slot, keyed by the order number, before a
+      // payable Razorpay order exists for it. The number is drawn first only
+      // then; otherwise it still waits for Razorpay, as before.
+      let orderNumber = null;
+      if (promo.ok && promo.cap != null) {
+        orderNumber = await generateOrderNumber(collections);
+        if (!(await holdPromoForOrder(collections, promo, { orderNumber, deliveryPhone: shipping.phone, log: request.log }))) {
+          reply.code(409);
+          return PROMO_TAKEN_RESPONSE;
+        }
+      }
+
       const order = await createRazorpayOrder(env, {
         // Paise, converted here rather than handing the helper rupees: a
         // referral price is not a whole number of rupees away from the catalog
@@ -1897,7 +1970,7 @@ export function registerShopRoutes(app, env) {
       // One of ours: this browser stops being measured (analytics.js reads the
       // cookie), the same way the order below stays out of revenue.
       markInternalDevice(reply, env, shipping.phone);
-      const orderNumber = await generateOrderNumber(collections);
+      if (!orderNumber) orderNumber = await generateOrderNumber(collections);
       {
         await collections.shopOrders.insertOne({
       metaCheckoutContext: captureMetaCheckoutContext(request),
@@ -1949,6 +2022,7 @@ export function registerShopRoutes(app, env) {
         orderId: order.id,
         orderNumber,
         referralDiscountPaise: referredBy ? REFERRAL_DISCOUNT_PAISE : 0,
+        referralRefused,
         amount: order.amount,
         currency: order.currency,
         // The code the order is priced with (typed or the website offer), and
@@ -2104,6 +2178,11 @@ export function registerShopRoutes(app, env) {
     if (!phone || !isMobileIdentifier(phone)) {
       reply.code(400); return { error: "Add a valid delivery phone number first." };
     }
+    if (!isInternalPhone(env, phone)) sendMixpanelEventBestEffort(request.log, env, {
+      eventName: "cod_clicked",
+      distinctId: String(ownerId),
+      properties: { guest: false, ...attributionProps(request) }
+    });
     try {
       // Scoped to COD verification. This code goes to a number the person
       // checking out typed into their own address form, so it must not also be
@@ -2245,6 +2324,11 @@ export function registerShopRoutes(app, env) {
     const promoDiscountPaise = promo.ok ? promo.discountPaise : 0;
     const shippingFeePaise = promo.ok ? promo.shippingFeePaise : 0;
     const amountPaise = expectedOrderPaise(mrpPaise, {}, promoDiscountPaise, shippingFeePaise) + COD_SURCHARGE_PAISE;
+    // A capped code needs a slot before the order exists (see PROMO_HOLD_MS).
+    if (!(await holdPromoForOrder(collections, promo, { orderNumber, deliveryPhone: shipping.phone, log: request.log }))) {
+      reply.code(409);
+      return PROMO_TAKEN_RESPONSE;
+    }
     // When the confirmation screen's flash offer stops being valid. Written
     // down at order time so the deadline the buyer is shown and the one
     // cod-prepay-order enforces are the same deadline.

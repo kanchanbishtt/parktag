@@ -332,25 +332,11 @@ function submit() {
   }
   setMobileError("");
 
-  const tokenRaw = (document.getElementById("token-input")?.value || "")
-    .trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
-
-  if (!vehicles.length && !tokenRaw) {
-    setStatus("Add at least one vehicle or enter a sticker code.", "error");
+  if (!vehicles.length) {
+    setStatus("Add at least one vehicle.", "error");
     return;
   }
 
-  if (tokenRaw) {
-    if (tokenRaw.length !== 12) {
-      setStatus("Sticker code must be exactly 12 characters.", "error");
-      return;
-    }
-    savePendingVehicles();
-    window.location.href = `/vehicle/${tokenRaw}`;
-    return;
-  }
-
-  // No sticker code — show E-Tag popup
   showEtagPopup();
 }
 
@@ -384,10 +370,6 @@ document.getElementById("mobile-number")?.addEventListener("keydown", e => {
 });
 
 document.getElementById("submit-btn")?.addEventListener("click", submit);
-
-document.getElementById("token-input")?.addEventListener("keydown", e => {
-  if (e.key === "Enter") submit();
-});
 
 document.getElementById("etag-download-btn")?.addEventListener("click", downloadEtag);
 document.getElementById("etag-skip-btn")?.addEventListener("click", skipEtag);

@@ -231,7 +231,7 @@ export function registerOtpAuthRoutes(app, env) {
         isNewUser,
         request
       });
-      writeSessionCookie(reply, sessionId, env.runtimeMode === "production");
+      writeSessionCookie(reply, sessionId, env.runtimeMode === "production", "owner");
 
       return { ok: true, isNewUser };
     } catch (error) {

@@ -35,19 +35,37 @@ import { hasActiveSubscription } from "../../lib/core/subscription.js";
 // has to authorise is a harder sell than a single payment. Auto-renew is a
 // deliberate follow-up, not an oversight.
 
+// The fields premiumTrialEndsAt() and the subscription readers need, plus what
+// the screen shows for each vehicle.
+const TAG_PROJECTION = {
+  _id: 1, plateNumber: 1, vehicleLabel: 1, premium: 1, premiumSince: 1, activatedAt: 1, createdAt: 1,
+  subscription: 1, callSubscription: 1, documentSubscription: 1
+};
+
+// The tags a membership can go on: the owner's live PREMIUM tags. A free E-Tag
+// is not one. call-access.js and vault.js both decide an E-Tag's access before
+// they look at any subscription, so time bought for it would change nothing —
+// the purchase would be taken and nothing given for it. Oldest first, so the
+// picker lists vehicles in a stable order.
+async function membershipTags(collections, ownerId) {
+  const owned = await collections.tags
+    .find({ ownerId, deletedAt: { $in: [null, undefined] } })
+    .project(TAG_PROJECTION)
+    .sort({ createdAt: 1 })
+    .toArray();
+  return { owned, premium: owned.filter((tag) => tag.premium === true) };
+}
+
 // Which tag the membership applies to.
 //
 // The entitlement model is per tag — subscription.js reads tag.subscription and
-// nothing else — so a purchase has to name one. Owners today hold exactly one
-// claimed tag each, so asking would be a question with one possible answer, and
-// this resolves it silently in that case. With several, the caller must say
-// which: guessing would put a year of premium on whichever tag happened to sort
-// first, and the owner would have no idea until they looked.
+// nothing else — so a purchase has to name one. With one premium tag there is
+// one possible answer and this resolves it silently. With several, the caller
+// must say which (the screen shows a picker): guessing would put a year of
+// premium on whichever tag happened to sort first, and the owner would have no
+// idea until they looked.
 async function resolveTargetTag(collections, ownerId, requestedTagId) {
-  const owned = await collections.tags
-    .find({ ownerId, deletedAt: { $in: [null, undefined] } })
-    .project({ _id: 1, plateNumber: 1, premium: 1, premiumSince: 1, activatedAt: 1, createdAt: 1, subscription: 1, callSubscription: 1, documentSubscription: 1 })
-    .toArray();
+  const { owned, premium } = await membershipTags(collections, ownerId);
 
   if (!owned.length) return { error: "You need an activated tag before buying a membership." };
 
@@ -57,17 +75,25 @@ async function resolveTargetTag(collections, ownerId, requestedTagId) {
     // be topped up by whoever knows its id.
     const match = wanted && owned.find((tag) => String(tag._id) === String(wanted));
     if (!match) return { error: "That tag is not on your account." };
+    if (match.premium !== true) {
+      return { code: "NOT_PREMIUM", error: "Membership is for premium tags. This vehicle has a free E-Tag." };
+    }
     return { tag: match };
   }
 
-  if (owned.length > 1) {
+  if (!premium.length) {
+    return { code: "NO_PREMIUM_TAG", error: "Membership is for premium tags. Get a premium tag for your vehicle first." };
+  }
+
+  if (premium.length > 1) {
     return {
-      error: "Choose which tag this membership is for.",
-      choices: owned.map((tag) => ({ tagId: String(tag._id), plateNumber: tag.plateNumber || null }))
+      code: "CHOOSE_TAG",
+      error: "Choose which vehicle this membership is for.",
+      choices: premium.map((tag) => ({ tagId: String(tag._id), plateNumber: tag.plateNumber || null }))
     };
   }
 
-  return { tag: owned[0] };
+  return { tag: premium[0] };
 }
 
 // What Razorpay's sheet should show for this buyer. The same three fields the
@@ -100,6 +126,9 @@ export function registerMembershipRoutes(app, env) {
       const checkoutEnabled = isRazorpayConfigured(env);
 
       let subscription = null;
+      // The vehicles a membership can go on, for the picker. The page sends the
+      // chosen one back as tagId; create-order checks it again.
+      let tagChoices = [];
       const collections = await getCollections(env);
       if (collections) {
         const ownerId = toObjectId(request.session.userId);
@@ -108,13 +137,18 @@ export function registerMembershipRoutes(app, env) {
         // premiumTrialEndsAt() reads. Without them projected, every tag looks
         // like it has no trial and the screen offers a membership to someone
         // already covered by the free year — which is what it used to do.
-        const tags = await collections.tags
-          .find({ ownerId, deletedAt: { $in: [null, undefined] } })
-          .project({
-            _id: 1, plateNumber: 1, premium: 1, premiumSince: 1, activatedAt: 1, createdAt: 1,
-            subscription: 1, callSubscription: 1, documentSubscription: 1
-          })
-          .toArray();
+        const { owned: tags, premium } = await membershipTags(collections, ownerId);
+
+        tagChoices = premium.map((tag) => {
+          const until = membershipPeriodStart(tag, now);
+          return {
+            tagId: String(tag._id),
+            plateNumber: tag.plateNumber || null,
+            vehicleLabel: tag.vehicleLabel || null,
+            coveredUntil: until > now ? new Date(until).toISOString() : null,
+            trial: until > now && !hasActiveSubscription(tag, now) && isInPremiumTrial(tag, now)
+          };
+        });
 
         // Covered until when, counting the free year as cover — because it is.
         // The features honour it (call-access.js and vault.js both read the
@@ -151,7 +185,8 @@ export function registerMembershipRoutes(app, env) {
         features: membershipFeatures(),
         alwaysIncluded: alwaysIncludedFeatures(),
         checkoutEnabled,
-        subscription
+        subscription,
+        tags: tagChoices
       };
     }
   );
@@ -176,7 +211,7 @@ export function registerMembershipRoutes(app, env) {
       const target = await resolveTargetTag(collections, ownerId, tagId);
       if (target.error) {
         reply.code(400);
-        return { ok: false, error: target.error, choices: target.choices || undefined };
+        return { ok: false, code: target.code, error: target.error, choices: target.choices || undefined };
       }
 
       const amountPaise = membershipPlanPaise(plan);

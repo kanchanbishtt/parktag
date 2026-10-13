@@ -1203,7 +1203,7 @@ export function registerPublicRoutes(app, env) {
       isNewUser: isNewOwner,
       request
     });
-    writeSessionCookie(reply, sessionId, env.runtimeMode === "production");
+    writeSessionCookie(reply, sessionId, env.runtimeMode === "production", "owner");
 
     // The activation conversion, sent server-side.
     //

@@ -4,7 +4,7 @@ import {
 } from "../../lib/auth/auth.js";
 import { normalizeIdentifier } from "../../lib/auth/otp.js";
 import { getClientIp, isNonEmptyString } from "../../lib/auth/security.js";
-import { getSprayLock, recordSprayFailure } from "../../lib/auth/spray-lockout.js";
+import { releaseSprayAttempt, reserveSprayAttempt } from "../../lib/auth/spray-lockout.js";
 import {
   clearSession,
   createSession,
@@ -15,8 +15,7 @@ import {
 import { revokeVaultAccess } from "../../lib/core/vault.js";
 import {
   clearLoginFailures,
-  getLoginLock,
-  recordLoginFailure
+  reserveLoginAttempt
 } from "../../lib/auth/login-lockout.js";
 import { getCollections } from "../../lib/db/repositories.js";
 import { recordAdminEvent } from "../../lib/core/admin-audit.js";
@@ -79,7 +78,7 @@ export function registerAuthRoutes(app, env) {
   function credentialLogin(role) {
     return async function handler(request, reply) {
       const body = request.body || {};
-      const { rememberMe, role: bodyRole } = body;
+      const { role: bodyRole } = body;
 
       // `identifier` and `pin` are the names the current client sends; `email`
       // and `password` are what older clients send and what the admin console
@@ -122,9 +121,9 @@ export function registerAuthRoutes(app, env) {
       // the number they are already guessing against.
       const identifier = role === "owner" ? normalizeIdentifier(rawIdentifier) : rawIdentifier;
 
-      // Per-ACCOUNT lockout, checked before the password is verified so a locked
-      // account costs an attacker a single indexed read rather than a bcrypt
-      // comparison. The per-IP rate limit above does not cover this case:
+      // Per-ACCOUNT lockout, the attempt taken before the password is verified
+      // so a locked account costs an attacker a single indexed write rather than
+      // a bcrypt comparison, and a parallel burst cannot outrun the count. The per-IP rate limit above does not cover this case:
       // credential stuffing arrives from a rotating pool of addresses, which a
       // per-IP counter never sees as one attack.
       //
@@ -162,10 +161,11 @@ export function registerAuthRoutes(app, env) {
       // matters here specifically because a login PIN is now a valid credential
       // and PINs are drawn from a space small enough to spray. Admin sign-in is
       // a handful of accounts behind a separate route and gains nothing from it.
+      // Reserved before the check, like the per-account attempt below.
       if (role === "owner") {
-        const spray = await getSprayLock(collections, clientIp);
+        const spray = await reserveSprayAttempt(collections, clientIp, identifier);
 
-        if (spray.locked) {
+        if (!spray.allowed) {
           reply.code(429);
           reply.header("retry-after", String(spray.retryAfterSeconds));
           return {
@@ -175,11 +175,13 @@ export function registerAuthRoutes(app, env) {
         }
       }
 
-      const lock = await getLoginLock(collections, role, identifier);
+      const lock = await reserveLoginAttempt(collections, role, identifier);
 
-      if (lock.locked) {
+      if (!lock.allowed) {
         // Not awaited: the log never slows or blocks a sign-in.
         if (role === "admin") recordAdminEvent(collections, { event: "login_locked", email: identifier, reason: "locked", request });
+        // Refused before any check, so it is not a failed guess from here.
+        if (role === "owner") await releaseSprayAttempt(collections, clientIp, identifier);
         reply.code(429);
         reply.header("retry-after", String(lock.retryAfterSeconds));
         return {
@@ -194,11 +196,11 @@ export function registerAuthRoutes(app, env) {
           : await loginUser(env, role, rawIdentifier, secret);
 
       if (!user) {
-        // Recorded against the submitted identifier whether or not an account
-        // exists for it, so this stays silent about who has an account. The
-        // response is byte-identical to the pre-existing one for the same reason.
-        await recordLoginFailure(collections, role, identifier);
-        if (role === "owner") await recordSprayFailure(collections, clientIp, identifier);
+        // The attempt reserved above already counts against the submitted
+        // identifier, whether or not an account exists for it, so this stays
+        // silent about who has an account. The response is byte-identical to
+        // the pre-existing one for the same reason. The spray reservation
+        // stays too: this source has now failed against this account.
         if (role === "admin") recordAdminEvent(collections, { event: "login_failed", email: identifier, reason: "invalid", request });
 
         reply.code(401);
@@ -209,6 +211,7 @@ export function registerAuthRoutes(app, env) {
       }
 
       await clearLoginFailures(collections, role, identifier);
+      if (role === "owner") await releaseSprayAttempt(collections, clientIp, identifier);
 
       // What the drawer and the profile card show as "signed in as". The account
       // e-mail when there is one; otherwise the normalised identifier, which for
@@ -221,9 +224,9 @@ export function registerAuthRoutes(app, env) {
         signInMethod: "password",
         request
       });
-      // "Remember me" is an owner convenience. An admin cookie always ends with
-      // the browser session, whatever the body says.
-      writeSessionCookie(reply, sessionId, env.runtimeMode === "production", role === "owner" && Boolean(rememberMe));
+      // An owner stays signed in on this device; an admin cookie always ends
+      // with the browser session. A `rememberMe` sent by an older page is ignored.
+      writeSessionCookie(reply, sessionId, env.runtimeMode === "production", role);
       if (role === "admin") recordAdminEvent(collections, { event: "login", adminId: user.id, email: user.email, method: "password", request });
 
       return {

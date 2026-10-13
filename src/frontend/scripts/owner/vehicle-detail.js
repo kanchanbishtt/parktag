@@ -111,6 +111,7 @@ function populateContent() {
         const mobileEl = document.getElementById("info-mobile");
         if (mobileEl) mobileEl.textContent = data.owner.mobile || "Not set";
         ownerBackup = data.owner.backupMobile || null;
+        backupDeclined = data.owner.backupDeclined || null;
       }
       renderBackupRow();
     })
@@ -333,11 +334,23 @@ function setPrintStatus(status) {
 // (the input prefilled, with Cancel).
 let ownerBackup = null;
 let backupEditing = false;
+// Save asks before it saves: the 10 digits waiting on "Is this number right?",
+// null when the question is not showing.
+let backupPending = null;
+// A number that took itself off with the link in its WhatsApp notice. Shown
+// under the row until the owner saves a different one.
+let backupDeclined = null;
 
 // Shown exactly as the Phone Number row above it shows the owner's own number
 // (E.164, same face, no grouping), so the two read as a pair.
 function formatBackup(e164) {
   return e164 || "";
+}
+
+// Grouped for reading back in the confirm step, where the point is to catch a
+// wrong digit: "+91 98765 43210".
+function groupedMobile(digits) {
+  return `+91 ${digits.slice(0, 5)} ${digits.slice(5)}`;
 }
 
 function backupStatus(msg, isErr) {
@@ -351,6 +364,8 @@ function backupStatus(msg, isErr) {
 function renderBackupRow() {
   if (!document.getElementById("bk-row")) return;
   const set = Boolean(ownerBackup);
+  const confirming = Boolean(backupPending);
+  // The row stays as the owner left it behind the pop-up, typed number and all.
   const editing = backupEditing || !set;
 
   const value = document.getElementById("bk-value");
@@ -363,23 +378,53 @@ function renderBackupRow() {
   const edit = document.getElementById("bk-edit");
   if (edit) edit.hidden = !editing;
   const input = document.getElementById("bk-input");
-  if (input && editing) input.value = backupEditing && set ? String(ownerBackup).replace(/^\+91/, "") : "";
+  if (input && editing && !confirming) input.value = backupEditing && set ? String(ownerBackup).replace(/^\+91/, "") : "";
   const cancel = document.getElementById("bk-cancel");
   if (cancel) cancel.hidden = !(backupEditing && set);
   const acts = document.getElementById("bk-acts");
   if (acts) acts.hidden = editing;
+  const confirm = document.getElementById("bk-confirm");
+  if (confirm) confirm.hidden = !confirming;
+  const num = document.getElementById("bk-confirm-num");
+  if (num && confirming) num.textContent = groupedMobile(backupPending);
   if (!backupEditing) backupStatus("");
+  if (!set && !confirming && backupDeclined) {
+    backupStatus(`${backupDeclined} asked not to be your backup. Please add a different number.`, true);
+  }
 }
 
-async function saveBackupMobile() {
+// Save: check the shape, then read the number back and ask.
+function saveBackupMobile() {
   const input = document.getElementById("bk-input");
-  const btn = document.getElementById("bk-save");
   const digits = String(input?.value || "").replace(/\D/g, "");
   if (!/^[6-9]\d{9}$/.test(digits)) {
     backupStatus("Enter a 10-digit Indian mobile number.", true);
     input?.focus();
     return;
   }
+  // An error from an earlier try must not sit under the row while the
+  // question is open.
+  backupStatus("");
+  backupPending = digits;
+  renderBackupRow();
+  document.getElementById("bk-confirm-yes")?.focus();
+}
+
+// "Edit number": back to the input with what was typed still in it.
+function backToBackupEdit(error) {
+  const digits = backupPending;
+  backupPending = null;
+  renderBackupRow();
+  const input = document.getElementById("bk-input");
+  if (input && digits) input.value = digits;
+  if (error) backupStatus(error, true);
+  input?.focus();
+}
+
+async function confirmBackupMobile() {
+  const digits = backupPending;
+  if (!digits) return;
+  const btn = document.getElementById("bk-confirm-yes");
   if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
   try {
     const res = await fetch("/api/owner/backup-mobile", {
@@ -389,16 +434,18 @@ async function saveBackupMobile() {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.ok) {
-      backupStatus(data.error || "Couldn't save the backup number. Try again.", true);
+      backToBackupEdit(data.error || "Couldn't save the backup number. Try again.");
       return;
     }
     ownerBackup = data.backupMobile;
+    backupDeclined = null;
+    backupPending = null;
     backupEditing = false;
     renderBackupRow();
   } catch {
-    backupStatus("Network error. The backup number was not saved.", true);
+    backToBackupEdit("Network error. The backup number was not saved.");
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = "Save"; }
+    if (btn) { btn.disabled = false; btn.textContent = "Yes, save"; }
   }
 }
 
@@ -418,7 +465,15 @@ async function removeBackupMobile() {
 document.getElementById("bk-edit")?.addEventListener("submit", (e) => { e.preventDefault(); saveBackupMobile(); });
 document.getElementById("bk-input")?.addEventListener("input", (e) => { e.target.value = e.target.value.replace(/\D/g, "").slice(0, 10); });
 document.getElementById("bk-change")?.addEventListener("click", () => { backupEditing = true; renderBackupRow(); document.getElementById("bk-input")?.focus(); });
-document.getElementById("bk-cancel")?.addEventListener("click", () => { backupEditing = false; renderBackupRow(); });
+document.getElementById("bk-cancel")?.addEventListener("click", () => { backupEditing = false; backupPending = null; renderBackupRow(); });
+document.getElementById("bk-confirm-yes")?.addEventListener("click", confirmBackupMobile);
+document.getElementById("bk-confirm-edit")?.addEventListener("click", () => backToBackupEdit());
+// Tapping outside the pop-up, or Escape, answers it the same way: back to the
+// number, nothing saved.
+document.getElementById("bk-confirm-bg")?.addEventListener("click", () => backToBackupEdit());
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && backupPending) backToBackupEdit();
+});
 document.getElementById("bk-remove")?.addEventListener("click", removeBackupMobile);
 
 // ── SOS save ─────────────────────────────────────────────────

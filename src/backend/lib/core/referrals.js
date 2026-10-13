@@ -110,6 +110,16 @@ const CODE_LENGTH = 6;
 // harmless when somebody later trusts the regex to describe a real code.
 const CODE_PATTERN = new RegExp(`^[${ALPHABET}]{${CODE_LENGTH}}$`);
 
+/**
+ * A code from a query string, upper-cased, or null when it is not the shape of
+ * one. For carrying a ?ref= across a redirect into a Location header; it says
+ * nothing about whether anybody holds the code.
+ */
+export function referralCodeShape(raw) {
+  const code = typeof raw === "string" ? raw.trim().toUpperCase() : "";
+  return CODE_PATTERN.test(code) ? code : null;
+}
+
 function randomCode() {
   let out = "";
   for (let i = 0; i < CODE_LENGTH; i += 1) {

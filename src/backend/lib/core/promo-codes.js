@@ -29,6 +29,8 @@
 // consumes the code between them, so a gating re-check would call it exhausted,
 // compute the full catalogue price, and reject a payment already taken.
 
+import crypto from "node:crypto";
+
 import { toE164 } from "./phone.js";
 import { getShopProduct } from "../integrations/payments.js";
 
@@ -106,6 +108,40 @@ export function shippingFeePaiseFor(promo, { subtotalPaise } = {}) {
   return fee;
 }
 
+// ── Holds: the usage cap counts orders that can still be paid ──────────────
+//
+// A use is burnt when the money arrives (consumePromo), but the price is fixed
+// when the order is created. Checking the cap only at creation let any number
+// of unpaid orders carry a single-use code, and every one of them was then paid
+// at the discount. So an order route that applies a CAPPED code first takes a
+// hold on it (holdPromoForOrder), and the cap counts uses plus live holds.
+//
+// One live hold per buyer per code. A buyer who changes their cart, or switches
+// from paying online to cash, moves their hold to the new order instead of being
+// told their own code is taken. Their earlier order loses its hold; if they pay
+// that one as well, it is honoured (the money is in) and logged by consumePromo
+// as over the cap. A Razorpay order cannot be cancelled and payments are
+// captured automatically, so a late payment can never be refused; what holds
+// stop is several buyers, or a forwarded code, filling the cap many times over
+// before anybody has paid.
+//
+// A hold lapses after PROMO_HOLD_MS so an abandoned checkout does not keep a
+// slot forever. Codes with no cap take no holds at all.
+export const PROMO_HOLD_MS = 30 * 60 * 1000;
+
+// The buyer a hold belongs to: the delivery phone, the identity every order
+// route has (a guest has no account) and the one a bound code is checked
+// against. Hashed, so the admin list of codes never carries phone numbers.
+function holderKey(phone) {
+  const e164 = toE164(phone);
+  return e164 ? crypto.createHash("sha256").update(`promo-hold|${e164}`).digest("hex").slice(0, 24) : null;
+}
+
+function capOf(promo) {
+  const cap = promo?.singleUse ? 1 : promo?.maxUses;
+  return cap == null ? null : Number(cap);
+}
+
 /**
  * May this buyer have this price?
  *
@@ -114,23 +150,28 @@ export function shippingFeePaiseFor(promo, { subtotalPaise } = {}) {
  * buyer to do: a mistype, a code that has expired, one meant for somebody else.
  * None of them should cost anybody a checkout. The caller drops the discount and
  * carries on at the catalogue price.
+ *
+ * `forOrder` is set by the routes that create an order: other buyers' live holds
+ * then count against the cap. Previews and the storefront offers leave it out,
+ * because they quote a price rather than reserve one, and a buyer who has just
+ * closed their own payment window must not be shown their code as used up.
  */
 export async function resolvePromo(
   collections,
   rawCode,
-  { deliveryPhone = null, productId = null, quantity = 1 } = {}
+  { deliveryPhone = null, productId = null, quantity = 1, forOrder = false } = {}
 ) {
   const code = normalisePromoCode(rawCode);
   if (!code || !PROMO_CODE_PATTERN.test(code)) return { ok: false, reason: "malformed" };
 
   const promo = await collections.promoCodes.findOne({ code });
   if (!promo) return { ok: false, reason: "unknown" };
-  return evaluatePromo(promo, { deliveryPhone, productId, quantity });
+  return evaluatePromo(promo, { deliveryPhone, productId, quantity, forOrder });
 }
 
 // resolvePromo's rules on a row already read, so the website-offer code below
 // can judge many packs and quantities against one read.
-function evaluatePromo(promo, { deliveryPhone = null, productId = null, quantity = 1 } = {}) {
+function evaluatePromo(promo, { deliveryPhone = null, productId = null, quantity = 1, forOrder = false } = {}) {
   const code = promo.code;
   if (promo.active === false) return { ok: false, reason: "revoked" };
 
@@ -157,10 +198,19 @@ function evaluatePromo(promo, { deliveryPhone = null, productId = null, quantity
   }
 
   // A single-use code is a cap of one, expressed the way the person creating it
-  // thinks about it.
-  const cap = promo.singleUse ? 1 : promo.maxUses;
-  if (cap != null && Number(promo.usedCount || 0) >= Number(cap)) {
-    return { ok: false, reason: "exhausted" };
+  // thinks about it. An order also counts the slots other buyers' unpaid
+  // checkouts are holding (see PROMO_HOLD_MS); this buyer's own hold is theirs
+  // to move.
+  const cap = capOf(promo);
+  if (cap != null) {
+    const holder = holderKey(deliveryPhone);
+    const nowIso = new Date().toISOString();
+    const heldByOthers = forOrder
+      ? (Array.isArray(promo.holds) ? promo.holds : []).filter((h) => h.until > nowIso && h.holder !== holder).length
+      : 0;
+    if (Number(promo.usedCount || 0) + heldByOthers >= cap) {
+      return { ok: false, reason: "exhausted" };
+    }
   }
 
   // Bound to one buyer, so a screenshot forwarded to a group chat is worth
@@ -188,9 +238,74 @@ function evaluatePromo(promo, { deliveryPhone = null, productId = null, quantity
     code,
     discountPaise: discountPaiseFor(promo, { subtotalPaise, quantity: qty }),
     shippingFeePaise: shippingFeePaiseFor(promo, { subtotalPaise }),
-    fulfilment: fulfilmentOf(promo)
+    fulfilment: fulfilmentOf(promo),
+    // For holdPromoForOrder: null means the code has no cap and needs no hold.
+    cap
   };
 }
+
+/**
+ * Hold a capped code for an order about to be written. Every order route calls
+ * this once it knows the order number and before the order can be paid or
+ * placed, with the promo result it priced the order by. Atomic: the cap check
+ * and the write are one conditional update, so two checkouts racing for the
+ * last slot cannot both get it.
+ *
+ * A held code is re-held for the same order (a reused checkout) and moved from
+ * the buyer's earlier order to this one; see PROMO_HOLD_MS.
+ *
+ * Resolves to true when the order may carry the code, false when other buyers
+ * took the last slot after the price was quoted. Never throws: a database
+ * error also answers false, so no order carries a code it holds no slot for.
+ */
+export async function holdPromoForOrder(collections, promo, { orderNumber, deliveryPhone, now = Date.now(), log } = {}) {
+  if (!promo?.ok || promo.cap == null) return true;
+  const holder = holderKey(deliveryPhone);
+  if (!orderNumber || !holder) return false;
+
+  const nowIso = new Date(now).toISOString();
+  // Live holds that are neither this order's nor this buyer's.
+  const others = {
+    $filter: {
+      input: { $ifNull: ["$holds", []] },
+      cond: {
+        $and: [
+          { $gt: ["$$this.until", nowIso] },
+          { $ne: ["$$this.orderNumber", orderNumber] },
+          { $ne: ["$$this.holder", holder] }
+        ]
+      }
+    }
+  };
+
+  try {
+    const result = await collections.promoCodes.updateOne(
+      {
+        code: promo.code,
+        $expr: { $lt: [{ $add: [{ $ifNull: ["$usedCount", 0] }, { $size: others }] }, promo.cap] }
+      },
+      [{
+        $set: {
+          holds: {
+            $concatArrays: [others, [{ orderNumber, holder, until: new Date(now + PROMO_HOLD_MS).toISOString() }]]
+          }
+        }
+      }]
+    );
+    return result.matchedCount === 1;
+  } catch (err) {
+    log?.warn?.({ err, code: promo.code }, "[promo] could not hold code");
+    return false;
+  }
+}
+
+// What an order route answers when holdPromoForOrder says no. Rare: the price
+// was quoted with a slot free and other buyers took it in the moments since.
+export const PROMO_TAKEN_RESPONSE = {
+  ok: false,
+  code: "PROMO_TAKEN",
+  error: "This offer has just been used up by other orders. Please refresh to see the current price."
+};
 
 // ── Website offers ──────────────────────────────────────────────────────────
 //
@@ -228,8 +343,8 @@ function bestOffer(rows, context) {
 }
 
 /** The best website offer for this pack and quantity, or `{ ok: false }`. */
-export async function resolveAutoOffer(collections, { productId, quantity = 1, deliveryPhone = null } = {}) {
-  return bestOffer(await autoApplyRows(collections), { productId, quantity, deliveryPhone });
+export async function resolveAutoOffer(collections, { productId, quantity = 1, deliveryPhone = null, forOrder = false } = {}) {
+  return bestOffer(await autoApplyRows(collections), { productId, quantity, deliveryPhone, forOrder });
 }
 
 /**
@@ -242,6 +357,9 @@ export async function resolveAutoOffer(collections, { productId, quantity = 1, d
  *
  * `allowHandover` is false for the dashboard: a handover code is for a sale in
  * person and has no meaning for an order that ships to a saved address.
+ *
+ * Only order routes call this, so other buyers' holds count (`forOrder`), and
+ * a typed code they have filled falls back to the website offer.
  */
 export async function resolveCheckoutPromo(
   collections,
@@ -249,11 +367,11 @@ export async function resolveCheckoutPromo(
 ) {
   let typedRefusal = null;
   if (normalisePromoCode(typedCode)) {
-    const typed = await resolvePromo(collections, typedCode, { productId, quantity, deliveryPhone });
+    const typed = await resolvePromo(collections, typedCode, { productId, quantity, deliveryPhone, forOrder: true });
     if (typed.ok && (allowHandover || typed.fulfilment !== FULFILMENT_HANDOVER)) return typed;
     typedRefusal = typed.ok ? "handover-only" : typed.reason;
   }
-  const auto = await resolveAutoOffer(collections, { productId, quantity, deliveryPhone });
+  const auto = await resolveAutoOffer(collections, { productId, quantity, deliveryPhone, forOrder: true });
   return auto.ok ? { ...auto, typedRefusal } : { ok: false, reason: auto.reason, typedRefusal };
 }
 
@@ -337,6 +455,11 @@ export async function promoValueFor(collections, rawCode, { subtotalPaise = 0, q
  * what stops the second, but a code burnt twice by a retry would deny somebody
  * a discount they were promised.
  *
+ * The order's hold becomes the use. Never refused: the buyer has paid (or the
+ * COD order is placed), so a use past the cap — an order whose hold lapsed or
+ * moved before it was paid, see PROMO_HOLD_MS — is recorded and logged rather
+ * than turned away.
+ *
  * Never throws. The buyer has paid and their parcel is being booked; a usage
  * counter that cannot be written must not turn that into a failed request.
  */
@@ -345,10 +468,20 @@ export async function consumePromo(collections, rawCode, orderNumber, log) {
   if (!code || !orderNumber) return;
 
   try {
-    await collections.promoCodes.updateOne(
+    const after = await collections.promoCodes.findOneAndUpdate(
       { code, usedByOrders: { $ne: orderNumber } },
-      { $inc: { usedCount: 1 }, $push: { usedByOrders: orderNumber }, $set: { lastUsedAt: new Date().toISOString() } }
+      {
+        $inc: { usedCount: 1 },
+        $push: { usedByOrders: orderNumber },
+        $pull: { holds: { orderNumber } },
+        $set: { lastUsedAt: new Date().toISOString() }
+      },
+      { returnDocument: "after", projection: { singleUse: 1, maxUses: 1, usedCount: 1 } }
     );
+    const cap = capOf(after);
+    if (after && cap != null && Number(after.usedCount) > cap) {
+      log?.warn?.({ event: "promo-over-cap", code, orderNumber, usedCount: after.usedCount, cap }, "[promo] paid order took a code past its usage cap");
+    }
   } catch (err) {
     log?.warn?.({ err, code }, "[promo] could not record use");
   }

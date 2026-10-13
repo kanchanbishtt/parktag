@@ -100,10 +100,8 @@ body { margin: 0; background: #fff; font-family: "Segoe UI", Tahoma, Geneva, Ver
 }
 .av-item-del:hover { background: #FECACA; }
 
-/* ── Divider ── */
-.av-divider { display: flex; align-items: center; gap: 12px; margin: 24px 0 16px; }
-.av-divider-line { flex: 1; height: 1px; background: #E5E7EB; }
-.av-divider-txt { font-size: 0.75rem; font-weight: 700; color: #9CA3AF; letter-spacing: .05em; }
+/* ── Sticker hint ── */
+.av-sticker-hint { font-size: 0.85rem; color: #6B7280; text-align: center; margin: 24px 0 0; line-height: 1.5; }
 
 /* ── Submit bar ── */
 .av-submit-bar {

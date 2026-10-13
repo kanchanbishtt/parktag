@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>ParkTag | Backup contact</title>
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="icon" href="/images/icon.png" type="image/png" />
+    <link rel="apple-touch-icon" href="/images/apple-touch-icon.png" />
+    <link rel="stylesheet" href="/styles/styles.css?v=__ASSET_VERSION__" />
+    <link rel="preload" as="font" type="font/woff2" href="/fonts/inter-latin-var.woff2" crossorigin>
+  </head>
+  <body class="report-body">
+
+    <!-- Opened from the "Remove my number" button in the WhatsApp notice a
+         backup contact gets. Nothing happens on load: the number comes off
+         only when the button below is pressed (see backup-contact.js), so a
+         link preview cannot remove anyone. The page shows nothing about the
+         owner; the message already said who added them. -->
+    <main class="pt-report-main">
+      <article class="pt-report-card pt-bc-card" id="bc-ask">
+        <span class="pt-report-badge">Backup contact</span>
+        <h1 class="pt-report-title">Remove your number?</h1>
+        <p class="pt-report-sub">
+          Someone added this number as the backup contact on their ParkTag, so
+          calls about their vehicle that they miss would ring you.
+        </p>
+        <p class="pt-report-sub">
+          If that was a mistake, or you would rather not, remove your number.
+          They will not be able to add it again.
+        </p>
+        <button id="bc-remove" class="pt-report-submit" type="button">Remove my number</button>
+        <p id="bc-status" class="pt-report-status" hidden></p>
+      </article>
+
+      <article class="pt-report-card pt-bc-card" id="bc-done" hidden>
+        <span class="pt-report-badge">Backup contact</span>
+        <h1 class="pt-report-title" id="bc-done-title">Your number is removed</h1>
+        <p class="pt-report-sub" id="bc-done-sub">
+          You will not get calls for this ParkTag. Nothing else is needed.
+        </p>
+      </article>
+    </main>
+
+    <script type="module" src="/scripts/scanner/backup-contact.js?v=__ASSET_VERSION__"></script>
+  </body>
+</html>

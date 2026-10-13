@@ -10,6 +10,30 @@ const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo";
 
+// The browser that started a redirect sign-in, so the callback can tell it
+// apart from one that was merely sent the callback link.
+//
+// A stored `state` only proved that SOMEBODY started a sign-in through us.
+// Anyone could start one, approve it with their own Google account, stop
+// before the callback, and send the resulting link to someone else: opening it
+// signed that person's browser into the attacker's account (login CSRF), and
+// whatever they then saved — a vehicle, an address, a document — went to the
+// attacker.
+//
+// So each browser carries a random id in a cookie, and every state is stored
+// with a hash of the id of the browser that asked for it. The callback only
+// consumes a state whose hash matches the browser presenting it. One id per
+// browser rather than the state itself in the cookie: sign-ins started in two
+// tabs both complete, instead of the second overwriting the first.
+//
+// Sent only to the callback. SameSite=Lax, because Google returns with a
+// top-level navigation, which Lax allows and Strict would not.
+const BROWSER_COOKIE = "pt_google_browser";
+const BROWSER_COOKIE_PATH = "/api/auth/google/callback";
+const BROWSER_ID = /^[a-f0-9]{64}$/;
+
+const browserHash = (id) => crypto.createHash("sha256").update(String(id)).digest("hex");
+
 // Accepted `iss` values for a Google-issued ID token (One Tap credential).
 const GOOGLE_ISSUERS = new Set(["accounts.google.com", "https://accounts.google.com"]);
 
@@ -35,14 +59,15 @@ export function registerGoogleAuthRoutes(app, env) {
   // instance than the one that issued the state, breaking a large share of
   // logins. The in-memory Map is kept as a fast path in front of it, and the
   // TTL index on oauth_states handles expiry (see repositories.js).
-  async function saveOAuthState(state, role) {
-    app.oauthStates.set(state, { ts: Date.now(), role });
+  async function saveOAuthState(state, role, browser) {
+    app.oauthStates.set(state, { ts: Date.now(), role, browser });
     try {
       const collections = await getCollections(env);
       if (collections) {
         await collections.oauthStates.insertOne({
           _id: state,
           role,
+          browser,
           createdAt: new Date()
         });
       }
@@ -53,18 +78,23 @@ export function registerGoogleAuthRoutes(app, env) {
   }
 
   // Single-use: reading a state also consumes it, so a captured callback URL
-  // cannot be replayed.
-  async function consumeOAuthState(state) {
+  // cannot be replayed. Only the browser that started the sign-in can consume
+  // it; for any other the state is left as it was, so a link opened elsewhere
+  // does not burn the sign-in for the browser it belongs to.
+  async function consumeOAuthState(state, browserId) {
     if (typeof state !== "string" || !state) return null;
+    if (typeof browserId !== "string" || !BROWSER_ID.test(browserId)) return null;
+    const browser = browserHash(browserId);
 
-    const cached = app.oauthStates.get(state);
-    app.oauthStates.delete(state);
+    let cached = app.oauthStates.get(state);
+    if (cached && cached.browser !== browser) cached = null;
+    if (cached) app.oauthStates.delete(state);
 
     let doc = null;
     try {
       const collections = await getCollections(env);
       if (collections) {
-        doc = await collections.oauthStates.findOneAndDelete({ _id: state });
+        doc = await collections.oauthStates.findOneAndDelete({ _id: state, browser });
       }
     } catch {
       // Fall back to the in-memory copy below.
@@ -79,9 +109,21 @@ export function registerGoogleAuthRoutes(app, env) {
     return { role: found.role || "owner" };
   }
 
-  async function startOAuth(reply, role) {
+  async function startOAuth(request, reply, role) {
     const state = crypto.randomBytes(16).toString("hex");
-    await saveOAuthState(state, role);
+    // The browser's id if it already has one, so every tab shares it.
+    const existing = request.cookies?.[BROWSER_COOKIE];
+    const browserId = BROWSER_ID.test(existing || "") ? existing : crypto.randomBytes(32).toString("hex");
+    await saveOAuthState(state, role, browserHash(browserId));
+    // Re-set each time, so it lives as long as the newest sign-in.
+    reply.setCookie(BROWSER_COOKIE, browserId, {
+      httpOnly: true,
+      path: BROWSER_COOKIE_PATH,
+      sameSite: "lax",
+      // As writeSessionCookie decides it.
+      secure: env.runtimeMode === "production" || reply.request?.protocol === "https",
+      maxAge: Math.floor(STATE_TTL_MS / 1000)
+    });
     const params = new URLSearchParams({
       client_id: env.googleClientId,
       redirect_uri: env.googleCallbackUrl,
@@ -93,12 +135,12 @@ export function registerGoogleAuthRoutes(app, env) {
     reply.redirect(`${GOOGLE_AUTH_URL}?${params}`);
   }
 
-  app.get("/api/auth/google", async (_request, reply) => {
-    await startOAuth(reply, "owner");
+  app.get("/api/auth/google", async (request, reply) => {
+    await startOAuth(request, reply, "owner");
   });
 
-  app.get("/api/auth/admin/google", async (_request, reply) => {
-    await startOAuth(reply, "admin");
+  app.get("/api/auth/admin/google", async (request, reply) => {
+    await startOAuth(request, reply, "admin");
   });
 
   app.get("/api/auth/google/callback", async (request, reply) => {
@@ -109,7 +151,10 @@ export function registerGoogleAuthRoutes(app, env) {
       return;
     }
 
-    const storedState = await consumeOAuthState(state);
+    // The browser cookie stays: another tab's sign-in may still be on its way
+    // back. It is only an id, useless without a state started alongside it,
+    // and it expires with the newest of them.
+    const storedState = await consumeOAuthState(state, request.cookies?.[BROWSER_COOKIE]);
     if (!storedState) {
       reply.redirect("/owner-login?error=invalid_state");
       return;
@@ -181,7 +226,7 @@ export function registerGoogleAuthRoutes(app, env) {
           signInIdentifier: admin.email,
           displayName: admin.displayName || email
         });
-        writeSessionCookie(reply, sessionId, env.runtimeMode === "production");
+        writeSessionCookie(reply, sessionId, env.runtimeMode === "production", "admin");
         recordAdminEvent(collections, { event: "login", adminId: String(admin._id), email: admin.email, method: "google", request });
         reply.redirect("/admin/overview");
         return;
@@ -215,7 +260,7 @@ export function registerGoogleAuthRoutes(app, env) {
         signInMethod: "google",
         request
       });
-      writeSessionCookie(reply, sessionId, env.runtimeMode === "production");
+      writeSessionCookie(reply, sessionId, env.runtimeMode === "production", "owner");
       reply.redirect("/owner-welcome");
     } catch (err) {
       app.log.error(err, "Google auth callback error");
@@ -279,7 +324,7 @@ export function registerGoogleAuthRoutes(app, env) {
         signInMethod: "google",
         request
       });
-      writeSessionCookie(reply, sessionId, env.runtimeMode === "production");
+      writeSessionCookie(reply, sessionId, env.runtimeMode === "production", "owner");
       reply.send({ redirect: "/owner-welcome" });
     } catch (err) {
       app.log.error(err, "Google credential verification error");
@@ -346,7 +391,7 @@ export function registerGoogleAuthRoutes(app, env) {
         signInMethod: "google",
         request
       });
-      writeSessionCookie(reply, sessionId, env.runtimeMode === "production");
+      writeSessionCookie(reply, sessionId, env.runtimeMode === "production", "owner");
       reply.send({ redirect: "/owner-welcome" });
     } catch (err) {
       app.log.error(err, "Google popup auth error");

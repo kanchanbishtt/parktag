@@ -22,7 +22,7 @@ import {
   TEST_ORIGIN
 } from "./helpers.js";
 import { createPasswordHash } from "../lib/auth/security.js";
-import { getSprayLock, recordSprayFailure } from "../lib/auth/spray-lockout.js";
+import { releaseSprayAttempt, reserveSprayAttempt } from "../lib/auth/spray-lockout.js";
 import {
   isValidLoginPin,
   isWeakLoginPin,
@@ -446,22 +446,43 @@ describe("credential spraying", () => {
   // Driven against the module rather than the route. /api/auth/login is rate
   // limited to 5 requests a minute per address, and this control is keyed on
   // the address — so twelve attempts from the one source it counts cannot be
-  // pushed through HTTP inside a test. The route's use of it is one call
-  // (see routes/auth/credentials.js); the rule is what needs pinning.
+  // pushed through HTTP inside a test. The route reserves before the check
+  // and releases on success (see routes/auth/credentials.js); the rule is what
+  // needs pinning.
   const ip = "203.0.113.77";
 
   test("one source failing against many accounts is stopped", async () => {
-    const before = await getSprayLock(collections, ip);
-    assert.equal(before.locked, false, "the fixture address started out locked");
-
-    // Twelve distinct identifiers is the threshold.
+    // Twelve distinct identifiers is the threshold. Each attempt is reserved
+    // before its check and left in place, as a failed sign-in leaves it.
     for (let i = 0; i < 12; i += 1) {
-      await recordSprayFailure(collections, ip, `spray-${i}@parktag-test.invalid`);
+      const attempt = await reserveSprayAttempt(collections, ip, `spray-${i}@parktag-test.invalid`);
+      assert.equal(attempt.allowed, true, `attempt ${i + 1} of the allowance was refused`);
     }
 
-    const after = await getSprayLock(collections, ip);
-    assert.equal(after.locked, true, "twelve sprayed accounts did not lock the source");
+    const after = await reserveSprayAttempt(collections, ip, "spray-next@parktag-test.invalid");
+    assert.equal(after.allowed, false, "twelve sprayed accounts did not lock the source");
     assert.ok(after.retryAfterSeconds > 0);
+  });
+
+  test("twenty accounts tried at once from one source: twelve get a check", async () => {
+    const burst = "203.0.113.78";
+    const results = await Promise.all(Array.from({ length: 20 }, (_, i) =>
+      reserveSprayAttempt(collections, burst, `spray-burst-${i}@parktag-test.invalid`)
+    ));
+    assert.equal(results.filter((r) => r.allowed).length, 12);
+  });
+
+  test("a successful sign-in takes its account off the list", async () => {
+    const shared = "203.0.113.79";
+    for (let i = 0; i < 11; i += 1) {
+      await reserveSprayAttempt(collections, shared, `spray-shared-${i}@parktag-test.invalid`);
+    }
+    // Eleven failed; this one signs in, so it never counts as the twelfth.
+    await reserveSprayAttempt(collections, shared, "spray-owner@parktag-test.invalid");
+    await releaseSprayAttempt(collections, shared, "spray-owner@parktag-test.invalid");
+
+    const next = await reserveSprayAttempt(collections, shared, "spray-shared-new@parktag-test.invalid");
+    assert.equal(next.allowed, true, "a successful sign-in was counted as a sprayed account");
   });
 
   // A person mistyping their own PIN produces many failures against ONE
@@ -471,11 +492,11 @@ describe("credential spraying", () => {
     const single = "198.51.100.42";
 
     for (let i = 0; i < 40; i += 1) {
-      await recordSprayFailure(collections, single, "spray-single@parktag-test.invalid");
+      await reserveSprayAttempt(collections, single, "spray-single@parktag-test.invalid");
     }
 
-    const lock = await getSprayLock(collections, single);
-    assert.equal(lock.locked, false, "one account failing repeatedly tripped the spray lock");
+    const lock = await reserveSprayAttempt(collections, single, "spray-single@parktag-test.invalid");
+    assert.equal(lock.allowed, true, "one account failing repeatedly tripped the spray lock");
   });
 });
 

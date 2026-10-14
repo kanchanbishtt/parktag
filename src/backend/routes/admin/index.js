@@ -109,12 +109,19 @@ const ADMIN_PAGE_SIZE = 100;
 // ?page=<n>, 1-based. Anything unparseable is page 1, and a page past the end
 // is the last page, so a list that shrank under an admin (a tag deleted on the
 // last page) still shows rows instead of an empty page.
-function listPage(rawPage, total) {
-  const pages = Math.max(1, Math.ceil(total / ADMIN_PAGE_SIZE));
+function listPage(rawPage, total, pageSize = ADMIN_PAGE_SIZE) {
+  const pages = Math.max(1, Math.ceil(total / pageSize));
   const wanted = Number.parseInt(typeof rawPage === "string" ? rawPage : "1", 10);
   const page = Math.min(pages, Number.isFinite(wanted) && wanted >= 1 ? wanted : 1);
-  return { page, pages, pageSize: ADMIN_PAGE_SIZE, skip: (page - 1) * ADMIN_PAGE_SIZE };
+  return { page, pages, pageSize, skip: (page - 1) * pageSize };
 }
+
+// The activation queue, when it is asked for a page (the MCP tool does; the
+// Activations page loads the whole queue and sorts it in the browser). Smaller
+// than ADMIN_PAGE_SIZE because each row carries its reminder history and
+// suggested stickers, and the MCP reply is cut at 60,000 characters: a page of
+// 100 rows ran past that, so the rows after the cut were unreachable.
+const QUEUE_PAGE_SIZE = 25;
 
 // ── Activations: shared by the Activations page and the overview summary ──
 //
@@ -761,16 +768,30 @@ export function registerAdminRoutes(app, env) {
     const collections = await getCollections(env);
     const { rows, resellerOrders } = await buildActivationQueue(collections);
 
+    // Always the whole queue, paged or not.
+    const counts = {
+      unactivated: rows.length,
+      // Nothing live yet, versus a multi-pack with some stickers live.
+      none: rows.filter((o) => !o.activatedStickers).length,
+      partial: rows.filter((o) => o.activatedStickers > 0).length,
+      resellerOrders
+    };
+
+    // ?page=<n> pages the rows, still waiting-longest first. Without it, the
+    // whole queue, as the Activations page expects. The MCP tool offered `page`
+    // and this route ignored it, so every page was the same truncated reply.
+    const rawPage = request.query.page;
+    if (rawPage === undefined || rawPage === "") return { ok: true, counts, unactivated: rows };
+
+    const { page, pages, pageSize, skip } = listPage(rawPage, rows.length, QUEUE_PAGE_SIZE);
     return {
       ok: true,
-      counts: {
-        unactivated: rows.length,
-        // Nothing live yet, versus a multi-pack with some stickers live.
-        none: rows.filter((o) => !o.activatedStickers).length,
-        partial: rows.filter((o) => o.activatedStickers > 0).length,
-        resellerOrders
-      },
-      unactivated: rows
+      counts,
+      total: rows.length,
+      page,
+      pages,
+      pageSize,
+      unactivated: rows.slice(skip, skip + pageSize)
     };
   });
 

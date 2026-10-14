@@ -917,7 +917,9 @@ export function registerPublicRoutes(app, env) {
     // on the reconciliation report anyway.
     await linkTagToOrder(collections, { tagId: tag._id, phone }, app.log);
 
-    if (!isInternalTag(tag)) sendMixpanelEventBestEffort(app.log, env, {
+    // Skipped for the team's own numbers too, as /activate below does: this path
+    // checked the tag only, so a test activation on an internal phone counted.
+    if (!isInternalTag(tag) && !isInternalPhone(env, verifiedMobile)) sendMixpanelEventBestEffort(app.log, env, {
       eventName: "tag_activated",
       distinctId: String(ownerId),
       properties: { flow: "claim", is_new_owner: true, ...attributionProps(request) }
@@ -1662,12 +1664,9 @@ export function registerPublicRoutes(app, env) {
       expiresAt: new Date(now.getTime() + 10 * 60 * 1000)
     });
 
-    sendMixpanelEventBestEffort(request.log, env, {
-      eventName: "contact_action",
-      distinctId: String(tag.ownerId),
-      properties: { method: "call" }
-    });
-
+    // No contact_action here: this only hands the scanner a number to dial.
+    // It is sent when the call is actually placed (callContactEvent, from the
+    // dial-whom webhook).
     return { ok: true, virtualNumber: env.exotelCallerId };
   });
 
@@ -1956,14 +1955,8 @@ export function registerPublicRoutes(app, env) {
       "[emergency] pending SOS call registered"
     );
 
-    if (tag.ownerId) {
-      sendMixpanelEventBestEffort(request.log, env, {
-        eventName: "contact_action",
-        distinctId: String(tag.ownerId),
-        properties: { method: "emergency_call" }
-      });
-    }
-
+    // contact_action is sent when the call is placed, not here (see
+    // register-call above).
     return { ok: true, virtualNumber: env.exotelCallerId };
   });
 

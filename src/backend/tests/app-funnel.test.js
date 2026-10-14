@@ -47,6 +47,13 @@ let adminCookie;
 // number belongs to no other test in the file.
 const INTERNAL_PHONE = "9876500854";
 
+// The landing row one test inserts beside the app rows. Cleared with them: the
+// cleanup used to take only site "app", so this row outlived every run and the
+// next run counted two of it ("the landing row was swallowed" on a clean
+// recorder).
+const LANDING_VISITOR = "qa-landing-visitor";
+const OWN_ROWS = { $or: [{ site: "app" }, { visitorHash: LANDING_VISITOR }] };
+
 before(async () => {
   process.env.INTERNAL_TEST_PHONES = INTERNAL_PHONE;
   ({ app, collections } = await startTestApp());
@@ -54,7 +61,7 @@ before(async () => {
 
 after(async () => {
   delete process.env.INTERNAL_TEST_PHONES;
-  await collections.landingVisits.deleteMany({ site: "app" }).catch(() => {});
+  await collections.landingVisits.deleteMany(OWN_ROWS).catch(() => {});
   await collections.shopOrders.deleteMany({ productId: "qa-funnel" }).catch(() => {});
   await purgeLoginCollections(collections);
   await stopTestApp(app);
@@ -63,7 +70,7 @@ after(async () => {
 beforeEach(async () => {
   // Only this file's rows. landing-traffic.test.js shares the collection,
   // and wiping all of it makes whichever file runs second fail.
-  await collections.landingVisits.deleteMany({ site: "app" });
+  await collections.landingVisits.deleteMany(OWN_ROWS);
   await collections.shopOrders.deleteMany({ productId: "qa-funnel" });
   await purgeLoginCollections(collections);
 
@@ -190,7 +197,7 @@ describe("a shop view is recorded by the server", () => {
       path: "/",
       site: "landing",
       device: "mobile",
-      visitorHash: "qa-landing-visitor"
+      visitorHash: LANDING_VISITOR
     });
     await visitShop();
     await settle();
@@ -198,7 +205,7 @@ describe("a shop view is recorded by the server", () => {
     // Matched on the row this test inserted, not on every landing row, so a
     // leftover from another file cannot turn this into a false failure.
     assert.equal(
-      await collections.landingVisits.countDocuments({ visitorHash: "qa-landing-visitor" }),
+      await collections.landingVisits.countDocuments({ visitorHash: LANDING_VISITOR }),
       1,
       "the landing row was swallowed by the app recorder"
     );

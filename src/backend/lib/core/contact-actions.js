@@ -7,6 +7,25 @@ import { getCollections } from "../db/repositories.js";
 import { captureScannerLocation } from "./scan-location.js";
 import { carMapUrl, resolveCarLocation } from "./car-location.js";
 
+// The contact_action event for a masked call, or null.
+//
+// Sent from Exotel's dial-whom webhook (webhooks/exotel.js) when it routes a
+// scanner's call, on the route's FIRST ask: that is the moment the call is
+// actually placed to the owner or the emergency contact. It used to be sent
+// when the page registered the call, which only hands the scanner a number to
+// dial; many never do, and those were counted as reaching the owner. Later
+// asks on the same route (a redial, or the applet moving on to the backup
+// number) are the same contact and are not counted again. An answered call is
+// masked_call_connected. The owner's own callback to a scanner is not a
+// scanner reaching anyone.
+const CALL_METHODS = { scanner_to_owner: "call", scanner_to_emergency: "emergency_call" };
+
+export function callContactEvent(route) {
+  const method = route && Object.hasOwn(CALL_METHODS, route.type) ? CALL_METHODS[route.type] : null;
+  if (!method || !route.ownerId || route.dialRequests !== 1) return null;
+  return { eventName: "contact_action", distinctId: String(route.ownerId), properties: { method } };
+}
+
 // The WhatsApp message is built ENTIRELY server-side (spec §6) — the scanner can
 // never author it. The optional reason is constrained to this fixed whitelist,
 // so no arbitrary text from the client can reach the owner.

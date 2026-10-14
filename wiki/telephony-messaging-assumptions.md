@@ -9,9 +9,10 @@ ParkTag's two provider paths: **Exotel** (calls) and **Meta WhatsApp Cloud API**
 - **Calls → Exotel only.** Masked voice bridging between finder and owner.
 - **Messaging → Meta WhatsApp Cloud API only.** No SMS.
 
-Exotel's SMS / WhatsApp send helpers (`sendExotelSms`, `sendExotelMessage`) still exist
-in `lib/integrations/exotel.js` but are **not on the active scanner path** — they are
-legacy and kept only for reference.
+The backend makes no Exotel API calls at all. The old Exotel client
+(`lib/integrations/exotel.js`: outbound call, SMS and WhatsApp senders) was imported
+by nothing and was removed on 2026-10-14 (audit item 15), with the env settings only
+it read (`EXOTEL_API_BASE_URL`, `EXOTEL_STATUS_CALLBACK_URL`, `EXOTEL_SMS_*`).
 
 ---
 
@@ -31,17 +32,18 @@ legacy and kept only for reference.
 - Exotel's URL validation pings `dial-whom` with **no caller param**; the endpoint must
   answer **HTTP 200 + empty body** in that case or Exotel rejects the flow.
 - Exotel sends `CallFrom` in **trunk-prefix format** (`0XXXXXXXXXX`, 11 digits leading `0`).
-  `toE164()` in `exotel.js` normalizes this; a provider format change would require updating it.
+  `toE164()` in `routes/webhooks/exotel.js` normalizes this; a provider format change would require updating it.
 - `targetPhone` is normalized to E.164 via `toE164()` before being returned to Exotel.
-- `EXOTEL_STATUS_CALLBACK_URL` must point at the deployed webhook
-  (`https://app.parktag.me/api/provider/exotel/webhook`); it is set in Railway env vars.
+- The status callback URL (`https://app.parktag.me/api/provider/exotel/webhook?token=...`)
+  is configured on the Exotel flow, not by the app. The app never reads
+  `EXOTEL_STATUS_CALLBACK_URL`; it was only used by the removed outbound-call helper.
 
 ### Real-world constraints
 - **Neither party ever sees the other's number** — this is the core privacy guarantee and
   depends entirely on Exotel doing the bridging; the backend never returns raw numbers to a
   browser.
-- Failure states are masked (`maskPhoneLikeValue` / `sanitizeProviderDetail`) so a failed
-  call never leaks a phone number into logs or admin views.
+- Phone numbers in call logs are masked (`maskPhone` in `routes/webhooks/exotel.js`), so a
+  call never leaks a number into logs.
 - Recording URLs, when present, are provider-hosted; ParkTag only stores the link.
 
 ---

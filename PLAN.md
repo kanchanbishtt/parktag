@@ -518,7 +518,7 @@ After saving, go to: **Exotel Dashboard → Numbers → ExoPhones**
 | `EXOTEL_ACCOUNT_SID` | Exotel Dashboard → Settings | Already present — used for API auth |
 | `EXOTEL_API_KEY` | Exotel Dashboard → Settings | Already present — used for API auth |
 | `EXOTEL_API_TOKEN` | Exotel Dashboard → Settings | Already present — used for API auth |
-| `EXOTEL_STATUS_CALLBACK_URL` | Set to `https://app.parktag.me/api/provider/exotel/webhook` | ✓ Set in Railway — receives call status events |
+| ~~`EXOTEL_STATUS_CALLBACK_URL`~~ | Not read by the app (removed 2026-10-14, audit item 15) | The status callback URL is set on the Exotel flow, not sent by the app |
 
 > No new env vars needed. `EXOTEL_CALLER_ID` doubles as the virtual number. `EXOTEL_VIRTUAL_NUMBER` was removed — do not add it.
 
@@ -555,7 +555,7 @@ HTTP status must be `200`. Any non-200 or empty body causes Exotel to play a bus
 
 ### 14.6 What Exotel Sends to the Status Callback
 
-After the call ends (or fails), Exotel POST-s to `EXOTEL_STATUS_CALLBACK_URL`:
+After the call ends (or fails), Exotel POST-s to the status callback URL configured on the flow:
 
 ```
 POST /api/provider/exotel/webhook

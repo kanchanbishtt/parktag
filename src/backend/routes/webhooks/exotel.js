@@ -6,6 +6,7 @@ import { normalizeCallOutcome, parseCallDuration } from "../../lib/core/call-out
 import { sendMixpanelEventBestEffort } from "../../lib/integrations/mixpanel.js";
 import { spendFreeContactPipeline, MIN_ANSWERED_CALL_SECONDS } from "../../lib/core/call-access.js";
 import { notifyTrialEnded } from "../../lib/core/trial-ended-notice.js";
+import { callContactEvent } from "../../lib/core/contact-actions.js";
 
 // Exotel has no request-signing scheme for callbacks (unlike Twilio/Meta), so
 // the mitigation is a shared secret embedded in the callback URLs configured
@@ -190,6 +191,13 @@ export function registerProviderRoutes(app, env) {
       caller: maskPhone(callerPhone),
       target: maskPhone(toE164(record.targetPhone))
     }, "[dial-whom] matched — returning owner number to Exotel");
+
+    // The scanner's call is being placed to the owner (or the emergency
+    // contact) now, so this is when it counts as a contact: once per route,
+    // on its first ask (dialRequests comes back from the atomic $inc above, so
+    // two asks racing cannot both see 1).
+    const contactEvent = callContactEvent(record);
+    if (contactEvent) sendMixpanelEventBestEffort(request.log, env, contactEvent);
 
     // Store the CallSid on the contactRequest so the status callback can link
     // back to it after the call ends (inbound calls have no CustomField).

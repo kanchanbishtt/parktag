@@ -57,3 +57,7 @@ Checked against production on 2026-10-06, four rows:
   activated-but-unlinked sticker for a human to look at.
 - Reseller stock cannot be followed to the end customer unless reseller
   stickers are issued as their own batch and counted by batch.
+
+## Paging (audit item 11, 2026-10-13)
+
+`GET /api/admin/activations?page=<n>` returns 25 rows a page, waiting longest first, with `page`, `pages` and `total`; `counts` cover the whole queue. Smaller than the usual admin page of 100 because each row carries its reminder history and suggested stickers, and an MCP reply is cut at 60,000 characters. The `parktag_activations` MCP tool always asks for a page (default 1). The Activations page sends no `page` and gets the whole queue, which it sorts in the browser.

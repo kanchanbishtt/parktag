@@ -105,7 +105,7 @@ ParkTag/
 │   │   │   ├── auth/            # session.js, auth.js (requireSession), security.js
 │   │   │   ├── core/            # tag-issuance.js, contact-actions.js (domain logic)
 │   │   │   ├── db/              # mongo.js (connection), repositories.js (collections)
-│   │   │   ├── integrations/    # exotel.js, meta.js (WhatsApp), payments.js
+│   │   │   ├── integrations/    # meta.js (WhatsApp), payments.js
 │   │   │   └── env.js           # single source of truth for all env vars
 │   │   ├── routes/
 │   │   │   ├── public/          # scanner + contact APIs
@@ -317,7 +317,7 @@ curl -X POST http://127.0.0.1:3000/api/demo/seed -H "content-type: application/j
 ```bash
 npm run verify:admin-registration   # owner self-registration is visible in admin data
 npm run verify:exotel-call          # live Exotel call test (needs Exotel creds)
-npm run verify:exotel-whatsapp      # Exotel WhatsApp send helper test
+npm run verify:exotel-whatsapp      # posts a scanner message to /api/contact-requests (Meta WhatsApp)
 ```
 
 For the Exotel scripts, set:
@@ -328,9 +328,9 @@ WAVETAG_VERIFY_SCANNER_PHONE=<scanner-phone-in-e164>
 WAVETAG_VERIFY_MESSAGE=<test-message>   # whatsapp script only
 ```
 
-> **Note:** the **production messaging path is Meta WhatsApp**, not Exotel. The
-> `verify:exotel-whatsapp` script exercises the legacy Exotel send helper, which still
-> exists in `lib/integrations/exotel.js` but is off the active scanner path.
+> **Note:** the **production messaging path is Meta WhatsApp**, not Exotel. Exotel
+> is calls only; the old Exotel send helpers (`lib/integrations/exotel.js`) were
+> removed.
 
 ---
 

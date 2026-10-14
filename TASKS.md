@@ -428,16 +428,16 @@ Verification:
 > **Implementation pivot (post-M13):** messaging is delivered via the **Meta WhatsApp
 > Cloud API** (`lib/integrations/meta.js`), NOT Exotel. **Exotel is calls-only** and the
 > scanner→owner / owner→scanner call bridging was re-architected as the inbound Dial-Whom
-> flow in **M13** (the old outbound `triggerExotelCall` trigger is retired). Exotel SMS /
-> WhatsApp send helpers (`sendExotelSms`, `sendExotelMessage`) still exist in
-> `lib/integrations/exotel.js` but are not on the active scanner path. Items below are
+> flow in **M13** (the old outbound `triggerExotelCall` trigger is retired). The old
+> Exotel client (`lib/integrations/exotel.js`, with `sendExotelSms` / `sendExotelMessage`)
+> was imported by nothing and was removed on 2026-10-14 (audit item 15). Items below are
 > reconciled to that reality: code-verified ✅, and live-delivery / provider-console /
 > `wiki/` docs left open.
 
 ### Calls — Exotel (see M13 for the full inbound flow)
 
 - [x] Confirm the exact Exotel call flow and privacy rules (masked bridging via virtual number — M13)
-- [x] Define the backend env vars for Exotel:
+- [x] Define the backend env vars for Exotel (`EXOTEL_API_BASE_URL` and `EXOTEL_STATUS_CALLBACK_URL` were removed in audit item 15; nothing read them):
   - `EXOTEL_API_BASE_URL`
   - `EXOTEL_ACCOUNT_SID`
   - `EXOTEL_API_KEY`
@@ -450,7 +450,7 @@ Verification:
 - [x] Update stored provider status from Exotel callbacks (webhook maps duration/result/recording, links by `CustomField` or `CallSid`)
 - [x] Verify the local/dev Exotel flow without polluting production data
 - [x] Validate the Exotel call path live (verified end-to-end in M13, scanner→owner and owner→scanner)
-- [x] Keep Exotel failure states privacy-safe (`maskPhoneLikeValue` / `sanitizeProviderDetail` in `exotel.js`)
+- [x] Keep Exotel failure states privacy-safe (numbers masked in call logs: `maskPhone` in `routes/webhooks/exotel.js`)
 
 ### Messaging — Meta WhatsApp Cloud API (active path)
 
@@ -1329,3 +1329,39 @@ Covers UX and security improvements made after M13 call flow was confirmed worki
 - [x] Tests: `tag-off-live-route.test.js` (10) and `owner-mobile-change.test.js` (2). Every bug-specific test fails on the old code. The senders' recipient cannot be observed in a test run (`external-guard.js` refuses WhatsApp sends), so bug 1 is pinned at the route.
 - [ ] Not done here: owners who changed their number before this fix still hold the old number in `phone`. Alerts now go to `mobile`, but owner lookups that match either field (the WhatsApp opt-out webhook, the one-number-one-account guard) still match the old number on those rows until a backfill sets `phone = mobile`.
 - [ ] After deploy: register a private call from a phone, switch Tag Active off on the dashboard, dial the virtual number and confirm a busy tone.
+
+## Audit item 11: the activation queue answers the MCP tool's page, 2026-10-13
+
+- [x] `parktag_activations` offered `page` and `GET /api/admin/activations` ignored it: every call returned the whole queue, cut at the 60,000-character MCP reply limit, so buyers past the cut could not be read.
+- [x] Route: `?page=<n>` returns 25 rows a page, waiting longest first, with `page`, `pages`, `pageSize` and `total`; `counts` always cover the whole queue; past the end is the last page, junk is page 1 (`listPage` now takes a page size). Without `page` the reply is unchanged, so the Activations page still gets the whole queue.
+- [x] MCP tool: `page` defaults to 1 and the description says what the list is (sold orders waiting for activation, not "premium tag orders and whether activated") and that it is 25 a page.
+- [x] Tests: `admin-activations-paging.test.js` (2: the route's pages together equal the queue in order; the tool's `page` reaches the route over `/mcp` with a read token); both fail on the old code. `admin-activations`, `oauth-mcp` and `admin-api-tokens` still pass. `wiki/activation-queue.md` updated.
+
+## Audit item 13: Mixpanel contact_action and /claim tag_activated fire on what happened, 2026-10-13
+
+- [x] `contact_action` (a scanner reached the owner) was sent by `register-call` and `register-emergency-call`, which only hand the scanner a number to dial; scanners who never dialled were counted. AGENTS.md: never fire before the action succeeded.
+- [x] Now sent from Exotel's dial-whom webhook when the call is actually placed, once per registration (first ask; `dialRequests` comes from the atomic `$inc`, so racing asks cannot both count). `callContactEvent` in `lib/core/contact-actions.js` decides: `scanner_to_owner` → `call`, `scanner_to_emergency` → `emergency_call`; the owner's callback (`owner_to_scanner`), redials and backup legs are not counted. The WhatsApp `message` event was already sent only after a delivered alert and is unchanged.
+- [x] `/api/tags/:token/claim`: `tag_activated` now skips the team's own numbers (`isInternalPhone`), as `/activate` does.
+- [x] Tests: `mixpanel-contact-timing.test.js` (6: the decision, and where each route reports; a test run never sends to Mixpanel, so the routes are read as source like `analytics-asset.test.js`); all fail on the old code. The 18 existing call/claim test files pass (263 tests). AGENTS.md tracking plan row updated.
+- [ ] After deploy, in Mixpanel Live View: register a call without dialling (no `contact_action`), then dial (one `contact_action`, method `call`).
+
+## Two tests that failed without a regression, 2026-10-13
+
+- [x] `app-funnel.test.js` "app views are separable from landing views": the test inserts a landing row (`visitorHash: qa-landing-visitor`) and its cleanup removed only `site: "app"` rows, so the row outlived every run and the next run counted two. Cleanup now removes this file's rows of both kinds; three runs in a row pass.
+- [x] `login-hardening.test.js` timing tests: a fixed 60ms / 120ms allowance on a bcrypt comparison that a busy machine runs at 190-800ms, so load alone failed it (bcrypt=743ms legacy=703ms none=817ms in a full run). The allowance is now half of one comparison measured in the same run (old values as the floor). A path that skips the check still fails: measured 263ms gap against a 131ms allowance.
+
+## Audit item 14: the unreachable owner dashboard page and its code, 2026-10-14
+
+- [x] `pages/owner/dashboard.html` was served by no route (the static server refuses `pages/`, and app.js never loads it), so no URL could open it. Deleted.
+- [x] `scripts/owner/login.js` code that only that page used: `renderDashboard`, `loadOwnerDashboard`, `logoutOwner`, `clearOwnerLocalCache`, `requestSticker` (and its `window` global), `updateTagStatus`, `openMenu`, `closeMenu`, `shareQr`, `esc`, their nine bindings and the dashboard load. Every element id they bound existed only in that page. `welcome.js` keeps its own menu, sign-out and cache clearing; the welcome page never loads login.js.
+- [x] `styles.css`: the rules for the 33 classes only that page used (QR and vehicle cards, what's-next list, menu drawer, active badge, notice banner, bottom bar, empty hint, `.pt-hub-main`, `.pt-reg-title`/`-sub`), lines ~2831-3301, outside item 21's range. No page, script or test uses them. `.pt-header` stays (seven live pages); its section comment now says so.
+- [x] `session-back-navigation.test.js` checked a sign-out in login.js too; now welcome.js only (the one that exists). Login tests pass (41). Headless Chrome on the real login page at 320 and 390 px: the error message shows, a mobile number sends the code and opens the code step, no script errors, no overflow.
+- [ ] `POST /api/owner/tags/:tagId/request-sticker` had that page's "Request printed sticker" button as its only caller; it now has none. Left in place: decide whether to remove it (audit item 18 covers routes with no caller).
+- [ ] `landing/public/brand-guideline/ui_kits/owner-app/` recreates the deleted page as its "Dashboard" screen (README, `DashboardScreen.jsx`). A design reference, not app code; left as is. Decide whether the kit should show `welcome.html` instead.
+
+## Audit item 15: the unused Exotel client and its env settings, 2026-10-14
+
+- [x] `lib/integrations/exotel.js` (`triggerExotelCall`, `sendExotelSms`, `sendExotelMessage`, `isExotelSmsConfigured`) was imported by nothing: calls are inbound Dial-Whom since M13 and messaging is Meta. Deleted.
+- [x] `env.js`: removed `exotelApiBaseUrl`, `exotelStatusCallbackUrl`, `exotelSmsSenderId`, `exotelSmsDltEntityId`, `exotelSmsTemplateId`, read only by that file. `EXOTEL_ACCOUNT_SID`/`API_KEY`/`API_TOKEN`/`CALLER_ID` stay (runtime status, scanner and owner call routes). `.env.example` updated; its webhook-secret comment now says both callback URLs live on the Exotel flow.
+- [x] Docs that named the file or the removed settings: README (tree, verify-script note), PLAN.md 14.3/14.6, `wiki/telephony-messaging-assumptions.md`, M7 above. Older audit write-ups (survey.md, docs/SAMPARK_GAP_ANALYSIS.md, docs/DEVELOPER_BRIEF.md, PERFORMANCE_AUDIT.md) left as historical records.
+- [ ] Optional after deploy: the five variables can be deleted from Railway. Leaving them set is harmless; nothing reads them.

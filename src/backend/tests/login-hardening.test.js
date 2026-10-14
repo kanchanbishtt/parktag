@@ -67,9 +67,11 @@ function post(url, payload, address = uniqueAddress()) {
 // flaky by construction: it fails on a slow network rather than on a
 // regression, which is worse than having no test at all.
 //
-// verifyPassword is pure CPU and shows a spread of a couple of milliseconds.
-// loginUser adds exactly one lookup to each side, so their medians stay
-// comparable. Both are stable enough to assert on honestly.
+// verifyPassword is pure CPU, and loginUser adds exactly one lookup to each
+// side, so their medians stay comparable. Pure CPU still scales with how busy
+// the machine is: the full suite has measured one comparison at ~190ms and at
+// over 700ms. So the allowance in each test is half of one comparison, measured
+// in the same run, never a fixed number of milliseconds.
 //
 // The candidates are INTERLEAVED — one sample of each per round — rather than
 // measured one group after another. Measuring in blocks silently attributes CPU
@@ -103,8 +105,7 @@ describe("finding #2 — a failed sign-in does not reveal whether the account ex
   test("every hash shape costs the same to verify", async () => {
     // The invariant, measured with no database in the way: whether the account
     // has a bcrypt hash, a legacy SHA-256 hash, or no usable hash at all, one
-    // comparison's worth of work is done. Pure CPU, so the spread here is a
-    // couple of milliseconds and the threshold can be tight.
+    // comparison's worth of work is done.
     const bcryptHash = await createPasswordHash("some-password");
     const sha256Hash = "a".repeat(64);
     const samples = 7;
@@ -118,8 +119,13 @@ describe("finding #2 — a failed sign-in does not reveal whether the account ex
     const slowest = Math.max(withBcrypt, withLegacy, withNothing);
     const fastest = Math.min(withBcrypt, withLegacy, withNothing);
 
+    // A shape that skipped the comparison would be a whole comparison faster,
+    // so the allowance is half of one, measured here under the same load. It
+    // was a flat 60ms, which a busy machine broke on noise alone: a full suite
+    // run measured bcrypt=743ms legacy=703ms none=817ms, all three doing the
+    // work. 60ms stays the floor for a fast machine.
     assert.ok(
-      slowest - fastest < 60,
+      slowest - fastest < Math.max(60, withBcrypt / 2),
       `bcrypt=${withBcrypt.toFixed(0)}ms legacy=${withLegacy.toFixed(0)}ms ` +
         `none=${withNothing.toFixed(0)}ms — a hash shape that skips the ` +
         `comparison identifies which accounts have passwords`
@@ -130,22 +136,29 @@ describe("finding #2 — a failed sign-in does not reveal whether the account ex
     // One database lookup on each side, so the remaining difference is the
     // password comparison and nothing else.
     const samples = 7;
+    // One bcrypt comparison on its own, timed alongside the sign-ins so it
+    // sees the same load: the size of the gap a skipped check would leave.
+    const bcryptHash = await createPasswordHash("some-password");
 
-    const { unknown, registered, passwordless } = await medianDurations(samples, {
+    const { unknown, registered, passwordless, comparison } = await medianDurations(samples, {
       unknown: () => loginUser(env, "owner", UNKNOWN_EMAIL, "wrong-password"),
       registered: () => loginUser(env, "owner", OWNER_EMAIL, "wrong-password"),
-      passwordless: () => loginUser(env, "owner", OTP_ONLY_EMAIL, "wrong-password")
+      passwordless: () => loginUser(env, "owner", OTP_ONLY_EMAIL, "wrong-password"),
+      comparison: () => verifyPassword("guess", bcryptHash)
     });
 
     const slowest = Math.max(unknown, registered, passwordless);
     const fastest = Math.min(unknown, registered, passwordless);
 
+    // Half a comparison, as above, with the flat 120ms it used to be as the
+    // floor. A comparison here is not the ~190ms this was written against: on
+    // a loaded machine it runs to several hundred.
     assert.ok(
-      slowest - fastest < 120,
+      slowest - fastest < Math.max(120, comparison / 2),
       `unknown=${unknown.toFixed(0)}ms registered=${registered.toFixed(0)}ms ` +
         `passwordless=${passwordless.toFixed(0)}ms — a gap approaching one ` +
-        `bcrypt comparison (~190ms) means a path is skipping the hash check, ` +
-        `which enumerates accounts`
+        `bcrypt comparison (${comparison.toFixed(0)}ms here) means a path is ` +
+        `skipping the hash check, which enumerates accounts`
     );
   });
 

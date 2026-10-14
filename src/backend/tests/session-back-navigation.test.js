@@ -159,7 +159,11 @@ describe("the page-side guard is actually on the signed-in pages", () => {
     // Asserted against the served scripts: assigning to location.href on
     // sign-out leaves the signed-in page as the previous history entry, which is
     // exactly what "press Back and the dashboard is there" was.
-    for (const script of ["/scripts/owner/welcome.js", "/scripts/owner/login.js"]) {
+    //
+    // welcome.js only. login.js used to carry a second sign-out (logoutOwner)
+    // for pages/owner/dashboard.html, a page no route served; both went in the
+    // audit's dead-code pass, so the dashboard's sign-out is the only one left.
+    for (const script of ["/scripts/owner/welcome.js"]) {
       const response = await app.inject({
         method: "GET",
         url: script,

@@ -140,7 +140,7 @@ Journey order: ad click → page → OTP → account → activation → orders �
 | `order_placed` | A COD order was placed | `payment_method: "cod"`, `product_id`, `quantity`, `amount`, `is_replacement`, `guest`, `utm_*` | `routes/shop/index.js` → `place-cod`, `placeGuestCodLocked()` |
 | `order_paid` | Money received, once per order (browser callback and webhook race; the loser is a no-op) | `payment_method: "online"`, `product_id`, `quantity`, `amount`, `is_replacement`, `utm_*` | `lib/core/order-fulfilment.js` → `fulfilPaidOrder()` |
 | `tag_scanned` | A claimed tag's public page is loaded | `vehicle_type` | `routes/public/index.js` → `GET /api/tags/:token` |
-| `contact_action` | A scanner successfully reaches the owner (call, emergency call, or WhatsApp) | `method` (`call` / `emergency_call` / `message`) | `routes/public/index.js` (`register-call`, `register-emergency-call`), `lib/core/contact-actions.js` |
+| `contact_action` | A scanner successfully reaches the owner: a call or emergency call is placed (Exotel asks dial-whom for that registration's first time; registering alone is not a contact), or a WhatsApp alert is delivered | `method` (`call` / `emergency_call` / `message`) | `routes/webhooks/exotel.js` (dial-whom, via `callContactEvent`), `lib/core/contact-actions.js` |
 | `masked_call_connected` | Exotel reports the call as actually answered | `call_duration`, `call_type` | `routes/webhooks/exotel.js` |
 | `tag_status_changed` | Owner pauses/reactivates a tag | `status` | `routes/owner/dashboard.js` → `POST /api/owner/tags/:tagId/status` |
 | `emergency_contact_updated` | Owner sets/changes the SOS contact | `is_first_set`, `vehicle_type` | `routes/owner/dashboard.js` → `POST .../emergency-contact` |

@@ -29,10 +29,20 @@ async function sendJson(url, method, body) {
   return response.json();
 }
 
+// POST /api/demo/seed refuses any request without the server's
+// DEMO_SEED_SECRET (routes/system/demo.js), so the page sends it.
 async function seedDemoData() {
   const output = document.getElementById("seed-output");
+  // Sent exactly as typed: the server compares it byte for byte.
+  const secret = document.getElementById("seed-secret").value;
+
+  if (!secret.trim()) {
+    output.textContent = "Enter the DEMO_SEED_SECRET value first.";
+    return;
+  }
+
   output.textContent = "Loading...";
-  const data = await sendJson("/api/demo/seed", "POST", {});
+  const data = await sendJson("/api/demo/seed", "POST", { secret });
   output.textContent = JSON.stringify(data, null, 2);
 }
 

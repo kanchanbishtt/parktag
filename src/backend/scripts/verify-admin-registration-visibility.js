@@ -1,6 +1,8 @@
 const BASE_URL = process.env.WAVETAG_VERIFY_BASE_URL || "http://127.0.0.1:3000";
 const ADMIN_EMAIL = "admin@wavetag.local";
 const ADMIN_PASSWORD = "demo1234";
+// POST /api/demo/seed refuses any request without the server's own secret.
+const SEED_SECRET = process.env.DEMO_SEED_SECRET || "";
 
 function fail(message) {
   throw new Error(message);
@@ -40,7 +42,11 @@ async function getJson(url, extra = {}) {
 }
 
 async function main() {
-  await postJson(`${BASE_URL}/api/demo/seed`, {});
+  if (!SEED_SECRET) {
+    fail("Set DEMO_SEED_SECRET (the server's value) before running verify-admin-registration");
+  }
+
+  await postJson(`${BASE_URL}/api/demo/seed`, { secret: SEED_SECRET });
 
   const login = await postJson(`${BASE_URL}/api/auth/admin/login`, {
     email: ADMIN_EMAIL,

@@ -114,9 +114,10 @@ export const DEMO_TAG_FIELDS = [
 // account and activated a demo sticker with it keeps that account untouched —
 // the sticker is simply detached from them.
 //
-// This deliberately ignores passwordHash. The real activation flow always sets
-// one, so refusing to delete password-holding accounts would leave a real
-// person's email, name and mobile behind after every single demo.
+// This deliberately ignores passwordHash. A demo customer can set a password or
+// PIN on the account the wizard made before the unit is wiped, and refusing to
+// delete password-holding accounts would then leave that person's name and
+// mobile behind.
 export function demoOwnerIsDisposable(owner, remainingTagCount) {
   if (!owner) return false;
   if (!owner.demoCreatedOwner) return false;

@@ -281,9 +281,11 @@ Creates one owner, one admin, and one active tag.
 
 ```bash
 npm run seed:demo
-# or via API:
-curl -X POST http://127.0.0.1:3000/api/demo/seed -H "content-type: application/json" -d "{}"
+# or via API (non-production only; needs DEMO_SEED_SECRET set on the server):
+curl -X POST http://127.0.0.1:3000/api/demo/seed -H "content-type: application/json" -d '{"secret":"<DEMO_SEED_SECRET>"}'
 ```
+
+The `/verify` page's **Seed demo data** button calls the same API and asks for the secret.
 
 <!-- Demo credentials after seeding:
 
@@ -315,7 +317,6 @@ curl -X POST http://127.0.0.1:3000/api/demo/seed -H "content-type: application/j
 ### One-off verification scripts
 
 ```bash
-npm run verify:admin-registration   # owner self-registration is visible in admin data
 npm run verify:exotel-call          # live Exotel call test (needs Exotel creds)
 npm run verify:exotel-whatsapp      # posts a scanner message to /api/contact-requests (Meta WhatsApp)
 ```

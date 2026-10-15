@@ -1,15 +1,6 @@
 import { getCaptchaToken } from "../recaptcha.js";
 import { requestJson, offlineMessage } from "../net-retry.js";
 
-const DEFAULT_MESSAGE =
-  "Hi, your vehicle is blocking my way. Please move it when possible.";
-
-const MESSAGE_TEMPLATES = {
-  blocking: DEFAULT_MESSAGE,
-  lights: "Hi, your vehicle lights appear to be on. Please check your car.",
-  safety: "Hi, there may be an issue with your parked vehicle. Please check it soon."
-};
-
 let actionLocked = false;
 // The Emergency call's own in-flight guard. It used to share actionLocked, which
 // a placed owner call keeps for the rest of the visit (one grant, one owner
@@ -479,13 +470,9 @@ async function handleQuickShare() {
 }
 
 function resetActionState() {
-  setHidden("message-panel", true);
-  setHidden("message-editor-shell", true);
   setHidden("call-popup", true);
   closeConfirmModal();
   closeDialModal();
-  setValue("message-template-select", "");
-  setValue("message-text", DEFAULT_MESSAGE);
   setValue("contact-phone", "");
   activeVirtualNumber = "";
   setText("dial-virtual-number", "");
@@ -514,7 +501,6 @@ function resetActionState() {
   pendingAction = null;
   setDisabled("call-owner-button", false);
   setDisabled("send-whatsapp-button", false);
-  setDisabled("submit-message-button", false);
   setDisabled("final-call-button", false);
   setHidden("pt-sos-block", true);
   closeSosPanels();
@@ -562,7 +548,6 @@ function setContactAvailability(available) {
   if (hideTiles) {
     // Hide any open contact sub-panels too.
     closeDialModal();
-    setHidden("message-panel", true);
     setHidden("call-popup", true);
     // Leaving the reason popup up once contact is gone would offer an action
     // the server would refuse.
@@ -703,7 +688,6 @@ function isDialModalOpen() {
 // before the emergency dial panel opens.
 function closeContactPanels() {
   closeDialModal();
-  setHidden("message-panel", true);
   setHidden("call-popup", true);
   closeConfirmModal();
 }
@@ -1016,7 +1000,6 @@ async function loadScannerView() {
     // Reached with no sticker to look up: /vehicle opened in a new tab, a link
     // copied after the token was stripped, or storage blocked. Said in words a
     // passer-by can act on, never as a developer message.
-    setText("scanner-load-status", "Scan the ParkTag QR code on the vehicle to continue.");
     setText("error-title", "Scan the sticker again");
     setText(
       "error-message",
@@ -1073,7 +1056,6 @@ async function loadScannerView() {
     setupQuickActions(tag);
 
     if (registrationState) {
-      setText("scanner-load-status", "This WaveTag needs owner registration before contact can be enabled.");
       // No "reactivate" wording: a claimable tag has no owner, so whoever
       // activates it is activating it for the first time.
       setText("registration-title", "You are about to activate the tag");
@@ -1086,7 +1068,6 @@ async function loadScannerView() {
     // Switched off by its owner. No contact actions and no activation, just a
     // polite note and a way to get a ParkTag of their own.
     if (switchedOff) {
-      setText("scanner-load-status", "This ParkTag has been turned off by its owner.");
       showOnly("tag-off-card");
       return;
     }
@@ -1096,7 +1077,6 @@ async function loadScannerView() {
     // contact action still stops at plate verification before it can reach
     // anybody. Choosing first means a scanner who only wants to send the
     // WhatsApp alert is never asked for anything they do not need to give.
-    setText("scanner-load-status", "Choose how you'd like to reach the owner.");
     setVerifiedBadge(false);
     showOnly("scanner-action-shell");
     setRequestStatus("request-status", "", "info");
@@ -1108,9 +1088,6 @@ async function loadScannerView() {
     // read, so the connection case gets a button instead of a dead end.
     const unreachable = error?.isTimeout || error?.isNetworkDown;
 
-    setText("scanner-load-status", unreachable
-      ? "We could not reach ParkTag."
-      : "This WaveTag could not be loaded.");
     setText("error-title", unreachable ? "No connection" : "Tag not found");
     // Not the server's own text: for a missing tag that is "Tag not found",
     // which only repeated the heading above it.
@@ -1649,43 +1626,6 @@ async function handleFinalCallAction() {
   }
 
   setRequestStatus("dial-status", "Your phone dialer should open now.", "success");
-}
-
-function openWhatsAppPanel() {
-  setHidden("call-popup", true);
-  setHidden("message-panel", false);
-  setHidden("message-editor-shell", true);
-  closeDialModal();
-  setValue("message-template-select", "");
-  setValue("message-text", DEFAULT_MESSAGE);
-  setRequestStatus(
-    "request-status",
-    "Select a message template or choose a custom message to continue.",
-    "info"
-  );
-}
-
-function handleTemplateSelection(event) {
-  const value = event.target.value;
-
-  if (!value) {
-    setHidden("message-editor-shell", true);
-    setValue("message-text", DEFAULT_MESSAGE);
-    return;
-  }
-
-  if (value === "custom") {
-    setValue("message-text", DEFAULT_MESSAGE);
-  } else {
-    setValue("message-text", MESSAGE_TEMPLATES[value] || DEFAULT_MESSAGE);
-  }
-
-  setHidden("message-editor-shell", false);
-  setRequestStatus(
-    "request-status",
-    "Review the WhatsApp message and send it to the owner.",
-    "info"
-  );
 }
 
 // Raises the alert dialog. Falls back to the caller's own status line where

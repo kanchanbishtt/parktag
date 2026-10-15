@@ -7,12 +7,11 @@ import { isLockedEtag, recordLockedAttempt, LOCKED_NUDGE_INTERVAL_MS } from "../
 import { captureScannerLocation } from "../../lib/core/scan-location.js";
 import { captureEmergencyLocation } from "../../lib/core/emergency-alert.js";
 import { toE164 } from "../../lib/core/phone.js";
-import { createPasswordHash, createSecureToken, safeEqual, hashIp, minutesFromNow, getClientIp, maskPlateNumber, getPlateLastFour, isNonEmptyString } from "../../lib/auth/security.js";
+import { createSecureToken, safeEqual, hashIp, minutesFromNow, getClientIp, maskPlateNumber, getPlateLastFour, isNonEmptyString } from "../../lib/auth/security.js";
 import { createSession, writeSessionCookie } from "../../lib/auth/session.js";
 import { sendCapiEventBestEffort, activationEventId } from "../../lib/integrations/meta-capi.js";
 import { attributionProps, sendMixpanelEventBestEffort } from "../../lib/integrations/mixpanel.js";
 import {
-  findOwnerHoldingMobile,
   isDuplicateMobileError,
   isMobileIdentifier,
   normalizeIdentifier,
@@ -35,7 +34,6 @@ import { resolveCarLocation } from "../../lib/core/car-location.js";
 import { staticMapPng } from "../../lib/integrations/ola-maps.js";
 import { composeCarMap } from "../../lib/integrations/car-map.js";
 import { clientErrorMessage } from "../../lib/errors.js";
-import { findByCanonicalEmail } from "../../lib/auth/identity.js";
 import { recordDemoActivation } from "../../lib/core/marketing-stock.js";
 import { linkTagToOrder } from "../../lib/core/order-linking.js";
 import { sendActivationNotice } from "../../lib/core/activation-notice.js";
@@ -735,227 +733,8 @@ export function registerPublicRoutes(app, env) {
     };
   });
 
-  // Unauthenticated and creates a new owner account (bcrypt hash + insert) on
-  // every call, same abuse shape as /api/register-owner — rate-limit it the
-  // same way so it can't be used to flood the DB with accounts or to burn
-  // CPU on repeated bcrypt hashing.
-  app.post("/api/tags/:token/claim", { config: { rateLimit: { max: 5, timeWindow: "1 minute" } } }, async (request, reply) => {
-    const collections = await getCollections(env);
-
-    if (!collections) {
-      reply.code(500);
-      return {
-        ok: false,
-        error: "MongoDB is not configured"
-      };
-    }
-
-    const { email, password, displayName, phone, vehicleLabel, plateNumber, otp } =
-      request.body || {};
-
-    if (
-      !isNonEmptyString(email) ||
-      !isNonEmptyString(password) ||
-      !isNonEmptyString(displayName) ||
-      !isNonEmptyString(phone) ||
-      !isNonEmptyString(plateNumber)
-    ) {
-      reply.code(400);
-      return {
-        ok: false,
-        error: "email, password, displayName, phone, and plateNumber are required"
-      };
-    }
-
-    if (password.length < 8) {
-      reply.code(400);
-      return { ok: false, error: "Password must be at least 8 characters" };
-    }
-
-    if (!isMobileIdentifier(phone)) {
-      reply.code(400);
-      return { ok: false, error: "Enter a valid mobile number." };
-    }
-
-    // `phone` is written to the owner record, and register-call dials
-    // `owner.mobile || owner.phone` — so an unverified value here is a way to
-    // make ParkTag ring a number its owner never consented to. Prove control of
-    // it with the same OTP the rest of the app uses before storing it. Callers
-    // get the code from POST /api/auth/send-otp first; omitting it returns
-    // needsOtp so a client can drive the two-step flow, matching
-    // /api/owner/mobile and /api/shop/place-cod.
-    if (!isNonEmptyString(otp)) {
-      return { ok: false, needsOtp: true };
-    }
-
-    try {
-      await verifyOtp(env, phone, String(otp).trim());
-    } catch (error) {
-      reply.code(400);
-      return {
-        ok: false,
-        error: clientErrorMessage(error, "Invalid verification code.", app.log)
-      };
-    }
-
-    const tag = await collections.tags.findOne({ token: request.params.token });
-
-    if (!tag) {
-      reply.code(404);
-      return {
-        ok: false,
-        error: "Tag not found"
-      };
-    }
-
-    if (!isClaimable(tag)) {
-      reply.code(400);
-      return {
-        ok: false,
-        error: "Tag is not claimable"
-      };
-    }
-
-    const existingOwner = await findByCanonicalEmail(collections.owners, email);
-
-    if (existingOwner) {
-      reply.code(400);
-      return {
-        ok: false,
-        error: "Owner email already exists"
-      };
-    }
-
-    const ownerId = new ObjectId();
-    const verifiedMobile = normalizeIdentifier(phone);
-
-    // One number, one account — the same guard /api/register-owner applies.
-    // This route only checked the e-mail, so claiming a tag with a new address
-    // and an already-registered number forked a second account and stranded
-    // the tags on the first. /activate below has always refused this (via
-    // resolveOwnerByVerifiedMobile's `conflict`); this path had not.
-    const numberTaken = await findOwnerHoldingMobile(collections, verifiedMobile);
-
-    if (numberTaken) {
-      reply.code(409);
-      return {
-        ok: false,
-        code: "ACCOUNT_EXISTS",
-        error:
-          "This mobile number is already on a ParkTag account. Please sign in with it instead, then activate this tag from your dashboard."
-      };
-    }
-
-    const owner = {
-      _id: ownerId,
-      email,
-      passwordHash: await createPasswordHash(password),
-      displayName,
-      // The OTP above proved this number, so store it in BOTH fields in the
-      // canonical +91 form: `mobile` is the OTP-login identity, `phone` is what
-      // the contact flow dials. Writing only `phone` (as this route used to)
-      // left a dialable number that no login path could ever match, which is
-      // how the same person ended up with two accounts.
-      mobile: verifiedMobile,
-      phone: verifiedMobile,
-      mobileVerified: true,
-      credits: 0,
-      role: "owner",
-      createdAt: new Date().toISOString()
-    };
-
-    try {
-      await collections.owners.insertOne(owner);
-    } catch (error) {
-      // Lost the race to the unique index between the check above and here.
-      if (!isDuplicateMobileError(error)) throw error;
-      reply.code(409);
-      return {
-        ok: false,
-        code: "ACCOUNT_EXISTS",
-        error:
-          "This mobile number is already on a ParkTag account. Please sign in with it instead, then activate this tag from your dashboard."
-      };
-    }
-
-    const claimedTag = await collections.tags.updateOne(
-      { _id: tag._id, ...claimableFilter },
-      {
-        $set: {
-          ownerId,
-          status: "active",
-          vehicleLabel: vehicleLabel || tag.vehicleLabel,
-          plateNumber,
-          // When this tag reached a customer. The complimentary window is dated
-          // from here, so a sticker that sat in a box for two months does not
-          // hand its new owner a period that is already half spent.
-          //
-          // Written only when absent, so re-registering an already-activated
-          // tag cannot mint a fresh window on demand.
-          ...(tag.activatedAt ? {} : { activatedAt: new Date().toISOString() })
-        }
-      }
-    );
-
-    if (!claimedTag.matchedCount) {
-      reply.code(409);
-      return { ok: false, error: "This tag was claimed or changed. Refresh and try again." };
-    }
-
-    // No-op unless this is a field-demo sticker opened for a demo. When it is,
-    // it records who activated it so the sales screen can wipe them again if
-    // the customer walks away. The account is always new on this path.
-    await recordDemoActivation(collections, { tagId: tag._id, ownerId, isNewOwner: true });
-
-    // Join this sticker to the order that paid for it, on the phone that was
-    // just OTP-verified. Nobody types a serial: it is printed under the
-    // adhesive, so reading one means peeling a sticker somebody has already
-    // stuck down.
-    //
-    // Best effort by design. The customer is mid-activation and waiting; a
-    // bookkeeping miss must never cost them that, and an unlinked tag shows up
-    // on the reconciliation report anyway.
-    await linkTagToOrder(collections, { tagId: tag._id, phone }, app.log);
-
-    // Skipped for the team's own numbers too, as /activate below does: this path
-    // checked the tag only, so a test activation on an internal phone counted.
-    if (!isInternalTag(tag) && !isInternalPhone(env, verifiedMobile)) sendMixpanelEventBestEffort(app.log, env, {
-      eventName: "tag_activated",
-      distinctId: String(ownerId),
-      properties: { flow: "claim", is_new_owner: true, ...attributionProps(request) }
-    });
-
-    // Same notice as /activate below. This path sets an e-mail and a password
-    // and may have no mobile at all, which is exactly why the notice tries both
-    // channels rather than assuming WhatsApp.
-    sendActivationNotice(
-      env,
-      { _id: ownerId, email, displayName },
-      {
-        _id: tag._id,
-        vehicleLabel: vehicleLabel || tag.vehicleLabel,
-        plateNumber
-      },
-      app.log
-    );
-
-    return {
-      ok: true,
-      owner: {
-        email,
-        displayName
-      },
-      tag: {
-        token: tag.token,
-        status: "active",
-        vehicleLabel: vehicleLabel || tag.vehicleLabel,
-        maskedPlateNumber: maskPlateNumber(plateNumber)
-      }
-    };
-  });
-
   // Activation used by the scanner's step wizard (plate → mobile → OTP code).
-  // Unlike /claim above it sets no password and takes no email: the owner is
+  // It sets no password and takes no email: the owner is
   // identified by the WhatsApp-verified mobile — the same identity the OTP login
   // uses — so they can sign in later from /owner-login without ever setting one.
   // The OTP is the ONLY proof of identity here, so it is verified before any
@@ -1165,8 +944,11 @@ export function registerPublicRoutes(app, env) {
           vehicleType,
           vehicleLabel: resolvedLabel,
           plateNumber: normalizedPlate,
-          // See the matching line in /claim: the free window opens now, not at
-          // the print run, and only if it has not opened already.
+          // When this tag reached a customer. The complimentary window is dated
+          // from here, not from the print run, so a sticker that sat in a box
+          // for two months does not hand its new owner a period that is already
+          // half spent. Written only when absent, so re-activating cannot mint
+          // a fresh window on demand.
           ...(tag.activatedAt ? {} : { activatedAt: new Date().toISOString() })
         }
       }
@@ -1177,8 +959,9 @@ export function registerPublicRoutes(app, env) {
       return { ok: false, error: "This tag was claimed or changed. Refresh and try again." };
     }
 
-    // No-op unless this is a field-demo sticker opened for a demo — see the
-    // matching call in /claim. isNewOwner matters here: a customer who already
+    // No-op unless this is a field-demo sticker opened for a demo. When it is,
+    // it records who activated it so the sales screen can wipe them again if
+    // the customer walks away. isNewOwner matters here: a customer who already
     // had an account keeps it when the sticker is deactivated.
     await recordDemoActivation(collections, { tagId: tag._id, ownerId: owner._id, isNewOwner });
 

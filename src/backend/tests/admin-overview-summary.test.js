@@ -116,12 +116,11 @@ test("the summary is admin-only", async () => {
 test("each card matches the page it links to", async () => {
   const { summary: s } = await summary();
 
-  const [activations, printQueue, printed, etagActivations, etags, batches, marketing, traffic, overview] =
+  const [activations, printQueue, printed, etags, batches, marketing, traffic, overview] =
     await Promise.all([
       authed("/api/admin/activations"),
       authed("/api/admin/print-queue"),
       authed("/api/admin/print-queue?printed=1"),
-      authed("/api/admin/etag-activations"),
       authed("/api/admin/etags"),
       authed("/api/admin/tag-batches"),
       authed("/api/admin/marketing"),
@@ -144,7 +143,6 @@ test("each card matches the page it links to", async () => {
   assert.equal(s.stock.premiumUnsold, stock.total, "Unsold premium stock");
   assert.equal(s.printQueue.unprinted, printQueue.tags.length, "Unprinted tags");
   assert.equal(s.printQueue.printedAwaitingClaim, printed.tags.length, "Printed, awaiting claim");
-  assert.equal(s.activations.etag, etagActivations.total, "E-Tag stickers activated");
   assert.equal(s.tags.customer, etags.total, "Customer tags");
   assert.equal(s.batches.count, batches.batches.length, "Batches issued");
   assert.equal(s.batches.issued, batches.batches.reduce((n, b) => n + b.total, 0), "Tags issued");

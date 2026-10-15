@@ -135,7 +135,7 @@ Journey order: ad click → page → OTP → account → activation → orders �
 | `otp_requested` | A code was sent (login/activation WhatsApp, Firebase SMS, guest COD) | `method` (`otp` / `firebase_phone` / `cod_otp`), `utm_*` | `routes/auth/otp.js`, `routes/auth/firebase.js`, `routes/shop/index.js` |
 | `otp_failed` | A code was refused or verification errored | `method`, `rejected` (WhatsApp paths only: wrong/expired vs our failure), `utm_*` | same three files |
 | `owner_signed_in` | Any owner session created | `method` (`password` / `mobile_otp` / `email_otp` / `firebase_phone` / `google` / `activation`), `is_new_user`, `utm_*` | `lib/auth/session.js` → `createSession()`; each caller passes `signInMethod`, `isNewUser`, `request` |
-| `tag_activated` | A sticker went from assigned to live | `flow` (`activate` / `claim`), `vehicle_type` (activate only), `is_new_owner`, `utm_*` | `routes/public/index.js` → `/activate`, `/claim` |
+| `tag_activated` | A sticker went from assigned to live | `flow` (`activate`), `vehicle_type`, `is_new_owner`, `utm_*` | `routes/public/index.js` → `/activate` |
 | `checkout_started` | An online order was created, before the payment window | `product_id`, `quantity`, `amount`, `is_replacement`, `guest` (guest only), `utm_*` | `routes/shop/index.js` → `create-order`, `guest/create-order` |
 | `order_placed` | A COD order was placed | `payment_method: "cod"`, `product_id`, `quantity`, `amount`, `is_replacement`, `guest`, `utm_*` | `routes/shop/index.js` → `place-cod`, `placeGuestCodLocked()` |
 | `order_paid` | Money received, once per order (browser callback and webhook race; the loser is a no-op) | `payment_method: "online"`, `product_id`, `quantity`, `amount`, `is_replacement`, `utm_*` | `lib/core/order-fulfilment.js` → `fulfilPaidOrder()` |
@@ -149,7 +149,7 @@ Journey order: ad click → page → OTP → account → activation → orders �
 
 Order and activation events are skipped for internal/test orders (`order.internal`, `isInternalTag`, `isInternalPhone`), same as the Meta CAPI events.
 
-Not covered: `/api/register-owner` (email + password sign-up) fires no event of its own, and the COD-to-prepaid conversion (`cod-prepay-verify`) is not reported as `order_paid`.
+Not covered: the COD-to-prepaid conversion (`cod-prepay-verify`) is not reported as `order_paid`.
 
 ## How to Add a New Mixpanel Event
 

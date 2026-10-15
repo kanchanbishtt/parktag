@@ -112,19 +112,6 @@ function goToPrintQueue() {
 }
 window.goToPrintQueue = goToPrintQueue;
 
-function setReadyState(message, tone = "info") {
-  const card = byId("admin-ready-card");
-  const copy = byId("admin-ready-copy");
-
-  if (!card || !copy) {
-    return;
-  }
-
-  card.hidden = false;
-  copy.textContent = message;
-  copy.dataset.tone = tone;
-}
-
 function setIssueMessage(message) {
   const target = byId("issue-output");
 
@@ -1067,35 +1054,6 @@ async function selectOverviewPeriod(days) {
   }
 }
 
-async function seedAdminDemo() {
-  try {
-    const data = await fetchJson("/api/demo/seed", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json"
-      },
-      body: JSON.stringify({})
-    });
-
-    setStatus(
-      "Demo setup created for the current environment. You can now sign in with admin@wavetag.local / demo1234.",
-      "success"
-    );
-    const seeded = data.data || data;
-    if (seeded?.tag?.token) {
-      setIssueMessage(
-        `Seeded active token ${seeded.tag.token} and claimable token ${seeded.claimableTag?.token || "-"}.`
-      );
-    }
-    setQueueMessage("Demo setup ready. Sign in and load the print queue.");
-  } catch (error) {
-    setStatus(
-      error instanceof Error ? error.message : "Demo seed failed",
-      "error"
-    );
-  }
-}
-
 async function loginAdmin() {
   const email = byId("admin-email")?.value;
   const password = byId("admin-password")?.value;
@@ -1123,12 +1081,13 @@ async function loginAdmin() {
     window.ptProgress?.finish();
     const message =
       error instanceof Error ? error.message : "Admin login failed";
-    // The "Seed demo setup" hint only applies to local dev (the demo/seed
-    // routes are disabled in production), so don't leak it onto the live site.
+    // The seeding hint only applies to local dev (the demo/seed routes are
+    // disabled in production), so don't leak it onto the live site. Seeding
+    // lives on the /verify page; this page has no seed button.
     const isLocalDev = ["localhost", "127.0.0.1"].includes(window.location.hostname);
     setStatus(
       isLocalDev
-        ? `${message}. If this is local dev, click "Seed demo setup" first.`
+        ? `${message}. If this is local dev, seed demo data on /verify first.`
         : message,
       "error"
     );
@@ -1808,10 +1767,6 @@ function bindEvents() {
     });
   } else if (hasEl("admin-login-button")) {
     byId("admin-login-button").addEventListener("click", loginAdmin);
-  }
-
-  if (hasEl("admin-seed-button")) {
-    byId("admin-seed-button").addEventListener("click", seedAdminDemo);
   }
 
   if (hasEl("admin-logout-button")) {

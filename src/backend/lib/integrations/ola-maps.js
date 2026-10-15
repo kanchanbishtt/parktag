@@ -11,10 +11,6 @@
 const BASE = "https://api.olamaps.io";
 const ORIGIN = "https://app.parktag.me";
 
-export function isOlaMapsConfigured() {
-  return !!process.env.OLA_MAPS_API_KEY;
-}
-
 async function olaFetch(path, params, { timeoutMs = 3000, log = null } = {}) {
   const key = process.env.OLA_MAPS_API_KEY || "";
   if (!key) return null;

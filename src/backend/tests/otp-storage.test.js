@@ -93,15 +93,15 @@ describe("finding #5 — one-time codes are not stored in the clear", () => {
     }
   });
 
-  test("a code issued before the change still verifies", async () => {
-    // Tokens written by the previous deploy hold `code` and no `codeHash`, and
-    // stay valid for ten minutes after the new one ships. Dropping the fallback
-    // would tell everyone mid-login that their correct code is wrong.
+  test("a token holding a plaintext code is never accepted", async () => {
+    // Tokens from before hashing held `code` and no `codeHash`. They expired
+    // long ago, and the fallback that accepted them is gone: a row like this
+    // can only be planted, and the right digits must not open it.
     const identifier = "qa-otp-legacy@parktag-test.invalid";
     await collections.otpTokens.deleteMany({ identifier });
 
     const now = new Date();
-    await collections.otpTokens.insertOne({
+    const { insertedId } = await collections.otpTokens.insertOne({
       identifier,
       code: "654321",
       used: false,
@@ -110,8 +110,14 @@ describe("finding #5 — one-time codes are not stored in the clear", () => {
       expiresAt: new Date(now.getTime() + 10 * 60 * 1000).toISOString()
     });
 
-    const result = await verifyOtp(env, identifier, "654321");
-    assert.equal(result.ok, true, "a pre-change token stopped verifying");
+    await assert.rejects(
+      () => verifyOtp(env, identifier, "654321"),
+      /Invalid code/,
+      "a plaintext token was accepted"
+    );
+    const after = await collections.otpTokens.findOne({ _id: insertedId });
+    assert.equal(after.attempts, 1, "the refused attempt still counts against the cap");
+    assert.equal(after.used, false);
 
     await collections.otpTokens.deleteMany({ identifier });
   });

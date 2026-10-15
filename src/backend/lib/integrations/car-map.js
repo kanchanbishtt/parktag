@@ -5,7 +5,6 @@
 // rasterised by resvg. The fonts are bundled in assets/fonts because the
 // production container has none; without them the text would silently vanish.
 
-import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { Resvg } from "@resvg/resvg-js";
 

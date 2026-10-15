@@ -1,9 +1,5 @@
 import { PREMIUM_TRIAL_DISPLAY, PREMIUM_TRIAL_LABEL, PREMIUM_TRIAL_MONTHS } from "./vault.js";
-import {
-  DOCS_PER_ETAG,
-  DOCS_PER_PREMIUM_TAG,
-  DOCS_PER_SUBSCRIBED_TAG
-} from "./vault.js";
+import { DOCS_PER_SUBSCRIBED_TAG } from "./vault.js";
 
 // ── Membership plans ───────────────────────────────────────────────────────
 //
@@ -151,17 +147,5 @@ export function membershipTrial() {
     // "premium tag", not "tag": the trial rides on a premium tag, and an owner
     // holding only a free eTag would otherwise read this as a promise to them.
     note: "Starts automatically when you activate your premium tag"
-  };
-}
-
-// What a premium tag grants before any membership is bought, so the screen can
-// be honest about what is already included rather than selling it twice.
-export function membershipIncluded() {
-  return {
-    trialMonths: PREMIUM_TRIAL_MONTHS,
-    trialLabel: PREMIUM_TRIAL_LABEL,
-    docsEtag: DOCS_PER_ETAG,
-    docsPremium: DOCS_PER_PREMIUM_TAG,
-    docsSubscribed: DOCS_PER_SUBSCRIBED_TAG
   };
 }

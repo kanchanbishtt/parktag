@@ -108,10 +108,3 @@ export function toE164(input) {
   // without guessing. Guessing is what produced the trunk-zero bug.
   return null;
 }
-
-// The same value without the +, for the rare consumer that wants digits only.
-// Not used for sending: see the note on the plus sign above.
-export function toE164Digits(input) {
-  const e164 = toE164(input);
-  return e164 ? e164.slice(1) : null;
-}

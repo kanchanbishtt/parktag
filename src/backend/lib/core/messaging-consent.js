@@ -3,7 +3,9 @@
 // Two independent questions, deliberately not one flag:
 //
 //   MAY we send this?    consent, and only marketing needs it
-//   what does it COST?   whether a free service window is open
+//   what does it COST?   whether a free service window is open; the Meta
+//                        webhook stamps it (serviceWindowUntil), nothing reads
+//                        it yet
 //
 // ── Utility versus marketing ───────────────────────────────────────────────
 //
@@ -79,27 +81,10 @@ export function orderMayReceiveMarketing(order, owner = null) {
 }
 
 /**
- * Is a free 24-hour customer service window open?
- *
- * Meta bills utility templates, EXCEPT inside the window a customer opens by
- * messaging the business. `waWindowOpenUntil` is stamped by the Meta webhook on
- * any inbound message.
- *
- * Nothing branches on this to decide WHETHER to send. It exists so campaigns
- * can order their work cheapest-first and so the cost of a batch is knowable
- * before it runs, which is the number that decides whether a campaign is worth
- * having at all.
- */
-export function hasOpenServiceWindow(owner, now = Date.now()) {
-  const until = owner?.waWindowOpenUntil;
-  if (!until) return false;
-  const at = new Date(until).getTime();
-  return Number.isFinite(at) && at > now;
-}
-
-/**
- * The stamp applied when a customer messages us. Exported so the webhook and
- * its test agree on one definition of "24 hours".
+ * The stamp applied when a customer messages us: `waWindowOpenUntil`, the end
+ * of the free 24-hour service window (Meta bills utility templates except
+ * inside it). Exported so the webhook and its test agree on one definition of
+ * "24 hours".
  */
 export function serviceWindowUntil(now = Date.now()) {
   return new Date(now + WINDOW_MS).toISOString();

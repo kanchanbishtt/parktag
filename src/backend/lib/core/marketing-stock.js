@@ -18,7 +18,6 @@
 // is. Deactivating returns it there, so the next customer's activation is
 // indistinguishable from a brand-new sticker's.
 export const MARKETING_AVAILABLE_STATUS = "unclaimed";
-export const MARKETING_ACTIVATED_STATUS = "active";
 
 // Mongo condition for "not field-demo stock", to keep the demo shelf out of the
 // real inventory surfaces.

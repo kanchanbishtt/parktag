@@ -196,28 +196,6 @@
     width: 100%; aspect-ratio: 16/7; background: #F3F4F6;
     display: flex; align-items: center; justify-content: center; overflow: hidden;
   }
-  .pt-slide-ph {
-    width: 100%; height: 100%;
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: 10px;
-  }
-  .pt-slide-ph-tag {
-    font-size: 0.72rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
-    color: #9CA3AF; border: 1.5px dashed #D1D5DB; border-radius: 8px; padding: 5px 14px;
-  }
-  .pt-ph-mob  { display: flex; }
-  .pt-ph-desk { display: none; }
-  @media (min-width: 600px) {
-    .pt-ph-mob  { display: none; }
-    .pt-ph-desk { display: flex; }
-  }
-
-  .pt-slide-blank {
-    width: 100%; aspect-ratio: 16/7; background: #F1F1F0;
-    border: 2px dashed #E5E7EB;
-    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
-  }
-  .pt-slide-blank-lbl { font-size: 0.78rem; font-weight: 600; color: #D1D5DB; margin: 0; }
 
   /* One <picture> per slide so the browser fetches only the cut it will show.
      This used to be two <img>s with the unwanted one on display:none, which
@@ -236,9 +214,6 @@
        anything below it moves when the picture arrives. */
     height: auto;
     background: #F3F4F6;
-  }
-  @media (min-width: 600px) {
-    .pt-slide-hide-desk { display: none; }
   }
 
   .pt-car-dots { display: flex; justify-content: center; gap: 7px; margin-top: 10px; }
@@ -271,7 +246,6 @@
   .pt-tags-hd { padding: 22px 0 0; }
   .pt-tags-title { font-size: 1.3rem; font-weight: 900; color: #03162D; margin: 0 0 5px; }
   .pt-tags-bar   { width: 34px; height: 3px; background:#FF2700; border-radius: 2px; margin-bottom: 7px; }
-  .pt-tags-sub   { font-size: 0.88rem; color: #6B7280; margin: 0 0 16px; }
 
   /* ── Vehicle list ───────────────────────────────── */
   .pt-vgrid { display: flex; flex-direction: column; gap: 10px; }
@@ -1206,7 +1180,6 @@
   .pt-flash-btn:hover { background: #D92200; }
   .pt-flash-btn:disabled { opacity: .6; cursor: default; }
   .pt-flash-note { text-align: center; font-size: .76rem; color: #9CA3AF; margin: 10px 0 0; }
-  .pt-conf-paid { background: #DCFCE7; color: #166534; text-align: center; font-weight: 800; padding: 14px; border-radius: 14px; margin-top: 20px; font-size: .92rem; }
   .pt-conf-done { width: 100%; padding: 15px; margin-top: 18px; border: 1.5px solid #D1D5DB; border-radius: 14px; background: #fff; color: #374151; font-size: .95rem; font-weight: 700; cursor: pointer; font-family: inherit; }
   .pt-conf-done:hover { background: #F9FAFB; }
 
@@ -1572,23 +1545,6 @@
   }
   .pt-menu-ft-o:active { background: #E5E7EB; }
 
-/* ── Vehicle card — status dot & contact pill ── */
-.pt-vc-status {
-  position: absolute; bottom: -3px; left: -3px;
-  width: 12px; height: 12px; border-radius: 50%;
-  background: #D1D5DB; border: 2px solid #fff;
-  box-shadow: 0 1px 3px rgba(0,0,0,.15);
-}
-.pt-vc-status.on { background: #10B981; }
-.pt-vc-pill {
-  font-size: .59rem; font-weight: 700; padding: 2px 7px;
-  border-radius: 20px; line-height: 1.4; margin-top: 1px;
-  white-space: nowrap;
-}
-.pt-vc-pill.vp-premium { background: #FEF3C7; color: #92400E; }
-.pt-vc-pill.vp-free    { background: #D1FAE5; color: #065F46; }
-.pt-vc-pill.vp-used    { background: #FEE2E2; color: #B91C1C; }
-
 /* ── Overview section ─────────────────────────────────────────── */
 .pt-ov { padding: 20px 0 0; }
 .pt-ov-hd { margin-bottom: 16px; }
@@ -1926,18 +1882,4 @@
    QR's own right edge so it reads as part of that block. Black ink: most
    fade-resistant, and discreet on the red. */
 .wl-pt-figma-serial { position: absolute; right: 6.22%; top: 3%; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 7px; font-size: 1.3cqw; letter-spacing: 0.06em; color: #000; white-space: nowrap; }
-.wl-pt-sticker { display: flex; width: 100%; border-radius: 18px; overflow: hidden; border: 2px solid #03162D; }
-.wl-pt-left { flex: 0 0 60%; background: #fff; padding: 22px; display: flex; flex-direction: column; justify-content: space-between; }
-.wl-pt-logo { height: 26px; width: auto; display: block; }
-.wl-pt-tagline { font-size: 7px; font-weight: 800; letter-spacing: .2em; color: #6B7280; margin-top: 5px; }
-.wl-pt-head { font-size: 29px; font-weight: 900; color: #03162D; line-height: 1.12; margin: 16px 0 0; letter-spacing: -0.01em; }
-.wl-pt-head u { text-decoration: underline; text-decoration-thickness: 2.5px; text-underline-offset: 2px; }
-.wl-pt-scaninfo { font-size: 7px; font-weight: 700; letter-spacing: .05em; color: #6B7280; margin-top: 14px; line-height: 1.6; text-transform: uppercase; }
 .wl-pt-etagline { font-size: 7px; color: #9CA3AF; margin-top: 6px; letter-spacing: .02em; }
-.wl-pt-right { flex: 0 0 40%; background: #FF2700; padding: 18px 14px; display: flex; flex-direction: column; align-items: center; justify-content: space-between; }
-.wl-pt-qr-box { background: #fff; border-radius: 12px; padding: 10px; }
-.wl-pt-qr { width: 150px; height: 150px; display: block; }
-.wl-pt-rt-brand { font-size: 8.5px; font-weight: 800; color: #fff; margin-top: 11px; text-align: center; }
-.wl-pt-rt-brand span { font-weight: 600; opacity: .9; }
-.wl-pt-icons { display: flex; gap: 13px; margin-top: 11px; }
-.wl-pt-rt-note { font-size: 7.5px; font-weight: 700; color: #fff; text-align: center; margin-top: 8px; line-height: 1.5; }

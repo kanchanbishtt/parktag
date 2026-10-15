@@ -17,11 +17,19 @@ import { startTestApp, stopTestApp, createTestOwner } from "./helpers.js";
 import { createSession } from "../lib/auth/session.js";
 import {
   normalizeCallOutcome,
-  parseCallDuration,
-  wasAnswered,
-  shouldOfferCallback
+  parseCallDuration
 } from "../lib/core/call-outcome.js";
 import { MIN_ANSWERED_CALL_SECONDS } from "../lib/core/call-access.js";
+import { callbackState, CALLABLE } from "../../frontend/scripts/owner/callback-eligibility.js";
+
+// Would the dashboard offer this contact a callback, on outcome and number
+// alone? Asked of the page's real rule with everything else in its favour: a
+// premium tag, inside the free window.
+function pageOffersCallback(row) {
+  const now = Date.parse("2026-08-25T12:00:00.000Z");
+  const contact = { phone: row.phone, callOutcome: row.callOutcome, token: "qa-premium", createdAt: new Date(now - 60000).toISOString() };
+  return callbackState(contact, { tags: [{ token: "qa-premium", premium: true }], now, windowMs: 10 * 60 * 1000 }) === CALLABLE;
+}
 
 let app;
 let collections;
@@ -101,14 +109,13 @@ test("reading Exotel's vocabulary", async (t) => {
   });
 
   await t.test("callback is withheld only on positive evidence of a conversation", () => {
-    assert.equal(shouldOfferCallback({ phone: SCANNER, callOutcome: "answered" }), false);
-    assert.equal(shouldOfferCallback({ phone: SCANNER, callOutcome: "missed" }), true);
-    assert.equal(shouldOfferCallback({ phone: SCANNER, callOutcome: "failed" }), true);
-    assert.equal(shouldOfferCallback({ phone: SCANNER, callOutcome: null }), true,
+    assert.equal(pageOffersCallback({ phone: SCANNER, callOutcome: "answered" }), false);
+    assert.equal(pageOffersCallback({ phone: SCANNER, callOutcome: "missed" }), true);
+    assert.equal(pageOffersCallback({ phone: SCANNER, callOutcome: "failed" }), true);
+    assert.equal(pageOffersCallback({ phone: SCANNER, callOutcome: null }), true,
       "unknown must keep the button, or the whole backlog loses it");
-    assert.equal(shouldOfferCallback({ phone: null, callOutcome: "missed" }), false,
+    assert.equal(pageOffersCallback({ phone: null, callOutcome: "missed" }), false,
       "nobody to dial");
-    assert.equal(wasAnswered({ callOutcome: null }), false);
   });
 });
 
@@ -161,7 +168,7 @@ test("an unanswered call, end to end", async () => {
   });
   const row = dash.json().requests.find((r) => r.id === String(call._id));
   assert.equal(row.callOutcome, "missed", "the dashboard must see the verdict");
-  assert.equal(shouldOfferCallback(row), true, "and must still offer the callback");
+  assert.equal(pageOffersCallback(row), true, "and must still offer the callback");
 });
 
 test("an answered call, end to end", async () => {
@@ -185,7 +192,7 @@ test("an answered call, end to end", async () => {
   const row = dash.json().requests.find((r) => r.id === String(call._id));
   assert.equal(row.callOutcome, "answered");
   assert.equal(row.callDuration, 72, "duration must reach the activity log");
-  assert.equal(shouldOfferCallback(row), false,
+  assert.equal(pageOffersCallback(row), false,
     "a conversation that happened needs no callback");
 });
 
@@ -203,7 +210,7 @@ test("a `completed` call nobody actually answered is still missed", async () => 
   const stored = await collections.contactRequests.findOne({ _id: call._id });
   assert.equal(stored.callOutcome, "missed",
     "18 seconds of ringing is not a conversation");
-  assert.equal(shouldOfferCallback(stored), true);
+  assert.equal(pageOffersCallback(stored), true);
 });
 
 test("a mid-call event does not erase a verdict already reached", async () => {
@@ -230,7 +237,7 @@ test("today's data is untouched and keeps its callback", async () => {
 
   const stored = await collections.contactRequests.findOne({ _id: call._id });
   assert.equal(stored.callOutcome, undefined, "no webhook, no verdict");
-  assert.equal(shouldOfferCallback(stored), true,
+  assert.equal(pageOffersCallback(stored), true,
     "the backlog must keep the button it has today");
 });
 

@@ -225,7 +225,6 @@ export function getEnv() {
     // dashboard. Without it the webhook refuses every callback, and a paid
     // order whose buyer closed the tab is never fulfilled.
     razorpayWebhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET || "",
-    superAdminBootstrapKey: process.env.SUPER_ADMIN_BOOTSTRAP_KEY || "",
     // Defense-in-depth for POST /api/demo/seed (see routes/system/demo.js):
     // that route already refuses to register at all when APP_ENV=production,
     // but that is a single string comparison — a deploy that forgets to set

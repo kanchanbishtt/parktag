@@ -71,24 +71,3 @@ export function normalizeCallOutcome({ status, duration } = {}) {
   if (FAILED.has(s)) return "failed";
   return null;
 }
-
-// Did these two people actually speak?
-//
-// Positive evidence only. Unknown is NOT answered, which is what keeps the
-// callback button visible on the entire existing backlog of calls rather than
-// silently retiring a feature the moment it is gated on data we do not have.
-export function wasAnswered(contactRequest) {
-  return contactRequest?.callOutcome === "answered";
-}
-
-// Should the owner be offered a way to call this person back?
-//
-// Everything except a call they already had. A missed call obviously qualifies;
-// so does one we know nothing about, because "we did not measure it" is not a
-// reason to withhold the only route back to the person.
-//
-// Requires a number: a scanner who stayed anonymous left nobody to dial.
-export function shouldOfferCallback(contactRequest) {
-  if (!contactRequest?.phone) return false;
-  return !wasAnswered(contactRequest);
-}

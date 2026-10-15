@@ -48,16 +48,3 @@ export async function findByCanonicalEmail(collection, email) {
     { collation: { locale: "en", strength: 2 } }
   );
 }
-
-// Are there several accounts that differ only by case? Nothing should ever
-// create one, but rows predating the canonicalisation can collide, and merging
-// two accounts is a decision for a human rather than something a login should
-// do silently.
-export async function findCanonicalDuplicates(collection, email) {
-  const canonical = canonicalEmail(email);
-  if (!canonical) return [];
-
-  return collection
-    .find({ email: canonical }, { collation: { locale: "en", strength: 2 } })
-    .toArray();
-}

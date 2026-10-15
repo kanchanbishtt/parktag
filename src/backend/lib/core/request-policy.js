@@ -13,10 +13,6 @@ export function pathnameOf(url) {
   return cut === -1 ? raw : raw.slice(0, cut);
 }
 
-export function isStaticAssetUrl(url) {
-  return STATIC_ASSET.test(pathnameOf(url));
-}
-
 // Requests that add nothing to the access log or the rate limit: assets, and
 // the health check a monitor calls every few seconds.
 export function isQuietUrl(url) {

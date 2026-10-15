@@ -2,10 +2,6 @@ import https from "node:https";
 import Razorpay from "razorpay";
 import crypto from "node:crypto";
 
-// Price of the official ParkTag physical sticker (INR). Centralised so future
-// plans/tiers can be added without touching call sites.
-export const STICKER_PRICE_INR = 199;
-
 // Server-authoritative shop catalog (M15). Prices live here, NOT in the browser:
 // the shop checkout sends only a productId, and the server resolves the amount it
 // charges from this map — so a tampered client `amount` can never be trusted.

@@ -16,7 +16,7 @@
 import test, { describe } from "node:test";
 import assert from "node:assert/strict";
 
-import { toE164, toE164Digits, isIndianMobile10 } from "../lib/core/phone.js";
+import { toE164, isIndianMobile10 } from "../lib/core/phone.js";
 
 describe("an Indian mobile, however it was written", () => {
   // Every one of these is the SAME subscriber. That is the whole point: a
@@ -131,19 +131,6 @@ describe("input that is not a phone number at all", () => {
 
   test("a number primitive is read, not rejected for its type", () => {
     assert.equal(toE164(9812345678), "+919812345678");
-  });
-});
-
-describe("the digits-only form", () => {
-  // Kept for the rare consumer that wants no +. NOT what the WhatsApp sender
-  // uses — see the note in phone.js about Meta prepending a country code to
-  // anything lacking a +.
-  test("drops the plus and nothing else", () => {
-    assert.equal(toE164Digits("09812345678"), "919812345678");
-  });
-
-  test("null in, null out", () => {
-    assert.equal(toE164Digits("nonsense"), null);
   });
 });
 

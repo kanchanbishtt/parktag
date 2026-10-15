@@ -8,7 +8,6 @@ import { clientError } from "../errors.js";
 import {
   maskIdentifier,
   redactText,
-  safeEqual,
   createOtpHash,
   verifyOtpHash,
   burnHashComparison
@@ -469,29 +468,17 @@ export async function verifyOtp(env, identifier, code, { purpose = OTP_PURPOSE_A
     throw clientError("Invalid or expired code. Please try again.");
   }
 
-  // Codes are stored hashed. `record.code` is only present on tokens issued
-  // before that change; they expire ten minutes after the deploy that
-  // introduced it, so this fallback is short-lived but has to exist — without
-  // it, everyone mid-login at deploy time is told their valid code is wrong.
-  //
-  // Both branches are constant-time: bcrypt.compare is, and safeEqual returns
-  // false on a length mismatch rather than short-circuiting on the first
-  // differing byte, so the correct code can't be recovered digit-by-digit.
-  let matches;
+  // Codes are stored hashed (since 17 Aug 2026), and bcrypt.compare is
+  // constant-time, so the correct code can't be recovered digit-by-digit. A
+  // token with no hash is never accepted: the plaintext `code` fallback for
+  // tokens issued before hashing was removed once those had long expired. It
+  // still pays for a comparison, so its answer takes as long as a real one.
+  let matches = false;
 
   if (record.codeHash) {
     matches = await verifyOtpHash(code, record.codeHash);
   } else {
-    // Legacy path, and it should stop being reached ten minutes after the
-    // deploy that introduced hashing — no token issued since then carries a
-    // plaintext `code`, and none lives longer than OTP_EXPIRY_MS. Logged so its
-    // use is observable: once this stops appearing, the branch (and the
-    // plaintext it accepts) can be deleted.
-    console.warn(
-      "[OTP] verified a pre-hashing token holding a plaintext code — " +
-        "safe to remove this fallback once these stop appearing"
-    );
-    matches = safeEqual(record.code, code);
+    await burnHashComparison(code);
   }
 
   if (!matches) {

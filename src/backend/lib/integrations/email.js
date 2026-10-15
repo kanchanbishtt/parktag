@@ -469,9 +469,6 @@ export async function sendOwnerAlertEmail(env, { to, ownerName, reason, plateNum
   const transporter = createTransport(env);
   const safeName = escapeHtml(ownerName || "there");
   const safeReason = escapeHtml(reason);
-  const vehicleLine = plateNumber
-    ? `<p style="margin:0 0 6px;color:#9A3412"><strong>Vehicle:</strong> ${escapeHtml(plateNumber)}</p>`
-    : "";
 
   await transporter.sendMail({
     from: env.emailFrom || "ParkTag <noreply@parktag.me>",

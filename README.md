@@ -18,12 +18,14 @@ Production runs at **[app.parktag.me](https://app.parktag.me)**. Operable surfac
 |---------------|-------------------------------------------------------------------------|---------------------------------------|
 | Scanner       | `https://app.parktag.me/tag/<token>`                                    | Finders — opens by scanning a tag QR  |
 | Owner sign-in | [app.parktag.me/owner-login](https://app.parktag.me/owner-login)        | Vehicle owners                        |
-| Owner sign-up | [app.parktag.me/register-owner](https://app.parktag.me/register-owner)  | New owners                            |
+| Add vehicles  | [app.parktag.me/register-owner](https://app.parktag.me/register-owner)  | Signed-in owners adding a vehicle     |
 | Admin console | [app.parktag.me/admin](https://app.parktag.me/admin)                    | Operators (issue + print tag batches) |
 | Health check  | [app.parktag.me/api/health](https://app.parktag.me/api/health)          | Uptime probe                          |
 
 > The scanner opens from a real tag QR, so it needs a live `<token>` — there's no
-> fixed scanner URL. Owner and admin surfaces require sign-in.
+> fixed scanner URL. Owner and admin surfaces require sign-in. There is no separate
+> sign-up page: a new owner account is created at owner sign-in (WhatsApp or SMS code)
+> or when a sticker is activated.
 
 ---
 
@@ -54,11 +56,11 @@ Production runs at **[app.parktag.me](https://app.parktag.me)**. Operable surfac
 ```
  Finder scans QR ──▶ /tag/<token>  (public scanner page)
                          │
-                         ├─ enters their phone number
+                         ├─ confirms the plate's last 4 digits
                          │
              ┌───────────┴───────────┐
              ▼                        ▼
-        Call Owner               Send Message
+       Private Call                WhatsApp
    (Exotel masked call)     (Meta WhatsApp to owner)
              │                        │
              ▼                        ▼
@@ -66,9 +68,10 @@ Production runs at **[app.parktag.me](https://app.parktag.me)**. Operable surfac
    the owner's real number is never revealed to the finder.
 ```
 
-- **Finders** land on a public page, verify with their own phone, and choose an action.
-- **Owners** register vehicles, generate E-Tags, and (optionally) upgrade to the official
-  physical sticker for unlimited contact.
+- **Finders** land on a public page, choose an action, and confirm the last 4 digits of
+  the plate. A call also takes their number, so the masked call can reach them.
+- **Owners** register vehicles, generate E-Tags, and (optionally) buy the official
+  physical sticker (a premium tag) for masked calls beyond the free one.
 - **Admins** issue tag batches, run a print queue, and monitor owners/activity.
 
 ---
@@ -83,10 +86,10 @@ Production runs at **[app.parktag.me](https://app.parktag.me)**. Operable surfac
 | Calls        | **Exotel** — inbound "Dial-Whom" masked call bridging              |
 | Messaging    | **Meta WhatsApp Cloud API** (Graph API `v19.0`)                    |
 | Payments     | **Razorpay** (shop premium tags, server-locked rate list)          |
-| Auth         | Server-side sessions (cookie), password + OTP + **Google OAuth**   |
+| Auth         | Server-side sessions (cookie); password, WhatsApp OTP, SMS OTP (**Firebase**), **Google OAuth** |
 | Email/OTP    | `nodemailer` (SMTP)                                                 |
 | QR           | `qrcode` (data-URL QR generation)                                  |
-| Hosting      | **Railway** → `https://app.parktag.me` (Render config also present) |
+| Hosting      | **Railway** → `https://app.parktag.me`                             |
 
 Key libraries: `@fastify/cookie`, `@fastify/helmet`, `@fastify/rate-limit`,
 `@fastify/static`, `bcryptjs`, `mongodb`, `razorpay`.
@@ -105,19 +108,20 @@ ParkTag/
 │   │   │   ├── auth/            # session.js, auth.js (requireSession), security.js
 │   │   │   ├── core/            # tag-issuance.js, contact-actions.js (domain logic)
 │   │   │   ├── db/              # mongo.js (connection), repositories.js (collections)
-│   │   │   ├── integrations/    # meta.js (WhatsApp), payments.js
+│   │   │   ├── integrations/    # meta.js (WhatsApp), payments.js (Razorpay), delhivery.js, email.js, …
 │   │   │   └── env.js           # single source of truth for all env vars
 │   │   ├── routes/
 │   │   │   ├── public/          # scanner + contact APIs
-│   │   │   ├── owner/           # dashboard.js, registration.js
+│   │   │   ├── owner/           # dashboard.js, membership.js, callback-pass.js, vault.js, login-pin.js
 │   │   │   ├── admin/           # issuance, print queue, owners, e-tags, activity
-│   │   │   ├── auth/            # credentials, otp, google, password-reset
+│   │   │   ├── auth/            # credentials, otp, firebase (SMS), google, password-reset
 │   │   │   ├── shop/            # Razorpay order/verify
-│   │   │   ├── webhooks/        # exotel.js (Dial-Whom + status), meta.js (WhatsApp)
+│   │   │   ├── webhooks/        # exotel.js (Dial-Whom + status), meta.js (WhatsApp), razorpay
+│   │   │   ├── mcp/, oauth/     # admin MCP server (POST /mcp) and the OAuth that issues its tokens
 │   │   │   └── system/          # runtime status, demo seed
 │   │   └── scripts/             # seed-demo, verify-* one-off scripts
 │   └── frontend/
-│       ├── pages/
+│       ├── pages/               # + get.html, shop.html, direct.html (public storefronts)
 │       │   ├── scanner/         # public scanner + verify
 │       │   ├── owner/           # login, register, verify, welcome (dashboard), vehicle-detail…
 │       │   └── admin/           # overview, issuance, print-queue, owners, etags, activity, admins
@@ -126,8 +130,7 @@ ParkTag/
 │       └── images/              # logos, sticker assets
 ├── docs/                        # RFA_SPEC, DOMAIN_MODEL, SCHEMA_AND_API_CONTRACTS, deploy guides
 ├── PLAN.md                      # living design/decision log
-├── TASKS.md                     # milestone tracker (M1…M17)
-└── render.yaml                  # legacy Render deploy config
+└── TASKS.md                     # milestone tracker (M1…M19)
 ```
 
 ---
@@ -137,7 +140,7 @@ ParkTag/
 **Tag lifecycle**
 
 ```
-unclaimed ──(owner claims / self-registers)──▶ active ⇄ inactive ──(soft delete)──▶ deletedAt set
+unclaimed ──(owner activates / adds a vehicle)──▶ active ⇄ inactive ──(soft delete)──▶ deletedAt set
 ```
 
 - `ownerId == null` → **unclaimed**, lives in the admin **Print Queue**.
@@ -145,13 +148,16 @@ unclaimed ──(owner claims / self-registers)──▶ active ⇄ inactive ─
 - Delete is **soft**: sets `deletedAt` + `status:"inactive"`; the row is filtered out of every
   owner/admin query but never hard-deleted (data preserved).
 
-**Free contact vs premium**
+**Free calls vs premium** (decided in one place: `lib/core/call-access.js`)
 
-- Every E-Tag includes **one free masked contact** (`freeContactUsed:false` at creation) —
-  a **one-contact free trial**.
-- After it's used, the server blocks further contact with **`402 FREE_USED`** —
-  the gate is `freeContactUsed && !premium`.
-- **Premium** (`premium:true`) bypasses the gate → unlimited contact. Premium is granted by:
+- Every E-Tag includes **one free masked call** (door-hanger stock is stamped with two).
+  It is spent only when a call actually connects, not when the finder dials, and
+  **WhatsApp alerts never spend it**.
+- Once it's spent (`freeContactUsed:true`), calls are refused with **`402 FREE_USED`**;
+  WhatsApp still works.
+- **Premium** (`premium:true`) calls freely for its first **12 months**; after that calls
+  need a membership (refused with `CALL_SUBSCRIPTION_REQUIRED` without one). Premium is
+  granted by:
   - the owner **buying a premium tag through the shop** (rate list, ₹299+): a paid shop
     order **mints a new premium tag** for that vehicle and **soft-removes the spent free
     tag** (M18 — the old in-place ₹199 upgrade is retired), or
@@ -166,19 +172,30 @@ All prices are in **INR** and are **server-authoritative** — the browser only 
 Premium is bought from the shop catalog below (the standalone ₹199 per-tag upgrade was
 removed in M18).
 
-*Shop catalog* — new physical tags, from the owner dashboard shop (`SHOP_PRODUCTS` in
-`lib/integrations/payments.js`):
+*Shop catalog* — physical tags, sold on `/get`, `/shop`, `/direct` and the owner dashboard's
+shop (`SHOP_PRODUCTS` in `lib/integrations/payments.js`):
 
-| `productId` | Product                       | Price | MRP  |
-|-------------|-------------------------------|-------|------|
-| `pt-car-1`  | ParkTag Car Tag (Pack of 1)   | ₹299  | ₹499 |
-| `pt-car-2`  | ParkTag Car Tag (Pack of 2)   | ₹499  | ₹799 |
-| `pt-bike-1` | ParkTag Bike Tag              | ₹299  | ₹399 |
-| `pt-combo`  | ParkTag Combo Pack (Car+Bike) | ₹499  | ₹899 |
+| `productId`     | Product                                         | Price  | Status   |
+|-----------------|-------------------------------------------------|--------|----------|
+| `pt-car-1`      | ParkTag Car Tag (Pack of 1)                     | ₹299   |          |
+| `pt-car-2`      | ParkTag Car Tag (Pack of 2)                     | ₹499   |          |
+| `pt-car-4`      | ParkTag Car Tag (2 Cars · Pack of 4)            | ₹899   |          |
+| `pt-bike-1`     | ParkTag Bike Tag (Pack of 2)                    | ₹499   | sold out |
+| `pt-combo`      | ParkTag Combo Tag (Pack of 2)                   | ₹499   | sold out |
+| `pt-car-1-bike` | ParkTag Car Tag (Pack of 1) + Bike Tag          | ₹798   |          |
+| `pt-car-2-bike` | ParkTag Car Tag (Pack of 2) + Bike Tag          | ₹998   |          |
+| `pt-car-4-bike` | ParkTag Car Tag (2 Cars · Pack of 4) + Bike Tag | ₹1398  |          |
 
-> Changing a shop price means editing `SHOP_PRODUCTS` (the charged amount) **and** the
-> `PRODUCTS` list in `frontend/pages/owner/welcome.html` (the displayed price). The MRP is
-> display-only. See [Project status](#project-status) → M15 for how the amount is locked.
+These are the catalogue prices; a website offer or a promo code can lower what a buyer is
+charged, and the server applies it.
+
+> Changing a shop price means editing `SHOP_PRODUCTS`. `/get`, `/shop` and `/direct` read it
+> from `GET /api/shop/public-catalogue`, and the dashboard shop from `GET /api/shop/pricing`.
+> The dashboard also keeps a hand-written copy for its first paint (`PRODUCTS`, with the
+> crossed-out `orig` price, and `PACK_PRICES` in `frontend/scripts/owner/welcome-shop.js`),
+> as does `frontend/pages/get.html`, so update those too. Sold out is the `soldOut` flag in
+> `SHOP_PRODUCTS`; every order route refuses a sold-out pack. See
+> [Project status](#project-status) → M15 for how the amount is locked.
 
 **Contact flow (privacy-preserving)**
 
@@ -196,8 +213,9 @@ See `docs/DOMAIN_MODEL.md` and `docs/SCHEMA_AND_API_CONTRACTS.md` for full detai
 
 - **Node.js ≥ 20** and `npm`
 - A **MongoDB** connection string (local `mongod` is fine for dev)
-- *(Optional, for live features)* Exotel, Meta WhatsApp, Razorpay, Google OAuth, and SMTP
-  credentials. The app runs without them — those actions just fail with provider-safe errors.
+- *(Optional, for live features)* Exotel, Meta WhatsApp, Razorpay, Firebase (SMS sign-in),
+  Google OAuth, and SMTP credentials. The app runs without them — those actions just fail
+  with provider-safe errors.
 
 ---
 
@@ -207,15 +225,21 @@ See `docs/DOMAIN_MODEL.md` and `docs/SCHEMA_AND_API_CONTRACTS.md` for full detai
 npm install
 ```
 
-Then create a root `.env` (see the next section), and run `npm start`.
+Then create your `.env` (see the next section), and run `npm start`.
 
 ---
 
 ## Environment variables
 
-Create a `.env` at the repo root (never commit it — it's gitignored). Copy `.env.example`
-as a starting point; it lists every variable the app reads, with placeholder values only.
-Everything is loaded in one place — `src/backend/lib/env.js`.
+Copy `.env.example` as a starting point; it lists every variable the app reads, with
+placeholder values only. Everything is loaded in one place — `src/backend/lib/env.js` —
+which reads **one** file:
+
+1. `~/.parktag/.env` (or the path in `PARKTAG_ENV_FILE`), if it exists, so real local
+   secrets can live outside a cloud-synced working copy.
+2. Otherwise `.env` at the repo root (gitignored; never commit it).
+
+Production reads no file; Railway injects the variables.
 
 The `landing/` Next.js app has its own `landing/.env.example` — only variables prefixed
 `NEXT_PUBLIC_` there are safe to use, since Next.js bundles those into client-side JS.
@@ -224,8 +248,12 @@ The `landing/` Next.js app has its own `landing/.env.example` — only variables
 > `GOOGLE_CALLBACK_URL` to match — Google OAuth requires the callback URL to be
 > whitelisted exactly in the Google Cloud Console.
 
-Only `MONGODB_URI` is truly required to boot. Provider blocks are optional; missing creds
-make just that feature unavailable.
+Locally nothing is required to boot, but without `MONGODB_URI` every data route answers
+"MongoDB is not configured". With `APP_ENV=production` the server **refuses to start**
+unless all seven of these are set (`REQUIRED_IN_PRODUCTION` in `env.js`): `MONGODB_URI`,
+`RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`, `EXOTEL_WEBHOOK_SECRET`,
+`META_APP_SECRET` and `WHATSAPP_WEBHOOK_VERIFY_TOKEN`. Every other provider block is
+optional; missing creds make just that feature unavailable.
 
 > **Security note — rotate if you had cloned this repo before 2026-07-25:** `test.js` at
 > the repo root previously contained a hardcoded, live-looking Exotel `apiKey`/`apiToken`/
@@ -233,11 +261,12 @@ make just that feature unavailable.
 > rewritten to read `EXOTEL_API_KEY` / `EXOTEL_API_TOKEN` / `EXOTEL_ACCOUNT_SID` from the
 > environment instead. If those credentials were real, rotate them in the Exotel dashboard
 > immediately — anyone with read access to git history can still see the old values.
-> Separately, an unrelated Firebase Web API key was hardcoded in earlier commits before
-> Firebase phone auth was removed (commit `295dc74`); it's no longer used anywhere in the
-> current codebase. Firebase web API keys aren't meant to be secret, but if this project
-> ID is still in use, double-check its key restrictions and Firebase Auth domain allow-list
-> in the Firebase console.
+> Separately, a Firebase Web API key (project `parktag1`) was hardcoded in
+> `src/frontend/scripts/owner.js` on 2026-06-19 (commit `9a23930`) and removed the same day
+> (`295dc74`); GitHub's secret scanning flags it in history. Google reports that key as
+> expired (checked 2026-10-15), so it can no longer be used. Firebase SMS sign-in is in use
+> today, but its key comes from `FIREBASE_API_KEY` and reaches the browser through
+> `GET /api/auth/firebase-config`; it is never written into the code.
 
 ---
 
@@ -277,7 +306,7 @@ The server binds `0.0.0.0:PORT` so it's reachable from a phone on the same netwo
 
 ## Seeding demo data
 
-Creates one owner, one admin, and one active tag.
+Creates one owner, one admin, one active tag and one unclaimed tag.
 
 ```bash
 npm run seed:demo
@@ -300,19 +329,20 @@ The `/verify` page's **Seed demo data** button calls the same API and asks for t
 
 - `http://127.0.0.1:3000/api/health` → `ok: true`
 - `http://127.0.0.1:3000/api/runtime/status` → `mongoConfigured: true`, `connected: true`
-  (this endpoint reports only Boolean `*Configured` flags — never secret values)
+  (this endpoint reports only Boolean `*Configured` flags — never secret values; in
+  production it needs an admin session)
 
 ### Internal verification hub
 
 - `http://127.0.0.1:3000/verify` — seed data, inspect runtime/credentials, poke owner/admin APIs.
-- `http://127.0.0.1:3000/hub` — quick links into every surface (scanner, owner, admin, verify).
 
 ### Scanner flow
 
 1. Seed demo data, copy the seeded tag token.
 2. Open `http://127.0.0.1:3000/tag/<token>`.
-3. Confirm the page shows a **masked** vehicle number, asks for a phone number first,
-   then exposes **Call Owner** and **Send Message**.
+3. Confirm the page shows a **masked** vehicle number with **WhatsApp** and **Private Call**.
+   Either one first asks for the last 4 digits of the plate; a call also asks for your
+   number.
 
 ### One-off verification scripts
 
@@ -346,6 +376,8 @@ WAVETAG_VERIFY_MESSAGE=<test-message>   # whatsapp script only
 | `POST /api/tags/:token/verify`     | Verify last-4 of plate                     |
 | `POST /api/contact-requests`       | Create a call/WhatsApp contact request     |
 | `POST /api/tags/:token/register-call` | Register a masked call (Dial-Whom)      |
+| `POST /api/tags/:token/register-emergency-call` | Register a call to the emergency contact |
+| `POST /api/tags/:token/activate`   | Activate a sticker: owner signs in by code, adds the vehicle |
 
 ### Owner
 
@@ -371,16 +403,19 @@ WAVETAG_VERIFY_MESSAGE=<test-message>   # whatsapp script only
 | `GET /api/admin/overview`              | Counts + recent activity/registrations |
 | `POST /api/admin/tags/issue`           | Issue an unclaimed tag batch (premium toggle) |
 | `GET /api/admin/print-queue`           | To-print / printed tabs (`?printed=1`) |
-| `GET /api/admin/print-queue/export`    | Full-page E-Tag print sheet          |
+| `POST /api/admin/print-queue/export`   | QR print data for the selected tags (`{ ids }`, in chunks) |
 | `GET /api/admin/etags`, `/owners`, `/activity`, `/admins` | Monitoring + admin management |
 
 ### Auth, shop, webhooks, system
 
-- **Auth:** `POST /api/auth/login`, `/logout`, `/session`; OTP (`/api/auth/send-otp`, …);
-  Google (`/api/auth/google`, `/callback`); password reset.
-- **Shop:** `POST /api/shop/create-order`, `/api/shop/verify-payment`.
+- **Auth:** `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/session`; WhatsApp OTP
+  (`/api/auth/send-otp`, `/verify-otp`); SMS OTP via Firebase (`GET /api/auth/firebase-config`,
+  `POST /api/auth/firebase-phone/send`, `/verify`); Google (`/api/auth/google`, `/callback`);
+  password reset.
+- **Shop:** `POST /api/shop/create-order`, `/api/shop/verify-payment`, `/api/shop/place-cod`;
+  guest checkout under `/api/shop/guest/…`.
 - **Webhooks:** `POST /api/provider/exotel/webhook`, `GET /api/exotel/dial-whom`,
-  `GET|POST /api/provider/meta/webhook`.
+  `GET|POST /api/provider/meta/webhook`, `POST /api/provider/razorpay/webhook`.
 - **System:** `GET /api/health`, `/api/runtime/status`, `POST /api/demo/seed`.
 
 **Authorization:** protected routes go through `requireSession(app, role)`
@@ -401,7 +436,13 @@ scope every query by `ownerId = session.userId`, so a user can only ever touch t
 - **Razorpay (payments)** — `lib/integrations/payments.js`; the shop checkout is
   **server-locked** — the shop resolves prices from a `SHOP_PRODUCTS` catalog by `productId`
   and re-checks the order at verify time (M15). A paid order carrying `replaceTagId` mints a
-  new premium tag and soft-removes the spent free tag (M18).
+  new premium tag and soft-removes the spent free tag (M18). Razorpay's webhook
+  (`/api/provider/razorpay/webhook`, signed with `RAZORPAY_WEBHOOK_SECRET`) fulfils a paid
+  order whose buyer closed the tab before the browser confirmed it.
+- **Firebase (SMS sign-in)** — the owner login page gets its config from
+  `GET /api/auth/firebase-config` and shows Firebase's reCAPTCHA; the server sends and checks
+  the code through Google's Identity Toolkit (`routes/auth/firebase.js`). Needs
+  `FIREBASE_API_KEY` and `FIREBASE_PROJECT_ID`.
 - **Google OAuth** — sign-in never auto-creates an account; unknown Gmails get a `no_account`
   error. Callback/JS-origins must be whitelisted in the Google Cloud Console.
 
@@ -414,21 +455,23 @@ Production runs on **Railway** at `https://app.parktag.me`.
 1. Push to the deployment branch.
 2. Set every production env var in the Railway dashboard (see
    [Environment variables](#environment-variables)) — with `APP_ENV=production`,
-   `MONGODB_COLLECTION_PREFIX=prod_`, and `APP_BASE_URL=https://app.parktag.me`.
+   `MONGODB_COLLECTION_PREFIX=prod_`, and `APP_BASE_URL=https://app.parktag.me`. The
+   server refuses to start without the seven variables listed there.
 3. Point provider webhooks/redirects at the public host:
    - Exotel Dial-Whom → `https://app.parktag.me/api/exotel/dial-whom`
    - Exotel status → `https://app.parktag.me/api/provider/exotel/webhook`
    - Meta WhatsApp webhook → `https://app.parktag.me/api/provider/meta/webhook`
+   - Razorpay webhook → `https://app.parktag.me/api/provider/razorpay/webhook`
    - Google callback → `https://app.parktag.me/api/auth/google/callback`
 
-A legacy [`render.yaml`](./render.yaml) + [`docs/RENDER_DEPLOY.md`](./docs/RENDER_DEPLOY.md)
-are kept for the alternative Render target.
+[`docs/RENDER_DEPLOY.md`](./docs/RENDER_DEPLOY.md) describes the old Render target; its
+`render.yaml` is no longer in the repo.
 
 ---
 
 ## Contributing workflow
 
-- **Plan first.** `PLAN.md` is the living design log; `TASKS.md` tracks milestones (M1…M17)
+- **Plan first.** `PLAN.md` is the living design log; `TASKS.md` tracks milestones (M1…M19)
   with per-item checkboxes. Update them as you work — a task is only checked when the code
   or behavior is verified.
 - **Branch** off `main` for changes; open a PR against `main`.
@@ -452,11 +495,11 @@ are kept for the alternative Render target.
 
 MVP is essentially feature-complete and verified. Milestone tracker: `TASKS.md`.
 
-- ✅ **M1–M18** — backend, scanner/owner/admin flows, Exotel calls, Meta WhatsApp
+- ✅ **M1–M19** — backend, scanner/owner/admin flows, Exotel calls, Meta WhatsApp
   messaging, owner vehicle management, server-locked shop pricing, print-queue split,
-  security-boundary hardening, and the free-trial → buy-premium-via-shop model (a paid shop
-  order mints a new premium tag and removes the spent free tag) — all implemented; M18 needs
-  a live browser checkout to fully verify.
+  security-boundary hardening, the free-trial → buy-premium-via-shop model (a paid shop
+  order mints a new premium tag and removes the spent free tag) and the ₹20 paid callback
+  (M19) — all implemented; M18 and M19 still have live checks open in `TASKS.md`.
 <!-- - ✅ **M15** — shop payment amounts are locked server-side: `/api/shop/create-order`
   resolves the price from a server catalog (`SHOP_PRODUCTS` in `payments.js`) by `productId`
   and ignores any client `amount`. Orders are persisted to `shop_orders`, and

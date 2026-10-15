@@ -30,7 +30,6 @@ import { sendOnce, resetDedupeIndexCheck } from "../lib/core/message-log.js";
 import {
   canSendMarketing,
   canSendUtility,
-  hasOpenServiceWindow,
   orderMayReceiveMarketing
 } from "../lib/core/messaging-consent.js";
 
@@ -237,15 +236,5 @@ describe("consent separates offers from service messages", () => {
 
   test("consent on the account covers an order that predates it", () => {
     assert.equal(orderMayReceiveMarketing({}, { marketingOptInAt: "2026-09-08T00:00:00.000Z" }), true);
-  });
-
-  test("the free service window expires", () => {
-    const now = Date.parse("2026-09-08T12:00:00.000Z");
-    assert.equal(hasOpenServiceWindow({ waWindowOpenUntil: "2026-09-08T13:00:00.000Z" }, now), true);
-    assert.equal(hasOpenServiceWindow({ waWindowOpenUntil: "2026-09-08T11:00:00.000Z" }, now), false);
-    assert.equal(hasOpenServiceWindow({}, now), false);
-    // Junk in the field must read as closed, never as unlimited: the same rule
-    // hasActiveSubscription applies to an unparseable end date.
-    assert.equal(hasOpenServiceWindow({ waWindowOpenUntil: "not a date" }, now), false);
   });
 });

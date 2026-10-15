@@ -33,8 +33,6 @@
 // purpose — it is only worth building once there is evidence sends are being
 // lost, and the log itself is what will show that.
 
-import { getCollections } from "../db/repositories.js";
-
 // Raised when the claim collides. Not an error condition: it is the mechanism
 // working, and callers treat it as "someone else has this one".
 const DUPLICATE_KEY = 11000;
@@ -195,16 +193,4 @@ export async function recordDeliveryStatus(collections, { wamid, status, at }) {
   );
 
   return result.matchedCount > 0;
-}
-
-// Convenience for call sites that have an env but no collections in hand.
-export async function withCollections(env, fn, log) {
-  try {
-    const collections = await getCollections(env);
-    if (!collections) return null;
-    return await fn(collections);
-  } catch (err) {
-    log?.error?.({ err }, "[messages] database unavailable");
-    return null;
-  }
 }

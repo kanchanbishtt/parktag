@@ -24,6 +24,7 @@ import { createSession } from "../lib/auth/session.js";
 import {
   cleanPath,
   isBotUserAgent,
+  isProbePath,
   istDayKey,
   referrerHost
 } from "../routes/system/analytics.js";
@@ -450,6 +451,17 @@ describe("field cleaning", () => {
       assert.equal(isBotUserAgent(ua), true, `${ua || "(empty)"} should be a bot`);
     }
     assert.equal(isBotUserAgent(BROWSER_UA), false);
+  });
+
+  // Scanners ask for leaked files without a dot or extension, and for admin
+  // panels this site does not have. None of these is a visitor.
+  test("scanner paths are recognised, real pages are not", () => {
+    for (const path of ["/env", "/.env", "/Dockerfile", "/credentials", "/admin", "/api", "/api/v1/users", "/dashboard", "/docker-compose.yml", "/wp-admin", "/.git/config", "/phpinfo.php", "/Admin/"]) {
+      assert.equal(isProbePath(path), true, `${path} should be a probe`);
+    }
+    for (const path of ["/", "/about", "/contact", "/privacy", "/terms", "/refund", "/get", "/shop", "/direct", "/environment", "/apiary", "/dashboard-tips"]) {
+      assert.equal(isProbePath(path), false, `${path} must stay a real page`);
+    }
   });
 
   test("the day key is the Indian calendar day, not the UTC one", () => {

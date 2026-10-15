@@ -91,8 +91,22 @@ export function referrerHost(raw, selfHosts = []) {
 // secrets (/.env, /.git/config, /phpinfo, /wp-admin ...). Every one 404s here,
 // but the 404 page still beacons, so they filled the traffic report. Not
 // visitors: never recorded, and filtered out of the report for older rows.
-export const PROBE_PATH_RE =
-  /(^|\/)\.(git|env|aws|svn|hg|ssh|docker|vscode|idea|ds_store)|\.(php|asp|aspx|jsp|cgi|bak|sql|ini|log|ya?ml|env|old|swp)$|phpinfo|_profiler|wp-(admin|login|content|includes)|xmlrpc|cgi-bin|\/vendor\/|actuator|server-status|config\.json$/i;
+//
+// The same scanners also ask for files WITHOUT the dot or extension (/env,
+// /Dockerfile, /credentials) and for admin panels this site does not have
+// (/admin, /dashboard, /api). The landing site is six pages, so a first
+// segment from this list is never a visitor. Anchored on the first segment so
+// /about or /contact can never match. Kept in step with the app's page views,
+// which only ever record /get, /shop and /direct.
+export const PROBE_PATH_RE = new RegExp(
+  [
+    String.raw`(^|\/)\.(git|env|aws|svn|hg|ssh|docker|vscode|idea|ds_store)`,
+    String.raw`\.(php|asp|aspx|jsp|cgi|bak|sql|ini|log|ya?ml|env|old|swp)$`,
+    "phpinfo|_profiler|wp-(admin|login|content|includes)|xmlrpc|cgi-bin|\\/vendor\\/|actuator|server-status|config\\.json$",
+    String.raw`^\/(env|dockerfile|docker-compose|credentials?|secrets?|config|configs|backups?|database|db|debug|console|manager|admin|administrator|dashboard|api|login|setup|install|swagger|graphql|metrics|phpmyadmin|adminer)(\/|$)`
+  ].join("|"),
+  "i"
+);
 
 export function isProbePath(path) {
   return PROBE_PATH_RE.test(String(path || ""));

@@ -312,10 +312,23 @@ function renderBar(products) {
   // is exactly when guest create-order accepts it. This bar once promised a
   // payment method the next tap could not offer.
   const offer = offerFor(HERO_PACK);
+  const priceLine = offer
+    ? `${rupees(offer.offerPaise)} offer · MRP ${rupees(offer.mrpPaise)} · Free delivery`
+    : `${rupees(hero.amountPaise)} · Free delivery`;
   const codNote = codFor(HERO_PACK) ? " · COD available" : "";
-  if (sub) sub.textContent = offer
-    ? `${rupees(offer.offerPaise)} offer · MRP ${rupees(offer.mrpPaise)} · Free delivery${codNote}`
-    : `${rupees(hero.amountPaise)} · Free delivery${codNote}`;
+  // The bar is one line on a phone, and with the COD note on it the price was
+  // cut off with an ellipsis. COD is named on the first screen instead.
+  if (sub) sub.textContent = priceLine;
+
+  // The price, before the first scroll. The buy card that carries it sits
+  // under two large photos, and Meta visitors leave in about 35 seconds, so
+  // most never saw a price except in the cut-off bar. Plain text, not a link:
+  // begin_checkout still means a pressed Order button, never a tap elsewhere.
+  const first = byId("gtFirstPrice");
+  if (first) {
+    first.textContent = priceLine + codNote;
+    first.hidden = false;
+  }
 }
 
 function renderAddOn(addOns) {

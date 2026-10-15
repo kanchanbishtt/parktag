@@ -112,6 +112,9 @@
           <li><a href="#gtHowTitle"><span class="gt-perk-i" aria-hidden="true">📷</span><span><strong>No app to scan</strong><small>Any phone camera</small></span></a></li>
           <li><a href="#packs"><span class="gt-perk-i" aria-hidden="true">🚚</span><span><strong>Free delivery</strong><small>7-day replacement</small></span></a></li>
         </ul>
+        <!-- Filled from the same catalogue as the sticky bar (renderBar), so the
+             page cannot quote a figure the checkout does not charge. -->
+        <p class="gt-firstprice" id="gtFirstPrice" role="status" hidden></p>
 
         <!-- Real photo first (it is the LCP image), then the artwork and the pack.
              Mixed ratios on purpose, so each is contained in its own tile. -->
@@ -166,32 +169,6 @@
         </div>
       </section>
 
-      <!-- ── The difference ───────────────────────────────────────────────────
-           What people do now, next to what this does. The left tile is drawn,
-           not photographed: it needs no stock picture and cannot be mistaken
-           for a customer. -->
-      <section class="gt-diff" aria-labelledby="gtDiffTitle">
-        <div class="gt-diff-hd">
-          <h2 class="gt-diff-k" id="gtDiffTitle">The difference</h2>
-          <span class="gt-diff-pill">Paper note vs ParkTag</span>
-        </div>
-        <div class="gt-diff-pair">
-          <figure class="gt-diff-a" data-goto="#gtHowTitle">
-            <div class="gt-diff-glass"><div class="gt-diff-note" aria-label="A handwritten paper note with a phone number on it"><span>123-456-7890</span></div></div>
-            <figcaption>A paper note: anyone can read your number</figcaption>
-          </figure>
-          <figure class="gt-diff-b">
-            <div class="gt-diff-zoom"><img src="/images/shop-gal-windscreen.webp" width="747" height="1000" loading="lazy" decoding="async" fetchpriority="low" alt="A ParkTag stuck inside a car windscreen" /></div>
-            <figcaption>ParkTag: they scan, your number stays hidden</figcaption>
-          </figure>
-        </div>
-        <ul class="gt-diff-feats">
-          <li><a href="#gtHowTitle"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="10.5" width="14" height="9.5" rx="2.2" stroke="currentColor" stroke-width="1.8"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" stroke="currentColor" stroke-width="1.8"/></svg><span>No number leakage</span></a></li>
-          <li><a href="#gtHowTitle"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5.5h16v10H9l-5 4v-14Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg><span>WhatsApp and call</span></a></li>
-          <li><a href="#gtProofTitle"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3l7 3v6c0 4.2-2.9 7.6-7 9-4.1-1.4-7-4.8-7-9V6l7-3z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Weatherproof laminate</span></a></li>
-        </ul>
-      </section>
-
       <!-- ── The problem, in residents' own words ───────────────────────
            Real WhatsApp messages from society and office groups, before the
            proof that ParkTag fixes it. Names, numbers, faces and plates are
@@ -229,6 +206,34 @@
         </ul>
         <p class="gt-heard-end" data-goto="#packs"><span><strong>With a ParkTag: one scan reaches the owner.</strong> Nobody's number is shared.</span></p>
       </section>
+
+      <!-- ── The difference ───────────────────────────────────────────────────
+           What people do now, next to what this does. The left tile is drawn,
+           not photographed: it needs no stock picture and cannot be mistaken
+           for a customer. -->
+      <section class="gt-diff" aria-labelledby="gtDiffTitle">
+        <div class="gt-diff-hd">
+          <h2 class="gt-diff-k" id="gtDiffTitle">The difference</h2>
+          <span class="gt-diff-pill">Paper note vs ParkTag</span>
+        </div>
+        <div class="gt-diff-pair">
+          <figure class="gt-diff-a" data-goto="#gtHowTitle">
+            <div class="gt-diff-glass"><div class="gt-diff-note" aria-label="A handwritten paper note with a phone number on it"><span>123-456-7890</span></div></div>
+            <figcaption>A paper note: anyone can read your number</figcaption>
+          </figure>
+          <figure class="gt-diff-b">
+            <div class="gt-diff-zoom"><img src="/images/shop-gal-windscreen.webp" width="747" height="1000" loading="lazy" decoding="async" fetchpriority="low" alt="A ParkTag stuck inside a car windscreen" /></div>
+            <figcaption>ParkTag: they scan, your number stays hidden</figcaption>
+          </figure>
+        </div>
+        <ul class="gt-diff-feats">
+          <li><a href="#gtHowTitle"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="10.5" width="14" height="9.5" rx="2.2" stroke="currentColor" stroke-width="1.8"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" stroke="currentColor" stroke-width="1.8"/></svg><span>No number leakage</span></a></li>
+          <li><a href="#gtHowTitle"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5.5h16v10H9l-5 4v-14Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg><span>WhatsApp and call</span></a></li>
+          <li><a href="#gtProofTitle"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3l7 3v6c0 4.2-2.9 7.6-7 9-4.1-1.4-7-4.8-7-9V6l7-3z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Weatherproof laminate</span></a></li>
+        </ul>
+      </section>
+
+      
 
       <!-- ── How it works ───────────────────────────────────────────────────
            Moved up from the foot of the page and given pictures (the Stitch

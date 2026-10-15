@@ -232,8 +232,8 @@ const CORE_INDEXES = [
   // One number, one account — enforced by the storage layer, not by every
   // route remembering to check.
   //
-  // The guard in lib/auth/otp.js (findOwnerHoldingMobile) is the one that gives
-  // a person a sensible message; this is the one that makes the bad state
+  // The lookup in lib/auth/otp.js (resolveOwnerByVerifiedMobile) is the one
+  // that reuses the existing account; this is the one that makes the bad state
   // impossible if a future route forgets to call it. Sign-in resolves a mobile
   // with findOne, so two rows holding one number meant the account somebody
   // reached depended on row order.

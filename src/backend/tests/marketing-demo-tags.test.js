@@ -7,8 +7,7 @@
 //      real wizard, and the shelf notices by itself.
 //
 //   2. Deactivating removes every trace of that customer, including the account
-//      the wizard created for them. That account has a passwordHash like any
-//      other, so the cleanup rule cannot simply skip password-holding accounts.
+//      the wizard created for them, even if a password has since been set on it.
 //
 //   3. Sold units stay listed as a record, and can no longer be wiped.
 import test, { before, after, describe } from "node:test";
@@ -71,43 +70,10 @@ function authed(method, url, payload) {
   });
 }
 
-// Drive the genuine activation wizard, the way the customer in front of the
-// salesperson would. The claim route needs a real OTP, so mint one.
-async function customerActivates(token, { email, phone, plate = "DL01AB1234" }) {
-  customerEmails.push(email);
-  const code = "424242";
-  await collections.otpTokens.insertOne({
-    identifier: normalizeIdentifier(phone),
-    purpose: OTP_PURPOSE_AUTH,
-    codeHash: await createOtpHash(code),
-    used: false,
-    attempts: 0,
-    createdAt: new Date().toISOString(),
-    expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString()
-  });
-
-  return app.inject({
-    method: "POST",
-    url: `/api/tags/${token}/claim`,
-    remoteAddress: uniqueAddress(),
-    headers: { origin: ORIGIN },
-    payload: {
-      email,
-      password: "customer-pass-1234",
-      displayName: "Demo Customer",
-      phone,
-      plateNumber: plate,
-      otp: code
-    }
-  });
-}
-
-// The scanner's step wizard: plate → vehicle type → mobile → OTP. This is what
-// a customer actually runs after scanning the QR on the sticker, and it is a
-// DIFFERENT route from /claim above — no email, no password, vehicleType
-// mandatory. Both routes attach an owner to a tag, so both have to make the
-// shelf notice; testing only /claim would leave the path used at the roadside
-// unproven.
+// The scanner's step wizard: plate → vehicle type → mobile → OTP, the way the
+// customer in front of the salesperson runs it after scanning the QR on the
+// sticker. It needs a real OTP, so mint one. The account it creates is known by
+// its mobile; it has no email.
 async function customerScansAndActivates(
   token,
   { phone, plate = "DL05CD5678", vehicleType = "bike", displayName = "Scanned Customer" }
@@ -183,10 +149,12 @@ describe("activation is auto-detected — no unlocking step", () => {
 
   test("activating through the real wizard flips the shelf to ACTIVATED by itself", async () => {
     const sticker = await insertSticker();
-    const email = "demo-customer-1@parktag.test";
+    const phone = "+919876500002";
 
     // Nothing is done in the admin panel first — this is the whole point.
-    const response = await customerActivates(sticker.token, { email, phone: "+919876500002" });
+    const response = await customerScansAndActivates(sticker.token, {
+      phone, plate: "DL01AB1234", vehicleType: "car", displayName: "Demo Customer"
+    });
     assert.equal(response.statusCode, 200, "activation should succeed like any real one");
 
     const after = await collections.tags.findOne({ _id: sticker._id });
@@ -200,35 +168,8 @@ describe("activation is auto-detected — no unlocking step", () => {
     assert.equal(row.activatedBy, "Demo Customer", "the salesperson sees who is on it");
     assert.equal(row.plateNumber, "DL01AB1234");
 
-    const owner = await collections.owners.findOne({ email });
+    const owner = await collections.owners.findOne({ mobile: phone });
     assert.equal(owner.demoCreatedOwner, true, "flagged so Deactivate can clean it up");
-  });
-
-  test("scanning the QR and running the step wizard also flips the shelf to ACTIVATED", async () => {
-    // This is the route the roadside demo actually uses. It is a separate
-    // handler from /claim with its own owner-creation branch, so the shelf
-    // noticing on one proves nothing about the other.
-    const sticker = await insertSticker();
-    const phone = "+919876500010";
-
-    const response = await customerScansAndActivates(sticker.token, {
-      phone,
-      plate: "DL07QR4321",
-      vehicleType: "scooter",
-      displayName: "Roadside Customer"
-    });
-    assert.equal(response.statusCode, 200, "the scanner wizard should activate like any real one");
-
-    const after = await collections.tags.findOne({ _id: sticker._id });
-    assert.equal(demoState(after), "activated", "the shelf must notice without any admin step");
-    assert.equal(after.demoCount, 1);
-    assert.equal(after.demoOwnerCreated, true);
-
-    const shelf = (await authed("GET", "/api/admin/marketing")).json();
-    const row = shelf.items.find((i) => i.id === String(sticker._id));
-    assert.equal(row.state, "activated");
-    assert.equal(row.activatedBy, "Roadside Customer", "the salesperson sees who is on it");
-    assert.equal(row.plateNumber, "DL07QR4321");
   });
 
   test("a sticker activated by scanning can be wiped and reused, repeatedly", async () => {
@@ -273,8 +214,8 @@ describe("activation is auto-detected — no unlocking step", () => {
 describe("Deactivate Tag: wipe and reuse", () => {
   test("erases the customer from the sticker AND removes their account", async () => {
     const sticker = await insertSticker();
-    const email = "demo-customer-2@parktag.test";
-    await customerActivates(sticker.token, { email, phone: "+919876500003", plate: "DL09ZZ7777" });
+    const phone = "+919876500003";
+    await customerScansAndActivates(sticker.token, { phone, plate: "DL09ZZ7777" });
 
     const response = await authed("POST", `/api/admin/marketing/${sticker._id}/deactivate`);
     assert.equal(response.statusCode, 200);
@@ -288,28 +229,24 @@ describe("Deactivate Tag: wipe and reuse", () => {
     assert.equal(after.plateNumber, undefined, "the customer's plate must not survive");
     assert.equal(after.vehicleLabel, undefined);
 
-    // The wizard's account has a passwordHash like any real one. If the cleanup
-    // skipped password-holding accounts, this person's email, name and mobile
-    // would be left behind after every demo.
-    assert.equal(await collections.owners.findOne({ email }), null);
+    // If the cleanup left the account the wizard made, this person's name and
+    // mobile would be left behind after every demo.
+    assert.equal(await collections.owners.findOne({ mobile: phone }), null);
   });
 
   test("the same unit is then activatable by the next customer", async () => {
     const sticker = await insertSticker();
 
-    await customerActivates(sticker.token, { email: "first@parktag.test", phone: "+919876500004" });
+    await customerScansAndActivates(sticker.token, { phone: "+919876500004" });
     await authed("POST", `/api/admin/marketing/${sticker._id}/deactivate`);
 
-    const second = await customerActivates(sticker.token, {
-      email: "second@parktag.test",
-      phone: "+919876500005"
-    });
+    const second = await customerScansAndActivates(sticker.token, { phone: "+919876500005" });
     assert.equal(second.statusCode, 200, "the unit must be reusable");
 
     const after = await collections.tags.findOne({ _id: sticker._id });
     assert.equal(after.demoCount, 2, "both activations are counted against this unit");
     assert.equal(
-      await collections.owners.countDocuments({ email: "first@parktag.test" }),
+      await collections.owners.countDocuments({ mobile: "+919876500004" }),
       0,
       "the first customer is gone"
     );
@@ -360,8 +297,8 @@ describe("Deactivate Tag: wipe and reuse", () => {
 describe("Sold: the customer bought this unit", () => {
   test("stays listed as a record and keeps the tag on their account", async () => {
     const sticker = await insertSticker();
-    const email = "buyer@parktag.test";
-    await customerActivates(sticker.token, { email, phone: "+919876500007" });
+    const phone = "+919876500007";
+    await customerScansAndActivates(sticker.token, { phone });
 
     const response = await authed("POST", `/api/admin/marketing/${sticker._id}/sold`);
     assert.equal(response.statusCode, 200);
@@ -372,7 +309,7 @@ describe("Sold: the customer bought this unit", () => {
     assert.equal(after.status, "active", "and stays live for the customer");
     assert.equal(after.soldBy, ADMIN_EMAIL);
 
-    const owner = await collections.owners.findOne({ email });
+    const owner = await collections.owners.findOne({ mobile: phone });
     assert.equal(
       owner.demoCreatedOwner,
       undefined,
@@ -385,7 +322,7 @@ describe("Sold: the customer bought this unit", () => {
 
   test("a sold unit can no longer be wiped", async () => {
     const sticker = await insertSticker();
-    await customerActivates(sticker.token, { email: "buyer2@parktag.test", phone: "+919876500008" });
+    await customerScansAndActivates(sticker.token, { phone: "+919876500008" });
     await authed("POST", `/api/admin/marketing/${sticker._id}/sold`);
 
     const response = await authed("POST", `/api/admin/marketing/${sticker._id}/deactivate`);
@@ -491,7 +428,7 @@ describe("domain rules", () => {
     assert.equal(
       demoOwnerIsDisposable({ demoCreatedOwner: true, passwordHash: "x" }, 0),
       true,
-      "the wizard always sets a password — skipping those would leak every demo customer"
+      "a password set after the demo must not keep the customer's details behind"
     );
     assert.equal(demoOwnerIsDisposable({ demoCreatedOwner: true }, 1), false, "still owns a tag");
     assert.equal(demoOwnerIsDisposable({ demoCreatedOwner: false }, 0), false, "not ours to delete");

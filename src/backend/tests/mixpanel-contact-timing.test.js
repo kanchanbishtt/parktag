@@ -1,11 +1,11 @@
-// Mixpanel's contact_action and /claim's tag_activated fire on what happened.
+// Mixpanel's contact_action and tag_activated fire on what happened.
 //
 // contact_action means "a scanner reached the owner" (AGENTS.md), but for a
 // call it was sent when the page registered the call, which only hands the
 // scanner a number to dial: anyone who then never dialled was counted. It is
 // now sent by Exotel's dial-whom webhook when the call is actually placed, once
-// per registration. And /claim reported tag_activated for the team's own test
-// numbers, which /activate has always skipped.
+// per registration. And /claim (since removed, audit item 18) reported
+// tag_activated for the team's own test numbers, which /activate skips.
 //
 // A test run never sends to Mixpanel (lib/core/external-guard.js), so the
 // decision is checked as a function and the routes are checked for where they
@@ -66,8 +66,8 @@ describe("where the routes report", () => {
     assert.match(dialWhom, /if \(contactEvent\) sendMixpanelEventBestEffort\(request\.log, env, contactEvent\)/);
   });
 
-  test("/claim skips tag_activated for the team's own numbers, as /activate does", () => {
-    const claim = handler(publicRoutes, 'app.post("/api/tags/:token/claim"');
-    assert.match(claim, /if \(!isInternalTag\(tag\) && !isInternalPhone\(env, verifiedMobile\)\) sendMixpanelEventBestEffort\(app\.log, env, \{\s*eventName: "tag_activated"/);
+  test("/activate skips tag_activated for the team's own tags and numbers", () => {
+    const activate = handler(publicRoutes, 'app.post("/api/tags/:token/activate"');
+    assert.match(activate, /if \(!isInternalTag\(tag\) && !isInternalPhone\(env, mobile\)\) sendMixpanelEventBestEffort\(app\.log, env, \{\s*eventName: "tag_activated"/);
   });
 });

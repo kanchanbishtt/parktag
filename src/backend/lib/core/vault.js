@@ -502,7 +502,7 @@ export function hasActiveDocumentSubscription(tag, now = Date.now()) {
 //   premiumSince   stamped by createPremiumTagForVehicle when somebody buys a
 //                  premium tag from the shop. That tag is born already owned,
 //                  so the purchase IS the activation.
-//   activatedAt    stamped by /claim and /activate the first time a stock tag
+//   activatedAt    stamped by /activate the first time a stock tag
 //                  is registered to an owner. This is the one that matters for
 //                  retail: an admin batch mints premium tags with `premium:
 //                  true` and NO premiumSince, so before this existed the whole

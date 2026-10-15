@@ -2,7 +2,7 @@
 //
 //   GET /api/admin/tag-batches                   one row per batch
 //   GET /api/admin/tag-batches/:key/export.csv   every tag in a batch
-//   GET /api/admin/etag-activations              activated premium-off stickers
+//   GET /api/admin/activations/recent?type=etag  activated premium-off stickers
 //   GET /api/admin/etags?batch=<key>             the E-Tags list, one batch
 //
 // All admin-only. The CSV leaves the panel, so it must never carry a QR token
@@ -108,7 +108,7 @@ after(async () => {
 });
 
 describe("admin only", () => {
-  for (const url of ["/api/admin/tag-batches", `/api/admin/tag-batches/${A}/export.csv`, "/api/admin/etag-activations", `/api/admin/etags?batch=${A}`]) {
+  for (const url of ["/api/admin/tag-batches", `/api/admin/tag-batches/${A}/export.csv`, "/api/admin/activations/recent?type=etag", `/api/admin/etags?batch=${A}`]) {
     test(`${url} refuses no session and an owner session`, async () => {
       assert.equal((await get(url, null)).statusCode, 401);
       assert.equal((await get(url, ownerCookie)).statusCode, 403);
@@ -184,23 +184,24 @@ describe("batch CSV", () => {
 
 describe("E-Tag activations", () => {
   test("lists activated premium-off issued stickers only, newest first", async () => {
-    const res = await get(`/api/admin/etag-activations?batch=${A}`);
+    const res = await get(`/api/admin/activations/recent?type=etag&batch=${A}`);
     assert.equal(res.statusCode, 200, res.body);
-    const rows = res.json().activated;
+    const rows = res.json().activations;
     assert.deepEqual(rows.map((r) => r.serial), ["PT-91-000001", "PT-91-000003"]);
     assert.equal(rows[0].freeContactUsed, true);
     assert.equal(rows[0].ownerMobile, "9876543210");
   });
 
+  // Searched by this suite's owner rather than paged through every tag in the
+  // database: the owner holds the premium tag and the owner-made E-Tag too.
   test("without a batch it still leaves out premium, demo and owner-made tags", async () => {
-    const res = await get("/api/admin/etag-activations");
+    const res = await get(`/api/admin/activations/recent?type=etag&q=${encodeURIComponent(OWNER_EMAIL)}`);
     assert.equal(res.statusCode, 200, res.body);
-    const mine = res.json().activated.filter((r) => r.batch === A || r.batch === B || r.serial === "");
-    assert.deepEqual(mine.map((r) => r.serial).sort(), ["PT-91-000001", "PT-91-000003"]);
+    assert.deepEqual(res.json().activations.map((r) => r.serial).sort(), ["PT-91-000001", "PT-91-000003"]);
   });
 
   test("a malformed batch is 400", async () => {
-    assert.equal((await get("/api/admin/etag-activations?batch=x")).statusCode, 400);
+    assert.equal((await get("/api/admin/activations/recent?type=etag&batch=x")).statusCode, 400);
   });
 });
 

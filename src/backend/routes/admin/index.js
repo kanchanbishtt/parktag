@@ -133,7 +133,7 @@ function ownedPremiumFilter() {
   return { premium: true, ownerId: { $ne: null }, deletedAt: { $in: [null, undefined] }, ...NOT_MARKETING_STOCK };
 }
 
-// Issued E-Tag stickers somebody has activated (GET /api/admin/etag-activations).
+// Issued E-Tag stickers somebody has activated.
 function ownedEtagFilter() {
   return { ...issuedStockFilter(), premium: { $ne: true }, ownerId: { $ne: null } };
 }
@@ -1052,66 +1052,6 @@ export function registerAdminRoutes(app, env) {
       .header("cache-control", "no-store");
     // The BOM makes Excel read the file as UTF-8 (names with ₹, Hindi, etc.).
     return `﻿${csv}`;
-  });
-
-  // Issued E-Tag stickers somebody has activated, newest first. The premium
-  // list in /api/admin/activations does not cover these: it filters on
-  // `premium: true`, and campaign stock is issued with premium off.
-  app.get("/api/admin/etag-activations", async (request, reply) => {
-    const blocked = await requireSession(app, "admin")(request, reply);
-    if (blocked) return blocked;
-
-    const collections = await getCollections(env);
-    const filter = { ...issuedStockFilter(), premium: { $ne: true }, ownerId: { $ne: null } };
-
-    const rawBatch = request.query.batch;
-    if (rawBatch !== undefined && rawBatch !== "") {
-      const key = parseBatchKey(typeof rawBatch === "string" ? rawBatch : "");
-      if (!key) { reply.code(400); return { ok: false, error: "Invalid batch." }; }
-      filter.batchNumber = { $in: await rawBatchValuesFor(collections, key) };
-    }
-
-    const LIMIT = 1000;
-    const total = await collections.tags.countDocuments(filter);
-    const tags = await collections.tags
-      .find(filter, {
-        projection: {
-          batchNumber: 1, batchLabel: 1, serialNumber: 1, plateNumber: 1, vehicleLabel: 1,
-          vehicleType: 1, status: 1, ownerId: 1, activatedAt: 1, createdAt: 1, freeContactUsed: 1
-        }
-      })
-      .sort({ activatedAt: -1, _id: -1 })
-      .limit(LIMIT)
-      .toArray();
-
-    const ownerIds = tags.map((t) => t.ownerId).filter(Boolean);
-    const owners = ownerIds.length
-      ? await collections.owners
-          .find({ _id: { $in: ownerIds } }, { projection: { displayName: 1, email: 1, mobile: 1, phone: 1 } })
-          .toArray()
-      : [];
-    const ownerMap = new Map(owners.map((o) => [String(o._id), o]));
-
-    const activated = tags.map((t) => {
-      const o = ownerMap.get(String(t.ownerId)) || {};
-      return {
-        id: String(t._id),
-        etagId: etagIdFor(t._id),
-        serial: stickerSerialFor(t),
-        batch: batchKeyFor(t.batchNumber),
-        batchLabel: t.batchLabel || null,
-        plateNumber: t.plateNumber || null,
-        vehicleLabel: t.vehicleLabel || t.vehicleType || null,
-        status: t.status,
-        freeContactUsed: Boolean(t.freeContactUsed),
-        ownerName: o.displayName || null,
-        ownerEmail: o.email || null,
-        ownerMobile: o.mobile || o.phone || null,
-        activatedAt: t.activatedAt || null
-      };
-    });
-
-    return { ok: true, total, limit: LIMIT, activated };
   });
 
   app.get("/api/admin/overview", async (request, reply) => {

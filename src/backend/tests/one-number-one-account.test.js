@@ -222,81 +222,50 @@ test("the index itself", async (t) => {
   });
 });
 
+// /api/register-owner and /api/tags/:token/claim, the two e-mail-and-password
+// routes that once forked accounts here, were removed (audit item 18). The
+// account-creating path a scanner reaches is /activate.
 test("no route mints a second account on a number already in use", async (t) => {
-  await t.test("/api/register-owner refuses it", async () => {
-    await seedOwnerHolding(E164);
-    await seedOtp();
-
-    const response = await app.inject({
-      method: "POST",
-      url: "/api/register-owner",
-      headers: { origin: ORIGIN },
-      payload: {
-        displayName: "Second Owner",
-        email: "second@example.invalid",
-        password: "correct-horse-battery",
-        phone: PHONE10,
-        plateNumber: "DL01AB1234",
-        vehicleLabel: "Car",
-        otp: CODE
-      }
-    });
-
-    assert.equal(response.statusCode, 409);
-    assert.equal(response.json().code, "ACCOUNT_EXISTS");
-    assert.equal(await collections.owners.countDocuments({ mobile: E164 }), 1);
-  });
-
-  await t.test("/api/tags/:token/claim refuses it", async () => {
-    await seedOwnerHolding(E164);
+  async function activate(token, plateNumber) {
     await collections.tags.insertOne({
-      _id: new ObjectId(), token: "one-number-claim", status: "unclaimed",
-      deletedAt: null, createdAt: new Date().toISOString()
+      _id: new ObjectId(), token, status: "unclaimed", ownerId: null, premium: true,
+      batchNumber: "Batch-002", serialNumber: 1, deletedAt: null, createdAt: new Date().toISOString()
     });
     await seedOtp();
-
-    const response = await app.inject({
-      method: "POST",
-      url: "/api/tags/one-number-claim/claim",
-      headers: { origin: ORIGIN },
-      payload: {
-        email: "third@example.invalid",
-        password: "correct-horse-battery",
-        displayName: "Third Owner",
-        phone: PHONE10,
-        plateNumber: "DL02CD5678",
-        otp: CODE
-      }
+    return app.inject({
+      method: "POST", url: `/api/tags/${token}/activate`,
+      remoteAddress: uniqueAddress(), headers: { origin: ORIGIN },
+      payload: { displayName: "Second Owner", phone: PHONE10, code: CODE, plateNumber, vehicleType: "car" }
     });
+  }
 
-    assert.equal(response.statusCode, 409);
-    assert.equal(response.json().code, "ACCOUNT_EXISTS");
-    assert.equal(await collections.owners.countDocuments({ mobile: E164 }), 1);
+  await t.test("/api/tags/:token/activate puts the tag on the account already holding it", async () => {
+    const existing = await seedOwnerHolding(E164);
+
+    const response = await activate("one-number-activate", "DL01AB1234");
+
+    assert.equal(response.statusCode, 200, response.body);
+    assert.equal(await collections.owners.countDocuments({}), 1);
+    const tag = await collections.tags.findOne({ token: "one-number-activate" });
+    assert.equal(String(tag.ownerId), String(existing._id));
   });
 
-  await t.test("a legacy `phone`-only row counts as in use", async () => {
+  await t.test("a legacy `phone`-only row with a password counts as in use", async () => {
     // The number the customer lost was stored as a raw 10-digit `phone` with no
     // `mobile` at all, so a guard that only looked at `mobile` would have let
-    // the duplicate through and reproduced the original bug exactly.
+    // the duplicate through and reproduced the original bug exactly. With a
+    // password on it, proving the number is not enough to take that account over.
     await collections.owners.insertOne({
       _id: new ObjectId(), displayName: "Legacy", email: "legacy@example.invalid",
-      phone: PHONE10, credits: 0, role: "owner", createdAt: new Date().toISOString()
+      phone: PHONE10, passwordHash: "existing-credential", credits: 0, role: "owner",
+      createdAt: new Date().toISOString()
     });
-    await seedOtp();
 
-    const response = await app.inject({
-      method: "POST",
-      url: "/api/register-owner",
-      headers: { origin: ORIGIN },
-      payload: {
-        displayName: "Duplicate", email: "dupe@example.invalid",
-        password: "correct-horse-battery", phone: PHONE10,
-        plateNumber: "DL03EF9012", vehicleLabel: "Car", otp: CODE
-      }
-    });
+    const response = await activate("one-number-legacy-pw", "DL03EF9012");
 
     assert.equal(response.statusCode, 409);
     assert.equal(response.json().code, "ACCOUNT_EXISTS");
+    assert.equal(await collections.owners.countDocuments({}), 1);
   });
 });
 

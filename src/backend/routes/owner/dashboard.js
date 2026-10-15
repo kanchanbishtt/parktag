@@ -974,29 +974,6 @@ export function registerOwnerRoutes(app, env) {
   // the shop (rate list); a paid shop order mints a new premium tag and
   // soft-removes the spent free-trial tag. See routes/shop/index.js.
 
-  app.post("/api/owner/tags/:tagId/request-sticker", async (request, reply) => {
-    const blocked = await requireSession(app, "owner")(request, reply);
-    if (blocked) return blocked;
-
-    const collections = await getCollections(env);
-    const ownerId = toObjectId(request.session.userId);
-    const tagId = tryObjectId(request.params.tagId);
-    if (!tagId) { reply.code(400); return { ok: false, error: "Invalid tag id" }; }
-
-    const result = await collections.tags.findOneAndUpdate(
-      { _id: tagId, ownerId },
-      { $set: { stickerRequested: true, printStatus: "pending_print", stickerRequestedAt: new Date().toISOString() } },
-      { returnDocument: "after" }
-    );
-
-    if (!result) {
-      reply.code(404);
-      return { ok: false, error: "Tag not found" };
-    }
-
-    return { ok: true, printStatus: "pending_print" };
-  });
-
   app.post("/api/owner/tags/:tagId/status", async (request, reply) => {
     const blocked = await requireSession(app, "owner")(request, reply);
 

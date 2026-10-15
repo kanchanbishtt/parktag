@@ -348,26 +348,6 @@ export async function buildIssuedTagOutput(request, tag) {
   };
 }
 
-export async function createRegisteredOwnerTag(collections, ownerId, input) {
-  const tag = {
-    _id: new ObjectId(),
-    token: createSecureToken(),
-    ownerId,
-    vehicleLabel: input.vehicleLabel || labelForType(input.vehicleType),
-    vehicleType: input.vehicleType || null,
-    plateNumber: input.plateNumber,
-    status: "active",
-    batchNumber: null,
-    printStatus: Boolean(input.stickerRequested) ? "pending_print" : "not_requested",
-    stickerRequested: Boolean(input.stickerRequested),
-    createdAt: new Date().toISOString(),
-    ...tagLifecycleDefaults()
-  };
-
-  await collections.tags.insertOne(tag);
-  return tag;
-}
-
 // Create (or return existing) a real, scannable E-Tag for one of an owner's
 // vehicles. This replaces the old demo-QR placeholder: every generated E-Tag is
 // now permanently linked to a single vehicle via a 256-bit secure token.

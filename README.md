@@ -317,7 +317,6 @@ The `/verify` page's **Seed demo data** button calls the same API and asks for t
 ### One-off verification scripts
 
 ```bash
-npm run verify:admin-registration   # owner self-registration is visible in admin data
 npm run verify:exotel-call          # live Exotel call test (needs Exotel creds)
 npm run verify:exotel-whatsapp      # posts a scanner message to /api/contact-requests (Meta WhatsApp)
 ```

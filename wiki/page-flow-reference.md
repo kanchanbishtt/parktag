@@ -143,17 +143,19 @@ Expected behavior:
 - `unclaimed` tags return claimable state
 - `active` tags return scanner-safe public info
 
-### `POST /api/tags/:token/claim`
+### `POST /api/tags/:token/activate`
 
 Purpose:
 
-- owner claims an unclaimed tag
+- owner activates an unclaimed tag from the scanner's step wizard (plate, mobile, WhatsApp code)
 
 Expected behavior:
 
-- creates owner record
+- uses the account already on that mobile, or creates one
 - links tag to owner
 - activates tag
+
+The older e-mail-and-password `POST /api/tags/:token/claim` was removed (audit item 18).
 
 ### `POST /api/contact-requests`
 
@@ -165,18 +167,6 @@ Current behavior:
 
 - creates backend request record
 - provider-backed live telephony is not the current active flow
-
-### `POST /api/register-owner`
-
-Purpose:
-
-- owner self-registration path
-
-Expected behavior:
-
-- creates owner account
-- creates active owner-linked tag
-- returns QR output
 
 ### `POST /api/auth/login`
 

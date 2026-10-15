@@ -270,34 +270,11 @@ export function storedPhoneVariants(normalizedMobile) {
   return [normalizedMobile, digits, last10, `+${digits}`, `0${last10}`].filter(Boolean);
 }
 
-// Is this number already attached to an account?
-//
-// The one guard both account-CREATING routes share. /api/register-owner and
-// /api/tags/:token/claim each checked that the e-mail was free and said nothing
-// about the number, so registering a second time with a new address minted
-// another account holding the same mobile. Two rows, one number, and a sign-in
-// lookup that is `findOne` with no sort — so which account the person landed on
-// came down to row order. That is not a hypothetical: it is what put a real
-// customer on an empty dashboard while their tag sat on the other record.
-//
-// Matches `mobile` OR any legacy `phone` spelling, because a duplicate is a
-// duplicate whichever field it landed in.
-//
-// Deliberately NOT anti-enumeration-shy. Every caller runs this AFTER an OTP
-// has proved control of the number, so the person already knows whether it is
-// theirs — telling them an account exists reveals nothing they did not just
-// demonstrate, and the alternative is a silent duplicate.
-export async function findOwnerHoldingMobile(collections, normalizedMobile) {
-  const variants = storedPhoneVariants(normalizedMobile);
-  return collections.owners.findOne({
-    $or: [{ mobile: { $in: variants } }, { phone: { $in: variants } }]
-  });
-}
-
 // Is there ANOTHER account carrying this number that the sign-in just walked
 // past?
 //
-// The guards above stop new splits; they cannot undo one that already exists.
+// resolveOwnerByVerifiedMobile and the `mobile_unique` index stop new splits;
+// they cannot undo one that already exists.
 // When an old row holds the number as a raw `phone` and a newer row holds it as
 // `mobile`, sign-in resolves the newer one and the older one's vehicles simply
 // do not appear — which is precisely the report that started all this, and it
@@ -323,7 +300,7 @@ export async function findShadowedSiblings(collections, normalizedMobile, resolv
 
 // Did this write lose a race to the `mobile_unique` index?
 //
-// findOwnerHoldingMobile closes the gap for anything sequential, but two
+// resolveOwnerByVerifiedMobile closes the gap for anything sequential, but two
 // requests carrying the same number can both pass it and only one can insert.
 // Without this the loser surfaced a raw E11000 as a 500 — a server error for
 // something the system handled exactly right.

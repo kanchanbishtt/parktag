@@ -55,7 +55,6 @@ import { registerMetaWebhookRoutes } from "./routes/webhooks/meta.js";
 import { registerRazorpayWebhookRoutes } from "./routes/webhooks/razorpay.js";
 import { registerPublicRoutes } from "./routes/public/index.js";
 import { registerBackupContactRoutes } from "./routes/public/backup-contact.js";
-import { registerRegistrationRoutes } from "./routes/owner/registration.js";
 import { registerOtpAuthRoutes } from "./routes/auth/otp.js";
 import { registerGoogleAuthRoutes } from "./routes/auth/google.js";
 import { registerFirebasePhoneAuthRoute } from "./routes/auth/firebase.js";
@@ -428,7 +427,7 @@ export async function buildApp() {
     // SAME value for every visitor — so every IP-keyed rate limit
     // (@fastify/rate-limit's default key generator uses `request.ip`)
     // collapses into one shared, site-wide bucket. A single attacker sending
-    // 5 junk POSTs to /api/auth/login (or /send-otp, /register-owner,
+    // 5 junk POSTs to /api/auth/login (or /send-otp, /activate,
     // /forgot-password, etc.) would exhaust that bucket and lock the
     // corresponding action out for every real visitor for the rest of the
     // window — a trivial, cheap denial-of-service against a payments app.
@@ -1633,7 +1632,6 @@ export async function buildApp() {
   registerMetaWebhookRoutes(app, env);
   registerRazorpayWebhookRoutes(app, env);
   registerSlackCommandRoutes(app, env);
-  registerRegistrationRoutes(app, env);
   registerAuthRoutes(app, env);
   registerOtpAuthRoutes(app, env);
   registerGoogleAuthRoutes(app, env);

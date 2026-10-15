@@ -276,6 +276,8 @@ test("site visitors follow the period, and a year counts the 180 days kept", asy
     day: dayKey(back),
     site: "landing",
     path: "/",
+    country: "India",
+    countryCode: "IN",
     visitorHash: `${marker}-${back}`,
     createdAt: new Date(Date.now() - back * DAY)
   })));

@@ -23,7 +23,7 @@ function clearMsg() {
   msgEl.textContent = "";
 }
 
-function renderCounts(totals, range) {
+function renderCounts(totals, range, outsideIndiaHidden = 0) {
   countsEl.replaceChildren();
   const cards = [
     [totals.views, "Page views"],
@@ -33,6 +33,8 @@ function renderCounts(totals, range) {
   // Only worth showing when it is actually happening — a zero here is the
   // normal case and would just be noise.
   if (totals.unknownGeo > 0) cards.push([totals.unknownGeo, "Unresolved"]);
+  // India only is the default; say what that left out so nobody wonders.
+  if (outsideIndiaHidden > 0) cards.push([outsideIndiaHidden, "Outside India (hidden)"]);
 
   for (const [value, label] of cards) {
     const el = document.createElement("div");
@@ -255,7 +257,7 @@ async function load() {
     }
 
     clearMsg();
-    renderCounts(data.totals, data.range);
+    renderCounts(data.totals, data.range, data.outsideIndiaHidden);
 
     bodyEl.replaceChildren();
 

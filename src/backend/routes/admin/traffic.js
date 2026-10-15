@@ -34,16 +34,25 @@ function dayKeyDaysAgo(back) {
 // Landing views only. The app records into the same collection (see
 // recordAppPageVisit), and letting those into this summary would move every
 // historical marketing number the day the app started counting.
-function landingViewFilter(from, to) {
-  return { day: { $gte: from, $lte: to }, site: { $ne: "app" }, path: { $not: PROBE_PATH_RE } };
+//
+// India only by default. ParkTag sells to Indian drivers and every ad targets
+// India, so a view from Brussels or San Jose is a crawler or a scanner on a
+// cloud host (the paths it asks for, /env and /Dockerfile, say so). Left in,
+// they were three quarters of the "visitors". The rows are still recorded;
+// `?country=all` brings them back, and the page says how many are hidden.
+const INDIA = { $or: [{ countryCode: "IN" }, { country: "India" }] };
+
+function landingViewFilter(from, to, scope = "india") {
+  const base = { day: { $gte: from, $lte: to }, site: { $ne: "app" }, path: { $not: PROBE_PATH_RE } };
+  return scope === "all" ? base : { ...base, ...INDIA };
 }
 
 // The headline totals of GET /api/admin/traffic?days=N, for the admin overview.
 // Same window and filter as the page, so the two numbers always agree.
-export async function landingTotals(collections, days) {
+export async function landingTotals(collections, days, scope = "india") {
   const from = dayKeyDaysAgo(days - 1);
   const to = dayKeyDaysAgo(0);
-  const filter = landingViewFilter(from, to);
+  const filter = landingViewFilter(from, to, scope);
   // Counted in the database: the window used to be read row by row into a Set
   // just to learn two numbers. A row with no visitorHash is a view but not a
   // visitor, as before.
@@ -65,7 +74,7 @@ export async function landingTotals(collections, days) {
 // at the volume a marketing page produces, a single find() over an indexed day
 // range is cheaper than several aggregation pipelines, and it keeps the
 // unique-visitor counts exact rather than approximate.
-function summarize(rows, dayKeys) {
+function summarize(rows, dayKeys, unknownGeo = 0) {
   const byCountry = new Map();
   const byCity = new Map();
   const byReferrer = new Map();
@@ -73,7 +82,6 @@ function summarize(rows, dayKeys) {
   const byDevice = new Map();
   const byDay = new Map();
   const visitors = new Set();
-  let unknownGeo = 0;
 
   const bump = (map, key, visitorHash) => {
     let entry = map.get(key);
@@ -90,7 +98,6 @@ function summarize(rows, dayKeys) {
     if (hash) visitors.add(hash);
 
     const country = row.country || null;
-    if (!country) unknownGeo += 1;
 
     bump(byCountry, country || "Unknown", hash);
     // City alone is ambiguous across countries — there is more than one
@@ -207,9 +214,11 @@ export function registerAdminTrafficRoutes(app, env) {
     const from = dayKeys[0];
     const to = dayKeys[dayKeys.length - 1];
 
+    const scope = request.query?.country === "all" ? "all" : "india";
+
     const rows = await collections.landingVisits
       .find(
-        landingViewFilter(from, to),
+        landingViewFilter(from, to, scope),
         {
           // Only what the summary groups on. Keeps a busy month's worth of
           // documents small in memory.
@@ -227,12 +236,23 @@ export function registerAdminTrafficRoutes(app, env) {
       )
       .toArray();
 
+    // What the India filter hides, and the rows whose country could not be
+    // resolved. Both are counted over the whole window, so a geo provider that
+    // stops answering still shows up even though those rows are not Indian.
+    const [allViews, unknownGeo] = await Promise.all([
+      collections.landingVisits.countDocuments(landingViewFilter(from, to, "all")),
+      collections.landingVisits.countDocuments({ ...landingViewFilter(from, to, "all"), country: { $in: [null, ""] } })
+    ]);
+    const outsideIndiaHidden = scope === "all" ? 0 : Math.max(0, allViews - rows.length - unknownGeo);
+
     return {
       ok: true,
       range: { days, from, to },
+      scope,
+      outsideIndiaHidden,
       configured: Boolean(env.analyticsIngestKey),
-      ...summarize(rows, dayKeys),
-      ...(await shopFunnel(collections, dayKeys, from, env))
+      ...summarize(rows, dayKeys, unknownGeo),
+      ...(await shopFunnel(collections, dayKeys, from, env, scope))
     };
   });
 }
@@ -245,10 +265,11 @@ export function registerAdminTrafficRoutes(app, env) {
 // "checkout started" event, and its status becoming paid IS the purchase. So
 // the question the ads keep raising, did anyone who clicked actually try to
 // buy, is answerable from records the checkout was already keeping.
-async function shopFunnel(collections, dayKeys, from, env) {
+async function shopFunnel(collections, dayKeys, from, env, scope = "india") {
+  const appViewFilter = { day: { $gte: dayKeys[0], $lte: dayKeys[dayKeys.length - 1] }, site: "app" };
   const [views, allOrders] = await Promise.all([
     collections.landingVisits
-      .find({ day: { $gte: dayKeys[0], $lte: dayKeys[dayKeys.length - 1] }, site: "app" }, { projection: { _id: 0, day: 1, path: 1 } })
+      .find(scope === "all" ? appViewFilter : { ...appViewFilter, ...INDIA }, { projection: { _id: 0, day: 1, path: 1 } })
       .toArray(),
     // ISO strings throughout the orders collection, so a string bound is the
     // correct comparison here. `from` is an IST day key (YYYY-MM-DD), which

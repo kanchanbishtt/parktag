@@ -134,7 +134,7 @@ test("the print queue reports whether it was cut short, and honours ?limit", asy
 
 test("landing totals are counted in the database and match the traffic page", async () => {
   const day = istDayKey(new Date());
-  const base = { day, site: "landing", path: "/" };
+  const base = { day, site: "landing", path: "/", country: "India", countryCode: "IN" };
   const beforeSummary = (await authed("/api/admin/overview/summary")).json().summary.traffic;
 
   const docs = [

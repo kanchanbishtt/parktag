@@ -102,7 +102,7 @@ function visitShop(url = "/shop", userAgent = BROWSER_UA) {
 function traffic(days = 7) {
   return app.inject({
     method: "GET",
-    url: `/api/admin/traffic?days=${days}`,
+    url: `/api/admin/traffic?days=${days}&country=all`,
     remoteAddress: uniqueAddress(),
     cookies: { wavetag_session: adminCookie }
   });

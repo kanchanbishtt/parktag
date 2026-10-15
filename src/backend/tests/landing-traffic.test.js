@@ -124,10 +124,10 @@ function beacon(body, { key = INGEST_KEY } = {}) {
   });
 }
 
-function traffic(days = 30, { withCookie = true } = {}) {
+function traffic(days = 30, { withCookie = true, country } = {}) {
   return app.inject({
     method: "GET",
-    url: `/api/admin/traffic?days=${days}`,
+    url: `/api/admin/traffic?days=${days}${country ? `&country=${country}` : ""}`,
     remoteAddress: uniqueAddress(),
     ...(withCookie ? { cookies: { wavetag_session: adminCookie } } : {})
   });
@@ -295,8 +295,35 @@ describe("the admin summary", () => {
     await beacon({ ip: "10.0.0.7" });
 
     const data = JSON.parse((await traffic(30)).body);
-    assert.equal(data.totals.unknownGeo, 1);
-    assert.equal(data.countries[0].key, "Unknown");
+    assert.equal(data.totals.unknownGeo, 1, "counted even though India-only hides the row");
+
+    const all = JSON.parse((await traffic(30, { country: "all" })).body);
+    assert.equal(all.countries[0].key, "Unknown");
+  });
+
+  // Crawlers and scanners on cloud hosts abroad were three quarters of the
+  // "visitors". India is the default; ?country=all brings them back.
+  test("views from outside India are hidden by default and counted", async () => {
+    await beacon({ ip: VISITOR_IP });
+    const indian = await collections.landingVisits.findOne({ countryCode: "IN" });
+    const { _id, ...template } = indian;
+    await collections.landingVisits.insertMany([
+      { ...template, country: "Belgium", countryCode: "BE", city: "Brussels", visitorHash: "abroad-1" },
+      { ...template, country: "Belgium", countryCode: "BE", city: "Brussels", visitorHash: "abroad-2" },
+      { ...template, country: "United States", countryCode: "US", city: "San Jose", visitorHash: "abroad-3" }
+    ]);
+
+    const data = JSON.parse((await traffic(30)).body);
+    assert.equal(data.scope, "india");
+    assert.equal(data.totals.views, 1, "only the Indian view is counted");
+    assert.equal(data.totals.visitors, 1);
+    assert.equal(data.outsideIndiaHidden, 3, "the page says what it left out");
+    assert.deepEqual(data.countries.map((c) => c.key), ["India"]);
+
+    const all = JSON.parse((await traffic(30, { country: "all" })).body);
+    assert.equal(all.scope, "all");
+    assert.equal(all.totals.views, 4);
+    assert.equal(all.outsideIndiaHidden, 0);
   });
 
   test("only whitelisted ranges are honoured", async () => {

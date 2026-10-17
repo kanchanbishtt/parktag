@@ -16,6 +16,18 @@ import { burstConfetti, clearConfetti } from "../confetti.js";
 
 const byId = (id) => document.getElementById(id);
 
+// Opened from the Play Store app (scripts/pwa.js decides; it loads first). Play
+// does not allow a subscription sold inside one of its apps other than through
+// its own billing, so there the plans and the button are not shown at all and
+// the note says so. Everything the owner already holds, the included year, the
+// features and each vehicle's cover date, is shown the same as anywhere else.
+const inAndroidApp = () => typeof window.ptInAndroidApp === "function" && window.ptInAndroidApp() === true;
+
+// pwa.js has already hidden the sticky bar; with no bar to clear, the page
+// ends a normal gutter below the note. Set here, before any fetch, so the
+// error path (no network) ends the same way as the rendered one.
+if (inAndroidApp()) document.body.classList.add("mb-no-bar");
+
 // One SVG per feature icon key the server can send. Kept as a lookup rather
 // than built from the label, so an unknown key degrades to a neutral dot
 // instead of throwing and taking the whole grid with it.
@@ -72,6 +84,13 @@ function el(tag, className, text) {
 
 function renderPlans() {
   const host = byId("mbPlans");
+  if (inAndroidApp()) {
+    // Settled and empty, then hidden: no container is left busy (see fill).
+    fill(host, null);
+    host.hidden = true;
+    byId("mbPlansH").hidden = true;
+    return;
+  }
   fill(host, "mb-in-1");
 
   for (const plan of data.plans) {
@@ -127,6 +146,8 @@ function renderVehicles() {
   const wrap = byId("mbVehiclesWrap");
   const host = byId("mbVehicles");
   const tags = data.tags || [];
+  // Shown in the Play app too: picking a vehicle is how its cover date is
+  // read off the note below, and that is information, not a sale.
   if (tags.length < 2) {
     wrap.hidden = true;
     return;
@@ -268,6 +289,27 @@ function renderCta() {
     ? (tag.coveredUntil ? { active: true, currentPeriodEnd: tag.coveredUntil, trial: tag.trial } : null)
     : data.subscription;
   const covered = Boolean(cover && cover.active);
+
+  // In the Play app there is no button to label and no plan to sell. The note
+  // still leads with the date, when there is one: that is what somebody
+  // opening this screen came to find, app or not. No link out to the website
+  // on purpose; Play reads a pointer to another way of paying as a sale.
+  if (inAndroidApp()) {
+    byId("mbCtaBar").hidden = true;
+    cta.disabled = true;
+    const note = byId("mbNote");
+    note.hidden = false;
+    const rest = " Plans are not sold in the ParkTag Android app. Scan alerts, the included " +
+      "features and any cover you already hold carry on exactly as they are.";
+    if (covered && cover.currentPeriodEnd) {
+      const until = formatDate(cover.currentPeriodEnd);
+      const whose = (data.tags || []).length > 1 && tag ? `${vehicleName(tag)}: ` : "";
+      setNote(note, whose + (cover.trial ? `Covered until ${until}.` : `Member until ${until}.`), rest);
+    } else {
+      setNote(note, "Nothing to choose here.", rest);
+    }
+    return;
+  }
   const action = covered ? "Extend Premium" : "Choose Premium";
   byId("mbCtaText").textContent = plan ? `${action}, ₹${plan.priceInr}` : action;
 

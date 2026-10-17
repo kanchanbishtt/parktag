@@ -85,8 +85,15 @@
     <div class="mb-vehicles-list" id="mbVehicles" role="radiogroup" aria-labelledby="mbVehiclesH"></div>
   </section>
 
-  <h2 class="mb-h">Choose Your Plan</h2>
-  <div class="mb-plans" id="mbPlans" role="radiogroup" aria-label="Membership plans" aria-busy="true">
+  <!-- The heading, the plans and the sticky button are kept off the Play
+       Store app: Play's billing policy does not allow a subscription sold in
+       the app any other way. data-hide-in-android-app has scripts/pwa.js hide
+       them the moment the page is parsed, before any data arrives;
+       membership.js (ptInAndroidApp()) then leaves them out of its render and
+       says why in the note. Everything above and below shows there as usual,
+       the vehicle picker included: it shows each vehicle's cover date. -->
+  <h2 class="mb-h" id="mbPlansH" data-hide-in-android-app>Choose Your Plan</h2>
+  <div class="mb-plans" id="mbPlans" data-hide-in-android-app role="radiogroup" aria-label="Membership plans" aria-busy="true">
     <div class="mb-sk mb-sk-plan" aria-hidden="true"></div>
     <div class="mb-sk mb-sk-plan" aria-hidden="true"></div>
     <div class="mb-sk mb-sk-plan" aria-hidden="true"></div>
@@ -113,7 +120,7 @@
 
 <!-- Sticky, like the reference. The label follows the selected plan, so the
      price on the button is always the price of the card that is lit. -->
-<div class="mb-cta-bar">
+<div class="mb-cta-bar" id="mbCtaBar" data-hide-in-android-app>
   <button class="mb-cta" id="mbCta" type="button" disabled>
     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M13 2 4.5 13H11l-1 9 8.5-11H12l1-9z" fill="currentColor"/></svg>
     <span id="mbCtaText">Choose Premium</span>

@@ -360,8 +360,10 @@
       </div>
       <ul class="pt-pr-mem" id="prMembership" hidden></ul>
       <!-- The membership screen, not the shop tab. The shop sells physical
-           tags; plans are their own thing and now have their own page. -->
-      <a class="pt-pr-prem-cta" href="/owner-membership" role="button">View plans</a>
+           tags; plans are their own thing and now have their own page. Not
+           offered inside the Play Store app (scripts/pwa.js hides it as the
+           page is parsed): plans are not sold there. -->
+      <a class="pt-pr-prem-cta" id="prPremCta" href="/owner-membership" role="button" data-hide-in-android-app>View plans</a>
     </section>
 
     <div class="pt-pr-seg" role="tablist" aria-label="Profile sections">

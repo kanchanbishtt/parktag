@@ -16,6 +16,67 @@
 // a plain file. Nothing here is required for the page to work: if anything
 // throws, the dashboard is exactly as it was without this file.
 (function () {
+  // ── Opened from the Play Store app? ─────────────────────────────────────
+  //
+  // The Android app is this site in Chrome with no browser bar (a Trusted Web
+  // Activity). Two things mark a launch from it: the app opens /owner with
+  // ?pt_app=android, and Chrome gives a page an Android app opened the
+  // referrer android-app://<that app's package>. Either is remembered for the
+  // session (sessionStorage belongs to this tab, and the app is one tab), so
+  // the pages it moves on to still know. The package is matched exactly: a
+  // link tapped in WhatsApp also arrives with an android-app:// referrer,
+  // WhatsApp's, and that is an ordinary browser tab.
+  //
+  // What it is for: Play's payment policy does not allow a subscription to be
+  // sold inside a Play app other than through Play's own billing. The
+  // membership screen and the dashboard's "View plans" ask ptInAndroidApp()
+  // and keep the plans out of the app; everything else is the same. The
+  // package name is the constant of the same name in lib/core/pwa.js.
+  var ANDROID_APP_PACKAGE = "me.parktag.app";
+  var APP_FLAG = "pt_android_app";
+
+  function launchedFromAndroidApp() {
+    try {
+      // The marker counts on Android only: the app's launch URL can be copied
+      // and opened on a laptop, and that is a browser tab that may buy plans.
+      var android = /Android/i.test(String(navigator.userAgent || ""));
+      if (android && /[?&]pt_app=android(&|$)/.test(window.location.search)) return true;
+      var ref = String(document.referrer || "");
+      var prefix = "android-app://" + ANDROID_APP_PACKAGE;
+      return ref === prefix || ref.indexOf(prefix + "/") === 0;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  var inAndroidApp = false;
+  try {
+    if (launchedFromAndroidApp()) window.sessionStorage.setItem(APP_FLAG, "1");
+    inAndroidApp = window.sessionStorage.getItem(APP_FLAG) === "1";
+  } catch (e) {
+    // Storage refused (private mode, cleared site data): this page still knows
+    // what it saw, later pages fall back to the ordinary site.
+    inAndroidApp = launchedFromAndroidApp();
+  }
+  window.ptInAndroidApp = function () {
+    return inAndroidApp;
+  };
+
+  // Markup that must not show in the app says so: data-hide-in-android-app on
+  // the dashboard's "View plans" and on the membership plans and their
+  // button. Hidden here, as soon as the page is parsed (this script is
+  // deferred), not when a script further down has its data: a link to the
+  // plans must not be tappable while the dashboard is still loading, nor stay
+  // if that load fails.
+  if (inAndroidApp) {
+    try {
+      var hide = document.querySelectorAll("[data-hide-in-android-app]");
+      for (var i = 0; i < hide.length; i++) hide[i].style.display = "none";
+    } catch (e) {
+      // Nothing to hide on this page.
+    }
+  }
+
   if (!("serviceWorker" in navigator)) return;
 
   window.addEventListener("load", function () {

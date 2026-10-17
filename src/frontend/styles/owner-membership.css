@@ -489,6 +489,11 @@ body {
   font-size: 1rem; font-weight: 800; color: var(--navy); letter-spacing: -.01em;
 }
 .mb-note[hidden] { display: none; }
+/* Inside the Play Store app the plans and the button are not shown at all (the
+   heading needs no rule: it sets no display, so [hidden] alone hides it), and
+   with no bar to clear the page ends a normal gutter below the note. */
+.mb-plans[hidden], .mb-cta-bar[hidden] { display: none; }
+body.mb-no-bar { padding-bottom: calc(28px + env(safe-area-inset-bottom, 0px)); }
 
 /* ── Sticky action ──────────────────────────────────── */
 .mb-cta-bar {

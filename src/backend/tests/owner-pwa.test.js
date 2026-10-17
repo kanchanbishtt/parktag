@@ -13,6 +13,11 @@ import { startTestApp, stopTestApp, createTestOwner, purgeLoginCollections, uniq
 import { createSession } from "../lib/auth/session.js";
 import { renderServiceWorker, serviceWorkerVersion } from "../lib/core/pwa.js";
 
+// No Android app configured in this suite, whatever the machine's .env says:
+// the statement's absence is what one test below checks (android-app.test.js
+// has the configured side).
+process.env.ANDROID_APP_SHA256_FINGERPRINTS = "";
+
 let app;
 let collections;
 let cookie;
@@ -188,6 +193,15 @@ test("the strict sign-in pages can still load the install script", async () => {
   assert.ok(scriptSrc, "a script-src directive");
   assert.match(scriptSrc, /'self'/);
   assert.doesNotMatch(scriptSrc, /'unsafe-inline'/);
+});
+
+test("with no Android app configured there is no asset links statement", async () => {
+  // A missing file is what Android expects from a site with no app; an empty
+  // statement would be a claim about an app that does not exist.
+  const response = await get("/.well-known/assetlinks.json", { headers: { accept: "*/*" } });
+  assert.equal(response.statusCode, 404);
+  assert.match(String(response.headers["content-type"]), /application[/]json/);
+  assert.equal(JSON.parse(response.body).ok, false);
 });
 
 test("the scanner and the shop pages offer no app to install", async () => {

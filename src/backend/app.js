@@ -49,7 +49,7 @@ import { MAX_FILE_BYTES } from "./lib/core/vault.js";
 import { cacheControlFor, resolveAssetVersion } from "./lib/core/asset-version.js";
 import { isQuietUrl, isPublicStaticPath, pathnameOf } from "./lib/core/request-policy.js";
 import { createRenderedFileStore, etagFor, matchesEtag } from "./lib/core/static-pages.js";
-import { renderServiceWorker } from "./lib/core/pwa.js";
+import { renderServiceWorker, assetLinks, normaliseSha256Fingerprint, ANDROID_APP_PACKAGE } from "./lib/core/pwa.js";
 import { stampScriptImports } from "./lib/core/import-stamp.js";
 import { registerProviderRoutes } from "./routes/webhooks/exotel.js";
 import { registerMetaWebhookRoutes } from "./routes/webhooks/meta.js";
@@ -1201,6 +1201,38 @@ export async function buildApp() {
     return servePage(request, reply, offlinePage);
   });
 
+  // The statement that lets the Play Store app (a Trusted Web Activity) show
+  // this site with no browser bar. Android fetches it once per install, so an
+  // hour of caching costs nothing; 404 until ANDROID_APP_SHA256_FINGERPRINTS
+  // is set, because an empty statement is worse than none. See lib/core/pwa.js.
+  const androidAssetLinks = assetLinks({
+    packageName: ANDROID_APP_PACKAGE,
+    fingerprints: env.androidAppSha256Fingerprints
+  });
+  // A fingerprint that was set but is not 32 bytes of hex is dropped from the
+  // statement; said once here, because the only other symptom is a browser bar
+  // on a phone. Counts, not values: a fingerprint is public, a typo of one is
+  // noise in the log.
+  {
+    const configured = env.androidAppSha256Fingerprints.length;
+    const valid = env.androidAppSha256Fingerprints.filter((f) => normaliseSha256Fingerprint(f)).length;
+    if (configured > valid) {
+      app.log.warn(
+        `[android app] ANDROID_APP_SHA256_FINGERPRINTS: ${configured - valid} of ${configured} entries are not a SHA-256 fingerprint and were dropped` +
+        (valid === 0 ? "; /.well-known/assetlinks.json answers 404 until one is valid" : "")
+      );
+    }
+  }
+
+  app.get("/.well-known/assetlinks.json", async (request, reply) => {
+    if (!androidAssetLinks) {
+      reply.code(404);
+      return { ok: false, error: "No Android app is configured." };
+    }
+    reply.header("Cache-Control", "public, max-age=3600");
+    return androidAssetLinks;
+  });
+
   app.get("/verify", async (request, reply) => {
     return servePage(request, reply, verifyPage);
   });
@@ -1264,12 +1296,16 @@ export async function buildApp() {
     return contactCard;
   });
 
+  // The installed app opens here. The Play Store app launches it with
+  // ?pt_app=android, which rides along on the redirect so the first page with
+  // a script on it (scripts/pwa.js) can tell it was opened from that app.
   app.get("/owner", async (request, reply) => {
+    const suffix = request.query && request.query.pt_app === "android" ? "?pt_app=android" : "";
     const session = await readSession(app, request);
     if (!session || session.role !== "owner") {
-      return reply.redirect("/owner-login");
+      return reply.redirect("/owner-login" + suffix);
     }
-    return reply.redirect("/owner-welcome");
+    return reply.redirect("/owner-welcome" + suffix);
   });
 
   // ── /v/:tagId — the vehicle deep link ────────────────────────────────────

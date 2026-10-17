@@ -126,6 +126,18 @@ export function getEnv() {
     emailSmtpPass: process.env.EMAIL_SMTP_PASS || "",
     emailFrom: process.env.EMAIL_FROM || "noreply@parktag.me",
     appBaseUrl: process.env.APP_BASE_URL || "http://localhost:4000",
+    // ── The Android app (Play Store, a Trusted Web Activity) ────────────────
+    // Digital Asset Links: Android opens the app without a browser bar only
+    // once /.well-known/assetlinks.json names the app's package and the
+    // SHA-256 of the certificate it was signed with. The package name is a
+    // constant (lib/core/pwa.js), because scripts/pwa.js has to know the same
+    // name; the fingerprints have no default, and the route answers 404 until
+    // they are set, so a deploy with no Play app serves no statement. Comma or
+    // newline separated (Play Console lists them one per line): the upload key
+    // and Play's app-signing key are both legitimate signers while the listing
+    // is being set up. Malformed entries are dropped and logged at start-up.
+    androidAppSha256Fingerprints: (process.env.ANDROID_APP_SHA256_FINGERPRINTS || "")
+      .split(/[,\r\n]+/).map((f) => f.trim()).filter(Boolean),
     // ── Scheduled campaigns ─────────────────────────────────────────────
     // OFF unless explicitly switched on, and the default is the point. This
     // process sends WhatsApp messages to real customers on a timer, and it also

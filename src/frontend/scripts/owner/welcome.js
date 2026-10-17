@@ -348,6 +348,13 @@ function _memNextTick(views, now) {
   return soonest;
 }
 
+// Opened from the Play Store app (scripts/pwa.js decides). Play allows no
+// digital purchase inside one of its apps other than through its own billing,
+// so the membership plans and the paid callback pass are not sold there and
+// nothing on the screen points at a renewal. Physical tags in the shop tab are
+// goods, and stay.
+const inAndroidApp = () => typeof window.ptInAndroidApp === "function" && window.ptInAndroidApp() === true;
+
 function _memRow(tag, m) {
   const li = document.createElement("li");
   li.className = m.state === "lapsed" ? "pt-pr-mem-row is-lapsed" : "pt-pr-mem-row";
@@ -403,7 +410,12 @@ function _memRow(tag, m) {
   sub.className = "pt-pr-mem-sub";
   const on = m.endsAt ? _memDate(m.endsAt) : null;
   if (m.state === "lapsed") {
-    sub.textContent = "Renew to keep masked calls on this tag.";
+    // Inside the Play Store app nothing on the screen renews (plans are not
+    // sold there, see scripts/pwa.js), so the row states the fact alone
+    // rather than pointing at a step that is not offered.
+    sub.textContent = inAndroidApp()
+      ? "Premium has ended on this tag."
+      : "Renew to keep masked calls on this tag.";
   } else if (m.state === "open") {
     sub.textContent = "Premium, with no end date on this tag.";
   } else if (m.state === "subscribed") {
@@ -1839,8 +1851,12 @@ function renderActivity(requests) {
       const left   = payPrompt ? "Free 10 min over" : callbackTimeLeft(eligible, now);
       // The row is named on both buttons, so a tap reaches the person on the
       // card even if somebody newer has rung in since the page was drawn.
+      // The paid pass is a digital purchase, so inside the Play app the prompt
+      // states that the free time is over and sells nothing.
       const cta    = !_ownerMobile
         ? `<span class="pt-act-nophone" style="flex-shrink:0">Add phone<br>to call back</span>`
+        : payPrompt && inAndroidApp()
+          ? `<span class="pt-act-nophone" style="flex-shrink:0" title="The free 10 minutes are over">Free time<br>used up</span>`
         : payPrompt
           ? `<button class="pt-act-cta pt-act-pay" id="cbPayPrompt" data-request-id="${esc(payPrompt.id)}"
               onclick="payForCallback('cbPayPrompt')" style="flex-shrink:0">Call Back<br><span class="pt-act-pay-amt">${esc(rupees(_callbackPassPaise))}</span></button>`
@@ -1970,6 +1986,9 @@ function renderActivity(requests) {
       // the check is here rather than after the money.
       if (!_ownerMobile) {
         cta = `<span class="pt-act-nophone">Add phone<br>to call back</span>`;
+      } else if (inAndroidApp()) {
+        // A digital purchase: not sold inside the Play app (see inAndroidApp).
+        cta = `<span class="pt-act-nophone" title="The free 10 minutes are over">Free time<br>used up</span>`;
       } else {
         const payId = `cbPay-${r.id}`;
         cta = `<button class="pt-act-cta pt-act-pay" id="${payId}" data-request-id="${esc(r.id)}"
@@ -1979,7 +1998,11 @@ function renderActivity(requests) {
     } else if (blockedOnlySubscription(r)) {
       // Same slot and treatment, different destination: this owner already has
       // the tag, so the thing standing in the way is the subscription.
-      cta = `<button class="pt-act-nophone pt-act-upsell" onclick="switchTab('shop')"
+      // Inside the Play app nothing on the screen renews, so the row states
+      // the fact instead of pointing at a step that is not offered there.
+      cta = inAndroidApp()
+        ? `<span class="pt-act-nophone" title="Your call service for this vehicle has ended">Call service<br>ended</span>`
+        : `<button class="pt-act-nophone pt-act-upsell" onclick="switchTab('shop')"
         title="Your call service for this vehicle has ended">Renew<br>to call back</button>`;
     } else if (canCallBack(r)) {
       if (!_ownerMobile) {

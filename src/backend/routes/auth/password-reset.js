@@ -1,5 +1,6 @@
 import { requestPasswordReset, resetPassword } from "../../lib/auth/password-reset.js";
 import { clientErrorMessage } from "../../lib/errors.js";
+import { createSession, revokeSessionsForUser, writeSessionCookie } from "../../lib/auth/session.js";
 
 export function registerPasswordResetRoutes(app, env) {
   app.post("/api/auth/forgot-password", { config: { rateLimit: { max: 3, timeWindow: "1 hour" } } }, async (request, reply) => {
@@ -37,9 +38,9 @@ export function registerPasswordResetRoutes(app, env) {
       return { ok: false, error: "Token and password are required" };
     }
 
+    let owner;
     try {
-      await resetPassword(env, token, password);
-      return { ok: true, message: "Password updated successfully." };
+      ({ owner } = await resetPassword(env, token, password));
     } catch (error) {
       reply.code(400);
       // Only the deliberate, user-facing messages from resetPassword (expired
@@ -55,5 +56,38 @@ export function registerPasswordResetRoutes(app, env) {
         )
       };
     }
+
+    // The reset just signed this account out everywhere. The device that
+    // proved it owns the email is the one device to trust, so it is signed in
+    // here with a brand-new session rather than sent to the sign-in screen to
+    // type the password it chose a second ago. A new id means nothing from
+    // before the reset carries over. Best-effort: the password is already
+    // changed, so a session that cannot be minted still leaves a working
+    // account, and the page falls back to its "sign in" link.
+    // Every session the account had, gone: the Mongo rows and this instance's
+    // cache, so a stolen session hitting this replica dies now rather than at
+    // the next 30-second re-check. Other replicas still re-check within that
+    // window. Done here rather than in resetPassword() because only the route
+    // holds the app, and the cache is what makes "now" true.
+    await revokeSessionsForUser(app, owner._id);
+
+    let signedIn = false;
+    try {
+      const sessionId = await createSession(app, {
+        id: String(owner._id),
+        role: "owner",
+        email: owner.email,
+        signInIdentifier: owner.email,
+        displayName: owner.displayName || null,
+        signInMethod: "password_reset",
+        request
+      });
+      writeSessionCookie(reply, sessionId, env.runtimeMode === "production", "owner");
+      signedIn = true;
+    } catch (error) {
+      request.log.error({ err: error }, "[password-reset] sign-in after reset failed");
+    }
+
+    return { ok: true, signedIn, message: "Password updated successfully." };
   });
 }

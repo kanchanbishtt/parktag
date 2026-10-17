@@ -64,6 +64,11 @@ async function handleResetPassword() {
     }
 
     byId("reset-form-shell").hidden = true;
+    if (data.signedIn === false) {
+      byId("reset-success-copy").textContent =
+        "Your password has been changed. Every other device has been signed out. Sign in with your new password.";
+      byId("reset-success-link").textContent = "Go to sign in";
+    }
     byId("reset-success-shell").hidden = false;
   } catch {
     if (btn) { btn.disabled = false; btn.textContent = "Update password"; }

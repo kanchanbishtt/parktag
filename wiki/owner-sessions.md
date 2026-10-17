@@ -23,3 +23,14 @@ The cookie is set once for the longest a session could last. Sliding only the se
 Owners signed in before this deploy still hold browser-session cookies. Their server rows slide, but the cookie still ends with the browser once more. After their next sign-in, they stay signed in.
 
 Tests: `src/backend/tests/owner-stay-signed-in.test.js`.
+
+## After a password reset (2026-10-16)
+
+A reset is the standard answer to "someone else may be in my account", so the route treats it as a credential change, not a password edit:
+
+- Every session the account had is revoked through `revokeSessionsForUser()` in the route (Mongo rows plus this instance's cache). Other replicas drop their cached copy within the 30-second re-check.
+- The device that opened the emailed link is signed in on the spot with a brand-new session id (`owner_signed_in`, method `password_reset`), same 30-day idle and 180-day cap as any sign-in. It is sent to the dashboard, not back to the sign-in screen.
+- Every unused reset link for that address is burnt, not only the one used.
+- The owner gets "Your ParkTag password was changed" with a button to reset again, which is the undo for a reset they did not make.
+- Changing the password while signed in (settings) is a different path and keeps the current session; that is what `revokeOtherSessionsForUser()` is for, as the login PIN screen already does.
+

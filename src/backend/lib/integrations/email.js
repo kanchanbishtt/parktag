@@ -302,6 +302,47 @@ export async function sendPasswordResetEmail(env, { to, resetUrl }) {
 // and never added a number had NO confirmation at all before this existed —
 // the WhatsApp path had nothing to send to, logged "undeliverable", and
 // returned, on a purchase that had already taken their money.
+// Sent after a password reset has gone through. Whoever did it, the owner
+// should hear about it: a reset they made is confirmed, and one they did not
+// make is the one message that lets them act. Pure, so it can be tested without
+// a mail server; sendPasswordChangedEmail() wraps it in the transport.
+export function buildPasswordChangedEmail(env, { name } = {}) {
+  const safeName = escapeHtml(name || "there");
+  const signInUrl = `${appBase(env)}/owner-login`;
+  const forgotUrl = `${appBase(env)}/forgot-password`;
+  return {
+    subject: "Your ParkTag password was changed",
+    html: shell(env, {
+      preheader: "Your password was changed and other devices were signed out.",
+      title: "Your password was changed",
+      body: `
+        <p style="margin:0 0 12px;color:${BRAND.body};line-height:1.6">Hi ${safeName}, the password for your ParkTag owner account was just changed. Every other device was signed out; only the device that made the change stays signed in.</p>
+        <p style="margin:0 0 12px;color:${BRAND.body};line-height:1.6">If this was you, there is nothing else to do.</p>
+        <p style="margin:0;color:${BRAND.ink};line-height:1.6;font-weight:700">If this was not you, reset your password again right away. That signs out whoever did this.</p>
+        ${button(forgotUrl, "Reset my password", BRAND.red)}
+        <p style="margin:12px 0 0;color:#8A97AB;font-size:12px;line-height:1.6">Or sign in as usual at <a href="${signInUrl}" style="color:#8A97AB">${signInUrl}</a>.</p>
+      `
+    })
+  };
+}
+
+export async function sendPasswordChangedEmail(env, { to, name }) {
+  if (!isEmailConfigured(env)) {
+    if (env.runtimeMode !== "production") {
+      console.log(`\n[ParkTag] Dev password-changed notice for ${maskIdentifier(to)}\n`);
+      return;
+    }
+    throw new Error("Email is not configured on this server.");
+  }
+  const { subject, html } = buildPasswordChangedEmail(env, { name });
+  await createTransport(env).sendMail({
+    from: env.emailFrom || "ParkTag <noreply@parktag.me>",
+    to,
+    subject,
+    html
+  });
+}
+
 export async function sendMembershipConfirmationEmail(env, { to, name, planLabel, endsOn, orderNumber }) {
   if (!isEmailConfigured(env)) {
     if (env.runtimeMode !== "production") {

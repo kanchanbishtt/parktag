@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import { getCollections } from "../db/repositories.js";
 import { createPasswordHash, isNonEmptyString, redactText } from "./security.js";
 import { clientError } from "../errors.js";
-import { sendPasswordResetEmail } from "../integrations/email.js";
+import { sendPasswordResetEmail, sendPasswordChangedEmail } from "../integrations/email.js";
 import { findByCanonicalEmail } from "./identity.js";
 
 const TOKEN_EXPIRY_MS = 15 * 60 * 1000;   // 15 minutes — keep the reset window short-lived
@@ -120,21 +120,33 @@ export async function resetPassword(env, token, newPassword) {
     { $set: { passwordHash: await createPasswordHash(newPassword) } }
   );
 
-  // Revoke every existing session for this account. A password reset is the
-  // standard response to a suspected compromise, so any session that was stolen
-  // (or is still open on a device the user no longer controls) must stop
-  // working — otherwise it would survive for up to its 7-day TTL. Sessions are
-  // keyed by userId = String(owner._id) across every login method. In-memory
-  // caches on running instances drop these within CACHE_REVALIDATE_MS (see
-  // session.js), since the docs no longer exist in Mongo to re-validate against.
-  await collections.sessions
-    .deleteMany({ userId: String(owner._id) })
-    .catch(() => {});
+  // Every session the account has is revoked by the ROUTE, not here, through
+  // revokeSessionsForUser(): it needs the app (the in-process session cache)
+  // and this module has only the env. A password reset is the standard
+  // response to a suspected compromise, so a stolen session must stop working
+  // at once, not at the next 30-second cache re-check. This used to delete the
+  // Mongo rows itself, which left the cache warm and, worse, left the
+  // cache-aware revoke nothing to evict (it reads the ids from Mongo first).
+  // The owner is handed back so the route can do both the revoke and the
+  // fresh sign-in for the device that proved it owns the email.
 
-  await collections.passwordResetTokens.updateOne(
-    { _id: record._id },
-    { $set: { used: true, usedAt: new Date().toISOString() } }
+  // Burn every unused link for this address, not only the one just used. Two
+  // requests in a row mean two live links; after the first reset the second
+  // would still have set a password, which is a reset link outliving the
+  // reset it was meant for.
+  const usedAt = new Date().toISOString();
+  await collections.passwordResetTokens.updateMany(
+    { email: record.email, used: false },
+    { $set: { used: true, usedAt } }
   );
 
-  return { ok: true };
+  // Tell the owner, whether or not it was them. Detached like the reset mail:
+  // the password is already changed, and a slow or failing mail server must
+  // not turn a finished reset into an error on the screen.
+  const notifyTo = owner.email || record.email;
+  sendPasswordChangedEmail(env, { to: notifyTo, name: owner.displayName }).catch((err) => {
+    console.error("[password-reset] changed-password email failed:", redactText(err?.message || String(err)));
+  });
+
+  return { ok: true, owner };
 }

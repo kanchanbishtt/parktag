@@ -126,14 +126,19 @@
               </div>
             </div>
 
-            <!-- Slide 2 -->
+            <!-- Slide 2: Refer & Earn. The whole picture is a link to the
+                 referral card below the vehicles (the "Give ₹X, get a free
+                 month" offer), the same on phone and desktop; goToReferral()
+                 scrolls there and does nothing while the card is hidden. -->
             <div class="pt-car-slide">
-              <picture class="pt-slide-pic">
-                <source media="(min-width: 600px)" srcset="/images/banner-2-desktop.webp"
-                        width="2480" height="1085">
-                <img class="pt-slide-photo" src="/images/banner-2.webp"
-                     width="1134" height="496" alt="ParkTag banner 2">
-              </picture>
+              <a class="pt-slide-link" href="#referralCard" onclick="return goToReferral(event)">
+                <picture class="pt-slide-pic">
+                  <source media="(min-width: 600px)" srcset="/images/banner-2-desktop.webp"
+                          width="2480" height="1085">
+                  <img class="pt-slide-photo" src="/images/banner-2.webp"
+                       width="1134" height="496" alt="Refer and earn: give your friend a discount, get a free month">
+                </picture>
+              </a>
             </div>
 
             <!-- Slide 3 -->

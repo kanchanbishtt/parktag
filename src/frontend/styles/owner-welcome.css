@@ -1677,6 +1677,16 @@
   margin-top: 20px; background: #FFF5F3; border: 1.5px solid #FECACA;
   border-radius: 16px; padding: 18px 16px 14px;
 }
+/* The Refer & Earn banner slide is a link to this card; the whole picture is the target. */
+.pt-slide-link { display: block; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.pt-slide-link:focus-visible { outline: 3px solid #FF2700; outline-offset: -3px; }
+/* One lift when the banner brings someone here, so the card is found at a glance. */
+.pt-ref-flash { animation: pt-ref-flash 1.2s ease-out; }
+@keyframes pt-ref-flash {
+  0%   { box-shadow: 0 0 0 0 rgba(255,39,0,.55); }
+  100% { box-shadow: 0 0 0 14px rgba(255,39,0,0); }
+}
+@media (prefers-reduced-motion: reduce) { .pt-ref-flash { animation: none; } }
 .pt-ref-title { font-size: 1.1rem; font-weight: 900; color: #03162D; margin: 0 0 6px; }
 .pt-ref-sub   { font-size: .82rem; color: #374151; margin: 0 0 12px; line-height: 1.55; font-weight: 500; }
 .pt-ref-earned { font-size: .82rem; color: #17663A; margin: -4px 0 12px; line-height: 1.55; font-weight: 700; }

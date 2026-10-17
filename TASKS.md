@@ -1435,6 +1435,12 @@ Branch `feat/owner-pwa` (worktree `parktag-pwa`, off origin/main d484fc8). Stage
 - [ ] Live, after deploy (cannot be done headless): install from Android Chrome and iPhone Safari; open the installed app in flight mode; from the installed app try Continue with Google and a Razorpay netbanking payment (both leave the origin and must come back).
 - [ ] Later, not in this change: Play Store listing via Bubblewrap/TWA (`/.well-known/assetlinks.json` + Play account); push notifications (WhatsApp already delivers scan alerts).
 
+## Refer & Earn banner links to the referral offer, 2026-10-16
+
+- [x] Dashboard carousel slide 2 (`banner-2.webp` / `banner-2-desktop.webp`, "Good Drivers Know Good People. Refer & Earn") is now a link: the whole picture, phone and desktop cuts alike, is an `<a class="pt-slide-link" href="#referralCard">` that calls `goToReferral()` (`welcome.js`). It scrolls the "Give ₹X, get a free month" card into view, centred, with a one-second red lift (`.pt-ref-flash`, off under reduced motion) so the offer is found at a glance; the URL does not jump to `#referralCard`. A hidden card (no code minted) makes the tap a no-op.
+- [x] `referral-card.test.js`: +2 (slide 2 wraps both artwork cuts in the link; the function scrolls and flashes when the card is shown and does nothing while hidden). Related suites 53/53.
+- [x] Headless Chrome on the dev server, signed in, 390 px and 1280 px: the card starts below the fold, clicking the slide brings it fully into view with the highlight, URL unchanged, no page errors.
+
 ## Password reset: sign out every other device, sign this one in, 2026-10-16
 
 Branch `feat/password-reset-signs-in` (off origin/main d484fc8). What modern apps do after a reset, and what the reset route did only in part.

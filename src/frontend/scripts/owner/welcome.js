@@ -2317,6 +2317,22 @@ async function shareReferral() {
 }
 window.shareReferral = shareReferral;
 
+// The Refer & Earn banner slide links here. Scrolls the referral card into
+// view and lifts it for a moment so the eye lands on the offer, instead of the
+// jump a bare #referralCard link makes. A hidden card (the server could not
+// mint a code) has nothing to show, so the tap does nothing.
+function goToReferral(event) {
+  if (event) event.preventDefault();
+  const card = document.getElementById("referralCard");
+  if (!card || card.hidden) return false;
+  card.scrollIntoView({ behavior: "smooth", block: "center" });
+  card.classList.remove("pt-ref-flash");
+  void card.offsetWidth; // restart the animation on a second tap
+  card.classList.add("pt-ref-flash");
+  return false;
+}
+window.goToReferral = goToReferral;
+
 async function callBack(btnId = "cbBtn") {
   const btn = document.getElementById(btnId);
   // Markup, not text: the ₹20 button hands over to this handler when the

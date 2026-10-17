@@ -113,3 +113,35 @@ test("the earnings line has a place in the card, hidden until it has something t
   const markup = html.slice(html.indexOf('id="referralCard"'), html.indexOf("</section>", html.indexOf('id="referralCard"')));
   assert.match(markup, /<p class="pt-ref-earned" id="refEarned"[^>]*\bhidden><\/p>/);
 });
+
+test("the Refer & Earn banner links to the card, on phone and desktop alike", () => {
+  const slide = html.slice(html.indexOf("<!-- Slide 2"), html.indexOf("<!-- Slide 3"));
+  assert.match(slide, /<a class="pt-slide-link" href="#referralCard" onclick="return goToReferral\(event\)">/);
+  // Both cuts of the artwork sit inside the one link.
+  assert.match(slide, /<source media="\(min-width: 600px\)" srcset="\/images\/banner-2-desktop\.webp"/);
+  assert.match(slide, /<img class="pt-slide-photo" src="\/images\/banner-2\.webp"/);
+  assert.match(slide, /<\/picture>\s*<\/a>/);
+  assert.match(js, /window\.goToReferral = goToReferral;/);
+});
+
+test("the banner link scrolls to the card, and does nothing while the card is hidden", () => {
+  const calls = [];
+  const card = {
+    hidden: true,
+    offsetWidth: 1,
+    classList: { add: (c) => calls.push("add:" + c), remove: (c) => calls.push("remove:" + c) },
+    scrollIntoView: (o) => calls.push("scroll:" + o.block)
+  };
+  const context = vm.createContext({ document: { getElementById: (id) => (id === "referralCard" ? card : null) } });
+  vm.runInContext(between("function goToReferral(", "window.goToReferral = goToReferral;"), context);
+  let prevented = 0;
+  const event = { preventDefault: () => { prevented += 1; } };
+
+  assert.equal(context.goToReferral(event), false);
+  assert.equal(prevented, 1, "the bare #referralCard jump is suppressed even when there is nothing to show");
+  assert.deepEqual(calls, []);
+
+  card.hidden = false;
+  assert.equal(context.goToReferral(event), false);
+  assert.deepEqual(calls, ["scroll:center", "remove:pt-ref-flash", "add:pt-ref-flash"]);
+});

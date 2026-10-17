@@ -48,7 +48,8 @@ import { registerCallbackPassRoutes } from "./routes/owner/callback-pass.js";
 import { MAX_FILE_BYTES } from "./lib/core/vault.js";
 import { cacheControlFor, resolveAssetVersion } from "./lib/core/asset-version.js";
 import { isQuietUrl, isPublicStaticPath, pathnameOf } from "./lib/core/request-policy.js";
-import { createRenderedFileStore, matchesEtag } from "./lib/core/static-pages.js";
+import { createRenderedFileStore, etagFor, matchesEtag } from "./lib/core/static-pages.js";
+import { renderServiceWorker } from "./lib/core/pwa.js";
 import { stampScriptImports } from "./lib/core/import-stamp.js";
 import { registerProviderRoutes } from "./routes/webhooks/exotel.js";
 import { registerMetaWebhookRoutes } from "./routes/webhooks/meta.js";
@@ -74,7 +75,11 @@ const pagesRoot = path.join(frontendRoot, "pages");
 // placeholders that are filled from env per request, and anything under
 // frontendRoot is also reachable raw through fastifyStatic.
 const analyticsAsset = path.join(currentDir, "assets/analytics.js");
+// Same reason: the owner app's service worker is stamped with a version on the
+// way out (see /sw.js below), so its source must not be reachable unstamped.
+const serviceWorkerAsset = path.join(currentDir, "assets/sw.js");
 const scannerPage = path.join(pagesRoot, "scanner/index.html");
+const offlinePage = path.join(pagesRoot, "offline.html");
 const notFoundPage = path.join(pagesRoot, "not-found.html");
 const verifyPage = path.join(pagesRoot, "scanner/verify.html");
 const trackOrderPage = path.join(pagesRoot, "scanner/track-order.html");
@@ -1161,6 +1166,39 @@ export async function buildApp() {
       return reply.code(304).send();
     }
     return bundle.body;
+  });
+
+  // ── The owner app's service worker and offline page ───────────────────────
+  //
+  // /sw.js has to be served from the root: a worker's scope cannot reach above
+  // the path it was loaded from, and the owner pages live at /owner-*. The
+  // source sits under src/backend/assets (not reachable raw), and the version
+  // stamped into it folds in the offline page, so editing either file makes
+  // the browser install a fresh worker. `no-cache`, so a deploy is picked up
+  // on the next visit rather than after the browser's 24-hour cap; the ETag
+  // turns that check into a 304. See lib/core/pwa.js and wiki/owner-pwa.md.
+  const loadServiceWorkerSource = createRenderedFileStore({ memoize: isProduction });
+
+  app.get("/sw.js", async (request, reply) => {
+    const [source, offline] = await Promise.all([
+      loadServiceWorkerSource(serviceWorkerAsset),
+      loadPage(offlinePage)
+    ]);
+    const body = renderServiceWorker(source.body, { assetVersion, offlineHtml: offline.body });
+    const etag = etagFor(body);
+    reply.type("text/javascript; charset=utf-8");
+    reply.header("Cache-Control", "no-cache");
+    reply.header("ETag", etag);
+    if (matchesEtag(request.headers["if-none-match"], etag)) {
+      return reply.code(304).send();
+    }
+    return body;
+  });
+
+  // What the worker shows when the phone has no connection. A public shell
+  // like /verify: the worker fetches it once at install and keeps its own copy.
+  app.get("/offline", async (request, reply) => {
+    return servePage(request, reply, offlinePage);
   });
 
   app.get("/verify", async (request, reply) => {

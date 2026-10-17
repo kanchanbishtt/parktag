@@ -7,6 +7,12 @@
   <link rel="icon" href="/favicon.ico" sizes="32x32" />
   <link rel="icon" href="/images/icon.png" type="image/png" />
   <link rel="apple-touch-icon" href="/images/apple-touch-icon.png" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="ParkTag" />
+  <script src="/scripts/pwa.js?v=__ASSET_VERSION__" defer></script>
   <link rel="stylesheet" href="/styles/styles.css?v=__ASSET_VERSION__"/>
   <!-- Blocking, in the head, on purpose: it decides which view is visible
        BEFORE the first paint. See the file for why it is not inline. -->
@@ -1130,6 +1136,19 @@
       <span class="pt-mi-ar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>
     </div>
 
+    <!-- ── App ── Shown only once the browser has offered to install the
+         dashboard (see scripts/pwa.js); stays hidden on iPhone and when
+         already running as the installed app. -->
+    <div id="menuInstallRow" style="display:none">
+      <div class="pt-msec"><span class="pt-msec-l">App</span></div>
+      <div class="pt-mi-a" onclick="ptInstallApp()" style="cursor:pointer" role="button" tabindex="0">
+        <div class="pt-mi-ic" style="background:#E0F2FE;color:#0369A1">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="5" y="2" width="14" height="20" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M12 7v7M9 11l3 3 3-3M11 18h2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <span class="pt-mi-lb">Install the ParkTag app</span>
+        <span class="pt-mi-ar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>
+      </div>
+    </div>
     <div style="height:8px"></div>
   </div><!-- /pt-menu-bd -->
 

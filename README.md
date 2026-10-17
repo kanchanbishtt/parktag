@@ -493,7 +493,8 @@ Production runs on **Railway** at `https://app.parktag.me`.
 
 ## Project status
 
-MVP is essentially feature-complete and verified. Milestone tracker: `TASKS.md`.
+Live in production at `https://app.parktag.me`, selling and shipping tags. Tracker: `TASKS.md`
+(numbered milestones M1–M19, then dated sections for later work).
 
 - ✅ **M1–M19** — backend, scanner/owner/admin flows, Exotel calls, Meta WhatsApp
   messaging, owner vehicle management, server-locked shop pricing, print-queue split,
@@ -505,5 +506,20 @@ MVP is essentially feature-complete and verified. Milestone tracker: `TASKS.md`.
   and ignores any client `amount`. Orders are persisted to `shop_orders`, and
   `verify-payment` re-checks the paid order against the catalog price before granting —
   a valid signature on an unknown or mispriced order is rejected. -->
-- 📝 **Pending — owner dashboard banner carousel (M14):** the carousel still shows placeholder
-  slides; real content/artwork is outstanding.
+- ✅ **Since M19** — public storefronts (`/get`, `/shop`, `/direct`) with guest checkout, cash
+  on delivery and Delhivery shipping; promo codes, website offers and referrals; premium
+  memberships and the document vault; the backup number and the Tag Active / Calls Active
+  switches; door-hanger stock with two free calls; admin Orders, Activations, Tag Reports,
+  Traffic, Marketing, Promo Codes and sticker designer pages; the admin MCP server and API
+  tokens; Slack operator commands; Mixpanel, GA4 / Meta Pixel / Conversions API and Sentry.
+- 📝 **Open** (details in `TASKS.md`):
+  - Exotel: the flow sends no status callback to `/api/provider/exotel/webhook`, so live calls
+    stay at "connecting" and call outcomes are not recorded. The Connect applet's ring time
+    for the backup number is also unchecked.
+  - Live checks for M18 (a premium purchase that replaces a free tag) and M19 (the ₹20 paid
+    callback).
+  - Deploy the landing site (`landing/`) so its COD line and FAQ show current prices.
+  - Switch Meta ad optimisation from View Content to Purchase.
+  - Print Batch 003 (the door-hanger campaign, 1000 car tags).
+  - Decide whether the owner pages' sticker picture follows the live sticker design.
+  - A few production follow-ups on individual customer reports.

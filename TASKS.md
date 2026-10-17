@@ -781,7 +781,7 @@ Covers UX and security improvements made after M13 call flow was confirmed worki
 ### Pending
 - [x] Set `EXOTEL_STATUS_CALLBACK_URL=https://app.parktag.me/api/provider/exotel/webhook` in Railway env vars — needed for post-call status tracking (call duration, connected/missed); not required for call bridging itself
 - [x] Add Google Cloud Console Authorized JS Origins: `https://app.parktag.me` — needed for popup-based Google Sign-In
-- [ ] Banner carousel — replace placeholder slides with real content
+- [x] Banner carousel — replace placeholder slides with real content (three real banners, `images/banner-1..3.webp`, in `welcome.html`; found done during audit item 22)
 - [x] "Add phone to call back" text in activity cards → make clickable, navigate to phone setup via `goToPhoneSetup()`
 
 ## M15. Lock Shop Payment Amounts Server-Side

@@ -165,6 +165,39 @@ it ever fails, either drop the `https` intent filter from the generated
 marker) or add a second signal (`navigator.getInstalledRelatedApps()` with a
 `related_applications` entry in the manifest).
 
+### What the first phone test showed, and what changed
+
+The app opened barless with the navy status bar: the asset links worked. But
+it still felt like Chrome, for reasons that were the page's, not the
+wrapper's. A Trusted Web Activity has no interface of its own, so whatever
+the page does not override behaves like a browser tab.
+
+- **"Refreshing…" stayed open on the dashboard.** The dashboard has its own
+  pull-to-refresh (`welcome.js`), and Chrome's native one took the same drag.
+  When the browser takes a gesture over it ends the touch sequence with
+  `touchcancel`, which the page did not listen for, so the indicator never
+  closed; and both refreshes ran. Now `owner-welcome.css` turns the browser's
+  off on that page (`overscroll-behavior-y: none`) and a cancelled drag closes
+  the indicator without refreshing.
+- **Rubber-band and selection handles.** `scripts/pwa.js` puts
+  `pt-android-app` on `<html>` inside the app, and `styles.css` keys app-only
+  rules off it (and off `display-mode: standalone`, which the TWA and the
+  installed PWA both match): no overscroll bounce, and no text selection or
+  long-press sheet on the page's chrome (header, buttons, nav). Content stays
+  selectable.
+- **The logo opened the marketing site as a Chrome tab.** Every owner page's
+  logo links to `https://parktag.me`, another host, which inside the app opens
+  as a Custom Tab with a toolbar. In the app `pwa.js` points the logo at
+  `/owner`, which is home. The Terms, Privacy, Refund and Contact rows in the
+  profile still open the marketing site; those are information and may show
+  a toolbar.
+- **Unavoidable:** the one-time "Running in Chrome" notice on first launch,
+  and the Chrome toolbar during Google sign-in (not our page).
+
+Tested without a phone: `tests/owner-app-feel.test.js` runs the
+pull-to-refresh block and `pwa.js` in a vm; the headless QA dispatches a
+cancelled touch sequence to the real page and checks the line closes.
+
 ### Building and publishing the app
 
 Done once on 2026-10-17 (steps 1 to 3); the project, toolchain and keystore

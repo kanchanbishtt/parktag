@@ -3037,6 +3037,19 @@ document.addEventListener("touchend", () => {
   ptrStartY = 0;
 });
 
+// A drag the browser takes over (its own pull-to-refresh, a scroll it decides
+// to own) ends in touchcancel, not touchend, and this used to leave the
+// "Refreshing…" line open for good. Inside the installed app that was every
+// pull. The browser's refresh is now switched off on this page
+// (overscroll-behavior in owner-welcome.css), and a cancelled drag closes the
+// indicator without refreshing: the browser did not hand the gesture back.
+document.addEventListener("touchcancel", () => {
+  if (!ptrEl) return;
+  ptrEl.classList.remove("visible");
+  ptrTriggered = false;
+  ptrStartY = 0;
+});
+
 // ── Burger menu ────────────────────────────────────────────────────
 
 function _vKey(tag) {

@@ -75,6 +75,23 @@
     } catch (e) {
       // Nothing to hide on this page.
     }
+    // The stylesheet keys app-only rules off this class (no rubber-band, no
+    // selection handles on the page's chrome); see styles.css.
+    try {
+      document.documentElement.classList.add("pt-android-app");
+    } catch (e) {
+      // No document element to mark.
+    }
+    // The logo on every owner page links to the marketing site, which inside
+    // the app opens as a Chrome tab with its own toolbar. In the app the logo
+    // is the way home: /owner sends a signed-in owner to the dashboard and
+    // anyone else to sign-in.
+    try {
+      var home = document.querySelectorAll('a[aria-label="ParkTag home"]');
+      for (var j = 0; j < home.length; j++) home[j].setAttribute("href", "/owner");
+    } catch (e) {
+      // No logo link on this page.
+    }
   }
 
   if (!("serviceWorker" in navigator)) return;

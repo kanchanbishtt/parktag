@@ -114,6 +114,10 @@
   }
 
   /* ── Pull-to-refresh ───────────────────────────── */
+  /* The page has its own pull-to-refresh (welcome.js), so the browser's must
+     not run on the same drag: Chrome's reloads the whole page, and when it
+     takes the gesture over it cancels the touch sequence under ours. */
+  html, body { overscroll-behavior-y: none; }
   .pt-ptr {
     display: flex; align-items: center; justify-content: center; gap: 8px;
     height: 0; overflow: hidden; transition: height .2s ease;

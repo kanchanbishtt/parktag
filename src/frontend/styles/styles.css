@@ -4243,3 +4243,23 @@ body.pt-nav-open { overflow: hidden; }
 .pt-report-back:focus-visible {
   color: #16283F;
 }
+/* ── Inside the installed app ─────────────────────────────────────────────
+   The Play Store app is Chrome with no address bar (a Trusted Web Activity),
+   so what the page does not override still behaves like a browser tab.
+   scripts/pwa.js puts pt-android-app on <html> when it was opened from the
+   app; display-mode: standalone also matches there and in the installed PWA.
+   No rubber-band or pull-to-refresh reload, and no text-selection handles or
+   long-press sheet on the chrome of the page (header, buttons, nav). Content
+   such as plates, codes and messages stays selectable. */
+@media (display-mode: standalone) {
+  html, body { overscroll-behavior-y: none; }
+}
+html.pt-android-app, html.pt-android-app body { overscroll-behavior-y: none; }
+html.pt-android-app button,
+html.pt-android-app nav,
+html.pt-android-app header,
+html.pt-android-app .pt-wh,
+html.pt-android-app .pt-bottom-nav,
+html.pt-android-app a[role="button"] {
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+}

@@ -153,6 +153,13 @@ export function getEnv() {
     // template fails every time, and a MARKETING one needs consent this
     // campaign does not check. See lib/core/campaigns/review-request.js.
     reviewRequestsEnabled: process.env.REVIEW_REQUESTS_ENABLED === "1",
+    // The activation-reminder campaign's own switch, for the same reason as the
+    // review request above: sendOnce() claims its dedupe row BEFORE the send and
+    // never retries, so a send against a template that is not yet approved would
+    // permanently burn each order (one failed attempt, no reminder ever). Keep
+    // this off until Meta shows parktag_activation_reminder as APPROVED and
+    // UTILITY. See lib/core/campaigns/activation-reminder.js.
+    activationRemindersEnabled: process.env.ACTIVATION_REMINDERS_ENABLED === "1",
     // The marketing site, a separate Railway service. Used to recognise our own
     // host so an internal link is not counted as an inbound traffic source.
     landingBaseUrl: process.env.LANDING_BASE_URL || "",
@@ -237,6 +244,17 @@ export function getEnv() {
     // dashboard. Without it the webhook refuses every callback, and a paid
     // order whose buyer closed the tab is never fulfilled.
     razorpayWebhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET || "",
+    // Auto-renew (Razorpay Subscriptions). The ids of the recurring PLANS created
+    // out of band (scripts/create-subscription-plans.js) — their prices live in
+    // Razorpay, never here. The switch is off until those plans exist AND auto
+    // renew has been verified in test mode: a subscribe call needs a real plan
+    // id, and entitlement is extended only by the subscription.charged webhook,
+    // so there is nothing to half-charge while it is off. See
+    // lib/core/subscription-plans.js and routes/owner/membership.js.
+    razorpaySubPlanMonthly: process.env.RAZORPAY_SUB_PLAN_MONTHLY || "",
+    razorpaySubPlanAnnual: process.env.RAZORPAY_SUB_PLAN_ANNUAL || "",
+    subscriptionsEnabled: process.env.SUBSCRIPTIONS_ENABLED === "1",
+    superAdminBootstrapKey: process.env.SUPER_ADMIN_BOOTSTRAP_KEY || "",
     // Defense-in-depth for POST /api/demo/seed (see routes/system/demo.js):
     // that route already refuses to register at all when APP_ENV=production,
     // but that is a single string comparison — a deploy that forgets to set

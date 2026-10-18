@@ -29,6 +29,7 @@ import crypto from "node:crypto";
 import { getCollections } from "../../lib/db/repositories.js";
 import { fulfilPaidOrder } from "../../lib/core/order-fulfilment.js";
 import { activateMembership } from "../../lib/core/membership-fulfilment.js";
+import { recordSubscriptionCharge, recordSubscriptionStatus } from "../../lib/core/subscription-fulfilment.js";
 import { settleCallbackOrder } from "../../lib/core/callback-pass.js";
 
 // Events that mean "the money for this order is captured". `order.paid` fires
@@ -120,6 +121,40 @@ export function registerRazorpayWebhookRoutes(app, env) {
 
     const body = request.body || {};
     const event = String(body.event || "");
+
+    // Auto-renew lifecycle. These carry a `subscription` entity rather than an
+    // order id, so they are handled before the order path below. `charged` is the
+    // one that extends the tag (subscription-fulfilment.js, idempotent per
+    // payment); the rest are recorded for ops and change no entitlement — a
+    // cancelled mandate keeps its paid period until it lapses on the clock.
+    if (event.startsWith("subscription.")) {
+      const subEntity = body?.payload?.subscription?.entity;
+      const subPaymentId = body?.payload?.payment?.entity?.id || null;
+      if (!subEntity?.id) return { ok: true, ignored: "no-subscription-id" };
+
+      const collections = await getCollections(env);
+      if (!collections) {
+        request.log.error({ subscriptionId: subEntity.id }, "[razorpay webhook] no database — asking for a retry");
+        reply.code(500);
+        return { ok: false, error: "Database unavailable" };
+      }
+
+      if (event === "subscription.charged") {
+        const outcome = await recordSubscriptionCharge(collections, {
+          subscriptionEntity: subEntity,
+          paymentId: subPaymentId,
+          log: request.log
+        });
+        return { ok: true, fulfilled: outcome.firstTime };
+      }
+
+      await recordSubscriptionStatus(collections, {
+        subscriptionEntity: subEntity,
+        status: event.slice("subscription.".length),
+        log: request.log
+      });
+      return { ok: true, recorded: event };
+    }
 
     // Anything else — refunds, failures, settlement notifications — is
     // acknowledged and ignored. A non-2xx would make Razorpay retry an event

@@ -80,6 +80,13 @@ function buildCollections(db, prefix) {
     // reachable from there is a ₹49 payment that ships physical stock. Two
     // collections means that route cannot find one at all.
     membershipOrders: db.collection(withPrefix(prefix, "membership_orders")),
+    // Auto-renew mandates (Razorpay Subscriptions). One row per subscription,
+    // keyed on the Razorpay subscription id, linking it to a tag + owner. The
+    // recurring `subscription.charged` webhook extends the tag from here
+    // (lib/core/subscription-fulfilment.js). Separate from membershipOrders for
+    // the same reason that one is separate from shopOrders: the two fulfilment
+    // paths resolve different ids and must never find each other's rows.
+    membershipSubscriptions: db.collection(withPrefix(prefix, "membership_subscriptions")),
     // ₹20 paid callbacks — a premium tag's callback, bought back once its free
     // ten minutes are over (lib/core/callback-pass.js). A settled row IS the
     // paid callback; nothing else records it.
@@ -308,6 +315,9 @@ const CORE_INDEXES = [
   ["callbackOrders", { ownerId: 1, status: 1, createdAt: -1 }, { name: "owner_status_recent" }],
   ["membershipOrders", { orderId: 1 }, { unique: true, name: "razorpay_order" }],
   ["membershipOrders", { ownerId: 1, status: 1, createdAt: -1 }, { name: "owner_status_recent" }],
+  ["membershipSubscriptions", { subscriptionId: 1 }, { unique: true, name: "razorpay_subscription" }],
+  ["membershipSubscriptions", { tagId: 1, status: 1 }, { name: "tag_status" }],
+  ["membershipSubscriptions", { ownerId: 1, createdAt: -1 }, { name: "owner_recent" }],
   ["addresses", { ownerId: 1 }, { unique: true, name: "owner_unique" }],
   ["passwordResetTokens", { token: 1 }, { name: "token" }],
   ["passwordResetTokens", { email: 1, createdAt: -1 }, { name: "email_recent" }],

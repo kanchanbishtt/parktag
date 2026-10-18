@@ -21,6 +21,7 @@
     "dev:mail": "maildev",
     "backfill:mount-types": "node src/backend/scripts/backfill-mount-types.js",
     "campaigns:dry-run": "node --env-file=.env src/backend/scripts/campaign-dry-run.js",
+    "subscriptions:create-plans": "node --env-file=.env src/backend/scripts/create-subscription-plans.js",
     "retry:shipment": "node --env-file=.env src/backend/scripts/retry-shipment.mjs"
   },
   "dependencies": {

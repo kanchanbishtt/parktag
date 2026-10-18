@@ -14,6 +14,7 @@
 
 import * as trialEnding from "./trial-ending.js";
 import * as callLimitReached from "./call-limit-reached.js";
+import * as activationReminder from "./activation-reminder.js";
 import * as cartReminder from "./cart-reminder.js";
 import * as reviewRequest from "./review-request.js";
 import * as amazonPickup from "./amazon-pickup.js";
@@ -33,12 +34,19 @@ import * as abandonedCartNotify from "./abandoned-cart-notify.js";
 // a cart nudge it costs nothing to under-send (freeContactUsedAt only moves
 // forward), so missing a tick costs no more than a slightly later notice.
 //
+// activation-reminder sits after the two "a service you rely on just changed"
+// notices and before the cart nudge: a buyer who never activates got no value
+// from a paid tag, which matters more than a half-lost checkout but less than an
+// active customer losing masking. It is UTILITY, so unlike cart-reminder it can
+// actually send once its template is approved (env.activationRemindersEnabled).
+//
 // amazon-pickup and abandoned-cart-notify send nothing to a customer (they always
 // report sent: 0), so their place in the order spends none of the budget; they
 // are last because nothing depends on them.
 export const CAMPAIGNS = [
   trialEnding,
   callLimitReached,
+  activationReminder,
   cartReminder,
   reviewRequest,
   amazonPickup,

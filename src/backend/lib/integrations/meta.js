@@ -156,6 +156,27 @@ export async function sendMetaWhatsappCartReminder(env, { to, name, product, url
   });
 }
 
+// Post-delivery activation nudge, against `parktag_activation_reminder`:
+//
+//   {{1}} first name   {{2}} product
+//
+// UTILITY: it reports a fact about something the buyer already has (a delivered
+// tag that only works once activated), names no price and makes no offer, so it
+// needs no marketing opt-in. Per the note above, the "Activate" call-to-action
+// is a STATIC URL button baked into the template (the sticker's QR carries the
+// per-tag token, so there is nothing per-recipient to fill), which is why this
+// send fills only the two body variables. The template must be APPROVED and
+// UTILITY before env.activationRemindersEnabled is turned on — see
+// lib/core/campaigns/activation-reminder.js.
+export async function sendMetaWhatsappActivationReminder(env, { to, name, product }) {
+  return sendTemplate(env, {
+    to,
+    template: "parktag_activation_reminder",
+    components: bodyComponent(name, product),
+    publicMessage: "Unable to send the WhatsApp activation reminder."
+  });
+}
+
 // The owner alert. The most important message ParkTag sends, and the one whose
 // template name is most likely to change, so it is a constant rather than a
 // literal buried in the call.

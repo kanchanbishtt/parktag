@@ -8,11 +8,14 @@ import { DOCS_PER_SUBSCRIBED_TAG } from "./vault.js";
 // change. The page renders whatever this returns and computes nothing of its
 // own, so there is exactly one place a plan or a saving can be edited.
 //
-// NOT YET A CHECKOUT. There is no membership SKU in SHOP_PRODUCTS and no
-// recurring-billing integration — the shop sells physical tags, one order at a
-// time. These are the plans as designed; wiring them to Razorpay needs a
-// subscription product and a renewal path that does not exist yet, so the page
-// presents them and says so rather than opening a checkout that cannot complete.
+// THIS IS A LIVE CHECKOUT (one-time prepaid). The membership screen opens a real
+// Razorpay checkout: routes/owner/membership.js has /create-order and
+// /verify-payment, the Razorpay webhook fulfils the closed-tab case, and
+// membership-fulfilment.js extends tag.subscription.currentPeriodEnd by the
+// plan's months. These plans are fixed TERMS (1/6/12 months), not a recurring
+// mandate — a purchase buys a block of time and extends the tag's period.
+// Auto-renew via Razorpay Subscriptions (eMandate / UPI Autopay) is a
+// deliberate follow-up, not an oversight; see the note in membership.js.
 
 // Everything is priced off one monthly rate, so a change to it moves the whole
 // ladder and the savings stay true. Rupees, not paise: nothing here is charged

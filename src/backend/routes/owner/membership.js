@@ -11,8 +11,12 @@ import {
 import {
   createRazorpayOrder,
   isRazorpayConfigured,
-  verifyRazorpaySignature
+  verifyRazorpaySignature,
+  createRazorpaySubscription,
+  isRazorpaySubscriptionsConfigured,
+  verifyRazorpaySubscriptionSignature
 } from "../../lib/integrations/payments.js";
+import { getSubscriptionPlan } from "../../lib/core/subscription-plans.js";
 import { sendMixpanelEventBestEffort } from "../../lib/integrations/mixpanel.js";
 import { activateMembership, membershipPeriodStart } from "../../lib/core/membership-fulfilment.js";
 import { isInPremiumTrial } from "../../lib/core/vault.js";
@@ -376,6 +380,111 @@ export function registerMembershipRoutes(app, env) {
         amountPaise: order.amount,
         currentPeriodEnd: outcome.currentPeriodEnd
       };
+    }
+  );
+
+  // ── Auto-renew (Razorpay Subscriptions) ──────────────────────────────────
+  //
+  // The opt-in alternative to the one-time prepaid purchase above. The browser
+  // opens Razorpay Checkout with the subscription_id this returns; the customer
+  // signs one mandate, and from then on Razorpay charges each cycle and fires
+  // `subscription.charged`, which the webhook turns into time on the tag
+  // (subscription-fulfilment.js). Entitlement is extended by the webhook, never
+  // here — this route only opens the mandate.
+  //
+  // Dormant until the Razorpay plans exist AND SUBSCRIPTIONS_ENABLED=1, the same
+  // gate as every other not-yet-live provider path: no plan id means no mandate
+  // to sign, and nothing is charged by opening one, so the gate just keeps the
+  // endpoint from being reachable before it can work.
+  app.post(
+    "/api/owner/membership/subscribe",
+    { config: { rateLimit: { max: 20, timeWindow: "1 minute" } } },
+    async (request, reply) => {
+      const blocked = await requireSession(app, "owner")(request, reply);
+      if (blocked) return blocked;
+      const ownerId = toObjectId(request.session.userId);
+
+      if (!isRazorpaySubscriptionsConfigured(env)) {
+        reply.code(503);
+        return { ok: false, error: "Auto-renew is not available yet." };
+      }
+
+      const { planKey, tagId } = request.body || {};
+      const plan = getSubscriptionPlan(env, planKey);
+      if (!plan) { reply.code(400); return { ok: false, error: "Unknown plan." }; }
+
+      const collections = await getCollections(env);
+      if (!collections) { reply.code(500); return { ok: false, error: "Database unavailable." }; }
+
+      const target = await resolveTargetTag(collections, ownerId, tagId);
+      if (target.error) {
+        reply.code(400);
+        return { ok: false, error: target.error, choices: target.choices || undefined };
+      }
+
+      // One live mandate per tag. A tag already carrying an active auto-renew
+      // must not sprout a second one — two mandates would both charge for the
+      // same tag. A `created` row that never got authorised is reusable so a
+      // reload does not strand mandates in the Razorpay account.
+      const existingActive = await collections.membershipSubscriptions.findOne({
+        tagId: target.tag._id,
+        status: "active"
+      });
+      if (existingActive) {
+        reply.code(409);
+        return { ok: false, error: "This tag already has auto-renew on." };
+      }
+
+      const reusable = await collections.membershipSubscriptions.findOne(
+        { ownerId, tagId: target.tag._id, planKey: plan.key, status: "created" },
+        { sort: { createdAt: -1 } }
+      );
+      if (reusable) {
+        return { ok: true, subscriptionId: reusable.subscriptionId, keyId: env.razorpayKeyId, planKey: plan.key, prefill: await checkoutPrefill(collections, ownerId) };
+      }
+
+      const subscription = await createRazorpaySubscription(env, {
+        planId: plan.razorpayPlanId,
+        totalCount: plan.totalCount,
+        notes: { kind: "subscription", planKey: plan.key, tagId: String(target.tag._id), ownerId: String(ownerId) }
+      });
+
+      await collections.membershipSubscriptions.insertOne({
+        subscriptionId: subscription.id,
+        ownerId,
+        tagId: target.tag._id,
+        planKey: plan.key,
+        months: plan.months,
+        status: "created",
+        lastPaymentId: null,
+        currentPeriodEnd: null,
+        createdAt: new Date().toISOString()
+      });
+
+      return { ok: true, subscriptionId: subscription.id, keyId: env.razorpayKeyId, planKey: plan.key, prefill: await checkoutPrefill(collections, ownerId) };
+    }
+  );
+
+  // The browser's report that the mandate was authorised. Confirms the signature
+  // so the page can show success; entitlement itself still comes from the
+  // `subscription.charged` webhook, which is the one path that survives a closed
+  // tab. So this never extends a tag — it only acknowledges.
+  app.post(
+    "/api/owner/membership/subscription/verify",
+    { config: { rateLimit: { max: 20, timeWindow: "1 minute" } } },
+    async (request, reply) => {
+      const blocked = await requireSession(app, "owner")(request, reply);
+      if (blocked) return blocked;
+
+      const { razorpay_payment_id, razorpay_subscription_id, razorpay_signature } = request.body || {};
+      const valid = verifyRazorpaySubscriptionSignature(env, {
+        paymentId: razorpay_payment_id,
+        subscriptionId: razorpay_subscription_id,
+        signature: razorpay_signature
+      });
+      if (!valid) { reply.code(400); return { ok: false, error: "Signature verification failed." }; }
+
+      return { ok: true, subscriptionId: razorpay_subscription_id };
     }
   );
 }

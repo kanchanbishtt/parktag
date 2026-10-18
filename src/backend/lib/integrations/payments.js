@@ -219,3 +219,60 @@ export function verifyRazorpaySignature(env, { orderId, paymentId, signature }) 
   const b = Buffer.from(String(signature));
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
+
+// ── Auto-renew subscriptions (Razorpay Subscriptions) ────────────────────────
+//
+// Separate from the one-time Orders path above on purpose. An Order is a single
+// capture the shop and the prepaid membership already use; a Subscription is a
+// recurring mandate (UPI Autopay / card eMandate) the customer signs once, and
+// Razorpay then charges each cycle on its own and fires `subscription.charged`
+// at us. The two never mix: a Subscription has no amount here because its price
+// lives in the Razorpay PLAN it points at, created out of band (see
+// scripts/create-subscription-plans.js) and named only by its id in env — the
+// same rule as every other price, kept off the browser.
+//
+// Dormant until the plans exist AND the switch is on. A subscribe call against
+// a plan id that is not set would 500, and entitlement extension only happens on
+// the webhook, so there is nothing to half-charge: the gate just stops the
+// endpoint being reachable before it can work. See lib/core/subscription-plans.js.
+
+export function isRazorpaySubscriptionsConfigured(env) {
+  return Boolean(
+    isRazorpayConfigured(env) &&
+      env.subscriptionsEnabled &&
+      (env.razorpaySubPlanMonthly || env.razorpaySubPlanAnnual)
+  );
+}
+
+// Create a subscription against an existing Razorpay plan. `totalCount` is how
+// many billing cycles Razorpay will attempt before it marks the subscription
+// `completed`; it is required by the API, so a long horizon stands in for
+// "until cancelled" rather than inventing an unbounded mandate.
+export async function createRazorpaySubscription(env, { planId, totalCount, notes }) {
+  const rzp = getRazorpay(env);
+  if (!rzp) throw new Error("Razorpay is not configured.");
+  if (!planId) throw new Error("A Razorpay plan id is required to start a subscription.");
+  return rzp.subscriptions.create({
+    plan_id: planId,
+    total_count: totalCount,
+    // Let ParkTag send its own confirmation (membership-fulfilment.js) rather
+    // than Razorpay's generic mail, same as the one-time path.
+    customer_notify: 0,
+    notes: notes || {}
+  });
+}
+
+// The signature Razorpay Checkout returns after the customer authorises the
+// mandate. DIFFERENT shape from the one-time order signature: it is an HMAC of
+// `payment_id|subscription_id` (order id and subscription id swap places), so it
+// needs its own verifier rather than reusing verifyRazorpaySignature.
+export function verifyRazorpaySubscriptionSignature(env, { paymentId, subscriptionId, signature }) {
+  if (!env.razorpayKeySecret || !paymentId || !subscriptionId || !signature) return false;
+  const expected = crypto
+    .createHmac("sha256", env.razorpayKeySecret)
+    .update(`${paymentId}|${subscriptionId}`)
+    .digest("hex");
+  const a = Buffer.from(expected);
+  const b = Buffer.from(String(signature));
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}

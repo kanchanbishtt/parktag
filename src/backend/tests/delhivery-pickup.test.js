@@ -447,6 +447,32 @@ describe("internal test orders auto-cancel their own shipment", () => {
     assert.equal(cancelCalled, false, "a real customer's shipment was cancelled");
   });
 
+  // PT-261021-00056: the 21:00 Amazon sweep had already booked tomorrow's
+  // rider, so the order was recorded with pickupError "already-requested" and
+  // Slack called a covered parcel stuck.
+  test("an order after the day's pickup is booked counts as covered", async () => {
+    await withFetch(
+      () => okResponse(),
+      () => ensurePickupRequested(LIVE, collections, { pickupDate: nextPickupDate() })
+    );
+    const out = await withRoutedFetch(
+      {
+        create: () => createdResponse("WB-LATE"),
+        pickup: () => { throw new Error("pickup requested twice"); },
+        cancel: () => okResponse({ success: true })
+      },
+      () =>
+        bookShipmentAndPickup(LIVE, collections, {
+          orderId: "PT-LATE-01",
+          address: CUSTOMER_ADDRESS,
+          productName: "Duo"
+        })
+    );
+
+    assert.equal(out.pickup.requested, true);
+    assert.equal(out.pickup.forDate, nextPickupDate());
+  });
+
   test("a failed auto-cancel is reported, not swallowed", async () => {
     const out = await withRoutedFetch(
       {

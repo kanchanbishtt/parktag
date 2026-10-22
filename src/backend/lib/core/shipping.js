@@ -113,12 +113,18 @@ export async function ensurePickupRequested(env, collections, { pickupDate, expe
 export async function bookShipmentAndPickup(env, collections, shipment, log) {
   const booked = await createShipment(env, shipment);
 
-  const pickup = await ensurePickupRequested(
+  const claimed = await ensurePickupRequested(
     env,
     collections,
     { pickupDate: nextPickupDate() },
     log
   );
+  // "already-requested" means today's rider (often the 21:00 Amazon sweep's)
+  // already covers this parcel. Callers record it as covered, not as a
+  // pickupError, or the order shows up as stuck with a rider on the way.
+  const pickup = claimed.reason === "already-requested"
+    ? { ...claimed, requested: true, pickupId: null }
+    : claimed;
 
   if (!isInternalPhone(env, shipment.address?.phone)) {
     return { ...booked, pickup };

@@ -137,6 +137,11 @@ function buildCollections(db, prefix) {
     // the unique (pickupLocation, pickupDate) index rather than a lookup. Same
     // shape and same reasoning as `messages` above. See lib/core/shipping.js.
     pickupRequests: db.collection(withPrefix(prefix, "pickup_requests")),
+    // Amazon.in orders seen by the amazon-pickup poll, keyed _id = Amazon order
+    // id so a re-read is a duplicate key, not a second Slack post. Kept apart
+    // from shopOrders on purpose: the admin funnel counts every shopOrders row
+    // as a started checkout. See lib/core/campaigns/amazon-pickup.js.
+    amazonOrders: db.collection(withPrefix(prefix, "amazon_orders")),
     // Atomic sequence counters (e.g. the running shop order number). Each doc is
     // { _id: <name>, seq: <n> }, incremented with findOneAndUpdate($inc).
     counters: db.collection(withPrefix(prefix, "counters")),

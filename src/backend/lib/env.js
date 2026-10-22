@@ -291,6 +291,12 @@ export function getEnv() {
     // Where the daily Amazon pickup job reports (an n8n webhook that posts to
     // Slack). Optional: unset means the job still runs and just stays quiet.
     pickupNotifyWebhookUrl: process.env.PICKUP_NOTIFY_WEBHOOK_URL || "",
+    // Amazon SP-API (private self-authorised app, Orders role). When set, the
+    // amazon-pickup job books a pickup as each Amazon order arrives instead of
+    // the blind 21:00 sweep. See lib/integrations/amazon-sp.js.
+    amazonLwaClientId: process.env.AMAZON_LWA_CLIENT_ID || "",
+    amazonLwaClientSecret: process.env.AMAZON_LWA_CLIENT_SECRET || "",
+    amazonLwaRefreshToken: process.env.AMAZON_LWA_REFRESH_TOKEN || "",
     // Where abandoned checkouts are reported (an n8n webhook that posts to
     // Slack). Optional: unset means the job stays off.
     abandonedNotifyWebhookUrl: process.env.ABANDONED_NOTIFY_WEBHOOK_URL || "",

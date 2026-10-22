@@ -114,13 +114,15 @@ test("the earnings line has a place in the card, hidden until it has something t
   assert.match(markup, /<p class="pt-ref-earned" id="refEarned"[^>]*\bhidden><\/p>/);
 });
 
-test("the Refer & Earn banner links to the card, on phone and desktop alike", () => {
+test("slide 2 is the emergency banner and no longer links to the referral card", () => {
+  // The Refer & Earn artwork left this slot; the link to the card went with
+  // it, so the emergency picture cannot send anyone to a referral offer.
   const slide = html.slice(html.indexOf("<!-- Slide 2"), html.indexOf("<!-- Slide 3"));
-  assert.match(slide, /<a class="pt-slide-link" href="#referralCard" onclick="return goToReferral\(event\)">/);
-  // Both cuts of the artwork sit inside the one link.
+  assert.doesNotMatch(slide, /href="#referralCard"/);
+  assert.doesNotMatch(slide, /<a /);
   assert.match(slide, /<source media="\(min-width: 600px\)" srcset="\/images\/banner-2-desktop\.webp"/);
   assert.match(slide, /<img class="pt-slide-photo" src="\/images\/banner-2\.webp"/);
-  assert.match(slide, /<\/picture>\s*<\/a>/);
+  // The scroll helper is kept for a future referral slide.
   assert.match(js, /window\.goToReferral = goToReferral;/);
 });
 

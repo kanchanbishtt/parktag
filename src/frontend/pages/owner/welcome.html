@@ -121,24 +121,24 @@
                   <source media="(min-width: 600px)" srcset="/images/banner-1-desktop.webp"
                           width="2480" height="1085">
                   <img class="pt-slide-photo" src="/images/banner-1.webp"
-                       width="1134" height="496" alt="ParkTag banner 1">
+                       width="1134" height="496" alt="Stay reachable, stay private: a ParkTag sticker on a car window">
                 </picture>
               </div>
             </div>
 
-            <!-- Slide 2: Refer & Earn. The whole picture is a link to the
-                 referral card below the vehicles (the "Give ₹X, get a free
-                 month" offer), the same on phone and desktop; goToReferral()
-                 scrolls there and does nothing while the card is hidden. -->
+            <!-- Slide 2: Emergency. This slot used to carry the Refer & Earn
+                 artwork, and the whole picture linked to the referral card
+                 below the vehicles. The artwork is now the emergency flow, so
+                 the link went with it: an emergency banner that lands on a
+                 referral offer is a wrong turn. goToReferral() stays in
+                 welcome.js for when a referral slide comes back. -->
             <div class="pt-car-slide">
-              <a class="pt-slide-link" href="#referralCard" onclick="return goToReferral(event)">
-                <picture class="pt-slide-pic">
-                  <source media="(min-width: 600px)" srcset="/images/banner-2-desktop.webp"
-                          width="2480" height="1085">
-                  <img class="pt-slide-photo" src="/images/banner-2.webp"
-                       width="1134" height="496" alt="Refer and earn: give your friend a discount, get a free month">
-                </picture>
-              </a>
+              <picture class="pt-slide-pic">
+                <source media="(min-width: 600px)" srcset="/images/banner-2-desktop.webp"
+                        width="2480" height="1085">
+                <img class="pt-slide-photo" src="/images/banner-2.webp"
+                     width="1134" height="496" alt="Emergency? Scan the sticker and get help instantly">
+              </picture>
             </div>
 
             <!-- Slide 3 -->

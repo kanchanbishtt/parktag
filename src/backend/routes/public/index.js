@@ -10,6 +10,7 @@ import { toE164 } from "../../lib/core/phone.js";
 import { createSecureToken, safeEqual, hashIp, minutesFromNow, getClientIp, maskPlateNumber, getPlateLastFour, isNonEmptyString } from "../../lib/auth/security.js";
 import { createSession, writeSessionCookie } from "../../lib/auth/session.js";
 import { sendCapiEventBestEffort, activationEventId } from "../../lib/integrations/meta-capi.js";
+import { pushBody, sendOwnerPush } from "../../lib/integrations/fcm.js";
 import { attributionProps, sendMixpanelEventBestEffort } from "../../lib/integrations/mixpanel.js";
 import {
   isDuplicateMobileError,
@@ -1446,6 +1447,15 @@ export function registerPublicRoutes(app, env) {
       createdAt: now.toISOString(),
       expiresAt: new Date(now.getTime() + 10 * 60 * 1000)
     });
+
+    // Tell the owner's app a call is coming, so they pick up the unknown
+    // number. Not awaited: the scanner is waiting on the virtual number.
+    void sendOwnerPush(env, collections, tag.ownerId, {
+      title: "Someone is calling you about your car",
+      body: pushBody(tag.plateNumber, null, "Answer the ParkTag number"),
+      data: { type: "call", tagId: tag._id, requestId },
+      collapseKey: String(requestId)
+    }).catch(() => {});
 
     // No contact_action here: this only hands the scanner a number to dial.
     // It is sent when the call is actually placed (callContactEvent, from the

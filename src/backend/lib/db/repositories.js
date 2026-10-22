@@ -180,7 +180,12 @@ function buildCollections(db, prefix) {
     // one-way, daily-rotating visitor digest — never an IP address and never a
     // raw User-Agent. TTL-expired, so it is a rolling window rather than a
     // permanent record of who visited.
-    landingVisits: db.collection(withPrefix(prefix, "landing_visits"))
+    landingVisits: db.collection(withPrefix(prefix, "landing_visits")),
+    // One row per native-app device token (FCM): token, ownerId, platform and
+    // a hash of the session that registered it, so sign-out can drop it.
+    pushTokens: db.collection(withPrefix(prefix, "push_tokens")),
+    // Replay guard for App Check tokens: each jti is accepted once.
+    appCheckJti: db.collection(withPrefix(prefix, "appcheck_jti"))
   };
 }
 
@@ -440,7 +445,15 @@ const CORE_INDEXES = [
   // A real BSON Date, not an ISO string: MongoDB's TTL monitor silently ignores
   // strings, which is how a retention rule quietly does nothing (see the note
   // on landingVisits above).
-  ["messages", { createdAt: 1 }, { expireAfterSeconds: 34560000, name: "ttl" }]
+  ["messages", { createdAt: 1 }, { expireAfterSeconds: 34560000, name: "ttl" }],
+  // The app re-posts its token on every start, so a token untouched for 120
+  // days belongs to an uninstalled app or a dead device.
+  ["pushTokens", { token: 1 }, { unique: true, name: "token_unique" }],
+  ["pushTokens", { ownerId: 1 }, { name: "owner" }],
+  ["pushTokens", { sessionHash: 1 }, { name: "session" }],
+  ["pushTokens", { updatedAt: 1 }, { expireAfterSeconds: 10368000, name: "ttl" }],
+  ["appCheckJti", { jti: 1 }, { unique: true, name: "jti_unique" }],
+  ["appCheckJti", { expiresAt: 1 }, { expireAfterSeconds: 0, name: "ttl" }]
 ];
 
 let coreIndexesEnsured = false;

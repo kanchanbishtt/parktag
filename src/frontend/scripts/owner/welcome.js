@@ -1807,7 +1807,7 @@ function renderActivity(requests) {
   const payTargets = new Map();
   const seenVehicles = new Set();
   for (const r of recent) {
-    if (!r.phone || r.callOutcome === "answered" || seenVehicles.has(r.token)) continue;
+    if (!r.hasPhone || r.callOutcome === "answered" || seenVehicles.has(r.token)) continue;
     seenVehicles.add(r.token);
     if (canBuyCallback(r)) payTargets.set(r.token, r);
   }
@@ -1844,7 +1844,7 @@ function renderActivity(requests) {
     if (subject) {
       const ageMs  = now - new Date(subject.createdAt).getTime();
       const v      = vehicleOf(subject.token);
-      const masked = subject.phone ? `•••• ${String(subject.phone).slice(-4)}` : "Unknown caller";
+      const masked = subject.hasPhone ? `•••• ${subject.phoneLast4}` : "Unknown caller";
       // A free callback counts down to its end. A ₹20 offer has no countdown
       // worth showing — it lasts as long as the row does — so the label says
       // why there is a price instead.
@@ -1930,7 +1930,7 @@ function renderActivity(requests) {
 
     // Match token → vehicle, and carry its colour into the row
     const v      = vehicleOf(r.token);
-    const masked = r.phone ? `•••• ${String(r.phone).slice(-4)}` : "Unknown caller";
+    const masked = r.hasPhone ? `•••• ${r.phoneLast4}` : "Unknown caller";
 
     let cardCls, icBg, icCol;
     if (isElig)              { cardCls = "urgent"; icBg = "#FFE3DD"; icCol = "#FF2700"; }

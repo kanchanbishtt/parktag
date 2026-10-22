@@ -388,7 +388,11 @@ export function registerOwnerRoutes(app, env) {
       requests: requests.map((item) => ({
         id: String(item._id),
         token: item.token,
-        phone: item.phone,
+        // Never the scanner's number itself: the owner app only needs to know
+        // a callback is possible and which number it was, and the callback
+        // routes look the full number up server-side by request id.
+        phoneLast4: item.phone ? String(item.phone).replace(/\D/g, "").slice(-4) : null,
+        hasPhone: Boolean(item.phone),
         action: item.action,
         messageChannel: item.messageChannel || null,
         reason: item.reason || null,
@@ -1497,6 +1501,8 @@ export function registerOwnerRoutes(app, env) {
         // Any standing vault unlock. Keyed by session id, so it is not reachable
         // through the owner record and would otherwise outlive it.
         collections.vaultGrants.deleteMany({ ownerId: String(ownerId) }),
+        // Device push tokens would otherwise keep alerting a deleted account.
+        collections.pushTokens.deleteMany({ ownerId }),
         // The storage counter goes with the owner it belongs to.
         deleteUsage(collections, ownerId)
       ]);

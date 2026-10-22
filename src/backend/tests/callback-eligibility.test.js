@@ -34,7 +34,8 @@ function contact(overrides = {}) {
   return {
     id: "r1",
     token: "prem",
-    phone: "+919812345678",
+    hasPhone: true,
+    phoneLast4: "5678",
     action: "call",
     callOutcome: null,
     createdAt: new Date(NOW - 2 * 60 * 1000).toISOString(),
@@ -68,9 +69,9 @@ test("a tag that is no longer in the list is refused", () => {
 
 test("an anonymous report is not callable at any tier", () => {
   // Nobody to dial. Premium does not conjure a number.
-  assert.equal(stateOf({ phone: null }), NOT_CALLABLE);
-  assert.equal(stateOf({ phone: "" }), NOT_CALLABLE);
-  assert.equal(stateOf({ phone: null, token: "free" }), NOT_CALLABLE,
+  assert.equal(stateOf({ hasPhone: false, phoneLast4: null }), NOT_CALLABLE);
+  assert.equal(stateOf({ hasPhone: undefined, phoneLast4: null }), NOT_CALLABLE);
+  assert.equal(stateOf({ hasPhone: false, phoneLast4: null, token: "free" }), NOT_CALLABLE,
     "and the upgrade nudge must not appear for a contact that could never be returned");
 });
 

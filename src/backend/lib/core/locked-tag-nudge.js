@@ -68,6 +68,7 @@ import { canSendUtility } from "./messaging-consent.js";
 import { firstNameOf, resolveOwnerName } from "./owner-name.js";
 import { isMetaWhatsappConfigured, sendMetaWhatsappAlert } from "../integrations/meta.js";
 import { sendOwnerAlertEmail } from "../integrations/email.js";
+import { pushBody, sendOwnerPush } from "../integrations/fcm.js";
 
 // How long after telling an owner before they are told again.
 export const LOCKED_NUDGE_INTERVAL_MS = 24 * 60 * 60 * 1000;
@@ -180,6 +181,25 @@ export async function recordLockedAttempt(env, collections, tag, log, { now = Da
   );
 
   const cutoff = new Date(now - LOCKED_NUDGE_INTERVAL_MS).toISOString();
+
+  // The app push, on its own once-a-day stamp. Not inside sendNudge, which
+  // stops at canSendUtility: push is opted into by registering a device, not
+  // by WhatsApp consent. And not on lockedNudgeAt, which is put back when the
+  // WhatsApp and e-mail send fails, so an owner with neither would be pushed
+  // on every scan. Fire-and-forget, never part of `reached`.
+  const pushClaimed = await collections.tags.updateOne(
+    { _id: tag._id, $or: [{ lockedPushAt: null }, { lockedPushAt: { $lte: cutoff } }] },
+    { $set: { lockedPushAt: at } }
+  );
+  if (pushClaimed.modifiedCount === 1 && tag.ownerId) {
+    void sendOwnerPush(env, collections, tag.ownerId, {
+      title: "Someone could not call you",
+      body: pushBody(tag.plateNumber, null, "Your free calls are used up"),
+      data: { type: "locked", tagId: tag._id },
+      collapseKey: `locked-${tag._id}`
+    }).catch(() => {});
+  }
+
   const claimed = await collections.tags.updateOne(
     // `null` matches a stamp that is absent as well as one that is null. ISO
     // timestamps compare in date order as strings.

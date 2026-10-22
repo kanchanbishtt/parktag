@@ -729,7 +729,8 @@ test("each premium row draws the right control at every point in its life", asyn
   const row = (minutesOld, extra = {}) => ({
     id: "row-1",
     token: "t",
-    phone: "+919999999994",
+    hasPhone: true,
+    phoneLast4: "9994",
     callOutcome: null,
     createdAt: new Date(now - minutesOld * 60e3).toISOString(),
     ...extra
@@ -747,7 +748,7 @@ test("each premium row draws the right control at every point in its life", asyn
     "a page never told the horizon offers nothing rather than inventing one");
   assert.equal(state(running, row(30, { callOutcome: "answered" })), rules.NOT_CALLABLE,
     "a conversation that happened is not sold again");
-  assert.equal(state(running, row(30, { phone: null })), rules.NOT_CALLABLE, "nobody to dial");
+  assert.equal(state(running, row(30, { hasPhone: false, phoneLast4: null })), rules.NOT_CALLABLE, "nobody to dial");
 
   const paidRow = row(40, { callbackPassExpiresAt: new Date(now + 6 * 60e3).toISOString() });
   assert.equal(state(running, paidRow), rules.CALLABLE, "paid: Call Back again, on the payment's clock");

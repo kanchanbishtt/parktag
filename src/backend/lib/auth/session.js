@@ -98,6 +98,26 @@ export function getSessionCookieName() {
   return SESSION_COOKIE;
 }
 
+// What a push token row stores to name the session that registered it: a hash,
+// so the push collection never holds a value that works as a cookie.
+export function sessionHash(sessionId) {
+  return crypto.createHash("sha256").update(String(sessionId)).digest("hex");
+}
+
+// A device signed out of ParkTag must stop getting its alerts. Best-effort,
+// like the session cleanup it rides on.
+async function deletePushTokensForSessions(sessionIds) {
+  if (!sessionIds.length) return;
+  try {
+    const collections = await getCollections(getEnv());
+    if (collections?.pushTokens) {
+      await collections.pushTokens.deleteMany({ sessionHash: { $in: sessionIds.map(sessionHash) } });
+    }
+  } catch {
+    // The token row also expires on its own, 120 days after its last post.
+  }
+}
+
 export async function createSession(app, user) {
   const sessionId = crypto.randomBytes(24).toString("hex");
   const now = new Date();
@@ -258,6 +278,7 @@ export async function revokeSessionsForUser(app, userId) {
 
     const doomed = await coll.find({ userId: id }, { projection: { _id: 1 } }).toArray();
     for (const row of doomed) app.sessions.delete(row._id);
+    await deletePushTokensForSessions(doomed.map((row) => row._id));
 
     const result = await coll.deleteMany({ userId: id });
     return result.deletedCount || 0;
@@ -294,6 +315,7 @@ export async function revokeOtherSessionsForUser(app, userId, keepSessionId) {
     // so the ids have to come out of Mongo before the rows do.
     const doomed = await coll.find(filter, { projection: { _id: 1 } }).toArray();
     for (const row of doomed) app.sessions.delete(row._id);
+    await deletePushTokensForSessions(doomed.map((row) => row._id));
 
     const result = await coll.deleteMany(filter);
     return result.deletedCount || 0;
@@ -312,6 +334,7 @@ export async function clearSession(app, request, reply) {
     } catch {
       // Best-effort — the cookie is cleared regardless, so the client is logged out.
     }
+    await deletePushTokensForSessions([sessionId]);
   }
   reply.clearCookie(SESSION_COOKIE, { path: "/" });
 }

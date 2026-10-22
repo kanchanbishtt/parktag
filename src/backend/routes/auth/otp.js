@@ -12,6 +12,7 @@ import { createSession, writeSessionCookie } from "../../lib/auth/session.js";
 import { getCollections } from "../../lib/db/repositories.js";
 import { clientErrorMessage } from "../../lib/errors.js";
 import { verifyRecaptcha, isRecaptchaConfigured } from "../../lib/integrations/recaptcha.js";
+import { verifyAppCheckToken } from "../../lib/integrations/appcheck.js";
 import {
   anonymousDistinctId,
   attributionProps,
@@ -59,20 +60,33 @@ export function registerOtpAuthRoutes(app, env) {
       return { ok: false, error: "Email or mobile number is required" };
     }
 
+    // The native app cannot run web reCAPTCHA, so it proves itself with a
+    // single-use Firebase App Check token instead. Only a fully verified token
+    // skips reCAPTCHA; a missing or bad one takes the existing path unchanged.
+    const appCheckToken = request.headers["x-firebase-appcheck"];
+    let appCheck = { ok: false };
+    if (appCheckToken) {
+      appCheck = await verifyAppCheckToken(env, appCheckToken);
+      if (!appCheck.ok) request.log.warn({ reason: appCheck.reason }, "App Check rejected send-otp");
+    }
+
     // Bot check on the public OTP-send endpoint (no-op unless reCAPTCHA is
     // configured). Blocks scripted SMS/WhatsApp flooding that per-IP limits miss
     // when the attacker rotates IPs; the per-destination cap in sendOtp backs it.
-    const captcha = await verifyRecaptcha(env, recaptchaToken, {
-      remoteIp: request.ip,
-      expectedAction: "send_otp"
-    });
-    if (!captcha.ok) {
-      request.log.warn({ reason: captcha.reason, score: captcha.score }, "reCAPTCHA rejected send-otp");
-      reply.code(400);
-      return {
-        ok: false,
-        error: "We couldn't verify this request. Please refresh the page and try again."
-      };
+    if (!appCheck.ok) {
+      const captcha = await verifyRecaptcha(env, recaptchaToken, {
+        remoteIp: request.ip,
+        expectedAction: "send_otp"
+      });
+      if (!captcha.ok) {
+        request.log.warn({ reason: captcha.reason, score: captcha.score }, "reCAPTCHA rejected send-otp");
+        reply.code(400);
+        return {
+          ok: false,
+          code: "CAPTCHA_REQUIRED",
+          error: "We couldn't verify this request. Please refresh the page and try again."
+        };
+      }
     }
 
     try {

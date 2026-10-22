@@ -2,6 +2,7 @@ import { ObjectId } from "mongodb";
 
 import { sendMetaWhatsappAlert, isMetaWhatsappConfigured } from "../integrations/meta.js";
 import { sendOwnerAlertEmail } from "../integrations/email.js";
+import { pushBody, sendOwnerPush } from "../integrations/fcm.js";
 import { sendMixpanelEventBestEffort } from "../integrations/mixpanel.js";
 import { getCollections } from "../db/repositories.js";
 import { captureScannerLocation } from "./scan-location.js";
@@ -59,6 +60,12 @@ function reasonLabel(reason) {
 // isSupportedVehicleType in tag-issuance.js.
 export function isSupportedContactReason(reason) {
   return reasonLabel(reason) !== null;
+}
+
+// The push notification's title: the reason, as a sentence.
+function pushTitle(reason) {
+  const label = reasonLabel(reason);
+  return label ? `${label[0].toUpperCase()}${label.slice(1)}` : "Someone reported an issue with your vehicle";
 }
 
 function buildOwnerWhatsappMessage(reason) {
@@ -140,6 +147,20 @@ export async function createContactAction(env, input) {
   // provider takes about 1.5s; the owner reads the row later, so the location
   // can arrive after the reply without anybody noticing it was late.
   captureScannerLocation(env, collections, requestId, tag, input.ipAddress, input.log || null);
+
+  // Push to the owner's app. Fired here, before the WhatsApp and e-mail
+  // attempts below, because those throw when both fail, and that is exactly
+  // when the push matters most. Not awaited, not an attempt and never counted
+  // toward `reached`: the scanner's answer depends on the channels that
+  // guarantee delivery, and push does not.
+  if (input.action === "message") {
+    void sendOwnerPush(env, collections, tag.ownerId, {
+      title: pushTitle(input.reason),
+      body: pushBody(tag.plateNumber, carLocation?.place),
+      data: { type: "contact", tagId: tag._id, requestId },
+      collapseKey: String(requestId)
+    }).catch(() => {});
+  }
 
   let provider = null;
   let providerStatus = "pending";

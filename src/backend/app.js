@@ -43,6 +43,7 @@ import { registerDemoRoutes } from "./routes/system/demo.js";
 import { registerOwnerRoutes } from "./routes/owner/dashboard.js";
 import { registerVaultRoutes } from "./routes/owner/vault.js";
 import { registerLoginPinRoutes } from "./routes/owner/login-pin.js";
+import { registerPushRoutes } from "./routes/owner/push.js";
 import { registerMembershipRoutes } from "./routes/owner/membership.js";
 import { registerCallbackPassRoutes } from "./routes/owner/callback-pass.js";
 import { MAX_FILE_BYTES } from "./lib/core/vault.js";
@@ -1716,6 +1717,7 @@ export async function buildApp() {
   registerOwnerRoutes(app, env);
   registerVaultRoutes(app, env);
   registerLoginPinRoutes(app, env);
+  registerPushRoutes(app, env);
   registerMembershipRoutes(app, env);
   registerCallbackPassRoutes(app, env);
   registerAdminRoutes(app, env);

@@ -224,6 +224,14 @@ export function getEnv() {
     googleCallbackUrl: process.env.GOOGLE_CALLBACK_URL || "http://127.0.0.1:4000/api/auth/google/callback",
     firebaseApiKey: process.env.FIREBASE_API_KEY || "",
     firebaseProjectId: process.env.FIREBASE_PROJECT_ID || "",
+    // Native app push (FCM HTTP v1). The whole service-account JSON as one
+    // string. Unset: push sends no-op. A secret.
+    fcmServiceAccountJson: process.env.FCM_SERVICE_ACCOUNT_JSON || "",
+    // App Check token verification for the native app's send-otp. The numeric
+    // project number (the token issuer) and a comma list of accepted app ids.
+    // Unset: App Check tokens are ignored and reCAPTCHA applies as before.
+    firebaseProjectNumber: process.env.FIREBASE_PROJECT_NUMBER || "",
+    appCheckAppIds: process.env.APPCHECK_APP_IDS || "",
     // Optional Google reCAPTCHA v3 (invisible bot score). BOTH must be set for
     // it to activate; unset → the OTP-send flow behaves exactly as before, so
     // local/dev and any deploy that hasn't configured keys stay fully working.

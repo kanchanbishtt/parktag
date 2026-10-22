@@ -27,7 +27,9 @@ import { callbackState, CALLABLE } from "../../frontend/scripts/owner/callback-e
 // premium tag, inside the free window.
 function pageOffersCallback(row) {
   const now = Date.parse("2026-08-25T12:00:00.000Z");
-  const contact = { phone: row.phone, callOutcome: row.callOutcome, token: "qa-premium", createdAt: new Date(now - 60000).toISOString() };
+  // A dashboard row carries hasPhone; a stored contactRequests document still
+  // carries phone. Either answers "is there anyone to ring back".
+  const contact = { hasPhone: Boolean(row.hasPhone ?? row.phone), callOutcome: row.callOutcome, token: "qa-premium", createdAt: new Date(now - 60000).toISOString() };
   return callbackState(contact, { tags: [{ token: "qa-premium", premium: true }], now, windowMs: 10 * 60 * 1000 }) === CALLABLE;
 }
 

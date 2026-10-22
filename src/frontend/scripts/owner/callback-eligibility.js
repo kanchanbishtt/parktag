@@ -56,7 +56,7 @@ export function callbackState(
   { tags = [], now = Date.now(), windowMs = 0, passMaxAgeMs = 0 } = {}
 ) {
   // Nobody to dial. An anonymous report is a notification, not a conversation.
-  if (!request || !request.phone) return NOT_CALLABLE;
+  if (!request || !request.hasPhone) return NOT_CALLABLE;
 
   // "NOT answered", never "is missed". Exotel's status callback has never been
   // configured, so callOutcome is null on every call in the database; gating on

@@ -82,6 +82,10 @@ ThemeData buildTheme() {
   return ThemeData(
     useMaterial3: true,
     colorScheme: scheme,
+    // Web and desktop default to compact density, which trims 8px off every
+    // button and field; the phone uses standard. Pin it, so the browser
+    // preview shows the same heights as the APK (and as the web page).
+    visualDensity: VisualDensity.standard,
     fontFamily: 'Inter',
     scaffoldBackgroundColor: PtColors.bg,
     dividerColor: PtColors.line,

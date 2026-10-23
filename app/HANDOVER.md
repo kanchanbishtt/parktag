@@ -24,7 +24,7 @@ Checks on this branch: `flutter analyze` is clean, `flutter test` passes 284 of 
 
 1. **Premium sticker artwork.** The E-Tag download works, but the official premium artwork (`org-parktag-sticker.svg` on the web) is not bundled. Add it as an asset and use it in `features/owner/tag_etag.dart`.
 2. **Vault image compression.** The app relies on image_picker's compression. The web's multi-step WebP ladder and its "X to Y smaller" message are not ported (`features/vault/vault_shrink.dart`).
-3. **Shop copy.** Prices and images are live, but product descriptions, feature bullets and discount badges are missing (the web has them in `welcome-shop.js` PRODUCTS).
+3. **Shop copy.** Done: the Shop tab is the web Shop view (`features/shop/shop_web.dart`, table in `catalogue.dart` copied from `welcome-shop.js` PRODUCTS, photos bundled under `assets/shop/`). The pack step after BUY NOW is still the app's own sheet, not the web's address and pack sheets.
 4. **Membership progress bar.** Days left are shown. Paid tags get no bar because the API sends only `coveredUntil` and no period start. This needs a backend field first.
 5. **Trial-ending reminders.** These go out by push, WhatsApp and email. There is no in-app banner.
 6. **Free E-Tag lead magnet.** The Add your vehicles step covers sign-up, but the web wizard's print popup is not ported.
@@ -34,7 +34,7 @@ Checks on this branch: `flutter analyze` is clean, `flutter test` passes 284 of 
 - **Google Play billing policy.** The app sells no digital goods: no membership plans, no callback passes, no upgrade or renew prompts, and no links to them. Physical stickers through Razorpay or Cash on Delivery are allowed. Before any release, grep for `Upgrade`, `View plans`, `Renew` and rupee text outside `features/shop`.
 - **Web-only items:** PWA install, cache tricks, GA4, Meta Pixel and Clarity trackers, the banner carousel and confetti.
 - **Features with no backend or no web UI yet:** editing a plate after activation, changing the vault PIN, document expiry reminders, review submission and the Preferences tab.
-- **Custom Tab flows that stay on the web on purpose:** the guest shop, Report wrong info and Transfer tag (they need reCAPTCHA), forgot password (it resets through an emailed link), and the backup contact "Remove my number" page.
+- **Custom Tab flows that stay on the web on purpose:** guest checkout (a guest sees the native Shop view; BUY NOW opens /get), Report wrong info and Transfer tag (they need reCAPTCHA), forgot password (it resets through an emailed link), and the backup contact "Remove my number" page.
 
 ## How the app is laid out
 
@@ -45,13 +45,13 @@ app/lib/
   core/                api client, AppState (ChangeNotifier), models, session, theme, widgets
   push/push.dart       FCM token registration and notification taps
   features/
-    auth/              mobile + PIN, WhatsApp OTP, email OTP, password, Google, set PIN or password, add vehicles
+    auth/              the web Owner Sign In page drawn natively (WhatsApp OTP, email OTP, PIN or password, SMS via the web bridge), set PIN or password, add vehicles
     onboarding/        splash, onboarding, guest hub, help and FAQ
-    owner/             home, activity (callback rules), tags, vehicle detail, E-Tag
+    owner/             tags (the web dashboard's Tags view drawn natively: tags_screen.dart + home_web.dart), activity (callback rules), vehicle detail, E-Tag. Home is the onboarding hub (hub_screen.dart) for guests and owners alike.
     scan/              QR scanner, public tag page, contact, masked call, SOS, helplines, activation
     shop/              catalogue, variant picker, checkout, Razorpay or COD, address, orders, tracking
     vault/             document vault with its own PIN
-    more/              profile, membership (read-only), referral, support, legal, PIN, delete account
+    more/              the web menu drawer drawn natively (more_screen.dart: User Info, Tags & Call, My Orders, Call Masking, Notifications, SOS, Tag & Shop, Sign Out); profile, membership (read-only), referral, support, legal, PIN and delete-account screens remain for deep links
 ```
 
 Key rules:
@@ -92,8 +92,14 @@ flutter pub get
 flutter analyze
 flutter test
 flutter run            # debug build, package me.parktag.app.debug
-flutter build apk --debug
+flutter build apk --debug --dart-define=APPCHECK_DEBUG_TOKEN=<token>
 ```
+
+The `APPCHECK_DEBUG_TOKEN` define makes a debug build attest with a fixed App
+Check debug token. Register the same token in the Firebase console under App
+Check > ParkTag Debug > Manage debug tokens, and list the debug app id in
+`APPCHECK_APP_IDS` on the server while testing. Without it the server cannot
+verify the build, so sign-in and activation fall back to the web screen.
 
 `android/app/google-services.json` is gitignored. Download it from Firebase project `parktag1` (Project settings, Android apps). Both `me.parktag.app` and `me.parktag.app.debug` are registered there.
 

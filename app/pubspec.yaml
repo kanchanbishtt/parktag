@@ -76,6 +76,9 @@ flutter:
     # The ParkTag wordmark, the same two files the web dashboard header uses
     # (src/frontend/images/light-logo.png and dark-logo.png).
     - assets/brand/
+    - assets/banners/
+    - assets/vehicles/
+    - assets/shop/
 
   fonts:
     - family: Inter

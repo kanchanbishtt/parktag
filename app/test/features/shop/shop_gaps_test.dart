@@ -5,6 +5,7 @@ import 'package:app/core/app_state.dart';
 import 'package:app/core/session.dart';
 import 'package:app/features/shop/address_screen.dart';
 import 'package:app/features/shop/cart_store.dart';
+import 'package:app/features/shop/catalogue.dart';
 import 'package:app/features/shop/checkout.dart';
 import 'package:app/features/shop/models.dart';
 import 'package:app/features/shop/orders_screen.dart';
@@ -86,10 +87,19 @@ void main() {
       expect(variantsFor('pt-combo'), ['Car', 'Bike', 'Scooter']);
     });
 
-    test('product photos are the web storefront files', () {
-      expect(productImageUrl('pt-car-1'), endsWith('/images/shop-car-900.webp'));
-      expect(productImageUrl('pt-car-4'), endsWith('/images/shop-car-2-v2-900.webp'));
-      expect(productImageUrl('unknown'), isNull);
+    test('card prices follow the web table until the server offers', () {
+      final car1 = shopCatalogue.firstWhere((p) => p.id == 'pt-car-1');
+      expect(car1.asset, 'assets/shop/shop-car-900.webp');
+      expect(cardPrice(car1, null), (price: 299, orig: 499, discount: 40, code: null));
+      const listed = Pricing([Product('pt-car-1', 'x', 24900)]);
+      expect(cardPrice(car1, listed).price, 249);
+      const offered = Pricing([
+        Product('pt-car-1', 'x', 29900,
+            offer: Offer('LAUNCH100', mrpPaise: 29900, discountPaise: 10000, offerPaise: 19900)),
+      ]);
+      expect(cardPrice(car1, offered), (price: 199, orig: 299, discount: 33, code: 'LAUNCH100'));
+      expect(shopCatalogue.map((p) => p.id), ['pt-car-1', 'pt-car-2', 'pt-combo', 'pt-bike-1']);
+      expect(shopCatalogue.where((p) => p.soldOut).map((p) => p.id), ['pt-combo', 'pt-bike-1']);
     });
 
     test('replaceTagId only takes an ObjectId', () {

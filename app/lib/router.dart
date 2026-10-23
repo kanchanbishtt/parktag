@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'core/app_state.dart';
-import 'core/platform.dart';
 import 'core/qr_parse.dart';
 import 'core/widgets.dart';
 import 'features/auth/routes.dart';
@@ -13,12 +12,14 @@ import 'features/scan/routes.dart';
 import 'features/shop/routes.dart';
 import 'features/vault/routes.dart';
 
-const guestShopUrl = 'https://app.parktag.me/get';
 const _ownerOnly = [
   '/home',
   '/tags',
   '/more',
-  '/shop',
+  // The shop itself is open to guests; buying and orders are not.
+  '/shop/address',
+  '/shop/confirmed',
+  '/shop/orders',
   '/activity',
   '/add-vehicles',
 ];
@@ -52,11 +53,14 @@ const tagOpenKeys = {'etag', 'premium', 'replacement'};
 /// screen, behind the guard. A known `open` is passed through as a query param.
 String tagIdLinkRedirect(String? tagId, [String? open]) {
   if (tagId == null || !_tagId.hasMatch(tagId)) return '/home';
-  return tagOpenKeys.contains(open) ? '/tags/$tagId?open=$open' : '/tags/$tagId';
+  return tagOpenKeys.contains(open)
+      ? '/tags/$tagId?open=$open'
+      : '/tags/$tagId';
 }
 
 GoRouter buildRouter(AppState app) {
-  String linkRedirect(BuildContext _, GoRouterState s) => tagLinkRedirect(s.uri);
+  String linkRedirect(BuildContext _, GoRouterState s) =>
+      tagLinkRedirect(s.uri);
   return GoRouter(
     navigatorKey: rootKey,
     initialLocation: '/splash',
@@ -70,7 +74,9 @@ GoRouter buildRouter(AppState app) {
       GoRoute(
         path: '/v/:tagId',
         redirect: (_, s) => tagIdLinkRedirect(
-            s.pathParameters['tagId'], s.uri.queryParameters['open']),
+          s.pathParameters['tagId'],
+          s.uri.queryParameters['open'],
+        ),
       ),
       // `/get?ref=CODE` (the referral link): park the code, then the shop.
       // Guests are sent on to sign-in by the guard; the code waits for them.
@@ -91,7 +97,9 @@ GoRouter buildRouter(AppState app) {
       StatefulShellRoute.indexedStack(
         builder: (context, state, shell) => AppShell(shell: shell),
         branches: [
-          StatefulShellBranch(routes: [...homeBranchRoutes, ...homeGuestRoutes]),
+          StatefulShellBranch(
+            routes: [...homeBranchRoutes, ...homeGuestRoutes],
+          ),
           StatefulShellBranch(routes: scanBranchRoutes),
           StatefulShellBranch(routes: shopBranchRoutes),
           StatefulShellBranch(routes: tagsBranchRoutes),
@@ -106,10 +114,9 @@ const _tabs = [
   PtNavItem('Home', Icons.home_rounded),
   PtNavItem('Scan', Icons.qr_code_scanner_rounded),
   PtNavItem('Shop', Icons.shopping_bag_rounded),
-  PtNavItem('Tags', Icons.directions_car_rounded),
+  PtNavItem('Tags', Icons.local_offer_rounded),
   PtNavItem('More', Icons.menu_rounded),
 ];
-const _shopTab = 2;
 
 class AppShell extends StatelessWidget {
   const AppShell({super.key, required this.shell});
@@ -117,11 +124,6 @@ class AppShell extends StatelessWidget {
   final StatefulNavigationShell shell;
 
   void _onTap(BuildContext context, int index) {
-    // Guest checkout needs reCAPTCHA, so guests shop on the web.
-    if (index == _shopTab && !AppScope.read(context).isOwner) {
-      PtPlatform.openCustomTab(guestShopUrl);
-      return;
-    }
     shell.goBranch(index, initialLocation: index == shell.currentIndex);
   }
 

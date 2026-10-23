@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/app_state.dart';
 import '../../core/platform.dart';
 import '../../core/theme.dart';
 import '../../core/widgets.dart';
@@ -8,12 +9,15 @@ import '../../core/widgets.dart';
 /// Guest checkout needs reCAPTCHA, so guests buy on the web.
 const buyTagUrl = 'https://app.parktag.me/get';
 
-/// `/hub`: the guest Home tab.
+/// `/hub` for guests and `/home` for owners: the Home tab, a column of
+/// action tiles. Owners see their tags where guests see Sign in, and buy
+/// in the native shop.
 class HubScreen extends StatelessWidget {
   const HubScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final owner = AppScope.of(context).isOwner;
     return Scaffold(
       body: SafeArea(
         child: ListView(
@@ -38,17 +42,27 @@ class HubScreen extends StatelessWidget {
               primary: true,
               onTap: () => context.go('/scan'),
             ),
-            _Tile(
-              icon: Icons.login_rounded,
-              title: 'Sign in',
-              body: 'Manage your tags and see who reached you.',
-              onTap: () => context.push('/login'),
-            ),
+            if (owner)
+              _Tile(
+                icon: Icons.local_offer_rounded,
+                title: 'Your tags',
+                body: 'Manage your tags and see who reached you.',
+                onTap: () => context.go('/tags'),
+              )
+            else
+              _Tile(
+                icon: Icons.login_rounded,
+                title: 'Sign in',
+                body: 'Manage your tags and see who reached you.',
+                onTap: () => context.push('/login'),
+              ),
             _Tile(
               icon: Icons.local_mall_outlined,
               title: 'Buy a tag',
               body: 'Get a ParkTag sticker for your vehicle.',
-              onTap: () => PtPlatform.openCustomTab(buyTagUrl),
+              onTap: () => owner
+                  ? context.go('/shop')
+                  : PtPlatform.openCustomTab(buyTagUrl),
             ),
             _Tile(
               icon: Icons.help_outline_rounded,

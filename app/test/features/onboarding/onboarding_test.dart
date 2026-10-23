@@ -78,7 +78,9 @@ void main() {
       ),
     );
     expect(find.text('Masked call with your ParkTag'), findsNothing);
-    expect(find.text('Scan a tag'), findsNothing);
+    // Home is the action hub for owners too, with their tags in place of Sign in.
+    expect(find.text('Your tags'), findsOneWidget);
+    expect(find.text('Sign in'), findsNothing);
     expect(find.text('Home'), findsWidgets);
   });
 
@@ -116,7 +118,7 @@ void main() {
 
     await tester.tap(find.text('Sign in'));
     await tester.pumpAndSettle();
-    expect(find.text('Sign in to manage your tags'), findsOneWidget);
+    expect(find.text('Owner Sign In'), findsOneWidget);
   });
 
   testWidgets('hub tile opens public order tracking', (tester) async {

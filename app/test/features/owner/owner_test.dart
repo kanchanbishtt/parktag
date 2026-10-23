@@ -75,7 +75,7 @@ Map<String, dynamic> dashboard() => {
       'createdAt': '2026-10-19T09:00:00.000Z',
     },
   ],
-  'referral': {'code': 'ASHA50', 'discountPaise': 5000},
+  'referral': {'code': 'ASHA50', 'discountPaise': 5000, 'rewardMonths': 1},
   'callbackWindowMs': 600000,
 };
 
@@ -187,9 +187,10 @@ void main() {
           : okDashboard(req),
     );
     await h.pump(tester, '/tags');
-    expect(find.text('My Vehicles (2)'), findsOneWidget);
+    // The Tags tab is the web Tags view: the owner dashboard.
+    expect(find.text('My Vehicles (2)', findRichText: true), findsOneWidget);
 
-    await tester.tap(find.text('Add vehicle').first);
+    await tester.tap(find.text('Add Vehicle'));
     await tester.pumpAndSettle();
     await tester.enterText(
       find.widgetWithText(TextField, 'Vehicle number'),
@@ -210,7 +211,7 @@ void main() {
           : okDashboard(req),
     );
     await h.pump(tester, '/tags');
-    await tester.tap(find.text('Add vehicle').first);
+    await tester.tap(find.text('Add Vehicle'));
     await tester.pumpAndSettle();
     await tester.enterText(
       find.widgetWithText(TextField, 'Vehicle number'),
@@ -369,8 +370,6 @@ void main() {
     );
     await h.pump(tester, '/tags');
     expect(find.text('No vehicles yet'), findsOneWidget);
-    await h.pump(tester, '/home');
-    expect(find.text('No vehicles yet'), findsOneWidget);
   });
 
   testWidgets('load error shows the retry card', (tester) async {
@@ -385,22 +384,34 @@ void main() {
     fail = false;
     await tester.tap(find.text('Retry'));
     await tester.pumpAndSettle();
-    expect(find.text('MH12AB1234'), findsOneWidget);
+    // The dashboard shows the plate on the vehicle card and in Activity.
+    expect(find.text('MH12AB1234'), findsWidgets);
   });
 
-  testWidgets('Home: greeting, coverage, referral, no prices or plans', (
+  testWidgets('Home: the action hub with the owner tiles, no prices or plans', (
     tester,
   ) async {
     final h = Harness(okDashboard);
+    // Home is the action hub; an owner gets their tags where a guest signs in.
     await h.pump(tester, '/home');
-    expect(find.text('Hi, Asha'), findsOneWidget);
-    expect(find.text('Covered until 1 Mar 2027'), findsOneWidget);
-    expect(find.text('E-Tag. No membership cover.'), findsOneWidget);
-    expect(find.text('ASHA50'), findsOneWidget);
+    expect(find.text('Scan a tag'), findsOneWidget);
+    expect(find.text('Your tags'), findsOneWidget);
+    expect(find.text('Sign in'), findsNothing);
     expect(find.textContaining('View plans'), findsNothing);
     expect(find.textContaining('₹'), findsNothing);
     expect(find.textContaining('Rs '), findsNothing);
     expect(find.textContaining('plans', findRichText: true), findsNothing);
+  });
+
+  testWidgets('Tags: the web dashboard greeting and referral link', (
+    tester,
+  ) async {
+    final h = Harness(okDashboard);
+    await h.pump(tester, '/tags');
+    expect(find.text('Hi, Asha!'), findsOneWidget);
+    expect(find.textContaining('get?ref=ASHA50'), findsOneWidget);
+    expect(find.textContaining('View plans'), findsNothing);
+    expect(find.textContaining('/month'), findsNothing);
   });
 
   test('coverageLine handles open, lapsed, trial and E-Tag', () {

@@ -32,7 +32,7 @@ void main() {
       Icons.home_rounded,
       Icons.qr_code_scanner_rounded,
       Icons.shopping_bag_rounded,
-      Icons.directions_car_rounded,
+      Icons.local_offer_rounded,
       Icons.menu_rounded,
     ]) {
       expect(find.byIcon(icon), findsOneWidget);
@@ -43,9 +43,9 @@ void main() {
     expect(find.text('Scan'), findsWidgets);
 
     // Tags is owner-only: a guest lands on sign-in.
-    await tester.tap(find.byIcon(Icons.directions_car_rounded));
+    await tester.tap(find.byIcon(Icons.local_offer_rounded));
     await tester.pumpAndSettle();
-    expect(find.text('Sign in'), findsWidgets);
+    expect(find.text('Owner Sign In'), findsOneWidget);
   });
 
   testWidgets('owner launch lands on Home', (tester) async {

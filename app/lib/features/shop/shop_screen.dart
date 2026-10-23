@@ -2,13 +2,28 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/app_state.dart';
-import '../../core/theme.dart';
+import '../../core/platform.dart';
+import '../../core/web_layout.dart';
+import '../../core/web_text.dart';
 import '../../core/widgets.dart';
+import '../owner/home_web.dart';
+import '../owner/owner_common.dart' show showError;
 import 'cart_store.dart';
+import 'catalogue.dart';
 import 'checkout.dart';
 import 'models.dart';
+import 'shop_web.dart';
 
-/// `/shop`: the signed-in catalogue. Physical stickers only.
+/// The web storefront a guest buys on: its checkout needs reCAPTCHA and
+/// takes no account, so the app opens it in a Custom Tab from BUY NOW.
+const guestShopUrl = 'https://app.parktag.me/get';
+
+/// `/shop`: the web owner dashboard's Shop view (welcome.html #view-shop)
+/// under the same header as Home: the heading, the four packs in two columns,
+/// and the product sheet a card opens. Physical stickers only.
+///
+/// A guest sees the same view under the storefront's header (a Sign in pill
+/// in place of the greeting); BUY NOW then opens the web storefront.
 ///
 /// `/shop?replaceTagId=<tag id>&variant=Car` comes from an expired free-trial
 /// tag: the order then mints a premium tag for that vehicle (web M18).
@@ -23,7 +38,9 @@ class ShopScreen extends StatefulWidget {
 }
 
 class _ShopScreenState extends State<ShopScreen> {
-  late Future<Pricing> _future = _load();
+  late Future<Pricing> _future;
+  Pricing? _pricing;
+  Object? _error;
 
   /// Spent by the first order, as the web nulls window._replaceTagId, so a
   /// second order from this screen does not replace the same trial tag.
@@ -31,21 +48,62 @@ class _ShopScreenState extends State<ShopScreen> {
 
   bool _restored = false;
 
+  bool get _owner => AppScope.read(context).isOwner;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _load();
+    // The header greets by name from the dashboard; the grid does not wait
+    // for it (the web paints the local product table first too).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final app = AppScope.read(context);
+      if (app.isOwner && app.dashboard == null) {
+        app.refresh().catchError((_) {});
+      }
+    });
+  }
+
   Future<Pricing> _load() async {
-    final pricing =
-        Pricing.fromJson(await AppScope.read(context).api.get('/api/shop/pricing'));
-    if (!_restored) {
-      _restored = true;
-      _restore(pricing);
+    final api = AppScope.read(context).api;
+    // Same catalogue and offers either way; the owner route needs a session.
+    final path = _owner ? '/api/shop/pricing' : '/api/shop/public-catalogue';
+    try {
+      final pricing = Pricing.fromJson(await api.get(path));
+      if (mounted) {
+        setState(() {
+          _pricing = pricing;
+          _error = null;
+        });
+      }
+      if (!_restored && _owner) {
+        _restored = true;
+        _restore(pricing);
+      }
+      return pricing;
+    } catch (e) {
+      if (mounted) setState(() => _error = e);
+      rethrow;
     }
-    return pricing;
+  }
+
+  Future<void> _reload() async {
+    setState(() => _future = _load());
+    try {
+      await _future;
+    } catch (_) {
+      // Shown in the ErrorCard above the grid.
+    }
   }
 
   /// Reopens a checkout the app was killed in the middle of.
   Future<void> _restore(Pricing pricing) async {
     final cart = await readCart();
     if (cart == null || !mounted) return;
-    final p = pricing.products.where((p) => p.id == cart.productId && !p.soldOut);
+    final p = pricing.products.where(
+      (p) => p.id == cart.productId && !p.soldOut,
+    );
     if (p.isEmpty) return clearCart();
     // A replace link wins over whatever was in the cart before it.
     if (_replaceTagId != null && _replaceTagId != cart.replaceTagId) return;
@@ -54,7 +112,39 @@ class _ShopScreenState extends State<ShopScreen> {
     });
   }
 
-  void _open(Product p, Pricing pricing, {SavedCart? cart}) {
+  /// The web's product sheet; BUY NOW goes on to the pack step.
+  void _show(CatalogueItem item) {
+    showProductSheet(
+      context,
+      item: item,
+      pricing: _pricing,
+      initialVariant: widget.variant,
+      onBuy: (sheet, variant) async {
+        Navigator.of(sheet).pop();
+        if (!_owner) {
+          PtPlatform.openCustomTab(guestShopUrl);
+          return;
+        }
+        var pricing = _pricing;
+        if (pricing == null) {
+          // Tapped before the price list arrived (or after it failed).
+          try {
+            pricing = await _load();
+          } catch (e) {
+            if (mounted) showError(context, e);
+            return;
+          }
+        }
+        if (!mounted) return;
+        final product =
+            pricing.productFor(item.id) ??
+            Product(item.id, item.name, item.price * 100);
+        _open(product, pricing, variant: variant);
+      },
+    );
+  }
+
+  void _open(Product p, Pricing pricing, {SavedCart? cart, String? variant}) {
     ModalRoute<void>? sheetRoute;
     showPtSheet<void>(
       context,
@@ -64,9 +154,10 @@ class _ShopScreenState extends State<ShopScreen> {
           product: p,
           pricing: pricing,
           initialQuantity: cart?.quantity ?? 1,
-          initialVariant: cart?.variant ?? widget.variant,
+          initialVariant: cart?.variant ?? variant ?? widget.variant,
           replaceTagId: cart?.replaceTagId ?? _replaceTagId,
-          onAddress: (current) => context.push<Address>('/shop/address', extra: current),
+          onAddress: (current) =>
+              context.push<Address>('/shop/address', extra: current),
           // The sheet may already be gone (drag dismiss mid-request). The
           // order is placed either way, so always show the confirmation.
           onDone: (confirmation) {
@@ -87,131 +178,83 @@ class _ShopScreenState extends State<ShopScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final error = _error;
+    final owner = AppScope.of(context).isOwner;
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Shop'),
-        actions: [
-          TextButton.icon(
-            onPressed: () => context.push('/shop/orders'),
-            style: TextButton.styleFrom(foregroundColor: Colors.white),
-            icon: const Icon(Icons.local_shipping_outlined),
-            label: const Text('My orders'),
-          ),
-        ],
-      ),
-      body: FutureBuilder<Pricing>(
-        future: _future,
-        builder: (context, snap) {
-          const pad = EdgeInsets.fromLTRB(PtLayout.padX, PtLayout.padX, PtLayout.padX, 110);
-          if (snap.hasError) {
-            return ListView(padding: pad, children: [
-              ErrorCard.from(snap.error!,
-                  onRetry: () => setState(() => _future = _load())),
-            ]);
-          }
-          if (!snap.hasData) return const Padding(padding: pad, child: Skeleton());
-          final pricing = snap.data!;
-          return ListView(
-            padding: pad,
-            children: [
-              Text(
-                  _replaceTagId != null
-                      ? 'Pick a pack for your premium tag. $replaceNote'
-                      : 'ParkTag stickers, delivered to your door.',
-                  style: const TextStyle(color: PtColors.muted)),
-              const SizedBox(height: 12),
-              for (final p in pricing.products) ...[
-                _ProductCard(p, onTap: p.soldOut ? null : () => _open(p, pricing)),
-                const SizedBox(height: 12),
-              ],
-            ],
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _ProductCard extends StatelessWidget {
-  const _ProductCard(this.p, {this.onTap});
-
-  final Product p;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final price = p.payableFor(1);
-    final discounted = price < p.amountPaise;
-    return Opacity(
-      opacity: p.soldOut ? 0.5 : 1,
-      child: Card(
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                _Photo(p.id),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(p.name,
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 4),
-                      p.soldOut
-                          ? const Text('Sold out', style: TextStyle(color: PtColors.muted))
-                          : Row(children: [
-                              Text(formatRupees(price),
-                                  style: const TextStyle(
-                                      fontSize: 16, fontWeight: FontWeight.w800)),
-                              if (discounted) ...[
-                                const SizedBox(width: 8),
-                                Text(formatRupees(p.amountPaise),
-                                    style: const TextStyle(
-                                        color: PtColors.muted,
-                                        decoration: TextDecoration.lineThrough)),
-                              ],
-                            ]),
-                    ],
-                  ),
-                ),
-                if (!p.soldOut) const Icon(Icons.chevron_right),
-              ],
+      body: RefreshIndicator(
+        onRefresh: _reload,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: EdgeInsets.zero,
+          children: [
+            if (owner) const HomeHeader() else const GuestHeader(),
+            WebContent(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const ShopHeading(),
+                  if (error != null && _pricing == null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 14),
+                      child: ErrorCard.from(error, onRetry: _reload),
+                    ),
+                  ShopGrid(pricing: _pricing, onOpen: _show),
+                ],
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );
   }
 }
 
-/// The web storefront's photo, or the QR icon while loading or on failure.
-class _Photo extends StatelessWidget {
-  const _Photo(this.productId);
-
-  final String productId;
-
-  static const _size = 72.0;
-  static const _icon = SizedBox.square(
-      dimension: _size,
-      child: Icon(Icons.qr_code_2_rounded, size: 36, color: PtColors.navy));
+/// The storefront's header (`/get`, `.gt-header`): the logo and a "Sign in"
+/// pill on navy, 64px tall at phone width.
+class GuestHeader extends StatelessWidget {
+  const GuestHeader({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final url = productImageUrl(productId);
-    if (url == null) return _icon;
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(10),
-      child: Image.network(url,
-          width: _size,
-          height: _size,
-          fit: BoxFit.cover,
-          cacheWidth: 216,
-          errorBuilder: (_, _, _) => _icon,
-          loadingBuilder: (_, child, progress) => progress == null ? child : _icon),
+    return Container(
+      color: const Color(0xFF0B132B),
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+          child: Row(
+            children: [
+              const PtLogo(height: 38, onDark: true),
+              const Spacer(),
+              Material(
+                color: Colors.transparent,
+                shape: const StadiumBorder(
+                  side: BorderSide(color: Color(0x59FFFFFF)),
+                ),
+                child: InkWell(
+                  customBorder: const StadiumBorder(),
+                  onTap: () => context.go('/login'),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    child: Text(
+                      'Sign in',
+                      style: wt(
+                        13.12,
+                        weight: FontWeight.w600,
+                        color: Colors.white,
+                        height: 1.2,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -11,7 +12,18 @@ import '../../core/widgets.dart';
 /// cookie could not be checked (offline).
 Future<String> splashTarget(AppState app) async {
   // main() already tried; this retries a check that failed offline.
-  if (!app.isOwner && await app.api.hasCookie()) await app.loadSession();
+  if (!app.isOwner) {
+    if (await app.api.hasCookie()) {
+      await app.loadSession();
+    } else if (kIsWeb) {
+      // The browser may still hold the cookie; a failed check is not fatal.
+      try {
+        await app.loadSession();
+      } on ApiError {
+        // Treated as signed out for this run.
+      }
+    }
+  }
   if (app.isOwner) return '/home';
   return await app.api.store.isOnboarded() ? '/hub' : '/onboarding';
 }

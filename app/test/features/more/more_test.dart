@@ -8,7 +8,6 @@ import 'package:app/features/more/membership_screen.dart';
 import 'package:app/features/more/referral_card.dart';
 import 'package:app/features/more/routes.dart';
 import 'package:app/features/more/support.dart';
-import 'package:app/features/owner/owner_common.dart' show ownerLaunch;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -395,44 +394,62 @@ void main() {
     }
   });
 
-  testWidgets('More shows the referral card, legal rows and contact support',
-      (tester) async {
-    final launched = <Uri>[];
-    final saved = ownerLaunch;
-    ownerLaunch = (u) async {
-      launched.add(u);
-      return true;
-    };
-    addTearDown(() => ownerLaunch = saved);
-
+  testWidgets('More is the web menu: header, rows, badge and Sign Out', (tester) async {
+    // Tall enough for the whole menu, as the drawer's list is lazily built.
+    tester.view.physicalSize = const Size(600, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
     await pumpAt(tester, '/more', (_) => json({}), dashboard: {
-      'owner': {'displayName': 'Asha'},
-      'referral': {
-        'code': 'AB12CD',
-        'discountPaise': 5000,
-        'rewardMonths': 1,
-        'friends': 1,
-        'monthsEarned': 1,
-      },
+      'owner': {'displayName': 'Asha', 'email': 'asha@example.com'},
+      'tags': [
+        {
+          'id': 't1',
+          'token': 'tokAAAAAAAAA',
+          'status': 'active',
+          'callsPaused': false,
+          'vehicleType': 'car',
+          'vehicleLabel': 'Car',
+          'plateNumber': 'MH12AB1234',
+          'premium': true,
+          'callAccess': {'tier': 'premium-trial', 'masking': true},
+          'scanUrl': 'https://app.parktag.me/t/tokAAAAAAAAA',
+        },
+      ],
     });
 
-    expect(find.text('Give ₹50, get a free month'), findsOneWidget);
-    expect(find.textContaining('1 friend has bought'), findsOneWidget);
-    expect(find.text('app.parktag.me/get?ref=AB12CD'), findsOneWidget);
+    expect(find.text('A'), findsOneWidget); // the avatar initial
+    expect(find.text('Asha'), findsOneWidget);
+    expect(find.text('asha@example.com'), findsOneWidget);
+    expect(find.text('User Info'), findsOneWidget);
+    // No backup number: the sub-line and the "1" badge, as on the web.
+    expect(find.text('Add a backup number'), findsOneWidget);
+    expect(find.text('1'), findsOneWidget);
+    expect(find.text('MY VEHICLE'), findsOneWidget);
+    expect(find.text('Add Vehicle'), findsOneWidget);
+    expect(find.text('Tags & Call'), findsOneWidget);
+    expect(find.text('My Orders'), findsOneWidget);
+    expect(find.text('Call Masking'), findsOneWidget);
+    expect(find.text('ALERTS & NOTIFICATIONS'), findsOneWidget);
+    expect(find.text('Download Premium Tag'), findsOneWidget);
+    // Remove Vehicle and Sign Out are two more rows under Get a Tag
+    // Replacement, not a footer pinned over the nav.
+    expect(find.text('Remove Vehicle'), findsOneWidget);
+    expect(find.text('Sign Out'), findsOneWidget);
+    final replaceY = tester.getCenter(find.text('Get a Tag Replacement')).dy;
+    final removeY = tester.getCenter(find.text('Remove Vehicle')).dy;
+    final signOutY = tester.getCenter(find.text('Sign Out')).dy;
+    expect(removeY, greaterThan(replaceY));
+    expect(signOutY, greaterThan(removeY));
+    expect(signOutY - removeY, closeTo(removeY - replaceY, 1));
+    expect(find.text('PREMIUM'), findsOneWidget);
+    // The web's drawer has no plans, prices or legal rows.
+    expect(find.textContaining('View plans'), findsNothing);
+    expect(find.text('Terms of service'), findsNothing);
 
-    await tester.tap(find.text('Share'));
-    expect(launched.single.host, 'wa.me');
-    expect(Uri.decodeComponent(launched.single.query), contains('/get?ref=AB12CD'));
-
-    await tester.scrollUntilVisible(find.text('Refund policy'), 200,
-        scrollable: find.byType(Scrollable).first);
-    expect(find.text('Terms of service'), findsOneWidget);
-    expect(find.text('Privacy policy'), findsOneWidget);
-
-    await tester.tap(find.text('Contact support'));
+    // Tags & Call opens inline with the two live switches.
+    await tester.tap(find.text('Tags & Call'));
     await tester.pumpAndSettle();
-    expect(find.text(supportEmail), findsOneWidget);
-    await tester.tap(find.text('WhatsApp us'));
-    expect(launched.last.toString(), startsWith('https://wa.me/918791638854'));
+    expect(find.text('Tag Active'), findsOneWidget);
+    expect(find.text('Calls Active'), findsOneWidget);
   });
 }

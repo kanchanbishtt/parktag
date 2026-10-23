@@ -289,7 +289,7 @@ void main() {
     expect(jsonDecode(post.body)['pincode'], '194101');
   });
 
-  testWidgets('the guest Shop tab opens the Custom Tab with pt_app=android',
+  testWidgets('a guest sees the shop; BUY NOW opens the Custom Tab with pt_app=android',
       (tester) async {
     FlutterSecureStorage.setMockInitialValues({'onboarded': '1'});
     final launcher = _FakeLauncher();
@@ -303,6 +303,16 @@ void main() {
 
     await tester.tap(find.descendant(
         of: find.byType(PtNavBar), matching: find.byIcon(Icons.shopping_bag_rounded)));
+    await tester.pumpAndSettle();
+
+    // The web Shop view, natively, with the storefront's Sign in pill.
+    expect(find.text('Get your ParkTag physical tag delivered to you.'), findsOneWidget);
+    expect(find.text('Sign in'), findsOneWidget);
+    expect(launcher.urls, isEmpty);
+    await tester.tap(find.text('ParkTag Car Tag (Pack of 1)'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('BUY NOW'));
+    await tester.tap(find.text('BUY NOW'));
     await tester.pumpAndSettle();
 
     expect(launcher.urls, hasLength(1));

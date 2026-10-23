@@ -1,162 +1,102 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
-import '../../core/api.dart';
 import '../../core/app_state.dart';
-import '../../core/theme.dart';
-import '../../core/widgets.dart';
+import '../../core/models.dart';
+import 'activity_row.dart';
+import 'home_cards.dart';
+import 'home_web.dart';
 import 'owner_common.dart';
-import 'tag_card.dart';
-import 'tag_rules.dart';
 
-/// `/tags`: "My Vehicles (n)", one card per tag, then the Add card.
-class TagsScreen extends StatelessWidget {
+/// `/tags`: the web owner dashboard's Tags view (the tag icon on the web nav) (pages/owner/welcome.html),
+/// section for section: header, banners, Overview, the callback prompt,
+/// search, My Vehicles, Refer a friend, Activity. Membership is read-only
+/// here: no prices and no plans link.
+class TagsScreen extends StatefulWidget {
   const TagsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final count = AppScope.of(context).tags.length;
-    return Scaffold(
-      appBar: AppBar(title: Text('My Vehicles ($count)')),
-      body: DashboardView(
-        builder: (context, app) => [
-          if (app.tags.isEmpty)
-            const EmptyState(
-              title: 'No vehicles yet',
-              body: 'Add your first vehicle below',
-              icon: Icons.directions_car_outlined,
-            ),
-          for (final t in app.tags) ...[
-            TagCard(tag: t),
-            const SizedBox(height: 12),
-          ],
-          const _AddCard(),
-        ],
-      ),
-    );
-  }
+  State<TagsScreen> createState() => _TagsScreenState();
 }
 
-class _AddCard extends StatelessWidget {
-  const _AddCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: ListTile(
-        leading: const Icon(Icons.add_circle_outline, color: PtColors.accent),
-        title: const Text(
-          'Add vehicle',
-          style: TextStyle(fontWeight: FontWeight.w700),
-        ),
-        subtitle: const Text('Get an E-Tag for another vehicle'),
-        onTap: () => showAddVehicleSheet(context),
-      ),
-    );
-  }
-}
-
-/// Same order as the scanner picker (tag_rules.dart vehicleTypeOptions).
-final vehicleTypes = {for (final o in vehicleTypeOptions) o.type: o.label};
-
-Future<void> showAddVehicleSheet(BuildContext context) =>
-    showPtSheet(context, builder: (_) => const AddVehicleForm());
-
-/// `POST /api/owner/local-vehicle {type, number}`, then refresh.
-class AddVehicleForm extends StatefulWidget {
-  const AddVehicleForm({super.key});
-
-  @override
-  State<AddVehicleForm> createState() => _AddVehicleFormState();
-}
-
-class _AddVehicleFormState extends State<AddVehicleForm> {
-  final _number = TextEditingController();
-  String _type = 'car';
-  String? _error;
-  bool _busy = false;
+class _TagsScreenState extends State<TagsScreen> {
+  VehicleFilter? _filter;
+  String? _activityVehicle;
+  final _search = TextEditingController();
 
   @override
   void dispose() {
-    _number.dispose();
+    _search.dispose();
     super.dispose();
-  }
-
-  Future<void> _save() async {
-    final number = _number.text.trim().toUpperCase();
-    if (number.isEmpty) {
-      setState(() => _error = 'Enter the vehicle number.');
-      return;
-    }
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    final app = AppScope.read(context);
-    try {
-      await app.api.post('/api/owner/local-vehicle', {
-        'type': _type,
-        'number': number,
-      });
-    } on ApiError catch (e) {
-      if (mounted) {
-        setState(() {
-          _busy = false;
-          _error = e.status == 409 ? 'Vehicle already added.' : e.message;
-        });
-      }
-      return;
-    }
-    try {
-      await app.refresh();
-    } on ApiError {
-      // Added; the list catches up on the next pull.
-    }
-    if (mounted) Navigator.pop(context);
   }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const Text(
-          'Add vehicle',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
-        ),
-        const SizedBox(height: 16),
-        DropdownButtonFormField<String>(
-          initialValue: _type,
-          decoration: const InputDecoration(labelText: 'Vehicle type'),
-          items: [
-            for (final e in vehicleTypes.entries)
-              DropdownMenuItem(value: e.key, child: Text(e.value)),
-          ],
-          onChanged: (v) => setState(() => _type = v ?? _type),
-        ),
-        const SizedBox(height: 12),
-        TextField(
-          controller: _number,
-          textCapitalization: TextCapitalization.characters,
-          inputFormatters: [LengthLimitingTextInputFormatter(15)],
-          decoration: const InputDecoration(
-            labelText: 'Vehicle number',
-            hintText: 'MH12AB1234',
-          ),
-          onSubmitted: (_) => _save(),
-        ),
-        if (_error != null) ...[
-          const SizedBox(height: 10),
-          Text(_error!, style: const TextStyle(color: PtColors.error)),
-        ],
-        const SizedBox(height: 16),
-        FilledButton(
-          onPressed: _busy ? null : _save,
-          child: Text(_busy ? 'Adding...' : 'Add vehicle'),
-        ),
-      ],
+    return Scaffold(
+      body: DashboardView(
+        header: const HomeHeader(),
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
+        builder: _body,
+      ),
     );
+  }
+
+  /// welcome.js getDisplayTags: the KPI filter, then the search box.
+  List<Tag> _shown(List<Tag> tags) {
+    var out = tags;
+    final f = _filter;
+    if (f != null) out = out.where(f.matches).toList();
+    final q = _search.text.trim().toLowerCase();
+    if (q.isNotEmpty) {
+      out = out
+          .where(
+            (t) =>
+                t.vehicleLabel.toLowerCase().contains(q) ||
+                (t.plateNumber ?? '').toLowerCase().contains(q),
+          )
+          .toList();
+    }
+    return out;
+  }
+
+  List<Widget> _body(BuildContext context, AppState app) {
+    final tags = app.tags;
+    final shown = _shown(tags);
+    final filtered = _filter != null || _search.text.trim().isNotEmpty;
+    final count = tags.isEmpty
+        ? null
+        : shown.length == tags.length
+        ? '(${tags.length})'
+        : '(${shown.length} of ${tags.length})';
+    final referral = app.referral;
+    return [
+      const BannerCarousel(),
+      OverviewSection(
+        tags: tags,
+        filter: _filter,
+        onFilter: (f) => setState(() => _filter = f),
+      ),
+      ActivityTicker(
+        every: const Duration(seconds: 15),
+        builder: (context, view) => CallbackPromptWeb(view: view),
+      ),
+      VehicleSearch(controller: _search, onChanged: (_) => setState(() {})),
+      const SizedBox(height: 22),
+      SectionTitle('My Vehicles', count: count, barGap: 5),
+      const SizedBox(height: 7),
+      if (shown.isEmpty) VehiclesEmpty(filtered: filtered),
+      for (final t in shown) ...[
+        VehicleCardWeb(tag: t, colorIndex: tags.indexOf(t)),
+        const SizedBox(height: 10),
+      ],
+      const AddVehicleCard(),
+      if (referral != null) ReferralCardWeb(referral: referral),
+      ActivityTicker(
+        builder: (context, view) => ActivitySectionWeb(
+          view: view,
+          vehicleFilter: _activityVehicle,
+          onVehicleFilter: (v) => setState(() => _activityVehicle = v),
+        ),
+      ),
+    ];
   }
 }

@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/api.dart';
 import '../../core/app_state.dart';
 import '../../core/theme.dart';
-import '../owner/tags_screen.dart' show vehicleTypes;
+import '../owner/add_vehicle_sheet.dart' show vehicleTypes;
 import 'auth_flow.dart';
 
 /// Indian plate: 2 letters, 1-2 digits, 1-3 letters, 1-4 digits (register.js PLATE_RE).

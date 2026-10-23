@@ -1,7 +1,5 @@
 // Shop models. Amounts are paise everywhere, as the server sends them.
 
-import '../../core/api.dart' show apiBase;
-
 /// `29900` -> `₹299`, `29950` -> `₹299.50`.
 String formatRupees(int paise) {
   final sign = paise < 0 ? '-' : '';
@@ -20,12 +18,15 @@ Map<String, dynamic> _map(Object? v) =>
 
 class Product {
   const Product(this.id, this.name, this.amountPaise,
-      {this.soldOut = false, this.offerByQuantity = const []});
+      {this.soldOut = false, this.offerByQuantity = const [], this.offer});
 
   final String id;
   final String name;
   final int amountPaise;
   final bool soldOut;
+
+  /// The website offer on this pack as the server will charge it, or null.
+  final Offer? offer;
 
   /// The website offer's payable total for quantity 1, 2, ... (empty: no offer).
   final List<int> offerByQuantity;
@@ -34,21 +35,6 @@ class Product {
   int payableFor(int quantity) => quantity <= offerByQuantity.length
       ? offerByQuantity[quantity - 1]
       : amountPaise * quantity;
-}
-
-/// The storefront photo the web shop uses for [productId] (welcome-shop.js
-/// PRODUCTS). The 2-car pack and the bike add-on SKUs have no photo of their
-/// own on the web, so they borrow the nearest one.
-String? productImageUrl(String productId) {
-  final file = switch (productId) {
-    'pt-car-1' => 'shop-car-900.webp',
-    'pt-car-2' || 'pt-car-4' => 'shop-car-2-v2-900.webp',
-    'pt-bike-1' => 'shop-bike-v2-900.webp',
-    'pt-combo' || 'pt-car-1-bike' || 'pt-car-2-bike' || 'pt-car-4-bike' =>
-      'shop-combo-900.webp',
-    _ => null,
-  };
-  return file == null ? null : '$apiBase/images/$file';
 }
 
 /// The labels the server records on an order (SHOP_VARIANTS, shapeVariant).
@@ -67,6 +53,20 @@ List<String> variantsFor(String productId) {
 String? parseReplaceTagId(String? raw) =>
     raw != null && RegExp(r'^[a-fA-F0-9]{24}$').hasMatch(raw) ? raw : null;
 
+/// One entry of the pricing reply's `offers` (promo-codes.js readOffers):
+/// what one pack costs with the website offer, against its MRP.
+class Offer {
+  const Offer(this.code, {required this.mrpPaise, required this.discountPaise, required this.offerPaise});
+
+  factory Offer.fromJson(Map<String, dynamic> j) => Offer(_str(j['code']),
+      mrpPaise: _int(j['mrpPaise']),
+      discountPaise: _int(j['discountPaise']),
+      offerPaise: _int(j['offerPaise']));
+
+  final String code;
+  final int mrpPaise, discountPaise, offerPaise;
+}
+
 /// `GET /api/shop/pricing`.
 class Pricing {
   const Pricing(this.products,
@@ -81,7 +81,8 @@ class Pricing {
       final byQty = offer['payableByQuantity'];
       products.add(Product(id, _str(p['name']), _int(p['amountPaise']),
           soldOut: p['soldOut'] == true,
-          offerByQuantity: byQty is List ? [for (final v in byQty) _int(v)] : const []));
+          offerByQuantity: byQty is List ? [for (final v in byQty) _int(v)] : const [],
+          offer: offer.isEmpty ? null : Offer.fromJson(offer)));
     });
     return Pricing(products,
         codSurchargePaise: _int(json['codSurchargePaise']),
@@ -90,6 +91,13 @@ class Pricing {
 
   final List<Product> products;
   final int codSurchargePaise;
+
+  Product? productFor(String id) {
+    for (final p in products) {
+      if (p.id == id) return p;
+    }
+    return null;
+  }
   final int flashDiscountPaise;
 }
 

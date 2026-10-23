@@ -27,10 +27,19 @@ Future<void> _initFirebase() async {
   try {
     await Firebase.initializeApp();
     await _initCrashlytics();
+    // Debug builds attest with a debug token. Without one fixed here, every
+    // install mints its own and only logcat reveals it, so a sideloaded test
+    // build can never be registered in the Firebase console and send-otp
+    // always falls back to the web screen. Pass
+    // --dart-define=APPCHECK_DEBUG_TOKEN=<token> at build time and register
+    // the same token under App Check > ParkTag Debug > Manage debug tokens.
+    const debugToken = String.fromEnvironment('APPCHECK_DEBUG_TOKEN');
     await FirebaseAppCheck.instance.activate(
       providerAndroid: kReleaseMode
           ? const AndroidPlayIntegrityProvider()
-          : const AndroidDebugProvider(),
+          : AndroidDebugProvider(
+              debugToken: debugToken.isEmpty ? null : debugToken,
+            ),
     );
   } catch (e) {
     // App Check only unlocks native send-otp; the bridge covers its absence.

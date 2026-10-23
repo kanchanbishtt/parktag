@@ -82,6 +82,10 @@ void main() {
     Future<void> buy() async {
       await tester.tap(find.text('ParkTag Car Tag (Pack of 1)'));
       await tester.pumpAndSettle();
+      // The web product sheet first; BUY NOW opens the pack step.
+      await tester.ensureVisible(find.text('BUY NOW'));
+      await tester.tap(find.text('BUY NOW'));
+      await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('Pay online'));
       await tester.tap(find.text('Pay online'));
       await tester.pumpAndSettle();

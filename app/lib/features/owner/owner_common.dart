@@ -13,12 +13,20 @@ Future<bool> Function(Uri url) ownerLaunch = (url) =>
 /// Loads the dashboard on first use and wraps [builder] in pull to refresh,
 /// with a skeleton before the first load and a retry card when it fails.
 class DashboardView extends StatefulWidget {
-  const DashboardView({super.key, required this.builder, this.header});
+  const DashboardView({
+    super.key,
+    required this.builder,
+    this.header,
+    this.padding = const EdgeInsets.fromLTRB(18, 16, 18, 120),
+  });
 
   final List<Widget> Function(BuildContext context, AppState app) builder;
 
   /// Pinned above the list (the Home header).
   final Widget? header;
+
+  /// Around the built sections.
+  final EdgeInsets padding;
 
   @override
   State<DashboardView> createState() => _DashboardViewState();
@@ -82,7 +90,7 @@ class _DashboardViewState extends State<DashboardView> {
         children: [
           ?widget.header,
           Padding(
-            padding: const EdgeInsets.fromLTRB(18, 16, 18, 120),
+            padding: widget.padding,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: children,

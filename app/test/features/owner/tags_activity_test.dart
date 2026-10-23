@@ -127,6 +127,7 @@ Future<void> pump(
     initialLocation: location,
     routes: [
       ...homeBranchRoutes,
+      ...tagsBranchRoutes,
       ...ownerRootRoutes,
       GoRoute(
         path: '/more/profile',
@@ -205,20 +206,18 @@ void main() {
     expect(find.text('Activity older than 2 days is hidden'), findsOneWidget);
   });
 
-  testWidgets('home: banner countdown expires live, bell badge, nudges', (
+  testWidgets('tags: banner countdown expires live, bell badge, menu badge', (
     tester,
   ) async {
-    await pump(tester, '/home', dashboard(mobile: null));
+    await pump(tester, '/tags', dashboard(mobile: null));
 
-    expect(find.text('Someone wants you to call back'), findsOneWidget);
+    expect(find.text('SOMEONE WANTS YOU TO CALL BACK'), findsOneWidget);
     expect(find.text('7 min left'), findsOneWidget);
-    // No owner mobile: the row says so instead of offering Call back.
-    expect(find.text('Add phone to call back'), findsWidgets);
-    expect(
-      find.text('Add your mobile number to receive call-backs'),
-      findsOneWidget,
-    );
-    expect(find.text('Add a backup number'), findsOneWidget);
+    // No owner mobile: the row says so instead of offering Call Back.
+    expect(find.text('Add phone\nto call back'), findsWidgets);
+    // The backup number is unset: the menu button carries the web's "1".
+    expect(find.byTooltip('Menu'), findsOneWidget);
+    expect(find.text('1'), findsWidgets);
     // Two contacts in the last hour.
     expect(find.text('2'), findsWidgets);
     expect(find.byTooltip('Activity, 2 new'), findsOneWidget);
@@ -229,28 +228,29 @@ void main() {
       findsOneWidget,
     );
 
-    // The window closes 7 minutes in; the banner goes without a refresh.
+    // The window closes 7 minutes in; the prompt goes without a refresh.
     activityNow = () => now.add(const Duration(minutes: 8));
     await tester.pump(const Duration(minutes: 7, seconds: 2));
-    expect(find.text('Someone wants you to call back'), findsNothing);
-    expect(find.text('Latest alert'), findsOneWidget);
+    expect(find.text('SOMEONE WANTS YOU TO CALL BACK'), findsNothing);
   });
 
-  testWidgets('home: KPI tiles filter vehicles; save number opens vcf', (
+  testWidgets('tags: KPI tiles filter vehicles; save number opens vcf', (
     tester,
   ) async {
-    await pump(tester, '/home', dashboard(backup: '+919888800000'));
-    expect(find.text('Add a backup number'), findsNothing);
-    expect(find.text('Call back'), findsOneWidget);
+    await pump(tester, '/tags', dashboard(backup: '+919888800000'));
+    // The prompt and the activity list both offer the free call back.
+    expect(find.text('Call Back'), findsWidgets);
     expect(find.text('DL01EF9999'), findsOneWidget);
 
-    await tester.tap(find.text('Premium').first);
+    await tester.tap(find.text('Premium Tags'));
     await tester.pumpAndSettle();
     expect(find.text('Filtered: Premium'), findsOneWidget);
     expect(find.text('DL01EF9999'), findsNothing);
-    expect(find.text('KA01CD5678'), findsNothing);
+    // The used E-Tag's card is gone; its plate stays in the Activity chips,
+    // which the KPI filter does not touch (welcome.js applyNbFilter).
+    expect(find.text('Call Used'), findsNothing);
 
-    await tester.tap(find.text('Clear'));
+    await tester.tap(find.text('✕ Clear'));
     await tester.pumpAndSettle();
     expect(find.text('DL01EF9999'), findsOneWidget);
 

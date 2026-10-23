@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import 'api.dart';
@@ -34,7 +35,8 @@ class AppState extends ChangeNotifier {
   Referral? get referral => dashboardData?.referral;
 
   List<Tag> get tags => _list('tags', Tag.fromJson);
-  List<ContactRequest> get requests => _list('requests', ContactRequest.fromJson);
+  List<ContactRequest> get requests =>
+      _list('requests', ContactRequest.fromJson);
 
   /// Activity rows carry the tag token, not its id; resolve through the tags.
   String? tokenForTagId(String tagId) {
@@ -72,8 +74,9 @@ class AppState extends ChangeNotifier {
     // router listens to AppState. Readers fetch it at checkout.
     _pendingReferral = code;
     try {
-      await api.store
-          .writeReferral('$code|${DateTime.now().millisecondsSinceEpoch}');
+      await api.store.writeReferral(
+        '$code|${DateTime.now().millisecondsSinceEpoch}',
+      );
     } catch (_) {
       // Memory still holds it for this run.
     }
@@ -100,7 +103,9 @@ class AppState extends ChangeNotifier {
   /// Offline leaves the app signed out for this run; the splash retries.
   Future<void> bootstrap() async {
     await _loadPendingReferral();
-    if (!await api.hasCookie()) return;
+    // On the web the browser holds the session cookie, not the app, so the
+    // only way to know whether the owner is still signed in is to ask.
+    if (!kIsWeb && !await api.hasCookie()) return;
     try {
       await loadSession();
     } on ApiError {
@@ -134,14 +139,17 @@ class AppState extends ChangeNotifier {
   List<T> _list<T>(String key, T Function(Map<String, dynamic>) from) {
     final v = dashboard?[key];
     if (v is! List) return const [];
-    return [for (final e in v) if (e is Map<String, dynamic>) from(e)];
+    return [
+      for (final e in v)
+        if (e is Map<String, dynamic>) from(e),
+    ];
   }
 }
 
 /// Makes [AppState] reachable from any widget and rebuilds dependents on change.
 class AppScope extends InheritedNotifier<AppState> {
   const AppScope({super.key, required AppState app, required super.child})
-      : super(notifier: app);
+    : super(notifier: app);
 
   static AppState of(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<AppScope>()!.notifier!;
@@ -169,7 +177,10 @@ String? referralFromStored(String? stored, [DateTime? now]) {
   if (parts == null || parts.length != 2) return null;
   final at = int.tryParse(parts[1]);
   if (at == null) return null;
-  final age = (now ?? DateTime.now())
-      .difference(DateTime.fromMillisecondsSinceEpoch(at));
-  return age.isNegative || age > referralTtl ? null : parseReferralCode(parts[0]);
+  final age = (now ?? DateTime.now()).difference(
+    DateTime.fromMillisecondsSinceEpoch(at),
+  );
+  return age.isNegative || age > referralTtl
+      ? null
+      : parseReferralCode(parts[0]);
 }

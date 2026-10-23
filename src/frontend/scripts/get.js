@@ -1036,6 +1036,21 @@ function wireZoom() {
   dialog.addEventListener("close", () => big.removeAttribute("src"));
 }
 
+function wireHeroFilm() {
+  const video = byId("gtHeroFilm");
+  if (!video) return;
+  // Under reduced motion it never plays: it shows the closing frame (the tag on
+  // the glass, "No number. Just scan.") instead of the opening one.
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    const toEnd = () => { video.currentTime = video.duration; };
+    if (video.readyState >= 1) toEnd(); else video.addEventListener("loadedmetadata", toEnd, { once: true });
+    return;
+  }
+  // Muted and inline, so play() needs no gesture. No loop: when it ends the
+  // browser holds the last frame. A refusal (data saver) leaves the poster.
+  video.play().catch(() => {});
+}
+
 function wireProofVideo() {
   const video = byId("gtProofVideo");
   if (!video) return;
@@ -1159,6 +1174,7 @@ async function load() {
   // Before the fetch: the buttons must point at the right pack even if the
   // price never arrives.
   syncHeroLinks();
+  wireHeroFilm();
   wireProofVideo();
   wireZoom();
   wireGoto();

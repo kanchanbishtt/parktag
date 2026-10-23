@@ -115,10 +115,11 @@ describe("tapping a pack card on /get", () => {
 // and product jargon, and that two of the four packs were dead ends. These pin
 // the first decision a cold visitor faces.
 describe("the first decision on /get", () => {
-  test("the hook is the line that names the habit it replaces, and the first photo is a real windscreen", () => {
+  test("the hook is the line that names the habit it replaces, and the first frame is a real windscreen", () => {
     const html = read("pages/get.html");
     assert.match(html, /<h1 class="gt-title"[^>]*>Never write your <span class="gt-mark">phone number<\/span> on a car window again\.<\/h1>/);
-    assert.match(html, /<div class="gt-show-main">\s*<img\s+src="\/images\/shop-gal-windscreen\.webp"/);
+    // The hero film's poster is its first frame: the real windscreen photo, before the tag goes on.
+    assert.match(html, /<div class="gt-show-main">[\s\S]{0,800}<video id="gtHeroFilm"[^>]*poster="\/images\/get-hero-film-poster\.webp"/);
   });
 
   test("the price card names the pack and its saving from the catalogue, and shows delivery and the payment line", async () => {
@@ -206,6 +207,7 @@ describe("nothing on /get that looks tappable is dead", () => {
 
   test("badges drawn over photos let the tap through to the photo", () => {
     const css = read("styles/get.css");
-    assert.match(css, /\.gt-show-chip, \.gt-how-n, \.gt-how-pill, \.gt-buy-off \{ pointer-events: none; \}/);
+    // The hero's photo chips went with the photo (the hero film carries its own captions).
+    assert.match(css, /\.gt-how-n, \.gt-how-pill, \.gt-buy-off \{ pointer-events: none; \}/);
   });
 });

@@ -20,7 +20,7 @@
     <link rel="modulepreload" href="/scripts/referral-link.js?v=__ASSET_VERSION__" />
     <link rel="modulepreload" href="/scripts/checkout-cart.js?v=__ASSET_VERSION__" />
     <link rel="modulepreload" href="/scripts/fresh-captcha.js?v=__ASSET_VERSION__" />
-    <link rel="preload" as="image" href="/images/shop-gal-windscreen.webp" fetchpriority="high" />
+    <link rel="preload" as="image" href="/images/get-hero-film-poster.webp" fetchpriority="high" />
     <link rel="preload" as="font" type="font/woff2" href="/fonts/inter-latin-var.woff2" crossorigin />
 
     <link rel="stylesheet" href="/styles/get.css?v=__ASSET_VERSION__" />
@@ -122,14 +122,21 @@
           <div class="gt-show-bar" aria-hidden="true"></div>
           <div class="gt-show-in">
             <div class="gt-show-main">
-              <img
-                src="/images/shop-gal-windscreen.webp"
-                width="747" height="1000"
-                fetchpriority="high" decoding="async"
-                alt="A ParkTag tag fixed inside a car windscreen, seen from outside the glass"
-              />
-              <span class="gt-show-chip">On a real windscreen</span>
-              <span class="gt-show-chip gt-show-chip-r">Inside mount</span>
+              <!-- The hero film (ParkTag/07-video/parktag-site-hero): the real
+                   windscreen, the tag pressed on, nobody finding a number, a scan,
+                   the real scanner page, and a masked call. Muted, plays once and
+                   holds its last frame. The poster is its first frame (the real
+                   windscreen), so it paints at once as the LCP element. get.js
+                   starts it (wireHeroFilm); under reduced motion it shows the
+                   closing frame instead. The film carries its own captions in the
+                   bottom-left, so the photo chips that sat there are gone. -->
+              <video id="gtHeroFilm" width="1200" height="900"
+                     poster="/images/get-hero-film-poster.webp"
+                     muted playsinline preload="auto"
+                     aria-label="A ParkTag tag is stuck inside a windscreen. The tag shows no phone number. A phone scans it, opens the ParkTag page and starts a private call, and both phones connect without either number being shown.">
+                <source src="/images/get-hero-film.webm" type="video/webm" />
+                <source src="/images/get-hero-film.mp4" type="video/mp4" />
+              </video>
             </div>
             <figure class="gt-show-tile gt-show-wide">
               <img src="/images/parktag-tags-pair.webp" width="900" height="797" loading="lazy" decoding="async" fetchpriority="low" alt="Two ParkTag tags: scan the code to contact the vehicle owner, with call and WhatsApp buttons" />

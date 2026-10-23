@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io' show Platform;
 
 import 'package:app/core/api.dart';
 import 'package:app/core/app_state.dart';
@@ -178,7 +179,7 @@ void main() {
       app,
       picker: (_) async => XFile.fromData(
         Uint8List(6 * 1024 * 1024),
-        path: '/picked/rc.pdf',
+        path: ['', 'picked', 'rc.pdf'].join(Platform.pathSeparator),
         length: 6 * 1024 * 1024,
       ),
     );
@@ -208,7 +209,7 @@ void main() {
         app,
         picker: (_) async => XFile.fromData(
           Uint8List.fromList([0xFF, 0xD8, 0xFF, 1, 2]),
-          path: '/picked/photo.jpg',
+          path: ['', 'picked', 'photo.jpg'].join(Platform.pathSeparator),
           length: 5,
         ),
       );
@@ -281,8 +282,11 @@ void main() {
     await pumpVault(
       tester,
       app,
-      picker: (_) async =>
-          XFile.fromData(Uint8List(10), path: '/picked/a.pdf', length: 10),
+      picker: (_) async => XFile.fromData(
+        Uint8List(10),
+        path: ['', 'picked', 'a.pdf'].join(Platform.pathSeparator),
+        length: 10,
+      ),
     );
     await tester.tap(find.text('Add document'));
     await tester.pumpAndSettle();

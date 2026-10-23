@@ -75,7 +75,7 @@ class _TagScreenState extends State<TagScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('ParkTag')),
+      appBar: AppBar(title: const PtLogo(height: 26, onDark: true)),
       body: FutureBuilder<Map<String, dynamic>>(
         future: _load,
         builder: (context, snap) {

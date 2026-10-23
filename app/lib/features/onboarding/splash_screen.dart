@@ -38,7 +38,9 @@ class _SplashScreenState extends State<SplashScreen> {
       final target = await splashTarget(AppScope.read(context));
       if (mounted) context.go(target);
     } on ApiError catch (e) {
-      if (mounted) setState(() => _error = e.isNetwork ? offlineError : e.message);
+      if (mounted) {
+        setState(() => _error = e.isNetwork ? offlineError : e.message);
+      }
     }
   }
 
@@ -53,11 +55,7 @@ class _SplashScreenState extends State<SplashScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text('ParkTag',
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 34,
-                        fontWeight: FontWeight.w900)),
+                const PtLogo(height: 56, onDark: true),
                 const SizedBox(height: 24),
                 if (_error == null)
                   const CircularProgressIndicator(color: PtColors.accent)

@@ -1,6 +1,7 @@
 import 'package:app/core/api.dart';
 import 'package:app/core/app_state.dart';
 import 'package:app/core/session.dart';
+import 'package:app/core/widgets.dart';
 import 'package:app/main.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -14,15 +15,19 @@ void main() {
     FlutterSecureStorage.setMockInitialValues({'onboarded': '1'});
     // The /login screen turns FLAG_SECURE on over this channel.
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-        const MethodChannel('parktag/platform'), (_) async => null);
-    final app = AppState(ApiClient(
-      store: SessionStore(),
-      client: MockClient((_) async => http.Response('{"session":null}', 200)),
-    ));
+      const MethodChannel('parktag/platform'),
+      (_) async => null,
+    );
+    final app = AppState(
+      ApiClient(
+        store: SessionStore(),
+        client: MockClient((_) async => http.Response('{"session":null}', 200)),
+      ),
+    );
     await tester.pumpWidget(ParkTagApp(app: app));
     await tester.pumpAndSettle();
 
-    expect(find.text('ParkTag'), findsWidgets); // hub title
+    expect(find.byType(PtLogo), findsOneWidget); // hub wordmark, not text
     for (final icon in [
       Icons.home_rounded,
       Icons.qr_code_scanner_rounded,
@@ -45,10 +50,12 @@ void main() {
 
   testWidgets('owner launch lands on Home', (tester) async {
     FlutterSecureStorage.setMockInitialValues({'onboarded': '1'});
-    final app = AppState(ApiClient(
-      store: SessionStore(),
-      client: MockClient((_) async => http.Response('{}', 200)),
-    ))..session = {'role': 'owner'};
+    final app = AppState(
+      ApiClient(
+        store: SessionStore(),
+        client: MockClient((_) async => http.Response('{}', 200)),
+      ),
+    )..session = {'role': 'owner'};
     await tester.pumpWidget(ParkTagApp(app: app));
     await tester.pumpAndSettle();
     expect(find.text('Home'), findsWidgets);

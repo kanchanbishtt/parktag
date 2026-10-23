@@ -84,6 +84,9 @@ class _ScannerScreenState extends State<ScannerScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // Black like the camera preview, so the letterbox and the camera-denied
+      // message (white text) read the same whether or not the preview is up.
+      backgroundColor: Colors.black,
       appBar: AppBar(title: const Text('Scan')),
       body: Stack(
         children: [

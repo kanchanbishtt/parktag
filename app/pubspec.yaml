@@ -59,6 +59,7 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: 6.0.0
+  flutter_launcher_icons: ^0.14.4
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -70,6 +71,11 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  assets:
+    # The ParkTag wordmark, the same two files the web dashboard header uses
+    # (src/frontend/images/light-logo.png and dark-logo.png).
+    - assets/brand/
 
   fonts:
     - family: Inter
@@ -106,3 +112,18 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+# Launcher icon: the official ParkTag mark from the brand guideline
+# (landing/public/brand-guideline/assets/logo/parktag-mark.png) on brand navy #03162D.
+# The adaptive foreground is the same mark; its own navy disc merges with the
+# background, leaving the white P inside the safe zone.
+# Regenerate with: dart run flutter_launcher_icons
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/icon/icon.png"
+  adaptive_icon_background: "#03162D"
+  adaptive_icon_foreground: "assets/icon/icon-adaptive-foreground.png"
+  # 13% inset: the default 16% made the P small on the home screen, 10% let it touch
+  # the mask edge; 13% keeps the whole P inside the 66dp safe zone at a good size.
+  adaptive_icon_foreground_inset: 13

@@ -46,16 +46,39 @@ abstract final class PtShadows {
 }
 
 ThemeData buildTheme() {
+  // fromSeed derives every colour it is not told about from the seed, which
+  // gives Material 3 widgets muted orange-browns and a pink wash on elevated
+  // surfaces instead of the brand palette. Pin the ones widgets actually read
+  // (chips, switches, dialogs, sheets) to ParkTag red #FF2700 and navy #03162D.
   final scheme = ColorScheme.fromSeed(
     seedColor: PtColors.accent,
     primary: PtColors.accent,
     onPrimary: Colors.white,
+    primaryContainer: PtColors.amberBg,
+    onPrimaryContainer: PtColors.ink,
+    secondary: PtColors.navy,
+    onSecondary: Colors.white,
+    secondaryContainer: PtColors.amberBg,
+    onSecondaryContainer: PtColors.ink,
+    tertiary: PtColors.navy,
+    onTertiary: Colors.white,
     surface: PtColors.panel,
     onSurface: PtColors.ink,
+    onSurfaceVariant: PtColors.muted,
+    surfaceContainerLowest: PtColors.panel,
+    surfaceContainerLow: PtColors.panel,
+    surfaceContainer: PtColors.panel,
+    surfaceContainerHigh: PtColors.panel,
+    surfaceContainerHighest: PtColors.bg,
+    // No elevation tint: a raised card or sheet stays white, not pink.
+    surfaceTint: Colors.transparent,
+    outline: PtColors.line,
+    outlineVariant: PtColors.line,
     error: PtColors.error,
   );
   final rounded = RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(PtRadii.r14));
+    borderRadius: BorderRadius.circular(PtRadii.r14),
+  );
   return ThemeData(
     useMaterial3: true,
     colorScheme: scheme,
@@ -66,16 +89,24 @@ ThemeData buildTheme() {
       backgroundColor: PtColors.navy,
       foregroundColor: Colors.white,
       elevation: 0,
+      // The colour must be here: an AppBarTheme titleTextStyle replaces the
+      // default style wholesale, so without it the title ignores
+      // foregroundColor and renders navy-on-navy.
       titleTextStyle: TextStyle(
-          fontFamily: 'Inter', fontSize: 18, fontWeight: FontWeight.w700),
+        fontFamily: 'Inter',
+        fontSize: 18,
+        fontWeight: FontWeight.w700,
+        color: Colors.white,
+      ),
     ),
     cardTheme: CardThemeData(
       color: PtColors.panel,
       elevation: 0,
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(PtRadii.r16),
-          side: const BorderSide(color: PtColors.line)),
+        borderRadius: BorderRadius.circular(PtRadii.r16),
+        side: const BorderSide(color: PtColors.line),
+      ),
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
@@ -99,16 +130,21 @@ ThemeData buildTheme() {
       filled: true,
       fillColor: PtColors.panel,
       border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(PtRadii.r12),
-          borderSide: const BorderSide(color: PtColors.line)),
+        borderRadius: BorderRadius.circular(PtRadii.r12),
+        borderSide: const BorderSide(color: PtColors.line),
+      ),
       enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(PtRadii.r12),
-          borderSide: const BorderSide(color: PtColors.line)),
+        borderRadius: BorderRadius.circular(PtRadii.r12),
+        borderSide: const BorderSide(color: PtColors.line),
+      ),
       focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(PtRadii.r12),
-          borderSide: const BorderSide(color: PtColors.accent, width: 1.5)),
+        borderRadius: BorderRadius.circular(PtRadii.r12),
+        borderSide: const BorderSide(color: PtColors.accent, width: 1.5),
+      ),
     ),
     snackBarTheme: const SnackBarThemeData(
-        behavior: SnackBarBehavior.floating, backgroundColor: PtColors.ink),
+      behavior: SnackBarBehavior.floating,
+      backgroundColor: PtColors.ink,
+    ),
   );
 }

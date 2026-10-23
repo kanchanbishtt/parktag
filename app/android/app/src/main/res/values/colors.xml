@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- ParkTag brand navy (#03162D). Red is #FF2700. Used behind the adaptive
+         launcher icon and the splash so both match the app's own theme. -->
+    <color name="parktag_navy">#03162D</color>
+    <color name="ic_launcher_background">#03162D</color>
+</resources>

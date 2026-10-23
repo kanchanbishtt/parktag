@@ -127,8 +127,9 @@
                    the real scanner page, and a masked call. Muted, plays once and
                    holds its last frame. The poster is its first frame (the real
                    windscreen), so it paints at once as the LCP element. get.js
-                   starts it (wireHeroFilm); under reduced motion it shows the
-                   closing frame instead. The film carries its own captions in the
+                   starts it and loops it after a 1 s hold on the last frame
+                   (wireHeroFilm); under reduced motion it shows the closing
+                   frame instead. The film carries its own captions in the
                    bottom-left, so the photo chips that sat there are gone. -->
               <video id="gtHeroFilm" width="1200" height="900"
                      poster="/images/get-hero-film-poster.webp"
@@ -138,10 +139,6 @@
                 <source src="/images/get-hero-film.mp4" type="video/mp4" />
               </video>
             </div>
-            <figure class="gt-show-tile gt-show-wide">
-              <img src="/images/parktag-tags-pair.webp" width="900" height="797" loading="lazy" decoding="async" fetchpriority="low" alt="Two ParkTag tags: scan the code to contact the vehicle owner, with call and WhatsApp buttons" />
-              <figcaption>The pack: two tags, printed on both sides</figcaption>
-            </figure>
           </div>
         </div>
 
@@ -150,6 +147,14 @@
              shown only when the catalogue says the hero pack takes it
              (renderChips), the same rule the sticky bar follows. -->
         <div class="gt-buy">
+          <!-- The pack sits beside what it costs: photo on the left, name,
+               price and the button on the right. -->
+          <div class="gt-buy-top">
+          <figure class="gt-buy-pic">
+            <img src="/images/parktag-tags-pair.webp" width="900" height="797" loading="lazy" decoding="async" fetchpriority="low" alt="Two ParkTag tags: scan the code to contact the vehicle owner, with call and WhatsApp buttons" />
+            <figcaption>Two tags, printed on both sides</figcaption>
+          </figure>
+          <div class="gt-buy-main">
           <div class="gt-buy-hd">
             <div>
               <h2 class="gt-buy-n" id="gtBuyName">ParkTag Car Tag (Pack of 2)</h2>
@@ -164,6 +169,8 @@
                traffic to the other storefront. get.js intercepts on data-sku. -->
           <p class="gt-ref" id="gtRef" role="status" hidden></p>
           <a class="gt-btn gt-cta" href="#packs" id="gtCta" data-sku="pt-car-2">Get your ParkTag now</a>
+          </div>
+          </div>
           <a class="gt-see" href="#gtHowTitle">See how it works <span aria-hidden="true">&darr;</span></a>
 
           <ul class="gt-ticks" id="gtChips">
@@ -214,9 +221,8 @@
       </section>
 
       <!-- ── The difference ───────────────────────────────────────────────────
-           What people do now, next to what this does. The left tile is drawn,
-           not photographed: it needs no stock picture and cannot be mistaken
-           for a customer. -->
+           What people do now, next to what this does: a windscreen with a
+           handwritten number on the dashboard, beside one with the tag. -->
       <section class="gt-diff" aria-labelledby="gtDiffTitle">
         <div class="gt-diff-hd">
           <h2 class="gt-diff-k" id="gtDiffTitle">The difference</h2>
@@ -224,7 +230,7 @@
         </div>
         <div class="gt-diff-pair">
           <figure class="gt-diff-a" data-goto="#gtHowTitle">
-            <div class="gt-diff-glass"><div class="gt-diff-note" aria-label="A handwritten paper note with a phone number on it"><span>123-456-7890</span></div></div>
+            <div class="gt-diff-shot"><img src="/images/diff-paper-note.webp" width="600" height="750" loading="lazy" decoding="async" fetchpriority="low" alt="A handwritten note on a car dashboard: Parking? Call, with a phone number anyone can read" /></div>
             <figcaption>A paper note: anyone can read your number</figcaption>
           </figure>
           <figure class="gt-diff-b">
@@ -363,28 +369,28 @@
           <span class="gt-feat-i" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none"><path d="M6 10V7a6 6 0 1112 0v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="4" y="10" width="16" height="10" rx="2.5" stroke="currentColor" stroke-width="2"/></svg>
           </span>
-          <h3 class="gt-feat-t">Private number</h3>
+          <h3 class="gt-feat-t">Private<br>number</h3>
           <p class="gt-feat-s">The caller reaches you on a masked number and never sees your real mobile.</p>
         </li>
         <li class="gt-feat" data-goto="#packs">
           <span class="gt-feat-i" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 005 5L15 13l5 2v4a1 1 0 01-1 1A15 15 0 014 5a1 1 0 011-1z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
           </span>
-          <h3 class="gt-feat-t">Call or WhatsApp</h3>
+          <h3 class="gt-feat-t">Call or<br>WhatsApp</h3>
           <p class="gt-feat-s">WhatsApp scan alerts stay free for the life of your active ParkTag.</p>
         </li>
         <li class="gt-feat" data-goto="#packs">
           <span class="gt-feat-i" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="2"/><rect x="14" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="2"/><rect x="3" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="2"/><path d="M14 14h3v3h-3zM20 20h1M17 20v1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
           </span>
-          <h3 class="gt-feat-t">No app to scan</h3>
+          <h3 class="gt-feat-t">No app<br>to scan</h3>
           <p class="gt-feat-s">Any iPhone or Android camera opens it. Only you need an account.</p>
         </li>
         <li class="gt-feat" data-goto="#packs" id="gtPremium">
           <span class="gt-feat-i" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none"><path d="M12 3l7 3v6c0 4.2-2.9 7.6-7 9-4.1-1.4-7-4.8-7-9V6l7-3z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </span>
-          <h3 class="gt-feat-t">A year included</h3>
+          <h3 class="gt-feat-t">A year<br>included</h3>
           <p class="gt-feat-s">Premium is included for 1 year. Lifetime WhatsApp scan alerts continue after that.</p>
         </li>
       </ul>

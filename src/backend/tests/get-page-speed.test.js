@@ -52,12 +52,13 @@ test("the proof video does not download at page load", () => {
   assert.match(script, /function wireProofVideo\(\)/);
 });
 
-test("the hero film's poster is preloaded, the film plays once without loading the page, and the hidden add-on photo waits until it is shown", () => {
+test("the hero film's poster is preloaded, the film loops after a hold on its last frame, and the hidden add-on photo waits until it is shown", () => {
   // The poster is the film's first frame, the real windscreen photo: it is the LCP element.
   const film = html.match(/<video[^>]*id="gtHeroFilm"[^>]*>/s)?.[0];
   assert.ok(film, "the hero film is on the page");
   assert.match(film, /poster="\/images\/get-hero-film-poster\.webp"/);
-  assert.doesNotMatch(film, /\sloop[\s>=]/, "it plays once and holds the last frame");
+  assert.doesNotMatch(film, /\sloop[\s>=]/, "the loop is get.js's, so the last frame can hold before it restarts");
+  assert.match(script, /addEventListener\("ended", \(\) => setTimeout\(/);
   assert.match(film, /\smuted[\s>]/);
   assert.match(html, /<link rel="preload" as="image" href="\/images\/get-hero-film-poster\.webp" fetchpriority="high" \/>/);
   assert.match(script, /function wireHeroFilm\(\)/);

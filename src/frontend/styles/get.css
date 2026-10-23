@@ -288,7 +288,6 @@ html:has(.gt-body) { overscroll-behavior-x: none; }
 .gt-show-in { display: grid; gap: 8px; padding: 10px; }
 .gt-show-main { position: relative; overflow: hidden; border-radius: 16px; background: var(--gt-navy-tint); }
 .gt-show-main video { display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; }
-.gt-show-wide { grid-column: 1 / -1; }
 .gt-show-tile { margin: 0; padding: 6px; border: 1px solid var(--gt-line); border-radius: 16px; background: var(--gt-ground); text-align: center; }
 .gt-show-tile img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 10; object-fit: contain; border-radius: 10px; background: #fff; cursor: zoom-in; }
 .gt-show-tile figcaption { margin-top: 6px; font-size: .74rem; font-weight: 700; color: var(--gt-ink); }
@@ -301,6 +300,22 @@ html:has(.gt-body) { overscroll-behavior-x: none; }
   border: 1px solid var(--gt-line);
   border-radius: 24px;
   box-shadow: 0 8px 24px -4px rgba(11, 19, 43, .12), 0 2px 6px -1px rgba(11, 19, 43, .06);
+}
+.gt-buy-top { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: 16px; align-items: center; }
+.gt-buy-pic { margin: 0; text-align: center; }
+.gt-buy-pic img { display: block; width: 100%; height: auto; aspect-ratio: 900 / 797; object-fit: contain; border-radius: 14px; background: #fff; border: 1px solid var(--gt-line); cursor: zoom-in; }
+.gt-buy-pic figcaption { margin-top: 6px; font-size: .72rem; font-weight: 700; color: var(--gt-ink-3); }
+.gt-buy-main { min-width: 0; }
+@media (max-width: 480px) {
+  /* Beside the photo the right column is ~200px wide: keep the button to one line. */
+  .gt-buy-top { gap: 12px; }
+  .gt-buy-main .gt-cta { padding-inline: 10px; font-size: .9rem; white-space: nowrap; }
+  .gt-buy-main .gt-price { padding: 8px 10px; }
+  .gt-buy-main .gt-price-v { font-size: 1.5rem; }
+  /* The badge sits above the name, so the name gets the column's full width. */
+  .gt-buy-main .gt-buy-hd { flex-direction: column-reverse; align-items: flex-start; gap: 6px; }
+  .gt-buy-main .gt-buy-n { font-size: 1rem; }
+  .gt-buy-main .gt-buy-d { font-size: .78rem; }
 }
 .gt-buy-hd { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .gt-buy-n { margin: 0; font-size: 1.05rem; line-height: 1.25; font-weight: 800; letter-spacing: -.01em; }
@@ -351,15 +366,10 @@ html:has(.gt-body) { overscroll-behavior-x: none; }
 .gt-diff-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
 .gt-diff-pair figure { margin: 0; }
 .gt-diff-pair figcaption { margin-top: 6px; font-size: .72rem; line-height: 1.35; font-weight: 700; color: var(--gt-ink-2); }
-.gt-diff-glass, .gt-diff-zoom { display: block; width: 100%; aspect-ratio: 4 / 5; border-radius: 16px; overflow: hidden; }
+.gt-diff-shot, .gt-diff-zoom { display: block; width: 100%; aspect-ratio: 4 / 5; border-radius: 16px; overflow: hidden; }
+.gt-diff-shot img { display: block; width: 100%; height: 100%; object-fit: cover; cursor: zoom-in; }
 /* The photo, moved in on the tag so it reads at this size. */
 .gt-diff-zoom img { display: block; width: 100%; height: 100%; object-fit: cover; transform: scale(1.9); transform-origin: 52% 56%; cursor: zoom-in; }
-/* The old way, drawn: a note taped behind the glass, with a number anyone can read. */
-.gt-diff-glass { position: relative; display: grid; place-items: center; overflow: hidden; background: linear-gradient(135deg, #5E7387, #9DB2C2 45%, #6A7F92); }
-.gt-diff-glass:after { content: ""; position: absolute; inset: 0; background: linear-gradient(115deg, rgba(255, 255, 255, .22) 0 18%, transparent 18% 40%, rgba(255, 255, 255, .12) 40% 52%, transparent 52%); }
-.gt-diff-note { position: relative; z-index: 1; width: 78%; padding: 18px 8px; background: #fff; border-radius: 3px; transform: rotate(-6deg); box-shadow: 0 8px 18px rgba(11, 19, 43, .3); text-align: center; }
-.gt-diff-note:before { content: ""; position: absolute; top: -8px; left: 50%; width: 38px; height: 14px; margin-left: -19px; background: rgba(250, 204, 21, .75); transform: rotate(3deg); }
-.gt-diff-note span { white-space: nowrap; font: italic 700 .98rem "Bradley Hand", "Segoe Script", "Comic Sans MS", cursive; color: #1E3A8A; letter-spacing: .02em; }
 .gt-diff-feats { list-style: none; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0 0; padding: 0; }
 .gt-diff-feats li { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 6px; border: 1px solid var(--gt-line); border-radius: 14px; background: var(--gt-ground); text-align: center; font-size: .74rem; line-height: 1.25; font-weight: 700; color: var(--gt-ink); }
 .gt-diff-feats svg { width: 20px; height: 20px; color: var(--gt-ink); }

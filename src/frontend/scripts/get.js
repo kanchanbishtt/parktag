@@ -1024,7 +1024,7 @@ function wireZoom() {
     // Every photo on the page opens larger on a tap. Clarity showed people
     // tapping them to see more and nothing happening.
     const shot = event.target.closest(
-      "img.gt-heard-shot, img.gt-proof-media, .gt-show img, .gt-diff-b img, .gt-how-media img, #gtAddonImage, .gt-pack img"
+      "img.gt-heard-shot, img.gt-proof-media, .gt-show img, .gt-buy-pic img, .gt-diff-a img, .gt-diff-b img, .gt-how-media img, #gtAddonImage, .gt-pack img"
     );
     if (!shot) return;
     big.src = shot.currentSrc || shot.src;
@@ -1046,9 +1046,12 @@ function wireHeroFilm() {
     if (video.readyState >= 1) toEnd(); else video.addEventListener("loadedmetadata", toEnd, { once: true });
     return;
   }
-  // Muted and inline, so play() needs no gesture. No loop: when it ends the
-  // browser holds the last frame. A refusal (data saver) leaves the poster.
-  video.play().catch(() => {});
+  // Muted and inline, so play() needs no gesture. A refusal (data saver) leaves
+  // the poster. No loop attribute: it ends on "No number. Just scan.", holds
+  // that frame for a second, then starts again from the empty windscreen.
+  const play = () => video.play().catch(() => {});
+  video.addEventListener("ended", () => setTimeout(() => { video.currentTime = 0; play(); }, 1000));
+  play();
 }
 
 function wireProofVideo() {

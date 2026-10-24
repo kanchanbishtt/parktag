@@ -117,7 +117,7 @@ describe("tapping a pack card on /get", () => {
 describe("the first decision on /get", () => {
   test("the hook is the line that names the habit it replaces, and the first frame is a real windscreen", () => {
     const html = read("pages/get.html");
-    assert.match(html, /<h1 class="gt-title"[^>]*>Never write your <span class="gt-mark">phone number<\/span> on a car window again\.<\/h1>/);
+    assert.match(html, /<h1 class="gt-title"[^>]*>Never write your <span class="gt-mark">phone number<\/span> on your car again\.<\/h1>/);
     // The hero film's poster is its first frame: the real windscreen photo, before the tag goes on.
     assert.match(html, /<div class="gt-show-main">[\s\S]{0,800}<video id="gtHeroFilm"[^>]*poster="\/images\/get-hero-film-poster\.webp"/);
   });
@@ -127,9 +127,10 @@ describe("the first decision on /get", () => {
     assert.equal(w.document.getElementById("gtBuyName").textContent, "ParkTag Car Tag (Pack of 2)");
     const price = w.document.querySelector(".gt-chip-price");
     assert.match(price.textContent, /₹499/); // the test catalogue has no launch offer
-    assert.match(price.textContent, /Free delivery/);
+    assert.match(w.document.getElementById("gtSave").textContent, /Free delivery/);
     // CATALOGUE has no launch offer, so there is no saving to claim.
-    assert.equal(w.document.getElementById("gtBuyOff").hidden, true);
+    assert.equal(w.document.querySelector(".gt-chip-price .gt-buy-off"), null);
+    assert.doesNotMatch(w.document.getElementById("gtSave").textContent, /You save/);
     assert.equal(w.document.getElementById("gtChipCod").hidden, false);
     assert.equal(w.document.getElementById("gtChipOnline").hidden, true);
   });

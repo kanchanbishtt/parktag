@@ -132,6 +132,17 @@ html:has(.gt-body) { overscroll-behavior-x: none; }
   background: var(--gt-ink);
 }
 
+/* The hazard stripe off the tag itself, along the header's bottom edge. */
+.gt-body-get .gt-header::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 10px;
+  background: repeating-linear-gradient(115deg, var(--gt-ink) 0 14px, #FFD400 14px 30px, var(--gt-ink) 30px 44px);
+}
+
 .gt-logo { display: inline-flex; align-items: center; text-decoration: none; }
 /* mix-blend-mode matches how every other ParkTag header renders this asset:
    it is a light mark cut for a dark ground. */
@@ -217,6 +228,9 @@ html:has(.gt-body) { overscroll-behavior-x: none; }
   .gt-recall-go { display: none; }
 }
 
+/* Room under the header's hazard stripe. */
+.gt-body-get .gt-main { padding-top: 28px; }
+
 /* ── Hero ────────────────────────────────────────────────────────────── */
 
 .gt-hero.gt-hero-b {
@@ -228,16 +242,16 @@ html:has(.gt-body) { overscroll-behavior-x: none; }
 }
 
 .gt-hero.gt-hero-b .gt-title {
-  margin: 4px 0 0;
-  font-size: clamp(1.55rem, 7.4vw, 2rem);
-  line-height: 1.22;
-  letter-spacing: -.025em;
+  margin: 6px 0 16px;
+  font-size: clamp(25px, 7vw, 34px);
+  line-height: 1.12;
+  letter-spacing: -.02em;
   font-weight: 800;
   text-wrap: balance;
 }
 
 /* The one phrase the line turns on, in the brand red. box-decoration-break
-   keeps the bar whole if the phrase wraps. */
+   keeps the bar whole if the phrase wraps. On /get it is red text instead. */
 .gt-mark {
   display: inline;
   background: var(--gt-red);
@@ -247,97 +261,28 @@ html:has(.gt-body) { overscroll-behavior-x: none; }
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
 }
+.gt-hero-b .gt-mark { background: none; color: var(--gt-red); padding: 0; }
 
-/* The four things worth knowing, as a 2x2 under the line. */
-.gt-perks {
-  list-style: none;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin: 14px 0 0;
-  padding: 0;
-}
-.gt-perks li {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  min-width: 0;
-  padding: 9px 10px;
-  border-radius: 14px;
-  background: #EEF3FB;
-}
-.gt-perk-i { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 9px; background: #fff; font-size: 1rem; }
-.gt-perks strong { display: block; font-size: .82rem; line-height: 1.2; font-weight: 800; color: var(--gt-ink); }
-.gt-perks small { display: block; margin-top: 1px; font-size: .72rem; line-height: 1.25; font-weight: 600; color: var(--gt-ink-2); }
-
-/* ── Showcase ────────────────────────────────────────────────────────────
-   The product photographed, then the artwork and the pack. The hazard strip is
-   the one on the tag itself. */
-.gt-show {
-  margin-top: 18px;
-  overflow: hidden;
-  background: var(--gt-card);
-  border: 1px solid var(--gt-line);
-  border-radius: 24px;
-  box-shadow: 0 2px 8px -2px rgba(11, 19, 43, .06), 0 1px 3px rgba(11, 19, 43, .04);
-}
-.gt-show-bar {
-  height: 8px;
-  background: repeating-linear-gradient(-45deg, #FACC15 0 9px, #0B132B 9px 18px);
-}
-.gt-show-in { display: grid; gap: 8px; padding: 10px; }
-.gt-show-main { position: relative; overflow: hidden; border-radius: 16px; background: var(--gt-navy-tint); }
+/* ── The film, edge to edge on a phone ─────────────────────────────────── */
+.gt-show { margin-inline: calc(-1 * var(--gt-gutter)); background: #0B1118; }
+.gt-show-main { position: relative; overflow: hidden; }
 .gt-show-main video { display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; }
+@media (min-width: 640px) { .gt-show { margin-inline: 0; border-radius: 16px; overflow: hidden; } }
 /* Autoplay refused (some in-app browsers): a play mark until the first touch starts the film. */
 .gt-show-main.gt-film-wait::after { content: ""; position: absolute; left: 50%; top: 50%; width: 64px; height: 64px; margin: -32px 0 0 -32px; border-radius: 50%;
   background: rgba(3, 22, 45, .72) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23fff' d='M8 5v14l11-7z'/%3E%3C/svg%3E") center / 30px no-repeat;
   pointer-events: none; }
-.gt-show-tile { margin: 0; padding: 6px; border: 1px solid var(--gt-line); border-radius: 16px; background: var(--gt-ground); text-align: center; }
-.gt-show-tile img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 10; object-fit: contain; border-radius: 10px; background: #fff; cursor: zoom-in; }
-.gt-show-tile figcaption { margin-top: 6px; font-size: .74rem; font-weight: 700; color: var(--gt-ink); }
 
-/* ── The price and the order button ────────────────────────────────────── */
-.gt-buy {
-  margin-top: 14px;
-  padding: 16px;
-  background: var(--gt-card);
-  border: 1px solid var(--gt-line);
-  border-radius: 24px;
-  box-shadow: 0 8px 24px -4px rgba(11, 19, 43, .12), 0 2px 6px -1px rgba(11, 19, 43, .06);
-}
-.gt-buy-top { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: 16px; align-items: center; }
-.gt-buy-pic { margin: 0; text-align: center; }
-.gt-buy-pic img { display: block; width: 100%; height: auto; aspect-ratio: 900 / 797; object-fit: contain; border-radius: 14px; background: #fff; border: 1px solid var(--gt-line); cursor: zoom-in; }
-.gt-buy-pic figcaption { margin-top: 6px; font-size: .72rem; font-weight: 700; color: var(--gt-ink-3); }
-.gt-buy-main { min-width: 0; }
-@media (max-width: 480px) {
-  /* Beside the photo the right column is ~200px wide: keep the button to one line. */
-  .gt-buy-top { gap: 12px; }
-  .gt-buy-main .gt-cta { padding-inline: 10px; font-size: .9rem; white-space: nowrap; }
-  .gt-buy-main .gt-price { padding: 8px 10px; }
-  .gt-buy-main .gt-price-v { font-size: 1.5rem; }
-  /* The badge sits above the name, so the name gets the column's full width. */
-  .gt-buy-main .gt-buy-hd { flex-direction: column-reverse; align-items: flex-start; gap: 6px; }
-  .gt-buy-main .gt-buy-n { font-size: 1rem; }
-  .gt-buy-main .gt-buy-d { font-size: .78rem; }
-}
-.gt-buy-hd { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-.gt-buy-n { margin: 0; font-size: 1.05rem; line-height: 1.25; font-weight: 800; letter-spacing: -.01em; }
-.gt-buy-d { margin: 3px 0 0; font-size: .82rem; line-height: 1.4; color: var(--gt-ink-3); }
-.gt-buy-off { flex: none; padding: 5px 11px; border-radius: 999px; background: var(--gt-red); color: #fff; font-size: .72rem; font-weight: 800; letter-spacing: .03em; }
-.gt-price {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 10px;
-  margin: 12px 0 0;
-  padding: 10px 12px;
-  border-radius: 14px;
-  background: var(--gt-ground);
-}
-.gt-price-v { font-size: 1.8rem; line-height: 1.1; font-weight: 800; letter-spacing: -.02em; color: var(--gt-ink); font-variant-numeric: tabular-nums; }
-.gt-price-was { font-size: .84rem; color: var(--gt-ink-3); text-decoration: line-through; }
-.gt-price-free { margin-left: auto; padding: 4px 10px; border-radius: 999px; background: var(--gt-ok-bg); border: 1px solid var(--gt-ok-line); color: var(--gt-ok-ink); font-size: .72rem; font-weight: 800; }
+/* ── The price and the button, under the film ──────────────────────────── */
+.gt-offer { display: grid; gap: 12px; padding: 16px 0 24px; }
+.gt-offer .gt-price, .gt-offer .gt-firstprice, .gt-offer .gt-ref, .gt-offer .gt-cta { margin: 0; }
+.gt-price { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; margin: 0; }
+.gt-price-v { font-size: 32px; line-height: 1; font-weight: 800; letter-spacing: -.02em; color: var(--gt-ink); font-variant-numeric: tabular-nums; }
+.gt-price-for { font-weight: 600; }
+.gt-price-was { font-size: 15px; color: var(--gt-ink-3); }
+.gt-buy-off { align-self: center; padding: 4px 8px; border-radius: 999px; background: var(--gt-red); color: #fff; font-size: 12px; font-weight: 800; letter-spacing: .03em; }
+.gt-firstprice { font-size: 14px; line-height: 1.4; color: var(--gt-ink-2); }
+.gt-firstprice b, .gt-save b { color: var(--gt-ok-ink); }
 
 /* The page's primary action. Full width, and taller than the 44px floor
    because it is the one control the page is built around. */
@@ -348,16 +293,42 @@ html:has(.gt-body) { overscroll-behavior-x: none; }
   min-height: 54px;
   padding: 12px 18px;
   border-radius: 999px;
-  /* Red, as on the sticky bar: the one conversion control on the page, and the
-     Stitch system reserves red for exactly that. */
+  /* Red, as on the sticky bar: the one conversion control on the page. */
   background: var(--gt-red);
   color: #fff;
   font-size: clamp(.94rem, 3.6vw, 1.05rem);
   font-weight: 800;
   box-shadow: 0 8px 24px -4px rgba(255, 59, 48, .45);
 }
+.gt-hero-b .gt-cta { margin: 0; border-radius: 14px; font-size: 18px; box-shadow: 0 10px 24px -8px rgba(255, 59, 48, .55); }
 .gt-cta:hover { box-shadow: 0 10px 28px -4px rgba(255, 59, 48, .55); }
-.gt-see { display: block; width: max-content; margin: 8px auto 0; padding: 8px 6px; color: var(--gt-ink); font-size: .84rem; font-weight: 700; text-decoration: underline; text-underline-offset: 4px; }
+
+/* ── Three benefits ───────────────────────────────────────────────────── */
+.gt-perks { list-style: none; display: grid; gap: 12px; margin: 0; padding: 16px; background: var(--gt-card); border: 1px solid var(--gt-line); border-radius: 16px; }
+.gt-perks a { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 12px; align-items: center; color: inherit; text-decoration: none; -webkit-tap-highlight-color: transparent; transition: transform .12s; }
+.gt-perk-i { width: 36px; height: 36px; border-radius: 10px; background: var(--gt-navy-tint); display: grid; place-items: center; }
+.gt-perk-i svg { width: 20px; height: 20px; fill: none; stroke: #03162D; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.gt-perks strong { display: block; font-size: 15px; line-height: 1.3; font-weight: 800; color: var(--gt-ink); }
+.gt-perks small { display: block; font-size: 13px; line-height: 1.35; color: var(--gt-ink-3); }
+@media (min-width: 640px) { .gt-perks { grid-template-columns: repeat(3, minmax(0, 1fr)); } .gt-perks a { grid-template-columns: 1fr; } }
+
+/* ── What you get: photo on top on a phone, beside the text from 640px ─── */
+.gt-buy-h { margin: 32px 0 12px; font-size: 22px; }
+.gt-buy { display: grid; overflow: hidden; background: var(--gt-card); border: 1px solid var(--gt-line); border-radius: 16px; }
+.gt-buy-pic { margin: 0; }
+.gt-buy-pic img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: contain; padding: 12px; background: #fff; border-bottom: 1px solid var(--gt-line); cursor: zoom-in; }
+.gt-buy-main { display: grid; gap: 12px; min-width: 0; padding: 16px; }
+.gt-buy-n { margin: 0; font-size: 18px; line-height: 1.25; font-weight: 800; letter-spacing: -.01em; }
+.gt-buy-d { margin: 0; font-size: 14px; line-height: 1.45; color: var(--gt-ink-3); }
+.gt-buy-row { display: grid; gap: 6px; padding: 12px; border-radius: 12px; background: var(--gt-ground); }
+.gt-save { margin: 0; font-size: 14px; color: var(--gt-ink-2); }
+@media (min-width: 640px) {
+  .gt-buy { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); }
+  .gt-buy-pic img { height: 100%; aspect-ratio: auto; border-bottom: 0; border-right: 1px solid var(--gt-line); }
+}
+.gt-buy-main .gt-ticks { margin: 0; }
+.gt-buy-main .gt-wa { margin: 0; }
+.gt-see { display: block; width: max-content; margin: 0 auto; padding: 8px 6px; color: var(--gt-ink); font-size: .84rem; font-weight: 700; text-decoration: underline; text-underline-offset: 4px; }
 .gt-ticks { list-style: none; display: grid; gap: 8px; margin: 10px 0 0; padding: 12px 0 0; border-top: 1px solid var(--gt-line); font-size: .82rem; font-weight: 600; color: var(--gt-ink); }
 .gt-ticks li { display: flex; gap: 9px; align-items: flex-start; line-height: 1.35; }
 .gt-ticks li::before { content: "\2713"; flex: none; width: 18px; height: 18px; margin-top: 0; border-radius: 50%; background: var(--gt-ok-bg); color: var(--gt-ok-ink); font-size: .7rem; font-weight: 900; display: inline-flex; align-items: center; justify-content: center; }
@@ -800,7 +771,6 @@ html:has(.gt-body) { overscroll-behavior-x: none; }
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.gt-firstprice { margin: 12px 0 0; font-size: .95rem; font-weight: 700; line-height: 1.35; color: var(--gt-ink); }
 .gt-bar-txt strong { font-size: .84rem; font-weight: 700; }
 .gt-bar-txt span { margin-top: 2px; font-size: .72rem; color: var(--gt-ink-3); }
 
@@ -1641,9 +1611,8 @@ img.gt-proof-media { cursor: zoom-in; }
    opens it larger). */
 html:has(.gt-body-get) { scroll-padding-top: 76px; }
 .gt-perks li, .gt-wg, .gt-cases li, .gt-diff-feats li { padding: 0; }
-.gt-perks a, .gt-wg a, .gt-diff-feats a, .gt-cases a { display: flex; color: inherit; text-decoration: none; -webkit-tap-highlight-color: transparent; transition: transform .12s; }
+.gt-wg a, .gt-diff-feats a, .gt-cases a { display: flex; color: inherit; text-decoration: none; -webkit-tap-highlight-color: transparent; transition: transform .12s; }
 .gt-perks a:active, .gt-wg a:active, .gt-diff-feats a:active, .gt-cases a:active { transform: scale(.98); }
-.gt-perks a { align-items: center; gap: 9px; width: 100%; padding: 9px 10px; border-radius: 14px; }
 .gt-wg a { align-items: center; gap: 10px; width: 100%; min-width: 0; padding: 12px 10px; border-radius: 16px; }
 .gt-diff-feats a { flex-direction: column; align-items: center; gap: 6px; width: 100%; padding: 12px 6px; border-radius: 14px; }
 .gt-cases a { padding: 6px 11px; border-radius: 999px; }

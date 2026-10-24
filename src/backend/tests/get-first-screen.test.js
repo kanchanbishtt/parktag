@@ -6,7 +6,7 @@
 // "Sound familiar?" proof came after the comparison section. Three changes,
 // pinned here:
 //
-//   1. a price line under the four perks, above the photos;
+//   1. the price, its terms and the button straight under the hero film;
 //   2. the fixed bar's line no longer carries the COD note that truncated it;
 //   3. the WhatsApp-group proof comes straight after the buy card.
 //
@@ -26,11 +26,12 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const html = await readFile(path.join(HERE, "../../frontend/pages/get.html"), "utf8");
 const getJs = await readFile(path.join(HERE, "../../frontend/scripts/get.js"), "utf8");
 
-test("a price line sits above the photos, as plain text", () => {
+test("the price line sits right under the film, before the benefits, as plain text", () => {
   const line = html.indexOf('id="gtFirstPrice"');
   assert.ok(line > -1, "the first-screen price line exists");
-  assert.ok(line < html.indexOf('class="gt-show"'), "it comes before the photos");
-  assert.ok(line > html.indexOf('class="gt-perks"'), "and after the four perks");
+  assert.ok(line > html.indexOf('class="gt-show"'), "it comes after the film");
+  assert.ok(line < html.indexOf('class="gt-perks"'), "and before the benefits");
+  assert.ok(html.indexOf('id="gtCta"') < html.indexOf('class="gt-perks"'), "the button is in the same block");
 
   const tag = html.slice(html.lastIndexOf("<", line), html.indexOf(">", line) + 1);
   assert.match(tag, /^<p /, "a paragraph, not a link or button");
@@ -41,7 +42,7 @@ test("the price line and the bar both come from the catalogue", () => {
   const render = getJs.slice(getJs.indexOf("function renderBar("), getJs.indexOf("function renderAddOn("));
   assert.match(render, /byId\("gtFirstPrice"\)/, "the line is filled by renderBar");
   assert.match(render, /sub\.textContent = priceLine;/, "the bar shows the price line without the COD note");
-  assert.match(render, /first\.textContent = priceLine \+ codNote/, "COD is named on the first screen instead");
+  assert.match(render, /codFor\(HERO_PACK\) \? "Cash on delivery"/, "COD is named on the first screen instead");
 });
 
 test("the WhatsApp-group proof comes straight after the buy card", () => {

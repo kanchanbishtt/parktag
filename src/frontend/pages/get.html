@@ -78,107 +78,79 @@
       </a>
 
       <!-- ── Hero ────────────────────────────────────────────────────────────
-           The product leads, then the claim. Somebody arriving cold from an ad
-           cannot judge "masked calls for your parked car" until they have seen
-           what the thing physically is, so the images come first and the words
-           follow. The old standalone "The tag" section below the packs is gone:
-           this is that section, moved to the top and given three more shots.
-
-           A scroll-snap track, not a carousel library. Swipe, trackpad scroll,
-           momentum and keyboard scrolling all come free from the browser; only
-           the dots are wired in get.js, and with JS off it stays a scrollable
-           strip of all four rather than one frozen slide.
-
-           Slide 1 is eager because it is the LCP element. The rest are lazy and
-           never load for somebody who does not swipe.
-
-           Mixed aspect ratios on purpose (the windscreen shot is portrait, the
-           artwork landscape), so the frame is fixed and each image is CONTAINED
-           inside it. Cropping to one ratio would cut the printed copy off the
-           artwork. -->
+           Line, film, price and button: all four inside the first screen on a
+           360x740 phone. Then three benefits and the pack itself. -->
       <section class="gt-hero gt-hero-b" aria-labelledby="gtTitle">
-        <!-- The hook is the line the Stitch redesign tested: it names the thing
-             people do today (write a number on a card behind the glass) and says
-             the product replaces it. The price and the order button sit in their
-             own card under the pictures, as in the same design. -->
-        <h1 class="gt-title" id="gtTitle">Never write your <span class="gt-mark">phone number</span> on a car window again.</h1>
-        <!-- What the buyer gets, in four lines, before the first scroll. Each is
-             something the product does today: masked calling is included for the
-             first year, WhatsApp scan alerts stay free while the tag is active,
-             any phone camera opens the tag, and delivery is free. -->
-        <ul class="gt-perks">
-          <li><a href="#gtWhatTitle"><span class="gt-perk-i" aria-hidden="true">📞</span><span><strong>Masked calling</strong><small>1 year included</small></span></a></li>
-          <li><a href="#gtWhatTitle"><span class="gt-perk-i" aria-hidden="true">💬</span><span><strong>WhatsApp alerts</strong><small>Free for life</small></span></a></li>
-          <li><a href="#gtHowTitle"><span class="gt-perk-i" aria-hidden="true">📷</span><span><strong>No app to scan</strong><small>Any phone camera</small></span></a></li>
-          <li><a href="#packs"><span class="gt-perk-i" aria-hidden="true">🚚</span><span><strong>Free delivery</strong><small>Shipped with Delhivery</small></span></a></li>
-        </ul>
-        <!-- Filled from the same catalogue as the sticky bar (renderBar), so the
-             page cannot quote a figure the checkout does not charge. -->
-        <p class="gt-firstprice" id="gtFirstPrice" role="status" hidden></p>
+        <!-- The hook names the thing people do today (a number on a card behind
+             the glass) and says the product replaces it. Two lines on a phone. -->
+        <h1 class="gt-title" id="gtTitle">Never write your <span class="gt-mark">phone number</span> on your car again.</h1>
 
-        <!-- Real photo first (it is the LCP image), then the artwork and the pack.
-             Mixed ratios on purpose, so each is contained in its own tile. -->
+        <!-- The film is the explanation, so it comes straight after the line and
+             runs edge to edge on a phone. -->
         <div class="gt-show">
-          <div class="gt-show-bar" aria-hidden="true"></div>
-          <div class="gt-show-in">
-            <div class="gt-show-main">
-              <!-- The hero film (ParkTag/07-video/parktag-site-hero): the real
-                   windscreen, the tag pressed on, nobody finding a number, a scan,
-                   the real scanner page, and a masked call. Muted, plays once and
-                   holds its last frame. The poster is its first frame (the real
-                   windscreen), so it paints at once as the LCP element. get.js
-                   starts it and loops it after a 1 s hold on the last frame
-                   (wireHeroFilm); under reduced motion it shows the closing
-                   frame instead. The film carries its own captions in the
-                   bottom-left, so the photo chips that sat there are gone. -->
-              <video id="gtHeroFilm" width="1200" height="900"
-                     poster="/images/get-hero-film-poster.webp"
-                     muted playsinline preload="auto"
-                     aria-label="A ParkTag tag is stuck inside a windscreen. The tag shows no phone number. A phone scans it, opens the ParkTag page and starts a private call, and both phones connect without either number being shown.">
-                <source src="/images/get-hero-film.webm" type="video/webm" />
-                <source src="/images/get-hero-film.mp4" type="video/mp4" />
-              </video>
-            </div>
+          <div class="gt-show-main">
+            <!-- The hero film (~13 s, 1200x900, under 1 MB): a clean
+                 windscreen, the tag pressed on, nobody finding a number, a scan,
+                 the real scanner page, and a masked call. Muted, plays once and
+                 holds its last frame. The poster is its first frame (the real
+                 windscreen), so it paints at once as the LCP element. get.js
+                 starts it and loops it after a 1 s hold on the last frame
+                 (wireHeroFilm); under reduced motion it shows the closing
+                 frame instead. -->
+            <video id="gtHeroFilm" width="1200" height="900"
+                   poster="/images/get-hero-film-poster.webp"
+                   muted playsinline preload="auto"
+                   aria-label="A ParkTag tag is stuck inside a windscreen. The tag shows no phone number. A phone scans it, opens the ParkTag page and starts a private call, and both phones connect without either number being shown.">
+              <source src="/images/get-hero-film.webm" type="video/webm" />
+              <source src="/images/get-hero-film.mp4" type="video/mp4" />
+            </video>
           </div>
         </div>
 
-        <!-- Prices are fetched, never written here. The page must not be able
-             to quote a figure the checkout does not charge. Cash on delivery is
-             shown only when the catalogue says the hero pack takes it
-             (renderChips), the same rule the sticky bar follows. -->
+        <!-- The price and the button, inside the first screen on every phone.
+             Both lines come from the catalogue (renderChips, renderBar), so the
+             page cannot quote a figure the checkout does not charge. Plain
+             text: begin_checkout still means a pressed Order button. -->
+        <div class="gt-offer">
+          <p class="gt-price gt-chip-price gt-offer-price" data-for="for 2 tags"><span class="gt-sk gt-sk-chip">&nbsp;</span></p>
+          <p class="gt-firstprice" id="gtFirstPrice" role="status" hidden></p>
+          <!-- A referral link's note, filled by checkReferral. -->
+          <p class="gt-ref" id="gtRef" role="status" hidden></p>
+          <!-- In-page, NOT /shop: this is an ad landing page and must not hand
+               its traffic to the other storefront. get.js intercepts on data-sku. -->
+          <a class="gt-btn gt-cta" href="#packs" id="gtCta" data-sku="pt-car-2">Get your ParkTag now</a>
+        </div>
+
+        <!-- Three plain benefits, each something the product does today. -->
+        <ul class="gt-perks">
+          <li><a href="#gtWhatTitle"><span class="gt-perk-i" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="9.5" rx="2.2"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></svg></span><span><strong>Your number stays hidden</strong><small>People call you through a masked line</small></span></a></li>
+          <li><a href="#gtWhatTitle"><span class="gt-perk-i" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5.5h16v10H9l-5 4v-14Z"/></svg></span><span><strong>Call or WhatsApp</strong><small>WhatsApp alerts are free for life</small></span></a></li>
+          <li><a href="#gtHowTitle"><span class="gt-perk-i" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><path d="M14 14h3v3M20 20h0M17 20h0"/></svg></span><span><strong>No app to scan</strong><small>Any phone camera opens it</small></span></a></li>
+        </ul>
+
+        <!-- What you get: the pack, its price and saving again, and a second
+             button. Photo on top on a phone, beside the text from 640px. -->
+        <h2 class="gt-h2 gt-buy-h">What you get</h2>
         <div class="gt-buy">
-          <!-- The pack sits beside what it costs: photo on the left, name,
-               price and the button on the right. -->
-          <div class="gt-buy-top">
           <figure class="gt-buy-pic">
             <img src="/images/parktag-tags-pair.webp" width="900" height="797" loading="lazy" decoding="async" fetchpriority="low" alt="Two ParkTag tags: scan the code to contact the vehicle owner, with call and WhatsApp buttons" />
-            <figcaption>Two tags, printed on both sides</figcaption>
           </figure>
           <div class="gt-buy-main">
-          <div class="gt-buy-hd">
-            <div>
-              <h2 class="gt-buy-n" id="gtBuyName">ParkTag Car Tag (Pack of 2)</h2>
-              <p class="gt-buy-d">Protect 2 cars, or the front and back of one.</p>
+            <h3 class="gt-buy-n" id="gtBuyName">ParkTag Car Tag (Pack of 2)</h3>
+            <p class="gt-buy-d">Protect 2 cars, or the front and back of one. Printed on both sides.</p>
+            <div class="gt-buy-row">
+              <p class="gt-price gt-chip-price" data-goto="#packs"><span class="gt-sk gt-sk-chip">&nbsp;</span></p>
+              <p class="gt-save" id="gtSave" hidden></p>
             </div>
-            <span class="gt-buy-off" id="gtBuyOff" hidden></span>
+            <a class="gt-btn gt-cta" href="#packs" id="gtCta2" data-sku="pt-car-2">Get your ParkTag now</a>
+            <ul class="gt-ticks" id="gtChips">
+              <li id="gtChipCod" hidden>Pay online (UPI or card) or cash on delivery</li>
+              <li id="gtChipOnline">Pay online with UPI, cards or net banking</li>
+              <li>1 year of masked calling included</li>
+            </ul>
+            <a class="gt-see" href="#gtHowTitle">See how it works <span aria-hidden="true">&darr;</span></a>
+            <a class="gt-wa" id="gtAsk" href="https://wa.me/918791638854?text=Hi%21%20I%20have%20a%20question%20about%20ParkTag." target="_blank" rel="noopener"><img src="/images/whatsapp-mark.png" alt="" width="20" height="20" loading="lazy" decoding="async"><span>Questions? Ask us on WhatsApp</span></a>
           </div>
-          <p class="gt-price gt-chip-price" data-goto="#packs"><span class="gt-sk gt-sk-chip">&nbsp;</span></p>
-
-          <!-- The href is an in-page fallback for a no-JS visitor, deliberately
-               NOT /shop: this page is an ad landing page and must not hand its
-               traffic to the other storefront. get.js intercepts on data-sku. -->
-          <p class="gt-ref" id="gtRef" role="status" hidden></p>
-          <a class="gt-btn gt-cta" href="#packs" id="gtCta" data-sku="pt-car-2">Get your ParkTag now</a>
-          </div>
-          </div>
-          <a class="gt-see" href="#gtHowTitle">See how it works <span aria-hidden="true">&darr;</span></a>
-
-          <ul class="gt-ticks" id="gtChips">
-            <li id="gtChipCod" hidden>Pay online (UPI or card) or cash on delivery</li>
-            <li id="gtChipOnline">Pay online with UPI, cards or net banking</li>
-            <li>1 year of masked calling included</li>
-          </ul>
-          <a class="gt-wa" id="gtAsk" href="https://wa.me/918791638854?text=Hi%21%20I%20have%20a%20question%20about%20ParkTag." target="_blank" rel="noopener"><img src="/images/whatsapp-mark.png" alt="" width="20" height="20" loading="lazy" decoding="async"><span>Questions? Ask us on WhatsApp</span></a>
         </div>
       </section>
 

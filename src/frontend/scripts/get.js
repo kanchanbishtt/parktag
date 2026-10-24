@@ -108,10 +108,17 @@ function applyQtyTotal(el, priced, qty, sku) {
   }
 }
 
+// The share of MRP the launch offer takes off, in whole percent; 0 without one.
+function offPct(offer) {
+  return offer && offer.mrpPaise > offer.offerPaise
+    ? Math.round(((offer.mrpPaise - offer.offerPaise) / offer.mrpPaise) * 100)
+    : 0;
+}
+
 function renderChips(products) {
   const hero = products[HERO_PACK];
-  const chip = document.querySelector(".gt-chip-price");
-  if (!chip || !hero) return;
+  const chips = document.querySelectorAll(".gt-chip-price");
+  if (!chips.length || !hero) return;
 
   const offer = offerFor(HERO_PACK);
   const part = (tag, className, text) => {
@@ -124,19 +131,21 @@ function renderChips(products) {
   // only say what the checkout will charge.
   const name = byId("gtBuyName");
   if (name) name.textContent = hero.name;
-  const off = byId("gtBuyOff");
-  if (off) {
-    const pct = offer && offer.mrpPaise > offer.offerPaise
-      ? Math.round(((offer.mrpPaise - offer.offerPaise) / offer.mrpPaise) * 100)
-      : 0;
-    off.hidden = pct < 1;
-    off.textContent = pct >= 1 ? `${pct}% OFF` : "";
+  const pct = offPct(offer);
+  for (const chip of chips) {
+    chip.replaceChildren(
+      part("strong", "gt-price-v", rupees(offer ? offer.offerPaise : hero.amountPaise)),
+      ...(chip.dataset.for ? [part("span", "gt-price-for", chip.dataset.for)] : []),
+      ...(offer ? [part("s", "gt-price-was", `MRP ${rupees(offer.mrpPaise)}`)] : []),
+      ...(pct >= 1 ? [part("span", "gt-buy-off", `${pct}% OFF`)] : [])
+    );
   }
-  chip.replaceChildren(
-    part("strong", "gt-price-v", rupees(offer ? offer.offerPaise : hero.amountPaise)),
-    ...(offer ? [part("span", "gt-price-was", `MRP ${rupees(offer.mrpPaise)}`)] : []),
-    part("span", "gt-price-free", "Free delivery")
-  );
+  const save = byId("gtSave");
+  if (save) {
+    const saved = offer && offer.mrpPaise > offer.offerPaise ? `You save ${rupees(offer.mrpPaise - offer.offerPaise)} · ` : "";
+    save.replaceChildren(saved, part("b", "", "Free delivery"));
+    save.hidden = false;
+  }
 
   // Same rule as the sticky bar: cash on delivery is promised only when the
   // catalogue says this pack takes it. The plain online line stands in for it
@@ -312,21 +321,22 @@ function renderBar(products) {
   // is exactly when guest create-order accepts it. This bar once promised a
   // payment method the next tap could not offer.
   const offer = offerFor(HERO_PACK);
+  const pct = offPct(offer);
   const priceLine = offer
-    ? `${rupees(offer.offerPaise)} offer · MRP ${rupees(offer.mrpPaise)} · Free delivery`
+    ? `${rupees(offer.offerPaise)}${pct >= 1 ? ` · ${pct}% off` : ""} · Free delivery`
     : `${rupees(hero.amountPaise)} · Free delivery`;
-  const codNote = codFor(HERO_PACK) ? " · COD available" : "";
   // The bar is one line on a phone, and with the COD note on it the price was
   // cut off with an ellipsis. COD is named on the first screen instead.
   if (sub) sub.textContent = priceLine;
 
-  // The price, before the first scroll. The buy card that carries it sits
-  // under two large photos, and Meta visitors leave in about 35 seconds, so
-  // most never saw a price except in the cut-off bar. Plain text, not a link:
+  // The terms under the first-screen price. Plain text, not a link:
   // begin_checkout still means a pressed Order button, never a tap elsewhere.
   const first = byId("gtFirstPrice");
   if (first) {
-    first.textContent = priceLine + codNote;
+    const free = document.createElement("b");
+    free.textContent = "Free delivery";
+    const rest = [codFor(HERO_PACK) ? "Cash on delivery" : null, "1 year masked calling"].filter(Boolean);
+    first.replaceChildren(free, ` · ${rest.join(" · ")}`);
     first.hidden = false;
   }
 }
@@ -365,7 +375,7 @@ function selectedAddOn(sku) {
 // is written back from HERO_PACK on load — otherwise changing which pack leads
 // would quietly leave two buttons pointing at the old one.
 function syncHeroLinks() {
-  for (const id of ["gtCta", "gtBarCta"]) {
+  for (const id of ["gtCta", "gtCta2", "gtBarCta"]) {
     const el = byId(id);
     if (!el) continue;
     el.href = "#packs"; // in-page: an ad landing page keeps its own traffic
@@ -1162,8 +1172,7 @@ function wireCheckout(products) {
 // The CTAs are plain links to /shop and keep working regardless, so the offer
 // is still reachable even when the price is not.
 function failQuietly() {
-  const chip = document.querySelector(".gt-chip-price");
-  if (chip) chip.remove();
+  document.querySelectorAll(".gt-chip-price").forEach((chip) => chip.remove());
 
   const list = byId("gtPacks");
   if (list) list.replaceChildren();

@@ -59,6 +59,7 @@ test("the hero film's poster is preloaded, the film loops after a hold on its la
   assert.match(film, /poster="\/images\/get-hero-film-poster\.webp"/);
   assert.doesNotMatch(film, /\sloop[\s>=]/, "the loop is get.js's, so the last frame can hold before it restarts");
   assert.match(script, /addEventListener\("ended", \(\) => setTimeout\(/);
+  assert.match(script, /addEventListener\("touchstart", kick/, "a refused autoplay starts on the first touch");
   assert.match(film, /\smuted[\s>]/);
   assert.match(html, /<link rel="preload" as="image" href="\/images\/get-hero-film-poster\.webp" fetchpriority="high" \/>/);
   assert.match(script, /function wireHeroFilm\(\)/);

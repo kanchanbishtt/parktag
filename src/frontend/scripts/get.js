@@ -1049,7 +1049,16 @@ function wireHeroFilm() {
   // Muted and inline, so play() needs no gesture. A refusal (data saver) leaves
   // the poster. No loop attribute: it ends on "No number. Just scan.", holds
   // that frame for a second, then starts again from the empty windscreen.
-  const play = () => video.play().catch(() => {});
+  // Some in-app browsers (Instagram and Facebook on Android) refuse even muted
+  // autoplay until the visitor touches the page. Then the film shows a play
+  // mark and starts on the first touch anywhere, or a tap on the film itself.
+  const box = video.parentElement;
+  const play = () => video.play().then(() => box.classList.remove("gt-film-wait"), () => box.classList.add("gt-film-wait"));
+  const kick = () => { if (video.paused && !video.ended) play(); };
+  document.addEventListener("touchstart", kick, { once: true, passive: true });
+  document.addEventListener("pointerdown", kick, { once: true, passive: true });
+  video.addEventListener("click", kick);
+  video.addEventListener("playing", () => box.classList.remove("gt-film-wait"));
   video.addEventListener("ended", () => setTimeout(() => { video.currentTime = 0; play(); }, 1000));
   play();
 }

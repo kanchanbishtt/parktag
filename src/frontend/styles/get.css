@@ -288,6 +288,10 @@ html:has(.gt-body) { overscroll-behavior-x: none; }
 .gt-show-in { display: grid; gap: 8px; padding: 10px; }
 .gt-show-main { position: relative; overflow: hidden; border-radius: 16px; background: var(--gt-navy-tint); }
 .gt-show-main video { display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; }
+/* Autoplay refused (some in-app browsers): a play mark until the first touch starts the film. */
+.gt-show-main.gt-film-wait::after { content: ""; position: absolute; left: 50%; top: 50%; width: 64px; height: 64px; margin: -32px 0 0 -32px; border-radius: 50%;
+  background: rgba(3, 22, 45, .72) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23fff' d='M8 5v14l11-7z'/%3E%3C/svg%3E") center / 30px no-repeat;
+  pointer-events: none; }
 .gt-show-tile { margin: 0; padding: 6px; border: 1px solid var(--gt-line); border-radius: 16px; background: var(--gt-ground); text-align: center; }
 .gt-show-tile img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 10; object-fit: contain; border-radius: 10px; background: #fff; cursor: zoom-in; }
 .gt-show-tile figcaption { margin-top: 6px; font-size: .74rem; font-weight: 700; color: var(--gt-ink); }

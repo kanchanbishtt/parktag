@@ -148,25 +148,13 @@ test("a second fallback banner is not stacked on top of the first", async () => 
   assert.equal(banners.length, 1);
 });
 
-test("a Meta in-app browser sees the open-in-browser hint as soon as the script runs", () => {
-  // Not gated behind a checkout tap: warm() below usually replaces the stub
-  // with the real address-step.js before anyone taps buy, so the hint has to
-  // fire on arrival to be seen at all on anything but the fastest taps.
-  const { body, sessionStore } = run({
-    userAgent: "Mozilla/5.0 (Linux; Android 10; SM-A505F) AppleWebKit/537.36 FBAN/FB4A FBAV/400.0",
-    outcome: "load"
-  });
-
-  assert.equal(body.children.filter((c) => c.attributes?.role === "status").length, 1);
-  assert.equal(sessionStore.pt_meta_hint_shown, "1");
-});
-
-test("a second page load in the same session does not stack a second hint", () => {
-  const sessionStore = { pt_meta_hint_shown: "1" };
+test("a Meta in-app browser gets nothing laid over the page on arrival", () => {
+  // The old arrival hint was a fixed box at the bottom of the screen that sat
+  // on top of the sticky "Order now" bar for every Instagram and Facebook ad
+  // visitor. The advice now shows inside checkout, beside "Pay online".
   const { body } = run({
     userAgent: "Mozilla/5.0 (Linux; Android 10; SM-A505F) AppleWebKit/537.36 FBAN/FB4A FBAV/400.0",
-    outcome: "load",
-    sessionStore
+    outcome: "load"
   });
   assert.equal(body.children.filter((c) => c.attributes?.role === "status").length, 0);
 });

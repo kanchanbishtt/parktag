@@ -127,47 +127,11 @@
     reportFailure("address-step failed to load after retry");
   }
 
-  // Ad clicks from Instagram and Facebook open inside their own in-app
-  // browser, an older embedded WebView rather than the visitor's real
-  // Chrome or Safari. It is where the teardown bug above actually happens,
-  // and where the online-payment app handoff (UPI intents) is least
-  // reliable. There is nothing to fix in that WebView from here, so this
-  // only tells people the one thing that reliably works around it.
-  //
-  // Shown as soon as this script runs, not from inside the buy tap: the
-  // background warm() below usually replaces window.ptCollectAddress with
-  // the real address-step.js well before anyone taps buy (that is the whole
-  // point of warming it), so a trigger placed inside the stub would almost
-  // never fire in practice on anything but the fastest taps. These five
-  // pages are all checkout-relevant already, so showing it on arrival still
-  // targets only people who may go on to check out.
-  var IS_META_INAPP_BROWSER = /FBAN|FBAV|Instagram/i.test(navigator.userAgent || "");
-  function showMetaBrowserHint() {
-    if (!IS_META_INAPP_BROWSER) return;
-    try {
-      if (sessionStorage.getItem("pt_meta_hint_shown")) return;
-      sessionStorage.setItem("pt_meta_hint_shown", "1");
-    } catch (_) { /* private mode or similar: show it anyway, just not gated */ }
-    var box = document.createElement("div");
-    box.setAttribute("role", "status");
-    box.style.cssText = "position:fixed;left:16px;right:16px;bottom:16px;z-index:99998;background:#fff;" +
-      "color:#03162D;padding:12px 14px;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.25);" +
-      "font:13px/1.4 -apple-system,system-ui,sans-serif;display:flex;gap:10px;align-items:center;" +
-      "border:1px solid #e5e7eb";
-    var msg = document.createElement("span");
-    msg.style.cssText = "flex:1";
-    msg.innerHTML = "For the smoothest payment, tap <b>⋯</b> at the top right and choose “Open in browser”.";
-    var close = document.createElement("button");
-    close.type = "button";
-    close.setAttribute("aria-label", "Dismiss");
-    close.textContent = "×";
-    close.style.cssText = "flex:none;background:none;border:0;color:#03162D;font-size:20px;line-height:1;" +
-      "cursor:pointer;padding:0 4px";
-    close.onclick = function () { box.parentNode && box.parentNode.removeChild(box); };
-    box.appendChild(msg);
-    box.appendChild(close);
-    document.body.appendChild(box);
-  }
+  // The "Open in browser" advice for Instagram and Facebook's in-app browser
+  // lives in address-step.js, beside "Pay online", where only a buyer about
+  // to pay online sees it. It used to show here on arrival as a fixed bottom
+  // box, which sat on top of the sticky "Order now" bar for every ad visitor
+  // until they found its ×.
 
   var stub = function (options) {
     return loadAddressStep().then(function (ok) {
@@ -180,8 +144,6 @@
   };
   stub.lazy = true;
   if (addressSrc && !window.ptCollectAddress) window.ptCollectAddress = stub;
-
-  showMetaBrowserHint();
 
   // After load, when the main thread is free, so the first buy tap does not
   // wait. Razorpay is warmed only where the tag asks (signed-in pages, where it

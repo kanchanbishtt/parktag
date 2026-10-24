@@ -943,6 +943,9 @@
 
   // Everything that has to read true for the chosen method: the total, the
   // "when do I pay" line, the Razorpay footer and the button.
+  // Instagram and Facebook open ad clicks in their own in-app browser, where
+  // the hand-off to a UPI app is least reliable. Only an online payer is told.
+  var META_INAPP = /FBAN|FBAV|Instagram/i.test(navigator.userAgent || "");
   function setPayChoice(choice) {
     payChoice = payPrices && choice === "cod" ? "cod" : "online";
     var cod = payChoice === "cod";
@@ -952,7 +955,8 @@
     els.summary.querySelectorAll(".pt-addr-summary-offer").forEach(function (el) { el.classList.toggle("pt-hide", cod); });
     els.summaryPay.textContent = cod
       ? "Nothing to pay now. Pay " + inr(payPrices.cod) + " in cash when your order arrives."
-      : "No payment is taken on this step. Continue to pay securely using UPI, cards or net banking.";
+      : "No payment is taken on this step. Continue to pay securely using UPI, cards or net banking." +
+        (META_INAPP ? " Paying by UPI inside Instagram or Facebook? If your UPI app does not open, tap ⋯ at the top right and choose “Open in browser”." : "");
     els.secureTexts.forEach(function (el) {
       el.textContent = cod ? "Cash on delivery · pay when your order arrives" : "Secured by Razorpay · UPI · Cards · Net Banking";
     });

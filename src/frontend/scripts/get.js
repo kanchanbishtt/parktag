@@ -1052,6 +1052,7 @@ function wireHeroFilm() {
   // Under reduced motion it never plays: it shows the closing frame (the tag on
   // the glass, "No number. Just scan.") instead of the opening one.
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    video.preload = "metadata";
     const toEnd = () => { video.currentTime = video.duration; };
     if (video.readyState >= 1) toEnd(); else video.addEventListener("loadedmetadata", toEnd, { once: true });
     return;
@@ -1070,7 +1071,10 @@ function wireHeroFilm() {
   video.addEventListener("click", kick);
   video.addEventListener("playing", () => box.classList.remove("gt-film-wait"));
   video.addEventListener("ended", () => setTimeout(() => { video.currentTime = 0; play(); }, 1000));
-  play();
+  // preload="none" in the markup: the film waits for the page's own load, so
+  // on slow 4G it no longer competes with the poster, fonts and catalogue.
+  if (document.readyState === "complete") play();
+  else addEventListener("load", play, { once: true });
 }
 
 function wireProofVideo() {

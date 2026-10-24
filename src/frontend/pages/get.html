@@ -99,7 +99,7 @@
                  frame instead. -->
             <video id="gtHeroFilm" width="1200" height="900"
                    poster="/images/get-hero-film-poster.webp"
-                   muted playsinline preload="auto"
+                   muted playsinline preload="none"
                    aria-label="A ParkTag tag is stuck inside a windscreen. The tag shows no phone number. A phone scans it, opens the ParkTag page and starts a private call, and both phones connect without either number being shown.">
               <source src="/images/get-hero-film.webm" type="video/webm" />
               <source src="/images/get-hero-film.mp4" type="video/mp4" />
@@ -436,13 +436,6 @@
         </li>
       </ul>
 
-      <!-- Packs we cannot ship yet. Out of the first decision, but kept: the
-           "Tell me when it's back" taps are the only count of that demand. -->
-      <details class="gt-soon" id="gtSoon" hidden>
-        <summary>Coming back soon</summary>
-        <ul class="gt-packs" id="gtPacksOut"></ul>
-      </details>
-
       <p class="gt-note" id="gtNote" hidden></p>
 
       <footer class="gt-foot">
@@ -462,6 +455,15 @@
         <p class="gt-foot-mini"><a href="/track-order">Track an order</a> &middot; <a href="/owner-login">Sign in</a></p>
         <p class="gt-foot-copy">&copy; 2026 ParkTag. Made by EditTree.</p>
       </footer>
+
+      <!-- Packs we cannot ship yet, under the footer: a Meta visitor opened
+           this while deciding and left, so it no longer sits beside the two
+           packs that can be bought. Kept because the "Tell me when it's back"
+           taps are the only count of that demand. -->
+      <details class="gt-soon" id="gtSoon" hidden>
+        <summary>Sold out for now: get told when they're back</summary>
+        <ul class="gt-packs" id="gtPacksOut"></ul>
+      </details>
     </main>
 
     <!-- ── Sticky buy bar ──────────────────────────────────────────────── -->
